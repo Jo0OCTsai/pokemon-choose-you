@@ -50,6 +50,12 @@ pub async fn classify(
         .map(|(id, sender, content)| format!("[{id}] {sender}: {content}"))
         .collect::<Vec<_>>()
         .join("\n");
+    log::debug!(
+        "ai: 请求 {} 共 {} 条消息: {}",
+        cfg.model,
+        batch.len(),
+        trunc(&user_content, 500)
+    );
     let resp = client
         .post(format!("{}/chat/completions", cfg.base_url))
         .bearer_auth(&cfg.api_key)
@@ -77,6 +83,7 @@ pub async fn classify(
     let content = body["choices"][0]["message"]["content"]
         .as_str()
         .ok_or_else(|| AppError::External("AI 响应格式异常".into()))?;
+    log::debug!("ai: 原始响应: {}", trunc(content, 800));
     // 兼容模型输出 ```json 包裹的情况
     let content = content
         .trim()
@@ -94,6 +101,11 @@ pub async fn classify(
 }
 
 /// 连接测试
+/// 日志截断：按字符数截断（中文安全），避免长消息刷爆 512KB 轮转日志
+fn trunc(s: &str, n: usize) -> String {
+    s.chars().take(n).collect()
+}
+
 pub async fn test(cfg: &AiConfig) -> AppResult<String> {
     let r = classify(
         cfg,

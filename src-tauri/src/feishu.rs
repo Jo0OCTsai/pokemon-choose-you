@@ -23,10 +23,36 @@ pub fn load_config(get: &dyn Fn(&str) -> Option<String>) -> Option<FeishuConfig>
     })
 }
 
+/// 统一解析飞书响应：先读文本再校验，避免 reqwest 解码错误吞掉真实原因
+/// （飞书业务错误响应没有 data 字段，直接反序列化会报 "error decoding response body"）
+async fn feishu_json<T: serde::de::DeserializeOwned>(
+    resp: reqwest::Response,
+    what: &str,
+) -> AppResult<T> {
+    let status = resp.status();
+    let body = resp
+        .text()
+        .await
+        .map_err(|e| AppError::Network(format!("读取{what}响应失败: {e}")))?;
+    let v: serde_json::Value = serde_json::from_str(&body).map_err(|_| {
+        // 网关/代理可能返回 HTML 错误页，截断避免刷屏
+        let snippet: String = body.chars().take(200).collect();
+        AppError::External(format!("{what}返回非 JSON（HTTP {status}）: {snippet}"))
+    })?;
+    if v["code"].as_i64().is_some_and(|c| c != 0) {
+        let msg = v["msg"].as_str().unwrap_or("?");
+        return Err(AppError::External(format!(
+            "{what}失败（code {}）: {msg}",
+            v["code"]
+        )));
+    }
+    serde_json::from_value(v).map_err(|e| AppError::External(format!("{what}响应格式异常: {e}")))
+}
+
 /// tenant_access_token（飞书自建应用凭证，有效期约 2 小时，这里每次轮询重新获取，简单可靠）
 async fn token(cfg: &FeishuConfig) -> AppResult<String> {
     let client = reqwest::Client::new();
-    let resp: serde_json::Value = client
+    let resp = client
         .post(format!(
             "{}/auth/v3/tenant_access_token/internal",
             cfg.base_url
@@ -35,17 +61,9 @@ async fn token(cfg: &FeishuConfig) -> AppResult<String> {
         .timeout(std::time::Duration::from_secs(15))
         .send()
         .await
-        .map_err(|e| AppError::Network(format!("飞书 token 请求失败: {e}")))?
-        .json()
-        .await
-        .map_err(|e| AppError::External(e.to_string()))?;
-    if resp["code"].as_i64() != Some(0) {
-        return Err(AppError::External(format!(
-            "飞书 token 获取失败: {}",
-            resp["msg"].as_str().unwrap_or("?")
-        )));
-    }
-    resp["tenant_access_token"]
+        .map_err(|e| AppError::Network(format!("飞书 token 请求失败: {e}")))?;
+    let v: serde_json::Value = feishu_json(resp, "飞书 token 获取").await?;
+    v["tenant_access_token"]
         .as_str()
         .map(String::from)
         .ok_or_else(|| AppError::External("token 字段缺失".into()))
@@ -66,16 +84,14 @@ async fn list_chats(cfg: &FeishuConfig) -> AppResult<Vec<(String, String)>> {
     let client = reqwest::Client::new();
     let mut out = vec![];
     let url = format!("{}/im/v1/chats?page_size=100", cfg.base_url);
-    let page: ChatPage = client
+    let resp = client
         .get(&url)
         .bearer_auth(&token)
         .timeout(std::time::Duration::from_secs(15))
         .send()
         .await
-        .map_err(|e| AppError::Network(format!("拉取会话列表失败: {e}")))?
-        .json()
-        .await
-        .map_err(|e| AppError::External(e.to_string()))?;
+        .map_err(|e| AppError::Network(format!("拉取会话列表失败: {e}")))?;
+    let page: ChatPage = feishu_json(resp, "拉取会话列表").await?;
     for item in page.data.items.unwrap_or_default() {
         let chat_id = item["chat_id"].as_str().unwrap_or_default().to_string();
         let name = item["name"].as_str().unwrap_or("未命名会话").to_string();
@@ -138,6 +154,17 @@ fn extract_text(msg_type: &str, content: &str) -> Option<String> {
     }
 }
 
+/// 计算拉取窗口（秒级时间戳）。
+/// 飞书 im/v1/messages 的 start_time/end_time 只接受秒，传毫秒会落到远未来窗口、
+/// 永远返回空列表；游标内部仍以毫秒存储，出口处统一转秒。
+/// 首次拉取（无游标）回看 24 小时，兼顾"装好后能捞到当天消息"与不触发海量历史。
+fn window_secs(since_ms: Option<i64>, now_ms: i64) -> (i64, i64) {
+    let start = since_ms
+        .map(|s| s - 120_000) // 回退 2 分钟容错
+        .unwrap_or(now_ms - 24 * 3_600_000);
+    (start / 1000, now_ms / 1000)
+}
+
 /// 增量拉取：只处理上一次轮询之后的新消息
 async fn pull_new_messages(
     cfg: &FeishuConfig,
@@ -146,18 +173,19 @@ async fn pull_new_messages(
     let token = token(cfg).await?;
     let client = reqwest::Client::new();
     let chats = list_chats(cfg).await?;
+    if chats.is_empty() {
+        log::info!("feishu: 机器人不在任何会话中，无消息可拉取（把机器人拉进群、或私聊它后重试）");
+    }
     let now_ms = chrono::Utc::now().timestamp_millis();
-    // 拉取窗口：上次游标（回退 2 分钟容错）到当前
-    let start = since_ms
-        .map(|s| s - 120_000)
-        .unwrap_or(now_ms - 10 * 60_000);
+    let (start_s, end_s) = window_secs(since_ms, now_ms);
     let mut out = vec![];
     for (chat_id, chat_name) in chats {
         // 处理当前会话的所有分页
         let mut page_token: Option<String> = None;
+        let mut chat_count = 0usize;
         loop {
             let mut url = format!(
-                "{}/im/v1/messages?container_id_type=chat&container_id={chat_id}&page_size=50&start_time={start}&end_time={now_ms}",
+                "{}/im/v1/messages?container_id_type=chat&container_id={chat_id}&page_size=50&start_time={start_s}&end_time={end_s}",
                 cfg.base_url
             );
             if let Some(t) = &page_token {
@@ -174,10 +202,7 @@ async fn pull_new_messages(
                 log::warn!("feishu: chat {} 拉取失败 {}", chat_id, resp.status());
                 break;
             }
-            let page: MsgPage = resp
-                .json()
-                .await
-                .map_err(|e| AppError::External(e.to_string()))?;
+            let page: MsgPage = feishu_json(resp, "拉取消息").await?;
             for m in page.data.items.unwrap_or_default() {
                 let msg_type = m["msg_type"].as_str().unwrap_or_default();
                 let content = m["body"]["content"].as_str().unwrap_or_default();
@@ -186,12 +211,14 @@ async fn pull_new_messages(
                     if text.trim().is_empty() {
                         continue;
                     }
+                    log::debug!("feishu: 新消息「{chat_name}」{sender_id}: {text}");
                     out.push(NewMessage {
                         message_id: m["message_id"].as_str().unwrap_or_default().to_string(),
                         chat_name: chat_name.clone(),
                         sender: sender_id,
                         content: text,
                     });
+                    chat_count += 1;
                 }
             }
             if !page.data.has_more {
@@ -199,6 +226,7 @@ async fn pull_new_messages(
             }
             page_token = page.data.page_token;
         }
+        log::debug!("feishu: 会话「{chat_name}」本轮共 {chat_count} 条消息");
     }
     Ok((out, now_ms))
 }
@@ -234,6 +262,11 @@ pub async fn poll_once(app: &AppHandle) -> AppResult<usize> {
 
     let since: Option<i64> = get("feishu_cursor").and_then(|s| s.parse().ok());
     let (messages, cursor) = pull_new_messages(&fcfg, since).await?;
+    if messages.is_empty() {
+        log::debug!("feishu: 本轮无新消息");
+    } else {
+        log::info!("feishu: 本轮拉取到 {} 条新消息，送 AI 分类", messages.len());
+    }
 
     let mut saved = 0;
     // 分批送 AI（每批 20 条，避免超 token）
@@ -249,6 +282,17 @@ pub async fn poll_once(app: &AppHandle) -> AppResult<usize> {
                 continue;
             }
         };
+        let n_todo = suggestions.iter().filter(|s| s.todo).count();
+        log::info!("feishu: AI 判定 {n_todo}/{} 条为待办", batch.len());
+        for s in suggestions.iter().filter(|s| s.todo) {
+            log::info!(
+                "feishu: 待办「{}」分类 {} due {:?}（消息 {}）",
+                s.title.as_deref().unwrap_or("-"),
+                s.category.as_deref().unwrap_or("-"),
+                s.due,
+                s.message_id
+            );
+        }
         let by_id: std::collections::HashMap<String, &AiSuggestion> = suggestions
             .iter()
             .map(|s| (s.message_id.clone(), s))
@@ -274,6 +318,7 @@ pub async fn poll_once(app: &AppHandle) -> AppResult<usize> {
     }
 
     if saved > 0 {
+        log::info!("feishu: 新增 {saved} 条收件箱建议");
         let _ = app.emit(events::IM_SUGGESTIONS_CHANGED, saved);
     }
     {
@@ -467,6 +512,75 @@ mod tests {
             let chats = list_chats(&test_cfg(&server.uri())).await.unwrap();
             assert_eq!(chats, vec![("oc_1".to_string(), "项目群".to_string())]);
         });
+    }
+
+    /// 回归：飞书业务错误响应（code != 0，无 data 字段）不能只报 "error decoding response body"，
+    /// 必须带出飞书的 code/msg（如未开通 im:chat 权限），否则用户无从排查
+    #[test]
+    fn list_chats_api_error_reports_feishu_msg() {
+        tauri::async_runtime::block_on(async {
+            let server = MockServer::start().await;
+            Mock::given(method("POST"))
+                .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                    "code": 0, "tenant_access_token": "t-xyz"
+                })))
+                .mount(&server)
+                .await;
+            Mock::given(method("GET"))
+                .and(path("/im/v1/chats"))
+                .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                    "code": 99991672, "msg": "access control: you have no permission"
+                })))
+                .mount(&server)
+                .await;
+            let err = list_chats(&test_cfg(&server.uri())).await.unwrap_err();
+            let msg = err.to_string();
+            assert!(
+                msg.contains("99991672") && msg.contains("no permission"),
+                "错误应包含飞书 code 与 msg: {msg}"
+            );
+        });
+    }
+
+    /// 回归：网关/代理返回非 JSON（如 HTML 错误页）时错误应带 HTTP 状态与内容片段
+    #[test]
+    fn list_chats_non_json_body_reports_status_and_snippet() {
+        tauri::async_runtime::block_on(async {
+            let server = MockServer::start().await;
+            Mock::given(method("POST"))
+                .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                    "code": 0, "tenant_access_token": "t-xyz"
+                })))
+                .mount(&server)
+                .await;
+            Mock::given(method("GET"))
+                .and(path("/im/v1/chats"))
+                .respond_with(
+                    ResponseTemplate::new(502)
+                        .set_body_string("<html><body>Bad Gateway</body></html>"),
+                )
+                .mount(&server)
+                .await;
+            let err = list_chats(&test_cfg(&server.uri())).await.unwrap_err();
+            let msg = err.to_string();
+            assert!(
+                msg.contains("502") && msg.contains("Bad Gateway"),
+                "错误应包含状态码与响应片段: {msg}"
+            );
+        });
+    }
+
+    #[test]
+    fn window_secs_uses_seconds_and_first_pull_looks_back_24h() {
+        let now_ms = 1_789_211_331_894i64;
+        // 首次拉取（无游标）：回看 24 小时，输出为秒级
+        let (start, end) = window_secs(None, now_ms);
+        assert_eq!(end, 1_789_211_331, "毫秒游标出口转秒");
+        assert_eq!(start, end - 24 * 3600);
+        // 增量拉取：上次游标回退 2 分钟容错
+        let (start, end) = window_secs(Some(now_ms - 600_000), now_ms);
+        assert_eq!(start, (now_ms - 600_000 - 120_000) / 1000);
+        assert_eq!(end, now_ms / 1000);
     }
 
     /// 拉取链路：会话 + 文本/富文本消息入库为 NewMessage，图片消息跳过
