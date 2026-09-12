@@ -7,6 +7,7 @@ test-results
 src-tauri/target
 src-tauri/gen
 src-tauri/capabilities
+src-tauri/tauri.conf.json
 public
 design
 docs
