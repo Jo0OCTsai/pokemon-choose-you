@@ -102,10 +102,11 @@ export default {
     linuxHint: "Linux 下自動更新僅支援 AppImage 安裝方式；deb / rpm 使用者請下載新包覆蓋安裝。",
   },
   save: "儲存設定",
+  cancel: "取消",
   saved: "已儲存 ✔",
   testing: "測試中…",
   catSaved: "分類已更新 ✔",
-  promptSchedule: "加入路線：截止/開始時間（格式 2026-09-13T09:00）",
+  promptSchedule: "加入路線：選擇截止/開始時間",
   entry: {
     due: "截止 {v}",
     remind: "提醒 {v}",

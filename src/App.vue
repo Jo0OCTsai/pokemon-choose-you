@@ -33,6 +33,7 @@ const isTaskTab = computed(() => ["today", "inbox", "scheduled", "done"].include
 // 模板里 isTaskTab 的 v-if 收窄不了模板表达式的类型，这里集中收窄一次
 const activeTaskTab = computed<TaskTabKey>(() => (isTaskTab.value ? (tab.value as TaskTabKey) : "today"));
 const taskTab = ref<InstanceType<typeof TaskTab> | null>(null);
+const settingsTab = ref<InstanceType<typeof SettingsTab> | null>(null);
 
 // 后端发现新版本时广播，设置页展示安装入口
 const latestVersion = ref("");
@@ -97,17 +98,23 @@ onUnmounted(() => unlisteners.forEach((u) => u()));
         <div>
           <h1>{{ t(curTab.labelKey) }}</h1>
           <div class="sub">{{ t(curTab.descKey) }}</div>
-          <div class="sub px">{{ today.toISOString().slice(0, 10).split("-").join(".") }}</div>
+          <div v-if="tab === 'today'" class="sub px">
+            {{ today.toISOString().slice(0, 10).split("-").join(".") }}
+          </div>
         </div>
         <div v-if="tab === 'today'" class="catch-progress">
           <div class="px">CAUGHT {{ tasksStore.caught.done }}/{{ tasksStore.caught.total }}</div>
           <div class="catch-bar"><i :style="{ width: tasksStore.caught.pct + '%' }"></i></div>
         </div>
+        <!-- 设置页保存按钮与标题同行，靠右 -->
+        <button v-else-if="tab === 'settings'" class="btn head-save" @click="settingsTab?.save()">
+          {{ t("save") }}
+        </button>
       </div>
 
       <TaskTab v-if="isTaskTab" ref="taskTab" :tab="activeTaskTab" />
       <RadioTab v-else-if="tab === 'im'" />
-      <SettingsTab v-else :latest-version="latestVersion" />
+      <SettingsTab v-else ref="settingsTab" :latest-version="latestVersion" />
     </main>
   </div>
 </template>
@@ -253,6 +260,12 @@ body {
 .catch-progress {
   margin-left: auto;
   text-align: right;
+}
+/* 设置页保存按钮：与标题同行靠右，对齐标题首行 */
+.head-save {
+  margin-left: auto;
+  align-self: flex-start;
+  margin-top: 4px;
 }
 .catch-progress .px {
   font-size: 10px;
