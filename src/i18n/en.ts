@@ -260,6 +260,21 @@ export default {
   secret: {
     stored: "Saved in the OS keychain — type to replace (clear to remove)",
   },
+  backup: {
+    title: "Backups",
+    enable: "Daily auto backup (VACUUM INTO snapshots in the app data backups/ folder, rolling retention)",
+    keep: "Keep",
+    keepN: "{n} copies",
+    now: "Back up now",
+    working: "Backing up…",
+    done: "✔ Saved {v}",
+    hint: "Restore overwrites all current data (tasks/radio/settings) with the chosen snapshot; secrets live in the OS keychain and are unaffected.",
+    restore: "Restore",
+    confirmRestore: "Overwrite & restore?",
+    restoring: "Restoring…",
+    restored: "✔ Restored from backup, data refreshed",
+    empty: 'No backups yet — click "Back up now" to create the first one',
+  },
   update: {
     title: "Updates",
     current: "Current version v{v}",

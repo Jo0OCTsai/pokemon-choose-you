@@ -236,6 +236,21 @@ export async function installTauriMock(page: Page, state: Partial<MockState> = {
             return null;
           case "list_all_settings":
             return { ...db.settings };
+          case "list_backups":
+            return [
+              {
+                file: "pokemon-knock-20260901-080000.db",
+                size: 16384,
+                createdAt: "2026-09-01T08:00:00+08:00",
+              },
+            ];
+          case "create_backup_now":
+            return "pokemon-knock-20260913-120000.db";
+          case "restore_backup":
+            broadcast("tasks-changed");
+            broadcast("categories-changed");
+            broadcast("settings-changed");
+            return null;
           case "list_im_suggestions":
           case "list_chat_messages":
             return [];

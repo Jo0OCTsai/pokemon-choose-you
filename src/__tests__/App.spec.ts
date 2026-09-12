@@ -52,6 +52,9 @@ vi.mock("../api", () => ({
     consumeQuickCapture: vi.fn(),
     checkUpdate: vi.fn(),
     installUpdate: vi.fn(),
+    listBackups: vi.fn(),
+    createBackupNow: vi.fn(),
+    restoreBackup: vi.fn(),
   },
 }));
 
@@ -132,6 +135,7 @@ function wireBackend() {
   vi.mocked(api.listAllSettings).mockResolvedValue({});
   vi.mocked(api.consumeQuickCapture).mockResolvedValue(false);
   vi.mocked(api.checkUpdate).mockResolvedValue("");
+  vi.mocked(api.listBackups).mockResolvedValue([]);
   vi.mocked(api.installUpdate).mockResolvedValue(undefined);
   vi.mocked(api.listTasks).mockImplementation(async (filter: string) => {
     if (filter === "done") return tasks.filter((t) => t.status === "done" || t.status === "cancelled");
@@ -469,6 +473,28 @@ describe("App 图鉴机主面板", () => {
         scheduled: false,
       }),
     );
+  });
+
+  it("设置页通用区：数据备份卡片可立即备份并展示列表", async () => {
+    vi.mocked(api.listBackups).mockResolvedValue([
+      { file: "pokemon-knock-20260913-080000.db", size: 20480, createdAt: "2026-09-13T08:00:00+08:00" },
+    ]);
+    vi.mocked(api.createBackupNow).mockResolvedValue("pokemon-knock-20260913-120000.db");
+    const w = await mountApp();
+    await w.findAll(".menu-btn")[5].trigger("click"); // 设置
+    await w.findAll(".stab")[6].trigger("click"); // 通用
+    await new Promise((r) => setTimeout(r)); // 挂载时异步拉取备份列表
+    expect(w.text()).toContain("数据备份");
+    expect(w.findAll(".backup-row")).toHaveLength(1);
+    expect(w.text()).toContain("pokemon-knock-20260913-080000.db");
+
+    await w
+      .findAll(".btn")
+      .find((b) => b.text() === "立即备份")!
+      .trigger("click");
+    await new Promise((r) => setTimeout(r));
+    expect(api.createBackupNow).toHaveBeenCalled();
+    expect(w.text()).toContain("已备份 pokemon-knock-20260913-120000.db");
   });
 
   it("自然语言快速捕捉：设置关闭后不出现预览", async () => {

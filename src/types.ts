@@ -99,6 +99,16 @@ export interface ChatMessage {
   createdAt: string;
 }
 
+/** 数据备份快照（VACUUM INTO 产物，设置页展示与恢复） */
+export interface BackupInfo {
+  /** 备份文件名（pokemon-knock-YYYYMMDD-HHMMSS.db） */
+  file: string;
+  /** 字节数 */
+  size: number;
+  /** 备份时间（RFC3339） */
+  createdAt: string;
+}
+
 /** 飞书用户授权状态（设置页展示） */
 export interface FeishuOauthStatus {
   authorized: boolean;

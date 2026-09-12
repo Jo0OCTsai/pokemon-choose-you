@@ -255,6 +255,21 @@ export default {
   secret: {
     stored: "已保存在系統鑰匙圈，輸入可更換（清空即移除）",
   },
+  backup: {
+    title: "資料備份",
+    enable: "每日自動備份（VACUUM INTO 快照存於應用資料目錄 backups/，滾動保留）",
+    keep: "保留份數",
+    keepN: "{n} 份",
+    now: "立即備份",
+    working: "備份中…",
+    done: "✔ 已備份 {v}",
+    hint: "「恢復」會用所選備份覆蓋當前全部資料（任務/收音機/設定）；密鑰在系統鑰匙圈，不受影響。",
+    restore: "恢復",
+    confirmRestore: "確認覆蓋恢復？",
+    restoring: "恢復中…",
+    restored: "✔ 已從備份恢復，資料已刷新",
+    empty: "還沒有備份，點「立即備份」建立第一份",
+  },
   update: {
     title: "檢查更新",
     current: "目前版本 v{v}",
