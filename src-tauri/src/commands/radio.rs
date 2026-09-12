@@ -1,4 +1,4 @@
-use crate::ai::{self, AiConfig, AiMessage, ClassifyContext};
+use crate::ai::{self, AgentConfig, AiMessage, ClassifyContext};
 use crate::commands::tasks::{update_task, TaskPatch};
 use crate::db::{now, Db};
 use crate::error::{AppError, AppResult};
@@ -414,7 +414,7 @@ pub async fn force_create_todo<R: tauri::Runtime>(
     db: State<'_, Db>,
     id: i64,
 ) -> AppResult<i64> {
-    let (msg, cfg) = {
+    let (msg, agent) = {
         let conn = db.0.lock().unwrap();
         let msg = get_message(&conn, id)?;
         if msg.task_id.is_some() {
@@ -426,10 +426,10 @@ pub async fn force_create_todo<R: tauri::Runtime>(
             })
             .ok()
         };
-        let cfg: Option<AiConfig> = ai::load_config(&get);
-        (msg, cfg)
+        let agent: Option<AgentConfig> = ai::primary_agent(&get);
+        (msg, agent)
     };
-    let cfg = cfg.ok_or_else(|| AppError::Invalid("请先在设置中配置 AI 接口".into()))?;
+    let agent = agent.ok_or_else(|| AppError::Invalid("请先在设置中配置 AI Agent".into()))?;
 
     // 判定对象带上来源标签与同会话近期上下文，和后台轮询的语境一致
     let (ctx, label, context) = {
@@ -444,9 +444,8 @@ pub async fn force_create_todo<R: tauri::Runtime>(
         };
         (ctx, label, context)
     };
-    let (res, record) = ai::classify(
-        &cfg,
-        "force_create",
+    let res = ai::classify(
+        &agent,
         &[AiMessage {
             message_id: msg.message_id.clone(),
             sender: msg.sender.clone(),
@@ -457,7 +456,6 @@ pub async fn force_create_todo<R: tauri::Runtime>(
         &ctx,
     )
     .await;
-    ai::save_log(&db, &record);
 
     let sugg = match res {
         Ok(s) => s.into_iter().find(|s| s.message_id == msg.message_id),

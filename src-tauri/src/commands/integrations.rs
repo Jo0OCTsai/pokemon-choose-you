@@ -1,42 +1,164 @@
+use crate::ai::{self, AgentConfig};
 use crate::db::Db;
 use crate::error::{AppError, AppResult};
 use crate::events;
-use crate::models::AiLog;
 use rusqlite::params;
 use tauri::{AppHandle, Emitter, State};
 use tauri_plugin_updater::UpdaterExt;
 
-// ---- 集成：AI / 飞书 / Todoist ----
+// ---- 集成：AI Agent CLI / 飞书 / Todoist ----
 
-#[tauri::command]
-pub async fn test_ai_config(db: State<'_, Db>) -> AppResult<String> {
-    let cfg = {
-        let conn = db.0.lock().unwrap();
-        let get = |k: &str| -> Option<String> {
-            conn.query_row("SELECT value FROM settings WHERE key=?1", params![k], |r| {
-                r.get::<_, String>(0)
-            })
-            .ok()
-        };
-        crate::ai::load_config(&get)
-            .ok_or_else(|| AppError::Invalid("请先填写 AI Base URL 和 API Key".into()))?
-    };
-    let (res, record) = crate::ai::test(&cfg).await;
-    crate::ai::save_log(&db, &record);
-    res
-}
-
-#[tauri::command]
-pub async fn test_feishu_config(db: State<'_, Db>) -> AppResult<String> {
-    let get = |k: &str| -> Option<String> {
-        let conn = db.0.lock().unwrap();
+fn settings_getter(conn: &rusqlite::Connection) -> impl Fn(&str) -> Option<String> + '_ {
+    move |k| {
         conn.query_row("SELECT value FROM settings WHERE key=?1", params![k], |r| {
             r.get::<_, String>(0)
         })
         .ok()
+    }
+}
+
+/// 测试一个 agent（不指定 id 时用收音机分类所用的主 agent）
+#[tauri::command]
+pub async fn test_ai_config(db: State<'_, Db>, agent_id: Option<String>) -> AppResult<String> {
+    let agent = {
+        let conn = db.0.lock().unwrap();
+        let get = settings_getter(&conn);
+        match agent_id.as_deref() {
+            Some(id) if !id.is_empty() => ai::agent_by_id(&get, id),
+            _ => ai::primary_agent(&get),
+        }
+        .ok_or_else(|| AppError::Invalid("请先在设置中配置 AI Agent CLI".into()))?
     };
-    let cfg = crate::feishu::load_config(&get)
-        .ok_or_else(|| AppError::Invalid("请先填写飞书 App ID / App Secret".into()))?;
+    ai::test(&agent).await
+}
+
+/// 在系统终端里打开 agent 的历史记录界面（claude --resume / opencode 等）。
+/// 历史/会话由 agent 工具自己保存，这里只负责唤起。
+#[tauri::command]
+pub async fn open_agent_history(db: State<'_, Db>, agent_id: String) -> AppResult<String> {
+    let agent = {
+        let conn = db.0.lock().unwrap();
+        let get = settings_getter(&conn);
+        ai::agent_by_id(&get, &agent_id)
+            .ok_or_else(|| AppError::Invalid(format!("Agent {agent_id} 不存在，请先保存配置")))?
+    };
+    open_agent_in_terminal(&agent).await
+}
+
+async fn open_agent_in_terminal(agent: &AgentConfig) -> AppResult<String> {
+    let args: Vec<String> = agent
+        .history_args
+        .split_whitespace()
+        .map(String::from)
+        .collect();
+    spawn_in_terminal(&agent.command, &args)
+        .await
+        .map(|term| format!("已在 {term} 中启动「{}」", agent.name))
+}
+
+/// 在一个新的终端窗口里运行命令（各系统终端差异大，尽力而为）。
+/// 成功返回实际使用的终端程序名。
+async fn spawn_in_terminal(program: &str, args: &[String]) -> AppResult<&'static str> {
+    #[cfg(target_os = "macos")]
+    {
+        // Terminal.app 不接受命令参数，用 osascript 让它执行一条 shell 命令
+        let mut line = shell_quote(program).to_string();
+        for a in args {
+            line.push(' ');
+            line.push_str(&shell_quote(a));
+        }
+        let script = format!("tell application \"Terminal\" to do script \"{line}\"");
+        if tokio::process::Command::new("osascript")
+            .arg("-e")
+            .arg(&script)
+            .spawn()
+            .is_ok()
+        {
+            return Ok("Terminal");
+        }
+        return Err(AppError::External("无法打开 macOS 终端".into()));
+    }
+
+    #[cfg(target_os = "windows")]
+    {
+        let mut line = shell_quote(program).to_string();
+        for a in args {
+            line.push(' ');
+            line.push_str(&shell_quote(a));
+        }
+        let title = "pokemon-knock agent";
+        tokio::process::Command::new("cmd")
+            .args(["/C", "start", title, "cmd", "/K", &line])
+            .spawn()
+            .map_err(|e| AppError::External(format!("打开终端失败: {e}")))?;
+        return Ok("cmd");
+    }
+
+    #[cfg(all(unix, not(target_os = "macos")))]
+    {
+        // 常见 Linux 终端 ×（命令参数风格），逐个尝试
+        let candidates: &[(&str, &str)] = &[
+            ("gnome-terminal", "--"),
+            ("konsole", "-e"),
+            ("xfce4-terminal", "-x"),
+            ("kitty", ""),
+            ("alacritty", "-e"),
+            ("wezterm", "start --"),
+            ("foot", ""),
+            ("x-terminal-emulator", "-e"),
+        ];
+        for (term, flag) in candidates {
+            let mut cmd = tokio::process::Command::new(term);
+            if !flag.is_empty() {
+                cmd.args(flag.split_whitespace());
+            }
+            cmd.arg(program).args(args);
+            match cmd.spawn() {
+                Ok(_) => return Ok(term),
+                Err(e) if e.kind() == std::io::ErrorKind::NotFound => continue,
+                Err(e) => {
+                    return Err(AppError::External(format!("启动 {term} 失败: {e}")));
+                }
+            }
+        }
+        Err(AppError::External(
+            "未找到可用的终端模拟器（gnome-terminal / konsole / kitty …），请手动打开终端运行"
+                .into(),
+        ))
+    }
+
+    #[cfg(not(any(unix, windows)))]
+    {
+        let _ = (program, args);
+        Err(AppError::External("当前平台不支持打开终端".into()))
+    }
+}
+
+/// POSIX 风格的 shell 引用：含特殊字符时包单引号，内部单引号转义。
+/// 仅 macOS（osascript）/ Windows（cmd /K）分支使用。
+#[cfg_attr(not(any(target_os = "macos", target_os = "windows")), allow(dead_code))]
+fn shell_quote(s: &str) -> String {
+    if s.is_empty() {
+        return "''".into();
+    }
+    let safe = s
+        .chars()
+        .all(|c| c.is_ascii_alphanumeric() || "/_.-+=@:,%".contains(c));
+    if safe {
+        s.to_string()
+    } else {
+        format!("'{}'", s.replace('\'', r"'\''"))
+    }
+}
+
+#[tauri::command]
+pub async fn test_feishu_config(db: State<'_, Db>) -> AppResult<String> {
+    let cfg = {
+        let conn = db.0.lock().unwrap();
+        let get = settings_getter(&conn);
+        crate::feishu::load_config(&get)
+            .ok_or_else(|| AppError::Invalid("请先填写飞书 App ID / App Secret".into()))?
+    };
     crate::feishu::poll_once_test(&cfg, &db).await
 }
 
@@ -71,40 +193,6 @@ pub async fn feishu_oauth_login(app: AppHandle) -> AppResult<String> {
 #[tauri::command]
 pub async fn sync_todoist(app: AppHandle) -> AppResult<String> {
     crate::todoist::sync(&app).await
-}
-
-// ---- AI 链路可观测性：请求/响应留痕查看 ----
-
-#[tauri::command]
-pub fn list_ai_logs(db: State<Db>, limit: Option<i64>) -> AppResult<Vec<AiLog>> {
-    let limit = limit.unwrap_or(50).clamp(1, 200);
-    let conn = db.0.lock().unwrap();
-    let mut stmt = conn.prepare(
-        "SELECT id, scene, model, request_body, response_body, ok, error, duration_ms, created_at
-         FROM ai_logs ORDER BY id DESC LIMIT ?1",
-    )?;
-    let rows = stmt
-        .query_map(params![limit], |r| {
-            Ok(AiLog {
-                id: r.get(0)?,
-                scene: r.get(1)?,
-                model: r.get(2)?,
-                request_body: r.get(3)?,
-                response_body: r.get(4)?,
-                ok: r.get::<_, i64>(5)? != 0,
-                error: r.get(6)?,
-                duration_ms: r.get(7)?,
-                created_at: r.get(8)?,
-            })
-        })?
-        .collect::<Result<Vec<_>, _>>()?;
-    Ok(rows)
-}
-
-#[tauri::command]
-pub fn clear_ai_logs(db: State<Db>) -> AppResult<()> {
-    db.0.lock().unwrap().execute("DELETE FROM ai_logs", [])?;
-    Ok(())
 }
 
 // ---- 自动更新（tauri-plugin-updater，endpoint/公钥在 tauri.conf.json） ----
@@ -172,7 +260,6 @@ pub fn spawn_update_check<R: tauri::Runtime>(app: tauri::AppHandle<R>) {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::ai::AiCallRecord;
     use crate::commands::windows::PendingMainReopen;
     use crate::db::tests::test_conn;
     use crate::db::Db;
@@ -187,56 +274,38 @@ mod tests {
     }
 
     #[test]
-    fn ai_logs_list_order_limit_and_clear() {
-        let app = setup();
-        {
-            let db = app.state::<Db>();
-            for i in 1..=5 {
-                crate::ai::save_log(
-                    &db,
-                    &AiCallRecord {
-                        scene: "classify".into(),
-                        model: format!("m{i}"),
-                        request: format!("req{i}"),
-                        response: format!("resp{i}"),
-                        ok: true,
-                        error: None,
-                        duration_ms: i * 10,
-                    },
-                );
-            }
-        }
-        let logs = {
-            let db = app.state::<Db>();
-            list_ai_logs(db, Some(3)).unwrap()
-        };
-        assert_eq!(logs.len(), 3);
-        assert_eq!(logs[0].model, "m5", "最新在前");
-        assert_eq!(logs[0].duration_ms, 50);
-        let all = {
-            let db = app.state::<Db>();
-            list_ai_logs(db, None).unwrap()
-        };
-        assert_eq!(all.len(), 5, "默认拉全部（≤ 上限）");
-        {
-            let db = app.state::<Db>();
-            clear_ai_logs(db).unwrap();
-        }
-        let empty = {
-            let db = app.state::<Db>();
-            list_ai_logs(db, None).unwrap()
-        };
-        assert!(empty.is_empty());
-    }
-
-    #[test]
-    fn test_ai_config_without_credentials_is_invalid_input() {
+    fn test_ai_config_without_agents_is_invalid_input() {
         let app = setup();
         let db = app.state::<Db>();
-        let err = tauri::async_runtime::block_on(test_ai_config(db)).unwrap_err();
+        let err = tauri::async_runtime::block_on(test_ai_config(db, None)).unwrap_err();
         assert!(
             matches!(err, AppError::Invalid(_)),
             "缺配置应归为输入错误: {err}"
         );
+        assert!(err.to_string().contains("Agent"), "提示配置 Agent: {err}");
+    }
+
+    #[test]
+    fn open_agent_history_rejects_unknown_agent() {
+        let app = setup();
+        let db = app.state::<Db>();
+        let err =
+            tauri::async_runtime::block_on(open_agent_history(db, "ghost".into())).unwrap_err();
+        assert!(
+            matches!(err, AppError::Invalid(_)),
+            "未知 agent 给出输入错误: {err}"
+        );
+    }
+
+    #[test]
+    fn shell_quote_wraps_unsafe_tokens() {
+        assert_eq!(shell_quote("claude"), "claude");
+        assert_eq!(shell_quote("--resume"), "--resume");
+        assert_eq!(
+            shell_quote("/usr/local/bin/my agent"),
+            "'/usr/local/bin/my agent'"
+        );
+        assert_eq!(shell_quote("it's"), r#"'it'\''s'"#);
+        assert_eq!(shell_quote(""), "''");
     }
 }

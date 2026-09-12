@@ -1,10 +1,11 @@
 mod ai;
-mod commands;
-mod db;
-mod error;
+// db / models / error / commands 对外公开：pk CLI（src/bin/pk.rs）以 crate 库形式复用同一套数据逻辑
+pub mod commands;
+pub mod db;
+pub mod error;
 mod events;
 mod feishu;
-mod models;
+pub mod models;
 mod scheduler;
 mod shortcuts;
 mod todoist;
@@ -100,13 +101,12 @@ pub fn run() {
             commands::force_create_todo,
             commands::apply_chat_message_update,
             commands::test_ai_config,
+            commands::open_agent_history,
             commands::test_feishu_config,
             commands::trigger_feishu_poll,
             commands::feishu_oauth_login,
             commands::feishu_oauth_status,
             commands::sync_todoist,
-            commands::list_ai_logs,
-            commands::clear_ai_logs,
             commands::check_update,
             commands::install_update,
             commands::open_main_window,

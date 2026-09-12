@@ -8,7 +8,7 @@ import { EVENTS } from "../events";
 import { fmtDateTime, SETTING_KEYS, POKEMON_LIST, useSettingsStore } from "../stores/settings";
 import { useCategoriesStore } from "../stores/categories";
 import { useTagsStore } from "../stores/tags";
-import type { AiLog, FeishuOauthStatus } from "../types";
+import type { AgentConfig, FeishuOauthStatus } from "../types";
 import { SUPPORTED_LOCALES } from "../i18n";
 import DexSelect from "../components/DexSelect.vue";
 import DexToggle from "../components/DexToggle.vue";
@@ -43,7 +43,6 @@ const settingsTabs = [
   { key: "tags", labelKey: "stabs.tags" },
   { key: "display", labelKey: "stabs.display" },
   { key: "integrations", labelKey: "stabs.integrations" },
-  { key: "obs", labelKey: "stabs.obs" },
   { key: "general", labelKey: "stabs.general" },
 ] as const;
 const settingsTab = ref<(typeof settingsTabs)[number]["key"]>("focus");
@@ -217,31 +216,86 @@ async function feishuLogin() {
   }
 }
 
-// ---- AI 调用日志（链路可观测性） ----
-const aiLogs = ref<AiLog[]>([]);
-const logsLoading = ref(false);
-const expandedLogId = ref<number | null>(null);
-async function loadAiLogs() {
-  logsLoading.value = true;
+// ---- AI agent CLI 管理 ----
+/** 无头调用约定的预设：{prompt} 占位符由应用替换为提示词 */
+const AGENT_PRESETS: Record<string, Omit<AgentConfig, "id" | "timeoutSecs" | "enabled">> = {
+  claude: { name: "Claude Code", command: "claude", args: "-p {prompt}", historyArgs: "--resume" },
+  opencode: { name: "OpenCode", command: "opencode", args: "run {prompt}", historyArgs: "" },
+  kiro: { name: "Kiro CLI", command: "kiro", args: "-p {prompt}", historyArgs: "--resume" },
+  custom: { name: "", command: "", args: "{prompt}", historyArgs: "" },
+};
+const presetOptions = [
+  { value: "claude", label: "Claude Code" },
+  { value: "opencode", label: "OpenCode" },
+  { value: "kiro", label: "Kiro CLI" },
+  { value: "custom", label: "Custom" },
+];
+const agentPreset = ref("claude");
+const agents = ref<AgentConfig[]>([]);
+
+function newId(): string {
+  return typeof crypto !== "undefined" && "randomUUID" in crypto
+    ? crypto.randomUUID()
+    : `ag-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+}
+
+function loadAgents() {
   try {
-    aiLogs.value = await api.listAiLogs(50);
-  } finally {
-    logsLoading.value = false;
+    const parsed = JSON.parse(settings.sget("ai_agents") || "[]");
+    agents.value = Array.isArray(parsed) ? parsed : [];
+  } catch {
+    agents.value = [];
   }
 }
+
+/** 把本地编辑的 agent 列表序列化进设置并落库 */
+async function saveAgents() {
+  settings.values.ai_agents = JSON.stringify(agents.value);
+  await settings.save(["ai_agents", "ai_agent_id"]);
+}
+
+function addAgent() {
+  const preset = AGENT_PRESETS[agentPreset.value] ?? AGENT_PRESETS.custom;
+  agents.value.push({ id: newId(), timeoutSecs: 120, enabled: true, ...preset });
+}
+
+function removeAgent(id: string) {
+  agents.value = agents.value.filter((a) => a.id !== id);
+  if (settings.values.ai_agent_id === id) settings.values.ai_agent_id = "";
+}
+
+async function testAgent(ag: AgentConfig) {
+  testing.value = true;
+  testMsg.value = t("testing");
+  try {
+    await saveAgents();
+    testMsg.value = await api.testAiConfig(ag.id);
+  } catch (e) {
+    testMsg.value = `❌ ${errorMessage(e)}`;
+  } finally {
+    testing.value = false;
+  }
+}
+
+/** 历史记录由 agent 工具自带（claude --resume 等），这里只负责在新终端唤起 */
+async function openHistory(ag: AgentConfig) {
+  testing.value = true;
+  testMsg.value = t("ai.openingHistory");
+  try {
+    await saveAgents();
+    testMsg.value = await api.openAgentHistory(ag.id);
+  } catch (e) {
+    testMsg.value = `❌ ${errorMessage(e)}`;
+  } finally {
+    testing.value = false;
+  }
+}
+
 watch(settingsTab, (tab) => {
   if (tab === "cats") startEditCats();
   if (tab === "tags" && !editingTags.value.length) startEditTags();
-  if (tab === "obs") loadAiLogs();
+  if (tab === "integrations" && !agents.value.length) loadAgents();
 });
-async function clearLogs() {
-  await api.clearAiLogs();
-  await loadAiLogs();
-}
-function toggleLog(id: number) {
-  expandedLogId.value = expandedLogId.value === id ? null : id;
-}
-const sceneKey = (scene: string) => `obs.scene.${scene}`;
 
 // ---- 开机自启 ----
 const autostart = ref(false);
@@ -428,16 +482,46 @@ onUnmounted(() => unlisteners.forEach((u) => u()));
 
       <template v-if="settingsTab === 'integrations'">
         <section class="set-card">
-          <h3>{{ t("ai.title") }}</h3>
-          <label>Base URL<input v-model="settings.values.ai_base_url" placeholder="https://api.openai.com/v1" /></label>
-          <label>API Key<input v-model="settings.values.ai_api_key" type="password" placeholder="sk-..." /></label>
-          <label
-            >Model<input v-model="settings.values.ai_model" placeholder="gpt-4o-mini / deepseek-chat / glm-4-flash ..."
-          /></label>
+          <h3>🤖 {{ t("ai.title") }}</h3>
           <p class="hint">{{ t("ai.hint") }}</p>
-          <button class="btn ghost" :disabled="testing" @click="runTest(api.testAiConfig)">
-            {{ t("ai.test") }}
-          </button>
+          <div v-for="ag in agents" :key="ag.id" class="agent-block" :class="{ off: !ag.enabled }">
+            <div class="agent-row">
+              <input v-model="ag.name" class="agent-name" :placeholder="t('ai.namePh')" />
+              <input v-model="ag.command" class="agent-cmd" :placeholder="t('ai.cmdPh')" />
+              <DexToggle v-model="ag.enabled" :title="t('ai.enabled')" />
+              <button class="btn ghost del" @click="removeAgent(ag.id)">{{ t("ai.remove") }}</button>
+            </div>
+            <label>
+              {{ t("ai.args") }}
+              <input v-model="ag.args" :placeholder="t('ai.argsPh')" />
+            </label>
+            <label>
+              {{ t("ai.historyArgs") }}
+              <input v-model="ag.historyArgs" placeholder="--resume" />
+            </label>
+            <label>
+              {{ t("ai.timeout") }}
+              <input v-model.number="ag.timeoutSecs" type="number" min="10" step="10" />
+            </label>
+            <label class="chk-line">
+              <input v-model="settings.values.ai_agent_id" type="radio" name="primary-agent" :value="ag.id" />
+              {{ t("ai.primary") }}
+            </label>
+            <div class="btn-row">
+              <button class="btn ghost" @click="saveAgents">{{ t("ai.save") }}</button>
+              <button class="btn ghost" :disabled="testing" @click="testAgent(ag)">
+                {{ t("ai.test") }}
+              </button>
+              <button class="btn ghost" :disabled="testing" @click="openHistory(ag)">
+                {{ t("ai.history") }}
+              </button>
+            </div>
+          </div>
+          <div class="btn-row add-agent">
+            <DexSelect v-model="agentPreset" :options="presetOptions" />
+            <button class="btn ghost" @click="addAgent">{{ t("ai.add") }}</button>
+          </div>
+          <p class="hint">{{ t("ai.cliHint") }}</p>
         </section>
 
         <section class="set-card">
@@ -485,50 +569,6 @@ onUnmounted(() => unlisteners.forEach((u) => u()));
             <button class="btn ghost" :disabled="testing" @click="runTest(api.syncTodoist)">
               {{ t("todoist.sync") }}
             </button>
-          </div>
-        </section>
-      </template>
-
-      <template v-if="settingsTab === 'obs'">
-        <section class="set-card">
-          <h3>{{ t("obs.title") }}</h3>
-          <div class="btn-row">
-            <button class="btn ghost" :disabled="logsLoading" @click="loadAiLogs">
-              {{ t("obs.refresh") }}
-            </button>
-            <button class="btn ghost del" :disabled="!aiLogs.length" @click="clearLogs">
-              {{ t("obs.clear") }}
-            </button>
-          </div>
-          <p class="hint">{{ t("obs.hint") }}</p>
-
-          <div v-if="logsLoading" class="hint">{{ t("obs.loading") }}</div>
-          <div v-else-if="!aiLogs.length" class="hint">{{ t("obs.empty") }}</div>
-          <div
-            v-for="log in aiLogs"
-            :key="log.id"
-            class="log-item"
-            :class="{ fail: !log.ok }"
-            @click="toggleLog(log.id)"
-          >
-            <div class="log-head">
-              <span class="log-status">{{ log.ok ? "✔" : "✖" }}</span>
-              <span class="log-scene">{{ t(sceneKey(log.scene)) }}</span>
-              <span class="log-model px">{{ log.model }}</span>
-              <span class="log-dur px">{{ log.durationMs }}ms</span>
-              <span class="log-time px">{{ fmtDateTime(log.createdAt) }}</span>
-            </div>
-            <p v-if="!log.ok && log.error" class="log-err">{{ log.error }}</p>
-            <template v-if="expandedLogId === log.id">
-              <div class="log-body">
-                <div class="log-label">{{ t("obs.request") }}</div>
-                <pre>{{ log.requestBody }}</pre>
-              </div>
-              <div class="log-body">
-                <div class="log-label">{{ t("obs.response") }}</div>
-                <pre>{{ log.responseBody || (log.error ?? "-") }}</pre>
-              </div>
-            </template>
           </div>
         </section>
       </template>
@@ -712,71 +752,49 @@ onUnmounted(() => unlisteners.forEach((u) => u()));
 .set-card .btn.del {
   color: var(--dex-red);
 }
-/* AI 调用日志 */
-.log-item {
+/* AI agent 配置块 */
+.agent-block {
   border: 3px solid var(--dex-navy);
   border-radius: 10px;
-  padding: 8px 10px;
-  margin-top: 10px;
-  cursor: pointer;
+  padding: 10px 12px;
+  margin-bottom: 12px;
   background: #fff;
 }
-.log-item:hover {
-  background: #fff3c4;
+.agent-block.off {
+  opacity: 0.55;
 }
-.log-item.fail {
-  border-color: var(--dex-red);
-}
-.log-head {
+.agent-row {
   display: flex;
   align-items: center;
-  gap: 10px;
-  font-size: 13px;
-  font-weight: 700;
-  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 10px;
 }
-.log-status {
-  color: #2e8b57;
-}
-.log-item.fail .log-status {
-  color: var(--dex-red);
-}
-.log-model,
-.log-dur,
-.log-time {
-  font-size: 10px;
-  color: #7b7460;
-}
-.log-time {
-  margin-left: auto;
-}
-.log-err {
-  margin: 6px 0 0;
-  font-size: 12px;
-  color: var(--dex-red);
-  word-break: break-all;
-}
-.log-body {
-  margin-top: 8px;
-}
-.log-label {
-  font-size: 11px;
-  font-weight: 800;
-  color: var(--dex-navy);
-  margin-bottom: 4px;
-}
-.log-body pre {
-  margin: 0;
-  background: var(--lcd);
-  border: 2px solid var(--lcd-dark);
+.agent-row input {
+  padding: 7px 9px;
+  border: 3px solid var(--dex-navy);
   border-radius: 8px;
-  padding: 8px;
-  font-size: 11px;
-  line-height: 1.6;
-  white-space: pre-wrap;
-  word-break: break-all;
-  max-height: 220px;
-  overflow-y: auto;
+  font-size: 13px;
+  font-family: inherit;
+  min-height: 34px;
+}
+.agent-name {
+  width: 120px;
+  flex: none;
+}
+.agent-cmd {
+  flex: 1;
+  min-width: 0;
+}
+.agent-row .btn {
+  padding: 7px 10px;
+  min-height: 34px;
+  font-size: 12px;
+}
+.agent-block .btn-row {
+  margin-top: 10px;
+}
+.add-agent {
+  align-items: center;
 }
 .set-card label {
   display: flex;

@@ -8,6 +8,11 @@ use tauri::State;
 #[tauri::command]
 pub fn list_tags(db: State<Db>) -> AppResult<Vec<Tag>> {
     let conn = db.0.lock().unwrap();
+    list_tags_conn(&conn)
+}
+
+/// conn 版标签列表（pk CLI 复用）
+pub fn list_tags_conn(conn: &rusqlite::Connection) -> AppResult<Vec<Tag>> {
     let mut stmt = conn.prepare("SELECT id, name, description FROM tags ORDER BY id")?;
     let rows = stmt
         .query_map([], |r| {

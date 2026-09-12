@@ -128,21 +128,6 @@ pub struct ChatMessage {
     pub created_at: String,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct AiLog {
-    pub id: i64,
-    /// classify / force_create / test
-    pub scene: String,
-    pub model: String,
-    pub request_body: String,
-    pub response_body: String,
-    pub ok: bool,
-    pub error: Option<String>,
-    pub duration_ms: i64,
-    pub created_at: String,
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -341,35 +326,6 @@ mod tests {
                 "suggestedTitle",
                 "taskId",
                 "updateTaskId",
-            ]
-        );
-    }
-
-    #[test]
-    fn ai_log_json_contract_matches_ts_interface() {
-        let l = AiLog {
-            id: 1,
-            scene: "classify".into(),
-            model: "gpt-4o-mini".into(),
-            request_body: "{}".into(),
-            response_body: "{}".into(),
-            ok: true,
-            error: None,
-            duration_ms: 800,
-            created_at: "2026-09-01T00:00:00Z".into(),
-        };
-        assert_eq!(
-            keys_of(serde_json::to_value(&l).unwrap()),
-            vec![
-                "createdAt",
-                "durationMs",
-                "error",
-                "id",
-                "model",
-                "ok",
-                "requestBody",
-                "responseBody",
-                "scene",
             ]
         );
     }

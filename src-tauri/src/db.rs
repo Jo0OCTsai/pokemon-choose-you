@@ -190,10 +190,17 @@ const SCHEMA_V6: &str = r#"
 ALTER TABLE chat_messages ADD COLUMN update_task_id INTEGER;
 "#;
 
+/// v7：AI 链路观测下线（改用 AI agent CLI，历史记录由 agent 工具自带）：
+/// 删除 ai_logs 表与旧 AI 接口设置项
+const SCHEMA_V7: &str = r#"
+DROP TABLE IF EXISTS ai_logs;
+DELETE FROM settings WHERE key IN ('ai_base_url', 'ai_api_key', 'ai_model');
+"#;
+
 /// 迁移按序号执行：MIGRATIONS[i] 负责把 `PRAGMA user_version` 从 i 升到 i+1。
 /// 新的 schema 变更一律追加新条目（且只追加，不修改已发布条目），老库逐级前滚。
 const MIGRATIONS: &[&str] = &[
-    SCHEMA_V1, SCHEMA_V2, SCHEMA_V3, SCHEMA_V4, SCHEMA_V5, SCHEMA_V6,
+    SCHEMA_V1, SCHEMA_V2, SCHEMA_V3, SCHEMA_V4, SCHEMA_V5, SCHEMA_V6, SCHEMA_V7,
 ];
 
 #[derive(Debug, thiserror::Error)]
@@ -543,6 +550,56 @@ pub(crate) mod tests {
             )
             .unwrap();
         assert_eq!(target, Some(5));
+    }
+
+    /// 回归：v6 库升级 v7 后 ai_logs 表被删除、旧 AI 接口设置被清理
+    #[test]
+    fn migrates_v6_db_dropping_ai_logs_and_legacy_ai_settings() {
+        let conn = Connection::open_in_memory().unwrap();
+        for sql in [
+            SCHEMA_V1, SCHEMA_V2, SCHEMA_V3, SCHEMA_V4, SCHEMA_V5, SCHEMA_V6,
+        ] {
+            conn.execute_batch(sql).unwrap();
+        }
+        conn.execute("PRAGMA user_version = 6", []).unwrap();
+        conn.execute(
+            "INSERT INTO ai_logs (scene, model, request_body, response_body, ok, duration_ms, created_at)
+             VALUES ('classify', 'gpt-4o-mini', 'req', 'resp', 1, 10, '2026-09-01T00:00:00Z')",
+            [],
+        )
+        .unwrap();
+        for key in ["ai_base_url", "ai_api_key", "ai_model", "language"] {
+            conn.execute(
+                "INSERT INTO settings (key, value) VALUES (?1, 'x')",
+                rusqlite::params![key],
+            )
+            .unwrap();
+        }
+
+        init_conn(&conn).unwrap();
+        assert_eq!(user_version(&conn), MIGRATIONS.len() as i64);
+        let logs: i64 = conn
+            .query_row(
+                "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='ai_logs'",
+                [],
+                |r| r.get(0),
+            )
+            .unwrap();
+        assert_eq!(logs, 0, "ai_logs 表已删除");
+        let legacy: i64 = conn
+            .query_row(
+                "SELECT COUNT(*) FROM settings WHERE key IN ('ai_base_url','ai_api_key','ai_model')",
+                [],
+                |r| r.get(0),
+            )
+            .unwrap();
+        assert_eq!(legacy, 0, "旧 AI 接口设置被清理");
+        let lang: String = conn
+            .query_row("SELECT value FROM settings WHERE key='language'", [], |r| {
+                r.get(0)
+            })
+            .unwrap();
+        assert_eq!(lang, "x", "无关设置不受影响");
     }
 
     #[test]
