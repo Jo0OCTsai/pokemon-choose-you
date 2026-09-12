@@ -103,10 +103,11 @@ export default {
       "On Linux, auto-update only works with AppImage installs; deb / rpm users should download the new package.",
   },
   save: "Save settings",
+  cancel: "Cancel",
   saved: "Saved ✔",
   testing: "Testing…",
   catSaved: "Category updated ✔",
-  promptSchedule: "Add to route: due/start time (e.g. 2026-09-13T09:00)",
+  promptSchedule: "Add to route: pick due/start time",
   entry: {
     due: "Due {v}",
     remind: "Remind {v}",

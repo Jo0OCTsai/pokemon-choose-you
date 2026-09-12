@@ -5,6 +5,7 @@ import { api } from "../api";
 import { useTasksStore, type TaskTabKey } from "../stores/tasks";
 import TaskCard from "../components/TaskCard.vue";
 import AddTaskForm from "../components/AddTaskForm.vue";
+import DexDateTime from "../components/DexDateTime.vue";
 import type { Task } from "../types";
 
 const props = defineProps<{ tab: TaskTabKey }>();
@@ -45,10 +46,22 @@ async function remove(task: Task) {
   await api.deleteTask(task.id);
   await reload();
 }
-async function schedule(task: Task) {
-  const due = prompt(t("promptSchedule"), task.dueAt ?? "");
-  if (due === null) return;
-  await api.updateTask({ id: task.id, dueAt: due || null, status: "scheduled" });
+
+// ---- 修改时间：图鉴风弹窗 + 日期时间选择器（原生 prompt 与整体风格不符） ----
+const editing = ref<Task | null>(null);
+const editDue = ref("");
+function schedule(task: Task) {
+  editing.value = task;
+  editDue.value = task.dueAt ?? "";
+}
+function closeSchedule() {
+  editing.value = null;
+}
+async function saveSchedule() {
+  const task = editing.value;
+  if (!task) return;
+  editing.value = null;
+  await api.updateTask({ id: task.id, dueAt: editDue.value || null, status: "scheduled" });
   await reload();
 }
 
@@ -78,6 +91,18 @@ onMounted(reload);
         @remove="remove"
       />
     </ul>
+
+    <!-- 修改时间弹窗 -->
+    <div v-if="editing" class="sched-mask" @click.self="closeSchedule">
+      <div class="sched-card">
+        <h3>📅 {{ t("promptSchedule") }}</h3>
+        <DexDateTime v-model="editDue" />
+        <div class="btn-row">
+          <button class="btn" @click="saveSchedule">{{ t("save") }}</button>
+          <button class="btn ghost" @click="closeSchedule">{{ t("cancel") }}</button>
+        </div>
+      </div>
+    </div>
   </div>
 </template>
 
@@ -105,5 +130,35 @@ onMounted(reload);
   font-size: 14px;
   line-height: 2;
   list-style: none;
+}
+
+/* 修改时间弹窗：图鉴风卡片，日历弹层在卡片内层叠展示 */
+.sched-mask {
+  position: fixed;
+  inset: 0;
+  z-index: 80;
+  background: rgba(28, 34, 68, 0.45);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.sched-card {
+  background: #fff;
+  border: 3px solid var(--dex-navy);
+  border-radius: 12px;
+  box-shadow: 6px 6px 0 var(--dex-navy);
+  padding: 16px 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  min-width: 300px;
+}
+.sched-card h3 {
+  margin: 0;
+  font-size: 15px;
+}
+.sched-card .btn-row {
+  display: flex;
+  gap: 10px;
 }
 </style>
