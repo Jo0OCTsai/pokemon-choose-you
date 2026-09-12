@@ -1,7 +1,7 @@
 import type { Category, ImSuggestion, Task } from "./types";
 
 /** 后端 AppError（src-tauri/src/error.rs）经 IPC 序列化后的结构 */
-export type ApiErrorKind = "db" | "not_found" | "invalid" | "network" | "external" | "io";
+export type ApiErrorKind = "db" | "not_found" | "invalid" | "network" | "external" | "io" | "tauri";
 
 export class ApiError extends Error {
   readonly kind: ApiErrorKind;

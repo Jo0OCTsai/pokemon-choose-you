@@ -17,6 +17,8 @@ pub enum AppError {
     External(String),
     #[error("IO 错误: {0}")]
     Io(#[from] std::io::Error),
+    #[error("窗口操作失败: {0}")]
+    Tauri(#[from] tauri::Error),
 }
 
 impl AppError {
@@ -28,6 +30,7 @@ impl AppError {
             AppError::Network(_) => "network",
             AppError::External(_) => "external",
             AppError::Io(_) => "io",
+            AppError::Tauri(_) => "tauri",
         }
     }
 

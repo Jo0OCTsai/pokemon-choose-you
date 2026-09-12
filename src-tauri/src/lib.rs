@@ -12,18 +12,7 @@ mod tray;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    let builder = {
-        // macOS：桌宠型常驻应用不占 Dock 图标（Accessory），入口收敛到托盘与快捷键
-        #[cfg(target_os = "macos")]
-        {
-            tauri::Builder::default().set_activation_policy(tauri::ActivationPolicy::Accessory)
-        }
-        #[cfg(not(target_os = "macos"))]
-        {
-            tauri::Builder::default()
-        }
-    };
-    let app = builder
+    let app = tauri::Builder::default()
         // 单实例必须最先注册：二次启动唤起已有实例的主窗口后自行退出，
         // 否则两只桌宠并存 + 两个进程争抢同一个 SQLite 文件
         .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
@@ -59,6 +48,10 @@ pub fn run() {
         )
         .setup(|app| {
             use tauri::Manager;
+            // macOS：桌宠型常驻应用不占 Dock 图标（Accessory），入口收敛到托盘与快捷键。
+            // Builder 上无此方法，须在 App 上设置（macOS 专属 API）
+            #[cfg(target_os = "macos")]
+            app.set_activation_policy(tauri::ActivationPolicy::Accessory);
             db::init(app.handle())?;
             app.manage(commands::windows::PendingMainReopen(
                 std::sync::atomic::AtomicBool::new(false),
