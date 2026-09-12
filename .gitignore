@@ -17,6 +17,9 @@ test-results/
 playwright-report/
 coverage/
 
+# Agent 会话目录（本地规划文档，不入库）
+.zcode/
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json
