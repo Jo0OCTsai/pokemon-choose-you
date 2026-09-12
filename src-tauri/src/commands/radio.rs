@@ -10,6 +10,7 @@ use tauri::{Manager, State};
 
 const MSG_COLS: &str = "id, message_id, chat_id, chat_name, chat_type, sender, sender_id, sent_at, is_self, content, \
                         suggested_title, suggested_category, suggested_due, suggested_priority, suggested_note, suggested_tags, \
+                        suggested_reason, suggested_confidence, ai_agent, \
                         ai_status, review_status, task_id, update_task_id, followup_task_id, created_at";
 
 fn row_to_message(row: &rusqlite::Row) -> rusqlite::Result<ChatMessage> {
@@ -31,12 +32,15 @@ fn row_to_message(row: &rusqlite::Row) -> rusqlite::Result<ChatMessage> {
         suggested_priority: row.get(13)?,
         suggested_note: row.get(14)?,
         suggested_tags: serde_json::from_str(&tags_raw).unwrap_or_default(),
-        ai_status: row.get(16)?,
-        review_status: row.get(17)?,
-        task_id: row.get(18)?,
-        update_task_id: row.get(19)?,
-        followup_task_id: row.get(20)?,
-        created_at: row.get(21)?,
+        suggested_reason: row.get(16)?,
+        suggested_confidence: row.get(17)?,
+        ai_agent: row.get(18)?,
+        ai_status: row.get(19)?,
+        review_status: row.get(20)?,
+        task_id: row.get(21)?,
+        update_task_id: row.get(22)?,
+        followup_task_id: row.get(23)?,
+        created_at: row.get(24)?,
     })
 }
 
@@ -123,6 +127,65 @@ fn valid_priority(p: Option<&str>) -> String {
     }
 }
 
+/// 逃走原因码（前端选项与此一一对应，落 chat_feedback 供判重与提示词迭代分析）
+pub const ESCAPE_REASONS: &[&str] = &[
+    "duplicate",  // 已有类似待办
+    "not_task",   // 不是给我的任务
+    "wrong_info", // 建议内容不对（标题/时间/分类错了）
+    "noise",      // 闲聊/噪音
+    "outdated",   // 已过期
+    "other",      // 其他
+];
+
+fn valid_escape_reason(code: Option<&str>) -> AppResult<String> {
+    match code {
+        None => Ok(String::new()),
+        Some(c) if ESCAPE_REASONS.contains(&c) => Ok(c.to_string()),
+        Some(c) => Err(AppError::Invalid(format!("未知逃走原因码：{c}"))),
+    }
+}
+
+/// 把人工裁决落 chat_feedback：关联建议快照（message_id / AI 动作）与判定时的 agent，
+/// 为判重与提示词迭代积累本地数据。agent 名从设置里的 agent 列表反查（尽力而为）。
+fn record_feedback(
+    conn: &Connection,
+    msg: &ChatMessage,
+    action: &str,
+    reason_code: &str,
+) -> AppResult<()> {
+    let agent_name = conn
+        .query_row(
+            "SELECT value FROM settings WHERE key='ai_agents'",
+            [],
+            |r| r.get::<_, String>(0),
+        )
+        .ok()
+        .and_then(|raw| {
+            let agents: Vec<crate::ai::AgentConfig> = serde_json::from_str(&raw).ok()?;
+            agents
+                .iter()
+                .find(|a| a.id == msg.ai_agent)
+                .map(|a| a.name.clone())
+        })
+        .unwrap_or_default();
+    conn.execute(
+        "INSERT INTO chat_feedback (chat_message_id, message_id, ai_action, action, reason_code,
+                                    agent_id, agent_name, created_at)
+         VALUES (?1,?2,?3,?4,?5,?6,?7,?8)",
+        params![
+            msg.id,
+            msg.message_id,
+            msg.ai_status,
+            action,
+            reason_code,
+            msg.ai_agent,
+            agent_name,
+            now(),
+        ],
+    )?;
+    Ok(())
+}
+
 /// 用消息上的 AI 建议创建待办（含标签/优先级/截止时间），并回写消息状态。
 /// accept_chat_message 与 force_create_todo 共用。
 pub(crate) fn create_task_from_message(conn: &Connection, msg: &ChatMessage) -> AppResult<i64> {
@@ -178,7 +241,7 @@ pub(crate) fn create_task_from_message(conn: &Connection, msg: &ChatMessage) -> 
     Ok(task_id)
 }
 
-/// 捕捉：把 AI 建议落成待办
+/// 捕捉：把 AI 建议落成待办，并记录一条 accepted 反馈
 #[tauri::command]
 pub fn accept_chat_message<R: tauri::Runtime>(
     app: tauri::AppHandle<R>,
@@ -191,24 +254,33 @@ pub fn accept_chat_message<R: tauri::Runtime>(
         if msg.task_id.is_some() {
             return Err(AppError::Invalid("该消息已创建过待办".into()));
         }
-        create_task_from_message(&conn, &msg)?
+        let task_id = create_task_from_message(&conn, &msg)?;
+        record_feedback(&conn, &msg, "accepted", "")?;
+        task_id
     };
     events::broadcast(&app, events::TASKS_CHANGED);
     events::broadcast(&app, events::CHAT_MESSAGES_CHANGED);
     Ok(task_id)
 }
 
-/// 逃走：忽略这条建议（消息仍保留在收音机里）
+/// 逃走：忽略这条建议（消息仍保留在收音机里），可选带原因码落反馈库
 #[tauri::command]
 pub fn dismiss_chat_message<R: tauri::Runtime>(
     app: tauri::AppHandle<R>,
     db: State<Db>,
     id: i64,
+    reason_code: Option<String>,
 ) -> AppResult<()> {
-    db.0.lock().unwrap().execute(
-        "UPDATE chat_messages SET review_status='dismissed' WHERE id=?1",
-        params![id],
-    )?;
+    let reason = valid_escape_reason(reason_code.as_deref())?;
+    {
+        let conn = db.0.lock().unwrap();
+        let msg = get_message(&conn, id)?;
+        conn.execute(
+            "UPDATE chat_messages SET review_status='dismissed' WHERE id=?1",
+            params![id],
+        )?;
+        record_feedback(&conn, &msg, "dismissed", &reason)?;
+    }
     events::broadcast(&app, events::CHAT_MESSAGES_CHANGED);
     Ok(())
 }
@@ -330,6 +402,7 @@ pub fn apply_chat_message_update<R: tauri::Runtime>(
             "UPDATE chat_messages SET review_status='accepted' WHERE id=?1",
             params![id],
         )?;
+        record_feedback(&conn, &msg, "accepted", "")?;
         (task_id, patch)
     };
     update_task(app.clone(), db, patch, Some("radio".into()))?;
@@ -359,6 +432,7 @@ pub fn batch_review_chat_messages<R: tauri::Runtime>(
     db: State<Db>,
     ids: Vec<i64>,
     action: String,
+    reason_code: Option<String>,
 ) -> AppResult<BatchReviewResult> {
     if ids.is_empty() {
         return Err(AppError::Invalid("未选择任何消息".into()));
@@ -366,6 +440,12 @@ pub fn batch_review_chat_messages<R: tauri::Runtime>(
     if action != "accept" && action != "dismiss" {
         return Err(AppError::Invalid(format!("未知操作：{action}")));
     }
+    let reason = valid_escape_reason(reason_code.as_deref())?;
+    let feedback_action = if action == "accept" {
+        "accepted"
+    } else {
+        "dismissed"
+    };
     let mut result = BatchReviewResult {
         ok: 0,
         failed: vec![],
@@ -400,6 +480,7 @@ pub fn batch_review_chat_messages<R: tauri::Runtime>(
                                 "UPDATE chat_messages SET review_status='accepted' WHERE id=?1",
                                 params![id],
                             )?;
+                            record_feedback(&conn, &msg, feedback_action, &reason)?;
                             Prepared::ApplyUpdate(Box::new(patch))
                         }
                         Err(e) => {
@@ -412,7 +493,10 @@ pub fn batch_review_chat_messages<R: tauri::Runtime>(
                     }
                 } else {
                     match create_task_from_message(&conn, &msg) {
-                        Ok(_) => Prepared::Created,
+                        Ok(_) => {
+                            record_feedback(&conn, &msg, feedback_action, &reason)?;
+                            Prepared::Created
+                        }
                         Err(e) => {
                             result.failed.push(BatchFailure {
                                 id,
@@ -450,10 +534,19 @@ pub fn batch_review_chat_messages<R: tauri::Runtime>(
                 }
             }
         } else {
-            let n = db.0.lock().unwrap().execute(
-                "UPDATE chat_messages SET review_status='dismissed' WHERE id=?1 AND review_status='pending'",
-                params![id],
-            )?;
+            let n = {
+                let conn = db.0.lock().unwrap();
+                let n = conn.execute(
+                    "UPDATE chat_messages SET review_status='dismissed' WHERE id=?1 AND review_status='pending'",
+                    params![id],
+                )?;
+                if n > 0 {
+                    if let Ok(msg) = get_message(&conn, id) {
+                        record_feedback(&conn, &msg, feedback_action, &reason)?;
+                    }
+                }
+                n
+            };
             if n > 0 {
                 result.ok += 1;
             } else {
@@ -697,7 +790,8 @@ pub async fn force_create_todo<R: tauri::Runtime>(
             }
             conn.execute(
                 "UPDATE chat_messages SET suggested_title=?2, suggested_category=?3, suggested_due=?4,
-                        suggested_priority=?5, suggested_note=?6, suggested_tags=?7, update_task_id=?8, ai_status='update'
+                        suggested_priority=?5, suggested_note=?6, suggested_tags=?7, update_task_id=?8,
+                        suggested_reason=?9, suggested_confidence=?10, ai_agent=?11, ai_status='update'
                  WHERE id=?1",
                 params![
                     id,
@@ -708,6 +802,9 @@ pub async fn force_create_todo<R: tauri::Runtime>(
                     s.note,
                     serde_json::to_string(&s.tags).unwrap_or_else(|_| "[]".into()),
                     task_id,
+                    s.reason,
+                    s.confidence,
+                    agent.id,
                 ],
             )?;
             drop(conn);
@@ -726,7 +823,8 @@ pub async fn force_create_todo<R: tauri::Runtime>(
         if let Some(s) = &sugg {
             conn.execute(
                 "UPDATE chat_messages SET suggested_title=?2, suggested_category=?3, suggested_due=?4,
-                        suggested_priority=?5, suggested_note=?6, suggested_tags=?7, ai_status='todo'
+                        suggested_priority=?5, suggested_note=?6, suggested_tags=?7,
+                        suggested_reason=?8, suggested_confidence=?9, ai_agent=?10, ai_status='todo'
                  WHERE id=?1",
                 params![
                     id,
@@ -736,11 +834,17 @@ pub async fn force_create_todo<R: tauri::Runtime>(
                     s.priority,
                     s.note,
                     serde_json::to_string(&s.tags).unwrap_or_else(|_| "[]".into()),
+                    s.reason,
+                    s.confidence,
+                    agent.id,
                 ],
             )?;
             msg = get_message(&conn, id)?;
         }
-        create_task_from_message(&conn, &msg)?
+        let task_id = create_task_from_message(&conn, &msg)?;
+        // 强制捕捉本身是反馈：AI 原判（none/error/miss）被用户推翻
+        record_feedback(&conn, &msg, "forced", "")?;
+        task_id
     };
     events::broadcast(&app, events::TASKS_CHANGED);
     events::broadcast(&app, events::CHAT_MESSAGES_CHANGED);
@@ -893,7 +997,7 @@ mod tests {
         let mid = seed_message(&app, "om_1");
         {
             let db = app.state::<Db>();
-            dismiss_chat_message(app.handle().clone(), db, mid).unwrap();
+            dismiss_chat_message(app.handle().clone(), db, mid, None).unwrap();
         }
         let msgs = {
             let db = app.state::<Db>();
@@ -901,6 +1005,168 @@ mod tests {
         };
         assert_eq!(msgs[0].review_status, "dismissed");
         assert!(msgs[0].task_id.is_none(), "逃走不删消息");
+    }
+
+    /// 逃走带原因码：原因落 chat_feedback 并关联判定时的 agent
+    #[test]
+    fn dismiss_with_reason_records_feedback() {
+        let app = setup();
+        {
+            let db = app.state::<Db>();
+            let conn = db.0.lock().unwrap();
+            conn.execute(
+                "INSERT INTO settings (key, value) VALUES ('ai_agents', ?1)",
+                params![serde_json::to_string(&[crate::ai::AgentConfig {
+                    id: "claude-code".into(),
+                    name: "Claude Code".into(),
+                    command: "claude".into(),
+                    ..Default::default()
+                }])
+                .unwrap()],
+            )
+            .unwrap();
+        }
+        let mid = seed_message(&app, "om_1");
+        {
+            let db = app.state::<Db>();
+            let conn = db.0.lock().unwrap();
+            conn.execute(
+                "UPDATE chat_messages SET ai_agent='claude-code' WHERE id=?1",
+                params![mid],
+            )
+            .unwrap();
+        }
+        {
+            let db = app.state::<Db>();
+            dismiss_chat_message(app.handle().clone(), db, mid, Some("duplicate".into())).unwrap();
+        }
+        let (action, reason, agent_id, agent_name, ai_action): (
+            String,
+            String,
+            String,
+            String,
+            String,
+        ) = {
+            let db = app.state::<Db>();
+            let conn = db.0.lock().unwrap();
+            conn.query_row(
+                "SELECT action, reason_code, agent_id, agent_name, ai_action FROM chat_feedback WHERE chat_message_id=?1",
+                params![mid],
+                |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?, r.get(3)?, r.get(4)?)),
+            )
+            .unwrap()
+        };
+        assert_eq!(action, "dismissed");
+        assert_eq!(reason, "duplicate");
+        assert_eq!(agent_id, "claude-code", "反馈关联判定时的 agent");
+        assert_eq!(
+            agent_name, "Claude Code",
+            "agent 名快照防配置删改后无法辨识"
+        );
+        assert_eq!(ai_action, "todo", "关联建议的 AI 动作");
+    }
+
+    /// 逃走原因码只认白名单；直接逃走（无原因码）也记反馈
+    #[test]
+    fn dismiss_rejects_unknown_reason_and_allows_plain() {
+        let app = setup();
+        let mid = seed_message(&app, "om_1");
+        let err = {
+            let db = app.state::<Db>();
+            dismiss_chat_message(app.handle().clone(), db, mid, Some("nope".into())).unwrap_err()
+        };
+        assert!(matches!(err, AppError::Invalid(_)), "{err}");
+        // 无原因码：正常逃走，reason_code 落空串
+        {
+            let db = app.state::<Db>();
+            dismiss_chat_message(app.handle().clone(), db, mid, None).unwrap();
+        }
+        let (action, reason): (String, String) = {
+            let db = app.state::<Db>();
+            let conn = db.0.lock().unwrap();
+            conn.query_row(
+                "SELECT action, reason_code FROM chat_feedback WHERE chat_message_id=?1",
+                params![mid],
+                |r| Ok((r.get(0)?, r.get(1)?)),
+            )
+            .unwrap()
+        };
+        assert_eq!((action.as_str(), reason.as_str()), ("dismissed", ""));
+    }
+
+    /// 捕捉与应用更新也落 accepted 反馈
+    #[test]
+    fn accept_and_apply_update_record_feedback() {
+        let app = setup();
+        seed_tag(&app, "重要");
+        let mid = seed_message(&app, "om_1");
+        {
+            let db = app.state::<Db>();
+            accept_chat_message(app.handle().clone(), db, mid).unwrap();
+        }
+        let task_id = seed_task(&app, "参加周会");
+        let umid = seed_update_message(
+            &app,
+            "om_u1",
+            Some(task_id),
+            Some("2026-09-14T10:00"),
+            None,
+            None,
+            "[]",
+        );
+        {
+            let db = app.state::<Db>();
+            apply_chat_message_update(app.handle().clone(), db, umid).unwrap();
+        }
+        let actions: Vec<String> = {
+            let db = app.state::<Db>();
+            let conn = db.0.lock().unwrap();
+            let mut stmt = conn
+                .prepare("SELECT action FROM chat_feedback ORDER BY id")
+                .unwrap();
+            stmt.query_map([], |r| r.get::<_, String>(0))
+                .unwrap()
+                .collect::<Result<Vec<_>, _>>()
+                .unwrap()
+        };
+        assert_eq!(actions, vec!["accepted".to_string(); 2]);
+    }
+
+    /// 批量逃走带原因码逐条落反馈
+    #[test]
+    fn batch_dismiss_records_feedback_with_reason() {
+        let app = setup();
+        let m1 = seed_message(&app, "om_d1");
+        let m2 = seed_message(&app, "om_d2");
+        {
+            let db = app.state::<Db>();
+            batch_review_chat_messages(
+                app.handle().clone(),
+                db,
+                vec![m1, m2],
+                "dismiss".into(),
+                Some("noise".into()),
+            )
+            .unwrap();
+        }
+        let rows: Vec<(String, String)> = {
+            let db = app.state::<Db>();
+            let conn = db.0.lock().unwrap();
+            let mut stmt = conn
+                .prepare("SELECT action, reason_code FROM chat_feedback ORDER BY id")
+                .unwrap();
+            stmt.query_map([], |r| Ok((r.get(0)?, r.get(1)?)))
+                .unwrap()
+                .collect::<Result<Vec<_>, _>>()
+                .unwrap()
+        };
+        assert_eq!(
+            rows,
+            vec![
+                ("dismissed".to_string(), "noise".to_string()),
+                ("dismissed".to_string(), "noise".to_string())
+            ]
+        );
     }
 
     #[test]
@@ -1377,7 +1643,7 @@ mod tests {
         let gone_mid = seed_message(&app, "om_b3");
         {
             let db = app.state::<Db>();
-            dismiss_chat_message(app.handle().clone(), db, gone_mid).unwrap();
+            dismiss_chat_message(app.handle().clone(), db, gone_mid, None).unwrap();
         }
 
         let result = {
@@ -1387,6 +1653,7 @@ mod tests {
                 db,
                 vec![todo_mid, update_mid, gone_mid],
                 "accept".into(),
+                None,
             )
             .unwrap()
         };
@@ -1423,8 +1690,14 @@ mod tests {
         }
         let result = {
             let db = app.state::<Db>();
-            batch_review_chat_messages(app.handle().clone(), db, vec![m1, m2], "dismiss".into())
-                .unwrap()
+            batch_review_chat_messages(
+                app.handle().clone(),
+                db,
+                vec![m1, m2],
+                "dismiss".into(),
+                None,
+            )
+            .unwrap()
         };
         assert_eq!(result.ok, 1);
         assert_eq!(result.failed.len(), 1, "已捕捉的不能再逃走");
@@ -1444,14 +1717,14 @@ mod tests {
         let app = setup();
         let err = {
             let db = app.state::<Db>();
-            batch_review_chat_messages(app.handle().clone(), db, vec![], "accept".into())
+            batch_review_chat_messages(app.handle().clone(), db, vec![], "accept".into(), None)
                 .unwrap_err()
         };
         assert!(matches!(err, AppError::Invalid(_)));
         let mid = seed_message(&app, "om_x1");
         let err = {
             let db = app.state::<Db>();
-            batch_review_chat_messages(app.handle().clone(), db, vec![mid], "delete".into())
+            batch_review_chat_messages(app.handle().clone(), db, vec![mid], "delete".into(), None)
                 .unwrap_err()
         };
         assert!(err.to_string().contains("未知操作"), "{err}");

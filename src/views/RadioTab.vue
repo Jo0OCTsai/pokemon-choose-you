@@ -41,10 +41,21 @@ async function acceptIm(m: ChatMessage) {
   await api.acceptChatMessage(m.id);
   await reload();
 }
-async function dismissIm(m: ChatMessage) {
-  await api.dismissChatMessage(m.id);
+async function dismissIm(m: ChatMessage, reasonCode?: string) {
+  await api.dismissChatMessage(m.id, reasonCode);
+  escapeMenuId.value = null;
   await reload();
 }
+
+// ---- 逃走原因（可选）：帮助 AI 判重与提示词迭代，直接点「✕ 逃走」则不填原因 ----
+const ESCAPE_REASONS = ["duplicate", "not_task", "wrong_info", "noise", "outdated", "other"] as const;
+const escapeMenuId = ref<number | null>(null);
+function toggleEscapeMenu(id: number) {
+  escapeMenuId.value = escapeMenuId.value === id ? null : id;
+}
+
+// 批量逃走共用一个原因下拉（默认不填）
+const batchEscapeReason = ref("");
 
 // 强制捕捉：让 AI 为消息建待办（先判重，重复/跟进会返回说明）
 const forcingId = ref<number | null>(null);
@@ -114,7 +125,8 @@ async function batch(action: "accept" | "dismiss") {
   batching.value = true;
   batchMsg.value = "";
   try {
-    const r = await api.batchReviewChatMessages(ids, action);
+    const reason = action === "dismiss" ? batchEscapeReason.value || undefined : undefined;
+    const r = await api.batchReviewChatMessages(ids, action, reason);
     batchMsg.value = r.failed.length
       ? t("im.batchPartial", { ok: r.ok, fail: r.failed.length })
       : t("im.batchDone", { n: r.ok });
@@ -147,6 +159,15 @@ async function batch(action: "accept" | "dismiss") {
       <button class="btn ghost" :disabled="!selected.size || batching" @click="batch('dismiss')">
         {{ t("im.batchRelease") }}{{ selected.size ? `（${selected.size}）` : "" }}
       </button>
+      <select
+        v-model="batchEscapeReason"
+        class="batch-reason"
+        :title="t('im.escapeWhy')"
+        :aria-label="t('im.escapeWhy')"
+      >
+        <option value="">{{ t("im.escapeNoReason") }}</option>
+        <option v-for="c in ESCAPE_REASONS" :key="c" :value="c">{{ t(`im.escapeReasons.${c}`) }}</option>
+      </select>
       <span v-if="batchMsg" class="force-msg">{{ batchMsg }}</span>
     </div>
 
@@ -167,7 +188,11 @@ async function batch(action: "accept" | "dismiss") {
         {{ t("im.found") }}{{ m.suggestedTitle }}
         <span v-if="m.suggestedDue">（{{ t("entry.due", { v: fmtDateTime(m.suggestedDue) }) }}）</span>
         <span v-if="m.suggestedPriority" class="sug-prio">{{ t(`priority.${m.suggestedPriority}`) }}</span>
+        <span v-if="m.suggestedConfidence" class="sug-conf" :class="'c-' + m.suggestedConfidence">
+          {{ t(`im.confidence.${m.suggestedConfidence}`) }}
+        </span>
         <span v-for="tag in m.suggestedTags" :key="tag" class="sug-tag"># {{ tag }}</span>
+        <span v-if="m.suggestedReason" class="sug-reason">💡 {{ m.suggestedReason }}</span>
       </div>
 
       <!-- AI 建议：更新已有待办（只展示明确给出的变更字段） -->
@@ -177,7 +202,20 @@ async function batch(action: "accept" | "dismiss") {
         <span v-if="m.suggestedTitle">{{ t("edit.title") }} → {{ m.suggestedTitle }}</span>
         <span v-if="m.suggestedDue">（{{ t("entry.due", { v: fmtDateTime(m.suggestedDue) }) }}）</span>
         <span v-if="m.suggestedPriority" class="sug-prio">{{ t(`priority.${m.suggestedPriority}`) }}</span>
+        <span v-if="m.suggestedConfidence" class="sug-conf" :class="'c-' + m.suggestedConfidence">
+          {{ t(`im.confidence.${m.suggestedConfidence}`) }}
+        </span>
         <span v-for="tag in m.suggestedTags" :key="tag" class="sug-tag"># {{ tag }}</span>
+        <span v-if="m.suggestedReason" class="sug-reason">💡 {{ m.suggestedReason }}</span>
+      </div>
+
+      <!-- 逃走原因选择（可选）：选一个原因码再逃走，帮 AI 越判越准 -->
+      <div v-if="escapeMenuId === m.id && m.reviewStatus === 'pending'" class="escape-reasons">
+        <span class="er-label">{{ t("im.escapeWhy") }}</span>
+        <button v-for="code in ESCAPE_REASONS" :key="code" class="btn ghost er-chip" @click="dismissIm(m, code)">
+          {{ t(`im.escapeReasons.${code}`) }}
+        </button>
+        <button class="btn ghost er-chip just" @click="dismissIm(m)">{{ t("im.justEscape") }}</button>
       </div>
 
       <div class="im-actions">
@@ -204,10 +242,26 @@ async function batch(action: "accept" | "dismiss") {
             {{ forcingId === m.id ? t("im.forcing") : t("im.applyUpdate") }}
           </button>
           <button class="btn ghost" @click="dismissIm(m)">{{ t("im.release") }}</button>
+          <button
+            class="btn ghost er-toggle"
+            :title="t('im.escapeWhy')"
+            :aria-label="t('im.escapeWhy')"
+            @click="toggleEscapeMenu(m.id)"
+          >
+            ▾
+          </button>
         </template>
         <template v-else-if="m.reviewStatus === 'pending' && m.aiStatus === 'todo'">
           <button class="btn" @click="acceptIm(m)">{{ t("im.catch") }}</button>
           <button class="btn ghost" @click="dismissIm(m)">{{ t("im.release") }}</button>
+          <button
+            class="btn ghost er-toggle"
+            :title="t('im.escapeWhy')"
+            :aria-label="t('im.escapeWhy')"
+            @click="toggleEscapeMenu(m.id)"
+          >
+            ▾
+          </button>
           <button class="btn ghost force" :disabled="forcingId === m.id" @click="forceCreate(m)">
             {{ forcingId === m.id ? t("im.forcing") : t("im.force") }}
           </button>
@@ -362,6 +416,60 @@ async function batch(action: "accept" | "dismiss") {
   border: 2px solid var(--dex-navy);
   border-radius: 999px;
   padding: 0 7px;
+}
+/* 置信档位：高=绿 / 中=琥珀 / 低=灰 */
+.sug-conf {
+  font-size: 11px;
+  font-weight: 800;
+  border: 2px solid var(--dex-navy);
+  border-radius: 4px;
+  padding: 0 6px;
+}
+.sug-conf.c-high {
+  color: #1d6b3c;
+  background: #dff3e4;
+}
+.sug-conf.c-medium {
+  color: #a1660a;
+  background: #fff3d6;
+}
+.sug-conf.c-low {
+  color: #6b6657;
+  background: #eceada;
+}
+/* 判定理由独占一行 */
+.sug-reason {
+  flex-basis: 100%;
+  font-size: 12px;
+  font-weight: 500;
+  color: #6b6657;
+}
+/* 逃走原因选择条 */
+.escape-reasons {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  font-size: 12px;
+}
+.er-label {
+  font-weight: 800;
+  color: var(--dex-navy);
+}
+.er-toggle {
+  padding: 4px 8px;
+}
+.er-chip.just {
+  border-style: dashed;
+}
+.batch-reason {
+  padding: 4px 6px;
+  border: 3px solid var(--dex-navy);
+  border-radius: 8px;
+  font-size: 12px;
+  background: #fff;
+  font-family: inherit;
+  min-height: 30px;
 }
 .im-actions {
   display: flex;

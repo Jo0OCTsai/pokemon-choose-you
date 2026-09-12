@@ -81,6 +81,18 @@ export default {
     batchRelease: "✕ Release all",
     batchDone: "{n} processed",
     batchPartial: "{ok} done · {fail} failed",
+    escapeWhy: "Why release? (helps the AI improve)",
+    escapeNoReason: "No reason",
+    justEscape: "Just release",
+    confidence: { high: "High", medium: "Medium", low: "Low" },
+    escapeReasons: {
+      duplicate: "Already tracked",
+      not_task: "Not for me",
+      wrong_info: "Wrong details",
+      noise: "Chatter/noise",
+      outdated: "Outdated",
+      other: "Other",
+    },
     type: { bot: "Bot", p2p: "Direct", group: "Group" },
     status: {
       pending: "AI pending",

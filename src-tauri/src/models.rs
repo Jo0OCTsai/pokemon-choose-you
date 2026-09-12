@@ -116,6 +116,15 @@ pub struct ChatMessage {
     pub suggested_note: Option<String>,
     /// AI 建议的标签名（JSON 数组字符串解析而来）
     pub suggested_tags: Vec<String>,
+    /// AI 判定理由（为什么是待办 / 为什么不算），随建议展示并落反馈库
+    #[serde(default)]
+    pub suggested_reason: Option<String>,
+    /// 置信档位 high / medium / low（AI 对判定的把握）
+    #[serde(default)]
+    pub suggested_confidence: Option<String>,
+    /// 给出建议的 agent id（判定时刻的记录，反馈落库时关联模型用）
+    #[serde(default)]
+    pub ai_agent: String,
     /// pending / todo / none / followup / error / skipped（仅作上下文，不送 AI）
     pub ai_status: String,
     /// pending / accepted / dismissed
@@ -299,6 +308,9 @@ mod tests {
             suggested_priority: None,
             suggested_note: None,
             suggested_tags: vec![],
+            suggested_reason: None,
+            suggested_confidence: None,
+            ai_agent: String::new(),
             ai_status: "pending".into(),
             review_status: "pending".into(),
             task_id: None,
@@ -309,6 +321,7 @@ mod tests {
         assert_eq!(
             keys_of(serde_json::to_value(&m).unwrap()),
             vec![
+                "aiAgent",
                 "aiStatus",
                 "chatId",
                 "chatName",
@@ -324,9 +337,11 @@ mod tests {
                 "senderId",
                 "sentAt",
                 "suggestedCategory",
+                "suggestedConfidence",
                 "suggestedDue",
                 "suggestedNote",
                 "suggestedPriority",
+                "suggestedReason",
                 "suggestedTags",
                 "suggestedTitle",
                 "taskId",

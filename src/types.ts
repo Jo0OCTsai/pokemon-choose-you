@@ -81,6 +81,12 @@ export interface ChatMessage {
   suggestedPriority?: string | null;
   suggestedNote?: string | null;
   suggestedTags: string[];
+  /** AI 判定理由（为什么是待办 / 为什么不算） */
+  suggestedReason?: string | null;
+  /** 置信档位 high / medium / low */
+  suggestedConfidence?: string | null;
+  /** 给出建议的 agent id（判定时刻记录，反馈落库时关联模型） */
+  aiAgent?: string;
   /** pending / todo / none / followup / error */
   aiStatus: string;
   reviewStatus: "pending" | "accepted" | "dismissed";

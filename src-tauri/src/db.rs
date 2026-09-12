@@ -202,10 +202,32 @@ const SCHEMA_V8: &str = r#"
 ALTER TABLE chat_messages ADD COLUMN followup_task_id INTEGER;
 "#;
 
+/// v9：AI 信任与反馈回路——建议附 reason / 置信档位，消息记录判定时的 agent；
+/// 人工裁决（捕捉/逃走/应用更新）落 chat_feedback，关联建议与模型，为判重与提示词迭代积累本地数据
+const SCHEMA_V9: &str = r#"
+ALTER TABLE chat_messages ADD COLUMN suggested_reason TEXT;
+ALTER TABLE chat_messages ADD COLUMN suggested_confidence TEXT;
+ALTER TABLE chat_messages ADD COLUMN ai_agent TEXT NOT NULL DEFAULT '';
+
+CREATE TABLE IF NOT EXISTS chat_feedback (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    chat_message_id INTEGER NOT NULL,
+    message_id TEXT NOT NULL DEFAULT '',
+    ai_action TEXT NOT NULL DEFAULT '',
+    action TEXT NOT NULL,
+    reason_code TEXT NOT NULL DEFAULT '',
+    agent_id TEXT NOT NULL DEFAULT '',
+    agent_name TEXT NOT NULL DEFAULT '',
+    created_at TEXT NOT NULL DEFAULT ''
+);
+CREATE INDEX IF NOT EXISTS idx_chat_feedback_message ON chat_feedback(chat_message_id);
+"#;
+
 /// 迁移按序号执行：MIGRATIONS[i] 负责把 `PRAGMA user_version` 从 i 升到 i+1。
 /// 新的 schema 变更一律追加新条目（且只追加，不修改已发布条目），老库逐级前滚。
 const MIGRATIONS: &[&str] = &[
     SCHEMA_V1, SCHEMA_V2, SCHEMA_V3, SCHEMA_V4, SCHEMA_V5, SCHEMA_V6, SCHEMA_V7, SCHEMA_V8,
+    SCHEMA_V9,
 ];
 
 #[derive(Debug, thiserror::Error)]
@@ -639,6 +661,52 @@ pub(crate) mod tests {
             )
             .unwrap();
         assert_eq!(target, Some(3));
+    }
+
+    /// 回归：v8 库升级 v9 后 chat_messages 带上 reason / 置信 / agent 列（存量行为空），
+    /// chat_feedback 表可写入
+    #[test]
+    fn migrates_v8_db_adding_reason_confidence_and_feedback() {
+        let conn = Connection::open_in_memory().unwrap();
+        for sql in [
+            SCHEMA_V1, SCHEMA_V2, SCHEMA_V3, SCHEMA_V4, SCHEMA_V5, SCHEMA_V6, SCHEMA_V7, SCHEMA_V8,
+        ] {
+            conn.execute_batch(sql).unwrap();
+        }
+        conn.execute("PRAGMA user_version = 8", []).unwrap();
+        conn.execute(
+            "INSERT INTO chat_messages (message_id, content, ai_status, review_status, created_at)
+             VALUES ('om_r', '明天上午10点开周会', 'todo', 'pending', '2026-09-12T00:00:00Z')",
+            [],
+        )
+        .unwrap();
+
+        init_conn(&conn).unwrap();
+        assert_eq!(user_version(&conn), MIGRATIONS.len() as i64);
+        let (reason, confidence, agent): (Option<String>, Option<String>, String) = conn
+            .query_row(
+                "SELECT suggested_reason, suggested_confidence, ai_agent FROM chat_messages WHERE message_id='om_r'",
+                [],
+                |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?)),
+            )
+            .unwrap();
+        assert_eq!(reason, None, "存量建议没有 reason");
+        assert_eq!(confidence, None, "存量建议没有置信档位");
+        assert_eq!(agent, "", "存量消息没有 agent 记录");
+        conn.execute(
+            "INSERT INTO chat_feedback (chat_message_id, message_id, ai_action, action, reason_code, agent_id, agent_name, created_at)
+             VALUES (1, 'om_r', 'todo', 'dismissed', 'duplicate', 'claude-code', 'Claude Code', '2026-09-13T00:00:00Z')",
+            [],
+        )
+        .unwrap();
+        let action: String = conn
+            .query_row(
+                "SELECT action FROM chat_feedback WHERE message_id='om_r'",
+                [],
+                |r| r.get(0),
+            )
+            .unwrap();
+        assert_eq!(action, "dismissed");
     }
 
     #[test]
