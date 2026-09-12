@@ -1,0 +1,17 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": ["config:recommended"],
+  "labels": ["dependencies"],
+  "rangeStrategy": "bump",
+  "packageRules": [
+    {
+      "matchFilePatterns": ["src-tauri/**"],
+      "groupName": "rust dependencies",
+      "schedule": ["before 9am on Monday"]
+    },
+    {
+      "matchFilePatterns": ["package.json"],
+      "groupName": "npm dependencies"
+    }
+  ]
+}

@@ -1,0 +1,23 @@
+name: Release Please
+
+# release-please 维护 release PR：合并后自动打 v* 标签 → 触发 release.yml 出全平台安装包。
+# 版本号在 package.json / src-tauri/Cargo.toml / src-tauri/tauri.conf.json 三处同步（见 release-please-config.json）。
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  release-please:
+    runs-on: ubuntu-latest
+    outputs:
+      release_created: ${{ steps.release.outputs.release_created }}
+      tag_name: ${{ steps.release.outputs.tag_name }}
+    steps:
+      - uses: googleapis/release-please-action@v4
+        id: release
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}

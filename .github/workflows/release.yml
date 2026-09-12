@@ -39,9 +39,35 @@ jobs:
       - uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # 自动更新签名（bundle.createUpdaterArtifacts 开启后 tauri-action 会自动产出并上传 latest.json）
+          # 私钥生成：npx tauri signer generate -w ~/.tauri/pokemon-knock.key ；须配置为仓库 secret
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         with:
           tagName: ${{ github.ref_name }}
           releaseName: "宝可梦来敲门 v__VERSION__"
-          releaseBody: "桌面宠待办系统"
+          releaseBody: |
+            🐾 一只宝可梦桌宠，陪你捕捉每一天的待办。本地优先，轻量常驻。
+
+            ## 功能亮点
+
+            - **桌宠常驻**：透明置顶窗口，按任务分类轮换精灵（6 只可换装），拖动 / 双击打开图鉴机、快捷图鉴屏随时出发
+            - **专注模式 + 番茄钟**：全局唯一"进行中"任务，⏸/▶/✔/⇄ 一键操作，番茄时长与短休息可配置
+            - **图鉴机主面板**：今日冒险 / 草丛 / 路线 / 图鉴 / 收音机五段旅程，分级提醒（紧急任务桌宠敲门）
+            - **集成**：任意 OpenAI 兼容 AI、飞书消息→AI 识别待办、Todoist 双向同步
+            - **常驻标配**：系统托盘、全局快捷键（Ctrl/Cmd+Shift+K 快速捕捉 · Ctrl/Cmd+Shift+D 显隐桌宠）、单实例、窗口位置记忆、应用内自动更新（minisign 签名）
+            - **三语界面**：简体中文 / 繁體中文 / English
+
+            ## 平台与数据
+
+            | 平台 | 包 | 备注 |
+            |---|---|---|
+            | macOS (Intel + Apple Silicon) | `.dmg` | 首次打开需 Gatekeeper「仍要打开」 |
+            | Windows | `.exe` (NSIS) | SmartScreen「更多信息 → 仍要运行」 |
+            | Linux | `.AppImage` / `.deb` / `.rpm` | 实验性：置顶需 X11；NVIDIA 白屏设 `WEBKIT_DISABLE_DMABUF_RENDERER=1`；仅 AppImage 支持自动更新 |
+
+            安装包未做 OS 代码签名（详见仓库 SECURITY.md）；更新包均经 minisign 签名校验。
+            数据（SQLite）存于本机：Linux `~/.local/share/com.joeca.pokemonknock/` · macOS `~/Library/Application Support/com.joeca.pokemonknock/` · Windows `%APPDATA%\com.joeca.pokemonknock\`。
+            0.x 阶段数据格式未承诺稳定，升级前请备份数据库文件。
           releaseDraft: true
           args: ${{ matrix.args }}

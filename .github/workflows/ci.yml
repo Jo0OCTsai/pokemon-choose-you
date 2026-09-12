@@ -7,7 +7,7 @@ on:
 
 jobs:
   frontend:
-    name: 前端（单元 + E2E 三引擎）
+    name: 前端（lint + 单元 + E2E 三引擎）
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -16,6 +16,10 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
+      - name: ESLint
+        run: npm run lint
+      - name: Prettier 格式检查
+        run: npm run format:check
       - name: 类型检查 + 构建
         run: npm run build
       - name: 单元测试
@@ -32,11 +36,13 @@ jobs:
           retention-days: 7
 
   rust:
-    name: Rust（单元 + 契约测试）
+    name: Rust（fmt + clippy + 单元/契约/wiremock 集成测试）
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
       - uses: swatinem/rust-cache@v2
         with:
           workspaces: src-tauri
@@ -44,5 +50,9 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y libwebkit2gtk-4.1-dev build-essential curl wget file libxdo-dev libssl-dev libayatana-appindicator3-dev librsvg2-dev
+      - name: cargo fmt --check
+        run: cargo fmt --manifest-path src-tauri/Cargo.toml --check
+      - name: cargo clippy
+        run: cargo clippy --manifest-path src-tauri/Cargo.toml --all-targets -- -D warnings
       - name: cargo test
         run: cargo test --manifest-path src-tauri/Cargo.toml
