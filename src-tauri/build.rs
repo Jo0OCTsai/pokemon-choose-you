@@ -1,10 +1,11 @@
 fn main() {
     // bundle.externalBin 的 pk sidecar 在打包前由 scripts/prepare-pk-cli.mjs 用真实二进制覆盖；
     // 开发期 cargo build/check 也会校验该资源，这里先放占位文件避免失败（binaries/ 已 gitignore）。
-    // Windows 上 sidecar 校验带 .exe 后缀（占位与真实文件命名必须一致，否则打包失败）
+    // Windows 上 sidecar 校验带 .exe 后缀（占位与真实文件命名必须一致，否则打包失败）。
+    // 注意不能判 CARGO_CFG_WINDOWS == "1"：布尔 cfg 的值是空字符串，用 TARGET 三元组判断。
     if let Ok(triple) = std::env::var("TARGET") {
         if !triple.is_empty() {
-            let ext = if std::env::var("CARGO_CFG_WINDOWS").as_deref() == Ok("1") {
+            let ext = if triple.contains("windows") {
                 ".exe"
             } else {
                 ""
