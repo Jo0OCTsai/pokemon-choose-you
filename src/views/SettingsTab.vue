@@ -38,6 +38,10 @@ const pomoNotify = boolSetting("pomodoro_notify");
 const notifyOn = boolSetting("notifications_enabled");
 const feishuOn = boolSetting("feishu_enabled");
 const nlCaptureOn = boolSetting("nl_capture_enabled");
+const reviewOn = boolSetting("review_enabled");
+const reviewDowOptions = computed(() =>
+  [1, 2, 3, 4, 5, 6, 7].map((d) => ({ value: String(d), label: t(`reviewDow.${d}`) })),
+);
 
 // 秘钥输入：后端只回「已保存」占位值，展示为空 + 占位提示；改动才提交新值
 function secretField(key: string) {
@@ -923,6 +927,16 @@ onUnmounted(() => unlisteners.forEach((u) => u()));
             </li>
           </ul>
           <p v-else-if="backupsLoaded" class="hint">{{ t("backup.empty") }}</p>
+        </section>
+
+        <section class="set-card">
+          <h3>{{ t("reviewCfg.title") }}</h3>
+          <label>{{ t("reviewCfg.enable") }}<DexToggle v-model="reviewOn" /></label>
+          <label>
+            {{ t("reviewCfg.dow") }}
+            <DexSelect v-model="settings.values.review_dow" :options="reviewDowOptions" />
+          </label>
+          <p class="hint">{{ t("review.finishTip") }}</p>
         </section>
 
         <section class="set-card">
