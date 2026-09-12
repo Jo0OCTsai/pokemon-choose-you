@@ -22,6 +22,9 @@ export default {
     goGrass: "To grass",
     goRoute: "To route",
     placeholder: "Which wild Pokemon will you catch? (Enter to add)",
+    nlCancel: "Undo parse",
+    nlHint:
+      'Natural language supported: type "tomorrow 5pm weekly report #work" to auto-detect time, category and tags, with a cancellable preview',
   },
   priority: { low: "Low", normal: "Normal", high: "High", urgent: "Urgent" },
   status: {
@@ -251,6 +254,7 @@ export default {
   },
   general: {
     autostart: "Launch at login (pet appears automatically)",
+    nlCapture: "Natural-language quick capture (auto-detect time / category / tags in the input, always cancellable)",
     shortcuts: "Global shortcuts: Ctrl+Shift+K quick capture · Ctrl+Shift+D show/hide pet (⌘⇧K / ⌘⇧D on macOS)",
   },
   update: {

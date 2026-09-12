@@ -19,6 +19,8 @@ export default {
     goGrass: "丢进草丛",
     goRoute: "加入路线",
     placeholder: "要捕捉哪只野生宝可梦？（回车添加）",
+    nlCancel: "取消识别",
+    nlHint: "支持自然语言：直接写「明天 5pm 交周报 #工作」自动识别时间、分类与标签，识别结果有预览、可取消",
   },
   priority: { low: "低", normal: "普通", high: "高", urgent: "紧急" },
   status: {
@@ -247,6 +249,7 @@ export default {
   },
   general: {
     autostart: "开机自动启动（登录后桌宠自动出现）",
+    nlCapture: "自然语言快速捕捉（输入框自动识别时间 / 分类 / 标签，可随时取消）",
     shortcuts: "全局快捷键：Ctrl+Shift+K 快速捕捉待办 · Ctrl+Shift+D 显示/隐藏桌宠（macOS 为 ⌘⇧K / ⌘⇧D）",
   },
   update: {

@@ -437,6 +437,48 @@ describe("App 图鉴机主面板", () => {
     expect(api.dismissChatMessage).toHaveBeenCalledWith(9, "duplicate");
   });
 
+  it("自然语言快速捕捉：预览识别结果，提交带解析字段，单击取消后按原文提交", async () => {
+    tasks = seed([]);
+    const w = await mountApp();
+    const input = w.get("form.add input");
+    await input.setValue("明天 17:00 交周报 #工作");
+    expect(w.find(".nl-preview").exists()).toBe(true);
+    expect(w.get(".nl-title").text()).toBe("「交周报」");
+    expect(w.text()).toContain("🗂 工作");
+
+    await w.get("form.add").trigger("submit");
+    await new Promise((r) => setTimeout(r));
+    expect(api.createTask).toHaveBeenCalledWith(
+      expect.objectContaining({
+        title: "交周报",
+        dueAt: expect.stringMatching(/^\d{4}-\d{2}-\d{2}T17:00$/),
+        scheduled: true,
+      }),
+    );
+    expect(api.createTask).toHaveBeenCalledWith(expect.objectContaining({ categoryId: 1 }));
+
+    // 单击「取消识别」后同文本按原文提交（不拆字段）
+    await input.setValue("后天下午3点半 复盘会 #学习");
+    await w.get(".nl-cancel").trigger("click");
+    expect(w.find(".nl-preview").exists()).toBe(false);
+    await w.get("form.add").trigger("submit");
+    await new Promise((r) => setTimeout(r));
+    expect(api.createTask).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        title: "后天下午3点半 复盘会 #学习",
+        scheduled: false,
+      }),
+    );
+  });
+
+  it("自然语言快速捕捉：设置关闭后不出现预览", async () => {
+    tasks = seed([]);
+    vi.mocked(api.listAllSettings).mockResolvedValue({ nl_capture_enabled: "false" });
+    const w = await mountApp();
+    await w.get("form.add input").setValue("明天 5pm 交周报");
+    expect(w.find(".nl-preview").exists()).toBe(false);
+  });
+
   it("设置页七个分区可选且默认显示专注", async () => {
     const w = await mountApp();
     await w.findAll(".menu-btn")[5].trigger("click");

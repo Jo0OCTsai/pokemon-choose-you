@@ -19,6 +19,8 @@ export default {
     goGrass: "丟進草叢",
     goRoute: "加入路線",
     placeholder: "要捕捉哪隻野生寶可夢？（按 Enter 新增）",
+    nlCancel: "取消識別",
+    nlHint: "支援自然語言：直接寫「明天 5pm 交週報 #工作」自動識別時間、分類與標籤，識別結果有預覽、可取消",
   },
   priority: { low: "低", normal: "普通", high: "高", urgent: "緊急" },
   status: {
@@ -247,6 +249,7 @@ export default {
   },
   general: {
     autostart: "開機自動啟動（登入後桌寵自動出現）",
+    nlCapture: "自然語言快速捕捉（輸入框自動識別時間 / 分類 / 標籤，可隨時取消）",
     shortcuts: "全域快捷鍵：Ctrl+Shift+K 快速捕捉待辦 · Ctrl+Shift+D 顯示/隱藏桌寵（macOS 為 ⌘⇧K / ⌘⇧D）",
   },
   update: {
