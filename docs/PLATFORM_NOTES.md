@@ -14,7 +14,7 @@
 
 - **透明窗口**：必须同时 `app.macOSPrivateApi = true`（tauri.conf.json）与 Cargo feature `macos-private-api`，缺一不可。
 - **不占 Dock 图标**：应用以 `ActivationPolicy::Accessory` 运行（桌宠型应用惯例），入口收敛到托盘与全局快捷键；主窗口从托盘菜单 / 双击桌宠 / ⌘⇧K 唤起。
-- **自动更新**：dmg 目标的 updater 走 zip 产物，release 流水线由 tauri-action 处理；签名密钥见 CONTRIBUTING。
+- **自动更新**：dmg 目标的 updater 走 zip 产物，release 流水线由 tauri-action 处理；签名密钥见 [开发指南](DEVELOPMENT.md#发布)。
 
 ## Windows
 
