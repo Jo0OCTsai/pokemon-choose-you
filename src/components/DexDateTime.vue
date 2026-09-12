@@ -175,6 +175,11 @@ onBeforeUnmount(() => document.removeEventListener("mousedown", onDocClick));
 .dt-btn.open {
   background: var(--poke-yellow);
 }
+/* 文字占满剩余宽度，箭头固定贴选择框右缘（短文案时也不会紧贴文字） */
+.dt-label {
+  flex: 1;
+  text-align: left;
+}
 .dt-btn.none .dt-label {
   color: #9a937f;
 }
