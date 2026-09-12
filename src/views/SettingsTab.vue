@@ -35,6 +35,7 @@ const pomoOn = boolSetting("pomodoro_enabled");
 const pomoNotify = boolSetting("pomodoro_notify");
 const notifyOn = boolSetting("notifications_enabled");
 const feishuOn = boolSetting("feishu_enabled");
+const nlCaptureOn = boolSetting("nl_capture_enabled");
 
 // 设置分区选单（初代选项界面：上选单下内容）
 const settingsTabs = [
@@ -732,6 +733,8 @@ onUnmounted(() => unlisteners.forEach((u) => u()));
           <label
             >{{ t("general.autostart") }}<DexToggle :model-value="autostart" @update:model-value="onAutostart"
           /></label>
+          <label>{{ t("general.nlCapture") }}<DexToggle v-model="nlCaptureOn" /></label>
+          <p class="hint">{{ t("add.nlHint") }}</p>
           <p class="hint">{{ t("general.shortcuts") }}</p>
         </section>
 

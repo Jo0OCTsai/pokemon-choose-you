@@ -2,8 +2,10 @@
 import { computed, ref, watch } from "vue";
 import { useI18n } from "vue-i18n";
 import type { NewTaskInput } from "../api";
-import { useSettingsStore } from "../stores/settings";
+import { fmtDateTime, useSettingsStore } from "../stores/settings";
 import { useCategoriesStore } from "../stores/categories";
+import { useTagsStore } from "../stores/tags";
+import { parseNlCapture } from "../nlCapture";
 import DexSelect from "./DexSelect.vue";
 import DexDateTime from "./DexDateTime.vue";
 
@@ -14,6 +16,7 @@ const emit = defineEmits<{
 const { t } = useI18n();
 const settings = useSettingsStore();
 const categories = useCategoriesStore();
+const tagsStore = useTagsStore();
 
 const newTitle = ref("");
 const newCategory = ref(1);
@@ -52,16 +55,34 @@ const priorityOptions = computed(() =>
   (["low", "normal", "high", "urgent"] as const).map((p) => ({ value: p, label: t(`priority.${p}`) })),
 );
 
+// ---- 自然语言快速捕捉：高亮预览 + 单击取消 + 设置全局可关 ----
+
+/** 本次输入的识别被用户取消；输入变化后自动恢复 */
+const nlDismissed = ref(false);
+watch(newTitle, () => {
+  nlDismissed.value = false;
+});
+
+const nlPreview = computed(() => {
+  const raw = newTitle.value.trim();
+  if (!raw || nlDismissed.value || !settings.bool("nl_capture_enabled")) return null;
+  return parseNlCapture(raw, { categories: categories.list, tags: tagsStore.list });
+});
+
 function submit() {
-  const title = newTitle.value.trim();
-  if (!title) return;
+  const raw = newTitle.value.trim();
+  if (!raw) return;
+  const p = nlPreview.value;
+  // 识别出的字段直接生效（预览里看得见）；手动选的时间（newDue）优先于识别
+  const dueAt = newDue.value || p?.dueAt || "";
   emit("submit", {
-    title,
-    categoryId: newCategory.value,
+    title: p?.title || raw,
+    categoryId: p?.categoryId ?? newCategory.value,
     priority: newPriority.value,
-    dueAt: newDue.value || undefined,
+    dueAt: dueAt || undefined,
     // 去向由是否设置时间决定：有时间进路线，没时间进草丛
-    scheduled: newDue.value !== "",
+    scheduled: dueAt !== "",
+    tagIds: p?.tagIds.length ? p.tagIds : undefined,
   });
   newTitle.value = "";
   newDue.value = "";
@@ -82,6 +103,16 @@ defineExpose({ focus });
     <DexSelect v-model="newPriority" :options="priorityOptions" />
     <DexDateTime v-model="newDue" />
     <button class="btn" type="submit">{{ newDue ? t("add.goRoute") : t("add.goGrass") }}</button>
+
+    <!-- 自然语言识别预览：抽出的标题 + 高亮片段；单击 ✕ 取消本次识别 -->
+    <div v-if="nlPreview" class="nl-preview">
+      <span class="nl-icon">✨</span>
+      <span class="nl-title">「{{ nlPreview.title }}」</span>
+      <span v-if="nlPreview.dueAt" class="nl-chip nl-time">🕒 {{ fmtDateTime(nlPreview.dueAt) }}</span>
+      <span v-if="nlPreview.categoryName" class="nl-chip nl-cat">🗂 {{ nlPreview.categoryName }}</span>
+      <span v-for="n in nlPreview.tagNames" :key="n" class="nl-chip nl-tag"># {{ n }}</span>
+      <button type="button" class="nl-cancel" @click="nlDismissed = true">✕ {{ t("add.nlCancel") }}</button>
+    </div>
   </form>
 </template>
 
@@ -109,5 +140,50 @@ defineExpose({ focus });
 .add .btn {
   min-height: 38px;
   padding: 6px 14px;
+}
+/* 自然语言识别预览：紧跟标题输入的一行胶囊 */
+.nl-preview {
+  flex: 1 1 100%;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  font-size: 12px;
+  background: var(--poke-yellow);
+  border: 3px solid var(--dex-navy);
+  border-radius: 8px;
+  box-shadow: 3px 3px 0 var(--dex-navy);
+  padding: 5px 8px;
+  color: var(--dex-navy);
+}
+.nl-icon {
+  flex: none;
+}
+.nl-title {
+  font-weight: 800;
+}
+.nl-chip {
+  flex: none;
+  font-weight: 700;
+  background: #fff;
+  border: 2px solid var(--dex-navy);
+  border-radius: 999px;
+  padding: 0 8px;
+}
+.nl-cancel {
+  margin-left: auto;
+  flex: none;
+  border: 2px dashed var(--dex-navy);
+  border-radius: 6px;
+  background: transparent;
+  color: var(--dex-navy);
+  font-size: 12px;
+  font-weight: 700;
+  font-family: inherit;
+  padding: 2px 8px;
+  cursor: pointer;
+}
+.nl-cancel:hover {
+  background: #fff;
 }
 </style>

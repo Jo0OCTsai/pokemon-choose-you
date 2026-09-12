@@ -13,6 +13,8 @@ export const SETTING_DEFAULTS: Record<string, string> = {
   date_format: "YYYY-MM-DD",
   time_format: "24h",
   default_priority: "normal",
+  /** 自然语言快速捕捉（输入框解析「明天 5pm 交周报 #工作」，带预览可取消） */
+  nl_capture_enabled: "true",
   feishu_poll_interval: "120",
   feishu_enabled: "false",
   /** AI agent CLI 列表（AgentConfig 的 JSON 数组字符串） */
@@ -36,6 +38,7 @@ export const SETTING_KEYS = [
   "date_format",
   "time_format",
   "default_priority",
+  "nl_capture_enabled",
   "feishu_poll_interval",
   "ai_agents",
   "ai_agent_id",
