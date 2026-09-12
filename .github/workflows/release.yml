@@ -40,7 +40,7 @@ jobs:
         with:
           workspaces: src-tauri
       - run: npm install
-      - uses: tauri-apps/tauri-action@v0
+      - uses: tauri-apps/tauri-action@v1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           # 自动更新签名（bundle.createUpdaterArtifacts 开启后 tauri-action 会自动产出并上传 latest.json）
