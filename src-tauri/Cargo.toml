@@ -1,0 +1,37 @@
+[package]
+name = "pokemon-knock"
+version = "0.1.0"
+description = "宝可梦来敲门 — 桌宠待办系统"
+authors = ["joeca"]
+edition = "2021"
+
+[lib]
+name = "pokemon_knock_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = ["macos-private-api"] }
+tauri-plugin-opener = "2"
+tauri-plugin-notification = "2"
+tauri-plugin-log = "2"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+rusqlite = { version = "0.32", features = ["bundled"] }
+chrono = { version = "0.4", features = ["serde"] }
+tokio = { version = "1", features = ["time", "macros"] }
+reqwest = { version = "0.12", features = ["json"] }
+log = "0.4"
+tauri-plugin-autostart = "2.5.1"
+
+[dev-dependencies]
+# 仅测试构建启用 mock 运行时，不影响正常编译与发布产物
+tauri = { version = "2", features = ["test"] }
+
+[profile.release]
+codegen-units = 1
+lto = true
+opt-level = 3
+strip = true
