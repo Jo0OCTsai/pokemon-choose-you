@@ -18,10 +18,10 @@ const triple =
     .match(/host: (\S+)/)?.[1];
 if (!triple) throw new Error("无法获取构建目标（TAURI_ENV_TARGET_TRIPLE 缺失且 rustc 不可用）");
 
-execSync(
-  `cargo build --release --bin pk --target ${triple} --manifest-path ${manifest}`,
-  { cwd: root, stdio: "inherit" },
-);
+execSync(`cargo build --release --bin pk --target ${triple} --manifest-path ${manifest}`, {
+  cwd: root,
+  stdio: "inherit",
+});
 
 const ext = process.platform === "win32" ? ".exe" : "";
 const src = join(root, "src-tauri", "target", triple, "release", `pk${ext}`);
