@@ -87,15 +87,20 @@ fn resolve_tag_ids(conn: &Connection, names: &[String]) -> AppResult<Vec<i64>> {
     Ok(ids)
 }
 
-/// 分类名 → 分类 id（未匹配回落到 1，与默认分类对齐）
+/// 分类名 → 分类 id（只匹配启用中的分类；未匹配回落第一个启用分类）
 fn resolve_category(conn: &Connection, name: Option<&str>) -> AppResult<i64> {
     match name {
-        Some(n) if !n.is_empty() => Ok(conn
-            .query_row("SELECT id FROM categories WHERE name=?1", params![n], |r| {
-                r.get(0)
-            })
-            .unwrap_or(1)),
-        _ => Ok(1),
+        Some(n) if !n.is_empty() => {
+            let hit: Option<i64> = conn
+                .query_row(
+                    "SELECT id FROM categories WHERE name=?1 AND enabled=1",
+                    params![n],
+                    |r| r.get(0),
+                )
+                .ok();
+            Ok(hit.unwrap_or_else(|| crate::commands::categories::first_enabled_category(conn)))
+        }
+        _ => Ok(crate::commands::categories::first_enabled_category(conn)),
     }
 }
 
@@ -199,7 +204,7 @@ pub(crate) fn classify_context(conn: &Connection) -> AppResult<ClassifyContext> 
         rows
     };
     let categories: Vec<String> = {
-        let mut stmt = conn.prepare("SELECT name FROM categories ORDER BY id")?;
+        let mut stmt = conn.prepare("SELECT name FROM categories WHERE enabled=1 ORDER BY id")?;
         let rows = stmt
             .query_map([], |r| r.get(0))?
             .collect::<Result<Vec<_>, _>>()?;
@@ -521,6 +526,58 @@ mod tests {
         );
         assert!(ctx.categories.contains(&"工作".to_string()));
         assert_eq!(ctx.tags, vec![("重要".to_string(), String::new())]);
+    }
+
+    /// 停用的分类不进 AI 分类选项
+    #[test]
+    fn classify_context_excludes_disabled_categories() {
+        let app = setup();
+        {
+            let db = app.state::<Db>();
+            crate::commands::categories::set_category_enabled(app.handle().clone(), db, 1, false)
+                .unwrap();
+        }
+        let ctx = {
+            let db = app.state::<Db>();
+            let conn = db.0.lock().unwrap();
+            classify_context(&conn).unwrap()
+        };
+        assert!(
+            !ctx.categories.contains(&"工作".to_string()),
+            "停用分类不进 prompt"
+        );
+        assert_eq!(ctx.categories.first().map(String::as_str), Some("学习"));
+    }
+
+    /// AI 建议了停用分类名时，回落到第一个启用分类而不是停用的同名分类
+    #[test]
+    fn resolve_category_skips_disabled_fallback() {
+        let app = setup();
+        {
+            let db = app.state::<Db>();
+            crate::commands::categories::set_category_enabled(app.handle().clone(), db, 1, false)
+                .unwrap();
+        }
+        let task_id = {
+            let db = app.state::<Db>();
+            let conn = db.0.lock().unwrap();
+            conn.execute(
+                "INSERT INTO chat_messages (message_id, content, suggested_title, suggested_category, ai_status, review_status, created_at)
+                 VALUES ('om_d', '内容', '标题', '工作', 'todo', 'pending', '2026-09-01T00:00:00Z')",
+                [],
+            )
+            .unwrap();
+            let msg = get_message(&conn, 1).unwrap();
+            create_task_from_message(&conn, &msg).unwrap()
+        };
+        let task = {
+            let db = app.state::<Db>();
+            crate::commands::tasks::get_task(db, task_id).unwrap()
+        };
+        assert_eq!(
+            task.category_id, 2,
+            "停用的「工作」被跳过，落到第一个启用分类"
+        );
     }
 
     /// 强制建待办的 AI 判重分支（不走 HTTP，直接构造 AppError 路径之外的状态机）：

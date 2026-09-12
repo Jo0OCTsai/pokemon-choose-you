@@ -86,6 +86,7 @@ pub fn run() {
             commands::delete_tag,
             commands::list_categories,
             commands::set_category_pokemon,
+            commands::set_category_enabled,
             commands::create_category,
             commands::update_category,
             commands::delete_category,

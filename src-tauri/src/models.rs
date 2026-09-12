@@ -34,6 +34,13 @@ pub struct Category {
     pub pokemon: String,
     /// 素材文件名 /pokemon/{key}.png
     pub sprite: String,
+    /// 停用后不出现在新建/编辑与 AI 分类选项中，已有任务不受影响
+    #[serde(default = "default_true")]
+    pub enabled: bool,
+}
+
+fn default_true() -> bool {
+    true
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -171,11 +178,18 @@ mod tests {
             name: "工作".into(),
             pokemon: "皮卡丘".into(),
             sprite: "pikachu".into(),
+            enabled: true,
         };
         assert_eq!(
             keys_of(serde_json::to_value(&c).unwrap()),
-            vec!["id", "name", "pokemon", "sprite"]
+            vec!["enabled", "id", "name", "pokemon", "sprite"]
         );
+        // enabled 缺失时容忍（老载荷按启用处理）
+        let old: Category = serde_json::from_value(serde_json::json!({
+            "id": 1, "name": "工作", "pokemon": "皮卡丘", "sprite": "pikachu"
+        }))
+        .unwrap();
+        assert!(old.enabled);
     }
 
     #[test]

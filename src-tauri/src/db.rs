@@ -127,9 +127,14 @@ FROM im_suggestions;
 DROP TABLE IF EXISTS im_suggestions;
 "#;
 
+/// v3：分类支持停用（内置分类不可删，改为 enabled=0 隐藏出新建/编辑与 AI 选项）
+const SCHEMA_V3: &str = r#"
+ALTER TABLE categories ADD COLUMN enabled INTEGER NOT NULL DEFAULT 1;
+"#;
+
 /// 迁移按序号执行：MIGRATIONS[i] 负责把 `PRAGMA user_version` 从 i 升到 i+1。
 /// 新的 schema 变更一律追加新条目（且只追加，不修改已发布条目），老库逐级前滚。
-const MIGRATIONS: &[&str] = &[SCHEMA_V1, SCHEMA_V2];
+const MIGRATIONS: &[&str] = &[SCHEMA_V1, SCHEMA_V2, SCHEMA_V3];
 
 #[derive(Debug, thiserror::Error)]
 pub enum MigrateError {
@@ -333,6 +338,31 @@ pub(crate) mod tests {
             [],
         )
         .unwrap();
+    }
+
+    /// 回归：v2 库升级 v3 后分类带上 enabled 标志且默认启用
+    #[test]
+    fn migrates_v2_db_adding_category_enabled_flag() {
+        let conn = Connection::open_in_memory().unwrap();
+        conn.execute_batch(SCHEMA_V1).unwrap();
+        conn.execute_batch(SCHEMA_V2).unwrap();
+        conn.execute("PRAGMA user_version = 2", []).unwrap();
+        // 手工造一个 v2 时代的存量分类（改名过的 id=1）
+        conn.execute(
+            "INSERT INTO categories (id, name, pokemon, sprite) VALUES (1, '改名分类', '皮卡丘', 'pikachu')",
+            [],
+        )
+        .unwrap();
+
+        init_conn(&conn).unwrap();
+        assert_eq!(user_version(&conn), MIGRATIONS.len() as i64);
+        let (name, enabled): (String, i64) = conn
+            .query_row("SELECT name, enabled FROM categories WHERE id=1", [], |r| {
+                Ok((r.get(0)?, r.get(1)?))
+            })
+            .unwrap();
+        assert_eq!(name, "改名分类", "升级不动既有数据");
+        assert_eq!(enabled, 1, "存量分类默认启用");
     }
 
     #[test]

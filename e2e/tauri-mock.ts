@@ -28,6 +28,7 @@ export interface MockCategory {
   name: string;
   pokemon: string;
   sprite: string;
+  enabled: boolean;
 }
 
 export interface MockState {
@@ -38,12 +39,12 @@ export interface MockState {
 }
 
 export const DEFAULT_CATEGORIES: MockCategory[] = [
-  { id: 1, name: "工作", pokemon: "皮卡丘", sprite: "pikachu" },
-  { id: 2, name: "学习", pokemon: "可达鸭", sprite: "psyduck" },
-  { id: 3, name: "生活", pokemon: "妙蛙种子", sprite: "bulbasaur" },
-  { id: 4, name: "健康", pokemon: "吉利蛋", sprite: "chansey" },
-  { id: 5, name: "社交", pokemon: "伊布", sprite: "eevee" },
-  { id: 6, name: "紧急", pokemon: "卡比兽", sprite: "snorlax" },
+  { id: 1, name: "工作", pokemon: "皮卡丘", sprite: "pikachu", enabled: true },
+  { id: 2, name: "学习", pokemon: "可达鸭", sprite: "psyduck", enabled: true },
+  { id: 3, name: "生活", pokemon: "妙蛙种子", sprite: "bulbasaur", enabled: true },
+  { id: 4, name: "健康", pokemon: "吉利蛋", sprite: "chansey", enabled: true },
+  { id: 5, name: "社交", pokemon: "伊布", sprite: "eevee", enabled: true },
+  { id: 6, name: "紧急", pokemon: "卡比兽", sprite: "snorlax", enabled: true },
 ];
 
 export function task(partial: Partial<MockTask> & { id: number; title: string }): MockTask {
@@ -178,10 +179,16 @@ export async function installTauriMock(page: Page, state: Partial<MockState> = {
             return null;
           }
           case "create_category": {
-            const c = { id: db.categories.length + 1, ...args };
+            const c = { id: db.categories.length + 1, enabled: true, ...args };
             db.categories.push(c);
             broadcast("categories-changed");
             return c;
+          }
+          case "set_category_enabled": {
+            const c = db.categories.find((x) => x.id === args.id);
+            if (c) c.enabled = args.enabled;
+            broadcast("categories-changed");
+            return null;
           }
           case "update_category": {
             const c = db.categories.find((x) => x.id === args.id);

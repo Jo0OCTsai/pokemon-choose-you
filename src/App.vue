@@ -56,6 +56,7 @@ onMounted(async () => {
   // 桌宠窗口或后端同步（飞书/Todoist）改动数据时跟随刷新，保持两窗口状态一致
   unlisteners.push(await listen<null>(EVENTS.tasksChanged, () => tasksStore.reload()));
   unlisteners.push(await listen<null>(EVENTS.chatMessagesChanged, () => tasksStore.reload()));
+  unlisteners.push(await listen<null>(EVENTS.categoriesChanged, () => categoriesStore.load()));
   unlisteners.push(await listen<null>(EVENTS.tagsChanged, () => tagsStore.load()));
   unlisteners.push(await listen<null>(EVENTS.quickCapture, quickCapture));
   unlisteners.push(await listen<null>(EVENTS.showSettings, () => (tab.value = "settings")));
