@@ -243,6 +243,7 @@ pk context                           # 当前时间 + 未完成待办 + 分类 +
 pk help                              # 完整命令说明
 ```
 
+- **技能一键分发**：`pk skill install claude-code` 把 pk 使用技能（SKILL.md，含命令速查与建议流程）装进 agent 的技能目录（claude-code → `~/.claude/skills/`，opencode → `~/.config/opencode/skill/`）；其他 agent 用 `--dir <目录>` 指定落点，或 `pk skill show` 打印原文自行粘贴
 - **会话回链与成本记录**：agent 代办后 `pk session log --task 3 --agent claude-code --session <id> --cost 0.12 --duration-ms 61000` 落一条会话；任务编辑弹窗的「Agent 执行」区展示每次的时长 / 成本 / 退出码（含收音机分类调用），有会话 id 的可一键在终端回放转录（`claude --resume <id>`）
 - 与桌面应用共用同一个 SQLite 库（WAL 并发安全），操作同样写入审计日志；
 - 环境变量 `PK_DB` 可指定独立数据库路径（`pk init-db` 可引导空库）；

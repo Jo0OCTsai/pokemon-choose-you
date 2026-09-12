@@ -5,6 +5,9 @@
 //! - 与桌面应用共用同一套数据逻辑（conn 层函数），保证状态机不变量与操作日志一致；
 //! - 通过 WAL 与运行中的应用并发读写，PK_DB 环境变量可覆盖数据库路径。
 
+/// 随包分发的 agent 技能模板（教 agent 用 pk 管待办）
+const SKILL_MD: &str = include_str!("../../skills/pokemon-knock.md");
+
 use pokemon_knock_lib::commands::sessions::{
     list_agent_sessions_conn, log_session_conn, NewAgentSession,
 };
@@ -38,6 +41,9 @@ const HELP: &str = r#"pk — 宝可梦来敲门命令行（供 AI agent 与终�
                 [--status ok|error] [--duration-ms <n>] [--cost <美元>] [--in-tokens <n>] [--out-tokens <n>]
                                       记录一次 agent 会话（成本/时长/退出码，可关联任务）
   session list [--task <id>]         会话列表（--task 查该任务的时间线）
+  skill install <claude-code|opencode> [--dir <目录>]
+                                      一键安装 pk 使用技能到 agent 的技能目录（对标 td skill install）
+  skill show                         打印技能内容（Markdown 原文，可重定向给任意 agent）
   category list                      分类列表
   tag list                           标签列表
   context                            AI 处理上下文（当前时间/未完成待办/分类/标签）
@@ -52,6 +58,7 @@ const HELP: &str = r#"pk — 宝可梦来敲门命令行（供 AI agent 与终�
   pk note add 3 对方确认周五交付 --source ai
   pk session log --task 3 --agent claude-code --session abc123 --cost 0.12 --duration-ms 61000
   pk session list --task 3
+  pk skill install claude-code
 
 输出: JSON（stdout）。错误: {"error": "..."}（stderr），退出码 1（业务）/ 2（用法）。
 环境变量: PK_DB 覆盖数据库路径（默认为应用数据目录 pokemon-knock.db）。"#;
@@ -290,6 +297,7 @@ fn run(conn: &mut Connection, args: &[String]) -> Result<serde_json::Value, CliE
             Ok(json!({ "tags": tags::list_tags_conn(conn).map_err(db_err)? }))
         }
         "session" => run_session(conn, rest),
+        "skill" => run_skill(rest),
         "context" => run_context(conn),
         "init-db" => {
             // 显式引导（PK_DB 独立库场景）：建库 + 迁移 + 默认分类；对应用主库通常无需执行
@@ -509,6 +517,56 @@ fn run_note(conn: &Connection, rest: &[String]) -> Result<serde_json::Value, Cli
 }
 
 /// AI 处理上下文：当前时间 + 未完成待办 + 分类 + 标签（判重与属性建议的依据）
+/// agent 技能目录：claude-code → ~/.claude/skills；opencode → ~/.config/opencode/skill；
+/// 其他 agent 用 --dir 显式指定。返回技能文件所在目录。
+fn skill_dir_for(agent: &str, dir_flag: Option<&str>) -> Result<std::path::PathBuf, CliError> {
+    if let Some(d) = dir_flag.filter(|d| !d.is_empty()) {
+        return Ok(std::path::PathBuf::from(d));
+    }
+    let home = dirs::home_dir().ok_or_else(|| CliError("无法定位用户主目录".into(), 1))?;
+    match agent {
+        "claude-code" | "claude" => Ok(home.join(".claude").join("skills").join("pokemon-knock")),
+        "opencode" => Ok(home
+            .join(".config")
+            .join("opencode")
+            .join("skill")
+            .join("pokemon-knock")),
+        other => Err(usage_err(&format!(
+            "暂不认识 agent「{other}」的技能目录：支持 claude-code / opencode，其他 agent 用 --dir <目录> 指定，或 pk skill show 自行粘贴"
+        ))),
+    }
+}
+
+/// 安装/展示 agent 技能。skill show 直接打印 Markdown 原文（不走 JSON，方便重定向）
+fn run_skill(rest: &[String]) -> Result<serde_json::Value, CliError> {
+    let sub = rest.first().map(String::as_str).unwrap_or("");
+    let p = parse_args(&rest[1.min(rest.len())..]);
+    let dir_flag = p.flag("dir").map(str::to_string);
+    match sub {
+        "show" => {
+            print!("{SKILL_MD}");
+            std::process::exit(0);
+        }
+        "install" => {
+            let agent = p.positional(0, "agent 名（claude-code / opencode）")?;
+            let dir = skill_dir_for(&agent, dir_flag.as_deref())?;
+            std::fs::create_dir_all(&dir)
+                .map_err(|e| CliError(format!("创建技能目录失败: {e}"), 1))?;
+            let path = dir.join("SKILL.md");
+            let existed = path.exists();
+            std::fs::write(&path, SKILL_MD)
+                .map_err(|e| CliError(format!("写入技能失败: {e}"), 1))?;
+            Ok(json!({
+                "installed": true,
+                "updated": existed,
+                "agent": agent,
+                "path": path.to_string_lossy(),
+            }))
+        }
+        _ => Err(usage_err("skill 子命令支持 install / show，用法见 pk help")),
+    }
+}
+
 fn run_session(conn: &Connection, rest: &[String]) -> Result<serde_json::Value, CliError> {
     let sub = rest.first().map(String::as_str).unwrap_or("");
     let p = parse_args(&rest[1.min(rest.len())..]);
@@ -838,6 +896,63 @@ mod tests {
         let id = create(&mut conn, "上下文任务");
         let ctx = run_ok(&mut conn, &["context"]);
         assert_eq!(ctx["openTasks"][0]["id"], json!(id));
+    }
+
+    /// 技能分发：--dir 安装到任意目录、重复安装标记 updated、未知 agent 报用法错误并给 --dir 出路
+    #[test]
+    fn skill_install_show_and_unknown_agent() {
+        let mut conn = test_db();
+        let dir = std::env::temp_dir().join(format!("pk-skill-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+
+        // 首次安装
+        let out = run_ok(
+            &mut conn,
+            &[
+                "skill",
+                "install",
+                "claude-code",
+                "--dir",
+                &dir.to_string_lossy(),
+            ],
+        );
+        assert_eq!(out["installed"], true);
+        assert_eq!(out["updated"], false, "首次安装");
+        let md = std::fs::read_to_string(dir.join("SKILL.md")).unwrap();
+        assert!(md.contains("pk task create"), "技能内容含命令速查");
+        assert!(md.contains("name: pokemon-knock"), "带 frontmatter");
+
+        // 重复安装标记为更新
+        let out = run_ok(
+            &mut conn,
+            &[
+                "skill",
+                "install",
+                "claude-code",
+                "--dir",
+                &dir.to_string_lossy(),
+            ],
+        );
+        assert_eq!(out["updated"], true);
+
+        // 未知 agent 给出 --dir 出路
+        let err = run_err(&mut conn, &["skill", "install", "kiro"]);
+        assert_eq!(err.1, 2);
+        assert!(err.0.contains("--dir"), "{}", err.0);
+
+        // 目录规则：claude-code / opencode 的落点结构正确（不实际写）
+        let claude = skill_dir_for("claude-code", None).unwrap_or_else(|e| panic!("{}", e.0));
+        assert!(
+            claude.ends_with(".claude/skills/pokemon-knock")
+                || claude.to_string_lossy().contains(".claude"),
+            "{claude:?}"
+        );
+        let opencode = skill_dir_for("opencode", None).unwrap_or_else(|e| panic!("{}", e.0));
+        assert!(
+            opencode.to_string_lossy().contains("opencode"),
+            "{opencode:?}"
+        );
+        let _ = std::fs::remove_dir_all(&dir);
     }
 
     /// 会话回链与成本记录：log 落库（关联任务 + 成本/时长）→ list 查询任务时间线
