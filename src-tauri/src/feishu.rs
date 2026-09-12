@@ -1,4 +1,4 @@
-use crate::ai::{self, AiSuggestion};
+use crate::ai;
 use crate::db::{now, Db};
 use crate::error::{AppError, AppResult};
 use crate::events;
@@ -237,7 +237,7 @@ pub async fn poll_once_test(cfg: &FeishuConfig) -> AppResult<String> {
     Ok(format!("连接成功，机器人在 {} 个会话中", chats.len()))
 }
 
-/// 一轮完整的"拉取 → AI 分类 → 写入收件箱建议"
+/// 一轮完整的"拉取 → 全量入库 → AI 分类（带判重上下文）→ 更新消息状态 → 清理过期消息"
 pub async fn poll_once(app: &AppHandle) -> AppResult<usize> {
     let db = app.state::<Db>();
     let get = |k: &str| -> Option<String> {
@@ -262,65 +262,151 @@ pub async fn poll_once(app: &AppHandle) -> AppResult<usize> {
 
     let since: Option<i64> = get("feishu_cursor").and_then(|s| s.parse().ok());
     let (messages, cursor) = pull_new_messages(&fcfg, since).await?;
-    if messages.is_empty() {
+
+    // 1. 全量入库（收音机展示所有电波），跳过已入库的消息
+    let fresh: Vec<NewMessage> = {
+        let conn = db.0.lock().unwrap();
+        messages
+            .into_iter()
+            .filter(|m| {
+                let known: bool = conn
+                    .query_row(
+                        "SELECT 1 FROM chat_messages WHERE message_id=?1",
+                        params![m.message_id],
+                        |_| Ok(true),
+                    )
+                    .is_ok();
+                !known
+            })
+            .collect()
+    };
+    {
+        let conn = db.0.lock().unwrap();
+        for m in &fresh {
+            conn.execute(
+                "INSERT INTO chat_messages (message_id, chat_name, sender, content, ai_status, review_status, created_at)
+                 VALUES (?1,?2,?3,?4,'pending','pending',?5)",
+                params![m.message_id, m.chat_name, m.sender, m.content, now()],
+            )?;
+        }
+    }
+    if fresh.is_empty() {
         log::debug!("feishu: 本轮无新消息");
     } else {
-        log::info!("feishu: 本轮拉取到 {} 条新消息，送 AI 分类", messages.len());
+        log::info!("feishu: 本轮拉取到 {} 条新消息，已入收音机", fresh.len());
     }
 
-    let mut saved = 0;
-    // 分批送 AI（每批 20 条，避免超 token）
-    for chunk in messages.chunks(20) {
+    // 2. 分批送 AI（每批 20 条，避免超 token），带判重上下文
+    let mut saved = 0usize;
+    for chunk in fresh.chunks(20) {
         let batch: Vec<(String, String, String)> = chunk
             .iter()
             .map(|m| (m.message_id.clone(), m.sender.clone(), m.content.clone()))
             .collect();
-        let suggestions: Vec<AiSuggestion> = match ai::classify(&acfg, &batch).await {
+        let ctx = {
+            let conn = db.0.lock().unwrap();
+            crate::commands::radio::classify_context(&conn)?
+        };
+        let (suggestions, record) = ai::classify(&acfg, "classify", &batch, &ctx).await;
+        ai::save_log(&db, &record);
+        let suggestions = match suggestions {
             Ok(s) => s,
             Err(e) => {
                 log::warn!("AI 分类失败（本轮跳过）: {e}");
+                let conn = db.0.lock().unwrap();
+                for (mid, _, _) in &batch {
+                    let _ = conn.execute(
+                        "UPDATE chat_messages SET ai_status='error' WHERE message_id=?1",
+                        params![mid],
+                    );
+                }
                 continue;
             }
         };
-        let n_todo = suggestions.iter().filter(|s| s.todo).count();
-        log::info!("feishu: AI 判定 {n_todo}/{} 条为待办", batch.len());
-        for s in suggestions.iter().filter(|s| s.todo) {
-            log::info!(
-                "feishu: 待办「{}」分类 {} due {:?}（消息 {}）",
-                s.title.as_deref().unwrap_or("-"),
-                s.category.as_deref().unwrap_or("-"),
-                s.due,
-                s.message_id
-            );
-        }
-        let by_id: std::collections::HashMap<String, &AiSuggestion> = suggestions
+        let n_todo = suggestions.iter().filter(|s| s.is_todo()).count();
+        log::info!(
+            "feishu: AI 判定 {n_todo}/{} 条为新待办（含跟进/判重）",
+            batch.len()
+        );
+        let by_id: std::collections::HashMap<String, &ai::AiSuggestion> = suggestions
             .iter()
             .map(|s| (s.message_id.clone(), s))
             .collect();
+        let conn = db.0.lock().unwrap();
         for m in chunk {
-            let sug = by_id.get(&m.message_id).filter(|&s| s.todo);
-            if sug.is_none() {
-                continue;
-            }
-            let sug = sug.unwrap();
-            let conn = db.0.lock().unwrap();
-            let inserted = conn.execute(
-                "INSERT OR IGNORE INTO im_suggestions (message_id, chat_name, sender, content, suggested_title, suggested_category, suggested_due, review_status, created_at)
-                 VALUES (?1,?2,?3,?4,?5,?6,?7,'pending',?8)",
-                params![m.message_id, m.chat_name, m.sender, m.content, sug.title, sug.category, sug.due, now()],
-            );
-            if let Ok(n) = inserted {
-                if n > 0 {
-                    saved += 1;
+            match by_id.get(&m.message_id) {
+                Some(s) if s.is_todo() => {
+                    log::info!(
+                        "feishu: 新待办「{}」分类 {} 优先级 {} due {:?} 标签 {:?}（消息 {}）",
+                        s.title.as_deref().unwrap_or("-"),
+                        s.category.as_deref().unwrap_or("-"),
+                        s.priority.as_deref().unwrap_or("-"),
+                        s.due,
+                        s.tags,
+                        s.message_id
+                    );
+                    let n = conn.execute(
+                        "UPDATE chat_messages SET suggested_title=?2, suggested_category=?3, suggested_due=?4,
+                                suggested_priority=?5, suggested_note=?6, suggested_tags=?7, ai_status='todo'
+                         WHERE message_id=?1",
+                        params![
+                            m.message_id,
+                            s.title,
+                            s.category,
+                            s.due,
+                            s.priority,
+                            s.note,
+                            serde_json::to_string(&s.tags).unwrap_or_else(|_| "[]".into()),
+                        ],
+                    )?;
+                    if n > 0 {
+                        saved += 1;
+                    }
+                }
+                Some(s) if s.is_follow_up() => {
+                    // AI 判定是对现有待办的跟进：直接挂跟进记录，不建新待办
+                    let task_id = s.follow_up_task_id.unwrap_or(0);
+                    log::info!(
+                        "feishu: 消息 {} 判定为待办 {task_id} 的跟进，已记录",
+                        s.message_id
+                    );
+                    conn.execute(
+                        "INSERT INTO task_notes (task_id, content, source, created_at)
+                         VALUES (?1, ?2, 'ai', ?3)",
+                        params![task_id, m.content, now()],
+                    )?;
+                    conn.execute(
+                        "UPDATE chat_messages SET ai_status='followup' WHERE message_id=?1",
+                        params![m.message_id],
+                    )?;
+                }
+                _ => {
+                    conn.execute(
+                        "UPDATE chat_messages SET ai_status='none' WHERE message_id=?1",
+                        params![m.message_id],
+                    )?;
                 }
             }
         }
     }
 
-    if saved > 0 {
-        log::info!("feishu: 新增 {saved} 条收件箱建议");
-        let _ = app.emit(events::IM_SUGGESTIONS_CHANGED, saved);
+    if !fresh.is_empty() {
+        let _ = app.emit(events::CHAT_MESSAGES_CHANGED, fresh.len());
     }
+
+    // 3. 清理：超过 60 天仍未创建待办的消息
+    {
+        let conn = db.0.lock().unwrap();
+        let cutoff = (chrono::Utc::now() - chrono::Duration::days(60)).to_rfc3339();
+        let removed = conn.execute(
+            "DELETE FROM chat_messages WHERE task_id IS NULL AND created_at < ?1",
+            params![cutoff],
+        )?;
+        if removed > 0 {
+            log::info!("feishu: 清理 {removed} 条超期未捕捉消息（>60 天）");
+        }
+    }
+
     {
         let conn = db.0.lock().unwrap();
         conn.execute(

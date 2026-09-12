@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted, ref } from "vue";
+import { computed, onMounted, onUnmounted, ref, watch } from "vue";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 import { getVersion } from "@tauri-apps/api/app";
 import { useI18n } from "vue-i18n";
@@ -7,6 +7,8 @@ import { api, errorMessage } from "../api";
 import { EVENTS } from "../events";
 import { fmtDateTime, SETTING_KEYS, POKEMON_LIST, useSettingsStore } from "../stores/settings";
 import { useCategoriesStore } from "../stores/categories";
+import { useTagsStore } from "../stores/tags";
+import type { AiLog } from "../types";
 import { SUPPORTED_LOCALES } from "../i18n";
 import DexSelect from "../components/DexSelect.vue";
 import DexToggle from "../components/DexToggle.vue";
@@ -17,6 +19,7 @@ defineProps<{ latestVersion?: string }>();
 const { t } = useI18n();
 const settings = useSettingsStore();
 const categories = useCategoriesStore();
+const tagsStore = useTagsStore();
 
 const testMsg = ref("");
 const testing = ref(false);
@@ -37,8 +40,10 @@ const feishuOn = boolSetting("feishu_enabled");
 const settingsTabs = [
   { key: "focus", labelKey: "stabs.focus" },
   { key: "cats", labelKey: "stabs.cats" },
+  { key: "tags", labelKey: "stabs.tags" },
   { key: "display", labelKey: "stabs.display" },
   { key: "integrations", labelKey: "stabs.integrations" },
+  { key: "obs", labelKey: "stabs.obs" },
   { key: "general", labelKey: "stabs.general" },
 ] as const;
 const settingsTab = ref<(typeof settingsTabs)[number]["key"]>("focus");
@@ -136,6 +141,66 @@ async function addCat() {
   await categories.load();
   startEditCats();
 }
+
+// ---- 标签管理 ----
+const editingTags = ref<{ id: number; name: string; description: string }[]>([]);
+function startEditTags() {
+  editingTags.value = tagsStore.list.map((g) => ({ id: g.id, name: g.name, description: g.description }));
+}
+async function saveTag(row: { id: number; name: string; description: string }) {
+  try {
+    await api.updateTag(row.id, row.name, row.description);
+    await tagsStore.load();
+    startEditTags();
+    testMsg.value = t("tagSaved");
+    setTimeout(() => (testMsg.value = ""), 2000);
+  } catch (e) {
+    testMsg.value = `❌ ${errorMessage(e)}`;
+  }
+}
+async function removeTag(id: number) {
+  try {
+    await api.deleteTag(id);
+    await tagsStore.load();
+    startEditTags();
+  } catch (e) {
+    testMsg.value = `❌ ${errorMessage(e)}`;
+  }
+}
+async function addTag() {
+  try {
+    await api.createTag(t("tags.newName"), "");
+    await tagsStore.load();
+    startEditTags();
+  } catch (e) {
+    testMsg.value = `❌ ${errorMessage(e)}`;
+  }
+}
+
+// ---- AI 调用日志（链路可观测性） ----
+const aiLogs = ref<AiLog[]>([]);
+const logsLoading = ref(false);
+const expandedLogId = ref<number | null>(null);
+async function loadAiLogs() {
+  logsLoading.value = true;
+  try {
+    aiLogs.value = await api.listAiLogs(50);
+  } finally {
+    logsLoading.value = false;
+  }
+}
+watch(settingsTab, (tab) => {
+  if (tab === "tags" && !editingTags.value.length) startEditTags();
+  if (tab === "obs") loadAiLogs();
+});
+async function clearLogs() {
+  await api.clearAiLogs();
+  await loadAiLogs();
+}
+function toggleLog(id: number) {
+  expandedLogId.value = expandedLogId.value === id ? null : id;
+}
+const sceneKey = (scene: string) => `obs.scene.${scene}`;
 
 // ---- 开机自启 ----
 const autostart = ref(false);
@@ -270,6 +335,22 @@ onUnmounted(() => unlisteners.forEach((u) => u()));
         </section>
       </template>
 
+      <template v-if="settingsTab === 'tags'">
+        <section class="set-card">
+          <h3>{{ t("tags.title") }}</h3>
+          <div v-for="row in editingTags" :key="row.id" class="tag-row">
+            <input v-model="row.name" class="tag-name" :placeholder="t('tags.namePh')" />
+            <input v-model="row.description" class="tag-desc" :placeholder="t('tags.descPh')" />
+            <button class="btn ghost" @click="saveTag(row)">{{ t("tags.save") }}</button>
+            <button class="btn ghost del" @click="removeTag(row.id)">{{ t("tags.release") }}</button>
+          </div>
+          <div class="btn-row">
+            <button class="btn ghost" @click="addTag">{{ t("tags.new") }}</button>
+          </div>
+          <p class="hint">{{ t("tags.hint") }}</p>
+        </section>
+      </template>
+
       <template v-if="settingsTab === 'display'">
         <section class="set-card">
           <h3>{{ t("display.title") }}</h3>
@@ -343,6 +424,50 @@ onUnmounted(() => unlisteners.forEach((u) => u()));
             <button class="btn ghost" :disabled="testing" @click="runTest(api.syncTodoist)">
               {{ t("todoist.sync") }}
             </button>
+          </div>
+        </section>
+      </template>
+
+      <template v-if="settingsTab === 'obs'">
+        <section class="set-card">
+          <h3>{{ t("obs.title") }}</h3>
+          <div class="btn-row">
+            <button class="btn ghost" :disabled="logsLoading" @click="loadAiLogs">
+              {{ t("obs.refresh") }}
+            </button>
+            <button class="btn ghost del" :disabled="!aiLogs.length" @click="clearLogs">
+              {{ t("obs.clear") }}
+            </button>
+          </div>
+          <p class="hint">{{ t("obs.hint") }}</p>
+
+          <div v-if="logsLoading" class="hint">{{ t("obs.loading") }}</div>
+          <div v-else-if="!aiLogs.length" class="hint">{{ t("obs.empty") }}</div>
+          <div
+            v-for="log in aiLogs"
+            :key="log.id"
+            class="log-item"
+            :class="{ fail: !log.ok }"
+            @click="toggleLog(log.id)"
+          >
+            <div class="log-head">
+              <span class="log-status">{{ log.ok ? "✔" : "✖" }}</span>
+              <span class="log-scene">{{ t(sceneKey(log.scene)) }}</span>
+              <span class="log-model px">{{ log.model }}</span>
+              <span class="log-dur px">{{ log.durationMs }}ms</span>
+              <span class="log-time px">{{ fmtDateTime(log.createdAt) }}</span>
+            </div>
+            <p v-if="!log.ok && log.error" class="log-err">{{ log.error }}</p>
+            <template v-if="expandedLogId === log.id">
+              <div class="log-body">
+                <div class="log-label">{{ t("obs.request") }}</div>
+                <pre>{{ log.requestBody }}</pre>
+              </div>
+              <div class="log-body">
+                <div class="log-label">{{ t("obs.response") }}</div>
+                <pre>{{ log.responseBody || (log.error ?? "-") }}</pre>
+              </div>
+            </template>
           </div>
         </section>
       </template>
@@ -488,6 +613,103 @@ onUnmounted(() => unlisteners.forEach((u) => u()));
 }
 .cat-row .btn.del {
   color: var(--dex-red);
+}
+/* 标签编辑行 */
+.tag-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+.tag-row input {
+  padding: 7px 9px;
+  border: 3px solid var(--dex-navy);
+  border-radius: 8px;
+  font-size: 13px;
+  font-family: inherit;
+  min-height: 34px;
+}
+.tag-name {
+  width: 110px;
+  flex: none;
+}
+.tag-desc {
+  flex: 1;
+  min-width: 0;
+}
+.tag-row .btn {
+  padding: 7px 10px;
+  min-height: 34px;
+  font-size: 12px;
+}
+.set-card .btn.del {
+  color: var(--dex-red);
+}
+/* AI 调用日志 */
+.log-item {
+  border: 3px solid var(--dex-navy);
+  border-radius: 10px;
+  padding: 8px 10px;
+  margin-top: 10px;
+  cursor: pointer;
+  background: #fff;
+}
+.log-item:hover {
+  background: #fff3c4;
+}
+.log-item.fail {
+  border-color: var(--dex-red);
+}
+.log-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 13px;
+  font-weight: 700;
+  flex-wrap: wrap;
+}
+.log-status {
+  color: #2e8b57;
+}
+.log-item.fail .log-status {
+  color: var(--dex-red);
+}
+.log-model,
+.log-dur,
+.log-time {
+  font-size: 10px;
+  color: #7b7460;
+}
+.log-time {
+  margin-left: auto;
+}
+.log-err {
+  margin: 6px 0 0;
+  font-size: 12px;
+  color: var(--dex-red);
+  word-break: break-all;
+}
+.log-body {
+  margin-top: 8px;
+}
+.log-label {
+  font-size: 11px;
+  font-weight: 800;
+  color: var(--dex-navy);
+  margin-bottom: 4px;
+}
+.log-body pre {
+  margin: 0;
+  background: var(--lcd);
+  border: 2px solid var(--lcd-dark);
+  border-radius: 8px;
+  padding: 8px;
+  font-size: 11px;
+  line-height: 1.6;
+  white-space: pre-wrap;
+  word-break: break-all;
+  max-height: 220px;
+  overflow-y: auto;
 }
 .set-card label {
   display: flex;

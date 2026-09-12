@@ -1,7 +1,7 @@
 use crate::db::{now, Db};
 use crate::error::{AppError, AppResult};
 use crate::events;
-use crate::models::Task;
+use crate::models::{Task, TaskNote};
 use rusqlite::{params, Connection};
 use tauri::State;
 
@@ -21,7 +21,23 @@ fn row_to_task(row: &rusqlite::Row) -> rusqlite::Result<Task> {
         created_at: row.get(11)?,
         completed_at: row.get(12)?,
         focus_seconds: row.get(13)?,
+        tags: vec![],
     })
+}
+
+/// 给任务列表批量挂标签（task_tags JOIN tags，逐任务小查询在本地库量级下足够）
+fn attach_tags(conn: &Connection, tasks: &mut [Task]) -> AppResult<()> {
+    let mut stmt = conn.prepare(
+        "SELECT t.name FROM task_tags tt JOIN tags t ON t.id = tt.tag_id
+         WHERE tt.task_id = ?1 ORDER BY t.id",
+    )?;
+    for t in tasks.iter_mut() {
+        let names = stmt
+            .query_map(params![t.id], |r| r.get::<_, String>(0))?
+            .collect::<Result<Vec<_>, _>>()?;
+        t.tags = names;
+    }
+    Ok(())
 }
 
 const TASK_COLS: &str = "id, title, note, category_id, status, priority, due_at, remind_at, reminded, source, external_id, created_at, completed_at, focus_seconds";
@@ -42,9 +58,40 @@ pub fn list_tasks(db: State<Db>, filter: String) -> AppResult<Vec<Task>> {
     };
     let sql = sql.replace("{cols}", TASK_COLS);
     let mut stmt = conn.prepare(&sql)?;
-    let rows = stmt
+    let mut rows = stmt
         .query_map([], row_to_task)?
         .collect::<Result<Vec<_>, _>>()?;
+    attach_tags(&conn, &mut rows)?;
+    Ok(rows)
+}
+
+/// 关键词搜索：标题/备注/跟进记录/标签名，任意命中即返回
+#[tauri::command]
+pub fn search_tasks(db: State<Db>, q: String) -> AppResult<Vec<Task>> {
+    let q = q.trim().to_string();
+    if q.is_empty() {
+        return Ok(vec![]);
+    }
+    let like = format!(
+        "%{}%",
+        q.replace('\\', "\\\\")
+            .replace('%', "\\%")
+            .replace('_', "\\_")
+    );
+    let conn = db.0.lock().unwrap();
+    let mut stmt = conn.prepare(&format!(
+        "SELECT {TASK_COLS} FROM tasks
+         WHERE title LIKE ?1 ESCAPE '\\'
+            OR note LIKE ?1 ESCAPE '\\'
+            OR id IN (SELECT tt.task_id FROM task_tags tt JOIN tags t ON t.id = tt.tag_id
+                      WHERE t.name LIKE ?1 ESCAPE '\\')
+            OR id IN (SELECT task_id FROM task_notes WHERE content LIKE ?1 ESCAPE '\\')
+         ORDER BY id DESC LIMIT 100"
+    ))?;
+    let mut rows = stmt
+        .query_map(params![like], row_to_task)?
+        .collect::<Result<Vec<_>, _>>()?;
+    attach_tags(&conn, &mut rows)?;
     Ok(rows)
 }
 
@@ -61,6 +108,9 @@ pub struct NewTask {
     pub scheduled: bool,
     pub source: Option<String>,
     pub external_id: Option<String>,
+    /// 创建时直接挂的标签 id 列表
+    #[serde(default)]
+    pub tag_ids: Option<Vec<i64>>,
 }
 
 #[tauri::command]
@@ -92,22 +142,39 @@ pub fn create_task<R: tauri::Runtime>(
         ],
     )?;
     let id = conn.last_insert_rowid();
+    if let Some(tag_ids) = &task.tag_ids {
+        set_task_tags(&conn, id, tag_ids)?;
+    }
     let t = query_task(&conn, id)?;
     drop(conn);
     events::broadcast(&app, events::TASKS_CHANGED);
     Ok(t)
 }
 
+/// 全量替换某任务的标签关联
+fn set_task_tags(conn: &Connection, task_id: i64, tag_ids: &[i64]) -> AppResult<()> {
+    conn.execute("DELETE FROM task_tags WHERE task_id=?1", params![task_id])?;
+    let mut stmt =
+        conn.prepare("INSERT OR IGNORE INTO task_tags (task_id, tag_id) VALUES (?1, ?2)")?;
+    for tag_id in tag_ids {
+        stmt.execute(params![task_id, tag_id])?;
+    }
+    Ok(())
+}
+
 fn query_task(conn: &Connection, id: i64) -> AppResult<Task> {
-    conn.query_row(
-        &format!("SELECT {TASK_COLS} FROM tasks WHERE id=?1"),
-        params![id],
-        row_to_task,
-    )
-    .map_err(|e| match e {
-        rusqlite::Error::QueryReturnedNoRows => AppError::NotFound(format!("任务 {id} 不存在")),
-        other => AppError::Db(other),
-    })
+    let mut t = conn
+        .query_row(
+            &format!("SELECT {TASK_COLS} FROM tasks WHERE id=?1"),
+            params![id],
+            row_to_task,
+        )
+        .map_err(|e| match e {
+            rusqlite::Error::QueryReturnedNoRows => AppError::NotFound(format!("任务 {id} 不存在")),
+            other => AppError::Db(other),
+        })?;
+    attach_tags(conn, std::slice::from_mut(&mut t))?;
+    Ok(t)
 }
 
 #[tauri::command]
@@ -139,6 +206,9 @@ pub struct TaskPatch {
     #[serde(default, deserialize_with = "keep_null")]
     pub remind_at: Option<serde_json::Value>,
     pub status: Option<String>,
+    /// 出现即全量替换标签关联（空数组 = 清空标签），缺失 = 不改
+    #[serde(default)]
+    pub tag_ids: Option<Vec<i64>>,
 }
 
 /// due/remind 三态：不改（缺失）/ 清空（null）/ 设置（字符串）
@@ -187,11 +257,16 @@ pub fn update_task<R: tauri::Runtime>(
         push(&mut sets, &mut p, "status", Box::new(v.clone()));
     }
     p.push(Box::new(patch.id));
-    let sql = format!("UPDATE tasks SET {} WHERE id=?{}", sets.join(", "), p.len());
-    conn.execute(
-        &sql,
-        rusqlite::params_from_iter(p.iter().map(|b| b.as_ref())),
-    )?;
+    if !sets.is_empty() {
+        let sql = format!("UPDATE tasks SET {} WHERE id=?{}", sets.join(", "), p.len());
+        conn.execute(
+            &sql,
+            rusqlite::params_from_iter(p.iter().map(|b| b.as_ref())),
+        )?;
+    }
+    if let Some(tag_ids) = &patch.tag_ids {
+        set_task_tags(&conn, patch.id, tag_ids)?;
+    }
     let t = query_task(&conn, patch.id)?;
     drop(conn);
     events::broadcast(&app, events::TASKS_CHANGED);
@@ -204,9 +279,88 @@ pub fn delete_task<R: tauri::Runtime>(
     db: State<Db>,
     id: i64,
 ) -> AppResult<()> {
+    let conn = db.0.lock().unwrap();
+    conn.execute("DELETE FROM tasks WHERE id=?1", params![id])?;
+    conn.execute("DELETE FROM task_tags WHERE task_id=?1", params![id])?;
+    conn.execute("DELETE FROM task_notes WHERE task_id=?1", params![id])?;
+    drop(conn);
+    events::broadcast(&app, events::TASKS_CHANGED);
+    Ok(())
+}
+
+// ---- 跟进记录 ----
+
+const NOTE_COLS: &str = "id, task_id, content, source, created_at";
+
+fn row_to_note(row: &rusqlite::Row) -> rusqlite::Result<TaskNote> {
+    Ok(TaskNote {
+        id: row.get(0)?,
+        task_id: row.get(1)?,
+        content: row.get(2)?,
+        source: row.get(3)?,
+        created_at: row.get(4)?,
+    })
+}
+
+#[tauri::command]
+pub fn list_task_notes(db: State<Db>, task_id: i64) -> AppResult<Vec<TaskNote>> {
+    let conn = db.0.lock().unwrap();
+    let mut stmt = conn.prepare(&format!(
+        "SELECT {NOTE_COLS} FROM task_notes WHERE task_id=?1 ORDER BY id"
+    ))?;
+    let rows = stmt
+        .query_map(params![task_id], row_to_note)?
+        .collect::<Result<Vec<_>, _>>()?;
+    Ok(rows)
+}
+
+/// 手动添加跟进记录；AI 侧的跟进记录由 feishu 链路以 source='ai' 直接入库
+#[tauri::command]
+pub fn add_task_note<R: tauri::Runtime>(
+    app: tauri::AppHandle<R>,
+    db: State<Db>,
+    task_id: i64,
+    content: String,
+) -> AppResult<TaskNote> {
+    let content = content.trim().to_string();
+    if content.is_empty() {
+        return Err(AppError::Invalid("跟进内容不能为空".into()));
+    }
+    let conn = db.0.lock().unwrap();
+    conn.query_row(
+        &format!("SELECT {TASK_COLS} FROM tasks WHERE id=?1"),
+        params![task_id],
+        row_to_task,
+    )
+    .map_err(|e| match e {
+        rusqlite::Error::QueryReturnedNoRows => {
+            AppError::NotFound(format!("任务 {task_id} 不存在"))
+        }
+        other => AppError::Db(other),
+    })?;
+    conn.execute(
+        "INSERT INTO task_notes (task_id, content, source, created_at) VALUES (?1, ?2, 'manual', ?3)",
+        params![task_id, content, now()],
+    )?;
+    let note = conn.query_row(
+        &format!("SELECT {NOTE_COLS} FROM task_notes WHERE id=?1"),
+        params![conn.last_insert_rowid()],
+        row_to_note,
+    )?;
+    drop(conn);
+    events::broadcast(&app, events::TASKS_CHANGED);
+    Ok(note)
+}
+
+#[tauri::command]
+pub fn delete_task_note<R: tauri::Runtime>(
+    app: tauri::AppHandle<R>,
+    db: State<Db>,
+    id: i64,
+) -> AppResult<()> {
     db.0.lock()
         .unwrap()
-        .execute("DELETE FROM tasks WHERE id=?1", params![id])?;
+        .execute("DELETE FROM task_notes WHERE id=?1", params![id])?;
     events::broadcast(&app, events::TASKS_CHANGED);
     Ok(())
 }
@@ -305,6 +459,7 @@ mod tests {
             scheduled,
             source: None,
             external_id: None,
+            tag_ids: None,
         }
     }
 
@@ -434,6 +589,7 @@ mod tests {
                     due_at: None,
                     remind_at: None,
                     status: Some("done".into()),
+                    tag_ids: None,
                 },
             )
             .expect("update");
@@ -497,6 +653,7 @@ mod tests {
                     due_at: None,
                     remind_at: None,
                     status: None,
+                    tag_ids: None,
                 },
             )
             .expect("update");
@@ -534,6 +691,7 @@ mod tests {
                     due_at: None,
                     remind_at: Some(serde_json::Value::String("2026-10-01T09:00".into())),
                     status: None,
+                    tag_ids: None,
                 },
             )
             .expect("update");
@@ -628,6 +786,153 @@ mod tests {
             get_task(db, t.id)
         };
         assert!(err.is_err());
+    }
+
+    // ---- 标签 / 跟进记录 / 搜索 ----
+
+    fn seed_tag(app: &tauri::App<tauri::test::MockRuntime>, name: &str) -> i64 {
+        let db = app.state::<Db>();
+        let conn = db.0.lock().unwrap();
+        conn.execute(
+            "INSERT INTO tags (name, description, created_at) VALUES (?1, '', '2026-09-01T00:00:00Z')",
+            params![name],
+        )
+        .unwrap();
+        conn.last_insert_rowid()
+    }
+
+    #[test]
+    fn create_and_update_task_with_tags() {
+        let app = setup();
+        let tag_a = seed_tag(&app, "重要");
+        let tag_b = seed_tag(&app, "需汇报");
+        let t = {
+            let db = app.state::<Db>();
+            create_task(
+                app.handle().clone(),
+                db,
+                NewTask {
+                    tag_ids: Some(vec![tag_a, tag_b]),
+                    ..new_task("带标签", false)
+                },
+            )
+            .unwrap()
+        };
+        assert_eq!(t.tags, vec!["重要".to_string(), "需汇报".to_string()]);
+        // patch 全量替换为单个标签
+        let updated = {
+            let db = app.state::<Db>();
+            let patch: TaskPatch =
+                serde_json::from_value(serde_json::json!({ "id": t.id, "tagIds": [tag_b] }))
+                    .unwrap();
+            update_task(app.handle().clone(), db, patch).unwrap()
+        };
+        assert_eq!(updated.tags, vec!["需汇报".to_string()]);
+        // 空数组清空
+        let cleared = {
+            let db = app.state::<Db>();
+            let patch: TaskPatch =
+                serde_json::from_value(serde_json::json!({ "id": t.id, "tagIds": [] })).unwrap();
+            update_task(app.handle().clone(), db, patch).unwrap()
+        };
+        assert!(cleared.tags.is_empty());
+    }
+
+    #[test]
+    fn task_notes_add_list_delete() {
+        let app = setup();
+        let t = create(&app, "有跟进", false);
+        {
+            let db = app.state::<Db>();
+            let err = add_task_note(app.handle().clone(), db, t.id, "  ".into()).unwrap_err();
+            assert!(matches!(err, AppError::Invalid(_)));
+        }
+        {
+            let db = app.state::<Db>();
+            add_task_note(app.handle().clone(), db, t.id, "对方确认周五交付".into()).unwrap();
+        }
+        // AI 来源的记录直插库，验证 list 一并返回
+        {
+            let db = app.state::<Db>();
+            let conn = db.0.lock().unwrap();
+            conn.execute(
+                "INSERT INTO task_notes (task_id, content, source, created_at) VALUES (?1, 'AI 判定为跟进', 'ai', '2026-09-02T00:00:00Z')",
+                params![t.id],
+            )
+            .unwrap();
+        }
+        let notes = {
+            let db = app.state::<Db>();
+            list_task_notes(db, t.id).unwrap()
+        };
+        assert_eq!(notes.len(), 2);
+        assert_eq!(notes[0].source, "manual");
+        assert_eq!(notes[1].source, "ai");
+        {
+            let db = app.state::<Db>();
+            delete_task_note(app.handle().clone(), db, notes[0].id).unwrap();
+        }
+        let left = {
+            let db = app.state::<Db>();
+            list_task_notes(db, t.id).unwrap()
+        };
+        assert_eq!(left.len(), 1);
+        // 不存在的任务不能加跟进
+        let err = {
+            let db = app.state::<Db>();
+            add_task_note(app.handle().clone(), db, 999, "x".into()).unwrap_err()
+        };
+        assert!(matches!(err, AppError::NotFound(_)));
+    }
+
+    #[test]
+    fn search_tasks_matches_title_note_tag_and_followups() {
+        let app = setup();
+        let tag_id = seed_tag(&app, "需汇报");
+        let t1 = create(&app, "写季度报告", false);
+        let t2 = create(&app, "修登录bug", false);
+        {
+            let db = app.state::<Db>();
+            let patch: TaskPatch = serde_json::from_value(
+                serde_json::json!({ "id": t2.id, "note": "季度报告需要附上数据", "tagIds": [tag_id] }),
+            )
+            .unwrap();
+            update_task(app.handle().clone(), db, patch).unwrap();
+        }
+        let t3 = create(&app, "无关任务", false);
+        {
+            let db = app.state::<Db>();
+            add_task_note(app.handle().clone(), db, t3.id, "老板催季度报告进度".into()).unwrap();
+        }
+        let hit_title = {
+            let db = app.state::<Db>();
+            search_tasks(db, "季度报告".into()).unwrap()
+        };
+        let ids: Vec<i64> = hit_title.iter().map(|t| t.id).collect();
+        assert_eq!(
+            ids,
+            vec![t3.id, t2.id, t1.id],
+            "标题/备注/跟进全文均命中，倒序"
+        );
+        let hit_tag = {
+            let db = app.state::<Db>();
+            search_tasks(db, "需汇报".into()).unwrap()
+        };
+        assert_eq!(hit_tag.len(), 1);
+        assert_eq!(hit_tag[0].id, t2.id);
+        assert_eq!(hit_tag[0].tags, vec!["需汇报".to_string()]);
+        // 空关键词返回空，不做全表扫描
+        let empty = {
+            let db = app.state::<Db>();
+            search_tasks(db, "  ".into()).unwrap()
+        };
+        assert!(empty.is_empty());
+        // LIKE 通配符按字面匹配
+        let none = {
+            let db = app.state::<Db>();
+            search_tasks(db, "%".into()).unwrap()
+        };
+        assert!(none.is_empty());
     }
 
     // ---- IPC 契约：前端 api.ts 以 camelCase 发送载荷 ----

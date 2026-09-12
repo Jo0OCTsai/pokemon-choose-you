@@ -1,4 +1,4 @@
-import type { Category, ImSuggestion, Task } from "./types";
+import type { AiLog, Category, ChatMessage, Tag, Task, TaskNote } from "./types";
 
 /** 后端 AppError（src-tauri/src/error.rs）经 IPC 序列化后的结构 */
 export type ApiErrorKind = "db" | "not_found" | "invalid" | "network" | "external" | "io" | "tauri";
@@ -52,25 +52,38 @@ export interface NewTaskInput {
   dueAt?: string;
   remindAt?: string;
   scheduled?: boolean;
+  tagIds?: number[];
 }
 
 export const api = {
   listTasks: (filter: string) => call<Task[]>("list_tasks", { filter }),
+  searchTasks: (q: string) => call<Task[]>("search_tasks", { q }),
   createTask: (task: NewTaskInput) => call<Task>("create_task", { task: { scheduled: false, ...task } }),
-  updateTask: (patch: Partial<Task> & { id: number }) => call<Task>("update_task", { patch }),
+  updateTask: (patch: Partial<Task> & { id: number; tagIds?: number[] }) => call<Task>("update_task", { patch }),
   deleteTask: (id: number) => call<void>("delete_task", { id }),
   startTask: (id: number) => call<Task>("start_task", { id }),
   pauseCurrentTask: () => call<Task | null>("pause_current_task"),
   getCurrentTask: () => call<Task | null>("get_current_task"),
   addFocusSeconds: (id: number, seconds: number) => call<void>("add_focus_seconds", { id, seconds }),
+  listTaskNotes: (taskId: number) => call<TaskNote[]>("list_task_notes", { taskId }),
+  addTaskNote: (taskId: number, content: string) => call<TaskNote>("add_task_note", { taskId, content }),
+  deleteTaskNote: (id: number) => call<void>("delete_task_note", { id }),
+  listTags: () => call<Tag[]>("list_tags"),
+  createTag: (name: string, description: string) => call<Tag>("create_tag", { name, description }),
+  updateTag: (id: number, name: string, description: string) => call<void>("update_tag", { id, name, description }),
+  deleteTag: (id: number) => call<void>("delete_tag", { id }),
   listCategories: () => call<Category[]>("list_categories"),
   setCategoryPokemon: (id: number, pokemon: string, sprite: string) =>
     call<void>("set_category_pokemon", { id, pokemon, sprite }),
   getSetting: (key: string) => call<string | null>("get_setting", { key }),
   setSetting: (key: string, value: string) => call<void>("set_setting", { key, value }),
-  listImSuggestions: (status?: string) => call<ImSuggestion[]>("list_im_suggestions", { status: status ?? null }),
-  acceptImSuggestion: (id: number) => call<number>("accept_im_suggestion", { id }),
-  dismissImSuggestion: (id: number) => call<void>("dismiss_im_suggestion", { id }),
+  listChatMessages: (query?: string) => call<ChatMessage[]>("list_chat_messages", { query: query ?? null }),
+  acceptChatMessage: (id: number) => call<number>("accept_chat_message", { id }),
+  dismissChatMessage: (id: number) => call<void>("dismiss_chat_message", { id }),
+  /** 强制用 AI 为消息创建待办（AI 先判重，重复则报错说明） */
+  forceCreateTodo: (id: number) => call<number>("force_create_todo", { id }),
+  listAiLogs: (limit?: number) => call<AiLog[]>("list_ai_logs", { limit: limit ?? null }),
+  clearAiLogs: () => call<void>("clear_ai_logs"),
   listAllSettings: () => call<Record<string, string>>("list_all_settings"),
   openMainWindow: () => call<void>("open_main_window"),
   /** 主窗口挂载时领取"快速捕捉"挂起标记（一次性），返回 true 则直接聚焦新增输入框 */

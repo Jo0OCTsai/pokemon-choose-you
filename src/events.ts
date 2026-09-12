@@ -6,7 +6,10 @@ export const EVENTS = {
   tasksChanged: "tasks-changed",
   categoriesChanged: "categories-changed",
   settingsChanged: "settings-changed",
-  imSuggestionsChanged: "im-suggestions-changed",
+  /** 收音机电波（chat_messages）有新消息或状态变化 */
+  chatMessagesChanged: "chat-messages-changed",
+  /** 标签配置变化（设置页维护，两窗口跟随） */
+  tagsChanged: "tags-changed",
   /** 提醒到期，payload: { id, title, urgent } */
   taskReminder: "task-reminder",
   /** 全局快捷键"快速捕捉待办"，前端聚焦新增输入框 */

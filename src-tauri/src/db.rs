@@ -59,9 +59,77 @@ CREATE TABLE IF NOT EXISTS sync_state (
 );
 "#;
 
+/// v2：标签 / 任务标签 / 跟进记录 / 收音机全量消息（chat_messages 取代 im_suggestions）/ AI 调用日志
+const SCHEMA_V2: &str = r#"
+CREATE TABLE IF NOT EXISTS tags (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT NOT NULL UNIQUE,
+    description TEXT NOT NULL DEFAULT '',
+    created_at TEXT NOT NULL DEFAULT ''
+);
+
+CREATE TABLE IF NOT EXISTS task_tags (
+    task_id INTEGER NOT NULL,
+    tag_id INTEGER NOT NULL,
+    PRIMARY KEY (task_id, tag_id)
+);
+CREATE INDEX IF NOT EXISTS idx_task_tags_task ON task_tags(task_id);
+CREATE INDEX IF NOT EXISTS idx_task_tags_tag ON task_tags(tag_id);
+
+CREATE TABLE IF NOT EXISTS task_notes (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    task_id INTEGER NOT NULL,
+    content TEXT NOT NULL,
+    source TEXT NOT NULL DEFAULT 'manual',
+    created_at TEXT NOT NULL DEFAULT ''
+);
+CREATE INDEX IF NOT EXISTS idx_task_notes_task ON task_notes(task_id);
+
+CREATE TABLE IF NOT EXISTS chat_messages (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    message_id TEXT NOT NULL UNIQUE,
+    chat_name TEXT NOT NULL DEFAULT '',
+    sender TEXT NOT NULL DEFAULT '',
+    content TEXT NOT NULL,
+    suggested_title TEXT,
+    suggested_category TEXT,
+    suggested_due TEXT,
+    suggested_priority TEXT,
+    suggested_note TEXT,
+    suggested_tags TEXT NOT NULL DEFAULT '[]',
+    ai_status TEXT NOT NULL DEFAULT 'pending',
+    review_status TEXT NOT NULL DEFAULT 'pending',
+    task_id INTEGER,
+    created_at TEXT NOT NULL DEFAULT ''
+);
+CREATE INDEX IF NOT EXISTS idx_chat_messages_created ON chat_messages(created_at);
+
+CREATE TABLE IF NOT EXISTS ai_logs (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    scene TEXT NOT NULL DEFAULT '',
+    model TEXT NOT NULL DEFAULT '',
+    request_body TEXT NOT NULL DEFAULT '',
+    response_body TEXT NOT NULL DEFAULT '',
+    ok INTEGER NOT NULL DEFAULT 1,
+    error TEXT,
+    duration_ms INTEGER NOT NULL DEFAULT 0,
+    created_at TEXT NOT NULL DEFAULT ''
+);
+
+-- 旧 im_suggestions 数据并入 chat_messages：有建议标题的视为 AI 已判定待办
+INSERT OR IGNORE INTO chat_messages
+    (message_id, chat_name, sender, content, suggested_title, suggested_category, suggested_due,
+     ai_status, review_status, created_at)
+SELECT message_id, chat_name, sender, content, suggested_title, suggested_category, suggested_due,
+       CASE WHEN suggested_title IS NULL THEN 'none' ELSE 'todo' END,
+       review_status, created_at
+FROM im_suggestions;
+DROP TABLE IF EXISTS im_suggestions;
+"#;
+
 /// 迁移按序号执行：MIGRATIONS[i] 负责把 `PRAGMA user_version` 从 i 升到 i+1。
 /// 新的 schema 变更一律追加新条目（且只追加，不修改已发布条目），老库逐级前滚。
-const MIGRATIONS: &[&str] = &[SCHEMA_V1];
+const MIGRATIONS: &[&str] = &[SCHEMA_V1, SCHEMA_V2];
 
 #[derive(Debug, thiserror::Error)]
 pub enum MigrateError {
@@ -212,6 +280,59 @@ pub(crate) mod tests {
             .unwrap();
         assert_eq!(title, "老任务");
         assert_eq!(lang, "en");
+    }
+
+    /// 回归：v1 老库（含 im_suggestions 数据）升级 v2 后，消息并入 chat_messages 且标签表可用
+    #[test]
+    fn migrates_v1_db_moving_im_suggestions_into_chat_messages() {
+        let conn = Connection::open_in_memory().unwrap();
+        conn.execute_batch(SCHEMA_V1).unwrap();
+        conn.execute("PRAGMA user_version = 1", []).unwrap();
+        conn.execute(
+            "INSERT INTO im_suggestions (message_id, chat_name, sender, content, suggested_title, suggested_category, suggested_due, review_status, created_at)
+             VALUES ('om_1', '群', '张三', '明天开周会', '参加周会', '工作', '2026-09-13T10:00', 'pending', '2026-09-01T00:00:00Z')",
+            [],
+        )
+        .unwrap();
+        conn.execute(
+            "INSERT INTO im_suggestions (message_id, chat_name, sender, content, suggested_title, review_status, created_at)
+             VALUES ('om_2', '群', '李四', '哈哈', NULL, 'dismissed', '2026-09-01T00:00:00Z')",
+            [],
+        )
+        .unwrap();
+
+        init_conn(&conn).unwrap();
+        assert_eq!(user_version(&conn), MIGRATIONS.len() as i64);
+        let todo: (String, String) = conn
+            .query_row(
+                "SELECT suggested_title, ai_status FROM chat_messages WHERE message_id='om_1'",
+                [],
+                |r| Ok((r.get(0)?, r.get(1)?)),
+            )
+            .unwrap();
+        assert_eq!(todo, ("参加周会".into(), "todo".into()));
+        let none: (i64, String) = conn
+            .query_row(
+                "SELECT COALESCE(task_id, 0), ai_status FROM chat_messages WHERE message_id='om_2'",
+                [],
+                |r| Ok((r.get(0)?, r.get(1)?)),
+            )
+            .unwrap();
+        assert_eq!(none, (0, "none".into()), "无建议标题的消息标记为 none");
+        // 旧表已删除，标签/跟进/AI 日志表可用
+        let tables: i64 = conn
+            .query_row(
+                "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='im_suggestions'",
+                [],
+                |r| r.get(0),
+            )
+            .unwrap();
+        assert_eq!(tables, 0, "im_suggestions 已被 chat_messages 取代");
+        conn.execute(
+            "INSERT INTO tags (name, description, created_at) VALUES ('重要', '核心目标', '2026-09-01T00:00:00Z')",
+            [],
+        )
+        .unwrap();
     }
 
     #[test]
