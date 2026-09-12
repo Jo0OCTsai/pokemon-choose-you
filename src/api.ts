@@ -1,4 +1,5 @@
 import type {
+  BackupInfo,
   BatchReviewResult,
   Category,
   ChatMessage,
@@ -119,6 +120,10 @@ export const api = {
       action,
       reasonCode: reasonCode ?? null,
     }),
+  /** 备份三件套：列表 / 立即备份 / 从备份恢复（恢复成功后广播全部数据变更事件） */
+  listBackups: () => call<BackupInfo[]>("list_backups"),
+  createBackupNow: () => call<string>("create_backup_now"),
+  restoreBackup: (file: string) => call<void>("restore_backup", { file }),
   listAllSettings: () => call<Record<string, string>>("list_all_settings"),
   openMainWindow: () => call<void>("open_main_window"),
   /** 主窗口挂载时领取"快速捕捉"挂起标记（一次性），返回 true 则直接聚焦新增输入框 */

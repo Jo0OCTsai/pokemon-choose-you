@@ -255,6 +255,21 @@ export default {
   secret: {
     stored: "已保存在系统钥匙串，输入可更换（清空即移除）",
   },
+  backup: {
+    title: "数据备份",
+    enable: "每日自动备份（VACUUM INTO 快照存于应用数据目录 backups/，滚动保留）",
+    keep: "保留份数",
+    keepN: "{n} 份",
+    now: "立即备份",
+    working: "备份中…",
+    done: "✔ 已备份 {v}",
+    hint: "「恢复」会用所选备份覆盖当前全部数据（任务/收音机/设置）；秘钥在系统钥匙串，不受影响。",
+    restore: "恢复",
+    confirmRestore: "确认覆盖恢复？",
+    restoring: "恢复中…",
+    restored: "✔ 已从备份恢复，数据已刷新",
+    empty: "还没有备份，点「立即备份」创建第一份",
+  },
   update: {
     title: "检查更新",
     current: "当前版本 v{v}",

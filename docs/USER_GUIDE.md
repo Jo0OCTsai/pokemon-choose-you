@@ -36,6 +36,8 @@
 建议第一件事：打开图鉴机 → 设置 → 通用 → 打开「开机自动启动」，以后登录系统桌宠自动出现。
 
 > 数据全部存在本地（macOS: `~/Library/Application Support/com.joeca.pokemonknock/`，Windows: `%APPDATA%/com.joeca.pokemonknock/`，Linux: `~/.local/share/com.joeca.pokemonknock/`），卸载重装不丢任务。
+>
+> **自动备份**：每天第一份快照存在数据目录的 `backups/` 下（`VACUUM INTO` 压缩产物），默认滚动保留 7 份，可在 设置 → 通用 → 数据备份 调整份数、立即备份或从任意一份恢复（恢复立即生效、无需重启，会覆盖当前全部数据；秘钥在系统钥匙串不受影响）。
 
 ## 核心概念（世界观）
 

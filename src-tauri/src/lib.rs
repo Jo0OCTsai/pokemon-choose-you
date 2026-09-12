@@ -1,4 +1,5 @@
 mod ai;
+pub mod backup;
 // db / models / error / commands 对外公开：pk CLI（src/bin/pk.rs）以 crate 库形式复用同一套数据逻辑
 pub mod commands;
 pub mod db;
@@ -64,6 +65,7 @@ pub fn run() {
             ));
             app.manage(health::HealthState::default());
             scheduler::spawn_reminder_loop(app.handle().clone());
+            backup::spawn_daily_loop(app.handle().clone());
             feishu::spawn_poll_loop(app.handle().clone());
             tray::setup(app.handle())?;
             shortcuts::register(app.handle());
@@ -71,6 +73,9 @@ pub fn run() {
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
+            commands::list_backups,
+            commands::create_backup_now,
+            commands::restore_backup,
             commands::list_tasks,
             commands::search_tasks,
             commands::create_task,

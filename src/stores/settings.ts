@@ -15,6 +15,10 @@ export const SETTING_DEFAULTS: Record<string, string> = {
   default_priority: "normal",
   /** 自然语言快速捕捉（输入框解析「明天 5pm 交周报 #工作」，带预览可取消） */
   nl_capture_enabled: "true",
+  /** 每日自动备份（VACUUM INTO 快照，滚动保留） */
+  backup_enabled: "true",
+  /** 备份滚动保留份数 */
+  backup_keep: "7",
   feishu_poll_interval: "120",
   feishu_enabled: "false",
   /** AI agent CLI 列表（AgentConfig 的 JSON 数组字符串） */
@@ -48,6 +52,8 @@ export const SETTING_KEYS = [
   "time_format",
   "default_priority",
   "nl_capture_enabled",
+  "backup_enabled",
+  "backup_keep",
   "feishu_poll_interval",
   "ai_agents",
   "ai_agent_id",
