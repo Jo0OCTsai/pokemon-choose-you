@@ -150,6 +150,15 @@ pub(crate) fn create_task_from_message(conn: &Connection, msg: &ChatMessage) -> 
             stmt.execute(params![task_id, tag_id])?;
         }
     }
+    crate::commands::tasks::log_change(
+        conn,
+        task_id,
+        "create",
+        "title",
+        None,
+        Some(&title),
+        "radio",
+    )?;
     conn.execute(
         "UPDATE chat_messages SET review_status='accepted', task_id=?2 WHERE id=?1",
         params![msg.id, task_id],

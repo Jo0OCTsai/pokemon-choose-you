@@ -3,7 +3,8 @@ export interface Task {
   title: string;
   note?: string | null;
   categoryId: number;
-  status: "inbox" | "scheduled" | "active" | "paused" | "done";
+  /** inbox=草丛 / scheduled=路线 / active=进行中 / paused=暂停 / done=已完成 / cancelled=已逃走 */
+  status: "inbox" | "scheduled" | "active" | "paused" | "done" | "cancelled";
   priority: "low" | "normal" | "high" | "urgent";
   dueAt?: string | null;
   remindAt?: string | null;
@@ -12,6 +13,10 @@ export interface Task {
   externalId?: string | null;
   createdAt: string;
   completedAt?: string | null;
+  /** 首次出发时间；无截止时间且从未开始的任务归入草丛 */
+  startedAt?: string | null;
+  /** 逃走（取消）时间 */
+  cancelledAt?: string | null;
   focusSeconds: number;
   /** 标签名列表（后端聚合返回） */
   tags: string[];
@@ -37,6 +42,20 @@ export interface TaskNote {
   taskId: number;
   content: string;
   source: "manual" | "ai" | string;
+  createdAt: string;
+}
+
+/** 任务操作日志（后端 task_logs 表，编辑弹窗展示历史用） */
+export interface TaskLog {
+  id: number;
+  taskId: number;
+  /** create / update / start / pause / demote / delete / sync_pull / sync_push / sync_close / migrate */
+  action: string;
+  field: string;
+  oldValue?: string | null;
+  newValue?: string | null;
+  /** 变更来源：main / pet / radio / todoist / migration */
+  origin: string;
   createdAt: string;
 }
 

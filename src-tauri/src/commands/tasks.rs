@@ -1,7 +1,7 @@
 use crate::db::{now, Db};
 use crate::error::{AppError, AppResult};
 use crate::events;
-use crate::models::{Task, TaskNote};
+use crate::models::{Task, TaskLog, TaskNote};
 use rusqlite::{params, Connection};
 use tauri::State;
 
@@ -20,7 +20,9 @@ fn row_to_task(row: &rusqlite::Row) -> rusqlite::Result<Task> {
         external_id: row.get(10)?,
         created_at: row.get(11)?,
         completed_at: row.get(12)?,
-        focus_seconds: row.get(13)?,
+        started_at: row.get(13)?,
+        cancelled_at: row.get(14)?,
+        focus_seconds: row.get(15)?,
         tags: vec![],
     })
 }
@@ -40,7 +42,101 @@ fn attach_tags(conn: &Connection, tasks: &mut [Task]) -> AppResult<()> {
     Ok(())
 }
 
-const TASK_COLS: &str = "id, title, note, category_id, status, priority, due_at, remind_at, reminded, source, external_id, created_at, completed_at, focus_seconds";
+const TASK_COLS: &str = "id, title, note, category_id, status, priority, due_at, remind_at, reminded, source, external_id, created_at, completed_at, started_at, cancelled_at, focus_seconds";
+
+// ---- 操作日志（task_logs）：所有状态与属性变更的审计记录 ----
+
+/// 写一条日志；field 无关的动作（create/delete 等）传空串
+pub(crate) fn log_change(
+    conn: &Connection,
+    task_id: i64,
+    action: &str,
+    field: &str,
+    old: Option<&str>,
+    new: Option<&str>,
+    origin: &str,
+) -> AppResult<()> {
+    conn.execute(
+        "INSERT INTO task_logs (task_id, action, field, old_value, new_value, origin, created_at)
+         VALUES (?1,?2,?3,?4,?5,?6,?7)",
+        params![task_id, action, field, old, new, origin, now()],
+    )?;
+    Ok(())
+}
+
+/// 记录任务前后快照的字段级 diff（无变化不记），update_task 等通用修改路径复用
+fn log_task_diff(conn: &Connection, before: &Task, after: &Task, origin: &str) -> AppResult<()> {
+    let pairs: Vec<(&str, String, String)> = vec![
+        ("title", before.title.clone(), after.title.clone()),
+        (
+            "note",
+            before.note.clone().unwrap_or_default(),
+            after.note.clone().unwrap_or_default(),
+        ),
+        (
+            "category_id",
+            before.category_id.to_string(),
+            after.category_id.to_string(),
+        ),
+        ("priority", before.priority.clone(), after.priority.clone()),
+        (
+            "due_at",
+            before.due_at.clone().unwrap_or_default(),
+            after.due_at.clone().unwrap_or_default(),
+        ),
+        (
+            "remind_at",
+            before.remind_at.clone().unwrap_or_default(),
+            after.remind_at.clone().unwrap_or_default(),
+        ),
+        ("status", before.status.clone(), after.status.clone()),
+    ];
+    for (field, old, new) in pairs {
+        if old != new {
+            log_change(
+                conn,
+                after.id,
+                "update",
+                field,
+                Some(old.as_str()),
+                Some(new.as_str()),
+                origin,
+            )?;
+        }
+    }
+    if before.tags != after.tags {
+        log_change(
+            conn,
+            after.id,
+            "update",
+            "tags",
+            Some(&before.tags.join(",")),
+            Some(&after.tags.join(",")),
+            origin,
+        )?;
+    }
+    Ok(())
+}
+
+/// 状态不变量：无截止时间且从未开始 → inbox（done/cancelled 天然不满足条件，不受影响）。
+/// 任何写路径改完 status/due_at 后调用，保证草丛语义成立。
+fn enforce_inbox_invariant(conn: &Connection, id: i64) -> AppResult<()> {
+    conn.execute(
+        "UPDATE tasks SET status='inbox'
+         WHERE id=?1 AND status='scheduled' AND due_at IS NULL AND started_at IS NULL",
+        params![id],
+    )?;
+    Ok(())
+}
+
+/// 命令层通用的变更来源：前端 api.call 会带上调用窗口 label（main / pet），
+/// 后端链路（radio / todoist / migration）各自显式传入
+fn origin_of(origin: Option<&str>) -> &str {
+    match origin {
+        Some(o) if !o.is_empty() => o,
+        _ => "unknown",
+    }
+}
 
 #[tauri::command]
 pub fn list_tasks(db: State<Db>, filter: String) -> AppResult<Vec<Task>> {
@@ -50,7 +146,8 @@ pub fn list_tasks(db: State<Db>, filter: String) -> AppResult<Vec<Task>> {
                 CASE status WHEN 'active' THEN 0 WHEN 'paused' THEN 1 WHEN 'scheduled' THEN 2 ELSE 3 END,
                 CASE priority WHEN 'urgent' THEN 0 WHEN 'high' THEN 1 WHEN 'normal' THEN 2 ELSE 3 END,
                 due_at IS NULL, due_at",
-        "done" => "SELECT {cols} FROM tasks WHERE status='done' ORDER BY completed_at DESC LIMIT 200",
+        "done" => "SELECT {cols} FROM tasks WHERE status IN ('done','cancelled')
+                ORDER BY COALESCE(completed_at, cancelled_at) DESC LIMIT 200",
         "today" => "SELECT {cols} FROM tasks WHERE status IN ('inbox','scheduled','active','paused')
              AND (due_at IS NOT NULL AND date(due_at) <= date('now','localtime') OR status IN ('active','paused'))
              ORDER BY CASE status WHEN 'active' THEN 0 WHEN 'paused' THEN 1 ELSE 2 END",
@@ -118,6 +215,7 @@ pub fn create_task<R: tauri::Runtime>(
     app: tauri::AppHandle<R>,
     db: State<Db>,
     task: NewTask,
+    origin: Option<String>,
 ) -> AppResult<Task> {
     let title = task.title.trim().to_string();
     if title.is_empty() {
@@ -149,6 +247,16 @@ pub fn create_task<R: tauri::Runtime>(
     if let Some(tag_ids) = &task.tag_ids {
         set_task_tags(&conn, id, tag_ids)?;
     }
+    enforce_inbox_invariant(&conn, id)?;
+    log_change(
+        &conn,
+        id,
+        "create",
+        "title",
+        None,
+        Some(&title),
+        origin_of(origin.as_deref()),
+    )?;
     let t = query_task(&conn, id)?;
     drop(conn);
     events::broadcast(&app, events::TASKS_CHANGED);
@@ -221,8 +329,11 @@ pub fn update_task<R: tauri::Runtime>(
     app: tauri::AppHandle<R>,
     db: State<Db>,
     patch: TaskPatch,
+    origin: Option<String>,
 ) -> AppResult<Task> {
+    let origin = origin_of(origin.as_deref()).to_string();
     let conn = db.0.lock().unwrap();
+    let before = query_task(&conn, patch.id)?;
     let mut sets: Vec<String> = vec![];
     let mut p: Vec<Box<dyn rusqlite::types::ToSql>> = vec![];
     let push = |sets: &mut Vec<String>,
@@ -242,7 +353,7 @@ pub fn update_task<R: tauri::Runtime>(
         push(&mut sets, &mut p, "category_id", Box::new(v));
     }
     if let Some(v) = &patch.priority {
-        push(&mut sets, &mut p, "priority", Box::new(v));
+        push(&mut sets, &mut p, "priority", Box::new(v.clone()));
     }
     if let Some(v) = &patch.due_at {
         let s = v.as_str().map(String::from);
@@ -254,8 +365,14 @@ pub fn update_task<R: tauri::Runtime>(
         // 提醒时间变化后重置提醒标志
         push(&mut sets, &mut p, "reminded", Box::new(0i64));
     }
-    if patch.status.as_deref() == Some("done") {
-        push(&mut sets, &mut p, "completed_at", Box::new(now()));
+    match patch.status.as_deref() {
+        Some("done") => {
+            push(&mut sets, &mut p, "completed_at", Box::new(now()));
+        }
+        Some("cancelled") => {
+            push(&mut sets, &mut p, "cancelled_at", Box::new(now()));
+        }
+        _ => {}
     }
     if let Some(v) = &patch.status {
         push(&mut sets, &mut p, "status", Box::new(v.clone()));
@@ -271,7 +388,9 @@ pub fn update_task<R: tauri::Runtime>(
     if let Some(tag_ids) = &patch.tag_ids {
         set_task_tags(&conn, patch.id, tag_ids)?;
     }
+    enforce_inbox_invariant(&conn, patch.id)?;
     let t = query_task(&conn, patch.id)?;
+    log_task_diff(&conn, &before, &t, &origin)?;
     drop(conn);
     events::broadcast(&app, events::TASKS_CHANGED);
     Ok(t)
@@ -282,8 +401,24 @@ pub fn delete_task<R: tauri::Runtime>(
     app: tauri::AppHandle<R>,
     db: State<Db>,
     id: i64,
+    origin: Option<String>,
 ) -> AppResult<()> {
     let conn = db.0.lock().unwrap();
+    // tombstone：任务删除后 task_logs 保留（无外键约束），记录删除时的标题
+    let title: Option<String> = conn
+        .query_row("SELECT title FROM tasks WHERE id=?1", params![id], |r| {
+            r.get(0)
+        })
+        .ok();
+    log_change(
+        &conn,
+        id,
+        "delete",
+        "title",
+        title.as_deref(),
+        None,
+        origin_of(origin.as_deref()),
+    )?;
     conn.execute("DELETE FROM tasks WHERE id=?1", params![id])?;
     conn.execute("DELETE FROM task_tags WHERE task_id=?1", params![id])?;
     conn.execute("DELETE FROM task_notes WHERE task_id=?1", params![id])?;
@@ -369,24 +504,80 @@ pub fn delete_task_note<R: tauri::Runtime>(
     Ok(())
 }
 
+// ---- 操作日志查询 ----
+
+const LOG_COLS: &str = "id, task_id, action, field, old_value, new_value, origin, created_at";
+
+fn row_to_log(row: &rusqlite::Row) -> rusqlite::Result<TaskLog> {
+    Ok(TaskLog {
+        id: row.get(0)?,
+        task_id: row.get(1)?,
+        action: row.get(2)?,
+        field: row.get(3)?,
+        old_value: row.get(4)?,
+        new_value: row.get(5)?,
+        origin: row.get(6)?,
+        created_at: row.get(7)?,
+    })
+}
+
+/// 单任务操作历史（最新在前，前端编辑弹窗展示）
+#[tauri::command]
+pub fn list_task_logs(db: State<Db>, task_id: i64) -> AppResult<Vec<TaskLog>> {
+    let conn = db.0.lock().unwrap();
+    let mut stmt = conn.prepare(&format!(
+        "SELECT {LOG_COLS} FROM task_logs WHERE task_id=?1 ORDER BY id DESC LIMIT 200"
+    ))?;
+    let rows = stmt
+        .query_map(params![task_id], row_to_log)?
+        .collect::<Result<Vec<_>, _>>()?;
+    Ok(rows)
+}
+
 // ---- 专注模式：全局唯一 active 任务 ----
 
-/// 开始一个任务：其它 active/paused 全部转回 scheduled，本任务置为 active
+/// 开始一个任务：其它 active/paused 全部转回 scheduled，本任务置为 active（并记首次开始时间）
 #[tauri::command]
 pub fn start_task<R: tauri::Runtime>(
     app: tauri::AppHandle<R>,
     db: State<Db>,
     id: i64,
+    origin: Option<String>,
 ) -> AppResult<Task> {
+    let origin = origin_of(origin.as_deref()).to_string();
     {
         let mut conn = db.0.lock().unwrap();
+        // 被顶下的任务也要记状态变更日志，先取快照
+        let demoted: Vec<(i64, String)> = {
+            let mut stmt =
+                conn.prepare("SELECT id, status FROM tasks WHERE status IN ('active','paused')")?;
+            let rows = stmt
+                .query_map([], |r| Ok((r.get(0)?, r.get(1)?)))?
+                .collect::<Result<Vec<_>, _>>()?;
+            rows
+        };
         let tx = conn.transaction()?;
         tx.execute(
             "UPDATE tasks SET status='scheduled' WHERE status IN ('active','paused')",
             [],
         )?;
-        tx.execute("UPDATE tasks SET status='active' WHERE id=?1", params![id])?;
+        tx.execute(
+            "UPDATE tasks SET status='active', started_at=COALESCE(started_at, ?2) WHERE id=?1",
+            params![id, now()],
+        )?;
         tx.commit()?;
+        for (did, dstatus) in &demoted {
+            log_change(
+                &conn,
+                *did,
+                "demote",
+                "status",
+                Some(dstatus),
+                Some("scheduled"),
+                &origin,
+            )?;
+        }
+        log_change(&conn, id, "start", "status", None, Some("active"), &origin)?;
     }
     let t = query_task(&db.0.lock().unwrap(), id)?;
     events::broadcast(&app, events::TASKS_CHANGED);
@@ -397,10 +588,28 @@ pub fn start_task<R: tauri::Runtime>(
 pub fn pause_current_task<R: tauri::Runtime>(
     app: tauri::AppHandle<R>,
     db: State<Db>,
+    origin: Option<String>,
 ) -> AppResult<Option<Task>> {
+    let origin = origin_of(origin.as_deref()).to_string();
     let t = {
         let conn = db.0.lock().unwrap();
+        let paused_id: Option<i64> = conn
+            .query_row("SELECT id FROM tasks WHERE status='active'", [], |r| {
+                r.get(0)
+            })
+            .ok();
         conn.execute("UPDATE tasks SET status='paused' WHERE status='active'", [])?;
+        if let Some(pid) = paused_id {
+            log_change(
+                &conn,
+                pid,
+                "pause",
+                "status",
+                Some("active"),
+                Some("paused"),
+                &origin,
+            )?;
+        }
         conn.query_row(
             &format!("SELECT {TASK_COLS} FROM tasks WHERE status='paused' ORDER BY focus_seconds DESC LIMIT 1"),
             [],
@@ -469,7 +678,8 @@ mod tests {
 
     fn create(app: &tauri::App<tauri::test::MockRuntime>, title: &str, scheduled: bool) -> Task {
         let db = app.state::<Db>();
-        create_task(app.handle().clone(), db, new_task(title, scheduled)).expect("create_task")
+        create_task(app.handle().clone(), db, new_task(title, scheduled), None)
+            .expect("create_task")
     }
 
     fn list(app: &tauri::App<tauri::test::MockRuntime>, filter: &str) -> Vec<Task> {
@@ -498,7 +708,7 @@ mod tests {
         let t = create(&app, "广播", true);
         {
             let db = app.state::<Db>();
-            start_task(handle.clone(), db, t.id).expect("start");
+            start_task(handle.clone(), db, t.id, None).expect("start");
         }
         {
             let db = app.state::<Db>();
@@ -548,15 +758,36 @@ mod tests {
     #[test]
     fn create_task_scheduled_goes_to_route() {
         let app = setup();
-        let t = create(&app, "开会", true);
-        assert_eq!(t.status, "scheduled");
+        let t = {
+            let db = app.state::<Db>();
+            create_task(
+                app.handle().clone(),
+                db,
+                NewTask {
+                    due_at: Some("2026-09-13T09:00".into()),
+                    ..new_task("开会", true)
+                },
+                None,
+            )
+            .unwrap()
+        };
+        assert_eq!(t.status, "scheduled", "有截止时间才能进路线");
+        // scheduled 标志但没给时间：不变量兜底归入草丛
+        let no_due = create(&app, "没时间", true);
+        assert_eq!(no_due.status, "inbox");
     }
 
     #[test]
     fn create_task_empty_title_rejected() {
         let app = setup();
         let db = app.state::<Db>();
-        let err = create_task(app.handle().clone(), db.clone(), new_task("  ", false)).unwrap_err();
+        let err = create_task(
+            app.handle().clone(),
+            db.clone(),
+            new_task("  ", false),
+            None,
+        )
+        .unwrap_err();
         assert_eq!(err.to_string(), "输入无效: 标题不能为空");
     }
 
@@ -567,7 +798,7 @@ mod tests {
         let b = create(&app, "B", true);
         {
             let db = app.state::<Db>();
-            start_task(app.handle().clone(), db, b.id).expect("start");
+            start_task(app.handle().clone(), db, b.id, None).expect("start");
         }
         let open = list(&app, "open");
         assert_eq!(open[0].id, b.id, "active 任务排最前");
@@ -595,6 +826,7 @@ mod tests {
                     status: Some("done".into()),
                     tag_ids: None,
                 },
+                None,
             )
             .expect("update");
         }
@@ -630,7 +862,7 @@ mod tests {
         }
         {
             let db = app.state::<Db>();
-            start_task(app.handle().clone(), db, active.id).expect("start");
+            start_task(app.handle().clone(), db, active.id, None).expect("start");
         }
         let today = list(&app, "today");
         let ids: Vec<i64> = today.iter().map(|t| t.id).collect();
@@ -642,7 +874,19 @@ mod tests {
     #[test]
     fn update_task_partial_patch_keeps_other_fields() {
         let app = setup();
-        let t = create(&app, "原标题", true);
+        let t = {
+            let db = app.state::<Db>();
+            create_task(
+                app.handle().clone(),
+                db,
+                NewTask {
+                    due_at: Some("2026-09-13T09:00".into()),
+                    ..new_task("原标题", true)
+                },
+                None,
+            )
+            .unwrap()
+        };
         {
             let db = app.state::<Db>();
             update_task(
@@ -659,6 +903,7 @@ mod tests {
                     status: None,
                     tag_ids: None,
                 },
+                None,
             )
             .expect("update");
         }
@@ -697,6 +942,7 @@ mod tests {
                     status: None,
                     tag_ids: None,
                 },
+                None,
             )
             .expect("update");
         }
@@ -714,7 +960,7 @@ mod tests {
         let db = app.state::<Db>();
         let patch: TaskPatch =
             serde_json::from_value(serde_json::json!({ "id": 9999, "title": "幽灵" })).unwrap();
-        let err = update_task(app.handle().clone(), db, patch).unwrap_err();
+        let err = update_task(app.handle().clone(), db, patch, None).unwrap_err();
         assert!(
             matches!(err, crate::error::AppError::NotFound(_)),
             "应返回 not_found 而非裸 db 错误: {err}"
@@ -728,11 +974,11 @@ mod tests {
         let b = create(&app, "B", true);
         {
             let db = app.state::<Db>();
-            start_task(app.handle().clone(), db, a.id).expect("start a");
+            start_task(app.handle().clone(), db, a.id, None).expect("start a");
         }
         let current = {
             let db = app.state::<Db>();
-            start_task(app.handle().clone(), db, b.id).expect("start b")
+            start_task(app.handle().clone(), db, b.id, None).expect("start b")
         };
         assert_eq!(current.status, "active");
         let open = list(&app, "open");
@@ -746,11 +992,11 @@ mod tests {
         let t = create(&app, "专注", true);
         {
             let db = app.state::<Db>();
-            start_task(app.handle().clone(), db, t.id).expect("start");
+            start_task(app.handle().clone(), db, t.id, None).expect("start");
         }
         let paused = {
             let db = app.state::<Db>();
-            pause_current_task(app.handle().clone(), db).expect("pause")
+            pause_current_task(app.handle().clone(), db, None).expect("pause")
         };
         assert_eq!(paused.unwrap().id, t.id);
         let none: Option<Task> = {
@@ -783,7 +1029,7 @@ mod tests {
         let t = create(&app, "待删", true);
         {
             let db = app.state::<Db>();
-            delete_task(app.handle().clone(), db, t.id).unwrap();
+            delete_task(app.handle().clone(), db, t.id, None).unwrap();
         }
         let err = {
             let db = app.state::<Db>();
@@ -819,6 +1065,7 @@ mod tests {
                     tag_ids: Some(vec![tag_a, tag_b]),
                     ..new_task("带标签", false)
                 },
+                None,
             )
             .unwrap()
         };
@@ -829,7 +1076,7 @@ mod tests {
             let patch: TaskPatch =
                 serde_json::from_value(serde_json::json!({ "id": t.id, "tagIds": [tag_b] }))
                     .unwrap();
-            update_task(app.handle().clone(), db, patch).unwrap()
+            update_task(app.handle().clone(), db, patch, None).unwrap()
         };
         assert_eq!(updated.tags, vec!["需汇报".to_string()]);
         // 空数组清空
@@ -837,7 +1084,7 @@ mod tests {
             let db = app.state::<Db>();
             let patch: TaskPatch =
                 serde_json::from_value(serde_json::json!({ "id": t.id, "tagIds": [] })).unwrap();
-            update_task(app.handle().clone(), db, patch).unwrap()
+            update_task(app.handle().clone(), db, patch, None).unwrap()
         };
         assert!(cleared.tags.is_empty());
     }
@@ -901,7 +1148,7 @@ mod tests {
                 serde_json::json!({ "id": t2.id, "note": "季度报告需要附上数据", "tagIds": [tag_id] }),
             )
             .unwrap();
-            update_task(app.handle().clone(), db, patch).unwrap();
+            update_task(app.handle().clone(), db, patch, None).unwrap();
         }
         let t3 = create(&app, "无关任务", false);
         {
@@ -997,13 +1244,174 @@ mod tests {
                 serde_json::json!({ "id": t, "dueAt": null, "status": "scheduled" }),
             )
             .unwrap();
-            update_task(app.handle().clone(), db, patch).expect("update");
+            update_task(app.handle().clone(), db, patch, None).expect("update");
         }
         let got = {
             let db = app.state::<Db>();
             get_task(db, t).expect("get")
         };
         assert_eq!(got.due_at, None, "dueAt: null 应清空截止时间");
-        assert_eq!(got.status, "scheduled");
+        assert_eq!(
+            got.status, "inbox",
+            "清空截止时间且从未开始：不变量归入草丛"
+        );
+    }
+
+    // ---- 状态机 v4：取消 / started_at / 操作日志 ----
+
+    fn patch_json(app: &tauri::App<tauri::test::MockRuntime>, v: serde_json::Value) -> Task {
+        let db = app.state::<Db>();
+        let patch: TaskPatch = serde_json::from_value(v).unwrap();
+        update_task(app.handle().clone(), db, patch, Some("main".into())).expect("update")
+    }
+
+    #[test]
+    fn cancel_sets_cancelled_at_and_shows_in_dex_list() {
+        let app = setup();
+        let t = {
+            let db = app.state::<Db>();
+            create_task(
+                app.handle().clone(),
+                db,
+                NewTask {
+                    due_at: Some("2026-09-13T09:00".into()),
+                    ..new_task("不做了", true)
+                },
+                None,
+            )
+            .unwrap()
+        };
+        let cancelled = patch_json(
+            &app,
+            serde_json::json!({ "id": t.id, "status": "cancelled" }),
+        );
+        assert_eq!(cancelled.status, "cancelled");
+        assert!(cancelled.cancelled_at.is_some(), "取消时写入 cancelled_at");
+
+        let open = list(&app, "open");
+        assert!(open.iter().all(|x| x.id != t.id), "取消后不在 open 列表");
+        let dex = list(&app, "done");
+        assert_eq!(dex.len(), 1, "图鉴列表包含已取消任务");
+
+        // 恢复：回到路线（有截止时间）
+        let restored = patch_json(
+            &app,
+            serde_json::json!({ "id": t.id, "status": "scheduled" }),
+        );
+        assert_eq!(restored.status, "scheduled");
+        assert_eq!(list(&app, "open").len(), 1);
+    }
+
+    #[test]
+    fn started_task_without_due_stays_scheduled_after_demote() {
+        let app = setup();
+        let a = create(&app, "开始过", false); // 无截止时间，草丛
+        {
+            let db = app.state::<Db>();
+            start_task(app.handle().clone(), db, a.id, None).expect("start");
+        }
+        let got = {
+            let db = app.state::<Db>();
+            get_task(db, a.id).unwrap()
+        };
+        assert!(got.started_at.is_some(), "出发时记录首次开始时间");
+
+        // 被新目标顶下：开始过的任务回 scheduled，不被不变量打回 inbox
+        let b = create(&app, "新目标", false);
+        {
+            let db = app.state::<Db>();
+            start_task(app.handle().clone(), db, b.id, None).expect("start b");
+        }
+        let a_row = list(&app, "open")
+            .into_iter()
+            .find(|x| x.id == a.id)
+            .unwrap();
+        assert_eq!(a_row.status, "scheduled", "开始过的任务可停留在路线");
+    }
+
+    #[test]
+    fn task_logs_record_create_update_and_delete() {
+        let app = setup();
+        let t = {
+            let db = app.state::<Db>();
+            create_task(
+                app.handle().clone(),
+                db,
+                new_task("日志", false),
+                Some("main".into()),
+            )
+            .unwrap()
+        };
+        patch_json(
+            &app,
+            serde_json::json!({ "id": t.id, "title": "日志改名", "priority": "high" }),
+        );
+        {
+            let db = app.state::<Db>();
+            delete_task(app.handle().clone(), db, t.id, Some("pet".into())).unwrap();
+        }
+
+        let logs = {
+            let db = app.state::<Db>();
+            list_task_logs(db, t.id).unwrap()
+        };
+        // 最新在前：delete → update(priority) → update(title) → create
+        assert_eq!(logs.len(), 4, "共 4 条: {logs:?}");
+        assert_eq!(logs[0].action, "delete");
+        assert_eq!(logs[0].origin, "pet", "来源窗口写入日志");
+        assert_eq!(
+            logs[0].old_value.as_deref(),
+            Some("日志改名"),
+            "tombstone 保留标题"
+        );
+        assert_eq!(logs[1].field, "priority");
+        assert_eq!(logs[2].field, "title");
+        assert_eq!(logs[2].new_value.as_deref(), Some("日志改名"));
+        assert_eq!(logs[3].action, "create");
+        assert_eq!(logs[3].origin, "main", "create 记录命令来源");
+    }
+
+    #[test]
+    fn update_without_changes_writes_no_log() {
+        let app = setup();
+        let t = create(&app, "无变化", false);
+        patch_json(&app, serde_json::json!({ "id": t.id, "title": "无变化" }));
+        let logs = {
+            let db = app.state::<Db>();
+            list_task_logs(db, t.id).unwrap()
+        };
+        assert_eq!(logs.len(), 1, "只应有 create 一条: {logs:?}");
+    }
+
+    #[test]
+    fn start_and_pause_logged_with_status_diff() {
+        let app = setup();
+        let a = create(&app, "A", false);
+        let b = create(&app, "B", false);
+        {
+            let db = app.state::<Db>();
+            start_task(app.handle().clone(), db.clone(), a.id, None).expect("start a");
+            start_task(app.handle().clone(), db.clone(), b.id, None).expect("start b");
+            pause_current_task(app.handle().clone(), db, None).expect("pause");
+        }
+        let a_logs = {
+            let db = app.state::<Db>();
+            list_task_logs(db, a.id).unwrap()
+        };
+        // A：start → 被 B 顶下记 demote
+        assert!(a_logs
+            .iter()
+            .any(|l| l.action == "start" && l.new_value.as_deref() == Some("active")));
+        assert!(
+            a_logs
+                .iter()
+                .any(|l| l.action == "demote" && l.new_value.as_deref() == Some("scheduled")),
+            "被顶下也记状态变更: {a_logs:?}"
+        );
+        let b_logs = {
+            let db = app.state::<Db>();
+            list_task_logs(db, b.id).unwrap()
+        };
+        assert!(b_logs.iter().any(|l| l.action == "pause"));
     }
 }

@@ -1,4 +1,4 @@
-import type { AiLog, Category, ChatMessage, Tag, Task, TaskNote } from "./types";
+import type { AiLog, Category, ChatMessage, Tag, Task, TaskLog, TaskNote } from "./types";
 
 /** 后端 AppError（src-tauri/src/error.rs）经 IPC 序列化后的结构 */
 export type ApiErrorKind = "db" | "not_found" | "invalid" | "network" | "external" | "io" | "tauri";
@@ -35,10 +35,22 @@ export function errorMessage(e: unknown): string {
   return e instanceof ApiError ? e.message : ApiError.from(e).message;
 }
 
+/** 操作日志的来源标识：取调用窗口 label（main / pet），非 Tauri 环境为空 */
+async function windowOrigin(): Promise<string> {
+  try {
+    const { getCurrentWindow } = await import("@tauri-apps/api/window");
+    return getCurrentWindow().label;
+  } catch {
+    return "";
+  }
+}
+
 async function call<T>(cmd: string, args?: Record<string, unknown>): Promise<T> {
   const { invoke } = await import("@tauri-apps/api/core");
+  // 后端命令按需声明 origin 参数（未声明的命令会忽略多余键）
+  const origin = await windowOrigin();
   try {
-    return await invoke<T>(cmd, args);
+    return await invoke<T>(cmd, { ...args, origin });
   } catch (e) {
     throw ApiError.from(e);
   }
@@ -68,6 +80,7 @@ export const api = {
   listTaskNotes: (taskId: number) => call<TaskNote[]>("list_task_notes", { taskId }),
   addTaskNote: (taskId: number, content: string) => call<TaskNote>("add_task_note", { taskId, content }),
   deleteTaskNote: (id: number) => call<void>("delete_task_note", { id }),
+  listTaskLogs: (taskId: number) => call<TaskLog[]>("list_task_logs", { taskId }),
   listTags: () => call<Tag[]>("list_tags"),
   createTag: (name: string, description: string) => call<Tag>("create_tag", { name, description }),
   updateTag: (id: number, name: string, description: string) => call<void>("update_tag", { id, name, description }),

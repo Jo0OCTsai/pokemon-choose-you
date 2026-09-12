@@ -31,6 +31,7 @@ vi.mock("../api", () => ({
     listTaskNotes: vi.fn(),
     addTaskNote: vi.fn(),
     deleteTaskNote: vi.fn(),
+    listTaskLogs: vi.fn(),
     createTag: vi.fn(),
     updateTag: vi.fn(),
     deleteTag: vi.fn(),
@@ -81,6 +82,11 @@ const categories = [
 
 /** 测试内维护的迷你任务库 */
 let tasks: Task[];
+/** 本地今天 09:00 的 due 值（冒险页 = 进行中 + 当天到期含逾期） */
+function dueToday(): string {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}T09:00`;
+}
 function seed(seeds: Partial<Task>[]): Task[] {
   return seeds.map((t, i) => ({
     id: i + 1,
@@ -114,13 +120,14 @@ function wireBackend() {
   vi.mocked(api.listChatMessages).mockResolvedValue([]);
   vi.mocked(api.searchTasks).mockImplementation(async (q: string) => tasks.filter((t) => t.title.includes(q)));
   vi.mocked(api.listTaskNotes).mockResolvedValue([]);
+  vi.mocked(api.listTaskLogs).mockResolvedValue([]);
   vi.mocked(api.listAllSettings).mockResolvedValue({});
   vi.mocked(api.consumeQuickCapture).mockResolvedValue(false);
   vi.mocked(api.checkUpdate).mockResolvedValue("");
   vi.mocked(api.installUpdate).mockResolvedValue(undefined);
   vi.mocked(api.listTasks).mockImplementation(async (filter: string) => {
-    if (filter === "done") return tasks.filter((t) => t.status === "done");
-    if (filter === "open") return tasks.filter((t) => t.status !== "done");
+    if (filter === "done") return tasks.filter((t) => t.status === "done" || t.status === "cancelled");
+    if (filter === "open") return tasks.filter((t) => t.status !== "done" && t.status !== "cancelled");
     return tasks;
   });
   vi.mocked(api.createTask).mockImplementation(async (input) => {
@@ -148,6 +155,7 @@ function wireBackend() {
     const t = tasks.find((x) => x.id === patch.id)!;
     Object.assign(t, patch);
     if (patch.status === "done" && !t.completedAt) t.completedAt = "2026-09-12T10:00:00Z";
+    if (patch.status === "cancelled" && !t.cancelledAt) t.cancelledAt = "2026-09-12T10:00:00Z";
     return t;
   });
   vi.mocked(api.startTask).mockImplementation(async (id: number) => {
@@ -181,18 +189,21 @@ describe("App 图鉴机主面板", () => {
     const labels = w.findAll(".menu-btn").map((b) => b.text());
     expect(labels).toHaveLength(6);
     expect(labels[0]).toContain("冒险");
+    expect(labels[1]).toContain("路线");
+    expect(labels[2]).toContain("草丛");
     expect(labels[3]).toContain("图鉴");
     expect(labels[4]).toContain("收音机");
   });
 
   it("列表渲染任务条目：编号、标题、分类徽章", async () => {
     tasks = seed([
-      { title: "写周报", status: "scheduled" },
+      { title: "写周报", status: "scheduled", dueAt: dueToday() },
       { title: "背单词", status: "inbox" },
     ]);
     const w = await mountApp();
+    // 冒险页 = 进行中 + 当天到期：草丛任务（无时间）不在此页
     const entries = w.findAll(".entry");
-    expect(entries).toHaveLength(2);
+    expect(entries).toHaveLength(1);
     expect(entries[0].get(".title").text()).toBe("写周报");
     expect(entries[0].get(".dex-no").text()).toBe("No.001");
     expect(entries[0].get(".badge").text()).toBe("工作");
@@ -208,6 +219,9 @@ describe("App 图鉴机主面板", () => {
       expect.objectContaining({ title: "新捕捉目标", categoryId: 1, scheduled: false }),
     );
     expect((w.get("form.add input").element as HTMLInputElement).value).toBe("");
+    // 草丛任务（无时间）出现在草丛页而非冒险页
+    await w.findAll(".menu-btn")[2].trigger("click");
+    await new Promise((r) => setTimeout(r));
     expect(w.findAll(".entry")).toHaveLength(1);
   });
 
@@ -227,8 +241,8 @@ describe("App 图鉴机主面板", () => {
 
   it("完成/撤销任务：✔ 置 done 并写 completedAt，图鉴页可撤销", async () => {
     tasks = seed([
-      { title: "今天做完", status: "scheduled" },
-      { title: "还没做完", status: "scheduled" },
+      { title: "今天做完", status: "scheduled", dueAt: dueToday() },
+      { title: "还没做完", status: "scheduled", dueAt: dueToday() },
     ]);
     const w = await mountApp();
     const doneBtn = w.findAll(".entry .ops .btn").find((b) => b.text() === "✔")!;
@@ -245,7 +259,7 @@ describe("App 图鉴机主面板", () => {
   });
 
   it("出发/暂停：调用专注模式命令", async () => {
-    tasks = seed([{ title: "专注", status: "scheduled" }]);
+    tasks = seed([{ title: "专注", status: "scheduled", dueAt: dueToday() }]);
     const w = await mountApp();
     await w.get(".ops .btn").trigger("click"); // ▶ 出发
     await new Promise((r) => setTimeout(r));
@@ -255,6 +269,8 @@ describe("App 图鉴机主面板", () => {
   it("删除任务（放生）", async () => {
     tasks = seed([{ title: "放生我", status: "inbox" }]);
     const w = await mountApp();
+    await w.findAll(".menu-btn")[2].trigger("click"); // 草丛页
+    await new Promise((r) => setTimeout(r));
     await w.get(".ops .btn.del").trigger("click");
     await new Promise((r) => setTimeout(r));
     expect(api.deleteTask).toHaveBeenCalledWith(1);
@@ -267,6 +283,8 @@ describe("App 图鉴机主面板", () => {
       { title: "修登录bug", status: "inbox" },
     ]);
     const w = await mountApp();
+    await w.findAll(".menu-btn")[2].trigger("click"); // 草丛页
+    await new Promise((r) => setTimeout(r));
     await w.get(".search-input").setValue("季度");
     await new Promise((r) => setTimeout(r));
     expect(api.searchTasks).toHaveBeenCalledWith("季度");
@@ -280,18 +298,20 @@ describe("App 图鉴机主面板", () => {
 
   it("编辑弹窗：全字段编辑并保存", async () => {
     vi.mocked(api.listTags).mockResolvedValue([{ id: 3, name: "重要", description: "核心目标" }]);
-    tasks = seed([{ title: "写周报", status: "scheduled" }]);
+    tasks = seed([{ title: "写周报", status: "scheduled", dueAt: dueToday() }]);
     const w = await mountApp();
     const editBtn = w.findAll(".entry .ops .btn").find((b) => b.text() === "✎")!;
     await editBtn.trigger("click");
     expect(w.get(".card h3").text()).toContain("编辑待办");
     expect(w.text()).toContain("跟进记录");
+    expect(w.text()).toContain("操作历史"); // 历史区块可见
     expect(w.text()).toContain("重要"); // 标签可选
     await w.get(".card input").setValue("新标题");
     vi.mocked(api.updateTask).mockResolvedValue(tasks[0]);
     await w.findAll(".card .btn-row .btn")[0].trigger("click");
     await new Promise((r) => setTimeout(r));
     expect(api.updateTask).toHaveBeenCalledWith(expect.objectContaining({ id: 1, title: "新标题", tagIds: [] }));
+    expect(api.updateTask).toHaveBeenCalledWith(expect.not.objectContaining({ status: expect.anything() }));
   });
 
   it("收音机页显示全部电波（含无待办消息）并可捕捉", async () => {
@@ -374,18 +394,80 @@ describe("App 图鉴机主面板", () => {
   // ---- 两窗口状态同步：主面板跟随 tasks-changed 事件 ----
 
   it("桌宠侧改动广播 tasks-changed 后，主面板列表与进度同步刷新", async () => {
-    tasks = seed([{ title: "原有任务", status: "scheduled" }]);
+    tasks = seed([{ title: "原有任务", status: "scheduled", dueAt: dueToday() }]);
     const w = await mountApp();
     expect(w.findAll(".entry")).toHaveLength(1);
     expect(w.text()).toContain("CAUGHT 0/1");
 
     tasks = seed([
-      { title: "原有任务", status: "scheduled" },
+      { title: "原有任务", status: "scheduled", dueAt: dueToday() },
       { title: "桌宠完成的任务", status: "done" },
     ]);
     broadcast("tasks-changed");
     await new Promise((r) => setTimeout(r));
     expect(w.findAll(".entry")).toHaveLength(1);
     expect(w.text()).toContain("CAUGHT 1/2");
+  });
+
+  // ---- 状态机 v4：页面过滤规则与逃走流程 ----
+
+  it("冒险页只显示进行中与当天（含逾期）到期；路线页显示全部未完任务", async () => {
+    const future = new Date(Date.now() + 2 * 86400_000).toISOString().slice(0, 10);
+    tasks = seed([
+      { title: "未来任务", status: "scheduled", dueAt: `${future}T09:00` },
+      { title: "今天到期", status: "scheduled", dueAt: dueToday() },
+      { title: "进行中", status: "active" },
+      { title: "草丛任务", status: "inbox" },
+    ]);
+    const w = await mountApp();
+    // 冒险页：今天到期 + 进行中（未来与草丛不显示）
+    expect(
+      w
+        .findAll(".entry .title")
+        .map((e) => e.text())
+        .sort(),
+    ).toEqual(["今天到期", "进行中"]);
+
+    await w.findAll(".menu-btn")[1].trigger("click"); // 路线页
+    await new Promise((r) => setTimeout(r));
+    expect(
+      w
+        .findAll(".entry .title")
+        .map((e) => e.text())
+        .sort(),
+    ).toEqual(["今天到期", "未来任务", "进行中"]);
+
+    await w.findAll(".menu-btn")[2].trigger("click"); // 草丛页
+    await new Promise((r) => setTimeout(r));
+    expect(w.findAll(".entry .title").map((e) => e.text())).toEqual(["草丛任务"]);
+  });
+
+  it("逃走流程：取消后只在图鉴页出现，可筛选，可撤销恢复", async () => {
+    tasks = seed([{ title: "不做了", status: "scheduled", dueAt: dueToday() }]);
+    const w = await mountApp();
+    const escBtn = w.findAll(".entry .ops .btn").find((b) => b.text() === "🚪")!;
+    await escBtn.trigger("click");
+    await new Promise((r) => setTimeout(r));
+    expect(api.updateTask).toHaveBeenCalledWith(expect.objectContaining({ id: 1, status: "cancelled" }));
+    // 取消后不在冒险页，逃走不计入捕捉进度
+    expect(w.findAll(".entry")).toHaveLength(0);
+    expect(w.text()).toContain("CAUGHT 0/0");
+
+    await w.findAll(".menu-btn")[3].trigger("click"); // 图鉴页
+    await new Promise((r) => setTimeout(r));
+    expect(w.findAll(".entry")).toHaveLength(1);
+    expect(w.text()).toContain("已逃走");
+
+    // 筛选"已捕捉"时隐藏逃走任务
+    const filterBtns = w.findAll(".filter-btn");
+    await filterBtns[1].trigger("click");
+    expect(w.findAll(".entry")).toHaveLength(0);
+    await filterBtns[2].trigger("click"); // 只看已逃走
+    expect(w.findAll(".entry")).toHaveLength(1);
+
+    // 撤销恢复
+    await w.get(".entry .ops .btn").trigger("click"); // ↩ 撤销
+    await new Promise((r) => setTimeout(r));
+    expect(api.updateTask).toHaveBeenCalledWith(expect.objectContaining({ id: 1, status: "scheduled" }));
   });
 });

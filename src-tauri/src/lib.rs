@@ -76,6 +76,7 @@ pub fn run() {
             commands::list_task_notes,
             commands::add_task_note,
             commands::delete_task_note,
+            commands::list_task_logs,
             commands::start_task,
             commands::pause_current_task,
             commands::get_current_task,
