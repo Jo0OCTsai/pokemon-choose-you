@@ -1,5 +1,7 @@
 use crate::ai::{self, AiSuggestion};
 use crate::db::{now, Db};
+use crate::error::{AppError, AppResult};
+use crate::events;
 use rusqlite::params;
 use serde::Deserialize;
 use tauri::{AppHandle, Emitter, Manager};
@@ -9,32 +11,44 @@ const BASE: &str = "https://open.feishu.cn/open-apis";
 pub struct FeishuConfig {
     pub app_id: String,
     pub app_secret: String,
+    /// 测试用 wiremock 服务器替换，生产走默认官方地址
+    pub base_url: String,
 }
 
 pub fn load_config(get: &dyn Fn(&str) -> Option<String>) -> Option<FeishuConfig> {
     Some(FeishuConfig {
         app_id: get("feishu_app_id")?,
         app_secret: get("feishu_app_secret")?,
+        base_url: BASE.into(),
     })
 }
 
 /// tenant_access_token（飞书自建应用凭证，有效期约 2 小时，这里每次轮询重新获取，简单可靠）
-async fn token(cfg: &FeishuConfig) -> Result<String, String> {
+async fn token(cfg: &FeishuConfig) -> AppResult<String> {
     let client = reqwest::Client::new();
     let resp: serde_json::Value = client
-        .post(format!("{BASE}/auth/v3/tenant_access_token/internal"))
+        .post(format!(
+            "{}/auth/v3/tenant_access_token/internal",
+            cfg.base_url
+        ))
         .json(&serde_json::json!({"app_id": cfg.app_id, "app_secret": cfg.app_secret}))
         .timeout(std::time::Duration::from_secs(15))
         .send()
         .await
-        .map_err(|e| format!("飞书 token 请求失败: {e}"))?
+        .map_err(|e| AppError::Network(format!("飞书 token 请求失败: {e}")))?
         .json()
         .await
-        .map_err(|e| e.to_string())?;
+        .map_err(|e| AppError::External(e.to_string()))?;
     if resp["code"].as_i64() != Some(0) {
-        return Err(format!("飞书 token 获取失败: {}", resp["msg"].as_str().unwrap_or("?")));
+        return Err(AppError::External(format!(
+            "飞书 token 获取失败: {}",
+            resp["msg"].as_str().unwrap_or("?")
+        )));
     }
-    Ok(resp["tenant_access_token"].as_str().ok_or("token 字段缺失")?.to_string())
+    resp["tenant_access_token"]
+        .as_str()
+        .map(String::from)
+        .ok_or_else(|| AppError::External("token 字段缺失".into()))
 }
 
 #[derive(Deserialize)]
@@ -47,32 +61,29 @@ struct ChatData {
 }
 
 /// 机器人所在的会话列表
-async fn list_chats(cfg: &FeishuConfig) -> Result<Vec<(String, String)>, String> {
+async fn list_chats(cfg: &FeishuConfig) -> AppResult<Vec<(String, String)>> {
     let token = token(cfg).await?;
     let client = reqwest::Client::new();
     let mut out = vec![];
-    loop {
-        let url = format!("{BASE}/im/v1/chats?page_size=100");
-        let page: ChatPage = client
-            .get(&url)
-            .bearer_auth(&token)
-            .timeout(std::time::Duration::from_secs(15))
-            .send()
-            .await
-            .map_err(|e| format!("拉取会话列表失败: {e}"))?
-            .json()
-            .await
-            .map_err(|e| e.to_string())?;
-        for item in page.data.items.unwrap_or_default() {
-            let chat_id = item["chat_id"].as_str().unwrap_or_default().to_string();
-            let name = item["name"].as_str().unwrap_or("未命名会话").to_string();
-            if !chat_id.is_empty() {
-                out.push((chat_id, name));
-            }
+    let url = format!("{}/im/v1/chats?page_size=100", cfg.base_url);
+    let page: ChatPage = client
+        .get(&url)
+        .bearer_auth(&token)
+        .timeout(std::time::Duration::from_secs(15))
+        .send()
+        .await
+        .map_err(|e| AppError::Network(format!("拉取会话列表失败: {e}")))?
+        .json()
+        .await
+        .map_err(|e| AppError::External(e.to_string()))?;
+    for item in page.data.items.unwrap_or_default() {
+        let chat_id = item["chat_id"].as_str().unwrap_or_default().to_string();
+        let name = item["name"].as_str().unwrap_or("未命名会话").to_string();
+        if !chat_id.is_empty() {
+            out.push((chat_id, name));
         }
-        // 简化处理：单页最多 100 个会话，个人使用足够
-        break;
     }
+    // 简化处理：单页最多 100 个会话，个人使用足够
     Ok(out)
 }
 
@@ -128,20 +139,26 @@ fn extract_text(msg_type: &str, content: &str) -> Option<String> {
 }
 
 /// 增量拉取：只处理上一次轮询之后的新消息
-async fn pull_new_messages(cfg: &FeishuConfig, since_ms: Option<i64>) -> Result<(Vec<NewMessage>, i64), String> {
+async fn pull_new_messages(
+    cfg: &FeishuConfig,
+    since_ms: Option<i64>,
+) -> AppResult<(Vec<NewMessage>, i64)> {
     let token = token(cfg).await?;
     let client = reqwest::Client::new();
     let chats = list_chats(cfg).await?;
     let now_ms = chrono::Utc::now().timestamp_millis();
     // 拉取窗口：上次游标（回退 2 分钟容错）到当前
-    let start = since_ms.map(|s| s - 120_000).unwrap_or(now_ms - 10 * 60_000);
+    let start = since_ms
+        .map(|s| s - 120_000)
+        .unwrap_or(now_ms - 10 * 60_000);
     let mut out = vec![];
     for (chat_id, chat_name) in chats {
         // 处理当前会话的所有分页
         let mut page_token: Option<String> = None;
         loop {
             let mut url = format!(
-                "{BASE}/im/v1/messages?container_id_type=chat&container_id={chat_id}&page_size=50&start_time={start}&end_time={now_ms}"
+                "{}/im/v1/messages?container_id_type=chat&container_id={chat_id}&page_size=50&start_time={start}&end_time={now_ms}",
+                cfg.base_url
             );
             if let Some(t) = &page_token {
                 url.push_str(&format!("&page_token={t}"));
@@ -152,12 +169,15 @@ async fn pull_new_messages(cfg: &FeishuConfig, since_ms: Option<i64>) -> Result<
                 .timeout(std::time::Duration::from_secs(20))
                 .send()
                 .await
-                .map_err(|e| format!("拉取消息失败: {e}"))?;
+                .map_err(|e| AppError::Network(format!("拉取消息失败: {e}")))?;
             if !resp.status().is_success() {
                 log::warn!("feishu: chat {} 拉取失败 {}", chat_id, resp.status());
                 break;
             }
-            let page: MsgPage = resp.json().await.map_err(|e| e.to_string())?;
+            let page: MsgPage = resp
+                .json()
+                .await
+                .map_err(|e| AppError::External(e.to_string()))?;
             for m in page.data.items.unwrap_or_default() {
                 let msg_type = m["msg_type"].as_str().unwrap_or_default();
                 let content = m["body"]["content"].as_str().unwrap_or_default();
@@ -184,13 +204,13 @@ async fn pull_new_messages(cfg: &FeishuConfig, since_ms: Option<i64>) -> Result<
 }
 
 /// 连接测试：获取 token 并列出会话数
-pub async fn poll_once_test(cfg: &FeishuConfig) -> Result<String, String> {
+pub async fn poll_once_test(cfg: &FeishuConfig) -> AppResult<String> {
     let chats = list_chats(cfg).await?;
     Ok(format!("连接成功，机器人在 {} 个会话中", chats.len()))
 }
 
 /// 一轮完整的"拉取 → AI 分类 → 写入收件箱建议"
-pub async fn poll_once(app: &AppHandle) -> Result<usize, String> {
+pub async fn poll_once(app: &AppHandle) -> AppResult<usize> {
     let db = app.state::<Db>();
     let get = |k: &str| -> Option<String> {
         let conn = db.0.lock().unwrap();
@@ -205,7 +225,11 @@ pub async fn poll_once(app: &AppHandle) -> Result<usize, String> {
     };
     let acfg = match ai::load_config(&get) {
         Some(c) => c,
-        None => return Err("已配置飞书但未配置 AI 接口，无法分类".into()),
+        None => {
+            return Err(AppError::Invalid(
+                "已配置飞书但未配置 AI 接口，无法分类".into(),
+            ))
+        }
     };
 
     let since: Option<i64> = get("feishu_cursor").and_then(|s| s.parse().ok());
@@ -225,10 +249,12 @@ pub async fn poll_once(app: &AppHandle) -> Result<usize, String> {
                 continue;
             }
         };
-        let by_id: std::collections::HashMap<String, &AiSuggestion> =
-            suggestions.iter().map(|s| (s.message_id.clone(), s)).collect();
+        let by_id: std::collections::HashMap<String, &AiSuggestion> = suggestions
+            .iter()
+            .map(|s| (s.message_id.clone(), s))
+            .collect();
         for m in chunk {
-            let sug = by_id.get(&m.message_id).and_then(|s| if s.todo { Some(s) } else { None });
+            let sug = by_id.get(&m.message_id).filter(|&s| s.todo);
             if sug.is_none() {
                 continue;
             }
@@ -248,7 +274,7 @@ pub async fn poll_once(app: &AppHandle) -> Result<usize, String> {
     }
 
     if saved > 0 {
-        let _ = app.emit("im-suggestions-changed", saved);
+        let _ = app.emit(events::IM_SUGGESTIONS_CHANGED, saved);
     }
     {
         let conn = db.0.lock().unwrap();
@@ -256,13 +282,11 @@ pub async fn poll_once(app: &AppHandle) -> Result<usize, String> {
             "INSERT INTO sync_state (provider, cursor, updated_at) VALUES ('feishu', ?1, ?2)
              ON CONFLICT(provider) DO UPDATE SET cursor=?1, updated_at=?2",
             params![cursor.to_string(), now()],
-        )
-        .map_err(|e| e.to_string())?;
+        )?;
         conn.execute(
             "INSERT INTO settings (key, value) VALUES ('feishu_cursor', ?1) ON CONFLICT(key) DO UPDATE SET value=?1",
             params![cursor.to_string()],
-        )
-        .map_err(|e| e.to_string())?;
+        )?;
     }
     Ok(saved)
 }
@@ -275,52 +299,6 @@ fn feishu_config(get: &dyn Fn(&str) -> Option<String>) -> Option<FeishuConfig> {
     Some(cfg)
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    // ---- extract_text：飞书消息内容提取 ----
-
-    #[test]
-    fn extract_text_from_text_message() {
-        let content = r#"{"text":"明天上午10点开周会"}"#;
-        assert_eq!(extract_text("text", content).as_deref(), Some("明天上午10点开周会"));
-    }
-
-    #[test]
-    fn extract_text_from_post_rich_text() {
-        let content = r#"{"title":"纪要","content":[[{"tag":"text","text":"周三前"},{"tag":"text","text":"交报告"}]]}"#;
-        assert_eq!(extract_text("post", content).as_deref(), Some("周三前 交报告"));
-    }
-
-    #[test]
-    fn extract_text_skips_non_text_and_invalid() {
-        assert_eq!(extract_text("image", r#"{"image_key":"x"}"#), None, "图片消息跳过");
-        assert_eq!(extract_text("text", "not-json"), None, "非法 JSON 跳过");
-        assert_eq!(extract_text("text", r#"{"text":""}"#).as_deref(), Some(""), "空文本交给上层过滤");
-    }
-
-    // ---- 配置加载 ----
-
-    fn getter<'a>(map: &'a [(&'a str, &'a str)]) -> impl Fn(&str) -> Option<String> + 'a {
-        move |k| map.iter().find(|(key, _)| *key == k).map(|(_, v)| v.to_string())
-    }
-
-    #[test]
-    fn load_config_requires_both_credentials() {
-        assert!(load_config(&getter(&[("feishu_app_id", "cli_x")])).is_none());
-        assert!(load_config(&getter(&[("feishu_app_secret", "s")])).is_none());
-        let cfg = load_config(&getter(&[("feishu_app_id", "cli_x"), ("feishu_app_secret", "sec")])).unwrap();
-        assert_eq!(cfg.app_id, "cli_x");
-    }
-
-    #[test]
-    fn feishu_config_ignores_empty_strings() {
-        let g = getter(&[("feishu_app_id", ""), ("feishu_app_secret", "")]);
-        assert!(feishu_config(&g).is_none(), "空串视为未配置，poll_once 静默跳过");
-    }
-}
-
 /// 后台轮询循环：间隔从设置读取（默认 120 秒），失败指数退避（上限 15 分钟）
 pub fn spawn_poll_loop(app: AppHandle) {
     tauri::async_runtime::spawn(async move {
@@ -330,16 +308,20 @@ pub fn spawn_poll_loop(app: AppHandle) {
                 let db = app.state::<Db>();
                 let conn = db.0.lock().unwrap();
                 let enabled = conn
-                    .query_row("SELECT value FROM settings WHERE key='feishu_enabled'", [], |r| {
-                        r.get::<_, String>(0)
-                    })
+                    .query_row(
+                        "SELECT value FROM settings WHERE key='feishu_enabled'",
+                        [],
+                        |r| r.get::<_, String>(0),
+                    )
                     .ok()
                     .map(|v| v == "true")
                     .unwrap_or(false);
                 let interval = conn
-                    .query_row("SELECT value FROM settings WHERE key='feishu_poll_interval'", [], |r| {
-                        r.get::<_, String>(0)
-                    })
+                    .query_row(
+                        "SELECT value FROM settings WHERE key='feishu_poll_interval'",
+                        [],
+                        |r| r.get::<_, String>(0),
+                    )
                     .ok()
                     .and_then(|v| v.parse::<u64>().ok())
                     .filter(|s| *s >= 30)
@@ -358,4 +340,176 @@ pub fn spawn_poll_loop(app: AppHandle) {
             tokio::time::sleep(std::time::Duration::from_secs(interval * backoff)).await;
         }
     });
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use wiremock::matchers::{method, path, query_param};
+    use wiremock::{Mock, MockServer, ResponseTemplate};
+
+    // ---- extract_text：飞书消息内容提取 ----
+
+    #[test]
+    fn extract_text_from_text_message() {
+        let content = r#"{"text":"明天上午10点开周会"}"#;
+        assert_eq!(
+            extract_text("text", content).as_deref(),
+            Some("明天上午10点开周会")
+        );
+    }
+
+    #[test]
+    fn extract_text_from_post_rich_text() {
+        let content = r#"{"title":"纪要","content":[[{"tag":"text","text":"周三前"},{"tag":"text","text":"交报告"}]]}"#;
+        assert_eq!(
+            extract_text("post", content).as_deref(),
+            Some("周三前 交报告")
+        );
+    }
+
+    #[test]
+    fn extract_text_skips_non_text_and_invalid() {
+        assert_eq!(
+            extract_text("image", r#"{"image_key":"x"}"#),
+            None,
+            "图片消息跳过"
+        );
+        assert_eq!(extract_text("text", "not-json"), None, "非法 JSON 跳过");
+        assert_eq!(
+            extract_text("text", r#"{"text":""}"#).as_deref(),
+            Some(""),
+            "空文本交给上层过滤"
+        );
+    }
+
+    // ---- 配置加载 ----
+
+    fn getter<'a>(map: &'a [(&'a str, &'a str)]) -> impl Fn(&str) -> Option<String> + 'a {
+        move |k| {
+            map.iter()
+                .find(|(key, _)| *key == k)
+                .map(|(_, v)| v.to_string())
+        }
+    }
+
+    #[test]
+    fn load_config_requires_both_credentials() {
+        assert!(load_config(&getter(&[("feishu_app_id", "cli_x")])).is_none());
+        assert!(load_config(&getter(&[("feishu_app_secret", "s")])).is_none());
+        let cfg = load_config(&getter(&[
+            ("feishu_app_id", "cli_x"),
+            ("feishu_app_secret", "sec"),
+        ]))
+        .unwrap();
+        assert_eq!(cfg.app_id, "cli_x");
+        assert_eq!(cfg.base_url, BASE, "生产配置指向官方地址");
+    }
+
+    #[test]
+    fn feishu_config_ignores_empty_strings() {
+        let g = getter(&[("feishu_app_id", ""), ("feishu_app_secret", "")]);
+        assert!(
+            feishu_config(&g).is_none(),
+            "空串视为未配置，poll_once 静默跳过"
+        );
+    }
+
+    // ---- reqwest 分支：wiremock 覆盖 token / 会话列表 / 消息拉取 ----
+
+    fn test_cfg(base_url: &str) -> FeishuConfig {
+        FeishuConfig {
+            app_id: "cli_x".into(),
+            app_secret: "sec".into(),
+            base_url: base_url.into(),
+        }
+    }
+
+    #[test]
+    fn token_error_is_external() {
+        tauri::async_runtime::block_on(async {
+            let server = MockServer::start().await;
+            Mock::given(method("POST"))
+                .and(path("/auth/v3/tenant_access_token/internal"))
+                .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                    "code": 99991663, "msg": "app secret invalid"
+                })))
+                .mount(&server)
+                .await;
+            let err = token(&test_cfg(&server.uri())).await.unwrap_err();
+            assert!(
+                err.to_string().contains("app secret invalid"),
+                "错误带飞书返回信息: {err}"
+            );
+        });
+    }
+
+    #[test]
+    fn list_chats_returns_named_chats() {
+        tauri::async_runtime::block_on(async {
+            let server = MockServer::start().await;
+            Mock::given(method("POST"))
+                .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                    "code": 0, "tenant_access_token": "t-xyz"
+                })))
+                .mount(&server)
+                .await;
+            Mock::given(method("GET"))
+                .and(path("/im/v1/chats"))
+                .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                    "data": { "items": [
+                        { "chat_id": "oc_1", "name": "项目群" },
+                        { "chat_id": "", "name": "脏数据跳过" }
+                    ]}
+                })))
+                .mount(&server)
+                .await;
+            let chats = list_chats(&test_cfg(&server.uri())).await.unwrap();
+            assert_eq!(chats, vec![("oc_1".to_string(), "项目群".to_string())]);
+        });
+    }
+
+    /// 拉取链路：会话 + 文本/富文本消息入库为 NewMessage，图片消息跳过
+    #[test]
+    fn pull_new_messages_extracts_text_and_post_only() {
+        tauri::async_runtime::block_on(async {
+            let server = MockServer::start().await;
+            Mock::given(method("POST"))
+                .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                    "code": 0, "tenant_access_token": "t-xyz"
+                })))
+                .mount(&server)
+                .await;
+            Mock::given(method("GET"))
+                .and(path("/im/v1/chats"))
+                .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                    "data": { "items": [ { "chat_id": "oc_1", "name": "项目群" } ] }
+                })))
+                .mount(&server)
+                .await;
+            Mock::given(method("GET"))
+                .and(path("/im/v1/messages"))
+                .and(query_param("container_id", "oc_1"))
+                .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                    "data": { "items": [
+                        { "message_id": "om_1", "msg_type": "text", "sender": { "id": "u1" },
+                          "body": { "content": "{\"text\":\"明天上午10点开周会\"}" } },
+                        { "message_id": "om_2", "msg_type": "post", "sender": { "id": "u2" },
+                          "body": { "content": "{\"content\":[[{\"tag\":\"text\",\"text\":\"周三前\"}]]}" } },
+                        { "message_id": "om_3", "msg_type": "image", "sender": { "id": "u3" },
+                          "body": { "content": "{\"image_key\":\"k\"}" } }
+                    ], "has_more": false }
+                })))
+                .mount(&server)
+                .await;
+
+            let (msgs, _cursor) = pull_new_messages(&test_cfg(&server.uri()), None)
+                .await
+                .unwrap();
+            assert_eq!(msgs.len(), 2, "图片消息不入列");
+            assert_eq!(msgs[0].content, "明天上午10点开周会");
+            assert_eq!(msgs[0].chat_name, "项目群");
+            assert_eq!(msgs[1].content, "周三前");
+        });
+    }
 }

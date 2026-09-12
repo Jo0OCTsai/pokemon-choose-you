@@ -1,5 +1,6 @@
-use chrono::TimeZone;
 use crate::db::Db;
+use crate::events;
+use chrono::TimeZone;
 use rusqlite::params;
 use tauri::{AppHandle, Emitter, Manager};
 use tauri_plugin_notification::NotificationExt;
@@ -40,8 +41,12 @@ fn tick<R: tauri::Runtime>(app: &tauri::AppHandle<R>) -> Result<(), Box<dyn std:
         })
         .ok()
     };
-    let lead_min: i64 = get("remind_ahead_minutes").and_then(|v| v.parse().ok()).unwrap_or(0);
-    let notify_on = get("notifications_enabled").map(|v| v != "false").unwrap_or(true);
+    let lead_min: i64 = get("remind_ahead_minutes")
+        .and_then(|v| v.parse().ok())
+        .unwrap_or(0);
+    let notify_on = get("notifications_enabled")
+        .map(|v| v != "false")
+        .unwrap_or(true);
     let now = chrono::Utc::now() + chrono::Duration::minutes(lead_min);
     // SQL 预筛只是粗筛：datetime-local 存的是无时区本地时间，与 UTC RFC3339 字典序
     // 不可比（UTC+ 时区下本地字符串普遍偏大），窗口放宽一天，精确判断交给 parse_time
@@ -55,7 +60,12 @@ fn tick<R: tauri::Runtime>(app: &tauri::AppHandle<R>) -> Result<(), Box<dyn std:
         )?;
         let rows = stmt
             .query_map(params![now_s], |r| {
-                Ok((r.get::<_, i64>(0)?, r.get::<_, String>(1)?, r.get::<_, String>(2)?, r.get::<_, String>(3)?))
+                Ok((
+                    r.get::<_, i64>(0)?,
+                    r.get::<_, String>(1)?,
+                    r.get::<_, String>(2)?,
+                    r.get::<_, String>(3)?,
+                ))
             })?
             .collect::<Result<Vec<_>, _>>()?;
         rows
@@ -63,7 +73,7 @@ fn tick<R: tauri::Runtime>(app: &tauri::AppHandle<R>) -> Result<(), Box<dyn std:
     for (id, title, priority, remind_at) in &due {
         // datetime-local 传入的是本地无时区时间，解析后与当前 UTC 比较
         let due_time = parse_time(remind_at);
-        if due_time.map_or(true, |t| t > now) {
+        if due_time.is_none_or(|t| t > now) {
             continue;
         }
         conn.execute("UPDATE tasks SET reminded=1 WHERE id=?1", params![id])?;
@@ -75,36 +85,53 @@ fn tick<R: tauri::Runtime>(app: &tauri::AppHandle<R>) -> Result<(), Box<dyn std:
 /// 按语言设置生成通知标题/正文（紧急与非紧急两档）
 fn notification_text(lang: &str, urgent: bool, title: &str) -> (String, String) {
     match lang {
-        "zh-Hant" => if urgent {
-            ("‼ 寶可夢來敲門".into(), format!("緊急任務提醒：{title}"))
-        } else {
-            ("🐾 寶可夢來敲門".into(), format!("別忘了：{title}"))
-        },
-        "en" => if urgent {
-            ("‼ Pokemon Knock!".into(), format!("Urgent: {title}"))
-        } else {
-            ("🐾 Pokemon Knock!".into(), format!("Don't forget: {title}"))
-        },
-        _ => if urgent {
-            ("‼ 宝可梦来敲门".into(), format!("紧急任务提醒：{title}"))
-        } else {
-            ("🐾 宝可梦来敲门".into(), format!("别忘了：{title}"))
-        },
+        "zh-Hant" => {
+            if urgent {
+                ("‼ 寶可夢來敲門".into(), format!("緊急任務提醒：{title}"))
+            } else {
+                ("🐾 寶可夢來敲門".into(), format!("別忘了：{title}"))
+            }
+        }
+        "en" => {
+            if urgent {
+                ("‼ Pokemon Knock!".into(), format!("Urgent: {title}"))
+            } else {
+                ("🐾 Pokemon Knock!".into(), format!("Don't forget: {title}"))
+            }
+        }
+        _ => {
+            if urgent {
+                ("‼ 宝可梦来敲门".into(), format!("紧急任务提醒：{title}"))
+            } else {
+                ("🐾 宝可梦来敲门".into(), format!("别忘了：{title}"))
+            }
+        }
     }
 }
 
-fn drop_later_notify<R: tauri::Runtime>(app: &tauri::AppHandle<R>, id: i64, title: &str, priority: &str, notify_on: bool) {
+fn drop_later_notify<R: tauri::Runtime>(
+    app: &tauri::AppHandle<R>,
+    id: i64,
+    title: &str,
+    priority: &str,
+    notify_on: bool,
+) {
     let urgent = priority == "urgent" || priority == "high";
     if notify_on {
         let lang = crate::db::setting(app, "language").unwrap_or_default();
         let (title_str, body) = notification_text(&lang, urgent, title);
-        let _ = app.notification().builder()
+        let _ = app
+            .notification()
+            .builder()
             .title(title_str)
             .body(body)
             .show();
     }
     // 桌宠窗口收到后播放敲门/催促动画
-    let _ = app.emit("task-reminder", serde_json::json!({ "id": id, "title": title, "urgent": urgent }));
+    let _ = app.emit(
+        events::TASK_REMINDER,
+        serde_json::json!({ "id": id, "title": title, "urgent": urgent }),
+    );
 }
 
 #[cfg(test)]
@@ -122,19 +149,32 @@ mod tests {
     #[test]
     fn parse_time_accepts_rfc3339_utc() {
         let t = parse_time("2026-09-12T08:30:00Z").unwrap();
-        assert_eq!(t, chrono::Utc.with_ymd_and_hms(2026, 9, 12, 8, 30, 0).unwrap());
+        assert_eq!(
+            t,
+            chrono::Utc.with_ymd_and_hms(2026, 9, 12, 8, 30, 0).unwrap()
+        );
     }
 
     #[test]
     fn parse_time_accepts_rfc3339_with_offset() {
         let t = parse_time("2026-09-12T16:30:00+08:00").unwrap();
-        assert_eq!(t, chrono::Utc.with_ymd_and_hms(2026, 9, 12, 8, 30, 0).unwrap());
+        assert_eq!(
+            t,
+            chrono::Utc.with_ymd_and_hms(2026, 9, 12, 8, 30, 0).unwrap()
+        );
     }
 
     #[test]
     fn parse_time_accepts_naive_local_formats() {
-        let naive = chrono::NaiveDate::from_ymd_opt(2026, 9, 12).unwrap().and_hms_opt(16, 0, 0).unwrap();
-        let expect = chrono::Local.from_local_datetime(&naive).earliest().unwrap().with_timezone(&chrono::Utc);
+        let naive = chrono::NaiveDate::from_ymd_opt(2026, 9, 12)
+            .unwrap()
+            .and_hms_opt(16, 0, 0)
+            .unwrap();
+        let expect = chrono::Local
+            .from_local_datetime(&naive)
+            .earliest()
+            .unwrap()
+            .with_timezone(&chrono::Utc);
         assert_eq!(parse_time("2026-09-12T16:00").unwrap(), expect);
         assert_eq!(parse_time("2026-09-12T16:00:00").unwrap(), expect);
     }
@@ -193,8 +233,17 @@ mod tests {
     fn tick_reminds_past_due_task() {
         let app = tauri::test::mock_app();
         let conn = test_conn();
-        conn.execute("INSERT INTO settings (key, value) VALUES ('notifications_enabled', 'false')", []).unwrap();
-        let id = insert_task(&conn, "过期提醒", "scheduled", &(chrono::Utc::now() - chrono::Duration::hours(1)).to_rfc3339());
+        conn.execute(
+            "INSERT INTO settings (key, value) VALUES ('notifications_enabled', 'false')",
+            [],
+        )
+        .unwrap();
+        let id = insert_task(
+            &conn,
+            "过期提醒",
+            "scheduled",
+            &(chrono::Utc::now() - chrono::Duration::hours(1)).to_rfc3339(),
+        );
         app.manage(Db(Mutex::new(conn)));
         tick_app(&app);
         let db = app.state::<Db>();
@@ -206,9 +255,23 @@ mod tests {
     fn tick_skips_future_and_done_tasks() {
         let app = tauri::test::mock_app();
         let conn = test_conn();
-        conn.execute("INSERT INTO settings (key, value) VALUES ('notifications_enabled', 'false')", []).unwrap();
-        let future = insert_task(&conn, "未来", "scheduled", &(chrono::Utc::now() + chrono::Duration::hours(2)).to_rfc3339());
-        let done = insert_task(&conn, "已完成", "done", &(chrono::Utc::now() - chrono::Duration::hours(1)).to_rfc3339());
+        conn.execute(
+            "INSERT INTO settings (key, value) VALUES ('notifications_enabled', 'false')",
+            [],
+        )
+        .unwrap();
+        let future = insert_task(
+            &conn,
+            "未来",
+            "scheduled",
+            &(chrono::Utc::now() + chrono::Duration::hours(2)).to_rfc3339(),
+        );
+        let done = insert_task(
+            &conn,
+            "已完成",
+            "done",
+            &(chrono::Utc::now() - chrono::Duration::hours(1)).to_rfc3339(),
+        );
         app.manage(Db(Mutex::new(conn)));
         tick_app(&app);
         let db = app.state::<Db>();
@@ -223,8 +286,14 @@ mod tests {
     fn tick_reminds_naive_local_past_due() {
         let app = tauri::test::mock_app();
         let conn = test_conn();
-        conn.execute("INSERT INTO settings (key, value) VALUES ('notifications_enabled', 'false')", []).unwrap();
-        let naive = (chrono::Local::now() - chrono::Duration::hours(1)).format("%Y-%m-%dT%H:%M").to_string();
+        conn.execute(
+            "INSERT INTO settings (key, value) VALUES ('notifications_enabled', 'false')",
+            [],
+        )
+        .unwrap();
+        let naive = (chrono::Local::now() - chrono::Duration::hours(1))
+            .format("%Y-%m-%dT%H:%M")
+            .to_string();
         let id = insert_task(&conn, "本地时间提醒", "scheduled", &naive);
         app.manage(Db(Mutex::new(conn)));
         tick_app(&app);
@@ -237,8 +306,16 @@ mod tests {
     fn tick_remind_ahead_minutes_advances_due_time() {
         let app = tauri::test::mock_app();
         let conn = test_conn();
-        conn.execute("INSERT INTO settings (key, value) VALUES ('notifications_enabled', 'false')", []).unwrap();
-        conn.execute("INSERT INTO settings (key, value) VALUES ('remind_ahead_minutes', '30')", []).unwrap();
+        conn.execute(
+            "INSERT INTO settings (key, value) VALUES ('notifications_enabled', 'false')",
+            [],
+        )
+        .unwrap();
+        conn.execute(
+            "INSERT INTO settings (key, value) VALUES ('remind_ahead_minutes', '30')",
+            [],
+        )
+        .unwrap();
         // 20 分钟后到期：提前量 30 分钟应视为已到期
         let soon = (chrono::Utc::now() + chrono::Duration::minutes(20)).to_rfc3339();
         let id = insert_task(&conn, "即将到期", "scheduled", &soon);
@@ -253,7 +330,11 @@ mod tests {
     fn tick_no_tasks_is_noop() {
         let app = tauri::test::mock_app();
         let conn = test_conn();
-        conn.execute("INSERT INTO settings (key, value) VALUES ('notifications_enabled', 'false')", []).unwrap();
+        conn.execute(
+            "INSERT INTO settings (key, value) VALUES ('notifications_enabled', 'false')",
+            [],
+        )
+        .unwrap();
         app.manage(Db(Mutex::new(conn)));
         tick_app(&app); // 不应 panic
     }

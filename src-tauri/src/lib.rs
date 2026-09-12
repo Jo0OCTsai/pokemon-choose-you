@@ -1,33 +1,76 @@
 mod ai;
 mod commands;
 mod db;
+mod error;
+mod events;
 mod feishu;
 mod models;
 mod scheduler;
+mod shortcuts;
 mod todoist;
+mod tray;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    let app = tauri::Builder::default()
+    let builder = {
+        // macOS：桌宠型常驻应用不占 Dock 图标（Accessory），入口收敛到托盘与快捷键
+        #[cfg(target_os = "macos")]
+        {
+            tauri::Builder::default().set_activation_policy(tauri::ActivationPolicy::Accessory)
+        }
+        #[cfg(not(target_os = "macos"))]
+        {
+            tauri::Builder::default()
+        }
+    };
+    let app = builder
+        // 单实例必须最先注册：二次启动唤起已有实例的主窗口后自行退出，
+        // 否则两只桌宠并存 + 两个进程争抢同一个 SQLite 文件
+        .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
+            log::info!("[single-instance] 检测到二次启动，唤起主窗口");
+            let _ = commands::open_main_window(app.clone());
+        }))
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_notification::init())
         .plugin(tauri_plugin_autostart::init(
             tauri_plugin_autostart::MacosLauncher::LaunchAgent,
             None,
         ))
+        // 只记忆窗口位置不记忆尺寸：桌宠快捷屏展开时会把窗口临时调高，
+        // 记忆尺寸会把这块透明区带到下次启动，挡住下层应用的点击
+        .plugin(
+            tauri_plugin_window_state::Builder::new()
+                .with_state_flags(tauri_plugin_window_state::StateFlags::POSITION)
+                .build(),
+        )
+        .plugin(shortcuts::plugin())
+        .plugin(tauri_plugin_updater::Builder::new().build())
+        .plugin(tauri_plugin_process::init())
         .plugin(
             tauri_plugin_log::Builder::new()
-                .level(if cfg!(debug_assertions) { log::LevelFilter::Debug } else { log::LevelFilter::Info })
+                .level(if cfg!(debug_assertions) {
+                    log::LevelFilter::Debug
+                } else {
+                    log::LevelFilter::Info
+                })
                 .max_file_size(512_000)
                 .rotation_strategy(tauri_plugin_log::RotationStrategy::KeepOne)
                 .build(),
         )
         .setup(|app| {
             use tauri::Manager;
-            db::init(&app.handle())?;
-            app.manage(commands::PendingMainReopen(std::sync::atomic::AtomicBool::new(false)));
+            db::init(app.handle())?;
+            app.manage(commands::windows::PendingMainReopen(
+                std::sync::atomic::AtomicBool::new(false),
+            ));
+            app.manage(commands::windows::QuickCapturePending(
+                std::sync::atomic::AtomicBool::new(false),
+            ));
             scheduler::spawn_reminder_loop(app.handle().clone());
             feishu::spawn_poll_loop(app.handle().clone());
+            tray::setup(app.handle())?;
+            shortcuts::register(app.handle());
+            commands::spawn_update_check(app.handle().clone());
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
@@ -42,8 +85,12 @@ pub fn run() {
             commands::add_focus_seconds,
             commands::list_categories,
             commands::set_category_pokemon,
+            commands::create_category,
+            commands::update_category,
+            commands::delete_category,
             commands::get_setting,
             commands::set_setting,
+            commands::list_all_settings,
             commands::list_im_suggestions,
             commands::accept_im_suggestion,
             commands::dismiss_im_suggestion,
@@ -51,11 +98,10 @@ pub fn run() {
             commands::test_feishu_config,
             commands::trigger_feishu_poll,
             commands::sync_todoist,
-            commands::list_all_settings,
+            commands::check_update,
+            commands::install_update,
             commands::open_main_window,
-            commands::create_category,
-            commands::update_category,
-            commands::delete_category,
+            commands::consume_quick_capture,
         ])
         .build(tauri::generate_context!())
         .expect("error while building tauri application");
@@ -63,7 +109,12 @@ pub fn run() {
     app.run(|app_handle, event| {
         // main 窗口销毁后按需重建（Linux 上桌宠双击走销毁重开路径）。
         // 回调收到 Destroyed 时 label 已从管理器注销，直接建新窗口无同名冲突。
-        if let tauri::RunEvent::WindowEvent { label, event: tauri::WindowEvent::Destroyed, .. } = event {
+        if let tauri::RunEvent::WindowEvent {
+            label,
+            event: tauri::WindowEvent::Destroyed,
+            ..
+        } = event
+        {
             if label == "main" {
                 commands::reopen_main_if_pending(app_handle);
             }

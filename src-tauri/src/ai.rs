@@ -1,3 +1,4 @@
+use crate::error::{AppError, AppResult};
 use serde::{Deserialize, Serialize};
 
 /// OpenAI 兼容接口配置（支持 OpenAI / DeepSeek / GLM / Kimi 等）
@@ -42,7 +43,7 @@ const SYSTEM_PROMPT: &str = r#"你是待办事项提取助手。给你一组 IM 
 pub async fn classify(
     cfg: &AiConfig,
     batch: &[(String, String, String)], // (message_id, sender, content)
-) -> Result<Vec<AiSuggestion>, String> {
+) -> AppResult<Vec<AiSuggestion>> {
     let client = reqwest::Client::new();
     let user_content = batch
         .iter()
@@ -63,29 +64,47 @@ pub async fn classify(
         .timeout(std::time::Duration::from_secs(60))
         .send()
         .await
-        .map_err(|e| format!("AI 请求失败: {e}"))?;
+        .map_err(|e| AppError::Network(format!("AI 请求失败: {e}")))?;
     if !resp.status().is_success() {
-        return Err(format!("AI 返回 {}: {}", resp.status(), resp.text().await.unwrap_or_default()));
+        let status = resp.status();
+        let body = resp.text().await.unwrap_or_default();
+        return Err(AppError::External(format!("AI 返回 {status}: {body}")));
     }
-    let body: serde_json::Value = resp.json().await.map_err(|e| e.to_string())?;
+    let body: serde_json::Value = resp
+        .json()
+        .await
+        .map_err(|e| AppError::External(e.to_string()))?;
     let content = body["choices"][0]["message"]["content"]
         .as_str()
-        .ok_or("AI 响应格式异常")?;
+        .ok_or_else(|| AppError::External("AI 响应格式异常".into()))?;
     // 兼容模型输出 ```json 包裹的情况
-    let content = content.trim().trim_start_matches("```json").trim_start_matches("```").trim_end_matches("```").trim();
-    let parsed: serde_json::Value = serde_json::from_str(content).map_err(|e| format!("AI 输出不是合法 JSON: {e}"))?;
+    let content = content
+        .trim()
+        .trim_start_matches("```json")
+        .trim_start_matches("```")
+        .trim_end_matches("```")
+        .trim();
+    let parsed: serde_json::Value = serde_json::from_str(content)
+        .map_err(|e| AppError::External(format!("AI 输出不是合法 JSON: {e}")))?;
     let suggestions = parsed["suggestions"]
         .as_array()
-        .ok_or("AI 输出缺少 suggestions 数组")?;
+        .ok_or_else(|| AppError::External("AI 输出缺少 suggestions 数组".into()))?;
     serde_json::from_value(serde_json::Value::Array(suggestions.clone()))
-        .map_err(|e| format!("解析建议失败: {e}"))
+        .map_err(|e| AppError::External(format!("解析建议失败: {e}")))
 }
 
 /// 连接测试
-pub async fn test(cfg: &AiConfig) -> Result<String, String> {
-    let r = classify(cfg, &[("test".into(), "系统".into(), "明天上午10点开周会".into())]).await?;
+pub async fn test(cfg: &AiConfig) -> AppResult<String> {
+    let r = classify(
+        cfg,
+        &[("test".into(), "系统".into(), "明天上午10点开周会".into())],
+    )
+    .await?;
     Ok(if r.first().map(|s| s.todo).unwrap_or(false) {
-        format!("连接成功，模型正确识别了测试待办：{}", r[0].title.clone().unwrap_or_default())
+        format!(
+            "连接成功，模型正确识别了测试待办：{}",
+            r[0].title.clone().unwrap_or_default()
+        )
     } else {
         "连接成功，但模型未识别测试待办，建议换模型".into()
     })
@@ -94,8 +113,8 @@ pub async fn test(cfg: &AiConfig) -> Result<String, String> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::io::{Read, Write};
-    use std::net::TcpListener;
+    use wiremock::matchers::{body_string_contains, header, method, path};
+    use wiremock::{Mock, MockServer, ResponseTemplate};
 
     // ---- load_config ----
 
@@ -128,61 +147,17 @@ mod tests {
         assert_eq!(load_config(&get).unwrap().model, "gpt-4o-mini");
     }
 
-    // ---- classify：本地假 OpenAI 服务器 ----
+    // ---- classify：wiremock 假 OpenAI 服务器 ----
 
     /// 把模型输出包成 OpenAI chat completion 响应（classify 读取 choices[0].message.content）
-    fn openai_body(content: &str) -> String {
-        serde_json::json!({ "choices": [ { "message": { "content": content } } ] }).to_string()
+    fn openai_body(content: &str) -> serde_json::Value {
+        serde_json::json!({ "choices": [ { "message": { "content": content } } ] })
     }
 
-    /// 单连接 HTTP 假服务器：记录请求头/请求体，返回固定响应
-    fn spawn_openai_mock(response_body: String) -> (String, std::sync::Arc<std::sync::Mutex<Vec<String>>>) {
-        let listener = TcpListener::bind("127.0.0.1:0").unwrap();
-        let port = listener.local_addr().unwrap().port();
-        let recorded = std::sync::Arc::new(std::sync::Mutex::new(Vec::new()));
-        let rec = recorded.clone();
-        std::thread::spawn(move || {
-            if let Ok((mut stream, _)) = listener.accept() {
-                let mut buf = [0u8; 8192];
-                let mut raw = Vec::new();
-                // 读完请求头 + Content-Length 长度的 body
-                loop {
-                    let n = stream.read(&mut buf).unwrap_or(0);
-                    if n == 0 {
-                        break;
-                    }
-                    raw.extend_from_slice(&buf[..n]);
-                    let s = String::from_utf8_lossy(&raw);
-                    if let Some(pos) = s.find("\r\n\r\n") {
-                        let len: usize = s
-                            .lines()
-                            .find(|l| l.to_ascii_lowercase().starts_with("content-length:"))
-                            .and_then(|l| l.split(':').nth(1))
-                            .and_then(|v| v.trim().parse().ok())
-                            .unwrap_or(0);
-                        if raw.len() >= pos + 4 + len {
-                            break;
-                        }
-                    }
-                }
-                *rec.lock().unwrap() = String::from_utf8_lossy(&raw)
-                    .split("\r\n\r\n")
-                    .map(str::to_string)
-                    .collect::<Vec<_>>();
-                let resp = format!(
-                    "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{}",
-                    response_body.len(),
-                    response_body
-                );
-                let _ = stream.write_all(resp.as_bytes());
-            }
-        });
-        (format!("http://127.0.0.1:{port}/v1"), recorded)
-    }
-
-    fn cfg_for(base_url: &str) -> AiConfig {
+    /// base_url 形态对齐真实配置（https://api.openai.com/v1 → 请求 /v1/chat/completions）
+    fn cfg_for(server_uri: &str) -> AiConfig {
         AiConfig {
-            base_url: base_url.into(),
+            base_url: format!("{server_uri}/v1"),
             api_key: "sk-test".into(),
             model: "glm-test".into(),
         }
@@ -190,49 +165,100 @@ mod tests {
 
     #[test]
     fn classify_parses_plain_json_response() {
-        let suggestions = r#"{"suggestions":[{"messageId":"m1","todo":true,"title":"参加周会","category":"工作","due":"2026-09-13T10:00"}]}"#;
-        let (base, rec) = spawn_openai_mock(openai_body(suggestions));
-        let out = tauri::async_runtime::block_on(classify(
-            &cfg_for(&base),
-            &[("m1".into(), "张三".into(), "明天上午10点开周会".into())],
-        ))
-        .unwrap();
-        assert_eq!(out.len(), 1);
-        assert!(out[0].todo);
-        assert_eq!(out[0].title.as_deref(), Some("参加周会"));
-        assert_eq!(out[0].due.as_deref(), Some("2026-09-13T10:00"));
-        // 请求侧：路径 /v1/chat/completions、Bearer 鉴权、模型名、消息拼接
-        let rec = rec.lock().unwrap();
-        let head = &rec[0];
-        assert!(head.contains("POST /v1/chat/completions"), "请求打到 base_url 下的 chat/completions");
-        assert!(head.contains("authorization: Bearer sk-test"), "带 Bearer 鉴权");
-        let body = &rec[1];
-        assert!(body.contains("\"model\":\"glm-test\""));
-        assert!(body.contains("[m1] 张三: 明天上午10点开周会"));
+        tauri::async_runtime::block_on(async {
+            let server = MockServer::start().await;
+            Mock::given(method("POST"))
+                .and(path("/v1/chat/completions"))
+                .and(header("authorization", "Bearer sk-test"))
+                .and(body_string_contains("\"model\":\"glm-test\""))
+                .and(body_string_contains("[m1] 张三: 明天上午10点开周会"))
+                .respond_with(ResponseTemplate::new(200).set_body_json(openai_body(
+                    r#"{"suggestions":[{"messageId":"m1","todo":true,"title":"参加周会","category":"工作","due":"2026-09-13T10:00"}]}"#,
+                )))
+                .expect(1)
+                .mount(&server)
+                .await;
+
+            let out = classify(
+                &cfg_for(&server.uri()),
+                &[("m1".into(), "张三".into(), "明天上午10点开周会".into())],
+            )
+            .await
+            .unwrap();
+            assert_eq!(out.len(), 1);
+            assert!(out[0].todo);
+            assert_eq!(out[0].title.as_deref(), Some("参加周会"));
+            assert_eq!(out[0].due.as_deref(), Some("2026-09-13T10:00"));
+        });
     }
 
     #[test]
     fn classify_strips_markdown_code_fence() {
-        let suggestions = r#"{"suggestions":[{"messageId":"m1","todo":false}]}"#;
-        let fenced = format!("```json\n{suggestions}\n```");
-        let (base, _) = spawn_openai_mock(openai_body(&fenced));
-        let out = tauri::async_runtime::block_on(classify(
-            &cfg_for(&base),
-            &[("m1".into(), "s".into(), "c".into())],
-        ))
-        .unwrap();
-        assert_eq!(out.len(), 1);
-        assert!(!out[0].todo);
+        tauri::async_runtime::block_on(async {
+            let suggestions = r#"{"suggestions":[{"messageId":"m1","todo":false}]}"#;
+            let fenced = format!("```json\n{suggestions}\n```");
+            let server = MockServer::start().await;
+            Mock::given(method("POST"))
+                .respond_with(ResponseTemplate::new(200).set_body_json(openai_body(&fenced)))
+                .mount(&server)
+                .await;
+
+            let out = classify(
+                &cfg_for(&server.uri()),
+                &[("m1".into(), "s".into(), "c".into())],
+            )
+            .await
+            .unwrap();
+            assert_eq!(out.len(), 1);
+            assert!(!out[0].todo);
+        });
     }
 
     #[test]
     fn classify_errors_on_non_json() {
-        let (base, _) = spawn_openai_mock(openai_body("我觉得这不是待办"));
-        let err = tauri::async_runtime::block_on(classify(
-            &cfg_for(&base),
-            &[("m1".into(), "s".into(), "c".into())],
-        ))
-        .unwrap_err();
-        assert!(err.contains("JSON"), "错误信息说明不是合法 JSON: {err}");
+        tauri::async_runtime::block_on(async {
+            let server = MockServer::start().await;
+            Mock::given(method("POST"))
+                .respond_with(
+                    ResponseTemplate::new(200).set_body_json(openai_body("我觉得这不是待办")),
+                )
+                .mount(&server)
+                .await;
+
+            let err = classify(
+                &cfg_for(&server.uri()),
+                &[("m1".into(), "s".into(), "c".into())],
+            )
+            .await
+            .unwrap_err();
+            assert!(
+                err.to_string().contains("JSON"),
+                "错误信息说明不是合法 JSON: {err}"
+            );
+        });
+    }
+
+    /// reqwest 分支：上游 5xx 时归为外部服务错误（可提示重试/换配置）
+    #[test]
+    fn classify_maps_http_error_to_external_kind() {
+        tauri::async_runtime::block_on(async {
+            let server = MockServer::start().await;
+            Mock::given(method("POST"))
+                .respond_with(ResponseTemplate::new(500).set_body_string("boom"))
+                .mount(&server)
+                .await;
+
+            let err = classify(
+                &cfg_for(&server.uri()),
+                &[("m1".into(), "s".into(), "c".into())],
+            )
+            .await
+            .unwrap_err();
+            assert!(
+                matches!(err, AppError::External(_)),
+                "5xx 归 external: {err}"
+            );
+            assert!(err.to_string().contains("500"));
+        });
     }
 }

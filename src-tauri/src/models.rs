@@ -88,8 +88,20 @@ mod tests {
         assert_eq!(
             keys_of(serde_json::to_value(&t).unwrap()),
             vec![
-                "categoryId", "completedAt", "createdAt", "dueAt", "externalId", "focusSeconds",
-                "id", "note", "priority", "remindAt", "reminded", "source", "status", "title",
+                "categoryId",
+                "completedAt",
+                "createdAt",
+                "dueAt",
+                "externalId",
+                "focusSeconds",
+                "id",
+                "note",
+                "priority",
+                "remindAt",
+                "reminded",
+                "source",
+                "status",
+                "title",
             ]
         );
         // 反向：前端可能回传完整对象（update_task 的 patch 基于 Task 字段）
@@ -99,7 +111,12 @@ mod tests {
 
     #[test]
     fn category_json_contract_matches_ts_interface() {
-        let c = Category { id: 1, name: "工作".into(), pokemon: "皮卡丘".into(), sprite: "pikachu".into() };
+        let c = Category {
+            id: 1,
+            name: "工作".into(),
+            pokemon: "皮卡丘".into(),
+            sprite: "pikachu".into(),
+        };
         assert_eq!(
             keys_of(serde_json::to_value(&c).unwrap()),
             vec!["id", "name", "pokemon", "sprite"]
@@ -123,8 +140,16 @@ mod tests {
         assert_eq!(
             keys_of(serde_json::to_value(&s).unwrap()),
             vec![
-                "chatName", "content", "createdAt", "id", "messageId", "reviewStatus",
-                "sender", "suggestedCategory", "suggestedDue", "suggestedTitle",
+                "chatName",
+                "content",
+                "createdAt",
+                "id",
+                "messageId",
+                "reviewStatus",
+                "sender",
+                "suggestedCategory",
+                "suggestedDue",
+                "suggestedTitle",
             ]
         );
     }
