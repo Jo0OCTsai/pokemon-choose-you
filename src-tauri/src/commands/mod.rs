@@ -3,6 +3,7 @@
 pub mod backup;
 pub mod categories;
 pub mod diagnostics;
+pub mod export;
 pub mod integrations;
 pub mod radio;
 pub mod settings;
@@ -13,6 +14,7 @@ pub mod windows;
 pub use backup::*;
 pub use categories::*;
 pub use diagnostics::*;
+pub use export::*;
 pub use integrations::*;
 pub use radio::*;
 pub use settings::*;

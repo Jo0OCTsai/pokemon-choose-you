@@ -38,6 +38,8 @@
 > 数据全部存在本地（macOS: `~/Library/Application Support/com.joeca.pokemonknock/`，Windows: `%APPDATA%/com.joeca.pokemonknock/`，Linux: `~/.local/share/com.joeca.pokemonknock/`），卸载重装不丢任务。
 >
 > **自动备份**：每天第一份快照存在数据目录的 `backups/` 下（`VACUUM INTO` 压缩产物），默认滚动保留 7 份，可在 设置 → 通用 → 数据备份 调整份数、立即备份或从任意一份恢复（恢复立即生效、无需重启，会覆盖当前全部数据；秘钥在系统钥匙串不受影响）。
+>
+> **导出 / 导入**：设置 → 通用 → 数据导出 / 导入。全量 JSON（可在别的机器整体导入，秘钥不出文件）、任务 CSV（带 BOM，Excel 直接打开）、今日日报 Markdown（已完成/路线上/今日跟进三段，勾选框语法，可直接并入 Obsidian 等知识库）；产物都在数据目录 `exports/` 下，可一键打开目录。
 
 ## 核心概念（世界观）
 

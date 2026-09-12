@@ -124,6 +124,12 @@ export const api = {
   listBackups: () => call<BackupInfo[]>("list_backups"),
   createBackupNow: () => call<string>("create_backup_now"),
   restoreBackup: (file: string) => call<void>("restore_backup", { file }),
+  /** 导出/导入三件套：全量 JSON（可回导）/ 任务 CSV / 日报 Markdown，均返回产物文件名 */
+  exportJson: () => call<string>("export_json"),
+  importJson: (content: string) => call<number>("import_json", { content }),
+  exportTasksCsv: () => call<string>("export_tasks_csv"),
+  exportDailyMd: (date?: string) => call<string>("export_daily_md", { date: date ?? null }),
+  openExportsDir: () => call<void>("open_exports_dir"),
   listAllSettings: () => call<Record<string, string>>("list_all_settings"),
   openMainWindow: () => call<void>("open_main_window"),
   /** 主窗口挂载时领取"快速捕捉"挂起标记（一次性），返回 true 则直接聚焦新增输入框 */
