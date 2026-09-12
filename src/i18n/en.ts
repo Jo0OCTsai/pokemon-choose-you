@@ -257,6 +257,9 @@ export default {
     nlCapture: "Natural-language quick capture (auto-detect time / category / tags in the input, always cancellable)",
     shortcuts: "Global shortcuts: Ctrl+Shift+K quick capture · Ctrl+Shift+D show/hide pet (⌘⇧K / ⌘⇧D on macOS)",
   },
+  secret: {
+    stored: "Saved in the OS keychain — type to replace (clear to remove)",
+  },
   update: {
     title: "Updates",
     current: "Current version v{v}",

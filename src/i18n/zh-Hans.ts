@@ -252,6 +252,9 @@ export default {
     nlCapture: "自然语言快速捕捉（输入框自动识别时间 / 分类 / 标签，可随时取消）",
     shortcuts: "全局快捷键：Ctrl+Shift+K 快速捕捉待办 · Ctrl+Shift+D 显示/隐藏桌宠（macOS 为 ⌘⇧K / ⌘⇧D）",
   },
+  secret: {
+    stored: "已保存在系统钥匙串，输入可更换（清空即移除）",
+  },
   update: {
     title: "检查更新",
     current: "当前版本 v{v}",

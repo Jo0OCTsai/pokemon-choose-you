@@ -26,6 +26,15 @@ export const SETTING_DEFAULTS: Record<string, string> = {
   todoist_token: "",
 };
 
+/**
+ * 秘钥键的「已保存」占位值：后端不回传明文，listAllSettings 对已保存秘钥返回该值。
+ * 前端原样保存时后端跳过写入；输入新值则以新值覆盖；清空则删除。
+ */
+export const SECRET_STORED = "__STORED__";
+
+/** 走系统钥匙串的秘钥键（与后端 secrets::SECRET_KEYS 对齐；仅用于输入框占位提示） */
+export const SECRET_KEYS = ["feishu_app_secret", "feishu_user_token", "feishu_refresh_token", "todoist_token"];
+
 /** 设置页保存的键全集（与后端 settings 表对齐） */
 export const SETTING_KEYS = [
   "language",
@@ -80,7 +89,9 @@ export const useSettingsStore = defineStore("settings", {
     },
     async save(keys: string[]) {
       for (const k of keys) {
-        await api.setSetting(k, this.values[k] ?? SETTING_DEFAULTS[k] ?? "");
+        const v = this.values[k] ?? SETTING_DEFAULTS[k] ?? "";
+        if (v === SECRET_STORED) continue; // 占位值原样保存 = 未改动，跳过
+        await api.setSetting(k, v);
       }
     },
   },

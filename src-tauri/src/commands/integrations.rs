@@ -2,19 +2,14 @@ use crate::ai::{self, AgentConfig};
 use crate::db::Db;
 use crate::error::{AppError, AppResult};
 use crate::events;
-use rusqlite::params;
 use tauri::{AppHandle, Emitter, State};
 use tauri_plugin_updater::UpdaterExt;
 
 // ---- 集成：AI Agent CLI / 飞书 / Todoist ----
 
+/// 设置读取：秘钥类键经 secrets 模块（OS 钥匙串优先，settings 表回落），其余直读表
 fn settings_getter(conn: &rusqlite::Connection) -> impl Fn(&str) -> Option<String> + '_ {
-    move |k| {
-        conn.query_row("SELECT value FROM settings WHERE key=?1", params![k], |r| {
-            r.get::<_, String>(0)
-        })
-        .ok()
-    }
+    move |k| crate::secrets::secret_get(conn, k)
 }
 
 /// 测试一个 agent（不指定 id 时用收音机分类所用的主 agent）

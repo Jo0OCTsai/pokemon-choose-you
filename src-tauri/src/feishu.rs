@@ -40,21 +40,21 @@ pub fn load_config(get: &dyn Fn(&str) -> Option<String>) -> Option<FeishuConfig>
     })
 }
 
-/// settings 表读写小助手：OAuth 凭证持久化与轮询时读取共用
+/// settings 表读写小助手：OAuth 凭证持久化与轮询时读取共用。
+/// 秘钥类键（app_secret / user_token / refresh_token）经 secrets 模块优先走 OS 钥匙串，
+/// 无钥匙串环境自动回落 settings 表。
 struct Settings<'a>(&'a Db);
 
 impl Settings<'_> {
     fn get(&self, key: &str) -> Option<String> {
         let conn = self.0 .0.lock().unwrap();
-        conn.query_row(
-            "SELECT value FROM settings WHERE key=?1",
-            params![key],
-            |r| r.get::<_, String>(0),
-        )
-        .ok()
+        crate::secrets::secret_get(&conn, key)
     }
     fn set(&self, key: &str, value: &str) -> AppResult<()> {
         let conn = self.0 .0.lock().unwrap();
+        if crate::secrets::is_secret_key(key) {
+            return crate::secrets::secret_set(&conn, key, value);
+        }
         conn.execute(
             "INSERT INTO settings (key, value) VALUES (?1, ?2) ON CONFLICT(key) DO UPDATE SET value=?2",
             params![key, value],

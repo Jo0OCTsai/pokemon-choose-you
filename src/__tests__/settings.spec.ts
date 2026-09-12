@@ -1,7 +1,15 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { createPinia, setActivePinia } from "pinia";
 import { api } from "../api";
-import { SETTING_DEFAULTS, POKEMON_LIST, useSettingsStore, fmtDate, fmtTime, fmtDateTime } from "../stores/settings";
+import {
+  SETTING_DEFAULTS,
+  POKEMON_LIST,
+  SECRET_STORED,
+  useSettingsStore,
+  fmtDate,
+  fmtTime,
+  fmtDateTime,
+} from "../stores/settings";
 
 vi.mock("../api", () => ({
   api: {
@@ -105,6 +113,20 @@ describe("日期时间格式化", () => {
     expect(fmtDate(undefined, settings)).toBe("");
     expect(fmtTime("garbage", settings)).toBe("");
     expect(fmtDateTime(null, settings)).toBe("");
+  });
+});
+
+describe("save：秘钥占位值跳过", () => {
+  it("占位值原样保存时跳过该键，普通值与改动过的秘钥正常提交", async () => {
+    const settings = useSettingsStore();
+    settings.values.todoist_token = SECRET_STORED; // 已保存、未改动
+    settings.values.language = "en";
+    settings.values.feishu_app_secret = "new-secret"; // 用户输入的新值
+    await settings.save(["todoist_token", "language", "feishu_app_secret"]);
+    expect(api.setSetting).toHaveBeenCalledTimes(2);
+    expect(api.setSetting).toHaveBeenCalledWith("language", "en");
+    expect(api.setSetting).toHaveBeenCalledWith("feishu_app_secret", "new-secret");
+    expect(api.setSetting).not.toHaveBeenCalledWith("todoist_token", SECRET_STORED);
   });
 });
 
