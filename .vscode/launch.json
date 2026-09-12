@@ -1,0 +1,42 @@
+{
+  // 调试配置：
+  // - Rust 侧（桌面应用 / pk CLI）用 CodeLLDB（扩展 vadimcn.vscode-lldb，见 extensions.json）
+  // - 前端 UI 用 Chrome 连 Vite dev server（浏览器里没有 Tauri IPC，仅适合调界面/样式）
+  // devUrl 与 vite.config.ts 一致：http://localhost:1420（strictPort）
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "type": "lldb",
+      "request": "launch",
+      "name": "🐾 Tauri 桌面应用（Rust）",
+      "cargo": {
+        "args": ["build", "--manifest-path=${workspaceFolder}/src-tauri/Cargo.toml", "--bin", "pokemon-knock"]
+      },
+      "program": "${workspaceFolder}/src-tauri/target/debug/pokemon-knock",
+      "preLaunchTask": "vite: dev"
+    },
+    {
+      "type": "lldb",
+      "request": "launch",
+      "name": "🛠 pk CLI（Rust）",
+      "cargo": {
+        "args": ["build", "--manifest-path=${workspaceFolder}/src-tauri/Cargo.toml", "--bin", "pk"]
+      },
+      "program": "${workspaceFolder}/src-tauri/target/debug/pk",
+      // 示例参数：调试任务列表；改 args 换成要调的子命令（task get 1 / note list …）
+      "args": ["task", "list"],
+      "cwd": "${workspaceFolder}"
+    },
+    {
+      "type": "chrome",
+      "request": "launch",
+      "name": "🌐 前端 UI（Chrome + Vite）",
+      "url": "http://localhost:1420",
+      "webRoot": "${workspaceFolder}/src",
+      "preLaunchTask": "vite: dev",
+      // WSL2：调试会话在 WSL 侧，需通过 interop 启动 Windows 侧 Chrome；按实际安装路径调整
+      "runtimeExecutable": "C:/Program Files/Google/Chrome/Application/chrome.exe",
+      "userDataDir": "${workspaceFolder}/.vscode/chrome-debug-profile"
+    }
+  ]
+}

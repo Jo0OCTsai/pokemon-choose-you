@@ -1,0 +1,25 @@
+{
+  // launch.json 的 preLaunchTask：后台起 Vite dev server（端口 1420，与 tauri.conf.json 的 devUrl 一致）
+  // isBackground + problemMatcher 让调试器等到 "ready in / Local:" 出现即继续，不阻塞在常驻进程上
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "vite: dev",
+      "type": "shell",
+      "command": "npm",
+      "args": ["run", "dev"],
+      "isBackground": true,
+      "problemMatcher": {
+        "owner": "vite",
+        "pattern": {
+          "regexp": "^\\s*$"
+        },
+        "background": {
+          "activeOnStart": true,
+          "beginsPattern": ".*",
+          "endsPattern": "ready in|Local:"
+        }
+      }
+    }
+  ]
+}
