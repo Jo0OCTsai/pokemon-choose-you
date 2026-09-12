@@ -20,9 +20,20 @@ vi.mock("../api", () => ({
     setCategoryPokemon: vi.fn(),
     getSetting: vi.fn(),
     setSetting: vi.fn(),
-    listImSuggestions: vi.fn(),
-    acceptImSuggestion: vi.fn(),
-    dismissImSuggestion: vi.fn(),
+    listChatMessages: vi.fn(),
+    acceptChatMessage: vi.fn(),
+    dismissChatMessage: vi.fn(),
+    forceCreateTodo: vi.fn(),
+    listTags: vi.fn(),
+    listAiLogs: vi.fn(),
+    clearAiLogs: vi.fn(),
+    searchTasks: vi.fn(),
+    listTaskNotes: vi.fn(),
+    addTaskNote: vi.fn(),
+    deleteTaskNote: vi.fn(),
+    createTag: vi.fn(),
+    updateTag: vi.fn(),
+    deleteTag: vi.fn(),
     listAllSettings: vi.fn(),
     openMainWindow: vi.fn(),
     testAiConfig: vi.fn(),
@@ -62,8 +73,8 @@ vi.mock("@tauri-apps/api/window", () => ({
 }));
 
 const categories = [
-  { id: 1, name: "工作", pokemon: "皮卡丘", sprite: "pikachu" },
-  { id: 2, name: "学习", pokemon: "可达鸭", sprite: "psyduck" },
+  { id: 1, name: "工作", pokemon: "皮卡丘", sprite: "pikachu", enabled: true },
+  { id: 2, name: "学习", pokemon: "可达鸭", sprite: "psyduck", enabled: true },
 ];
 
 function task(partial: Partial<Task>): Task {
@@ -82,6 +93,7 @@ function task(partial: Partial<Task>): Task {
     createdAt: "2026-09-01T00:00:00Z",
     completedAt: null,
     focusSeconds: 0,
+    tags: [],
     ...partial,
   };
 }
@@ -270,7 +282,7 @@ describe("PetApp 桌宠", () => {
     current = task({ categoryId: 2 });
     vi.mocked(api.listCategories).mockResolvedValue([
       categories[0],
-      { id: 2, name: "学习", pokemon: "妙蛙种子", sprite: "bulbasaur" },
+      { id: 2, name: "学习", pokemon: "妙蛙种子", sprite: "bulbasaur", enabled: true },
     ]);
     broadcast("categories-changed");
     await flush();

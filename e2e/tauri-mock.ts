@@ -10,7 +10,7 @@ export interface MockTask {
   title: string;
   note?: string | null;
   categoryId: number;
-  status: "inbox" | "scheduled" | "active" | "paused" | "done";
+  status: "inbox" | "scheduled" | "active" | "paused" | "done" | "cancelled";
   priority: string;
   dueAt?: string | null;
   remindAt?: string | null;
@@ -19,7 +19,10 @@ export interface MockTask {
   externalId?: string | null;
   createdAt: string;
   completedAt?: string | null;
+  startedAt?: string | null;
+  cancelledAt?: string | null;
   focusSeconds: number;
+  tags: string[];
 }
 
 export interface MockCategory {
@@ -27,6 +30,7 @@ export interface MockCategory {
   name: string;
   pokemon: string;
   sprite: string;
+  enabled: boolean;
 }
 
 export interface MockState {
@@ -37,12 +41,12 @@ export interface MockState {
 }
 
 export const DEFAULT_CATEGORIES: MockCategory[] = [
-  { id: 1, name: "工作", pokemon: "皮卡丘", sprite: "pikachu" },
-  { id: 2, name: "学习", pokemon: "可达鸭", sprite: "psyduck" },
-  { id: 3, name: "生活", pokemon: "妙蛙种子", sprite: "bulbasaur" },
-  { id: 4, name: "健康", pokemon: "吉利蛋", sprite: "chansey" },
-  { id: 5, name: "社交", pokemon: "伊布", sprite: "eevee" },
-  { id: 6, name: "紧急", pokemon: "卡比兽", sprite: "snorlax" },
+  { id: 1, name: "工作", pokemon: "皮卡丘", sprite: "pikachu", enabled: true },
+  { id: 2, name: "学习", pokemon: "可达鸭", sprite: "psyduck", enabled: true },
+  { id: 3, name: "生活", pokemon: "妙蛙种子", sprite: "bulbasaur", enabled: true },
+  { id: 4, name: "健康", pokemon: "吉利蛋", sprite: "chansey", enabled: true },
+  { id: 5, name: "社交", pokemon: "伊布", sprite: "eevee", enabled: true },
+  { id: 6, name: "紧急", pokemon: "卡比兽", sprite: "snorlax", enabled: true },
 ];
 
 export function task(partial: Partial<MockTask> & { id: number; title: string }): MockTask {
@@ -58,7 +62,10 @@ export function task(partial: Partial<MockTask> & { id: number; title: string })
     externalId: null,
     createdAt: "2026-09-10T08:00:00Z",
     completedAt: null,
+    startedAt: null,
+    cancelledAt: null,
     focusSeconds: 0,
+    tags: [],
     ...partial,
   };
 }
@@ -99,7 +106,8 @@ export async function installTauriMock(page: Page, state: Partial<MockState> = {
             // 真实 IPC 每次都返回反序列化的新对象；深拷贝避免前端拿到与 db 同引用的
             // 对象（原地变更后引用不变会让子组件的 props 更新被 Vue 跳过）
             const fresh = () => db.tasks.map((t: any) => ({ ...t }));
-            if (filter === "done") return db.tasks.filter((t) => t.status === "done").map((t) => ({ ...t }));
+            if (filter === "done")
+              return db.tasks.filter((t) => t.status === "done" || t.status === "cancelled").map((t) => ({ ...t }));
             if (filter === "open")
               return fresh().filter((t) => ["inbox", "scheduled", "active", "paused"].includes(t.status));
             return fresh();
@@ -118,6 +126,7 @@ export async function installTauriMock(page: Page, state: Partial<MockState> = {
               focusSeconds: 0,
               completedAt: null,
               createdAt: nowIso(),
+              tags: [],
               status: args.task.scheduled ? "scheduled" : "inbox",
               ...args.task,
             };
@@ -130,6 +139,9 @@ export async function installTauriMock(page: Page, state: Partial<MockState> = {
             if (!t) throw new Error(`no task ${args.patch.id}`);
             Object.assign(t, args.patch);
             if (args.patch.status === "done" && !t.completedAt) t.completedAt = nowIso();
+            if (args.patch.status === "cancelled" && !t.cancelledAt) t.cancelledAt = nowIso();
+            // 状态不变量：无截止时间且从未开始 → 草丛
+            if (t.status === "scheduled" && t.dueAt == null && t.startedAt == null) t.status = "inbox";
             broadcast("tasks-changed");
             return t;
           }
@@ -143,6 +155,7 @@ export async function installTauriMock(page: Page, state: Partial<MockState> = {
             });
             const t = db.tasks.find((x) => x.id === args.id)!;
             t.status = "active";
+            if (!t.startedAt) t.startedAt = nowIso();
             broadcast("tasks-changed");
             return t;
           }
@@ -175,10 +188,16 @@ export async function installTauriMock(page: Page, state: Partial<MockState> = {
             return null;
           }
           case "create_category": {
-            const c = { id: db.categories.length + 1, ...args };
+            const c = { id: db.categories.length + 1, enabled: true, ...args };
             db.categories.push(c);
             broadcast("categories-changed");
             return c;
+          }
+          case "set_category_enabled": {
+            const c = db.categories.find((x) => x.id === args.id);
+            if (c) c.enabled = args.enabled;
+            broadcast("categories-changed");
+            return null;
           }
           case "update_category": {
             const c = db.categories.find((x) => x.id === args.id);
@@ -218,19 +237,51 @@ export async function installTauriMock(page: Page, state: Partial<MockState> = {
           case "list_all_settings":
             return { ...db.settings };
           case "list_im_suggestions":
+          case "list_chat_messages":
             return [];
           case "accept_im_suggestion":
+          case "accept_chat_message":
             broadcast("tasks-changed");
+            broadcast("chat-messages-changed");
             return db.nextId++;
           case "dismiss_im_suggestion":
-            broadcast("im-suggestions-changed");
+          case "dismiss_chat_message":
+            broadcast("chat-messages-changed");
+            return null;
+          case "force_create_todo":
+            broadcast("tasks-changed");
+            broadcast("chat-messages-changed");
+            return db.nextId++;
+          case "list_tags":
+            return [];
+          case "search_tasks":
+            return db.tasks.filter((t: any) => (t.title ?? "").includes(args.q)).map((t: any) => ({ ...t }));
+          case "list_task_notes":
+            return [];
+          case "list_task_logs":
+            return [];
+          case "add_task_note":
+          case "delete_task_note":
+            broadcast("tasks-changed");
+            return null;
+          case "list_ai_logs":
+            return [];
+          case "clear_ai_logs":
             return null;
           case "test_ai_config":
             return "连接成功（E2E mock）";
           case "test_feishu_config":
-            return "连接成功，机器人在 3 个会话中（E2E mock）";
+            return "连接成功，已授权「测试用户」，可见 3 个会话（E2E mock）";
           case "trigger_feishu_poll":
             return 0;
+          case "apply_chat_message_update":
+            broadcast("tasks-changed");
+            broadcast("chat-messages-changed");
+            return 1;
+          case "feishu_oauth_login":
+            return "授权成功：测试用户（E2E mock）";
+          case "feishu_oauth_status":
+            return { authorized: true, userName: "测试用户" };
           case "sync_todoist":
             return "同步完成（E2E mock）";
           // ---- 插件 ----

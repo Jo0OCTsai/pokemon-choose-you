@@ -83,8 +83,30 @@ pub(crate) async fn sync_with<R: tauri::Runtime>(
     {
         let conn = db.0.lock().unwrap();
         for t in &remote {
-            let status = if t.checked { "done" } else { "inbox" };
+            // 状态归位规则：远端勾选 → done；未勾选按有无截止时间 → scheduled / inbox
+            let status = if t.checked {
+                "done"
+            } else if t.due.is_some() {
+                "scheduled"
+            } else {
+                "inbox"
+            };
             let due = t.due.as_ref().and_then(parse_due);
+            // diff-first：已存在且无变化就跳过（无变化的 upsert 既浪费写也刷日志）
+            let existing: Option<(i64, String, String, Option<String>)> = conn
+                .query_row(
+                    "SELECT id, title, status, due_at FROM tasks WHERE external_id=?1 AND source='todoist'",
+                    params![t.id],
+                    |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?, r.get(3)?)),
+                )
+                .ok();
+            if existing
+                .as_ref()
+                .is_some_and(|(_, et, es, ed)| et == &t.content && es == status && ed == &due)
+            {
+                pulled += 1;
+                continue;
+            }
             let n = conn.execute(
                 // 冲突目标必须带与部分唯一索引相同的 WHERE 子句，否则 SQLite 报
                 // "ON CONFLICT clause does not match any PRIMARY KEY or UNIQUE constraint"
@@ -99,6 +121,56 @@ pub(crate) async fn sync_with<R: tauri::Runtime>(
                 conn.execute(
                     "UPDATE tasks SET title=?1, status=?2, due_at=?3 WHERE external_id=?4 AND source='todoist'",
                     params![t.content, status, due, t.id],
+                )?;
+            }
+            if let Some((local_id, et, es, ed)) = &existing {
+                if et != &t.content {
+                    crate::commands::tasks::log_change(
+                        &conn,
+                        *local_id,
+                        "update",
+                        "title",
+                        Some(et),
+                        Some(&t.content),
+                        "todoist",
+                    )?;
+                }
+                if es != status {
+                    crate::commands::tasks::log_change(
+                        &conn,
+                        *local_id,
+                        "update",
+                        "status",
+                        Some(es),
+                        Some(status),
+                        "todoist",
+                    )?;
+                }
+                if ed != &due {
+                    crate::commands::tasks::log_change(
+                        &conn,
+                        *local_id,
+                        "update",
+                        "due_at",
+                        ed.as_deref(),
+                        due.as_deref(),
+                        "todoist",
+                    )?;
+                }
+            } else {
+                let local_id = conn.query_row(
+                    "SELECT id FROM tasks WHERE external_id=?1 AND source='todoist'",
+                    params![t.id],
+                    |r| r.get::<_, i64>(0),
+                )?;
+                crate::commands::tasks::log_change(
+                    &conn,
+                    local_id,
+                    "create",
+                    "title",
+                    None,
+                    Some(&t.content),
+                    "todoist",
                 )?;
             }
             pulled += 1;
@@ -145,17 +217,28 @@ pub(crate) async fn sync_with<R: tauri::Runtime>(
                     "UPDATE tasks SET external_id=?2 WHERE id=?1",
                     params![id, ext],
                 )?;
+                crate::commands::tasks::log_change(
+                    &conn,
+                    *id,
+                    "sync_push",
+                    "external_id",
+                    None,
+                    Some(ext),
+                    "todoist",
+                )?;
                 pushed += 1;
             }
         }
     }
 
-    // 3. 推送本地完成（source=todoist 且 done 但远端未关闭）
+    // 3. 推送本地完成/取消（source=todoist 且 done/cancelled 但远端未关闭）
     let to_close: Vec<(i64, String)> = {
         let conn = db.0.lock().unwrap();
         // 回归：这里曾误写成 sync_state.value（实际列名是 cursor），导致同步在关闭阶段必然失败
         let mut stmt = conn
-            .prepare("SELECT id, external_id FROM tasks WHERE source='todoist' AND status='done' AND external_id IS NOT NULL AND completed_at > COALESCE((SELECT cursor FROM sync_state WHERE provider='todoist_push'), '')")?;
+            .prepare("SELECT id, external_id FROM tasks WHERE source='todoist'
+                      AND status IN ('done','cancelled') AND external_id IS NOT NULL
+                      AND COALESCE(completed_at, cancelled_at) > COALESCE((SELECT cursor FROM sync_state WHERE provider='todoist_push'), '')")?;
         let rows = stmt
             .query_map([], |r| Ok((r.get(0)?, r.get::<_, Option<String>>(1)?)))?
             .collect::<Result<Vec<_>, _>>()?;
@@ -175,6 +258,16 @@ pub(crate) async fn sync_with<R: tauri::Runtime>(
             // 只有远端确认成功才计入，4xx/5xx 不能假装关闭了
             if resp.status().is_success() {
                 closed += 1;
+                let conn = db.0.lock().unwrap();
+                crate::commands::tasks::log_change(
+                    &conn,
+                    *_id,
+                    "sync_close",
+                    "external_id",
+                    None,
+                    Some(ext),
+                    "todoist",
+                )?;
             }
         }
     }
@@ -353,7 +446,10 @@ mod tests {
                     |r| Ok((r.get(0)?, r.get(1)?)),
                 )
                 .unwrap();
-            assert_eq!(pulled_status, "inbox", "远端未完成任务落本地 inbox");
+            assert_eq!(
+                pulled_status, "scheduled",
+                "远端未完成但有截止时间的任务落本地 scheduled"
+            );
             assert_eq!(
                 pushed_ext.as_deref(),
                 Some("ext-new"),

@@ -1,10 +1,12 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from "vue";
+import { computed, onMounted, ref, watch } from "vue";
 import { useI18n } from "vue-i18n";
 import { api } from "../api";
 import { useTasksStore, type TaskTabKey } from "../stores/tasks";
 import TaskCard from "../components/TaskCard.vue";
 import AddTaskForm from "../components/AddTaskForm.vue";
+import DexDateTime from "../components/DexDateTime.vue";
+import TaskEditModal from "../components/TaskEditModal.vue";
 import type { Task } from "../types";
 
 const props = defineProps<{ tab: TaskTabKey }>();
@@ -15,6 +17,7 @@ const addForm = ref<InstanceType<typeof AddTaskForm> | null>(null);
 
 const visible = computed(() => tasksStore.visibleFor(props.tab));
 const showAddForm = computed(() => props.tab !== "done");
+const dexFilters = ["all", "done", "cancelled"] as const;
 
 async function reload() {
   await tasksStore.reload();
@@ -41,16 +44,62 @@ async function uncomplete(task: Task) {
   await api.updateTask({ id: task.id, status: "scheduled" });
   await reload();
 }
+async function cancel(task: Task) {
+  await api.updateTask({ id: task.id, status: "cancelled" });
+  await reload();
+}
 async function remove(task: Task) {
   await api.deleteTask(task.id);
   await reload();
 }
-async function schedule(task: Task) {
-  const due = prompt(t("promptSchedule"), task.dueAt ?? "");
-  if (due === null) return;
-  await api.updateTask({ id: task.id, dueAt: due || null, status: "scheduled" });
+
+// ---- 修改时间：图鉴风弹窗 + 日期时间选择器（原生 prompt 与整体风格不符） ----
+const scheduling = ref<Task | null>(null);
+const editDue = ref("");
+function schedule(task: Task) {
+  scheduling.value = task;
+  editDue.value = task.dueAt ?? "";
+}
+function closeSchedule() {
+  scheduling.value = null;
+}
+async function saveSchedule() {
+  const task = scheduling.value;
+  if (!task) return;
+  scheduling.value = null;
+  await api.updateTask({ id: task.id, dueAt: editDue.value || null, status: "scheduled" });
   await reload();
 }
+
+// ---- 全字段编辑弹窗 ----
+const editing = ref<Task | null>(null);
+function edit(task: Task) {
+  editing.value = task;
+}
+async function onSaved() {
+  await reload();
+}
+
+// ---- 搜索：跨页关键词查询（标题/备注/标签/跟进记录） ----
+const searchQuery = ref("");
+const searchResults = ref<Task[]>([]);
+const searching = ref(false);
+const searchMode = computed(() => searchQuery.value.trim() !== "");
+const displayList = computed(() => (searchMode.value ? searchResults.value : visible.value));
+
+watch(searchQuery, async (q) => {
+  q = q.trim();
+  if (!q) {
+    searchResults.value = [];
+    return;
+  }
+  searching.value = true;
+  try {
+    searchResults.value = await api.searchTasks(q);
+  } finally {
+    searching.value = false;
+  }
+});
 
 /** 快捷键"快速捕捉"：聚焦新增输入框（由 App 壳触发） */
 function focusAddForm() {
@@ -64,20 +113,71 @@ onMounted(reload);
 <template>
   <div class="task-tab">
     <AddTaskForm v-if="showAddForm" ref="addForm" @submit="addTask" />
+
+    <!-- 搜索栏 -->
+    <div class="search-bar">
+      <input v-model="searchQuery" class="search-input" :placeholder="t('search.placeholder')" />
+      <span v-if="searchMode" class="search-hint">
+        {{ searching ? t("search.searching") : t("search.resultCount", { n: searchResults.length }) }}
+      </span>
+    </div>
+
+    <!-- 图鉴筛选：全部 / 已捕捉 / 已逃走（沿用设置页分区选单 stab 的控件语言） -->
+    <div v-if="tab === 'done' && !searchMode" class="dex-filter">
+      <button
+        v-for="f in dexFilters"
+        :key="f"
+        class="filter-btn"
+        :class="{ on: tasksStore.dexFilter === f }"
+        @click="tasksStore.dexFilter = f"
+      >
+        <span class="cursor">▶</span>{{ t(`dexFilter.${f}`) }}
+      </button>
+    </div>
+
     <ul class="dex-list">
-      <li v-if="!visible.length && !tasksStore.loading" class="empty">{{ t("entry.empty") }}</li>
+      <li v-if="!displayList.length && !tasksStore.loading" class="empty">
+        {{
+          searchMode
+            ? t("search.empty")
+            : tab === "done"
+              ? t(`dexFilter.empty.${tasksStore.dexFilter}`)
+              : tab === "today"
+                ? t("entry.emptyToday")
+                : tab === "scheduled"
+                  ? t("entry.emptyRoute")
+                  : t("entry.empty")
+        }}
+      </li>
       <TaskCard
-        v-for="task in visible"
+        v-for="task in displayList"
         :key="task.id"
         :task="task"
         @start="start"
         @pause="pauseActive"
         @complete="complete"
         @uncomplete="uncomplete"
+        @cancel="cancel"
         @schedule="schedule"
+        @edit="edit"
         @remove="remove"
       />
     </ul>
+
+    <!-- 修改时间弹窗 -->
+    <div v-if="scheduling" class="sched-mask" @click.self="closeSchedule">
+      <div class="sched-card">
+        <h3>📅 {{ t("promptSchedule") }}</h3>
+        <DexDateTime v-model="editDue" />
+        <div class="btn-row">
+          <button class="btn" @click="saveSchedule">{{ t("save") }}</button>
+          <button class="btn ghost" @click="closeSchedule">{{ t("cancel") }}</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 全字段编辑弹窗 -->
+    <TaskEditModal v-if="editing" :task="editing" @close="editing = null" @saved="onSaved" />
   </div>
 </template>
 
@@ -87,6 +187,68 @@ onMounted(reload);
   display: flex;
   flex-direction: column;
   min-height: 0;
+}
+.search-bar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 0 20px 12px;
+}
+.search-input {
+  flex: 1;
+  min-width: 0;
+  padding: 8px 10px;
+  border: 3px solid var(--dex-navy);
+  border-radius: 8px;
+  font-size: 13px;
+  background: #fff;
+  font-family: inherit;
+  box-shadow: 3px 3px 0 var(--dex-navy);
+  min-height: 36px;
+}
+.search-hint {
+  flex: none;
+  font-size: 12px;
+  color: #9a937f;
+  font-weight: 700;
+}
+/* 图鉴筛选：与设置页 stab 分区选单同一套控件语言 */
+.dex-filter {
+  display: flex;
+  gap: 8px;
+  margin: 0 20px 12px;
+}
+.filter-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  border: 3px solid var(--dex-navy);
+  border-radius: 8px;
+  background: var(--dex-body);
+  color: var(--dex-navy);
+  font-size: 13px;
+  font-weight: 700;
+  font-family: inherit;
+  padding: 6px 12px;
+  min-height: 36px;
+  cursor: pointer;
+  box-shadow: 3px 3px 0 var(--dex-navy);
+}
+.filter-btn .cursor {
+  width: 10px;
+  flex: none;
+  opacity: 0;
+  font-size: 10px;
+}
+.filter-btn.on {
+  background: var(--poke-yellow);
+}
+.filter-btn.on .cursor {
+  opacity: 1;
+}
+.filter-btn:active {
+  transform: translate(1px, 1px);
+  box-shadow: 2px 2px 0 var(--dex-navy);
 }
 .dex-list {
   flex: 1;
@@ -105,5 +267,35 @@ onMounted(reload);
   font-size: 14px;
   line-height: 2;
   list-style: none;
+}
+
+/* 修改时间弹窗：图鉴风卡片，日历弹层在卡片内层叠展示 */
+.sched-mask {
+  position: fixed;
+  inset: 0;
+  z-index: 80;
+  background: rgba(28, 34, 68, 0.45);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.sched-card {
+  background: #fff;
+  border: 3px solid var(--dex-navy);
+  border-radius: 12px;
+  box-shadow: 6px 6px 0 var(--dex-navy);
+  padding: 16px 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  min-width: 300px;
+}
+.sched-card h3 {
+  margin: 0;
+  font-size: 15px;
+}
+.sched-card .btn-row {
+  display: flex;
+  gap: 10px;
 }
 </style>

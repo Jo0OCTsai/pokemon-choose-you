@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted, ref } from "vue";
+import { computed, onMounted, onUnmounted, ref, watch } from "vue";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 import { getVersion } from "@tauri-apps/api/app";
 import { useI18n } from "vue-i18n";
@@ -7,6 +7,8 @@ import { api, errorMessage } from "../api";
 import { EVENTS } from "../events";
 import { fmtDateTime, SETTING_KEYS, POKEMON_LIST, useSettingsStore } from "../stores/settings";
 import { useCategoriesStore } from "../stores/categories";
+import { useTagsStore } from "../stores/tags";
+import type { AiLog, FeishuOauthStatus } from "../types";
 import { SUPPORTED_LOCALES } from "../i18n";
 import DexSelect from "../components/DexSelect.vue";
 import DexToggle from "../components/DexToggle.vue";
@@ -17,6 +19,7 @@ defineProps<{ latestVersion?: string }>();
 const { t } = useI18n();
 const settings = useSettingsStore();
 const categories = useCategoriesStore();
+const tagsStore = useTagsStore();
 
 const testMsg = ref("");
 const testing = ref(false);
@@ -32,14 +35,15 @@ const pomoOn = boolSetting("pomodoro_enabled");
 const pomoNotify = boolSetting("pomodoro_notify");
 const notifyOn = boolSetting("notifications_enabled");
 const feishuOn = boolSetting("feishu_enabled");
-const inboxDefault = boolSetting("default_to_inbox");
 
 // 设置分区选单（初代选项界面：上选单下内容）
 const settingsTabs = [
   { key: "focus", labelKey: "stabs.focus" },
   { key: "cats", labelKey: "stabs.cats" },
+  { key: "tags", labelKey: "stabs.tags" },
   { key: "display", labelKey: "stabs.display" },
   { key: "integrations", labelKey: "stabs.integrations" },
+  { key: "obs", labelKey: "stabs.obs" },
   { key: "general", labelKey: "stabs.general" },
 ] as const;
 const settingsTab = ref<(typeof settingsTabs)[number]["key"]>("focus");
@@ -91,6 +95,9 @@ async function saveSettings(msg?: string) {
   testMsg.value = msg ?? t("saved");
   setTimeout(() => (testMsg.value = ""), 2000);
 }
+
+/** 保存按钮提升到 App.vue 标题行右侧，经 ref 调用 */
+defineExpose({ save: saveSettings });
 async function runTest(fn: () => Promise<string>) {
   testing.value = true;
   testMsg.value = t("testing");
@@ -105,12 +112,13 @@ async function runTest(fn: () => Promise<string>) {
 }
 
 // ---- 分类管理 ----
-const editingCats = ref<{ id: number; name: string; pokemonKey: string }[]>([]);
+const editingCats = ref<{ id: number; name: string; pokemonKey: string; enabled: boolean }[]>([]);
 function startEditCats() {
   editingCats.value = categories.list.map((c) => ({
     id: c.id,
     name: c.name,
     pokemonKey: c.sprite,
+    enabled: c.enabled,
   }));
 }
 async function saveCat(row: { id: number; name: string; pokemonKey: string }) {
@@ -119,6 +127,18 @@ async function saveCat(row: { id: number; name: string; pokemonKey: string }) {
   await categories.load();
   testMsg.value = t("catSaved");
   setTimeout(() => (testMsg.value = ""), 2000);
+}
+/** 停用/启用：停用后分类不进新建、编辑与 AI 选项（至少保留一个启用分类） */
+async function toggleCat(row: { id: number; enabled: boolean }, v: boolean | string | number) {
+  row.enabled = Boolean(v);
+  try {
+    await api.setCategoryEnabled(row.id, row.enabled);
+    await categories.load();
+    startEditCats();
+  } catch (e) {
+    row.enabled = !row.enabled;
+    testMsg.value = `❌ ${errorMessage(e)}`;
+  }
 }
 async function removeCat(row: { id: number; name: string }) {
   try {
@@ -134,6 +154,94 @@ async function addCat() {
   await categories.load();
   startEditCats();
 }
+
+// ---- 标签管理 ----
+const editingTags = ref<{ id: number; name: string; description: string }[]>([]);
+function startEditTags() {
+  editingTags.value = tagsStore.list.map((g) => ({ id: g.id, name: g.name, description: g.description }));
+}
+async function saveTag(row: { id: number; name: string; description: string }) {
+  try {
+    await api.updateTag(row.id, row.name, row.description);
+    await tagsStore.load();
+    startEditTags();
+    testMsg.value = t("tagSaved");
+    setTimeout(() => (testMsg.value = ""), 2000);
+  } catch (e) {
+    testMsg.value = `❌ ${errorMessage(e)}`;
+  }
+}
+async function removeTag(id: number) {
+  try {
+    await api.deleteTag(id);
+    await tagsStore.load();
+    startEditTags();
+  } catch (e) {
+    testMsg.value = `❌ ${errorMessage(e)}`;
+  }
+}
+async function addTag() {
+  try {
+    await api.createTag(t("tags.newName"), "");
+    await tagsStore.load();
+    startEditTags();
+  } catch (e) {
+    testMsg.value = `❌ ${errorMessage(e)}`;
+  }
+}
+
+// ---- 飞书用户授权（用户身份拉取私聊/群聊消息） ----
+const feishuAuth = ref<FeishuOauthStatus | null>(null);
+const oauthBusy = ref(false);
+const OAUTH_REDIRECT_URL = "http://127.0.0.1:23981/callback";
+
+async function loadFeishuAuth() {
+  try {
+    feishuAuth.value = await api.feishuOauthStatus();
+  } catch {
+    feishuAuth.value = null; // 非桌面环境（E2E mock）静默
+  }
+}
+async function feishuLogin() {
+  oauthBusy.value = true;
+  testMsg.value = t("feishu.authing");
+  try {
+    // 后端读库里的 App ID/Secret 发起授权，先落库
+    await settings.save(SETTING_KEYS);
+    testMsg.value = await api.feishuOauthLogin();
+    await loadFeishuAuth();
+  } catch (e) {
+    testMsg.value = `❌ ${errorMessage(e)}`;
+  } finally {
+    oauthBusy.value = false;
+  }
+}
+
+// ---- AI 调用日志（链路可观测性） ----
+const aiLogs = ref<AiLog[]>([]);
+const logsLoading = ref(false);
+const expandedLogId = ref<number | null>(null);
+async function loadAiLogs() {
+  logsLoading.value = true;
+  try {
+    aiLogs.value = await api.listAiLogs(50);
+  } finally {
+    logsLoading.value = false;
+  }
+}
+watch(settingsTab, (tab) => {
+  if (tab === "cats") startEditCats();
+  if (tab === "tags" && !editingTags.value.length) startEditTags();
+  if (tab === "obs") loadAiLogs();
+});
+async function clearLogs() {
+  await api.clearAiLogs();
+  await loadAiLogs();
+}
+function toggleLog(id: number) {
+  expandedLogId.value = expandedLogId.value === id ? null : id;
+}
+const sceneKey = (scene: string) => `obs.scene.${scene}`;
 
 // ---- 开机自启 ----
 const autostart = ref(false);
@@ -188,6 +296,7 @@ const today = new Date();
 const unlisteners: UnlistenFn[] = [];
 onMounted(async () => {
   await loadAutostart();
+  await loadFeishuAuth();
   try {
     appVersion.value = await getVersion();
   } catch {
@@ -209,188 +318,278 @@ onUnmounted(() => unlisteners.forEach((u) => u()));
 
 <template>
   <div class="settings">
-    <nav class="settings-tabs">
-      <button
-        v-for="st in settingsTabs"
-        :key="st.key"
-        class="stab"
-        :class="{ active: settingsTab === st.key }"
-        @click="settingsTab = st.key"
-      >
-        <span class="cursor">▶</span>{{ t(st.labelKey) }}
-      </button>
-    </nav>
-
-    <template v-if="settingsTab === 'focus'">
-      <section class="set-card">
-        <h3>{{ t("focus.title") }}</h3>
-        <label>{{ t("focus.enable") }}<DexToggle v-model="pomoOn" /></label>
-        <label>
-          {{ t("focus.duration") }}
-          <DexSelect v-model="settings.values.pomodoro_minutes" :options="pomoMinutesOptions" />
-        </label>
-        <label>
-          {{ t("focus.break") }}
-          <DexSelect v-model="settings.values.break_minutes" :options="breakOptions" />
-        </label>
-        <label>{{ t("focus.notify") }}<DexToggle v-model="pomoNotify" /></label>
-      </section>
-
-      <section class="set-card">
-        <h3>{{ t("remind.title") }}</h3>
-        <label>{{ t("remind.enable") }}<DexToggle v-model="notifyOn" /></label>
-        <label>
-          {{ t("remind.ahead") }}
-          <DexSelect v-model="settings.values.remind_ahead_minutes" :options="remindAheadOptions" />
-        </label>
-      </section>
-    </template>
-
-    <template v-if="settingsTab === 'cats'">
-      <section class="set-card">
-        <h3>{{ t("cats.title") }}</h3>
-        <div v-for="row in editingCats" :key="row.id" class="cat-row">
-          <img
-            class="cat-sprite"
-            :src="`/pokemon/${row.pokemonKey}.gif`"
-            @error="($event.target as HTMLImageElement).src = `/pokemon/${row.pokemonKey}.png`"
-          />
-          <input v-model="row.name" class="cat-name" />
-          <DexSelect v-model="row.pokemonKey" :options="pokemonOptions" />
-          <button class="btn ghost" @click="saveCat(row)">{{ t("cats.save") }}</button>
-          <button class="btn ghost del" @click="removeCat(row)">{{ t("cats.release") }}</button>
-        </div>
-        <div class="btn-row">
-          <button class="btn ghost" @click="addCat">{{ t("cats.new") }}</button>
-        </div>
-        <p class="hint">{{ t("cats.hint") }}</p>
-      </section>
-    </template>
-
-    <template v-if="settingsTab === 'display'">
-      <section class="set-card">
-        <h3>{{ t("display.title") }}</h3>
-        <label>
-          {{ t("display.date") }}
-          <DexSelect v-model="settings.values.date_format" :options="dateFormatOptions" />
-        </label>
-        <label>
-          {{ t("display.time") }}
-          <DexSelect v-model="settings.values.time_format" :options="timeFormatOptions" />
-        </label>
-        <label>
-          {{ t("display.language") }}
-          <DexSelect v-model="settings.values.language" :options="languageOptions" />
-        </label>
-        <p class="hint">{{ t("display.preview", { v: fmtDateTime(today.toISOString()) }) }}</p>
-      </section>
-
-      <section class="set-card">
-        <h3>{{ t("defaults.title") }}</h3>
-        <label>
-          {{ t("defaults.priority") }}
-          <DexSelect v-model="settings.values.default_priority" :options="priorityOptions" />
-        </label>
-        <label>
-          {{ t("defaults.toGrass") }}
-          <DexToggle v-model="inboxDefault" :on-label="t('add.goGrass')" :off-label="t('add.goRoute')" />
-        </label>
-      </section>
-    </template>
-
-    <template v-if="settingsTab === 'integrations'">
-      <section class="set-card">
-        <h3>{{ t("ai.title") }}</h3>
-        <label>Base URL<input v-model="settings.values.ai_base_url" placeholder="https://api.openai.com/v1" /></label>
-        <label>API Key<input v-model="settings.values.ai_api_key" type="password" placeholder="sk-..." /></label>
-        <label
-          >Model<input v-model="settings.values.ai_model" placeholder="gpt-4o-mini / deepseek-chat / glm-4-flash ..."
-        /></label>
-        <p class="hint">{{ t("ai.hint") }}</p>
-        <button class="btn ghost" :disabled="testing" @click="runTest(api.testAiConfig)">
-          {{ t("ai.test") }}
+    <div class="set-body">
+      <nav class="settings-tabs">
+        <button
+          v-for="st in settingsTabs"
+          :key="st.key"
+          class="stab"
+          :class="{ active: settingsTab === st.key }"
+          @click="settingsTab = st.key"
+        >
+          <span class="cursor">▶</span>{{ t(st.labelKey) }}
         </button>
-      </section>
+      </nav>
 
-      <section class="set-card">
-        <h3>💬 {{ t("tabs.im") === "Radio" ? "Feishu" : "飞书" }}</h3>
-        <label>App ID<input v-model="settings.values.feishu_app_id" /></label>
-        <label>App Secret<input v-model="settings.values.feishu_app_secret" type="password" /></label>
-        <label>{{ t("feishu.enable") }}<DexToggle v-model="feishuOn" /></label>
-        <label>
-          {{ t("feishu.interval") }}
-          <DexSelect v-model="settings.values.feishu_poll_interval" :options="pollIntervalOptions" />
-        </label>
-        <p class="hint">{{ t("feishu.hint") }}</p>
-        <div class="btn-row">
-          <button class="btn ghost" :disabled="testing" @click="runTest(api.testFeishuConfig)">
-            {{ t("feishu.test") }}
+      <template v-if="settingsTab === 'focus'">
+        <section class="set-card">
+          <h3>{{ t("focus.title") }}</h3>
+          <label>{{ t("focus.enable") }}<DexToggle v-model="pomoOn" /></label>
+          <label>
+            {{ t("focus.duration") }}
+            <DexSelect v-model="settings.values.pomodoro_minutes" :options="pomoMinutesOptions" />
+          </label>
+          <label>
+            {{ t("focus.break") }}
+            <DexSelect v-model="settings.values.break_minutes" :options="breakOptions" />
+          </label>
+          <label>{{ t("focus.notify") }}<DexToggle v-model="pomoNotify" /></label>
+        </section>
+
+        <section class="set-card">
+          <h3>{{ t("remind.title") }}</h3>
+          <label>{{ t("remind.enable") }}<DexToggle v-model="notifyOn" /></label>
+          <label>
+            {{ t("remind.ahead") }}
+            <DexSelect v-model="settings.values.remind_ahead_minutes" :options="remindAheadOptions" />
+          </label>
+        </section>
+      </template>
+
+      <template v-if="settingsTab === 'cats'">
+        <section class="set-card">
+          <h3>{{ t("cats.title") }}</h3>
+          <div v-for="row in editingCats" :key="row.id" class="cat-row" :class="{ off: !row.enabled }">
+            <img
+              class="cat-sprite"
+              :src="`/pokemon/${row.pokemonKey}.gif`"
+              @error="($event.target as HTMLImageElement).src = `/pokemon/${row.pokemonKey}.png`"
+            />
+            <input v-model="row.name" class="cat-name" />
+            <DexSelect v-model="row.pokemonKey" :options="pokemonOptions" />
+            <DexToggle
+              :model-value="row.enabled"
+              :title="t('cats.toggle')"
+              @update:model-value="(v) => toggleCat(row, v)"
+            />
+            <button class="btn ghost" @click="saveCat(row)">{{ t("cats.save") }}</button>
+            <button class="btn ghost del" @click="removeCat(row)">{{ t("cats.release") }}</button>
+          </div>
+          <div class="btn-row">
+            <button class="btn ghost" @click="addCat">{{ t("cats.new") }}</button>
+          </div>
+          <p class="hint">{{ t("cats.hint") }}</p>
+          <p class="hint">{{ t("cats.disableHint") }}</p>
+        </section>
+      </template>
+
+      <template v-if="settingsTab === 'tags'">
+        <section class="set-card">
+          <h3>{{ t("tags.title") }}</h3>
+          <div v-for="row in editingTags" :key="row.id" class="tag-row">
+            <input v-model="row.name" class="tag-name" :placeholder="t('tags.namePh')" />
+            <input v-model="row.description" class="tag-desc" :placeholder="t('tags.descPh')" />
+            <button class="btn ghost" @click="saveTag(row)">{{ t("tags.save") }}</button>
+            <button class="btn ghost del" @click="removeTag(row.id)">{{ t("tags.release") }}</button>
+          </div>
+          <div class="btn-row">
+            <button class="btn ghost" @click="addTag">{{ t("tags.new") }}</button>
+          </div>
+          <p class="hint">{{ t("tags.hint") }}</p>
+        </section>
+      </template>
+
+      <template v-if="settingsTab === 'display'">
+        <section class="set-card">
+          <h3>{{ t("display.title") }}</h3>
+          <label>
+            {{ t("display.date") }}
+            <DexSelect v-model="settings.values.date_format" :options="dateFormatOptions" />
+          </label>
+          <label>
+            {{ t("display.time") }}
+            <DexSelect v-model="settings.values.time_format" :options="timeFormatOptions" />
+          </label>
+          <label>
+            {{ t("display.language") }}
+            <DexSelect v-model="settings.values.language" :options="languageOptions" />
+          </label>
+          <p class="hint">{{ t("display.preview", { v: fmtDateTime(today.toISOString()) }) }}</p>
+        </section>
+
+        <section class="set-card">
+          <h3>{{ t("defaults.title") }}</h3>
+          <label>
+            {{ t("defaults.priority") }}
+            <DexSelect v-model="settings.values.default_priority" :options="priorityOptions" />
+          </label>
+        </section>
+      </template>
+
+      <template v-if="settingsTab === 'integrations'">
+        <section class="set-card">
+          <h3>{{ t("ai.title") }}</h3>
+          <label>Base URL<input v-model="settings.values.ai_base_url" placeholder="https://api.openai.com/v1" /></label>
+          <label>API Key<input v-model="settings.values.ai_api_key" type="password" placeholder="sk-..." /></label>
+          <label
+            >Model<input v-model="settings.values.ai_model" placeholder="gpt-4o-mini / deepseek-chat / glm-4-flash ..."
+          /></label>
+          <p class="hint">{{ t("ai.hint") }}</p>
+          <button class="btn ghost" :disabled="testing" @click="runTest(api.testAiConfig)">
+            {{ t("ai.test") }}
           </button>
-          <button
-            class="btn ghost"
-            :disabled="testing"
-            @click="runTest(async () => t('feishu.pollResult', { n: await api.triggerFeishuPoll() }))"
+        </section>
+
+        <section class="set-card">
+          <h3>💬 {{ t("tabs.im") === "Radio" ? "Feishu" : "飞书" }}</h3>
+          <label>App ID<input v-model="settings.values.feishu_app_id" /></label>
+          <label>App Secret<input v-model="settings.values.feishu_app_secret" type="password" /></label>
+          <p class="hint">{{ t("feishu.hint") }}</p>
+          <div class="auth-line">
+            <span class="auth-state">
+              {{
+                feishuAuth?.authorized
+                  ? t("feishu.authorized", { name: feishuAuth.userName || "?" })
+                  : t("feishu.unauthorized")
+              }}
+            </span>
+            <button class="btn ghost" :disabled="oauthBusy || testing" @click="feishuLogin">
+              {{ oauthBusy ? t("feishu.authing") : feishuAuth?.authorized ? t("feishu.reauth") : t("feishu.auth") }}
+            </button>
+          </div>
+          <p class="hint">{{ t("feishu.authHint", { url: OAUTH_REDIRECT_URL }) }}</p>
+          <label>{{ t("feishu.enable") }}<DexToggle v-model="feishuOn" /></label>
+          <label>
+            {{ t("feishu.interval") }}
+            <DexSelect v-model="settings.values.feishu_poll_interval" :options="pollIntervalOptions" />
+          </label>
+          <div class="btn-row">
+            <button class="btn ghost" :disabled="testing" @click="runTest(api.testFeishuConfig)">
+              {{ t("feishu.test") }}
+            </button>
+            <button
+              class="btn ghost"
+              :disabled="testing"
+              @click="runTest(async () => t('feishu.pollResult', { n: await api.triggerFeishuPoll() }))"
+            >
+              {{ t("feishu.pollNow") }}
+            </button>
+          </div>
+        </section>
+
+        <section class="set-card">
+          <h3>✅ Todoist</h3>
+          <label>API Token<input v-model="settings.values.todoist_token" type="password" /></label>
+          <p class="hint">{{ t("todoist.hint") }}</p>
+          <div class="btn-row">
+            <button class="btn ghost" :disabled="testing" @click="runTest(api.syncTodoist)">
+              {{ t("todoist.sync") }}
+            </button>
+          </div>
+        </section>
+      </template>
+
+      <template v-if="settingsTab === 'obs'">
+        <section class="set-card">
+          <h3>{{ t("obs.title") }}</h3>
+          <div class="btn-row">
+            <button class="btn ghost" :disabled="logsLoading" @click="loadAiLogs">
+              {{ t("obs.refresh") }}
+            </button>
+            <button class="btn ghost del" :disabled="!aiLogs.length" @click="clearLogs">
+              {{ t("obs.clear") }}
+            </button>
+          </div>
+          <p class="hint">{{ t("obs.hint") }}</p>
+
+          <div v-if="logsLoading" class="hint">{{ t("obs.loading") }}</div>
+          <div v-else-if="!aiLogs.length" class="hint">{{ t("obs.empty") }}</div>
+          <div
+            v-for="log in aiLogs"
+            :key="log.id"
+            class="log-item"
+            :class="{ fail: !log.ok }"
+            @click="toggleLog(log.id)"
           >
-            {{ t("feishu.pollNow") }}
-          </button>
-        </div>
-      </section>
+            <div class="log-head">
+              <span class="log-status">{{ log.ok ? "✔" : "✖" }}</span>
+              <span class="log-scene">{{ t(sceneKey(log.scene)) }}</span>
+              <span class="log-model px">{{ log.model }}</span>
+              <span class="log-dur px">{{ log.durationMs }}ms</span>
+              <span class="log-time px">{{ fmtDateTime(log.createdAt) }}</span>
+            </div>
+            <p v-if="!log.ok && log.error" class="log-err">{{ log.error }}</p>
+            <template v-if="expandedLogId === log.id">
+              <div class="log-body">
+                <div class="log-label">{{ t("obs.request") }}</div>
+                <pre>{{ log.requestBody }}</pre>
+              </div>
+              <div class="log-body">
+                <div class="log-label">{{ t("obs.response") }}</div>
+                <pre>{{ log.responseBody || (log.error ?? "-") }}</pre>
+              </div>
+            </template>
+          </div>
+        </section>
+      </template>
 
-      <section class="set-card">
-        <h3>✅ Todoist</h3>
-        <label>API Token<input v-model="settings.values.todoist_token" type="password" /></label>
-        <p class="hint">{{ t("todoist.hint") }}</p>
-        <div class="btn-row">
-          <button class="btn ghost" :disabled="testing" @click="runTest(api.syncTodoist)">
-            {{ t("todoist.sync") }}
-          </button>
-        </div>
-      </section>
-    </template>
+      <template v-if="settingsTab === 'general'">
+        <section class="set-card">
+          <h3>⚙️ {{ t("stabs.general") }}</h3>
+          <label
+            >{{ t("general.autostart") }}<DexToggle :model-value="autostart" @update:model-value="onAutostart"
+          /></label>
+          <p class="hint">{{ t("general.shortcuts") }}</p>
+        </section>
 
-    <template v-if="settingsTab === 'general'">
-      <section class="set-card">
-        <h3>⚙️ {{ t("stabs.general") }}</h3>
-        <label
-          >{{ t("general.autostart") }}<DexToggle :model-value="autostart" @update:model-value="onAutostart"
-        /></label>
-        <p class="hint">{{ t("general.shortcuts") }}</p>
-      </section>
+        <section class="set-card">
+          <h3>⬆️ {{ t("update.title") }}</h3>
+          <p v-if="appVersion" class="hint">{{ t("update.current", { v: appVersion }) }}</p>
+          <p v-if="latestVersion" class="hint">{{ t("update.found", { v: latestVersion }) }}</p>
+          <p v-if="updateMsg" class="hint">{{ updateMsg }}</p>
+          <div class="btn-row">
+            <button class="btn ghost" :disabled="updating" @click="checkUpdate">
+              {{ t("update.check") }}
+            </button>
+            <button v-if="latestVersion" class="btn ghost" :disabled="updating" @click="installUpdate">
+              {{ t("update.install") }}
+            </button>
+          </div>
+          <p class="hint">{{ t("update.linuxHint") }}</p>
+        </section>
+      </template>
+    </div>
 
-      <section class="set-card">
-        <h3>⬆️ {{ t("update.title") }}</h3>
-        <p v-if="appVersion" class="hint">{{ t("update.current", { v: appVersion }) }}</p>
-        <p v-if="latestVersion" class="hint">{{ t("update.found", { v: latestVersion }) }}</p>
-        <p v-if="updateMsg" class="hint">{{ updateMsg }}</p>
-        <div class="btn-row">
-          <button class="btn ghost" :disabled="updating" @click="checkUpdate">
-            {{ t("update.check") }}
-          </button>
-          <button v-if="latestVersion" class="btn ghost" :disabled="updating" @click="installUpdate">
-            {{ t("update.install") }}
-          </button>
-        </div>
-        <p class="hint">{{ t("update.linuxHint") }}</p>
-      </section>
-    </template>
-
-    <div class="set-actions">
-      <button class="btn" @click="saveSettings()">{{ t("save") }}</button>
-      <span class="test-msg">{{ testMsg }}</span>
+    <!-- 底部固定：测试/错误信息 -->
+    <div class="set-status">
+      <span v-if="testMsg" class="test-msg">{{ testMsg }}</span>
     </div>
   </div>
 </template>
 
 <style scoped>
-/* 设置 */
+/* 设置：顶部保存栏 + 滚动内容 + 底部状态栏 */
 .settings {
   flex: 1;
-  padding: 4px 20px 20px;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+/* 滚动容器占满主区宽度，滚动条贴住窗口右缘；限宽只约束内部内容列 */
+.set-body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
   display: flex;
   flex-direction: column;
   gap: 14px;
-  overflow-y: auto;
+  padding: 4px 0 20px;
+}
+.settings-tabs,
+.set-card {
   max-width: 680px;
+  margin-left: 20px;
+  margin-right: 20px;
 }
 /* 设置分区选单：初代菜单样式 */
 .settings-tabs {
@@ -453,6 +652,12 @@ onUnmounted(() => unlisteners.forEach((u) => u()));
   gap: 8px;
   margin-bottom: 10px;
 }
+.cat-row.off {
+  opacity: 0.5;
+}
+.cat-row.off .cat-sprite {
+  filter: grayscale(1);
+}
 .cat-sprite {
   width: 36px;
   height: 36px;
@@ -475,6 +680,103 @@ onUnmounted(() => unlisteners.forEach((u) => u()));
 }
 .cat-row .btn.del {
   color: var(--dex-red);
+}
+/* 标签编辑行 */
+.tag-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+.tag-row input {
+  padding: 7px 9px;
+  border: 3px solid var(--dex-navy);
+  border-radius: 8px;
+  font-size: 13px;
+  font-family: inherit;
+  min-height: 34px;
+}
+.tag-name {
+  width: 110px;
+  flex: none;
+}
+.tag-desc {
+  flex: 1;
+  min-width: 0;
+}
+.tag-row .btn {
+  padding: 7px 10px;
+  min-height: 34px;
+  font-size: 12px;
+}
+.set-card .btn.del {
+  color: var(--dex-red);
+}
+/* AI 调用日志 */
+.log-item {
+  border: 3px solid var(--dex-navy);
+  border-radius: 10px;
+  padding: 8px 10px;
+  margin-top: 10px;
+  cursor: pointer;
+  background: #fff;
+}
+.log-item:hover {
+  background: #fff3c4;
+}
+.log-item.fail {
+  border-color: var(--dex-red);
+}
+.log-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 13px;
+  font-weight: 700;
+  flex-wrap: wrap;
+}
+.log-status {
+  color: #2e8b57;
+}
+.log-item.fail .log-status {
+  color: var(--dex-red);
+}
+.log-model,
+.log-dur,
+.log-time {
+  font-size: 10px;
+  color: #7b7460;
+}
+.log-time {
+  margin-left: auto;
+}
+.log-err {
+  margin: 6px 0 0;
+  font-size: 12px;
+  color: var(--dex-red);
+  word-break: break-all;
+}
+.log-body {
+  margin-top: 8px;
+}
+.log-label {
+  font-size: 11px;
+  font-weight: 800;
+  color: var(--dex-navy);
+  margin-bottom: 4px;
+}
+.log-body pre {
+  margin: 0;
+  background: var(--lcd);
+  border: 2px solid var(--lcd-dark);
+  border-radius: 8px;
+  padding: 8px;
+  font-size: 11px;
+  line-height: 1.6;
+  white-space: pre-wrap;
+  word-break: break-all;
+  max-height: 220px;
+  overflow-y: auto;
 }
 .set-card label {
   display: flex;
@@ -516,14 +818,24 @@ onUnmounted(() => unlisteners.forEach((u) => u()));
   display: flex;
   gap: 10px;
 }
-.set-actions {
-  position: sticky;
-  bottom: 0;
+/* 飞书授权状态行：状态文字 + 授权按钮同行 */
+.auth-line {
   display: flex;
   align-items: center;
-  gap: 12px;
-  background: var(--dex-body);
-  padding: 8px 0;
+  gap: 10px;
+  margin: 8px 0 4px;
+}
+.auth-state {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--dex-navy);
+}
+/* 底部状态栏：常驻高度避免消息出现时内容跳动 */
+.set-status {
+  min-height: 26px;
+  padding: 4px 20px 8px;
+  display: flex;
+  align-items: center;
 }
 .test-msg {
   font-size: 13px;

@@ -19,7 +19,16 @@ pub struct Task {
     pub external_id: Option<String>,
     pub created_at: String,
     pub completed_at: Option<String>,
+    /// 首次出发（start_task）的时间；无截止时间且从未开始的任务会被归入 inbox
+    #[serde(default)]
+    pub started_at: Option<String>,
+    /// 取消（逃走）时间；cancelled 状态的任务只在图鉴页出现
+    #[serde(default)]
+    pub cancelled_at: Option<String>,
     pub focus_seconds: i64,
+    /// 标签名列表（task_tags JOIN tags 聚合，非独立列）
+    #[serde(default)]
+    pub tags: Vec<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -31,22 +40,106 @@ pub struct Category {
     pub pokemon: String,
     /// 素材文件名 /pokemon/{key}.png
     pub sprite: String,
+    /// 停用后不出现在新建/编辑与 AI 分类选项中，已有任务不受影响
+    #[serde(default = "default_true")]
+    pub enabled: bool,
+}
+
+fn default_true() -> bool {
+    true
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct ImSuggestion {
+pub struct Tag {
+    pub id: i64,
+    pub name: String,
+    pub description: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TaskNote {
+    pub id: i64,
+    pub task_id: i64,
+    pub content: String,
+    /// manual / ai
+    pub source: String,
+    pub created_at: String,
+}
+
+/// 任务操作日志：状态与属性变更的审计记录（task_logs 表）
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TaskLog {
+    pub id: i64,
+    pub task_id: i64,
+    /// create / update / start / pause / demote / delete / sync_pull / sync_push / sync_close / migrate
+    pub action: String,
+    /// 变更字段名（title / status / due_at / ...）
+    pub field: String,
+    pub old_value: Option<String>,
+    pub new_value: Option<String>,
+    /// 变更来源窗口/链路：main / pet / radio / todoist / migration
+    pub origin: String,
+    pub created_at: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ChatMessage {
     pub id: i64,
     pub message_id: String,
     pub chat_name: String,
     pub sender: String,
     pub content: String,
+    /// 会话 id（飞书 oc_xxx），同会话消息用来拼 AI 上下文
+    #[serde(default)]
+    pub chat_id: String,
+    /// p2p（单聊）/ group（群聊）/ bot（与本应用机器人的单聊）；老数据为空串
+    #[serde(default)]
+    pub chat_type: String,
+    /// 发送者 open_id（app 发送者为应用 id）
+    #[serde(default)]
+    pub sender_id: String,
+    /// 消息发送时间（毫秒时间戳）；老数据为空
+    #[serde(default)]
+    pub sent_at: Option<i64>,
+    /// 是否当前授权用户自己发的
+    #[serde(default)]
+    pub is_self: bool,
     /// AI 给出的建议标题；为空表示 AI 认为不含待办
     pub suggested_title: Option<String>,
     pub suggested_category: Option<String>,
     pub suggested_due: Option<String>,
+    pub suggested_priority: Option<String>,
+    pub suggested_note: Option<String>,
+    /// AI 建议的标签名（JSON 数组字符串解析而来）
+    pub suggested_tags: Vec<String>,
+    /// pending / todo / none / followup / error / skipped（仅作上下文，不送 AI）
+    pub ai_status: String,
     /// pending / accepted / dismissed
     pub review_status: String,
+    /// 该消息已创建的待办 id
+    pub task_id: Option<i64>,
+    /// update 建议指向的目标待办 id（AI 判定消息是对该待办的变更）
+    #[serde(default)]
+    pub update_task_id: Option<i64>,
+    pub created_at: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AiLog {
+    pub id: i64,
+    /// classify / force_create / test
+    pub scene: String,
+    pub model: String,
+    pub request_body: String,
+    pub response_body: String,
+    pub ok: bool,
+    pub error: Option<String>,
+    pub duration_ms: i64,
     pub created_at: String,
 }
 
@@ -83,11 +176,15 @@ mod tests {
             external_id: None,
             created_at: "2026-09-01T00:00:00Z".into(),
             completed_at: None,
+            started_at: None,
+            cancelled_at: None,
             focus_seconds: 0,
+            tags: vec!["重要".into()],
         };
         assert_eq!(
             keys_of(serde_json::to_value(&t).unwrap()),
             vec![
+                "cancelledAt",
                 "categoryId",
                 "completedAt",
                 "createdAt",
@@ -100,13 +197,23 @@ mod tests {
                 "remindAt",
                 "reminded",
                 "source",
+                "startedAt",
                 "status",
+                "tags",
                 "title",
             ]
         );
         // 反向：前端可能回传完整对象（update_task 的 patch 基于 Task 字段）
         let back: Task = serde_json::from_value(serde_json::to_value(&t).unwrap()).unwrap();
         assert_eq!(back.id, t.id);
+        // tags 缺失时容忍（老前端载荷）
+        let no_tags: Task = serde_json::from_value(serde_json::json!({
+            "id": 1, "title": "t", "categoryId": 1, "status": "inbox", "priority": "normal",
+            "reminded": false, "source": "local", "createdAt": "2026-09-01T00:00:00Z",
+            "focusSeconds": 0
+        }))
+        .unwrap();
+        assert!(no_tags.tags.is_empty());
     }
 
     #[test]
@@ -116,40 +223,153 @@ mod tests {
             name: "工作".into(),
             pokemon: "皮卡丘".into(),
             sprite: "pikachu".into(),
+            enabled: true,
         };
         assert_eq!(
             keys_of(serde_json::to_value(&c).unwrap()),
-            vec!["id", "name", "pokemon", "sprite"]
+            vec!["enabled", "id", "name", "pokemon", "sprite"]
+        );
+        // enabled 缺失时容忍（老载荷按启用处理）
+        let old: Category = serde_json::from_value(serde_json::json!({
+            "id": 1, "name": "工作", "pokemon": "皮卡丘", "sprite": "pikachu"
+        }))
+        .unwrap();
+        assert!(old.enabled);
+    }
+
+    #[test]
+    fn tag_json_contract_matches_ts_interface() {
+        let g = Tag {
+            id: 1,
+            name: "重要".into(),
+            description: "核心目标相关".into(),
+        };
+        assert_eq!(
+            keys_of(serde_json::to_value(&g).unwrap()),
+            vec!["description", "id", "name"]
         );
     }
 
     #[test]
-    fn im_suggestion_json_contract_matches_ts_interface() {
-        let s = ImSuggestion {
+    fn task_note_json_contract_matches_ts_interface() {
+        let n = TaskNote {
+            id: 1,
+            task_id: 2,
+            content: "对方确认周五交付".into(),
+            source: "ai".into(),
+            created_at: "2026-09-01T00:00:00Z".into(),
+        };
+        assert_eq!(
+            keys_of(serde_json::to_value(&n).unwrap()),
+            vec!["content", "createdAt", "id", "source", "taskId"]
+        );
+    }
+
+    #[test]
+    fn task_log_json_contract_matches_ts_interface() {
+        let l = TaskLog {
+            id: 1,
+            task_id: 2,
+            action: "update".into(),
+            field: "status".into(),
+            old_value: Some("inbox".into()),
+            new_value: Some("scheduled".into()),
+            origin: "main".into(),
+            created_at: "2026-09-01T00:00:00Z".into(),
+        };
+        assert_eq!(
+            keys_of(serde_json::to_value(&l).unwrap()),
+            vec![
+                "action",
+                "createdAt",
+                "field",
+                "id",
+                "newValue",
+                "oldValue",
+                "origin",
+                "taskId",
+            ]
+        );
+    }
+
+    #[test]
+    fn chat_message_json_contract_matches_ts_interface() {
+        let m = ChatMessage {
             id: 1,
             message_id: "m".into(),
             chat_name: String::new(),
             sender: String::new(),
             content: "c".into(),
+            chat_id: String::new(),
+            chat_type: String::new(),
+            sender_id: String::new(),
+            sent_at: None,
+            is_self: false,
             suggested_title: None,
             suggested_category: None,
             suggested_due: None,
+            suggested_priority: None,
+            suggested_note: None,
+            suggested_tags: vec![],
+            ai_status: "pending".into(),
             review_status: "pending".into(),
+            task_id: None,
+            update_task_id: None,
             created_at: "2026-09-01T00:00:00Z".into(),
         };
         assert_eq!(
-            keys_of(serde_json::to_value(&s).unwrap()),
+            keys_of(serde_json::to_value(&m).unwrap()),
             vec![
+                "aiStatus",
+                "chatId",
                 "chatName",
+                "chatType",
                 "content",
                 "createdAt",
                 "id",
+                "isSelf",
                 "messageId",
                 "reviewStatus",
                 "sender",
+                "senderId",
+                "sentAt",
                 "suggestedCategory",
                 "suggestedDue",
+                "suggestedNote",
+                "suggestedPriority",
+                "suggestedTags",
                 "suggestedTitle",
+                "taskId",
+                "updateTaskId",
+            ]
+        );
+    }
+
+    #[test]
+    fn ai_log_json_contract_matches_ts_interface() {
+        let l = AiLog {
+            id: 1,
+            scene: "classify".into(),
+            model: "gpt-4o-mini".into(),
+            request_body: "{}".into(),
+            response_body: "{}".into(),
+            ok: true,
+            error: None,
+            duration_ms: 800,
+            created_at: "2026-09-01T00:00:00Z".into(),
+        };
+        assert_eq!(
+            keys_of(serde_json::to_value(&l).unwrap()),
+            vec![
+                "createdAt",
+                "durationMs",
+                "error",
+                "id",
+                "model",
+                "ok",
+                "requestBody",
+                "responseBody",
+                "scene",
             ]
         );
     }

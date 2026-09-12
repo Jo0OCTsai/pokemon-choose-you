@@ -10,7 +10,9 @@ const emit = defineEmits<{
   pause: [];
   complete: [task: Task];
   uncomplete: [task: Task];
+  cancel: [task: Task];
   schedule: [task: Task];
+  edit: [task: Task];
   remove: [task: Task];
 }>();
 
@@ -20,7 +22,10 @@ const spriteOf = (id: number) => categories.byId.get(id)?.sprite ?? "pikachu";
 </script>
 
 <template>
-  <li class="entry" :class="{ active: task.status === 'active', caught: task.status === 'done' }">
+  <li
+    class="entry"
+    :class="{ active: task.status === 'active', caught: task.status === 'done', escaped: task.status === 'cancelled' }"
+  >
     <div class="dex-no px">No.{{ String(task.id).padStart(3, "0") }}</div>
     <img
       class="sprite"
@@ -45,20 +50,29 @@ const spriteOf = (id: number) => categories.byId.get(id)?.sprite ?? "pikachu";
         <span v-if="task.source !== 'local'">
           {{ t("entry.from", { src: task.source === "feishu" ? t("entry.feishu") : task.source }) }}
         </span>
+        <span v-if="task.tags.length" class="tag-list">
+          <i v-for="name in task.tags" :key="name" class="tag-chip"># {{ name }}</i>
+        </span>
       </div>
     </div>
     <div class="ops">
-      <template v-if="task.status !== 'done'">
+      <template v-if="task.status !== 'done' && task.status !== 'cancelled'">
         <button v-if="task.status !== 'active'" class="btn" @click="emit('start', task)">
           {{ t("entry.start") }}
         </button>
         <button v-else class="btn ghost" @click="emit('pause')">{{ t("entry.pause") }}</button>
         <button class="btn ghost icon" :title="t('entry.route')" @click="emit('schedule', task)">📅</button>
+        <button class="btn ghost icon" :title="t('entry.edit')" @click="emit('edit', task)">✎</button>
         <button class="btn" :title="t('entry.done')" @click="emit('complete', task)">✔</button>
+        <button class="btn ghost icon esc" :title="t('entry.escape')" @click="emit('cancel', task)">🚪</button>
         <button class="btn ghost icon del" :title="t('entry.release')" @click="emit('remove', task)">✕</button>
       </template>
-      <template v-else>
+      <template v-else-if="task.status === 'done'">
         <span class="catch-mark">{{ t("entry.caught") }}</span>
+        <button class="btn ghost" @click="emit('uncomplete', task)">{{ t("entry.undo") }}</button>
+      </template>
+      <template v-else>
+        <span class="catch-mark escape-mark">{{ t("entry.escaped") }}</span>
         <button class="btn ghost" @click="emit('uncomplete', task)">{{ t("entry.undo") }}</button>
       </template>
     </div>
@@ -145,6 +159,23 @@ const spriteOf = (id: number) => categories.byId.get(id)?.sprite ?? "pikachu";
 .row2 b {
   color: var(--dex-navy);
 }
+/* 标签徽章 */
+.tag-list {
+  display: inline-flex;
+  gap: 4px;
+  flex-wrap: wrap;
+}
+.tag-chip {
+  font-style: normal;
+  font-size: 11px;
+  font-weight: 700;
+  color: #fff;
+  background: #8a97b8;
+  border: 2px solid var(--dex-navy);
+  border-radius: 999px;
+  padding: 0 7px;
+  line-height: 17px;
+}
 .ops {
   display: flex;
   gap: 8px;
@@ -161,6 +192,9 @@ const spriteOf = (id: number) => categories.byId.get(id)?.sprite ?? "pikachu";
 }
 .ops .btn.del {
   color: var(--dex-red);
+}
+.ops .btn.esc {
+  color: #a1660a;
 }
 
 /* 已捕捉 */
@@ -185,5 +219,23 @@ const spriteOf = (id: number) => categories.byId.get(id)?.sprite ?? "pikachu";
   font-size: 14px;
   color: var(--lcd-text);
   font-weight: 800;
+}
+
+/* 已逃走（取消）：淡出风格与已捕捉区分 */
+.entry.escaped {
+  background: #f3efe6;
+  box-shadow: 4px 4px 0 #b9b09a;
+  border-color: #9a937f;
+  opacity: 0.85;
+}
+.entry.escaped .title {
+  text-decoration: line-through;
+  color: #7b7460;
+}
+.entry.escaped .sprite {
+  filter: grayscale(1) brightness(1.1) opacity(0.6);
+}
+.escape-mark {
+  color: #a1660a;
 }
 </style>

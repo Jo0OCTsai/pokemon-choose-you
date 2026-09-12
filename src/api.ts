@@ -1,4 +1,4 @@
-import type { Category, ImSuggestion, Task } from "./types";
+import type { AiLog, Category, ChatMessage, FeishuOauthStatus, Tag, Task, TaskLog, TaskNote } from "./types";
 
 /** 后端 AppError（src-tauri/src/error.rs）经 IPC 序列化后的结构 */
 export type ApiErrorKind = "db" | "not_found" | "invalid" | "network" | "external" | "io" | "tauri";
@@ -35,10 +35,22 @@ export function errorMessage(e: unknown): string {
   return e instanceof ApiError ? e.message : ApiError.from(e).message;
 }
 
+/** 操作日志的来源标识：取调用窗口 label（main / pet），非 Tauri 环境为空 */
+async function windowOrigin(): Promise<string> {
+  try {
+    const { getCurrentWindow } = await import("@tauri-apps/api/window");
+    return getCurrentWindow().label;
+  } catch {
+    return "";
+  }
+}
+
 async function call<T>(cmd: string, args?: Record<string, unknown>): Promise<T> {
   const { invoke } = await import("@tauri-apps/api/core");
+  // 后端命令按需声明 origin 参数（未声明的命令会忽略多余键）
+  const origin = await windowOrigin();
   try {
-    return await invoke<T>(cmd, args);
+    return await invoke<T>(cmd, { ...args, origin });
   } catch (e) {
     throw ApiError.from(e);
   }
@@ -52,25 +64,43 @@ export interface NewTaskInput {
   dueAt?: string;
   remindAt?: string;
   scheduled?: boolean;
+  tagIds?: number[];
 }
 
 export const api = {
   listTasks: (filter: string) => call<Task[]>("list_tasks", { filter }),
+  searchTasks: (q: string) => call<Task[]>("search_tasks", { q }),
   createTask: (task: NewTaskInput) => call<Task>("create_task", { task: { scheduled: false, ...task } }),
-  updateTask: (patch: Partial<Task> & { id: number }) => call<Task>("update_task", { patch }),
+  updateTask: (patch: Partial<Task> & { id: number; tagIds?: number[] }) => call<Task>("update_task", { patch }),
   deleteTask: (id: number) => call<void>("delete_task", { id }),
   startTask: (id: number) => call<Task>("start_task", { id }),
   pauseCurrentTask: () => call<Task | null>("pause_current_task"),
   getCurrentTask: () => call<Task | null>("get_current_task"),
   addFocusSeconds: (id: number, seconds: number) => call<void>("add_focus_seconds", { id, seconds }),
+  listTaskNotes: (taskId: number) => call<TaskNote[]>("list_task_notes", { taskId }),
+  addTaskNote: (taskId: number, content: string) => call<TaskNote>("add_task_note", { taskId, content }),
+  deleteTaskNote: (id: number) => call<void>("delete_task_note", { id }),
+  listTaskLogs: (taskId: number) => call<TaskLog[]>("list_task_logs", { taskId }),
+  listTags: () => call<Tag[]>("list_tags"),
+  createTag: (name: string, description: string) => call<Tag>("create_tag", { name, description }),
+  updateTag: (id: number, name: string, description: string) => call<void>("update_tag", { id, name, description }),
+  deleteTag: (id: number) => call<void>("delete_tag", { id }),
   listCategories: () => call<Category[]>("list_categories"),
   setCategoryPokemon: (id: number, pokemon: string, sprite: string) =>
     call<void>("set_category_pokemon", { id, pokemon, sprite }),
+  /** 停用/启用分类（停用后不进新建、编辑与 AI 选项，已有任务不受影响） */
+  setCategoryEnabled: (id: number, enabled: boolean) => call<void>("set_category_enabled", { id, enabled }),
   getSetting: (key: string) => call<string | null>("get_setting", { key }),
   setSetting: (key: string, value: string) => call<void>("set_setting", { key, value }),
-  listImSuggestions: (status?: string) => call<ImSuggestion[]>("list_im_suggestions", { status: status ?? null }),
-  acceptImSuggestion: (id: number) => call<number>("accept_im_suggestion", { id }),
-  dismissImSuggestion: (id: number) => call<void>("dismiss_im_suggestion", { id }),
+  listChatMessages: (query?: string) => call<ChatMessage[]>("list_chat_messages", { query: query ?? null }),
+  acceptChatMessage: (id: number) => call<number>("accept_chat_message", { id }),
+  dismissChatMessage: (id: number) => call<void>("dismiss_chat_message", { id }),
+  /** 强制用 AI 为消息创建待办（AI 先判重，重复则报错说明） */
+  forceCreateTodo: (id: number) => call<number>("force_create_todo", { id }),
+  /** 应用 AI 的更新建议：把建议字段打补丁到目标待办 */
+  applyChatMessageUpdate: (id: number) => call<number>("apply_chat_message_update", { id }),
+  listAiLogs: (limit?: number) => call<AiLog[]>("list_ai_logs", { limit: limit ?? null }),
+  clearAiLogs: () => call<void>("clear_ai_logs"),
   listAllSettings: () => call<Record<string, string>>("list_all_settings"),
   openMainWindow: () => call<void>("open_main_window"),
   /** 主窗口挂载时领取"快速捕捉"挂起标记（一次性），返回 true 则直接聚焦新增输入框 */
@@ -82,6 +112,10 @@ export const api = {
   testAiConfig: () => call<string>("test_ai_config"),
   testFeishuConfig: () => call<string>("test_feishu_config"),
   triggerFeishuPoll: () => call<number>("trigger_feishu_poll"),
+  /** 发起飞书用户授权：打开浏览器完成 OAuth，本地回调换取 user_access_token */
+  feishuOauthLogin: () => call<string>("feishu_oauth_login"),
+  /** 飞书用户授权状态（是否已授权 + 授权用户名） */
+  feishuOauthStatus: () => call<FeishuOauthStatus>("feishu_oauth_status"),
   syncTodoist: () => call<string>("sync_todoist"),
   createCategory: (name: string, pokemon: string, sprite: string) =>
     call<Category>("create_category", { name, pokemon, sprite }),

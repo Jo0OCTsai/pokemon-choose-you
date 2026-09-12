@@ -6,6 +6,7 @@ import { api } from "./api";
 import { EVENTS } from "./events";
 import { useSettingsStore } from "./stores/settings";
 import { useCategoriesStore } from "./stores/categories";
+import { useTagsStore } from "./stores/tags";
 import { useTasksStore, type TaskTabKey } from "./stores/tasks";
 import TaskTab from "./views/TaskTab.vue";
 import RadioTab from "./views/RadioTab.vue";
@@ -14,14 +15,15 @@ import SettingsTab from "./views/SettingsTab.vue";
 const { t } = useI18n();
 const settings = useSettingsStore();
 const categoriesStore = useCategoriesStore();
+const tagsStore = useTagsStore();
 const tasksStore = useTasksStore();
 
 type Tab = TaskTabKey | "im" | "settings";
-// 菜单命名体系统一为"训练家旅程"：冒险/草丛/路线/图鉴/收音机
+// 菜单命名体系统一为"训练家旅程"：冒险/路线/草丛/图鉴/收音机
 const tabs: { key: Tab; labelKey: string; descKey: string }[] = [
   { key: "today", labelKey: "tabs.today", descKey: "tabs.todayDesc" },
-  { key: "inbox", labelKey: "tabs.inbox", descKey: "tabs.inboxDesc" },
   { key: "scheduled", labelKey: "tabs.scheduled", descKey: "tabs.scheduledDesc" },
+  { key: "inbox", labelKey: "tabs.inbox", descKey: "tabs.inboxDesc" },
   { key: "done", labelKey: "tabs.done", descKey: "tabs.doneDesc" },
   { key: "im", labelKey: "tabs.im", descKey: "tabs.imDesc" },
   { key: "settings", labelKey: "tabs.settings", descKey: "tabs.settingsDesc" },
@@ -33,6 +35,7 @@ const isTaskTab = computed(() => ["today", "inbox", "scheduled", "done"].include
 // 模板里 isTaskTab 的 v-if 收窄不了模板表达式的类型，这里集中收窄一次
 const activeTaskTab = computed<TaskTabKey>(() => (isTaskTab.value ? (tab.value as TaskTabKey) : "today"));
 const taskTab = ref<InstanceType<typeof TaskTab> | null>(null);
+const settingsTab = ref<InstanceType<typeof SettingsTab> | null>(null);
 
 // 后端发现新版本时广播，设置页展示安装入口
 const latestVersion = ref("");
@@ -48,11 +51,13 @@ async function quickCapture() {
 
 const unlisteners: UnlistenFn[] = [];
 onMounted(async () => {
-  await Promise.all([settings.load(), categoriesStore.load(), tasksStore.reload()]);
+  await Promise.all([settings.load(), categoriesStore.load(), tagsStore.load(), tasksStore.reload()]);
 
   // 桌宠窗口或后端同步（飞书/Todoist）改动数据时跟随刷新，保持两窗口状态一致
   unlisteners.push(await listen<null>(EVENTS.tasksChanged, () => tasksStore.reload()));
-  unlisteners.push(await listen<null>(EVENTS.imSuggestionsChanged, () => tasksStore.reload()));
+  unlisteners.push(await listen<null>(EVENTS.chatMessagesChanged, () => tasksStore.reload()));
+  unlisteners.push(await listen<null>(EVENTS.categoriesChanged, () => categoriesStore.load()));
+  unlisteners.push(await listen<null>(EVENTS.tagsChanged, () => tagsStore.load()));
   unlisteners.push(await listen<null>(EVENTS.quickCapture, quickCapture));
   unlisteners.push(await listen<null>(EVENTS.showSettings, () => (tab.value = "settings")));
   unlisteners.push(await listen<string>(EVENTS.updateAvailable, (e) => (latestVersion.value = e.payload)));
@@ -83,8 +88,8 @@ onUnmounted(() => unlisteners.forEach((u) => u()));
           @click="tab = mi.key"
         >
           <span class="cursor">▶</span>{{ t(mi.labelKey) }}
-          <span v-if="mi.key === 'im' && tasksStore.imSuggestions.length" class="count px">
-            {{ tasksStore.imSuggestions.length }}
+          <span v-if="mi.key === 'im' && tasksStore.pendingSuggestions" class="count px">
+            {{ tasksStore.pendingSuggestions }}
           </span>
         </button>
       </nav>
@@ -97,17 +102,23 @@ onUnmounted(() => unlisteners.forEach((u) => u()));
         <div>
           <h1>{{ t(curTab.labelKey) }}</h1>
           <div class="sub">{{ t(curTab.descKey) }}</div>
-          <div class="sub px">{{ today.toISOString().slice(0, 10).split("-").join(".") }}</div>
+          <div v-if="tab === 'today'" class="sub px">
+            {{ today.toISOString().slice(0, 10).split("-").join(".") }}
+          </div>
         </div>
         <div v-if="tab === 'today'" class="catch-progress">
           <div class="px">CAUGHT {{ tasksStore.caught.done }}/{{ tasksStore.caught.total }}</div>
           <div class="catch-bar"><i :style="{ width: tasksStore.caught.pct + '%' }"></i></div>
         </div>
+        <!-- 设置页保存按钮与标题同行，靠右 -->
+        <button v-else-if="tab === 'settings'" class="btn head-save" @click="settingsTab?.save()">
+          {{ t("save") }}
+        </button>
       </div>
 
       <TaskTab v-if="isTaskTab" ref="taskTab" :tab="activeTaskTab" />
       <RadioTab v-else-if="tab === 'im'" />
-      <SettingsTab v-else :latest-version="latestVersion" />
+      <SettingsTab v-else ref="settingsTab" :latest-version="latestVersion" />
     </main>
   </div>
 </template>
@@ -253,6 +264,12 @@ body {
 .catch-progress {
   margin-left: auto;
   text-align: right;
+}
+/* 设置页保存按钮：与标题同行靠右，对齐标题首行 */
+.head-save {
+  margin-left: auto;
+  align-self: flex-start;
+  margin-top: 4px;
 }
 .catch-progress .px {
   font-size: 10px;
