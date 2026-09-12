@@ -39,7 +39,11 @@ onMounted(async () => {
     .filter((v): v is number => v != null);
 });
 
-const categoryOptions = computed(() => categories.list.map((c) => ({ value: String(c.id), label: c.name })));
+// 分类选项：只列启用中的分类；任务自身所属分类若已停用则保留（否则下拉显示不出名字）
+const categoryOptions = computed(() => {
+  const list = categories.list.filter((c) => c.enabled || c.id === props.task.categoryId);
+  return list.map((c) => ({ value: String(c.id), label: c.name }));
+});
 const priorityOptions = computed(() =>
   (["low", "normal", "high", "urgent"] as const).map((p) => ({ value: p, label: t(`priority.${p}`) })),
 );

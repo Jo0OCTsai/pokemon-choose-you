@@ -22,6 +22,8 @@ export interface Category {
   name: string;
   pokemon: string;
   sprite: string;
+  /** 停用后不出现在新建/编辑与 AI 分类选项中，已有任务不受影响 */
+  enabled: boolean;
 }
 
 export interface Tag {

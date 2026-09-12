@@ -95,7 +95,10 @@ export default {
     save: "Save",
     release: "Release",
     new: "+ New",
-    hint: "When you release a category, its tasks move to the first category.",
+    hint: "When you release a category, its tasks move to the first enabled category.",
+    disableHint:
+      "The toggle deactivates a category: it disappears from new/edit/AI category options; existing tasks are unaffected and you can re-enable anytime (keep at least one enabled).",
+    toggle: "Deactivate / enable",
     newName: "New category",
   },
   tags: {

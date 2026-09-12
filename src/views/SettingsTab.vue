@@ -112,12 +112,13 @@ async function runTest(fn: () => Promise<string>) {
 }
 
 // ---- 分类管理 ----
-const editingCats = ref<{ id: number; name: string; pokemonKey: string }[]>([]);
+const editingCats = ref<{ id: number; name: string; pokemonKey: string; enabled: boolean }[]>([]);
 function startEditCats() {
   editingCats.value = categories.list.map((c) => ({
     id: c.id,
     name: c.name,
     pokemonKey: c.sprite,
+    enabled: c.enabled,
   }));
 }
 async function saveCat(row: { id: number; name: string; pokemonKey: string }) {
@@ -126,6 +127,18 @@ async function saveCat(row: { id: number; name: string; pokemonKey: string }) {
   await categories.load();
   testMsg.value = t("catSaved");
   setTimeout(() => (testMsg.value = ""), 2000);
+}
+/** 停用/启用：停用后分类不进新建、编辑与 AI 选项（至少保留一个启用分类） */
+async function toggleCat(row: { id: number; enabled: boolean }, v: boolean | string | number) {
+  row.enabled = Boolean(v);
+  try {
+    await api.setCategoryEnabled(row.id, row.enabled);
+    await categories.load();
+    startEditCats();
+  } catch (e) {
+    row.enabled = !row.enabled;
+    testMsg.value = `❌ ${errorMessage(e)}`;
+  }
 }
 async function removeCat(row: { id: number; name: string }) {
   try {
@@ -190,6 +203,7 @@ async function loadAiLogs() {
   }
 }
 watch(settingsTab, (tab) => {
+  if (tab === "cats") startEditCats();
   if (tab === "tags" && !editingTags.value.length) startEditTags();
   if (tab === "obs") loadAiLogs();
 });
@@ -317,7 +331,7 @@ onUnmounted(() => unlisteners.forEach((u) => u()));
       <template v-if="settingsTab === 'cats'">
         <section class="set-card">
           <h3>{{ t("cats.title") }}</h3>
-          <div v-for="row in editingCats" :key="row.id" class="cat-row">
+          <div v-for="row in editingCats" :key="row.id" class="cat-row" :class="{ off: !row.enabled }">
             <img
               class="cat-sprite"
               :src="`/pokemon/${row.pokemonKey}.gif`"
@@ -325,6 +339,11 @@ onUnmounted(() => unlisteners.forEach((u) => u()));
             />
             <input v-model="row.name" class="cat-name" />
             <DexSelect v-model="row.pokemonKey" :options="pokemonOptions" />
+            <DexToggle
+              :model-value="row.enabled"
+              :title="t('cats.toggle')"
+              @update:model-value="(v) => toggleCat(row, v)"
+            />
             <button class="btn ghost" @click="saveCat(row)">{{ t("cats.save") }}</button>
             <button class="btn ghost del" @click="removeCat(row)">{{ t("cats.release") }}</button>
           </div>
@@ -332,6 +351,7 @@ onUnmounted(() => unlisteners.forEach((u) => u()));
             <button class="btn ghost" @click="addCat">{{ t("cats.new") }}</button>
           </div>
           <p class="hint">{{ t("cats.hint") }}</p>
+          <p class="hint">{{ t("cats.disableHint") }}</p>
         </section>
       </template>
 
@@ -590,6 +610,12 @@ onUnmounted(() => unlisteners.forEach((u) => u()));
   align-items: center;
   gap: 8px;
   margin-bottom: 10px;
+}
+.cat-row.off {
+  opacity: 0.5;
+}
+.cat-row.off .cat-sprite {
+  filter: grayscale(1);
 }
 .cat-sprite {
   width: 36px;

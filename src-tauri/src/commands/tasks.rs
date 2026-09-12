@@ -125,13 +125,17 @@ pub fn create_task<R: tauri::Runtime>(
     }
     let conn = db.0.lock().unwrap();
     let status = if task.scheduled { "scheduled" } else { "inbox" };
+    // 未指定分类时落到第一个启用分类（分类可停用，id=1 未必可用）
+    let category_id = task
+        .category_id
+        .unwrap_or_else(|| crate::commands::categories::first_enabled_category(&conn));
     conn.execute(
         "INSERT INTO tasks (title, note, category_id, status, priority, due_at, remind_at, source, external_id, created_at)
          VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10)",
         params![
             title,
             task.note,
-            task.category_id.unwrap_or(1),
+            category_id,
             status,
             task.priority.as_deref().unwrap_or("normal"),
             task.due_at,

@@ -42,6 +42,7 @@ vi.mock("../api", () => ({
     createCategory: vi.fn(),
     updateCategory: vi.fn(),
     deleteCategory: vi.fn(),
+    setCategoryEnabled: vi.fn(async () => {}),
     openMainWindow: vi.fn(),
     consumeQuickCapture: vi.fn(),
     checkUpdate: vi.fn(),
@@ -74,8 +75,8 @@ function broadcast(event: string, payload: unknown = null) {
 }
 
 const categories = [
-  { id: 1, name: "工作", pokemon: "皮卡丘", sprite: "pikachu" },
-  { id: 2, name: "学习", pokemon: "可达鸭", sprite: "psyduck" },
+  { id: 1, name: "工作", pokemon: "皮卡丘", sprite: "pikachu", enabled: true },
+  { id: 2, name: "学习", pokemon: "可达鸭", sprite: "psyduck", enabled: true },
 ];
 
 /** 测试内维护的迷你任务库 */
@@ -103,7 +104,12 @@ function seed(seeds: Partial<Task>[]): Task[] {
 /** 让 mock api 表现得像真的 Rust 后端 */
 function wireBackend() {
   tasks = [];
+  categories.forEach((c) => (c.enabled = true));
   vi.mocked(api.listCategories).mockResolvedValue(categories);
+  vi.mocked(api.setCategoryEnabled).mockImplementation(async (id: number, enabled: boolean) => {
+    const c = categories.find((x) => x.id === id);
+    if (c) c.enabled = enabled;
+  });
   vi.mocked(api.listTags).mockResolvedValue([]);
   vi.mocked(api.listChatMessages).mockResolvedValue([]);
   vi.mocked(api.searchTasks).mockImplementation(async (q: string) => tasks.filter((t) => t.title.includes(q)));
@@ -347,8 +353,22 @@ describe("App 图鉴机主面板", () => {
     expect(w.text()).toContain("番茄钟");
     await stabs[3].trigger("click"); // 显示
     expect(w.text()).toContain("日期格式");
-    await stabs[1].trigger("click"); // 标签
-    expect(w.text()).toContain("标签");
+    await stabs[1].trigger("click"); // 分类
+    expect(w.text()).toContain("皮卡丘");
+  });
+
+  it("设置页分类分区：进入即列出内置分类，停用开关调用后端", async () => {
+    const w = await mountApp();
+    await w.findAll(".menu-btn")[5].trigger("click");
+    await w.findAll(".stab")[1].trigger("click"); // 分类
+    const rows = w.findAll(".cat-row");
+    expect(rows).toHaveLength(2); // 进入分区即加载分类列表（回归：曾显示为空）
+    // 停用第一个分类
+    await rows[0].get(".dex-toggle").trigger("click");
+    await new Promise((r) => setTimeout(r));
+    expect(api.setCategoryEnabled).toHaveBeenCalledWith(1, false);
+    // 保存成功后编辑行重建，重新查询确认停用置灰
+    expect(w.findAll(".cat-row")[0].classes()).toContain("off");
   });
 
   // ---- 两窗口状态同步：主面板跟随 tasks-changed 事件 ----

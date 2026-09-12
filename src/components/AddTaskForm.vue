@@ -36,7 +36,18 @@ const newCategoryStr = computed({
     newCategory.value = Number(v);
   },
 });
-const categoryOptions = computed(() => categories.list.map((c) => ({ value: String(c.id), label: c.name })));
+// 只允许选启用中的分类；当前选中被停用时回落到第一个启用分类
+const enabledCategories = computed(() => categories.list.filter((c) => c.enabled));
+watch(
+  () => categories.list.map((c) => `${c.id}:${c.enabled}`).join(","),
+  () => {
+    if (!enabledCategories.value.some((c) => c.id === newCategory.value)) {
+      newCategory.value = enabledCategories.value[0]?.id ?? 1;
+    }
+  },
+  { immediate: true },
+);
+const categoryOptions = computed(() => enabledCategories.value.map((c) => ({ value: String(c.id), label: c.name })));
 const priorityOptions = computed(() =>
   (["low", "normal", "high", "urgent"] as const).map((p) => ({ value: p, label: t(`priority.${p}`) })),
 );

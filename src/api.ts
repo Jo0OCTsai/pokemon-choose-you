@@ -75,6 +75,8 @@ export const api = {
   listCategories: () => call<Category[]>("list_categories"),
   setCategoryPokemon: (id: number, pokemon: string, sprite: string) =>
     call<void>("set_category_pokemon", { id, pokemon, sprite }),
+  /** 停用/启用分类（停用后不进新建、编辑与 AI 选项，已有任务不受影响） */
+  setCategoryEnabled: (id: number, enabled: boolean) => call<void>("set_category_enabled", { id, enabled }),
   getSetting: (key: string) => call<string | null>("get_setting", { key }),
   setSetting: (key: string, value: string) => call<void>("set_setting", { key, value }),
   listChatMessages: (query?: string) => call<ChatMessage[]>("list_chat_messages", { query: query ?? null }),

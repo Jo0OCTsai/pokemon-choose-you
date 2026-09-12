@@ -73,8 +73,8 @@ vi.mock("@tauri-apps/api/window", () => ({
 }));
 
 const categories = [
-  { id: 1, name: "工作", pokemon: "皮卡丘", sprite: "pikachu" },
-  { id: 2, name: "学习", pokemon: "可达鸭", sprite: "psyduck" },
+  { id: 1, name: "工作", pokemon: "皮卡丘", sprite: "pikachu", enabled: true },
+  { id: 2, name: "学习", pokemon: "可达鸭", sprite: "psyduck", enabled: true },
 ];
 
 function task(partial: Partial<Task>): Task {
@@ -282,7 +282,7 @@ describe("PetApp 桌宠", () => {
     current = task({ categoryId: 2 });
     vi.mocked(api.listCategories).mockResolvedValue([
       categories[0],
-      { id: 2, name: "学习", pokemon: "妙蛙种子", sprite: "bulbasaur" },
+      { id: 2, name: "学习", pokemon: "妙蛙种子", sprite: "bulbasaur", enabled: true },
     ]);
     broadcast("categories-changed");
     await flush();
