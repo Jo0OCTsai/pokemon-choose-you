@@ -1185,8 +1185,30 @@ async fn poll_once_inner(app: &AppHandle) -> AppResult<usize> {
             let conn = db.0.lock().unwrap();
             crate::commands::radio::classify_context(&conn)?
         };
-        let suggestions = match ai::classify(&agent, &batch, &ctx).await {
-            Ok(s) => s,
+        // 分类调用按次落 agent_sessions（会话回链与成本观察：时长 / 会话 id / 成败）
+        let started = std::time::Instant::now();
+        let classified = ai::classify_with_session(&agent, &batch, &ctx).await;
+        let duration_ms = started.elapsed().as_millis() as i64;
+        let suggestions = match classified {
+            Ok((s, session_id)) => {
+                let conn = db.0.lock().unwrap();
+                let _ = crate::commands::sessions::log_session_conn(
+                    &conn,
+                    &crate::commands::sessions::NewAgentSession {
+                        task_id: None,
+                        agent_id: agent.id.clone(),
+                        session_id,
+                        command: None,
+                        exit_code: Some(0),
+                        status: "ok".into(),
+                        duration_ms: Some(duration_ms),
+                        cost_usd: None,
+                        input_tokens: None,
+                        output_tokens: None,
+                    },
+                );
+                s
+            }
             Err(e) => {
                 log::warn!("AI 分类失败（本轮跳过）: {e}");
                 app.state::<crate::health::HealthState>().record_failure(
@@ -1195,6 +1217,21 @@ async fn poll_once_inner(app: &AppHandle) -> AppResult<usize> {
                     &e.to_string(),
                 );
                 let conn = db.0.lock().unwrap();
+                let _ = crate::commands::sessions::log_session_conn(
+                    &conn,
+                    &crate::commands::sessions::NewAgentSession {
+                        task_id: None,
+                        agent_id: agent.id.clone(),
+                        session_id: None,
+                        command: None,
+                        exit_code: None,
+                        status: "error".into(),
+                        duration_ms: Some(duration_ms),
+                        cost_usd: None,
+                        input_tokens: None,
+                        output_tokens: None,
+                    },
+                );
                 for m in chunk {
                     let _ = conn.execute(
                         "UPDATE chat_messages SET ai_status='error' WHERE message_id=?1",

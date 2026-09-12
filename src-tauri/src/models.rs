@@ -140,6 +140,39 @@ pub struct ChatMessage {
     pub created_at: String,
 }
 
+/// Agent 会话记录：分类调用与 agent 代办按次落库（agent_sessions 表），
+/// 任务编辑弹窗展示并可跳转会话转录——保留「这个任务花了多少钱、跑了几次」
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AgentSession {
+    pub id: i64,
+    /// 关联待办 id；NULL = 收音机分类等非任务场景
+    #[serde(default)]
+    pub task_id: Option<i64>,
+    pub agent_id: String,
+    pub agent_name: String,
+    /// agent 工具的会话 id（如 claude 的 session_id），可 `--resume` 回放
+    #[serde(default)]
+    pub session_id: Option<String>,
+    /// 触发本次会话的命令（agent 代办场景由调用方记录）
+    #[serde(default)]
+    pub command: Option<String>,
+    #[serde(default)]
+    pub exit_code: Option<i64>,
+    /// ok / error
+    pub status: String,
+    #[serde(default)]
+    pub duration_ms: Option<i64>,
+    /// 本次会话成本（美元）
+    #[serde(default)]
+    pub cost_usd: Option<f64>,
+    #[serde(default)]
+    pub input_tokens: Option<i64>,
+    #[serde(default)]
+    pub output_tokens: Option<i64>,
+    pub created_at: String,
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -284,6 +317,43 @@ mod tests {
                 "newValue",
                 "oldValue",
                 "origin",
+                "taskId",
+            ]
+        );
+    }
+
+    #[test]
+    fn agent_session_json_contract_matches_ts_interface() {
+        let x = AgentSession {
+            id: 1,
+            task_id: Some(5),
+            agent_id: "claude-code".into(),
+            agent_name: "Claude Code".into(),
+            session_id: Some("sess-1".into()),
+            command: Some("claude -p ...".into()),
+            exit_code: Some(0),
+            status: "ok".into(),
+            duration_ms: Some(61_000),
+            cost_usd: Some(0.12),
+            input_tokens: Some(1000),
+            output_tokens: Some(2000),
+            created_at: "2026-09-13T00:00:00Z".into(),
+        };
+        assert_eq!(
+            keys_of(serde_json::to_value(&x).unwrap()),
+            vec![
+                "agentId",
+                "agentName",
+                "command",
+                "costUsd",
+                "createdAt",
+                "durationMs",
+                "exitCode",
+                "id",
+                "inputTokens",
+                "outputTokens",
+                "sessionId",
+                "status",
                 "taskId",
             ]
         );

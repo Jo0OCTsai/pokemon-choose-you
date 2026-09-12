@@ -78,6 +78,8 @@ pub fn run() {
             commands::export_tasks_csv,
             commands::export_daily_md,
             commands::open_exports_dir,
+            commands::log_agent_session,
+            commands::list_agent_sessions,
             commands::list_backups,
             commands::create_backup_now,
             commands::restore_backup,

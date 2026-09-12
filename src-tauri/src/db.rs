@@ -223,11 +223,32 @@ CREATE TABLE IF NOT EXISTS chat_feedback (
 CREATE INDEX IF NOT EXISTS idx_chat_feedback_message ON chat_feedback(chat_message_id);
 "#;
 
+/// v10：Agent 会话回链与成本记录——分类调用与 agent 代办按次落库
+/// （session_id / 命令 / 退出码 / 时长 / 成本 / token），UI 可跳转会话转录
+const SCHEMA_V10: &str = r#"
+CREATE TABLE IF NOT EXISTS agent_sessions (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    task_id INTEGER,
+    agent_id TEXT NOT NULL DEFAULT '',
+    agent_name TEXT NOT NULL DEFAULT '',
+    session_id TEXT,
+    command TEXT,
+    exit_code INTEGER,
+    status TEXT NOT NULL DEFAULT 'ok',
+    duration_ms INTEGER,
+    cost_usd REAL,
+    input_tokens INTEGER,
+    output_tokens INTEGER,
+    created_at TEXT NOT NULL DEFAULT ''
+);
+CREATE INDEX IF NOT EXISTS idx_agent_sessions_task ON agent_sessions(task_id);
+"#;
+
 /// 迁移按序号执行：MIGRATIONS[i] 负责把 `PRAGMA user_version` 从 i 升到 i+1。
 /// 新的 schema 变更一律追加新条目（且只追加，不修改已发布条目），老库逐级前滚。
 const MIGRATIONS: &[&str] = &[
     SCHEMA_V1, SCHEMA_V2, SCHEMA_V3, SCHEMA_V4, SCHEMA_V5, SCHEMA_V6, SCHEMA_V7, SCHEMA_V8,
-    SCHEMA_V9,
+    SCHEMA_V9, SCHEMA_V10,
 ];
 
 #[derive(Debug, thiserror::Error)]
@@ -712,6 +733,36 @@ pub(crate) mod tests {
             )
             .unwrap();
         assert_eq!(action, "dismissed");
+    }
+
+    /// 回归：v9 库升级 v10 后 agent_sessions 可写入
+    #[test]
+    fn migrates_v9_db_adding_agent_sessions() {
+        let conn = Connection::open_in_memory().unwrap();
+        for sql in [
+            SCHEMA_V1, SCHEMA_V2, SCHEMA_V3, SCHEMA_V4, SCHEMA_V5, SCHEMA_V6, SCHEMA_V7, SCHEMA_V8,
+            SCHEMA_V9,
+        ] {
+            conn.execute_batch(sql).unwrap();
+        }
+        conn.execute("PRAGMA user_version = 9", []).unwrap();
+
+        init_conn(&conn).unwrap();
+        assert_eq!(user_version(&conn), MIGRATIONS.len() as i64);
+        conn.execute(
+            "INSERT INTO agent_sessions (task_id, agent_id, agent_name, session_id, command, exit_code, status, duration_ms, cost_usd, input_tokens, output_tokens, created_at)
+             VALUES (5, 'claude-code', 'Claude Code', 'sess-1', 'claude -p ...', 0, 'ok', 61000, 0.12, 1000, 2000, '2026-09-13T00:00:00Z')",
+            [],
+        )
+        .unwrap();
+        let cost: f64 = conn
+            .query_row(
+                "SELECT cost_usd FROM agent_sessions WHERE session_id='sess-1'",
+                [],
+                |r| r.get(0),
+            )
+            .unwrap();
+        assert!((cost - 0.12).abs() < 1e-9);
     }
 
     #[test]
