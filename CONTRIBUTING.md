@@ -5,31 +5,11 @@
 ## 快速开始
 
 ```bash
-# Linux 首次需要系统依赖（macOS/Windows 跳过）：
-sudo apt-get install -y libwebkit2gtk-4.1-dev build-essential curl wget file libxdo-dev libssl-dev libayatana-appindicator3-dev librsvg2-dev
-
 git clone https://github.com/Jo0OCTsai/pokemon-knock.git
 cd pokemon-knock
-npm install          # 同时经 prepare 脚本安装 lefthook git hooks
-npm run tauri dev    # 开发调试（两个窗口：图鉴机 + 桌宠）
 ```
 
-> WSLg 下首次运行需中文字体：把 Noto Sans CJK 放进 `~/.local/share/fonts`。
-> NVIDIA 显卡白屏/黑块见 [平台注意事项](docs/PLATFORM_NOTES.md)。
-
-## 常用命令
-
-| 命令 | 说明 |
-|---|---|
-| `npm run dev` | 仅前端（浏览器里无 Tauri IPC，需 E2E mock） |
-| `npm run tauri dev` | 完整桌面应用开发调试 |
-| `npm run lint` / `npm run lint:fix` | ESLint（Vue + TS flat config） |
-| `npm run format` / `npm run format:check` | Prettier |
-| `npm run test:unit` | Vitest 单元测试（`src/__tests__/`） |
-| `npm run test:rust` | cargo test（单元 + serde↔TS 契约 + wiremock HTTP 集成） |
-| `npm run test:e2e` | Playwright 三引擎（chromium / firefox / webkit） |
-| `npm run clippy` | cargo clippy `-D warnings` |
-| `npm run test` | 单元 + Rust 全套 |
+环境搭建（系统依赖、中文字体、lefthook hooks）、常用命令（lint / format / 测试 / clippy）与目录结构见 [开发指南](docs/DEVELOPMENT.md)。
 
 ## 提交规范
 
@@ -70,20 +50,7 @@ src-tauri/src/
 
 ## 发布流程
 
-1. 合并到 `main` 后 [release-please](https://github.com/googleapis/release-please) 自动开/更新 release PR（版本号同步 `package.json`、`src-tauri/Cargo.toml`、`src-tauri/tauri.conf.json`）。
-2. 合并 release PR → 打 `v*` 标签 → 触发 `release.yml`：tauri-action 出 macOS（Intel+ARM dmg）/ Windows（NSIS）/ Linux（deb/rpm/AppImage）安装包与 `latest.json`（自动更新清单）。
-
-### 自动更新签名（维护者）
-
-自动更新走 minisign 签名，**签名不可关闭**：
-
-```bash
-npx tauri signer generate -w ~/.tauri/pokemon-knock.key   # 私钥务必保存在仓库外
-```
-
-- 公钥已内联在 `src-tauri/tauri.conf.json` 的 `plugins.updater.pubkey`。
-- 仓库 Secrets 需配置：`TAURI_SIGNING_PRIVATE_KEY`（私钥内容）与 `TAURI_SIGNING_PRIVATE_KEY_PASSWORD`（生成时设置的密码，空密码则设为空串）。
-- 更新端点指向 GitHub Release 的 `latest.json`；换仓库/迁移时记得同步修改 `plugins.updater.endpoints`。
+release-please 版本管理、多平台构建与自动更新签名（维护者）见 [开发指南 · 发布](docs/DEVELOPMENT.md#发布)。
 
 ## 平台注意事项
 
