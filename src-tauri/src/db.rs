@@ -132,9 +132,45 @@ const SCHEMA_V3: &str = r#"
 ALTER TABLE categories ADD COLUMN enabled INTEGER NOT NULL DEFAULT 1;
 "#;
 
+/// v4：任务状态机强化——started_at/cancelled_at 字段、task_logs 操作日志表、存量状态归位。
+/// 归位规则：无截止时间且从未开始 → inbox；inbox 但有截止时间 → scheduled。
+const SCHEMA_V4: &str = r#"
+ALTER TABLE tasks ADD COLUMN started_at TEXT;
+ALTER TABLE tasks ADD COLUMN cancelled_at TEXT;
+
+CREATE TABLE IF NOT EXISTS task_logs (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    task_id INTEGER NOT NULL,
+    -- create / update / start / pause / demote / delete / sync_pull / sync_push / sync_close / migrate
+    action TEXT NOT NULL,
+    field TEXT NOT NULL DEFAULT '',
+    old_value TEXT,
+    new_value TEXT,
+    origin TEXT NOT NULL DEFAULT '',
+    created_at TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_task_logs_task ON task_logs(task_id);
+
+-- active/paused 必然开始过；专注过又被顶下的任务以迁移时刻近似 started_at
+UPDATE tasks SET started_at = strftime('%Y-%m-%dT%H:%M:%SZ','now')
+ WHERE started_at IS NULL AND (status IN ('active','paused') OR focus_seconds > 0);
+
+-- inbox + 有截止时间 → scheduled（先记日志再改，日志的 old/new 与更新条件一致）
+INSERT INTO task_logs (task_id, action, field, old_value, new_value, origin, created_at)
+SELECT id, 'migrate', 'status', 'inbox', 'scheduled', 'migration', strftime('%Y-%m-%dT%H:%M:%SZ','now')
+FROM tasks WHERE status='inbox' AND due_at IS NOT NULL;
+UPDATE tasks SET status='scheduled' WHERE status='inbox' AND due_at IS NOT NULL;
+
+-- scheduled + 无截止时间 + 从未开始 → inbox
+INSERT INTO task_logs (task_id, action, field, old_value, new_value, origin, created_at)
+SELECT id, 'migrate', 'status', 'scheduled', 'inbox', 'migration', strftime('%Y-%m-%dT%H:%M:%SZ','now')
+FROM tasks WHERE status='scheduled' AND due_at IS NULL AND started_at IS NULL;
+UPDATE tasks SET status='inbox' WHERE status='scheduled' AND due_at IS NULL AND started_at IS NULL;
+"#;
+
 /// 迁移按序号执行：MIGRATIONS[i] 负责把 `PRAGMA user_version` 从 i 升到 i+1。
 /// 新的 schema 变更一律追加新条目（且只追加，不修改已发布条目），老库逐级前滚。
-const MIGRATIONS: &[&str] = &[SCHEMA_V1, SCHEMA_V2, SCHEMA_V3];
+const MIGRATIONS: &[&str] = &[SCHEMA_V1, SCHEMA_V2, SCHEMA_V3, SCHEMA_V4];
 
 #[derive(Debug, thiserror::Error)]
 pub enum MigrateError {
@@ -363,6 +399,62 @@ pub(crate) mod tests {
             .unwrap();
         assert_eq!(name, "改名分类", "升级不动既有数据");
         assert_eq!(enabled, 1, "存量分类默认启用");
+    }
+
+    /// 回归：v3 库升级 v4 后状态归位——inbox+due → scheduled、scheduled 无 due 未开始 → inbox、
+    /// active/paused 补 started_at，且归位动作写入 task_logs
+    #[test]
+    fn migrates_v3_db_repositioning_task_statuses() {
+        let conn = Connection::open_in_memory().unwrap();
+        conn.execute_batch(SCHEMA_V1).unwrap();
+        conn.execute_batch(SCHEMA_V2).unwrap();
+        conn.execute_batch(SCHEMA_V3).unwrap();
+        conn.execute("PRAGMA user_version = 3", []).unwrap();
+        for (title, status, due) in [
+            ("带时间的草丛", "inbox", Some("2026-09-10T09:00")),
+            ("没时间的路线", "scheduled", None),
+            ("正常路线", "scheduled", Some("2026-09-10T09:00")),
+        ] {
+            conn.execute(
+                "INSERT INTO tasks (title, status, due_at, created_at) VALUES (?1, ?2, ?3, '2026-09-01T00:00:00Z')",
+                rusqlite::params![title, status, due],
+            )
+            .unwrap();
+        }
+        conn.execute(
+            "INSERT INTO tasks (title, status, created_at) VALUES ('进行中', 'active', '2026-09-01T00:00:00Z')",
+            [],
+        )
+        .unwrap();
+
+        init_conn(&conn).unwrap();
+        assert_eq!(user_version(&conn), MIGRATIONS.len() as i64);
+        let status_of = |title: &str| {
+            conn.query_row("SELECT status FROM tasks WHERE title=?1", [title], |r| {
+                r.get::<_, String>(0)
+            })
+            .unwrap()
+        };
+        assert_eq!(status_of("带时间的草丛"), "scheduled");
+        assert_eq!(status_of("没时间的路线"), "inbox");
+        assert_eq!(status_of("正常路线"), "scheduled", "有时间的路线不动");
+        assert_eq!(status_of("进行中"), "active", "进行中不被归位");
+        let active_started: Option<String> = conn
+            .query_row(
+                "SELECT started_at FROM tasks WHERE title='进行中'",
+                [],
+                |r| r.get(0),
+            )
+            .unwrap();
+        assert!(active_started.is_some(), "active 任务补 started_at");
+        let migrated: i64 = conn
+            .query_row(
+                "SELECT COUNT(*) FROM task_logs WHERE action='migrate' AND origin='migration'",
+                [],
+                |r| r.get(0),
+            )
+            .unwrap();
+        assert_eq!(migrated, 2, "两处归位写入日志");
     }
 
     #[test]

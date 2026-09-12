@@ -19,11 +19,11 @@ const tagsStore = useTagsStore();
 const tasksStore = useTasksStore();
 
 type Tab = TaskTabKey | "im" | "settings";
-// 菜单命名体系统一为"训练家旅程"：冒险/草丛/路线/图鉴/收音机
+// 菜单命名体系统一为"训练家旅程"：冒险/路线/草丛/图鉴/收音机
 const tabs: { key: Tab; labelKey: string; descKey: string }[] = [
   { key: "today", labelKey: "tabs.today", descKey: "tabs.todayDesc" },
-  { key: "inbox", labelKey: "tabs.inbox", descKey: "tabs.inboxDesc" },
   { key: "scheduled", labelKey: "tabs.scheduled", descKey: "tabs.scheduledDesc" },
+  { key: "inbox", labelKey: "tabs.inbox", descKey: "tabs.inboxDesc" },
   { key: "done", labelKey: "tabs.done", descKey: "tabs.doneDesc" },
   { key: "im", labelKey: "tabs.im", descKey: "tabs.imDesc" },
   { key: "settings", labelKey: "tabs.settings", descKey: "tabs.settingsDesc" },

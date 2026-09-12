@@ -10,7 +10,7 @@ export interface MockTask {
   title: string;
   note?: string | null;
   categoryId: number;
-  status: "inbox" | "scheduled" | "active" | "paused" | "done";
+  status: "inbox" | "scheduled" | "active" | "paused" | "done" | "cancelled";
   priority: string;
   dueAt?: string | null;
   remindAt?: string | null;
@@ -19,6 +19,8 @@ export interface MockTask {
   externalId?: string | null;
   createdAt: string;
   completedAt?: string | null;
+  startedAt?: string | null;
+  cancelledAt?: string | null;
   focusSeconds: number;
   tags: string[];
 }
@@ -60,6 +62,8 @@ export function task(partial: Partial<MockTask> & { id: number; title: string })
     externalId: null,
     createdAt: "2026-09-10T08:00:00Z",
     completedAt: null,
+    startedAt: null,
+    cancelledAt: null,
     focusSeconds: 0,
     tags: [],
     ...partial,
@@ -102,7 +106,8 @@ export async function installTauriMock(page: Page, state: Partial<MockState> = {
             // 真实 IPC 每次都返回反序列化的新对象；深拷贝避免前端拿到与 db 同引用的
             // 对象（原地变更后引用不变会让子组件的 props 更新被 Vue 跳过）
             const fresh = () => db.tasks.map((t: any) => ({ ...t }));
-            if (filter === "done") return db.tasks.filter((t) => t.status === "done").map((t) => ({ ...t }));
+            if (filter === "done")
+              return db.tasks.filter((t) => t.status === "done" || t.status === "cancelled").map((t) => ({ ...t }));
             if (filter === "open")
               return fresh().filter((t) => ["inbox", "scheduled", "active", "paused"].includes(t.status));
             return fresh();
@@ -134,6 +139,9 @@ export async function installTauriMock(page: Page, state: Partial<MockState> = {
             if (!t) throw new Error(`no task ${args.patch.id}`);
             Object.assign(t, args.patch);
             if (args.patch.status === "done" && !t.completedAt) t.completedAt = nowIso();
+            if (args.patch.status === "cancelled" && !t.cancelledAt) t.cancelledAt = nowIso();
+            // 状态不变量：无截止时间且从未开始 → 草丛
+            if (t.status === "scheduled" && t.dueAt == null && t.startedAt == null) t.status = "inbox";
             broadcast("tasks-changed");
             return t;
           }
@@ -147,6 +155,7 @@ export async function installTauriMock(page: Page, state: Partial<MockState> = {
             });
             const t = db.tasks.find((x) => x.id === args.id)!;
             t.status = "active";
+            if (!t.startedAt) t.startedAt = nowIso();
             broadcast("tasks-changed");
             return t;
           }
@@ -248,6 +257,8 @@ export async function installTauriMock(page: Page, state: Partial<MockState> = {
           case "search_tasks":
             return db.tasks.filter((t: any) => (t.title ?? "").includes(args.q)).map((t: any) => ({ ...t }));
           case "list_task_notes":
+            return [];
+          case "list_task_logs":
             return [];
           case "add_task_note":
           case "delete_task_note":

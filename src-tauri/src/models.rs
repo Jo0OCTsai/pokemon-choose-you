@@ -19,6 +19,12 @@ pub struct Task {
     pub external_id: Option<String>,
     pub created_at: String,
     pub completed_at: Option<String>,
+    /// 首次出发（start_task）的时间；无截止时间且从未开始的任务会被归入 inbox
+    #[serde(default)]
+    pub started_at: Option<String>,
+    /// 取消（逃走）时间；cancelled 状态的任务只在图鉴页出现
+    #[serde(default)]
+    pub cancelled_at: Option<String>,
     pub focus_seconds: i64,
     /// 标签名列表（task_tags JOIN tags 聚合，非独立列）
     #[serde(default)]
@@ -59,6 +65,23 @@ pub struct TaskNote {
     pub content: String,
     /// manual / ai
     pub source: String,
+    pub created_at: String,
+}
+
+/// 任务操作日志：状态与属性变更的审计记录（task_logs 表）
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TaskLog {
+    pub id: i64,
+    pub task_id: i64,
+    /// create / update / start / pause / demote / delete / sync_pull / sync_push / sync_close / migrate
+    pub action: String,
+    /// 变更字段名（title / status / due_at / ...）
+    pub field: String,
+    pub old_value: Option<String>,
+    pub new_value: Option<String>,
+    /// 变更来源窗口/链路：main / pet / radio / todoist / migration
+    pub origin: String,
     pub created_at: String,
 }
 
@@ -135,12 +158,15 @@ mod tests {
             external_id: None,
             created_at: "2026-09-01T00:00:00Z".into(),
             completed_at: None,
+            started_at: None,
+            cancelled_at: None,
             focus_seconds: 0,
             tags: vec!["重要".into()],
         };
         assert_eq!(
             keys_of(serde_json::to_value(&t).unwrap()),
             vec![
+                "cancelledAt",
                 "categoryId",
                 "completedAt",
                 "createdAt",
@@ -153,6 +179,7 @@ mod tests {
                 "remindAt",
                 "reminded",
                 "source",
+                "startedAt",
                 "status",
                 "tags",
                 "title",
@@ -217,6 +244,33 @@ mod tests {
         assert_eq!(
             keys_of(serde_json::to_value(&n).unwrap()),
             vec!["content", "createdAt", "id", "source", "taskId"]
+        );
+    }
+
+    #[test]
+    fn task_log_json_contract_matches_ts_interface() {
+        let l = TaskLog {
+            id: 1,
+            task_id: 2,
+            action: "update".into(),
+            field: "status".into(),
+            old_value: Some("inbox".into()),
+            new_value: Some("scheduled".into()),
+            origin: "main".into(),
+            created_at: "2026-09-01T00:00:00Z".into(),
+        };
+        assert_eq!(
+            keys_of(serde_json::to_value(&l).unwrap()),
+            vec![
+                "action",
+                "createdAt",
+                "field",
+                "id",
+                "newValue",
+                "oldValue",
+                "origin",
+                "taskId",
+            ]
         );
     }
 

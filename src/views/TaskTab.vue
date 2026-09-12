@@ -17,6 +17,7 @@ const addForm = ref<InstanceType<typeof AddTaskForm> | null>(null);
 
 const visible = computed(() => tasksStore.visibleFor(props.tab));
 const showAddForm = computed(() => props.tab !== "done");
+const dexFilters = ["all", "done", "cancelled"] as const;
 
 async function reload() {
   await tasksStore.reload();
@@ -41,6 +42,10 @@ async function complete(task: Task) {
 }
 async function uncomplete(task: Task) {
   await api.updateTask({ id: task.id, status: "scheduled" });
+  await reload();
+}
+async function cancel(task: Task) {
+  await api.updateTask({ id: task.id, status: "cancelled" });
   await reload();
 }
 async function remove(task: Task) {
@@ -117,9 +122,32 @@ onMounted(reload);
       </span>
     </div>
 
+    <!-- 图鉴筛选：全部 / 已捕捉 / 已逃走（沿用设置页分区选单 stab 的控件语言） -->
+    <div v-if="tab === 'done' && !searchMode" class="dex-filter">
+      <button
+        v-for="f in dexFilters"
+        :key="f"
+        class="filter-btn"
+        :class="{ on: tasksStore.dexFilter === f }"
+        @click="tasksStore.dexFilter = f"
+      >
+        <span class="cursor">▶</span>{{ t(`dexFilter.${f}`) }}
+      </button>
+    </div>
+
     <ul class="dex-list">
       <li v-if="!displayList.length && !tasksStore.loading" class="empty">
-        {{ searchMode ? t("search.empty") : t("entry.empty") }}
+        {{
+          searchMode
+            ? t("search.empty")
+            : tab === "done"
+              ? t(`dexFilter.empty.${tasksStore.dexFilter}`)
+              : tab === "today"
+                ? t("entry.emptyToday")
+                : tab === "scheduled"
+                  ? t("entry.emptyRoute")
+                  : t("entry.empty")
+        }}
       </li>
       <TaskCard
         v-for="task in displayList"
@@ -129,6 +157,7 @@ onMounted(reload);
         @pause="pauseActive"
         @complete="complete"
         @uncomplete="uncomplete"
+        @cancel="cancel"
         @schedule="schedule"
         @edit="edit"
         @remove="remove"
@@ -182,6 +211,44 @@ onMounted(reload);
   font-size: 12px;
   color: #9a937f;
   font-weight: 700;
+}
+/* 图鉴筛选：与设置页 stab 分区选单同一套控件语言 */
+.dex-filter {
+  display: flex;
+  gap: 8px;
+  margin: 0 20px 12px;
+}
+.filter-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  border: 3px solid var(--dex-navy);
+  border-radius: 8px;
+  background: var(--dex-body);
+  color: var(--dex-navy);
+  font-size: 13px;
+  font-weight: 700;
+  font-family: inherit;
+  padding: 6px 12px;
+  min-height: 36px;
+  cursor: pointer;
+  box-shadow: 3px 3px 0 var(--dex-navy);
+}
+.filter-btn .cursor {
+  width: 10px;
+  flex: none;
+  opacity: 0;
+  font-size: 10px;
+}
+.filter-btn.on {
+  background: var(--poke-yellow);
+}
+.filter-btn.on .cursor {
+  opacity: 1;
+}
+.filter-btn:active {
+  transform: translate(1px, 1px);
+  box-shadow: 2px 2px 0 var(--dex-navy);
 }
 .dex-list {
   flex: 1;

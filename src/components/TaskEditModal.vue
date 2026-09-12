@@ -5,26 +5,25 @@ import { api, errorMessage } from "../api";
 import { fmtDateTime } from "../stores/settings";
 import { useCategoriesStore } from "../stores/categories";
 import { useTagsStore } from "../stores/tags";
-import type { Task, TaskNote } from "../types";
+import type { Task, TaskLog, TaskNote } from "../types";
 import DexSelect from "./DexSelect.vue";
 import DexDateTime from "./DexDateTime.vue";
 
-/** 任务全字段编辑弹窗：属性编辑 + 标签 + 跟进记录 */
+/** 任务全字段编辑弹窗：属性编辑 + 标签 + 跟进记录 + 操作历史（状态由动作驱动，不在此编辑） */
 const props = defineProps<{ task: Task }>();
 const emit = defineEmits<{ close: []; saved: [] }>();
 
-const { t } = useI18n();
+const { t, te } = useI18n();
 const categories = useCategoriesStore();
 const tagsStore = useTagsStore();
 
-// ---- 可编辑字段（全部） ----
+// ---- 可编辑字段（全部；状态不提供手动修改） ----
 const title = ref(props.task.title);
 const note = ref(props.task.note ?? "");
 const categoryStr = ref(String(props.task.categoryId));
 const priority = ref(props.task.priority);
 const dueAt = ref(props.task.dueAt ?? "");
 const remindAt = ref(props.task.remindAt ?? "");
-const status = ref(props.task.status);
 const selectedTagIds = ref<number[]>(
   props.task.tags.map((name) => tagsStore.list.find((g) => g.name === name)?.id).filter((v): v is number => v != null),
 );
@@ -46,12 +45,6 @@ const categoryOptions = computed(() => {
 });
 const priorityOptions = computed(() =>
   (["low", "normal", "high", "urgent"] as const).map((p) => ({ value: p, label: t(`priority.${p}`) })),
-);
-const statusOptions = computed(() =>
-  (["inbox", "scheduled", "active", "paused", "done"] as const).map((s) => ({
-    value: s,
-    label: t(`status.${s}`),
-  })),
 );
 
 function toggleTag(id: number) {
@@ -104,10 +97,9 @@ async function save() {
       note: note.value || null,
       categoryId: Number(categoryStr.value),
       priority: priority.value,
-      // DexDateTime 空串转 null 表示清空
+      // DexDateTime 空串转 null 表示清空；状态不手动改，由后端不变量归位
       dueAt: dueAt.value || null,
       remindAt: remindAt.value || null,
-      status: status.value,
       tagIds: selectedTagIds.value,
     });
     emit("saved");
@@ -117,6 +109,20 @@ async function save() {
   } finally {
     saving.value = false;
   }
+}
+
+// ---- 操作历史（只读，最新在前） ----
+const logs = ref<TaskLog[]>([]);
+onMounted(async () => {
+  logs.value = await api.listTaskLogs(props.task.id).catch(() => []);
+});
+/** 有对应翻译键就用翻译（状态值 / 动作名），否则原样展示 */
+function tx(key: string, fallback: string): string {
+  return te(key) ? t(key) : fallback;
+}
+function valueOf(field: string, v: string | null | undefined): string {
+  if (v == null || v === "") return "—";
+  return field === "status" ? tx(`status.${v}`, v) : v;
 }
 </script>
 
@@ -141,10 +147,6 @@ async function save() {
         <div class="row">
           <span class="lbl">{{ t("edit.priority") }}</span>
           <DexSelect v-model="priority" :options="priorityOptions" />
-        </div>
-        <div class="row">
-          <span class="lbl">{{ t("edit.status") }}</span>
-          <DexSelect v-model="status" :options="statusOptions" />
         </div>
         <div class="row">
           <span class="lbl">{{ t("edit.due") }}</span>
@@ -191,6 +193,24 @@ async function save() {
             {{ t("edit.addFollowUp") }}
           </button>
         </form>
+      </div>
+
+      <!-- 操作历史 -->
+      <div class="notes">
+        <div class="notes-head">{{ t("edit.history") }}</div>
+        <ul class="note-list log-list">
+          <li v-if="!logs.length" class="note-empty">{{ t("edit.noHistory") }}</li>
+          <li v-for="l in logs" :key="l.id" class="note-item">
+            <span class="note-src">{{ l.origin }}</span>
+            <span class="note-time px">{{ fmtDateTime(l.createdAt) }}</span>
+            <span class="note-content">
+              {{ tx(`log.${l.action}`, l.action)
+              }}<template v-if="l.field"
+                >· {{ l.field }}: {{ valueOf(l.field, l.oldValue) }} → {{ valueOf(l.field, l.newValue) }}</template
+              >
+            </span>
+          </li>
+        </ul>
       </div>
 
       <p v-if="error" class="err">❌ {{ error }}</p>
@@ -367,6 +387,10 @@ async function save() {
 .note-add .btn {
   padding: 7px 10px;
   min-height: 34px;
+  font-size: 12px;
+}
+/* 操作历史 */
+.log-list .note-content {
   font-size: 12px;
 }
 .err {
