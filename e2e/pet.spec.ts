@@ -5,9 +5,7 @@ test.describe("桌宠窗口", () => {
   test("无任务时显示待机气泡与默认精灵", async ({ page }) => {
     await installTauriMock(page, { windowLabel: "pet" });
     await page.goto("/pet.html");
-    await expect(page.locator(".dialog-text")).toHaveText(
-      "今天的冒险还没开始，点击我挑个目标吧",
-    );
+    await expect(page.locator(".dialog-text")).toHaveText("今天的冒险还没开始，点击我挑个目标吧");
     await expect(page.locator(".pet-sprite")).toHaveAttribute("src", "/pokemon/pikachu.gif");
     await expect(page.locator(".pomo-pill")).toBeHidden();
   });
