@@ -47,6 +47,9 @@ fn tick<R: tauri::Runtime>(app: &tauri::AppHandle<R>) -> Result<(), Box<dyn std:
     let notify_on = get("notifications_enabled")
         .map(|v| v != "false")
         .unwrap_or(true);
+    // fresh start 设置在拿 Db 锁之前读齐（tick 后半段持有 conn 锁，再调 get 会死锁）
+    let overdue_mode = get("overdue_mode").unwrap_or_else(|| "collapse".into());
+    let fresh_start_last_run = get("fresh_start_last_run");
     let now = chrono::Utc::now() + chrono::Duration::minutes(lead_min);
     // SQL 预筛只是粗筛：datetime-local 存的是无时区本地时间，与 UTC RFC3339 字典序
     // 不可比（UTC+ 时区下本地字符串普遍偏大），窗口放宽一天，精确判断交给 parse_time
@@ -79,7 +82,60 @@ fn tick<R: tauri::Runtime>(app: &tauri::AppHandle<R>) -> Result<(), Box<dyn std:
         conn.execute("UPDATE tasks SET reminded=1 WHERE id=?1", params![id])?;
         drop_later_notify(app, *id, title, priority, notify_on);
     }
+
+    // ---- 逾期 fresh start：自动归草丛模式每天跑一次（反羞耻：不堆「羞耻墙」） ----
+    if overdue_mode == "auto_grass" {
+        let today_fs = chrono::Local::now().format("%Y-%m-%d").to_string();
+        if fresh_start_last_run.as_deref() != Some(today_fs.as_str()) {
+            let n = run_fresh_start(&conn, &today_fs);
+            let _ = conn.execute(
+                "INSERT INTO settings (key, value) VALUES ('fresh_start_last_run', ?1)
+                 ON CONFLICT(key) DO UPDATE SET value=?1",
+                params![today_fs],
+            );
+            if n > 0 {
+                let _ = app.emit(crate::events::TASKS_CHANGED, ());
+            }
+        }
+    }
     Ok(())
+}
+
+/// 逾期 fresh start（自动归草丛模式，反羞耻）：逾期未开始的路线任务清掉截止时间归回草丛，
+/// 不删任务、不堆「羞耻墙」。返回归位条数。当天只跑一次由调用方的日期标记保证。
+pub fn run_fresh_start(conn: &rusqlite::Connection, today: &str) -> usize {
+    let ids: Vec<i64> = match conn
+        .prepare(
+            "SELECT id FROM tasks
+             WHERE status='scheduled' AND due_at IS NOT NULL AND substr(due_at,1,10) < ?1
+               AND started_at IS NULL",
+        )
+        .and_then(|mut stmt| {
+            let rows = stmt.query_map(params![today], |r| r.get::<_, i64>(0))?;
+            Ok(rows.flatten().collect::<Vec<_>>())
+        }) {
+        Ok(ids) => ids,
+        Err(e) => {
+            log::warn!("fresh-start: 读取逾期任务失败: {e}");
+            return 0;
+        }
+    };
+    let n = ids.len();
+    for id in ids {
+        let _ = conn.execute(
+            "UPDATE tasks SET due_at=NULL, status='inbox', reminded=0 WHERE id=?1",
+            params![id],
+        );
+        let _ = conn.execute(
+            "INSERT INTO task_logs (task_id, action, field, old_value, new_value, origin, created_at)
+             VALUES (?1, 'update', 'due_at', 'overdue', NULL, 'fresh-start', ?2)",
+            params![id, crate::db::now()],
+        );
+    }
+    if n > 0 {
+        log::info!("fresh-start: {n} 只逾期的溜回草丛（清截止时间，不删任务）");
+    }
+    n
 }
 
 /// 按语言设置生成通知标题/正文（紧急与非紧急两档）
@@ -184,6 +240,52 @@ mod tests {
         assert!(parse_time("").is_none());
         assert!(parse_time("not a time").is_none());
         assert!(parse_time("2026-13-45T99:99").is_none());
+    }
+
+    // ---- run_fresh_start：逾期自动归草丛 ----
+    #[test]
+    fn fresh_start_returns_overdue_unstarted_scheduled_to_grass() {
+        let conn = crate::db::tests::test_conn();
+        let ins = |title: &str, status: &str, due: Option<&str>, started: Option<&str>| {
+            conn.execute(
+                "INSERT INTO tasks (title, status, due_at, started_at, created_at)
+                 VALUES (?1, ?2, ?3, ?4, '2026-09-01T00:00:00Z')",
+                params![title, status, due, started],
+            )
+            .unwrap();
+        };
+        ins("逾期未动", "scheduled", Some("2026-09-10T09:00"), None); // 归位
+        ins(
+            "逾期但进行中",
+            "scheduled",
+            Some("2026-09-10T09:00"),
+            Some("2026-09-09T08:00:00Z"),
+        ); // 开始过：不动
+        ins("逾期已开始", "active", Some("2026-09-10T09:00"), None); // active：不动（正在被照顾）
+        ins("没逾期", "scheduled", Some("2026-09-20T09:00"), None); // 不动
+        ins("草丛里的", "inbox", Some("2026-09-10T09:00"), None); // 已在草丛：不动
+
+        let n = run_fresh_start(&conn, "2026-09-13");
+        assert_eq!(n, 1, "只有「逾期未动」归位");
+        let (status, due): (String, Option<String>) = conn
+            .query_row(
+                "SELECT status, due_at FROM tasks WHERE title='逾期未动'",
+                [],
+                |r| Ok((r.get(0)?, r.get(1)?)),
+            )
+            .unwrap();
+        assert_eq!(status, "inbox");
+        assert!(due.is_none(), "截止时间清空");
+        let logs: i64 = conn
+            .query_row(
+                "SELECT COUNT(*) FROM task_logs WHERE origin='fresh-start' AND field='due_at'",
+                [],
+                |r| r.get(0),
+            )
+            .unwrap();
+        assert_eq!(logs, 1, "归位写审计日志");
+        // 再跑一次是 no-op
+        assert_eq!(run_fresh_start(&conn, "2026-09-13"), 0);
     }
 
     // ---- notification_text：三语 × 紧急/普通 ----

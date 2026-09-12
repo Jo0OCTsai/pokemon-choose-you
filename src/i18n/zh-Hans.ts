@@ -175,6 +175,7 @@ export default {
     time: "时间制式",
     h24: "24 小时制（18:00）",
     h12: "12 小时制（6:00 PM）",
+    overdueMode: "逾期任务展示",
     preview: "预览：{v}",
     language: "语言",
   },
@@ -254,6 +255,15 @@ export default {
     autostart: "开机自动启动（登录后桌宠自动出现）",
     nlCapture: "自然语言快速捕捉（输入框自动识别时间 / 分类 / 标签，可随时取消）",
     shortcuts: "全局快捷键：Ctrl+Shift+K 快速捕捉待办 · Ctrl+Shift+D 显示/隐藏桌宠（macOS 为 ⌘⇧K / ⌘⇧D）",
+  },
+  overdue: {
+    collapse: "收起",
+    leaked: "昨天有 {n} 只溜走了（点开看看）",
+    fresh: "全部归草丛",
+    freshing: "归位中…",
+    modeCollapse: "折叠为一行",
+    modeAuto: "自动归草丛（每天清一次逾期时间）",
+    modeShow: "原样显示",
   },
   secret: {
     stored: "已保存在系统钥匙串，输入可更换（清空即移除）",

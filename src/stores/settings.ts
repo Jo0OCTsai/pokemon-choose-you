@@ -10,6 +10,8 @@ export const SETTING_DEFAULTS: Record<string, string> = {
   pomodoro_notify: "true",
   remind_ahead_minutes: "0",
   notifications_enabled: "true",
+  /** 逾期任务展示模式：collapse=折叠一行（默认）/ auto_grass=自动归草丛 / show=原样 */
+  overdue_mode: "collapse",
   date_format: "YYYY-MM-DD",
   time_format: "24h",
   default_priority: "normal",
@@ -48,6 +50,7 @@ export const SETTING_KEYS = [
   "pomodoro_notify",
   "notifications_enabled",
   "remind_ahead_minutes",
+  "overdue_mode",
   "date_format",
   "time_format",
   "default_priority",
