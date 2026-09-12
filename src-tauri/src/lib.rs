@@ -73,6 +73,11 @@ pub fn run() {
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
+            commands::export_json,
+            commands::import_json,
+            commands::export_tasks_csv,
+            commands::export_daily_md,
+            commands::open_exports_dir,
             commands::list_backups,
             commands::create_backup_now,
             commands::restore_backup,

@@ -115,6 +115,74 @@ async function doRestore(file: string) {
   }
 }
 
+// ---- 数据导出 / 导入：全量 JSON（可回导）/ 任务 CSV / 日报 Markdown ----
+const exporting = ref(false);
+const exportMsg = ref("");
+const importConfirm = ref(false);
+let importConfirmTimer: ReturnType<typeof setTimeout> | undefined;
+/** 待导入文件内容（file input 读取后暂存，确认后才真正提交） */
+const importPending = ref<{ name: string; content: string } | null>(null);
+const importBusy = ref(false);
+
+async function runExport(action: () => Promise<string>) {
+  if (exporting.value) return;
+  exporting.value = true;
+  exportMsg.value = "";
+  try {
+    const file = await action();
+    exportMsg.value = t("export.done", { v: file });
+  } catch (e) {
+    exportMsg.value = `❌ ${errorMessage(e)}`;
+  } finally {
+    exporting.value = false;
+    setTimeout(() => (exportMsg.value = ""), 6000);
+  }
+}
+
+function onImportFileChosen(e: Event) {
+  const input = e.target as HTMLInputElement;
+  const file = input.files?.[0];
+  input.value = ""; // 允许重复选择同一文件
+  if (!file) return;
+  if (!file.name.endsWith(".json")) {
+    exportMsg.value = `❌ ${t("export.notJson")}`;
+    setTimeout(() => (exportMsg.value = ""), 5000);
+    return;
+  }
+  const reader = new FileReader();
+  reader.onload = () => {
+    importPending.value = { name: file.name, content: String(reader.result ?? "") };
+    exportMsg.value = "";
+  };
+  reader.readAsText(file);
+}
+
+/** 两段式确认：导入会整体覆盖数据 */
+function askImport() {
+  importConfirm.value = true;
+  clearTimeout(importConfirmTimer);
+  importConfirmTimer = setTimeout(() => (importConfirm.value = false), 4000);
+}
+
+async function doImport() {
+  const pending = importPending.value;
+  if (!pending || importBusy.value) return;
+  importConfirm.value = false;
+  importBusy.value = true;
+  exportMsg.value = t("export.importing");
+  try {
+    const n = await api.importJson(pending.content);
+    importPending.value = null;
+    await Promise.all([settings.load(), categories.load(), tagsStore.load(), tasksStore.reload(), loadBackups()]);
+    exportMsg.value = t("export.imported", { n, v: pending.name });
+  } catch (e) {
+    exportMsg.value = `❌ ${errorMessage(e)}`;
+  } finally {
+    importBusy.value = false;
+    setTimeout(() => (exportMsg.value = ""), 8000);
+  }
+}
+
 // 设置分区选单（初代选项界面：上选单下内容）
 const settingsTabs = [
   { key: "focus", labelKey: "stabs.focus" },
@@ -858,6 +926,41 @@ onUnmounted(() => unlisteners.forEach((u) => u()));
         </section>
 
         <section class="set-card">
+          <h3>📤 {{ t("export.title") }}</h3>
+          <div class="backup-controls">
+            <button class="btn ghost" :disabled="exporting" @click="runExport(() => api.exportJson())">
+              {{ t("export.json") }}
+            </button>
+            <button class="btn ghost" :disabled="exporting" @click="runExport(() => api.exportTasksCsv())">
+              {{ t("export.csv") }}
+            </button>
+            <button class="btn ghost" :disabled="exporting" @click="runExport(() => api.exportDailyMd())">
+              {{ t("export.md") }}
+            </button>
+            <button class="btn ghost" @click="api.openExportsDir()">{{ t("export.openDir") }}</button>
+          </div>
+          <p class="hint">{{ t("export.hint") }}</p>
+          <div class="backup-controls">
+            <label class="btn ghost import-label">
+              {{ importPending ? t("export.chosen", { v: importPending.name }) : t("export.pick") }}
+              <input type="file" accept=".json,application/json" class="import-input" @change="onImportFileChosen" />
+            </label>
+            <button
+              v-if="importPending"
+              class="btn ghost"
+              :class="{ danger: importConfirm }"
+              :disabled="importBusy"
+              @click="importConfirm ? doImport() : askImport()"
+            >
+              {{
+                importBusy ? t("export.importing") : importConfirm ? t("export.confirmImport") : t("export.doImport")
+              }}
+            </button>
+          </div>
+          <p v-if="exportMsg" class="hint">{{ exportMsg }}</p>
+        </section>
+
+        <section class="set-card">
           <h3>⬆️ {{ t("update.title") }}</h3>
           <p v-if="appVersion" class="hint">{{ t("update.current", { v: appVersion }) }}</p>
           <p v-if="latestVersion" class="hint">{{ t("update.found", { v: latestVersion }) }}</p>
@@ -1320,5 +1423,18 @@ onUnmounted(() => unlisteners.forEach((u) => u()));
   color: #fff;
   background: var(--dex-red);
   border-color: var(--dex-navy);
+}
+
+/* 导入文件按钮：input 隐藏叠在 label 下 */
+.import-label {
+  position: relative;
+  overflow: hidden;
+  cursor: pointer;
+}
+.import-input {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  cursor: pointer;
 }
 </style>

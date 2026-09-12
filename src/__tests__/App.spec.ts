@@ -55,6 +55,11 @@ vi.mock("../api", () => ({
     listBackups: vi.fn(),
     createBackupNow: vi.fn(),
     restoreBackup: vi.fn(),
+    exportJson: vi.fn(),
+    importJson: vi.fn(),
+    exportTasksCsv: vi.fn(),
+    exportDailyMd: vi.fn(),
+    openExportsDir: vi.fn(),
   },
 }));
 
@@ -136,6 +141,11 @@ function wireBackend() {
   vi.mocked(api.consumeQuickCapture).mockResolvedValue(false);
   vi.mocked(api.checkUpdate).mockResolvedValue("");
   vi.mocked(api.listBackups).mockResolvedValue([]);
+  vi.mocked(api.exportJson).mockResolvedValue("pokemon-knock-full-x.json");
+  vi.mocked(api.importJson).mockResolvedValue(0);
+  vi.mocked(api.exportTasksCsv).mockResolvedValue("pokemon-knock-tasks-x.csv");
+  vi.mocked(api.exportDailyMd).mockResolvedValue("pokemon-knock-daily-x.md");
+  vi.mocked(api.openExportsDir).mockResolvedValue(undefined);
   vi.mocked(api.installUpdate).mockResolvedValue(undefined);
   vi.mocked(api.listTasks).mockImplementation(async (filter: string) => {
     if (filter === "done") return tasks.filter((t) => t.status === "done" || t.status === "cancelled");
@@ -495,6 +505,26 @@ describe("App 图鉴机主面板", () => {
     await new Promise((r) => setTimeout(r));
     expect(api.createBackupNow).toHaveBeenCalled();
     expect(w.text()).toContain("已备份 pokemon-knock-20260913-120000.db");
+  });
+
+  it("设置页通用区：导出三件套与打开目录", async () => {
+    const w = await mountApp();
+    await w.findAll(".menu-btn")[5].trigger("click"); // 设置
+    await w.findAll(".stab")[6].trigger("click"); // 通用
+    await w
+      .findAll(".btn")
+      .find((b) => b.text() === "全量 JSON")!
+      .trigger("click");
+    await new Promise((r) => setTimeout(r));
+    expect(api.exportJson).toHaveBeenCalled();
+    expect(w.text()).toContain("已导出 pokemon-knock-full-x.json");
+
+    await w
+      .findAll(".btn")
+      .find((b) => b.text() === "今日日报")!
+      .trigger("click");
+    await new Promise((r) => setTimeout(r));
+    expect(api.exportDailyMd).toHaveBeenCalledWith();
   });
 
   it("自然语言快速捕捉：设置关闭后不出现预览", async () => {
