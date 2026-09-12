@@ -1,7 +1,7 @@
 use crate::db::Db;
 use crate::error::{AppError, AppResult};
 use crate::health::{self, ProviderHealth};
-use rusqlite::{params, Connection};
+use rusqlite::Connection;
 use tauri::{Manager, State};
 
 // ---- 诊断：集成健康 / 运行日志 / 支持报告 ----
@@ -29,13 +29,9 @@ pub struct IntegrationHealthInfo {
     pub primary_agent: String,
 }
 
+/// 设置读取：秘钥类键经 secrets 模块（OS 钥匙串优先，settings 表回落），其余直读表
 fn settings_getter(conn: &Connection) -> impl Fn(&str) -> Option<String> + '_ {
-    move |k| {
-        conn.query_row("SELECT value FROM settings WHERE key=?1", params![k], |r| {
-            r.get::<_, String>(0)
-        })
-        .ok()
-    }
+    move |k| crate::secrets::secret_get(conn, k)
 }
 
 fn feishu_configured(conn: &Connection) -> bool {
@@ -362,6 +358,7 @@ mod tests {
     use super::*;
     use crate::db::tests::test_conn;
     use crate::health::HealthState;
+    use rusqlite::params;
     use std::sync::Mutex;
     use tauri::Manager;
 

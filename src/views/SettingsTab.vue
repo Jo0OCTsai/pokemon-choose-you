@@ -5,7 +5,7 @@ import { getVersion } from "@tauri-apps/api/app";
 import { useI18n } from "vue-i18n";
 import { api, errorMessage } from "../api";
 import { EVENTS } from "../events";
-import { fmtDateTime, SETTING_KEYS, POKEMON_LIST, useSettingsStore } from "../stores/settings";
+import { fmtDateTime, SETTING_KEYS, POKEMON_LIST, SECRET_STORED, useSettingsStore } from "../stores/settings";
 import { useCategoriesStore } from "../stores/categories";
 import { useTagsStore } from "../stores/tags";
 import type { AgentConfig, FeishuOauthStatus, IntegrationHealth, LogEntry } from "../types";
@@ -36,6 +36,19 @@ const pomoNotify = boolSetting("pomodoro_notify");
 const notifyOn = boolSetting("notifications_enabled");
 const feishuOn = boolSetting("feishu_enabled");
 const nlCaptureOn = boolSetting("nl_capture_enabled");
+
+// 秘钥输入：后端只回「已保存」占位值，展示为空 + 占位提示；改动才提交新值
+function secretField(key: string) {
+  return computed({
+    get: () => (settings.values[key] === SECRET_STORED ? "" : (settings.values[key] ?? "")),
+    set: (v: string) => {
+      settings.values[key] = v;
+    },
+  });
+}
+const feishuAppSecret = secretField("feishu_app_secret");
+const todoistToken = secretField("todoist_token");
+const secretStored = (key: string) => settings.values[key] === SECRET_STORED;
 
 // 设置分区选单（初代选项界面：上选单下内容）
 const settingsTabs = [
@@ -612,7 +625,13 @@ onUnmounted(() => unlisteners.forEach((u) => u()));
         <section class="set-card">
           <h3>💬 {{ t("tabs.im") === "Radio" ? "Feishu" : "飞书" }}</h3>
           <label>App ID<input v-model="settings.values.feishu_app_id" /></label>
-          <label>App Secret<input v-model="settings.values.feishu_app_secret" type="password" /></label>
+          <label
+            >App Secret<input
+              v-model="feishuAppSecret"
+              type="password"
+              autocomplete="off"
+              :placeholder="secretStored('feishu_app_secret') ? t('secret.stored') : ''"
+          /></label>
           <p class="hint">{{ t("feishu.hint") }}</p>
           <div class="auth-line">
             <span class="auth-state">
@@ -648,7 +667,13 @@ onUnmounted(() => unlisteners.forEach((u) => u()));
 
         <section class="set-card">
           <h3>✅ Todoist</h3>
-          <label>API Token<input v-model="settings.values.todoist_token" type="password" /></label>
+          <label
+            >API Token<input
+              v-model="todoistToken"
+              type="password"
+              autocomplete="off"
+              :placeholder="secretStored('todoist_token') ? t('secret.stored') : ''"
+          /></label>
           <p class="hint">{{ t("todoist.hint") }}</p>
           <div class="btn-row">
             <button class="btn ghost" :disabled="testing" @click="runTest(api.syncTodoist)">

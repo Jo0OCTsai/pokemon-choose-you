@@ -252,6 +252,9 @@ export default {
     nlCapture: "自然語言快速捕捉（輸入框自動識別時間 / 分類 / 標籤，可隨時取消）",
     shortcuts: "全域快捷鍵：Ctrl+Shift+K 快速捕捉待辦 · Ctrl+Shift+D 顯示/隱藏桌寵（macOS 為 ⌘⇧K / ⌘⇧D）",
   },
+  secret: {
+    stored: "已保存在系統鑰匙圈，輸入可更換（清空即移除）",
+  },
   update: {
     title: "檢查更新",
     current: "目前版本 v{v}",

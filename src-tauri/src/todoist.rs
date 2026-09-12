@@ -60,12 +60,7 @@ pub(crate) async fn sync_with<R: tauri::Runtime>(
     let db = app.state::<Db>();
     let token = {
         let conn = db.0.lock().unwrap();
-        conn.query_row(
-            "SELECT value FROM settings WHERE key='todoist_token'",
-            [],
-            |r| r.get::<_, String>(0),
-        )
-        .ok()
+        crate::secrets::secret_get(&conn, "todoist_token")
     };
     let token = match token {
         Some(t) if !t.is_empty() => t,

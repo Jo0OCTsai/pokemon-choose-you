@@ -8,6 +8,7 @@ mod feishu;
 mod health;
 pub mod models;
 mod scheduler;
+mod secrets;
 mod shortcuts;
 mod todoist;
 mod tray;

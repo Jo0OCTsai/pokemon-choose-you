@@ -28,7 +28,6 @@
 
 ### 数据安全（本地优先的根基）
 
-- 📋 **秘钥迁 OS keychain**：API key / OAuth token 目前在 SQLite，迁到系统钥匙串（Keychain / Credential Manager / Secret Service）
 - 📋 **自动版本化备份**：`VACUUM INTO` 每日快照滚动保留 + 从备份恢复
 - 📋 **导出/导入三件套**：全量 JSON 备份、任务 CSV、日报 Markdown（为知识库对接铺路）
 
@@ -104,6 +103,7 @@
 - **飞书**：用户身份 OAuth 增量拉取私聊/群聊（无需拉机器人进会话）、富文本渲染、按聊天语境过滤 + 同会话 30 分钟上下文、断网退避重试
 - **桌宠**：番茄钟（时长/短休息/通知可配）、专注模式、快捷图鉴屏、换装
 - **集成**：Todoist 双向同步
+- **数据安全**：秘钥（飞书 App Secret / OAuth token / Todoist Token）迁 OS 钥匙串（Keychain / Credential Manager / Secret Service），启动自动迁移存量明文，无钥匙串环境回落本地库；后端不再回传明文
 - **常驻应用标配**：单实例、系统托盘、全局快捷键快速捕捉（`Ctrl/Cmd+Shift+K`）与显隐桌宠、窗口位置记忆、minisign 签名自动更新
 - **工程基建**：SQLite 迁移机制（`PRAGMA user_version`）、统一错误处理、wiremock 覆盖三条外部链路、三引擎 E2E + Rust 契约测试、CI（clippy / fmt / eslint / lefthook / release-please / Renovate）、社区文件（issue / PR 模板、CONTRIBUTING、SECURITY）、VS Code 一键调试（lldb-dap：桌面应用 + 前端组合启动）、pk sidecar 三平台打包链路（Windows `.exe` 命名、macOS universal 双架构 lipo）
 

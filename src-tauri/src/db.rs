@@ -270,6 +270,11 @@ pub fn init(app: &tauri::AppHandle) -> Result<(), Box<dyn std::error::Error>> {
     let conn = Connection::open(dir.join("pokemon-knock.db"))?;
     conn.execute_batch("PRAGMA journal_mode=WAL; PRAGMA synchronous=NORMAL;")?;
     init_conn(&conn)?;
+    // 存量秘钥迁 OS 钥匙串（不可用则留在 settings 表，读取端回落兜底）
+    let moved = crate::secrets::migrate_settings_secrets(&conn);
+    if moved > 0 {
+        log::info!("db: {moved} 条秘钥已迁入 OS 钥匙串");
+    }
     app.manage(Db(Mutex::new(conn)));
     Ok(())
 }
