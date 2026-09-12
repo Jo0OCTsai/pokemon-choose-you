@@ -144,6 +144,7 @@ export default {
     break: "Short break",
     breakOff: "Off (stop when pomodoro ends)",
     notify: "System notification when a pomodoro ends",
+    chime: "Soft chime at midpoint & 5-min-left of long pomodoros (45min+)",
   },
   remind: {
     title: "🔔 Reminders & Notifications",

@@ -8,6 +8,8 @@ export const SETTING_DEFAULTS: Record<string, string> = {
   pomodoro_minutes: "25",
   break_minutes: "5",
   pomodoro_notify: "true",
+  /** 长番茄钟（≥45 分钟）中点与剩 5 分钟轻提示音 */
+  pomodoro_chime: "true",
   remind_ahead_minutes: "0",
   notifications_enabled: "true",
   date_format: "YYYY-MM-DD",
@@ -46,6 +48,7 @@ export const SETTING_KEYS = [
   "pomodoro_minutes",
   "break_minutes",
   "pomodoro_notify",
+  "pomodoro_chime",
   "notifications_enabled",
   "remind_ahead_minutes",
   "date_format",

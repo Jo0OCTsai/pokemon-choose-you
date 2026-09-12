@@ -21,6 +21,26 @@ const petWindow = getCurrentWindow();
 // ---- 桌宠状态机：idle / working / paused / urgent ----
 const current = ref<Task | null>(null);
 const petState = ref<"idle" | "working" | "paused" | "urgent">("idle");
+
+// ---- 环境化倒计时：随剩余时间渐变的色环 + 尾段焦急小动作（时间盲友好） ----
+/** 剩余比例（专注运行中 0~1；非运行态为 null 隐藏色环） */
+const ringPct = computed(() => {
+  if (!pomo.running.value || pomo.phase.value !== "focus" || pomo.totalSec.value <= 0) return null;
+  return Math.max(0, Math.min(1, pomo.remainSec.value / pomo.totalSec.value));
+});
+const RING_R = 50;
+const RING_C = 2 * Math.PI * RING_R;
+const ringColor = computed(() => {
+  const p = ringPct.value ?? 1;
+  if (p > 0.5) return "#5be36b";
+  if (p > 0.25) return "#f5a623";
+  return "#e3350d";
+});
+/** 尾段（剩 ≤5 分钟或 ≤20%）精灵焦急：蹦跳加速 */
+const anxious = computed(() => {
+  if (ringPct.value == null) return false;
+  return pomo.remainSec.value <= Math.max(300, pomo.totalSec.value * 0.2);
+});
 const bubble = ref(t("pet.welcome"));
 const switching = ref(false);
 const quickOpen = ref(false);
@@ -219,9 +239,22 @@ onUnmounted(() => {
   <div class="pet-stage" @mousedown="onDragStart" @mousemove="onDragMove" @mouseup="onDragEnd" @mouseleave="onDragEnd">
     <!-- 初代战斗布局：精灵在上。命中区固定不动（蹦跳动画在 img 上），保证双击稳定触发 -->
     <div class="sprite-hit" @click="onSpriteClick" @dblclick="onSpriteDblClick">
+      <!-- 剩余时间色环：绿 → 琥珀 → 红，尾段精灵焦急加速 -->
+      <svg v-if="ringPct != null" class="pomo-ring" viewBox="0 0 112 112" aria-hidden="true">
+        <circle class="ring-bg" cx="56" cy="56" :r="RING_R" />
+        <circle
+          class="ring-fg"
+          cx="56"
+          cy="56"
+          :r="RING_R"
+          :stroke="ringColor"
+          :stroke-dasharray="RING_C"
+          :stroke-dashoffset="RING_C * (1 - ringPct)"
+        />
+      </svg>
       <img
         class="pet-sprite"
-        :class="[petState, { petted }]"
+        :class="[petState, { petted, anxious }]"
         :src="spriteUrl(currentCat?.sprite ?? 'pikachu')"
         :data-sprite="currentCat?.sprite ?? 'pikachu'"
         draggable="false"
@@ -348,6 +381,7 @@ onUnmounted(() => {
 
 /* 精灵（初代布局：居中在上） */
 .sprite-hit {
+  position: relative; /* 色环绝对定位的锚 */
   width: 104px;
   height: 104px;
   display: flex;
@@ -552,5 +586,37 @@ onUnmounted(() => {
   background: #fff;
   text-align: center;
   color: #999;
+}
+
+/* 番茄剩余时间色环 */
+.pomo-ring {
+  position: absolute;
+  inset: 0;
+  width: 104px;
+  height: 104px;
+  pointer-events: none;
+}
+.pomo-ring circle {
+  fill: none;
+  stroke-width: 5;
+}
+.pomo-ring .ring-bg {
+  stroke: rgba(28, 34, 68, 0.15);
+}
+.pomo-ring .ring-fg {
+  stroke-linecap: round;
+  transform: rotate(-90deg);
+  transform-origin: 56px 56px;
+  transition:
+    stroke-dashoffset 1s linear,
+    stroke 0.5s;
+}
+/* 尾段焦急：蹦跳加速 + 轻微晃动 */
+/* 焦急档位：相同关键帧、时长加速（选择器加长以覆盖 idle/working 的时长） */
+.pet-sprite.anxious.idle {
+  animation: pk-hop 0.8s ease-in-out infinite;
+}
+.pet-sprite.anxious.working {
+  animation: pk-hop 0.6s ease-in-out infinite;
 }
 </style>

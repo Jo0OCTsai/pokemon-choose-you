@@ -3,6 +3,11 @@ import { mount, type VueWrapper } from "@vue/test-utils";
 import { createPinia, setActivePinia } from "pinia";
 import PetApp from "../PetApp.vue";
 import { api } from "../api";
+import { chime } from "../chime";
+
+vi.mock("../chime", () => ({
+  chime: vi.fn(),
+}));
 import { i18n } from "../i18n";
 import type { Task } from "../types";
 
@@ -152,6 +157,35 @@ describe("PetApp 桌宠", () => {
     await vi.advanceTimersByTimeAsync(61_000);
     expect(api.addFocusSeconds).toHaveBeenCalledWith(3, 60);
     expect(w.get(".pomo-pill .px").text()).toContain("23:59");
+  });
+
+  it("环境化倒计时：色环随剩余比例出现、尾段精灵焦急、长番茄钟中点与剩 5 分钟轻提示音", async () => {
+    vi.mocked(api.listAllSettings).mockResolvedValue({ pomodoro_minutes: "45" });
+    current = task({ id: 3, title: "长任务" });
+    const w = await mountPet();
+    expect(w.get(".pomo-pill .px").text()).toContain("45:00");
+    // 色环出现，满比例 offset≈0
+    expect(w.find(".pomo-ring").exists()).toBe(true);
+    const fg = w.get(".pomo-ring .ring-fg");
+    expect(fg.attributes("stroke")).toBe("#5be36b");
+    // 走 23 分钟（过中点）：一声轻提示、琥珀色
+    await vi.advanceTimersByTimeAsync(23 * 60_000);
+    expect(chime).toHaveBeenCalledTimes(1);
+    expect(w.get(".pomo-ring .ring-fg").attributes("stroke")).toBe("#f5a623");
+    // 走到剩 4 分钟：剩 5 分钟档触发一次 chime(2)（连响两声）、红色环、焦急动画类
+    await vi.advanceTimersByTimeAsync(18 * 60_000);
+    expect(chime).toHaveBeenCalledTimes(2);
+    expect(chime).toHaveBeenLastCalledWith(2);
+    expect(w.get(".pomo-ring .ring-fg").attributes("stroke")).toBe("#e3350d");
+    expect(w.get(".pet-sprite").classes()).toContain("anxious");
+  });
+
+  it("短番茄钟不响提示音", async () => {
+    vi.mocked(api.listAllSettings).mockResolvedValue({ pomodoro_minutes: "25" });
+    current = task({});
+    await mountPet();
+    await vi.advanceTimersByTimeAsync(20 * 60_000); // 剩 5 分钟
+    expect(chime).not.toHaveBeenCalled();
   });
 
   it("暂停按钮：停表并调用 pauseCurrentTask", async () => {

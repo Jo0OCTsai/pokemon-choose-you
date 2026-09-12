@@ -140,6 +140,7 @@ export default {
     break: "短休息",
     breakOff: "關閉（番茄結束就停）",
     notify: "番茄結束發系統通知",
+    chime: "長番茄鐘（≥45 分鐘）中點與剩 5 分鐘輕提示音",
   },
   remind: {
     title: "🔔 提醒與通知",
