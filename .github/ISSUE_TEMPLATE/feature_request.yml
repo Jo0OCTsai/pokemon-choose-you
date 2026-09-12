@@ -1,0 +1,29 @@
+name: ✨ 功能建议
+description: a new idea
+labels: ["enhancement"]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: 想解决什么问题？
+      description: 先描述遇到的场景/痛点，而不是方案本身
+    validations:
+      required: true
+  - type: textarea
+    id: solution
+    attributes:
+      label: 期望的形态
+      description: 你想象中它怎么工作？桌宠台词、动画、交互流程都可以画/写
+    validations:
+      required: true
+  - type: dropdown
+    id: area
+    attributes:
+      label: 主要涉及区域
+      options:
+        - 桌宠（动画/台词/交互）
+        - 图鉴机主面板
+        - 集成（AI / 飞书 / Todoist）
+        - 游戏化（捕捉/图鉴/成就）
+        - 平台/工程
+      multiple: true

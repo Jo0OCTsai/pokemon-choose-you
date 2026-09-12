@@ -1,0 +1,19 @@
+# Release notes 自动分类：conventional commit 类型 → 小节
+changelog:
+  exclude:
+    labels:
+      - dependencies
+  categories:
+    - title: 🎉 新功能
+      labels:
+        - enhancement
+      collapse_after: 10
+    - title: 🐛 修复
+      labels:
+        - bug
+    - title: 📝 文档
+      labels:
+        - documentation
+    - title: 🔧 工程与依赖
+      labels:
+        - "*"

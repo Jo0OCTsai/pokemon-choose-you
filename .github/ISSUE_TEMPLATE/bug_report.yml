@@ -1,0 +1,53 @@
+name: 🐛 Bug 报告
+description: something is wrong
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        感谢反馈！如果方便的话请附上截图/录屏，图鉴风 UI 的问题一张图胜千言。
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: 发生了什么？
+      description: 期望行为 vs 实际行为
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: 复现步骤
+      placeholder: |
+        1. 打开图鉴机
+        2. 点击某任务的 ▶ 出发
+        3. ……
+    validations:
+      required: true
+  - type: dropdown
+    id: os
+    attributes:
+      label: 操作系统
+      options:
+        - Windows
+        - macOS (Apple Silicon)
+        - macOS (Intel)
+        - Linux (X11)
+        - Linux (Wayland)
+        - Linux (WSLg)
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: 应用版本
+      description: 托盘菜单 → 检查更新 可见；或安装包文件名里的版本号
+      placeholder: v0.1.0
+  - type: textarea
+    id: logs
+    attributes:
+      label: 日志（可选）
+      description: |
+        日志目录：
+        - Linux: ~/.local/share/com.joeca.pokemonknock/logs
+        - macOS: ~/Library/Logs/com.joeca.pokemonknock
+        - Windows: %APPDATA%\com.joeca.pokemonknock\logs
