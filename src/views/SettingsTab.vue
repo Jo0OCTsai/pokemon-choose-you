@@ -38,6 +38,7 @@ const pomoNotify = boolSetting("pomodoro_notify");
 const notifyOn = boolSetting("notifications_enabled");
 const feishuOn = boolSetting("feishu_enabled");
 const nlCaptureOn = boolSetting("nl_capture_enabled");
+const dueRelativeOn = boolSetting("due_relative");
 
 // 秘钥输入：后端只回「已保存」占位值，展示为空 + 占位提示；改动才提交新值
 function secretField(key: string) {
@@ -696,6 +697,7 @@ onUnmounted(() => unlisteners.forEach((u) => u()));
             {{ t("display.time") }}
             <DexSelect v-model="settings.values.time_format" :options="timeFormatOptions" />
           </label>
+          <label>{{ t("display.dueRelative") }}<DexToggle v-model="dueRelativeOn" /></label>
           <label>
             {{ t("display.language") }}
             <DexSelect v-model="settings.values.language" :options="languageOptions" />

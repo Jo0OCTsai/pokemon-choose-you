@@ -4,6 +4,7 @@ import { createPinia } from "pinia";
 import App from "../App.vue";
 import { api } from "../api";
 import { i18n } from "../i18n";
+import { useSettingsStore } from "../stores/settings";
 import type { Task } from "../types";
 
 vi.mock("../api", () => ({
@@ -568,6 +569,25 @@ describe("App 图鉴机主面板", () => {
     expect(w.text()).toContain("exit 0");
     await w.get(".run-open").trigger("click");
     expect(api.openAgentHistory).toHaveBeenCalledWith("claude-code", "sess-1");
+  });
+
+  it("任务卡截止时间显示相对距离并按临近程度变色", async () => {
+    const overdue = new Date(Date.now() - 5 * 3_600_000);
+    const iso = (d: Date) =>
+      `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}T${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
+    tasks = seed([{ title: "逾期任务", status: "scheduled", dueAt: iso(overdue) }]);
+    const w = await mountApp();
+    const due = w.get(".entry .due");
+    expect(due.text()).toContain("已逾期 5 小时");
+    expect(due.classes()).toContain("due-overdue");
+    // title 提示保留绝对时间
+    expect(due.attributes("title")).toMatch(/\d{4}-\d{2}-\d{2}/);
+
+    // 关闭开关回绝对时间
+    const settings = useSettingsStore();
+    settings.values.due_relative = "false";
+    await new Promise((r) => setTimeout(r));
+    expect(w.get(".entry .due").text()).not.toContain("已逾期");
   });
 
   it("设置页七个分区可选且默认显示专注", async () => {

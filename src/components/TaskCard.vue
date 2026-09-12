@@ -1,10 +1,12 @@
 <script setup lang="ts">
+import { computed } from "vue";
 import { useI18n } from "vue-i18n";
-import { fmtDateTime } from "../stores/settings";
+import { fmtDateTime, useSettingsStore } from "../stores/settings";
 import { catKeyOf, useCategoriesStore } from "../stores/categories";
+import { relativeDue } from "../relativeTime";
 import { spriteUrl, spriteFallback, type Task } from "../types";
 
-defineProps<{ task: Task }>();
+const props = defineProps<{ task: Task }>();
 const emit = defineEmits<{
   start: [task: Task];
   pause: [];
@@ -18,7 +20,11 @@ const emit = defineEmits<{
 
 const { t } = useI18n();
 const categories = useCategoriesStore();
+const settings = useSettingsStore();
 const spriteOf = (id: number) => categories.byId.get(id)?.sprite ?? "pikachu";
+
+/** 相对截止时间（时间盲友好）：开关关闭时回绝对时间；title 始终带绝对值便于核对 */
+const dueInfo = computed(() => (settings.bool("due_relative") ? relativeDue(props.task.dueAt ?? "") : null));
 </script>
 
 <template>
@@ -44,7 +50,14 @@ const spriteOf = (id: number) => categories.byId.get(id)?.sprite ?? "pikachu";
         </span>
       </div>
       <div class="row2">
-        <span v-if="task.dueAt">{{ t("entry.due", { v: fmtDateTime(task.dueAt) }) }}</span>
+        <span
+          v-if="task.dueAt"
+          class="due"
+          :class="dueInfo ? `due-${dueInfo.level}` : ''"
+          :title="fmtDateTime(task.dueAt)"
+        >
+          {{ t("entry.due", { v: dueInfo ? dueInfo.text : fmtDateTime(task.dueAt) }) }}
+        </span>
         <span v-if="task.remindAt">{{ t("entry.remind", { v: fmtDateTime(task.remindAt) }) }}</span>
         <span v-if="task.focusSeconds > 0">{{ t("entry.focus", { n: Math.round(task.focusSeconds / 60) }) }}</span>
         <span v-if="task.source !== 'local'">
@@ -237,5 +250,19 @@ const spriteOf = (id: number) => categories.byId.get(id)?.sprite ?? "pikachu";
 }
 .escape-mark {
   color: #a1660a;
+}
+
+/* 相对截止时间分档配色：逾期/紧急红 · 临近琥珀 · 常规默认 · 遥远灰 */
+.due.due-overdue,
+.due.due-urgent {
+  color: var(--dex-red);
+  font-weight: 800;
+}
+.due.due-hours {
+  color: #a1660a;
+  font-weight: 700;
+}
+.due.due-far {
+  color: #9a937f;
 }
 </style>
