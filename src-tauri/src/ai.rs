@@ -33,7 +33,7 @@ pub struct ClassifyContext {
 pub struct AiSuggestion {
     #[serde(rename = "messageId")]
     pub message_id: String,
-    /// todo / followUp / none（缺省按 none 处理）
+    /// todo / update / followUp / none（缺省按 none 处理）
     #[serde(default)]
     pub action: String,
     #[serde(default)]
@@ -53,6 +53,9 @@ pub struct AiSuggestion {
     /// action=followUp 时指向现有待办 id
     #[serde(default, rename = "followUpTaskId")]
     pub follow_up_task_id: Option<i64>,
+    /// action=update 时指向要更新的待办 id
+    #[serde(default, rename = "updateTaskId")]
+    pub update_task_id: Option<i64>,
 }
 
 impl AiSuggestion {
@@ -61,6 +64,37 @@ impl AiSuggestion {
     }
     pub fn is_follow_up(&self) -> bool {
         self.action == "followUp" && self.follow_up_task_id.is_some()
+    }
+    /// update 建议：明确指向一个现有待办
+    pub fn is_update(&self) -> bool {
+        self.action == "update" && self.update_task_id.is_some()
+    }
+}
+
+/// 送 AI 判定的一条消息：除内容外还携带来源语境（私聊/群聊/机器人、发送者）
+/// 与同会话近期上下文，模型据此理解指代、判断"谁要谁做什么"
+#[derive(Debug, Clone)]
+pub struct AiMessage {
+    pub message_id: String,
+    /// 发送者显示名
+    pub sender: String,
+    /// 来源标签，如 "飞书·群聊「项目群」" / "飞书·机器人私聊"
+    pub chat_label: String,
+    pub content: String,
+    /// 同会话上下文（已格式化的 "HH:MM 发送者: 内容" 行，按时间升序）
+    pub context: Vec<String>,
+}
+
+impl AiMessage {
+    /// 不带上下文的便捷构造（连接测试等场景）
+    pub fn simple(message_id: &str, sender: &str, content: &str) -> Self {
+        Self {
+            message_id: message_id.into(),
+            sender: sender.into(),
+            chat_label: String::new(),
+            content: content.into(),
+            context: vec![],
+        }
     }
 }
 
@@ -78,25 +112,28 @@ pub struct AiCallRecord {
     pub duration_ms: i64,
 }
 
-const SYSTEM_PROMPT: &str = r#"你是待办事项提取助手。给你一组 IM 消息（含发送者和内容）、用户当前未完成的待办清单、可用分类和标签，找出其中隐含的待办事项、承诺、或对方希望你完成/参加的事情。
+const SYSTEM_PROMPT: &str = r#"你是待办事项提取助手。给你一组 IM 消息（含来源、发送者、内容与同会话上下文）、用户当前未完成的待办清单、可用分类和标签，找出其中隐含的待办事项、承诺、或对方希望你完成/参加的事情。
 规则：
+- 每条消息带「来源」标签：单聊是对方直接对你说的，语气常更直接；群聊可能是@你或不点名安排；「与机器人的私聊」是用户发给助手 bot 的，是用户给自己记的备忘/指令，同样要提取。上下文里标注为「我」的是用户自己说的话，只用于理解指代与时间，不是待办来源。
+- 同会话上下文仅供参考：帮你理解对话背景（前因后果、时间指代），最终判断只针对消息本身。
 - 只提取"需要用户行动"的内容（任务、承诺、会议、deadline、请求）。闲聊、通知、纯信息分享不算。
-- 判重：判定待办前先对照「现有待办清单」。如果已有本质相同的未完成待办，绝不再生成新待办：这条消息若是该待办的补充、跟进、确认或改期，action 填 "followUp" 并在 followUpTaskId 填该待办 id；若只是重复提及没有新信息，action 填 "none"。
-- action 只能是 "todo"、"followUp"、"none" 之一。
+- 判重：判定待办前先对照「现有待办清单」。如果已有本质相同的未完成待办，绝不再生成新待办，改按下面 update / followUp / none 的规则处理。
+- action 只能是 "todo"、"update"、"followUp"、"none" 之一：
+  - todo：新的待办事项。
+  - update：消息明确修改现有待办的属性（改期/改时间、调整优先级、更换标题、变更交付要求）。填 updateTaskId，且只填需要变更的字段（title/note/priority/due/tags），不变的字段留空、tags 用 [] 表示不变；需要变更标签时给出完整的新标签数组。
+  - followUp：消息是现有待办的补充信息、进展汇报或确认，不改变任务本身属性。填 followUpTaskId。
+  - none：只是重复提及、没有新信息。
 - title 用简短的祈使句中文概括要做的事（不超过 20 字）。
 - note 一句话补充上下文（谁提出的、在哪里、要什么），没有就留空。
 - category 从「可用分类」里选最贴切的一个。
 - priority 从 low/normal/high/urgent 里选：对方明确催促或当天到期用 urgent/high，默认 normal。
 - due: 消息里有明确时间就用 YYYY-MM-DDTHH:MM 格式（参考「当前时间」换算年份），否则留空。
 - tags: 从「可用标签」里选 0~3 个最贴切的标签名组成数组，没有合适的返回 []。
-- followUpTaskId 只在 action="followUp" 时填写，取值必须是「现有待办清单」里出现的 id。
-只输出 JSON（不要多余文字）：{"results":[{"messageId":"m1","action":"todo","title":"...","note":"...","category":"...","priority":"normal","due":"...","tags":[],"followUpTaskId":null}]}"#;
+- followUpTaskId 只在 action="followUp" 时填写，updateTaskId 只在 action="update" 时填写，取值都必须是「现有待办清单」里出现的 id。
+只输出 JSON（不要多余文字）：{"results":[{"messageId":"m1","action":"todo","title":"...","note":"...","category":"...","priority":"normal","due":"...","tags":[],"followUpTaskId":null,"updateTaskId":null}]}"#;
 
-/// 组装分类请求的 user 消息：判重上下文 + 消息列表
-fn build_user_content(
-    batch: &[(String, String, String)], // (message_id, sender, content)
-    ctx: &ClassifyContext,
-) -> String {
+/// 组装分类请求的 user 消息：判重上下文 + 消息列表（含来源与同会话上下文）
+fn build_user_content(batch: &[AiMessage], ctx: &ClassifyContext) -> String {
     let mut s = String::new();
     s.push_str(&format!(
         "当前时间：{}\n",
@@ -124,8 +161,16 @@ fn build_user_content(
         }
     }
     s.push_str("消息：\n");
-    for (id, sender, content) in batch {
-        s.push_str(&format!("[{id}] {sender}: {content}\n"));
+    for m in batch {
+        s.push_str(&format!("[{}] 来源：{}\n", m.message_id, m.chat_label));
+        s.push_str(&format!("发送者：{}\n", m.sender));
+        s.push_str(&format!("内容：{}\n", m.content));
+        if !m.context.is_empty() {
+            s.push_str("同会话上下文（仅供参考）：\n");
+            for line in &m.context {
+                s.push_str(&format!("  {line}\n"));
+            }
+        }
     }
     s
 }
@@ -134,7 +179,7 @@ fn build_user_content(
 pub async fn classify(
     cfg: &AiConfig,
     scene: &str,
-    batch: &[(String, String, String)], // (message_id, sender, content)
+    batch: &[AiMessage],
     ctx: &ClassifyContext,
 ) -> (AppResult<Vec<AiSuggestion>>, AiCallRecord) {
     let user_content = build_user_content(batch, ctx);
@@ -282,7 +327,7 @@ pub async fn test(cfg: &AiConfig) -> (AppResult<String>, AiCallRecord) {
     let (res, record) = classify(
         cfg,
         "test",
-        &[("test".into(), "系统".into(), "明天上午10点开周会".into())],
+        &[AiMessage::simple("test", "系统", "明天上午10点开周会")],
         &ctx,
     )
     .await;
@@ -347,12 +392,22 @@ mod tests {
                 ("杂".into(), String::new()),
             ],
         };
-        let s = build_user_content(&[("m1".into(), "张三".into(), "开会".into())], &ctx);
+        let msg = AiMessage {
+            message_id: "m1".into(),
+            sender: "张三".into(),
+            chat_label: "飞书·群聊「项目群」".into(),
+            content: "开会".into(),
+            context: vec!["09:58 我: 会议室我订".into()],
+        };
+        let s = build_user_content(&[msg], &ctx);
         assert!(s.contains("[3] 写周报"), "待办清单进 prompt: {s}");
         assert!(s.contains("可用分类：工作/学习"));
         assert!(s.contains("重要：核心目标相关"));
         assert!(s.lines().any(|l| l.trim() == "杂"), "无描述标签只打名称");
-        assert!(s.contains("[m1] 张三: 开会"));
+        assert!(s.contains("[m1] 来源：飞书·群聊「项目群」"));
+        assert!(s.contains("发送者：张三"));
+        assert!(s.contains("内容：开会"));
+        assert!(s.contains("09:58 我: 会议室我订"), "同会话上下文进 prompt");
         assert!(s.contains("当前时间："));
     }
 
@@ -361,6 +416,12 @@ mod tests {
         let s = build_user_content(&[], &ClassifyContext::default());
         assert!(s.contains("（无）"));
         assert!(s.contains("可用标签：无"));
+        // 无上下文的消息不输出上下文小节
+        let s = build_user_content(
+            &[AiMessage::simple("m1", "张三", "hi")],
+            &ClassifyContext::default(),
+        );
+        assert!(!s.contains("同会话上下文"));
     }
 
     // ---- classify：wiremock 假 OpenAI 服务器 ----
@@ -388,7 +449,8 @@ mod tests {
                 .and(header("authorization", "Bearer sk-test"))
                 .and(body_string_contains("\"model\":\"glm-test\""))
                 .and(body_string_contains("[3] 写周报"))
-                .and(body_string_contains("[m1] 张三: 明天上午10点开周会"))
+                .and(body_string_contains("发送者：张三"))
+                .and(body_string_contains("内容：明天上午10点开周会"))
                 .respond_with(ResponseTemplate::new(200).set_body_json(openai_body(
                     r#"{"results":[{"messageId":"m1","action":"todo","title":"参加周会","note":"张三在项目群安排","category":"工作","priority":"high","due":"2026-09-13T10:00","tags":["重要"],"followUpTaskId":null}]}"#,
                 )))
@@ -404,7 +466,7 @@ mod tests {
             let (res, record) = classify(
                 &cfg_for(&server.uri()),
                 "classify",
-                &[("m1".into(), "张三".into(), "明天上午10点开周会".into())],
+                &[AiMessage::simple("m1", "张三", "明天上午10点开周会")],
                 &ctx,
             )
             .await;
@@ -426,6 +488,33 @@ mod tests {
         });
     }
 
+    /// update 动作：指向现有待办、只带需要变更的字段
+    #[test]
+    fn classify_parses_update_action() {
+        tauri::async_runtime::block_on(async {
+            let server = MockServer::start().await;
+            Mock::given(method("POST"))
+                .respond_with(ResponseTemplate::new(200).set_body_json(openai_body(
+                    r#"{"results":[{"messageId":"m1","action":"update","updateTaskId":5,"due":"2026-09-14T10:00","title":"","tags":["重要"]}]}"#,
+                )))
+                .mount(&server)
+                .await;
+            let (res, _) = classify(
+                &cfg_for(&server.uri()),
+                "classify",
+                &[AiMessage::simple("m1", "张三", "周会改到周四上午10点")],
+                &ClassifyContext::default(),
+            )
+            .await;
+            let out = res.unwrap();
+            assert!(out[0].is_update(), "action=update 且带 updateTaskId");
+            assert!(!out[0].is_todo() && !out[0].is_follow_up());
+            assert_eq!(out[0].update_task_id, Some(5));
+            assert_eq!(out[0].due.as_deref(), Some("2026-09-14T10:00"));
+            assert_eq!(out[0].tags, vec!["重要".to_string()]);
+        });
+    }
+
     #[test]
     fn classify_parses_follow_up_action() {
         tauri::async_runtime::block_on(async {
@@ -439,7 +528,7 @@ mod tests {
             let (res, _) = classify(
                 &cfg_for(&server.uri()),
                 "classify",
-                &[("m1".into(), "张三".into(), "周会改到下午".into())],
+                &[AiMessage::simple("m1", "张三", "周会改到下午")],
                 &ClassifyContext::default(),
             )
             .await;
@@ -464,7 +553,7 @@ mod tests {
             let (res, _) = classify(
                 &cfg_for(&server.uri()),
                 "classify",
-                &[("m1".into(), "s".into(), "c".into())],
+                &[AiMessage::simple("m1", "s", "c")],
                 &ClassifyContext::default(),
             )
             .await;
@@ -489,7 +578,7 @@ mod tests {
             let (res, record) = classify(
                 &cfg_for(&server.uri()),
                 "classify",
-                &[("m1".into(), "s".into(), "c".into())],
+                &[AiMessage::simple("m1", "s", "c")],
                 &ClassifyContext::default(),
             )
             .await;
@@ -518,7 +607,7 @@ mod tests {
             let (res, record) = classify(
                 &cfg_for(&server.uri()),
                 "classify",
-                &[("m1".into(), "s".into(), "c".into())],
+                &[AiMessage::simple("m1", "s", "c")],
                 &ClassifyContext::default(),
             )
             .await;

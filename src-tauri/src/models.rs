@@ -93,6 +93,21 @@ pub struct ChatMessage {
     pub chat_name: String,
     pub sender: String,
     pub content: String,
+    /// 会话 id（飞书 oc_xxx），同会话消息用来拼 AI 上下文
+    #[serde(default)]
+    pub chat_id: String,
+    /// p2p（单聊）/ group（群聊）/ bot（与本应用机器人的单聊）；老数据为空串
+    #[serde(default)]
+    pub chat_type: String,
+    /// 发送者 open_id（app 发送者为应用 id）
+    #[serde(default)]
+    pub sender_id: String,
+    /// 消息发送时间（毫秒时间戳）；老数据为空
+    #[serde(default)]
+    pub sent_at: Option<i64>,
+    /// 是否当前授权用户自己发的
+    #[serde(default)]
+    pub is_self: bool,
     /// AI 给出的建议标题；为空表示 AI 认为不含待办
     pub suggested_title: Option<String>,
     pub suggested_category: Option<String>,
@@ -101,12 +116,15 @@ pub struct ChatMessage {
     pub suggested_note: Option<String>,
     /// AI 建议的标签名（JSON 数组字符串解析而来）
     pub suggested_tags: Vec<String>,
-    /// pending / todo / none / followup / error
+    /// pending / todo / none / followup / error / skipped（仅作上下文，不送 AI）
     pub ai_status: String,
     /// pending / accepted / dismissed
     pub review_status: String,
     /// 该消息已创建的待办 id
     pub task_id: Option<i64>,
+    /// update 建议指向的目标待办 id（AI 判定消息是对该待办的变更）
+    #[serde(default)]
+    pub update_task_id: Option<i64>,
     pub created_at: String,
 }
 
@@ -282,6 +300,11 @@ mod tests {
             chat_name: String::new(),
             sender: String::new(),
             content: "c".into(),
+            chat_id: String::new(),
+            chat_type: String::new(),
+            sender_id: String::new(),
+            sent_at: None,
+            is_self: false,
             suggested_title: None,
             suggested_category: None,
             suggested_due: None,
@@ -291,19 +314,25 @@ mod tests {
             ai_status: "pending".into(),
             review_status: "pending".into(),
             task_id: None,
+            update_task_id: None,
             created_at: "2026-09-01T00:00:00Z".into(),
         };
         assert_eq!(
             keys_of(serde_json::to_value(&m).unwrap()),
             vec![
                 "aiStatus",
+                "chatId",
                 "chatName",
+                "chatType",
                 "content",
                 "createdAt",
                 "id",
+                "isSelf",
                 "messageId",
                 "reviewStatus",
                 "sender",
+                "senderId",
+                "sentAt",
                 "suggestedCategory",
                 "suggestedDue",
                 "suggestedNote",
@@ -311,6 +340,7 @@ mod tests {
                 "suggestedTags",
                 "suggestedTitle",
                 "taskId",
+                "updateTaskId",
             ]
         );
     }

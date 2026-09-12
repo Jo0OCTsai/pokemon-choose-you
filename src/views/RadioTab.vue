@@ -66,6 +66,25 @@ async function forceCreate(m: ChatMessage) {
 }
 
 const aiStatusKey = (m: ChatMessage) => `im.status.${m.aiStatus}`;
+const chatTypeLabel = (m: ChatMessage) => (m.chatType ? t(`im.type.${m.chatType}`) : "");
+/** 更新建议的目标待办标题（图鉴列表里查；已完成/删除的查不到就空） */
+const taskTitle = (id: number) => tasksStore.open.find((tk) => tk.id === id)?.title ?? "";
+
+async function applyUpdate(m: ChatMessage) {
+  forcingId.value = m.id;
+  forceMsg.value = "";
+  try {
+    await api.applyChatMessageUpdate(m.id);
+    forceMsg.value = t("im.updatedTask", { id: m.updateTaskId ?? 0 });
+    await reload();
+  } catch (e) {
+    forceMsg.value = `❌ ${errorMessage(e)}`;
+    await reload();
+  } finally {
+    forcingId.value = null;
+    setTimeout(() => (forceMsg.value = ""), 5000);
+  }
+}
 </script>
 
 <template>
@@ -79,14 +98,27 @@ const aiStatusKey = (m: ChatMessage) => `im.status.${m.aiStatus}`;
 
     <div v-for="m in list" :key="m.id" class="im-card" :class="{ dim: m.reviewStatus === 'dismissed' }">
       <div class="lcd im-screen">
-        <div class="im-meta px">{{ m.chatName || "FEISHU" }} · {{ m.sender }} · {{ fmtDateTime(m.createdAt) }}</div>
+        <div class="im-meta px">
+          <span v-if="m.chatType" class="chat-badge">{{ chatTypeLabel(m) }}</span>
+          {{ m.chatName || "FEISHU" }} · {{ m.sender }} · {{ fmtDateTime(m.createdAt) }}
+        </div>
         <div class="im-content">{{ m.content }}</div>
         <span class="ai-status" :class="'s-' + m.aiStatus">{{ t(aiStatusKey(m)) }}</span>
       </div>
 
-      <!-- AI 建议 -->
-      <div v-if="m.suggestedTitle" class="im-suggest">
+      <!-- AI 建议：新待办 -->
+      <div v-if="m.suggestedTitle && m.aiStatus !== 'update'" class="im-suggest">
         {{ t("im.found") }}{{ m.suggestedTitle }}
+        <span v-if="m.suggestedDue">（{{ t("entry.due", { v: fmtDateTime(m.suggestedDue) }) }}）</span>
+        <span v-if="m.suggestedPriority" class="sug-prio">{{ t(`priority.${m.suggestedPriority}`) }}</span>
+        <span v-for="tag in m.suggestedTags" :key="tag" class="sug-tag"># {{ tag }}</span>
+      </div>
+
+      <!-- AI 建议：更新已有待办（只展示明确给出的变更字段） -->
+      <div v-if="m.aiStatus === 'update' && m.updateTaskId" class="im-suggest update">
+        {{ t("im.updateFound", { id: m.updateTaskId })
+        }}<span v-if="taskTitle(m.updateTaskId)">「{{ taskTitle(m.updateTaskId) }}」</span>
+        <span v-if="m.suggestedTitle">{{ t("edit.title") }} → {{ m.suggestedTitle }}</span>
         <span v-if="m.suggestedDue">（{{ t("entry.due", { v: fmtDateTime(m.suggestedDue) }) }}）</span>
         <span v-if="m.suggestedPriority" class="sug-prio">{{ t(`priority.${m.suggestedPriority}`) }}</span>
         <span v-for="tag in m.suggestedTags" :key="tag" class="sug-tag"># {{ tag }}</span>
@@ -95,6 +127,15 @@ const aiStatusKey = (m: ChatMessage) => `im.status.${m.aiStatus}`;
       <div class="im-actions">
         <template v-if="m.taskId">
           <span class="caught-mark">✔ {{ t("im.caughtTask", { id: m.taskId }) }}</span>
+        </template>
+        <template v-else-if="m.reviewStatus === 'accepted' && m.aiStatus === 'update'">
+          <span class="caught-mark">✔ {{ t("im.updatedTask", { id: m.updateTaskId ?? 0 }) }}</span>
+        </template>
+        <template v-else-if="m.reviewStatus === 'pending' && m.aiStatus === 'update'">
+          <button class="btn" :disabled="forcingId === m.id" @click="applyUpdate(m)">
+            {{ forcingId === m.id ? t("im.forcing") : t("im.applyUpdate") }}
+          </button>
+          <button class="btn ghost" @click="dismissIm(m)">{{ t("im.release") }}</button>
         </template>
         <template v-else-if="m.reviewStatus === 'pending' && m.aiStatus === 'todo'">
           <button class="btn" @click="acceptIm(m)">{{ t("im.catch") }}</button>
@@ -166,6 +207,14 @@ const aiStatusKey = (m: ChatMessage) => `im.status.${m.aiStatus}`;
   letter-spacing: 1px;
   margin-bottom: 8px;
 }
+.chat-badge {
+  display: inline-block;
+  margin-right: 6px;
+  padding: 0 5px;
+  border: 1px solid var(--lcd-text);
+  border-radius: 4px;
+  font-weight: 800;
+}
 .im-content {
   font-size: 14px;
   font-weight: 700;
@@ -199,6 +248,9 @@ const aiStatusKey = (m: ChatMessage) => `im.status.${m.aiStatus}`;
   align-items: center;
   gap: 8px;
   flex-wrap: wrap;
+}
+.im-suggest.update {
+  background: #fff8e6;
 }
 .sug-prio {
   font-size: 11px;

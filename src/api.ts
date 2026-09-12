@@ -1,4 +1,4 @@
-import type { AiLog, Category, ChatMessage, Tag, Task, TaskLog, TaskNote } from "./types";
+import type { AiLog, Category, ChatMessage, FeishuOauthStatus, Tag, Task, TaskLog, TaskNote } from "./types";
 
 /** 后端 AppError（src-tauri/src/error.rs）经 IPC 序列化后的结构 */
 export type ApiErrorKind = "db" | "not_found" | "invalid" | "network" | "external" | "io" | "tauri";
@@ -97,6 +97,8 @@ export const api = {
   dismissChatMessage: (id: number) => call<void>("dismiss_chat_message", { id }),
   /** 强制用 AI 为消息创建待办（AI 先判重，重复则报错说明） */
   forceCreateTodo: (id: number) => call<number>("force_create_todo", { id }),
+  /** 应用 AI 的更新建议：把建议字段打补丁到目标待办 */
+  applyChatMessageUpdate: (id: number) => call<number>("apply_chat_message_update", { id }),
   listAiLogs: (limit?: number) => call<AiLog[]>("list_ai_logs", { limit: limit ?? null }),
   clearAiLogs: () => call<void>("clear_ai_logs"),
   listAllSettings: () => call<Record<string, string>>("list_all_settings"),
@@ -110,6 +112,10 @@ export const api = {
   testAiConfig: () => call<string>("test_ai_config"),
   testFeishuConfig: () => call<string>("test_feishu_config"),
   triggerFeishuPoll: () => call<number>("trigger_feishu_poll"),
+  /** 发起飞书用户授权：打开浏览器完成 OAuth，本地回调换取 user_access_token */
+  feishuOauthLogin: () => call<string>("feishu_oauth_login"),
+  /** 飞书用户授权状态（是否已授权 + 授权用户名） */
+  feishuOauthStatus: () => call<FeishuOauthStatus>("feishu_oauth_status"),
   syncTodoist: () => call<string>("sync_todoist"),
   createCategory: (name: string, pokemon: string, sprite: string) =>
     call<Category>("create_category", { name, pokemon, sprite }),

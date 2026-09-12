@@ -37,12 +37,35 @@ pub async fn test_feishu_config(db: State<'_, Db>) -> AppResult<String> {
     };
     let cfg = crate::feishu::load_config(&get)
         .ok_or_else(|| AppError::Invalid("请先填写飞书 App ID / App Secret".into()))?;
-    crate::feishu::poll_once_test(&cfg).await
+    crate::feishu::poll_once_test(&cfg, &db).await
 }
 
 #[tauri::command]
 pub async fn trigger_feishu_poll(app: AppHandle) -> AppResult<usize> {
     crate::feishu::poll_once(&app).await
+}
+
+/// 飞书用户授权状态（设置页展示）：是否已授权 + 授权用户名
+#[derive(serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct FeishuOauthStatus {
+    pub authorized: bool,
+    pub user_name: String,
+}
+
+#[tauri::command]
+pub fn feishu_oauth_status(db: State<Db>) -> FeishuOauthStatus {
+    let (authorized, user_name) = crate::feishu::oauth_status(&db);
+    FeishuOauthStatus {
+        authorized,
+        user_name,
+    }
+}
+
+/// 发起浏览器 OAuth 授权：本地起回调监听 → 打开授权页 → 换 user_access_token 落库
+#[tauri::command]
+pub async fn feishu_oauth_login(app: AppHandle) -> AppResult<String> {
+    crate::feishu::oauth_login(&app).await
 }
 
 #[tauri::command]

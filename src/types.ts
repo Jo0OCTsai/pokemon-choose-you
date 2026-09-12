@@ -65,6 +65,16 @@ export interface ChatMessage {
   chatName: string;
   sender: string;
   content: string;
+  /** 会话 id（同会话消息用于拼 AI 上下文）；老数据为空 */
+  chatId?: string;
+  /** p2p=单聊 / group=群聊 / bot=与机器人的单聊；老数据为空 */
+  chatType?: string;
+  /** 发送者 open_id（应用消息为应用 id） */
+  senderId?: string;
+  /** 消息发送时间（毫秒时间戳）；老数据为空 */
+  sentAt?: number | null;
+  /** 是否当前授权用户自己发的 */
+  isSelf?: boolean;
   suggestedTitle?: string | null;
   suggestedCategory?: string | null;
   suggestedDue?: string | null;
@@ -76,7 +86,15 @@ export interface ChatMessage {
   reviewStatus: "pending" | "accepted" | "dismissed";
   /** 该消息已创建的待办 id */
   taskId?: number | null;
+  /** update 建议指向的目标待办 id（AI 判定消息是对该待办的变更） */
+  updateTaskId?: number | null;
   createdAt: string;
+}
+
+/** 飞书用户授权状态（设置页展示） */
+export interface FeishuOauthStatus {
+  authorized: boolean;
+  userName: string;
 }
 
 export interface AiLog {

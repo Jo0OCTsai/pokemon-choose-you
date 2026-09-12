@@ -271,9 +271,17 @@ export async function installTauriMock(page: Page, state: Partial<MockState> = {
           case "test_ai_config":
             return "连接成功（E2E mock）";
           case "test_feishu_config":
-            return "连接成功，机器人在 3 个会话中（E2E mock）";
+            return "连接成功，已授权「测试用户」，可见 3 个会话（E2E mock）";
           case "trigger_feishu_poll":
             return 0;
+          case "apply_chat_message_update":
+            broadcast("tasks-changed");
+            broadcast("chat-messages-changed");
+            return 1;
+          case "feishu_oauth_login":
+            return "授权成功：测试用户（E2E mock）";
+          case "feishu_oauth_status":
+            return { authorized: true, userName: "测试用户" };
           case "sync_todoist":
             return "同步完成（E2E mock）";
           // ---- 插件 ----

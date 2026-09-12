@@ -8,7 +8,7 @@ import { EVENTS } from "../events";
 import { fmtDateTime, SETTING_KEYS, POKEMON_LIST, useSettingsStore } from "../stores/settings";
 import { useCategoriesStore } from "../stores/categories";
 import { useTagsStore } from "../stores/tags";
-import type { AiLog } from "../types";
+import type { AiLog, FeishuOauthStatus } from "../types";
 import { SUPPORTED_LOCALES } from "../i18n";
 import DexSelect from "../components/DexSelect.vue";
 import DexToggle from "../components/DexToggle.vue";
@@ -190,6 +190,33 @@ async function addTag() {
   }
 }
 
+// ---- 飞书用户授权（用户身份拉取私聊/群聊消息） ----
+const feishuAuth = ref<FeishuOauthStatus | null>(null);
+const oauthBusy = ref(false);
+const OAUTH_REDIRECT_URL = "http://127.0.0.1:23981/callback";
+
+async function loadFeishuAuth() {
+  try {
+    feishuAuth.value = await api.feishuOauthStatus();
+  } catch {
+    feishuAuth.value = null; // 非桌面环境（E2E mock）静默
+  }
+}
+async function feishuLogin() {
+  oauthBusy.value = true;
+  testMsg.value = t("feishu.authing");
+  try {
+    // 后端读库里的 App ID/Secret 发起授权，先落库
+    await settings.save(SETTING_KEYS);
+    testMsg.value = await api.feishuOauthLogin();
+    await loadFeishuAuth();
+  } catch (e) {
+    testMsg.value = `❌ ${errorMessage(e)}`;
+  } finally {
+    oauthBusy.value = false;
+  }
+}
+
 // ---- AI 调用日志（链路可观测性） ----
 const aiLogs = ref<AiLog[]>([]);
 const logsLoading = ref(false);
@@ -269,6 +296,7 @@ const today = new Date();
 const unlisteners: UnlistenFn[] = [];
 onMounted(async () => {
   await loadAutostart();
+  await loadFeishuAuth();
   try {
     appVersion.value = await getVersion();
   } catch {
@@ -416,12 +444,25 @@ onUnmounted(() => unlisteners.forEach((u) => u()));
           <h3>💬 {{ t("tabs.im") === "Radio" ? "Feishu" : "飞书" }}</h3>
           <label>App ID<input v-model="settings.values.feishu_app_id" /></label>
           <label>App Secret<input v-model="settings.values.feishu_app_secret" type="password" /></label>
+          <p class="hint">{{ t("feishu.hint") }}</p>
+          <div class="auth-line">
+            <span class="auth-state">
+              {{
+                feishuAuth?.authorized
+                  ? t("feishu.authorized", { name: feishuAuth.userName || "?" })
+                  : t("feishu.unauthorized")
+              }}
+            </span>
+            <button class="btn ghost" :disabled="oauthBusy || testing" @click="feishuLogin">
+              {{ oauthBusy ? t("feishu.authing") : feishuAuth?.authorized ? t("feishu.reauth") : t("feishu.auth") }}
+            </button>
+          </div>
+          <p class="hint">{{ t("feishu.authHint", { url: OAUTH_REDIRECT_URL }) }}</p>
           <label>{{ t("feishu.enable") }}<DexToggle v-model="feishuOn" /></label>
           <label>
             {{ t("feishu.interval") }}
             <DexSelect v-model="settings.values.feishu_poll_interval" :options="pollIntervalOptions" />
           </label>
-          <p class="hint">{{ t("feishu.hint") }}</p>
           <div class="btn-row">
             <button class="btn ghost" :disabled="testing" @click="runTest(api.testFeishuConfig)">
               {{ t("feishu.test") }}
@@ -776,6 +817,18 @@ onUnmounted(() => unlisteners.forEach((u) => u()));
 .btn-row {
   display: flex;
   gap: 10px;
+}
+/* 飞书授权状态行：状态文字 + 授权按钮同行 */
+.auth-line {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 8px 0 4px;
+}
+.auth-state {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--dex-navy);
 }
 /* 底部状态栏：常驻高度避免消息出现时内容跳动 */
 .set-status {

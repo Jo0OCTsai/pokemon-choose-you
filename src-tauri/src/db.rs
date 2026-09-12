@@ -168,9 +168,33 @@ FROM tasks WHERE status='scheduled' AND due_at IS NULL AND started_at IS NULL;
 UPDATE tasks SET status='inbox' WHERE status='scheduled' AND due_at IS NULL AND started_at IS NULL;
 "#;
 
+/// v5：飞书用户身份拉取——chat_messages 补会话/发送者元数据，新增飞书用户名缓存表。
+/// chat_type 取值：p2p（单聊）/ group（群聊）/ bot（与本应用机器人的单聊）。
+const SCHEMA_V5: &str = r#"
+ALTER TABLE chat_messages ADD COLUMN chat_id TEXT NOT NULL DEFAULT '';
+ALTER TABLE chat_messages ADD COLUMN chat_type TEXT NOT NULL DEFAULT '';
+ALTER TABLE chat_messages ADD COLUMN sender_id TEXT NOT NULL DEFAULT '';
+ALTER TABLE chat_messages ADD COLUMN sent_at INTEGER;
+ALTER TABLE chat_messages ADD COLUMN is_self INTEGER NOT NULL DEFAULT 0;
+CREATE INDEX IF NOT EXISTS idx_chat_messages_chat ON chat_messages(chat_id, sent_at);
+
+CREATE TABLE IF NOT EXISTS feishu_users (
+    open_id TEXT PRIMARY KEY,
+    name TEXT NOT NULL DEFAULT '',
+    updated_at TEXT NOT NULL DEFAULT ''
+);
+"#;
+
+/// v6：AI 动作扩展——chat_messages 记录 update 建议指向的目标待办
+const SCHEMA_V6: &str = r#"
+ALTER TABLE chat_messages ADD COLUMN update_task_id INTEGER;
+"#;
+
 /// 迁移按序号执行：MIGRATIONS[i] 负责把 `PRAGMA user_version` 从 i 升到 i+1。
 /// 新的 schema 变更一律追加新条目（且只追加，不修改已发布条目），老库逐级前滚。
-const MIGRATIONS: &[&str] = &[SCHEMA_V1, SCHEMA_V2, SCHEMA_V3, SCHEMA_V4];
+const MIGRATIONS: &[&str] = &[
+    SCHEMA_V1, SCHEMA_V2, SCHEMA_V3, SCHEMA_V4, SCHEMA_V5, SCHEMA_V6,
+];
 
 #[derive(Debug, thiserror::Error)]
 pub enum MigrateError {
@@ -455,6 +479,70 @@ pub(crate) mod tests {
             )
             .unwrap();
         assert_eq!(migrated, 2, "两处归位写入日志");
+    }
+
+    /// 回归：v4 库升级 v5 后 chat_messages 带上会话元数据列（存量行取默认值），
+    /// feishu_users 缓存表可用
+    #[test]
+    fn migrates_v4_db_adding_chat_metadata_columns() {
+        let conn = Connection::open_in_memory().unwrap();
+        for sql in [SCHEMA_V1, SCHEMA_V2, SCHEMA_V3, SCHEMA_V4] {
+            conn.execute_batch(sql).unwrap();
+        }
+        conn.execute("PRAGMA user_version = 4", []).unwrap();
+        conn.execute(
+            "INSERT INTO chat_messages (message_id, chat_name, sender, content, ai_status, review_status, created_at)
+             VALUES ('om_old', '项目群', '张三', '老消息', 'todo', 'pending', '2026-09-01T00:00:00Z')",
+            [],
+        )
+        .unwrap();
+
+        init_conn(&conn).unwrap();
+        assert_eq!(user_version(&conn), MIGRATIONS.len() as i64);
+        let (chat_id, chat_type, sender_id, sent_at, is_self): (String, String, String, Option<i64>, i64) = conn
+            .query_row(
+                "SELECT chat_id, chat_type, sender_id, sent_at, is_self FROM chat_messages WHERE message_id='om_old'",
+                [],
+                |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?, r.get(3)?, r.get(4)?)),
+            )
+            .unwrap();
+        assert_eq!(
+            (chat_id.as_str(), chat_type.as_str(), sender_id.as_str()),
+            ("", "", "")
+        );
+        assert!(sent_at.is_none());
+        assert_eq!(is_self, 0, "存量行不带元数据但不丢消息");
+        conn.execute(
+            "INSERT INTO feishu_users (open_id, name, updated_at) VALUES ('ou_a', '张三', '2026-09-12T00:00:00Z')",
+            [],
+        )
+        .unwrap();
+    }
+
+    /// 回归：v5 库升级 v6 后 chat_messages 支持 update 建议的目标待办列
+    #[test]
+    fn migrates_v5_db_adding_update_task_id() {
+        let conn = Connection::open_in_memory().unwrap();
+        for sql in [SCHEMA_V1, SCHEMA_V2, SCHEMA_V3, SCHEMA_V4, SCHEMA_V5] {
+            conn.execute_batch(sql).unwrap();
+        }
+        conn.execute("PRAGMA user_version = 5", []).unwrap();
+
+        init_conn(&conn).unwrap();
+        assert_eq!(user_version(&conn), MIGRATIONS.len() as i64);
+        conn.execute(
+            "INSERT INTO chat_messages (message_id, content, update_task_id) VALUES ('om_u', '改到周四', 5)",
+            [],
+        )
+        .unwrap();
+        let target: Option<i64> = conn
+            .query_row(
+                "SELECT update_task_id FROM chat_messages WHERE message_id='om_u'",
+                [],
+                |r| r.get(0),
+            )
+            .unwrap();
+        assert_eq!(target, Some(5));
     }
 
     #[test]

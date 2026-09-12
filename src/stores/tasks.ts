@@ -35,9 +35,11 @@ export const useTasksStore = defineStore("tasks", {
         pct: total ? Math.round((state.doneCount / total) * 100) : 0,
       };
     },
-    /** 待处理的待办建议数（侧边栏角标） */
+    /** 待处理的建议数（侧边栏角标）：新待办建议 + 更新建议 */
     pendingSuggestions(state): number {
-      return state.chatMessages.filter((m) => m.aiStatus === "todo" && m.reviewStatus === "pending").length;
+      return state.chatMessages.filter(
+        (m) => m.reviewStatus === "pending" && (m.aiStatus === "todo" || m.aiStatus === "update"),
+      ).length;
     },
   },
   actions: {
