@@ -8,7 +8,7 @@
 # Linux 首次需要系统依赖（macOS/Windows 跳过）：
 sudo apt-get install -y libwebkit2gtk-4.1-dev build-essential curl wget file libxdo-dev libssl-dev libayatana-appindicator3-dev librsvg2-dev
 
-git clone https://github.com/joeca/pokemon-knock.git
+git clone https://github.com/JoTsaiCN/pokemon-knock.git
 cd pokemon-knock
 npm install          # 同时经 prepare 脚本安装 lefthook git hooks
 npm run tauri dev    # 开发调试（两个窗口：图鉴机 + 桌宠）
