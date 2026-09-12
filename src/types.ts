@@ -13,6 +13,8 @@ export interface Task {
   createdAt: string;
   completedAt?: string | null;
   focusSeconds: number;
+  /** 标签名列表（后端聚合返回） */
+  tags: string[];
 }
 
 export interface Category {
@@ -22,7 +24,21 @@ export interface Category {
   sprite: string;
 }
 
-export interface ImSuggestion {
+export interface Tag {
+  id: number;
+  name: string;
+  description: string;
+}
+
+export interface TaskNote {
+  id: number;
+  taskId: number;
+  content: string;
+  source: "manual" | "ai" | string;
+  createdAt: string;
+}
+
+export interface ChatMessage {
   id: number;
   messageId: string;
   chatName: string;
@@ -31,7 +47,26 @@ export interface ImSuggestion {
   suggestedTitle?: string | null;
   suggestedCategory?: string | null;
   suggestedDue?: string | null;
+  suggestedPriority?: string | null;
+  suggestedNote?: string | null;
+  suggestedTags: string[];
+  /** pending / todo / none / followup / error */
+  aiStatus: string;
   reviewStatus: "pending" | "accepted" | "dismissed";
+  /** 该消息已创建的待办 id */
+  taskId?: number | null;
+  createdAt: string;
+}
+
+export interface AiLog {
+  id: number;
+  scene: string;
+  model: string;
+  requestBody: string;
+  responseBody: string;
+  ok: boolean;
+  error?: string | null;
+  durationMs: number;
   createdAt: string;
 }
 

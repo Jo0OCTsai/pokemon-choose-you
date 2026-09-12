@@ -11,6 +11,7 @@ const emit = defineEmits<{
   complete: [task: Task];
   uncomplete: [task: Task];
   schedule: [task: Task];
+  edit: [task: Task];
   remove: [task: Task];
 }>();
 
@@ -45,6 +46,9 @@ const spriteOf = (id: number) => categories.byId.get(id)?.sprite ?? "pikachu";
         <span v-if="task.source !== 'local'">
           {{ t("entry.from", { src: task.source === "feishu" ? t("entry.feishu") : task.source }) }}
         </span>
+        <span v-if="task.tags.length" class="tag-list">
+          <i v-for="name in task.tags" :key="name" class="tag-chip"># {{ name }}</i>
+        </span>
       </div>
     </div>
     <div class="ops">
@@ -54,6 +58,7 @@ const spriteOf = (id: number) => categories.byId.get(id)?.sprite ?? "pikachu";
         </button>
         <button v-else class="btn ghost" @click="emit('pause')">{{ t("entry.pause") }}</button>
         <button class="btn ghost icon" :title="t('entry.route')" @click="emit('schedule', task)">📅</button>
+        <button class="btn ghost icon" :title="t('entry.edit')" @click="emit('edit', task)">✎</button>
         <button class="btn" :title="t('entry.done')" @click="emit('complete', task)">✔</button>
         <button class="btn ghost icon del" :title="t('entry.release')" @click="emit('remove', task)">✕</button>
       </template>
@@ -144,6 +149,23 @@ const spriteOf = (id: number) => categories.byId.get(id)?.sprite ?? "pikachu";
 }
 .row2 b {
   color: var(--dex-navy);
+}
+/* 标签徽章 */
+.tag-list {
+  display: inline-flex;
+  gap: 4px;
+  flex-wrap: wrap;
+}
+.tag-chip {
+  font-style: normal;
+  font-size: 11px;
+  font-weight: 700;
+  color: #fff;
+  background: #8a97b8;
+  border: 2px solid var(--dex-navy);
+  border-radius: 999px;
+  padding: 0 7px;
+  line-height: 17px;
 }
 .ops {
   display: flex;

@@ -6,6 +6,7 @@ import { api } from "./api";
 import { EVENTS } from "./events";
 import { useSettingsStore } from "./stores/settings";
 import { useCategoriesStore } from "./stores/categories";
+import { useTagsStore } from "./stores/tags";
 import { useTasksStore, type TaskTabKey } from "./stores/tasks";
 import TaskTab from "./views/TaskTab.vue";
 import RadioTab from "./views/RadioTab.vue";
@@ -14,6 +15,7 @@ import SettingsTab from "./views/SettingsTab.vue";
 const { t } = useI18n();
 const settings = useSettingsStore();
 const categoriesStore = useCategoriesStore();
+const tagsStore = useTagsStore();
 const tasksStore = useTasksStore();
 
 type Tab = TaskTabKey | "im" | "settings";
@@ -49,11 +51,12 @@ async function quickCapture() {
 
 const unlisteners: UnlistenFn[] = [];
 onMounted(async () => {
-  await Promise.all([settings.load(), categoriesStore.load(), tasksStore.reload()]);
+  await Promise.all([settings.load(), categoriesStore.load(), tagsStore.load(), tasksStore.reload()]);
 
   // 桌宠窗口或后端同步（飞书/Todoist）改动数据时跟随刷新，保持两窗口状态一致
   unlisteners.push(await listen<null>(EVENTS.tasksChanged, () => tasksStore.reload()));
-  unlisteners.push(await listen<null>(EVENTS.imSuggestionsChanged, () => tasksStore.reload()));
+  unlisteners.push(await listen<null>(EVENTS.chatMessagesChanged, () => tasksStore.reload()));
+  unlisteners.push(await listen<null>(EVENTS.tagsChanged, () => tagsStore.load()));
   unlisteners.push(await listen<null>(EVENTS.quickCapture, quickCapture));
   unlisteners.push(await listen<null>(EVENTS.showSettings, () => (tab.value = "settings")));
   unlisteners.push(await listen<string>(EVENTS.updateAvailable, (e) => (latestVersion.value = e.payload)));
@@ -84,8 +87,8 @@ onUnmounted(() => unlisteners.forEach((u) => u()));
           @click="tab = mi.key"
         >
           <span class="cursor">▶</span>{{ t(mi.labelKey) }}
-          <span v-if="mi.key === 'im' && tasksStore.imSuggestions.length" class="count px">
-            {{ tasksStore.imSuggestions.length }}
+          <span v-if="mi.key === 'im' && tasksStore.pendingSuggestions" class="count px">
+            {{ tasksStore.pendingSuggestions }}
           </span>
         </button>
       </nav>

@@ -20,9 +20,20 @@ vi.mock("../api", () => ({
     setCategoryPokemon: vi.fn(),
     getSetting: vi.fn(),
     setSetting: vi.fn(),
-    listImSuggestions: vi.fn(),
-    acceptImSuggestion: vi.fn(),
-    dismissImSuggestion: vi.fn(),
+    listChatMessages: vi.fn(),
+    acceptChatMessage: vi.fn(),
+    dismissChatMessage: vi.fn(),
+    forceCreateTodo: vi.fn(),
+    listTags: vi.fn(),
+    listAiLogs: vi.fn(),
+    clearAiLogs: vi.fn(),
+    searchTasks: vi.fn(),
+    listTaskNotes: vi.fn(),
+    addTaskNote: vi.fn(),
+    deleteTaskNote: vi.fn(),
+    createTag: vi.fn(),
+    updateTag: vi.fn(),
+    deleteTag: vi.fn(),
     listAllSettings: vi.fn(),
     testAiConfig: vi.fn(),
     testFeishuConfig: vi.fn(),
@@ -85,6 +96,7 @@ function seed(seeds: Partial<Task>[]): Task[] {
     createdAt: "2026-09-01T00:00:00Z",
     completedAt: null,
     focusSeconds: 0,
+    tags: t.tags ?? [],
   }));
 }
 
@@ -92,7 +104,10 @@ function seed(seeds: Partial<Task>[]): Task[] {
 function wireBackend() {
   tasks = [];
   vi.mocked(api.listCategories).mockResolvedValue(categories);
-  vi.mocked(api.listImSuggestions).mockResolvedValue([]);
+  vi.mocked(api.listTags).mockResolvedValue([]);
+  vi.mocked(api.listChatMessages).mockResolvedValue([]);
+  vi.mocked(api.searchTasks).mockImplementation(async (q: string) => tasks.filter((t) => t.title.includes(q)));
+  vi.mocked(api.listTaskNotes).mockResolvedValue([]);
   vi.mocked(api.listAllSettings).mockResolvedValue({});
   vi.mocked(api.consumeQuickCapture).mockResolvedValue(false);
   vi.mocked(api.checkUpdate).mockResolvedValue("");
@@ -118,6 +133,7 @@ function wireBackend() {
       createdAt: "2026-09-01T00:00:00Z",
       completedAt: null,
       focusSeconds: 0,
+      tags: [],
     };
     tasks.push(t);
     return t;
@@ -239,9 +255,42 @@ describe("App 图鉴机主面板", () => {
     expect(w.findAll(".entry")).toHaveLength(0);
   });
 
-  it("收音机页显示待办建议并可捕捉", async () => {
+  it("搜索待办：输入关键词切换为跨库搜索结果", async () => {
+    tasks = seed([
+      { title: "写季度报告", status: "inbox" },
+      { title: "修登录bug", status: "inbox" },
+    ]);
+    const w = await mountApp();
+    await w.get(".search-input").setValue("季度");
+    await new Promise((r) => setTimeout(r));
+    expect(api.searchTasks).toHaveBeenCalledWith("季度");
+    expect(w.findAll(".entry")).toHaveLength(1);
+    expect(w.get(".entry .title").text()).toBe("写季度报告");
+    // 清空关键词回到当前页列表
+    await w.get(".search-input").setValue("");
+    await new Promise((r) => setTimeout(r));
+    expect(w.findAll(".entry")).toHaveLength(2);
+  });
+
+  it("编辑弹窗：全字段编辑并保存", async () => {
+    vi.mocked(api.listTags).mockResolvedValue([{ id: 3, name: "重要", description: "核心目标" }]);
+    tasks = seed([{ title: "写周报", status: "scheduled" }]);
+    const w = await mountApp();
+    const editBtn = w.findAll(".entry .ops .btn").find((b) => b.text() === "✎")!;
+    await editBtn.trigger("click");
+    expect(w.get(".card h3").text()).toContain("编辑待办");
+    expect(w.text()).toContain("跟进记录");
+    expect(w.text()).toContain("重要"); // 标签可选
+    await w.get(".card input").setValue("新标题");
+    vi.mocked(api.updateTask).mockResolvedValue(tasks[0]);
+    await w.findAll(".card .btn-row .btn")[0].trigger("click");
+    await new Promise((r) => setTimeout(r));
+    expect(api.updateTask).toHaveBeenCalledWith(expect.objectContaining({ id: 1, title: "新标题", tagIds: [] }));
+  });
+
+  it("收音机页显示全部电波（含无待办消息）并可捕捉", async () => {
     tasks = seed([]);
-    vi.mocked(api.listImSuggestions).mockResolvedValue([
+    vi.mocked(api.listChatMessages).mockResolvedValue([
       {
         id: 7,
         messageId: "m1",
@@ -251,26 +300,55 @@ describe("App 图鉴机主面板", () => {
         suggestedTitle: "参加周会",
         suggestedCategory: "工作",
         suggestedDue: "2026-09-13T10:00",
+        suggestedPriority: "high",
+        suggestedNote: null,
+        suggestedTags: ["重要"],
+        aiStatus: "todo",
         reviewStatus: "pending",
+        taskId: null,
         createdAt: "2026-09-11T00:00:00Z",
+      },
+      {
+        id: 8,
+        messageId: "m2",
+        chatName: "项目群",
+        sender: "李四",
+        content: "哈哈哈",
+        suggestedTitle: null,
+        suggestedCategory: null,
+        suggestedDue: null,
+        suggestedPriority: null,
+        suggestedNote: null,
+        suggestedTags: [],
+        aiStatus: "none",
+        reviewStatus: "pending",
+        taskId: null,
+        createdAt: "2026-09-11T00:01:00Z",
       },
     ]);
     const w = await mountApp();
     await w.findAll(".menu-btn")[4].trigger("click");
+    const cards = w.findAll(".im-card");
+    expect(cards).toHaveLength(2); // 未识别为待办的消息也展示
     expect(w.get(".im-content").text()).toContain("明天上午10点开周会");
     expect(w.text()).toContain("参加周会");
-    await w.get(".im-actions .btn").trigger("click"); // ◎ 捕捉
-    expect(api.acceptImSuggestion).toHaveBeenCalledWith(7);
+    expect(w.text()).toContain("无待办"); // AI 状态徽章可见
+    // 第一张卡（倒序在前的 m2 无建议）没有捕捉按钮，捕捉按钮在 m1 卡上
+    const catchBtn = w.findAll(".im-actions .btn").find((b) => b.text() === "◎ 捕捉")!;
+    await catchBtn.trigger("click");
+    expect(api.acceptChatMessage).toHaveBeenCalledWith(7);
   });
 
-  it("设置页五个分区可选且默认显示专注", async () => {
+  it("设置页七个分区可选且默认显示专注", async () => {
     const w = await mountApp();
     await w.findAll(".menu-btn")[5].trigger("click");
     const stabs = w.findAll(".stab");
-    expect(stabs).toHaveLength(5);
+    expect(stabs).toHaveLength(7);
     expect(w.text()).toContain("番茄钟");
-    await stabs[2].trigger("click"); // 显示
+    await stabs[3].trigger("click"); // 显示
     expect(w.text()).toContain("日期格式");
+    await stabs[1].trigger("click"); // 标签
+    expect(w.text()).toContain("标签");
   });
 
   // ---- 两窗口状态同步：主面板跟随 tasks-changed 事件 ----

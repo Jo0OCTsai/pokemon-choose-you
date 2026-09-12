@@ -1,6 +1,6 @@
 import { defineStore } from "pinia";
 import { api } from "../api";
-import type { ImSuggestion, Task } from "../types";
+import type { ChatMessage, Task } from "../types";
 
 export type TaskTabKey = "today" | "inbox" | "scheduled" | "done";
 
@@ -11,7 +11,8 @@ export const useTasksStore = defineStore("tasks", {
     /** 最近完成的 200 条（图鉴页） */
     done: [] as Task[],
     doneCount: 0,
-    imSuggestions: [] as ImSuggestion[],
+    /** 收音机电波：所有已拉取的飞书消息（含 AI 未识别为待办的） */
+    chatMessages: [] as ChatMessage[],
     loading: false,
   }),
   getters: {
@@ -23,6 +24,10 @@ export const useTasksStore = defineStore("tasks", {
         total,
         pct: total ? Math.round((state.doneCount / total) * 100) : 0,
       };
+    },
+    /** 待处理的待办建议数（侧边栏角标） */
+    pendingSuggestions(state): number {
+      return state.chatMessages.filter((m) => m.aiStatus === "todo" && m.reviewStatus === "pending").length;
     },
   },
   actions: {
@@ -39,15 +44,15 @@ export const useTasksStore = defineStore("tasks", {
     async reload() {
       this.loading = true;
       try {
-        const [open, done, imSuggestions] = await Promise.all([
+        const [open, done, chatMessages] = await Promise.all([
           api.listTasks("open"),
           api.listTasks("done"),
-          api.listImSuggestions("pending"),
+          api.listChatMessages(),
         ]);
         this.open = open;
         this.done = done;
         this.doneCount = done.length;
-        this.imSuggestions = imSuggestions;
+        this.chatMessages = chatMessages;
       } finally {
         this.loading = false;
       }

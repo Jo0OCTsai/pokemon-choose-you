@@ -20,6 +20,7 @@ export interface MockTask {
   createdAt: string;
   completedAt?: string | null;
   focusSeconds: number;
+  tags: string[];
 }
 
 export interface MockCategory {
@@ -59,6 +60,7 @@ export function task(partial: Partial<MockTask> & { id: number; title: string })
     createdAt: "2026-09-10T08:00:00Z",
     completedAt: null,
     focusSeconds: 0,
+    tags: [],
     ...partial,
   };
 }
@@ -118,6 +120,7 @@ export async function installTauriMock(page: Page, state: Partial<MockState> = {
               focusSeconds: 0,
               completedAt: null,
               createdAt: nowIso(),
+              tags: [],
               status: args.task.scheduled ? "scheduled" : "inbox",
               ...args.task,
             };
@@ -218,12 +221,34 @@ export async function installTauriMock(page: Page, state: Partial<MockState> = {
           case "list_all_settings":
             return { ...db.settings };
           case "list_im_suggestions":
+          case "list_chat_messages":
             return [];
           case "accept_im_suggestion":
+          case "accept_chat_message":
             broadcast("tasks-changed");
+            broadcast("chat-messages-changed");
             return db.nextId++;
           case "dismiss_im_suggestion":
-            broadcast("im-suggestions-changed");
+          case "dismiss_chat_message":
+            broadcast("chat-messages-changed");
+            return null;
+          case "force_create_todo":
+            broadcast("tasks-changed");
+            broadcast("chat-messages-changed");
+            return db.nextId++;
+          case "list_tags":
+            return [];
+          case "search_tasks":
+            return db.tasks.filter((t: any) => (t.title ?? "").includes(args.q)).map((t: any) => ({ ...t }));
+          case "list_task_notes":
+            return [];
+          case "add_task_note":
+          case "delete_task_note":
+            broadcast("tasks-changed");
+            return null;
+          case "list_ai_logs":
+            return [];
+          case "clear_ai_logs":
             return null;
           case "test_ai_config":
             return "连接成功（E2E mock）";

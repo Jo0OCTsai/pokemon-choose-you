@@ -3,7 +3,10 @@
 pub const TASKS_CHANGED: &str = "tasks-changed";
 pub const CATEGORIES_CHANGED: &str = "categories-changed";
 pub const SETTINGS_CHANGED: &str = "settings-changed";
-pub const IM_SUGGESTIONS_CHANGED: &str = "im-suggestions-changed";
+/// 收音机电波（chat_messages 表）有新消息或状态变化
+pub const CHAT_MESSAGES_CHANGED: &str = "chat-messages-changed";
+/// 标签配置变化（设置页维护，两窗口跟随）
+pub const TAGS_CHANGED: &str = "tags-changed";
 /// 提醒到期（scheduler → 桌宠窗口敲门动画），payload: { id, title, urgent }
 pub const TASK_REMINDER: &str = "task-reminder";
 /// 全局快捷键"快速捕捉待办"（后端 → 主窗口），前端聚焦新增输入框
@@ -22,7 +25,8 @@ pub fn all() -> &'static [&'static str] {
         TASKS_CHANGED,
         CATEGORIES_CHANGED,
         SETTINGS_CHANGED,
-        IM_SUGGESTIONS_CHANGED,
+        CHAT_MESSAGES_CHANGED,
+        TAGS_CHANGED,
         TASK_REMINDER,
         QUICK_CAPTURE,
         SHOW_SETTINGS,
@@ -47,7 +51,7 @@ mod tests {
     fn event_names_match_frontend_contract() {
         assert_eq!(
             serde_json::to_string(all()).unwrap(),
-            r#"["tasks-changed","categories-changed","settings-changed","im-suggestions-changed","task-reminder","quick-capture","show-settings","update-available","update-progress"]"#,
+            r#"["tasks-changed","categories-changed","settings-changed","chat-messages-changed","tags-changed","task-reminder","quick-capture","show-settings","update-available","update-progress"]"#,
             "事件名集合必须与前端 src/events.ts 一致"
         );
         // 事件名统一 kebab-case，防止大小写风格混用
