@@ -5,7 +5,7 @@ import zhHans from "../i18n/zh-Hans";
 import zhHant from "../i18n/zh-Hant";
 import en from "../i18n/en";
 import { SUPPORTED_LOCALES, i18n } from "../i18n";
-import { SETTING_DEFAULTS, POKEMON_LIST } from "../settings";
+import { SETTING_DEFAULTS, POKEMON_LIST } from "../stores/settings";
 
 const locales: Record<string, unknown> = { "zh-Hans": zhHans, "zh-Hant": zhHant, en };
 
@@ -82,7 +82,13 @@ describe("素材兼容性：图鉴换装", () => {
 
 describe("设置兼容性：默认值", () => {
   it("布尔型设置取值合法", () => {
-    for (const k of ["pomodoro_enabled", "pomodoro_notify", "notifications_enabled", "default_to_inbox", "feishu_enabled"]) {
+    for (const k of [
+      "pomodoro_enabled",
+      "pomodoro_notify",
+      "notifications_enabled",
+      "default_to_inbox",
+      "feishu_enabled",
+    ]) {
       expect(["true", "false"]).toContain(SETTING_DEFAULTS[k]);
     }
   });

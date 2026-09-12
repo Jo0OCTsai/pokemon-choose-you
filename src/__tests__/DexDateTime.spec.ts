@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { mount } from "@vue/test-utils";
-import DexDateTime from "../DexDateTime.vue";
+import { createPinia, setActivePinia } from "pinia";
+import DexDateTime from "../components/DexDateTime.vue";
 import { i18n } from "../i18n";
 
 // 固定"今天"，避免月末/年末边界导致用例不稳定
@@ -9,6 +10,8 @@ const FAKE_NOW = new Date(2026, 8, 12, 15, 0, 0); // 2026-09-12 周六
 beforeEach(() => {
   vi.useFakeTimers();
   vi.setSystemTime(FAKE_NOW);
+  // 组件格式化读取 settings store（日期/时间格式），渲染前需激活 pinia
+  setActivePinia(createPinia());
 });
 
 afterEach(() => {
@@ -24,9 +27,7 @@ function mountDt(modelValue: string) {
 
 /** 与组件同款的 Intl 月份标题（zh-Hans → zh-CN） */
 function monthTitle(y: number, m: number) {
-  return new Intl.DateTimeFormat("zh-CN", { year: "numeric", month: "long" }).format(
-    new Date(y, m, 1),
-  );
+  return new Intl.DateTimeFormat("zh-CN", { year: "numeric", month: "long" }).format(new Date(y, m, 1));
 }
 
 describe("DexDateTime", () => {

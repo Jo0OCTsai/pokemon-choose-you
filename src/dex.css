@@ -1,61 +1,89 @@
 /* 《宝可梦来敲门》图鉴复古风 — 设计令牌与公共组件（两窗口共用） */
 :root {
-  --dex-red: #EE1515;
-  --dex-red-dark: #B01010;
-  --dex-body: #F5F0DC;
-  --dex-navy: #1A1B25;
-  --poke-yellow: #FFCB05;
-  --lcd: #C4CFA1;
-  --lcd-text: #3A4A32;
-  --lcd-dark: #9CAA86;
-  --type-work: #F8D030;
-  --type-study: #6890F0;
-  --type-life: #78C850;
-  --type-health: #A8A878;
-  --type-social: #F08030;
-  --type-urgent: #7038F8;
-  --p-urgent: #EE1515;
-  --p-high: #F08030;
-  --p-normal: #78C850;
-  --p-low: #A8A878;
+  --dex-red: #ee1515;
+  --dex-red-dark: #b01010;
+  --dex-body: #f5f0dc;
+  --dex-navy: #1a1b25;
+  --poke-yellow: #ffcb05;
+  --lcd: #c4cfa1;
+  --lcd-text: #3a4a32;
+  --lcd-dark: #9caa86;
+  --type-work: #f8d030;
+  --type-study: #6890f0;
+  --type-life: #78c850;
+  --type-health: #a8a878;
+  --type-social: #f08030;
+  --type-urgent: #7038f8;
+  --p-urgent: #ee1515;
+  --p-high: #f08030;
+  --p-normal: #78c850;
+  --p-low: #a8a878;
 }
 
-* { box-sizing: border-box; }
+* {
+  box-sizing: border-box;
+}
 body {
   margin: 0;
   font-family: "Noto Sans CJK SC", "Noto Sans SC", "PingFang SC", "Microsoft YaHei", sans-serif;
   color: var(--dex-navy);
 }
-.px { font-family: "Press Start 2P", monospace; }
+.px {
+  font-family: "Press Start 2P", monospace;
+}
 
 /* LCD 绿屏（扫描线由 ::after 叠加） */
 .lcd {
   background: var(--lcd);
   border: 3px solid var(--dex-navy);
   border-radius: 4px;
-  box-shadow: inset 3px 3px 0 var(--lcd-dark), 4px 4px 0 var(--dex-navy);
+  box-shadow:
+    inset 3px 3px 0 var(--lcd-dark),
+    4px 4px 0 var(--dex-navy);
   color: var(--lcd-text);
   position: relative;
   overflow: hidden;
 }
 .lcd::after {
   content: "";
-  position: absolute; inset: 0; pointer-events: none;
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
   background: repeating-linear-gradient(0deg, rgba(0, 0, 0, 0.05) 0 2px, transparent 2px 4px);
 }
 
 /* 属性徽章 */
 .badge {
-  display: inline-flex; align-items: center; justify-content: center;
-  border: 2.5px solid var(--dex-navy); border-radius: 4px;
-  font-size: 11px; font-weight: 700; padding: 1px 8px; letter-spacing: 2px; color: #fff;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 2.5px solid var(--dex-navy);
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 1px 8px;
+  letter-spacing: 2px;
+  color: #fff;
 }
-.b-work { background: var(--type-work); color: #A1871F; }
-.b-study { background: var(--type-study); }
-.b-life { background: var(--type-life); }
-.b-health { background: var(--type-health); }
-.b-social { background: var(--type-social); }
-.b-urgent { background: var(--type-urgent); }
+.b-work {
+  background: var(--type-work);
+  color: #a1871f;
+}
+.b-study {
+  background: var(--type-study);
+}
+.b-life {
+  background: var(--type-life);
+}
+.b-health {
+  background: var(--type-health);
+}
+.b-social {
+  background: var(--type-social);
+}
+.b-urgent {
+  background: var(--type-urgent);
+}
 
 /* 物理按键按钮 */
 .btn {
@@ -63,36 +91,118 @@ body {
   border-radius: 8px;
   background: var(--poke-yellow);
   color: var(--dex-navy);
-  font-size: 14px; font-weight: 700;
+  font-size: 14px;
+  font-weight: 700;
   padding: 8px 14px;
   cursor: pointer;
   box-shadow: 4px 4px 0 var(--dex-navy);
-  transition: transform 0.08s, box-shadow 0.08s;
+  transition:
+    transform 0.08s,
+    box-shadow 0.08s;
   min-height: 40px;
   font-family: inherit;
 }
-.btn:active { transform: translate(2px, 2px); box-shadow: 2px 2px 0 var(--dex-navy); }
-.btn.ghost { background: #fff; }
-.btn.red { background: var(--dex-red); color: #fff; }
+.btn:active {
+  transform: translate(2px, 2px);
+  box-shadow: 2px 2px 0 var(--dex-navy);
+}
+.btn.ghost {
+  background: #fff;
+}
+.btn.red {
+  background: var(--dex-red);
+  color: #fff;
+}
 
 /* LED */
-.led { width: 10px; height: 10px; border-radius: 50%; border: 2px solid var(--dex-navy); display: inline-block; }
-.led.on { background: #5BE36B; animation: pk-breathe 2s infinite; }
-.led.alert { background: var(--dex-red); animation: pk-blink 0.6s infinite; }
+.led {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  border: 2px solid var(--dex-navy);
+  display: inline-block;
+}
+.led.on {
+  background: #5be36b;
+  animation: pk-breathe 2s infinite;
+}
+.led.alert {
+  background: var(--dex-red);
+  animation: pk-blink 0.6s infinite;
+}
 
 /* 优先级圆点 */
-.prio { width: 10px; height: 10px; border-radius: 50%; border: 2px solid var(--dex-navy); flex: none; }
-.prio.urgent { background: var(--p-urgent); animation: pk-blink 0.8s infinite; }
-.prio.high { background: var(--p-high); }
-.prio.normal { background: var(--p-normal); }
-.prio.low { background: var(--p-low); }
+.prio {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  border: 2px solid var(--dex-navy);
+  flex: none;
+}
+.prio.urgent {
+  background: var(--p-urgent);
+  animation: pk-blink 0.8s infinite;
+}
+.prio.high {
+  background: var(--p-high);
+}
+.prio.normal {
+  background: var(--p-normal);
+}
+.prio.low {
+  background: var(--p-low);
+}
 
 /* 滚动条像素化 */
-::-webkit-scrollbar { width: 12px; }
-::-webkit-scrollbar-track { background: transparent; }
-::-webkit-scrollbar-thumb { background: var(--dex-navy); border-radius: 6px; border: 3px solid var(--dex-body); }
+::-webkit-scrollbar {
+  width: 12px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--dex-navy);
+  border-radius: 6px;
+  border: 3px solid var(--dex-body);
+}
 
-@keyframes pk-breathe { 0%, 100% { opacity: 0.45; } 50% { opacity: 1; } }
-@keyframes pk-blink { 0%, 49% { opacity: 1; } 50%, 100% { opacity: 0.25; } }
-@keyframes pk-hop { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-7px); } }
-@keyframes pk-shake { 0%, 100% { transform: translateX(0); } 25% { transform: translateX(-4px); } 75% { transform: translateX(4px); } }
+@keyframes pk-breathe {
+  0%,
+  100% {
+    opacity: 0.45;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+@keyframes pk-blink {
+  0%,
+  49% {
+    opacity: 1;
+  }
+  50%,
+  100% {
+    opacity: 0.25;
+  }
+}
+@keyframes pk-hop {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-7px);
+  }
+}
+@keyframes pk-shake {
+  0%,
+  100% {
+    transform: translateX(0);
+  }
+  25% {
+    transform: translateX(-4px);
+  }
+  75% {
+    transform: translateX(4px);
+  }
+}

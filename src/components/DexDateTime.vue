@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref } from "vue";
 import { useI18n } from "vue-i18n";
-import { fmtDate, fmtTime } from "./settings";
+import { fmtDate, fmtTime } from "../stores/settings";
 import DexSelect from "./DexSelect.vue";
 
 /** 图鉴风日期时间选择器：原生 datetime-local 在 WebKitGTK 下缺时间、英文界面、弹层失控 */
@@ -16,11 +16,14 @@ const now = new Date();
 const viewY = ref(now.getFullYear());
 const viewM = ref(now.getMonth());
 
-const intlLocale = computed(() =>
-  ({ "zh-Hans": "zh-CN", "zh-Hant": "zh-TW", en: "en-US" }[locale.value as string] ?? "zh-CN"));
+const intlLocale = computed(
+  () => ({ "zh-Hans": "zh-CN", "zh-Hant": "zh-TW", en: "en-US" })[locale.value as string] ?? "zh-CN",
+);
 
-const monthTitle = computed(
-  () => new Intl.DateTimeFormat(intlLocale.value, { year: "numeric", month: "long" }).format(new Date(viewY.value, viewM.value, 1)),
+const monthTitle = computed(() =>
+  new Intl.DateTimeFormat(intlLocale.value, { year: "numeric", month: "long" }).format(
+    new Date(viewY.value, viewM.value, 1),
+  ),
 );
 /** 周一开头的星期标题 */
 const weekdays = computed(() => {
@@ -71,7 +74,10 @@ function parts(): [string, string] {
 }
 const hourPart = computed(() => parts()[0]);
 const minutePart = computed(() => parts()[1]);
-const hourOptions = [...Array(24)].map((_, h) => ({ value: String(h).padStart(2, "0"), label: String(h).padStart(2, "0") }));
+const hourOptions = [...Array(24)].map((_, h) => ({
+  value: String(h).padStart(2, "0"),
+  label: String(h).padStart(2, "0"),
+}));
 const minuteOptions = [...Array(12)].map((_, i) => {
   const v = String(i * 5).padStart(2, "0");
   return { value: v, label: v };
@@ -98,7 +104,7 @@ onBeforeUnmount(() => document.removeEventListener("mousedown", onDocClick));
 </script>
 
 <template>
-  <div class="dex-dt" ref="root">
+  <div ref="root" class="dex-dt">
     <button type="button" class="dt-btn" :class="{ open, none: !model }" @click="open = !open">
       <span class="dt-label">🕐 {{ display }}</span>
       <span class="ds-arrow">▼</span>
@@ -142,53 +148,140 @@ onBeforeUnmount(() => document.removeEventListener("mousedown", onDocClick));
 </template>
 
 <style scoped>
-.dex-dt { position: relative; }
-.dt-btn {
-  display: flex; align-items: center; gap: 8px;
-  border: 3px solid var(--dex-navy); border-radius: 8px;
-  background: #fff; color: var(--dex-navy);
-  font-size: 13px; font-weight: 700; font-family: inherit;
-  padding: 7px 10px; min-height: 38px; min-width: 176px;
-  cursor: pointer; box-shadow: 3px 3px 0 var(--dex-navy);
+.dex-dt {
+  position: relative;
 }
-.dt-btn:active { transform: translate(1px, 1px); box-shadow: 2px 2px 0 var(--dex-navy); }
-.dt-btn.open { background: var(--poke-yellow); }
-.dt-btn.none .dt-label { color: #9a937f; }
-.ds-arrow { font-size: 9px; }
+.dt-btn {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  border: 3px solid var(--dex-navy);
+  border-radius: 8px;
+  background: #fff;
+  color: var(--dex-navy);
+  font-size: 13px;
+  font-weight: 700;
+  font-family: inherit;
+  padding: 7px 10px;
+  min-height: 38px;
+  min-width: 176px;
+  cursor: pointer;
+  box-shadow: 3px 3px 0 var(--dex-navy);
+}
+.dt-btn:active {
+  transform: translate(1px, 1px);
+  box-shadow: 2px 2px 0 var(--dex-navy);
+}
+.dt-btn.open {
+  background: var(--poke-yellow);
+}
+.dt-btn.none .dt-label {
+  color: #9a937f;
+}
+.ds-arrow {
+  font-size: 9px;
+}
 
 .dt-pop {
-  position: absolute; top: calc(100% + 4px); left: 0; z-index: 60;
-  background: #fff; border: 3px solid var(--dex-navy); border-radius: 10px;
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  z-index: 60;
+  background: #fff;
+  border: 3px solid var(--dex-navy);
+  border-radius: 10px;
   box-shadow: 4px 4px 0 var(--dex-navy);
-  padding: 10px; width: 268px;
+  padding: 10px;
+  width: 268px;
 }
-.dt-nav { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
-.dt-title { font-size: 13px; font-weight: 800; }
+.dt-nav {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+.dt-title {
+  font-size: 13px;
+  font-weight: 800;
+}
 .nav-btn {
-  border: 3px solid var(--dex-navy); border-radius: 6px; background: var(--dex-body);
-  width: 26px; height: 26px; font-size: 10px; cursor: pointer; font-family: inherit;
+  border: 3px solid var(--dex-navy);
+  border-radius: 6px;
+  background: var(--dex-body);
+  width: 26px;
+  height: 26px;
+  font-size: 10px;
+  cursor: pointer;
+  font-family: inherit;
 }
-.nav-btn:active { transform: translate(1px, 1px); }
-.dt-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 2px; }
-.dt-week { font-size: 10px; font-weight: 700; text-align: center; color: #9a937f; padding: 2px 0; }
+.nav-btn:active {
+  transform: translate(1px, 1px);
+}
+.dt-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 2px;
+}
+.dt-week {
+  font-size: 10px;
+  font-weight: 700;
+  text-align: center;
+  color: #9a937f;
+  padding: 2px 0;
+}
 .dt-day {
-  border: 2px solid transparent; border-radius: 6px; background: transparent;
-  font-size: 12px; font-weight: 700; color: var(--dex-navy);
-  height: 28px; cursor: pointer; font-family: inherit; padding: 0;
+  border: 2px solid transparent;
+  border-radius: 6px;
+  background: transparent;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--dex-navy);
+  height: 28px;
+  cursor: pointer;
+  font-family: inherit;
+  padding: 0;
 }
-.dt-day.blank { pointer-events: none; }
-.dt-day:hover { background: #fff3c4; }
-.dt-day.today { border-color: var(--dex-navy); }
-.dt-day.sel { background: var(--poke-yellow); border-color: var(--dex-navy); }
-.dt-time { display: flex; align-items: center; gap: 6px; margin-top: 10px; }
+.dt-day.blank {
+  pointer-events: none;
+}
+.dt-day:hover {
+  background: #fff3c4;
+}
+.dt-day.today {
+  border-color: var(--dex-navy);
+}
+.dt-day.sel {
+  background: var(--poke-yellow);
+  border-color: var(--dex-navy);
+}
+.dt-time {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 10px;
+}
 /* 内嵌的时/分下拉收窄，避免撑爆弹层 */
-.dt-time :deep(.ds-btn) { min-width: 0; width: 80px; padding: 7px 6px; }
-.dt-time :deep(.ds-label) { justify-content: center; }
-.colon { font-weight: 800; }
+.dt-time :deep(.ds-btn) {
+  min-width: 0;
+  width: 80px;
+  padding: 7px 6px;
+}
+.dt-time :deep(.ds-label) {
+  justify-content: center;
+}
+.colon {
+  font-weight: 800;
+}
 .clear-btn {
   margin-left: auto;
-  border: 3px solid var(--dex-navy); border-radius: 6px;
-  background: #fff; color: var(--dex-red);
-  font-size: 12px; font-weight: 700; padding: 6px 8px; cursor: pointer; font-family: inherit;
+  border: 3px solid var(--dex-navy);
+  border-radius: 6px;
+  background: #fff;
+  color: var(--dex-red);
+  font-size: 12px;
+  font-weight: 700;
+  padding: 6px 8px;
+  cursor: pointer;
+  font-family: inherit;
 }
 </style>

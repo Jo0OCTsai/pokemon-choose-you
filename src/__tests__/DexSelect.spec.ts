@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it } from "vitest";
 import { mount } from "@vue/test-utils";
-import DexSelect from "../DexSelect.vue";
+import DexSelect from "../components/DexSelect.vue";
 
 const options = [
   { value: "a", label: "选项甲" },

@@ -1,0 +1,189 @@
+<script setup lang="ts">
+import { useI18n } from "vue-i18n";
+import { fmtDateTime } from "../stores/settings";
+import { catKeyOf, useCategoriesStore } from "../stores/categories";
+import { spriteUrl, spriteFallback, type Task } from "../types";
+
+defineProps<{ task: Task }>();
+const emit = defineEmits<{
+  start: [task: Task];
+  pause: [];
+  complete: [task: Task];
+  uncomplete: [task: Task];
+  schedule: [task: Task];
+  remove: [task: Task];
+}>();
+
+const { t } = useI18n();
+const categories = useCategoriesStore();
+const spriteOf = (id: number) => categories.byId.get(id)?.sprite ?? "pikachu";
+</script>
+
+<template>
+  <li class="entry" :class="{ active: task.status === 'active', caught: task.status === 'done' }">
+    <div class="dex-no px">No.{{ String(task.id).padStart(3, "0") }}</div>
+    <img
+      class="sprite"
+      :src="spriteUrl(spriteOf(task.categoryId))"
+      :data-sprite="spriteOf(task.categoryId)"
+      @error="spriteFallback"
+    />
+    <div class="info">
+      <div class="row1">
+        <span class="prio" :class="task.priority" />
+        <span class="title">{{ task.title }}</span>
+        <span v-if="task.status === 'active'" class="tag-now">{{ t("entry.catching") }}</span>
+        <span v-if="task.status === 'paused'" class="tag-paused">{{ t("entry.paused") }}</span>
+        <span class="badge" :class="'b-' + catKeyOf(categories.byId, task.categoryId)">
+          {{ categories.byId.get(task.categoryId)?.name }}
+        </span>
+      </div>
+      <div class="row2">
+        <span v-if="task.dueAt">{{ t("entry.due", { v: fmtDateTime(task.dueAt) }) }}</span>
+        <span v-if="task.remindAt">{{ t("entry.remind", { v: fmtDateTime(task.remindAt) }) }}</span>
+        <span v-if="task.focusSeconds > 0">{{ t("entry.focus", { n: Math.round(task.focusSeconds / 60) }) }}</span>
+        <span v-if="task.source !== 'local'">
+          {{ t("entry.from", { src: task.source === "feishu" ? t("entry.feishu") : task.source }) }}
+        </span>
+      </div>
+    </div>
+    <div class="ops">
+      <template v-if="task.status !== 'done'">
+        <button v-if="task.status !== 'active'" class="btn" @click="emit('start', task)">
+          {{ t("entry.start") }}
+        </button>
+        <button v-else class="btn ghost" @click="emit('pause')">{{ t("entry.pause") }}</button>
+        <button class="btn ghost icon" :title="t('entry.route')" @click="emit('schedule', task)">📅</button>
+        <button class="btn" :title="t('entry.done')" @click="emit('complete', task)">✔</button>
+        <button class="btn ghost icon del" :title="t('entry.release')" @click="emit('remove', task)">✕</button>
+      </template>
+      <template v-else>
+        <span class="catch-mark">{{ t("entry.caught") }}</span>
+        <button class="btn ghost" @click="emit('uncomplete', task)">{{ t("entry.undo") }}</button>
+      </template>
+    </div>
+  </li>
+</template>
+
+<style scoped>
+/* 图鉴条目卡 */
+.entry {
+  background: #fff;
+  border: 3px solid var(--dex-navy);
+  border-radius: 12px;
+  box-shadow: 4px 4px 0 var(--dex-navy);
+  padding: 12px 14px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  list-style: none;
+}
+.entry.active {
+  outline: 3px solid var(--poke-yellow);
+  outline-offset: 2px;
+}
+.dex-no {
+  font-size: 9px;
+  color: #9a937f;
+  align-self: flex-start;
+  margin-top: 3px;
+  width: 50px;
+  flex: none;
+}
+.sprite {
+  width: 52px;
+  height: 52px;
+  flex: none;
+  image-rendering: pixelated;
+  object-fit: contain;
+}
+.entry.active .sprite {
+  animation: pk-hop 1.6s ease-in-out infinite;
+}
+.info {
+  flex: 1;
+  min-width: 0;
+}
+.row1 {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.title {
+  font-size: 16px;
+  font-weight: 800;
+}
+.tag-now {
+  font-size: 11px;
+  font-weight: 800;
+  color: #fff;
+  background: var(--dex-navy);
+  border-radius: 4px;
+  padding: 2px 7px;
+}
+.tag-now::before {
+  content: "♪ ";
+}
+.tag-paused {
+  font-size: 11px;
+  font-weight: 800;
+  color: #a1660a;
+  background: var(--type-work);
+  border: 2px solid var(--dex-navy);
+  border-radius: 4px;
+  padding: 1px 6px;
+}
+.row2 {
+  font-size: 12.5px;
+  color: #7b7460;
+  margin-top: 4px;
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.row2 b {
+  color: var(--dex-navy);
+}
+.ops {
+  display: flex;
+  gap: 8px;
+  flex: none;
+  align-items: center;
+}
+.ops .btn {
+  padding: 8px 12px;
+  font-size: 13px;
+  min-height: 36px;
+}
+.ops .btn.icon {
+  padding: 8px 10px;
+}
+.ops .btn.del {
+  color: var(--dex-red);
+}
+
+/* 已捕捉 */
+.entry.caught {
+  background: var(--lcd);
+  box-shadow: 4px 4px 0 var(--lcd-dark);
+  border-color: var(--lcd-text);
+}
+.entry.caught .title {
+  text-decoration: line-through;
+  color: var(--lcd-text);
+}
+.entry.caught .sprite {
+  filter: grayscale(1) contrast(1.4) brightness(0.8);
+}
+.entry.caught .badge,
+.entry.caught .prio,
+.entry.caught .row2 {
+  filter: grayscale(0.7);
+}
+.catch-mark {
+  font-size: 14px;
+  color: var(--lcd-text);
+  font-weight: 800;
+}
+</style>

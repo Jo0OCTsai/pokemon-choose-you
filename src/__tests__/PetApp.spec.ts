@@ -1,9 +1,9 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { mount, type VueWrapper } from "@vue/test-utils";
+import { createPinia, setActivePinia } from "pinia";
 import PetApp from "../PetApp.vue";
 import { api } from "../api";
 import { i18n } from "../i18n";
-import { settings } from "../settings";
 import type { Task } from "../types";
 
 vi.mock("../api", () => ({
@@ -32,6 +32,9 @@ vi.mock("../api", () => ({
     createCategory: vi.fn(),
     updateCategory: vi.fn(),
     deleteCategory: vi.fn(),
+    consumeQuickCapture: vi.fn(),
+    checkUpdate: vi.fn(),
+    installUpdate: vi.fn(),
   },
 }));
 
@@ -42,7 +45,11 @@ vi.mock("@tauri-apps/api/event", () => ({
     const list = eventHandlers.get(event) ?? [];
     list.push(cb);
     eventHandlers.set(event, list);
-    return () => eventHandlers.set(event, list.filter((h) => h !== cb));
+    return () =>
+      eventHandlers.set(
+        event,
+        list.filter((h) => h !== cb),
+      );
   }),
 }));
 function broadcast(event: string, payload: unknown = null) {
@@ -86,7 +93,7 @@ async function mountPet(): Promise<VueWrapper> {
   vi.mocked(api.listCategories).mockResolvedValue(categories);
   vi.mocked(api.getCurrentTask).mockImplementation(async () => current);
   vi.mocked(api.listTasks).mockImplementation(async () => tasks);
-  const w = mount(PetApp, { global: { plugins: [i18n] } });
+  const w = mount(PetApp, { global: { plugins: [createPinia(), i18n] } });
   await vi.advanceTimersByTimeAsync(1);
   return w;
 }
@@ -103,8 +110,8 @@ beforeEach(() => {
   vi.setSystemTime(new Date(2026, 8, 12, 10, 0, 0));
   vi.clearAllMocks();
   eventHandlers.clear();
-  // settings 是模块级共享对象，清掉上个用例写入的值避免泄漏
-  Object.keys(settings).forEach((k) => delete settings[k]);
+  // 每个用例独立的 pinia + settings store（取代旧的模块级 reactive 手动清理）
+  setActivePinia(createPinia());
   // 默认设置值，个别测试可在 mountPet 前覆盖 listAllSettings
   vi.mocked(api.listAllSettings).mockResolvedValue({});
   vi.mocked(api.addFocusSeconds).mockResolvedValue(undefined);

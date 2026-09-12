@@ -15,9 +15,12 @@ export default {
   },
   dt: { none: "Not set", clear: "Clear" },
   spine: { tip1: "Send out one Pokemon at a time.", tip2: "It catches your current task for you." },
-  add: { goGrass: "To grass",
+  add: {
+    goGrass: "To grass",
     goRoute: "To route",
-    placeholder: "Which wild Pokemon will you catch? (Enter to add)", submit: "+ Catch" },
+    placeholder: "Which wild Pokemon will you catch? (Enter to add)",
+    submit: "+ Catch",
+  },
   priority: { low: "Low", normal: "Normal", high: "High", urgent: "Urgent" },
   im: {
     empty1: "The radio is quiet, no todo waves yet.",
@@ -84,6 +87,20 @@ export default {
   },
   general: {
     autostart: "Launch at login (pet appears automatically)",
+    shortcuts: "Global shortcuts: Ctrl+Shift+K quick capture · Ctrl+Shift+D show/hide pet (⌘⇧K / ⌘⇧D on macOS)",
+  },
+  update: {
+    title: "Updates",
+    current: "Current version v{v}",
+    check: "Check for updates",
+    checking: "Checking…",
+    upToDate: "You're on the latest version ✔",
+    found: "New version v{v} available",
+    install: "Download & restart to install",
+    installing: "Downloading… (app restarts when done)",
+    progress: "Downloading {pct}%",
+    linuxHint:
+      "On Linux, auto-update only works with AppImage installs; deb / rpm users should download the new package.",
   },
   save: "Save settings",
   saved: "Saved ✔",

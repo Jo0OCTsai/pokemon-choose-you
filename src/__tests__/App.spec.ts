@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { mount, type VueWrapper } from "@vue/test-utils";
+import { createPinia } from "pinia";
 import App from "../App.vue";
 import { api } from "../api";
 import { i18n } from "../i18n";
@@ -30,6 +31,10 @@ vi.mock("../api", () => ({
     createCategory: vi.fn(),
     updateCategory: vi.fn(),
     deleteCategory: vi.fn(),
+    openMainWindow: vi.fn(),
+    consumeQuickCapture: vi.fn(),
+    checkUpdate: vi.fn(),
+    installUpdate: vi.fn(),
   },
 }));
 
@@ -46,7 +51,11 @@ vi.mock("@tauri-apps/api/event", () => ({
     const list = eventHandlers.get(event) ?? [];
     list.push(cb);
     eventHandlers.set(event, list);
-    return () => eventHandlers.set(event, list.filter((h) => h !== cb));
+    return () =>
+      eventHandlers.set(
+        event,
+        list.filter((h) => h !== cb),
+      );
   }),
 }));
 function broadcast(event: string, payload: unknown = null) {
@@ -85,6 +94,9 @@ function wireBackend() {
   vi.mocked(api.listCategories).mockResolvedValue(categories);
   vi.mocked(api.listImSuggestions).mockResolvedValue([]);
   vi.mocked(api.listAllSettings).mockResolvedValue({});
+  vi.mocked(api.consumeQuickCapture).mockResolvedValue(false);
+  vi.mocked(api.checkUpdate).mockResolvedValue("");
+  vi.mocked(api.installUpdate).mockResolvedValue(undefined);
   vi.mocked(api.listTasks).mockImplementation(async (filter: string) => {
     if (filter === "done") return tasks.filter((t) => t.status === "done");
     if (filter === "open") return tasks.filter((t) => t.status !== "done");
@@ -130,7 +142,7 @@ function wireBackend() {
 }
 
 async function mountApp(): Promise<VueWrapper> {
-  const w = mount(App, { global: { plugins: [i18n] } });
+  const w = mount(App, { global: { plugins: [createPinia(), i18n] } });
   await new Promise((r) => setTimeout(r));
   return w;
 }
@@ -152,7 +164,10 @@ describe("App 图鉴机主面板", () => {
   });
 
   it("列表渲染任务条目：编号、标题、分类徽章", async () => {
-    tasks = seed([{ title: "写周报", status: "scheduled" }, { title: "背单词", status: "inbox" }]);
+    tasks = seed([
+      { title: "写周报", status: "scheduled" },
+      { title: "背单词", status: "inbox" },
+    ]);
     const w = await mountApp();
     const entries = w.findAll(".entry");
     expect(entries).toHaveLength(2);
@@ -181,13 +196,14 @@ describe("App 图鉴机主面板", () => {
     await toggle.get("button").trigger("click");
     await w.get("form.add input").setValue("路线任务");
     await w.get("form.add").trigger("submit");
-    expect(api.createTask).toHaveBeenCalledWith(
-      expect.objectContaining({ title: "路线任务", scheduled: true }),
-    );
+    expect(api.createTask).toHaveBeenCalledWith(expect.objectContaining({ title: "路线任务", scheduled: true }));
   });
 
   it("完成/撤销任务：✔ 置 done 并写 completedAt，图鉴页可撤销", async () => {
-    tasks = seed([{ title: "今天做完", status: "scheduled" }, { title: "还没做完", status: "scheduled" }]);
+    tasks = seed([
+      { title: "今天做完", status: "scheduled" },
+      { title: "还没做完", status: "scheduled" },
+    ]);
     const w = await mountApp();
     const doneBtn = w.findAll(".entry .ops .btn").find((b) => b.text() === "✔")!;
     await doneBtn.trigger("click");

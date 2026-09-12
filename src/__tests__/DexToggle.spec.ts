@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { mount } from "@vue/test-utils";
-import DexToggle from "../DexToggle.vue";
+import DexToggle from "../components/DexToggle.vue";
 
 describe("DexToggle", () => {
   it("ON 状态显示默认文案并带 aria-pressed", () => {
