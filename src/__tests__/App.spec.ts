@@ -24,6 +24,8 @@ vi.mock("../api", () => ({
     acceptChatMessage: vi.fn(),
     dismissChatMessage: vi.fn(),
     forceCreateTodo: vi.fn(),
+    applyChatMessageUpdate: vi.fn(),
+    batchReviewChatMessages: vi.fn(),
     listTags: vi.fn(),
     searchTasks: vi.fn(),
     listTaskNotes: vi.fn(),
@@ -39,6 +41,9 @@ vi.mock("../api", () => ({
     testFeishuConfig: vi.fn(),
     triggerFeishuPoll: vi.fn(),
     syncTodoist: vi.fn(),
+    getIntegrationHealth: vi.fn(),
+    listLogEntries: vi.fn(),
+    buildSupportReport: vi.fn(),
     createCategory: vi.fn(),
     updateCategory: vi.fn(),
     deleteCategory: vi.fn(),
@@ -117,6 +122,10 @@ function wireBackend() {
   });
   vi.mocked(api.listTags).mockResolvedValue([]);
   vi.mocked(api.listChatMessages).mockResolvedValue([]);
+  vi.mocked(api.getIntegrationHealth).mockResolvedValue([]);
+  vi.mocked(api.listLogEntries).mockResolvedValue([]);
+  vi.mocked(api.buildSupportReport).mockResolvedValue("mock report");
+  vi.mocked(api.batchReviewChatMessages).mockResolvedValue({ ok: 0, failed: [] });
   vi.mocked(api.searchTasks).mockImplementation(async (q: string) => tasks.filter((t) => t.title.includes(q)));
   vi.mocked(api.listTaskNotes).mockResolvedValue([]);
   vi.mocked(api.listTaskLogs).mockResolvedValue([]);
@@ -364,16 +373,65 @@ describe("App 图鉴机主面板", () => {
     expect(api.acceptChatMessage).toHaveBeenCalledWith(7);
   });
 
-  it("设置页六个分区可选且默认显示专注", async () => {
+  it("设置页七个分区可选且默认显示专注", async () => {
     const w = await mountApp();
     await w.findAll(".menu-btn")[5].trigger("click");
     const stabs = w.findAll(".stab");
-    expect(stabs).toHaveLength(6);
+    expect(stabs).toHaveLength(7);
     expect(w.text()).toContain("番茄钟");
     await stabs[3].trigger("click"); // 显示
     expect(w.text()).toContain("日期格式");
     await stabs[1].trigger("click"); // 分类
     expect(w.text()).toContain("皮卡丘");
+  });
+
+  it("诊断页展示集成健康与日志，支持报告可复制", async () => {
+    vi.mocked(api.getIntegrationHealth).mockResolvedValue([
+      {
+        provider: "feishu",
+        configured: true,
+        enabled: true,
+        status: "degraded",
+        lastSuccessAt: "2026-09-12T08:00:00Z",
+        lastError: "poll failed: 500",
+        lastErrorAt: "2026-09-12T09:00:00Z",
+        consecutiveFailures: 1,
+        nextPollAt: Date.now() + 60_000,
+        pendingCount: 3,
+        primaryAgent: "",
+      },
+      {
+        provider: "ai",
+        configured: true,
+        enabled: true,
+        status: "ok",
+        lastSuccessAt: "2026-09-12T09:00:00Z",
+        lastError: null,
+        lastErrorAt: null,
+        consecutiveFailures: 0,
+        nextPollAt: null,
+        pendingCount: 0,
+        primaryAgent: "Claude Code",
+      },
+    ]);
+    vi.mocked(api.listLogEntries).mockResolvedValue([
+      { time: "2026-09-12 08:00:00", level: "info", target: "app_lib", message: "db migrated to v8" },
+      { time: "2026-09-12 09:00:00", level: "warn", target: "app_lib::feishu", message: "feishu poll failed: 500" },
+    ]);
+    const w = await mountApp();
+    await w.findAll(".menu-btn")[5].trigger("click");
+    await w.findAll(".stab")[5].trigger("click"); // 诊断
+    expect(w.text()).toContain("飞书电波");
+    expect(w.text()).toContain("降级重试中");
+    expect(w.text()).toContain("待确认建议 3");
+    expect(w.text()).toContain("分类 Agent：Claude Code");
+    // 日志倒序：最新（warn）在最上
+    expect(w.findAll(".log-line")[0].text()).toContain("feishu poll failed");
+    expect(api.listLogEntries).toHaveBeenCalled();
+
+    const reportBtn = w.findAll(".btn").find((b) => b.text().includes("复制支持报告"))!;
+    await reportBtn.trigger("click");
+    expect(api.buildSupportReport).toHaveBeenCalled();
   });
 
   it("设置页集成分区：AI agent 配置增删、主 agent 选择与测试链路", async () => {

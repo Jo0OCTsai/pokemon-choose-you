@@ -88,6 +88,8 @@ export interface ChatMessage {
   taskId?: number | null;
   /** update 建议指向的目标待办 id（AI 判定消息是对该待办的变更） */
   updateTaskId?: number | null;
+  /** followup 建议并入的目标待办 id（AI 已把消息记为该待办的跟进） */
+  followupTaskId?: number | null;
   createdAt: string;
 }
 
@@ -110,6 +112,41 @@ export interface AgentConfig {
   /** 单次调用超时（秒） */
   timeoutSecs: number;
   enabled: boolean;
+}
+
+/** 集成链路健康（诊断页展示）：飞书 / AI / Todoist */
+export interface IntegrationHealth {
+  provider: "feishu" | "ai" | "todoist";
+  configured: boolean;
+  /** 飞书的后台轮询开关；其余链路配置即启用 */
+  enabled: boolean;
+  /** off 未配置 / paused 已配置未启用 / idle 待运行 / ok 正常 / degraded 降级 / down 故障 */
+  status: string;
+  lastSuccessAt?: string | null;
+  lastError?: string | null;
+  lastErrorAt?: string | null;
+  consecutiveFailures: number;
+  /** 下次预计轮询时间（epoch 毫秒），仅飞书 */
+  nextPollAt?: number | null;
+  /** 飞书：收音机里待确认的建议数 */
+  pendingCount: number;
+  /** AI：收音机分类使用的 agent 名称 */
+  primaryAgent: string;
+}
+
+/** 运行日志条目（tauri-plugin-log 默认格式解析而来） */
+export interface LogEntry {
+  time: string;
+  /** debug / info / warn / error */
+  level: string;
+  target: string;
+  message: string;
+}
+
+/** 批量分诊结果：逐条汇报，单条失败不影响其余 */
+export interface BatchReviewResult {
+  ok: number;
+  failed: { id: number; error: string }[];
 }
 
 export function spriteUrl(sprite: string): string {

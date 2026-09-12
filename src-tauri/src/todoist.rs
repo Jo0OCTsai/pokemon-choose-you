@@ -43,7 +43,13 @@ fn parse_due(d: &TodoistDue) -> Option<String> {
 
 /// 双向同步：远端 -> 本地 upsert；本地新建 -> 远端创建；本地完成 -> 远端关闭
 pub async fn sync(app: &AppHandle) -> AppResult<String> {
-    sync_with(app, BASE).await
+    let result = sync_with(app, BASE).await;
+    let state = app.state::<crate::health::HealthState>();
+    match &result {
+        Ok(_) => state.record_success(app, crate::health::TODOIST),
+        Err(e) => state.record_failure(app, crate::health::TODOIST, &e.to_string()),
+    }
+    result
 }
 
 /// base 可注入：生产走官方地址，集成测试指向 wiremock 服务器

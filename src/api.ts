@@ -1,4 +1,15 @@
-import type { Category, ChatMessage, FeishuOauthStatus, Tag, Task, TaskLog, TaskNote } from "./types";
+import type {
+  BatchReviewResult,
+  Category,
+  ChatMessage,
+  FeishuOauthStatus,
+  IntegrationHealth,
+  LogEntry,
+  Tag,
+  Task,
+  TaskLog,
+  TaskNote,
+} from "./types";
 
 /** 后端 AppError（src-tauri/src/error.rs）经 IPC 序列化后的结构 */
 export type ApiErrorKind = "db" | "not_found" | "invalid" | "network" | "external" | "io" | "tauri";
@@ -99,6 +110,9 @@ export const api = {
   forceCreateTodo: (id: number) => call<number>("force_create_todo", { id }),
   /** 应用 AI 的更新建议：把建议字段打补丁到目标待办 */
   applyChatMessageUpdate: (id: number) => call<number>("apply_chat_message_update", { id }),
+  /** 批量分诊：accept = 捕捉/应用更新，dismiss = 批量逃走；单条失败不影响其余 */
+  batchReviewChatMessages: (ids: number[], action: "accept" | "dismiss") =>
+    call<BatchReviewResult>("batch_review_chat_messages", { ids, action }),
   listAllSettings: () => call<Record<string, string>>("list_all_settings"),
   openMainWindow: () => call<void>("open_main_window"),
   /** 主窗口挂载时领取"快速捕捉"挂起标记（一次性），返回 true 则直接聚焦新增输入框 */
@@ -118,6 +132,13 @@ export const api = {
   /** 飞书用户授权状态（是否已授权 + 授权用户名） */
   feishuOauthStatus: () => call<FeishuOauthStatus>("feishu_oauth_status"),
   syncTodoist: () => call<string>("sync_todoist"),
+  /** 集成健康汇总（飞书 / AI / Todoist） */
+  getIntegrationHealth: () => call<IntegrationHealth[]>("integration_health"),
+  /** 读取运行日志尾部（可按最低级别过滤） */
+  listLogEntries: (tail?: number, minLevel?: string) =>
+    call<LogEntry[]>("list_log_entries", { tail: tail ?? null, minLevel: minLevel ?? null }),
+  /** 生成支持报告：版本 + 健康快照 + 最近日志（后端已脱敏） */
+  buildSupportReport: () => call<string>("build_support_report"),
   createCategory: (name: string, pokemon: string, sprite: string) =>
     call<Category>("create_category", { name, pokemon, sprite }),
   updateCategory: (id: number, name: string, pokemon: string, sprite: string) =>

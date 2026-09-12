@@ -125,6 +125,9 @@ pub struct ChatMessage {
     /// update 建议指向的目标待办 id（AI 判定消息是对该待办的变更）
     #[serde(default)]
     pub update_task_id: Option<i64>,
+    /// followup 建议并入的目标待办 id（AI 已把消息记为该待办的跟进）
+    #[serde(default)]
+    pub followup_task_id: Option<i64>,
     pub created_at: String,
 }
 
@@ -300,6 +303,7 @@ mod tests {
             review_status: "pending".into(),
             task_id: None,
             update_task_id: None,
+            followup_task_id: None,
             created_at: "2026-09-01T00:00:00Z".into(),
         };
         assert_eq!(
@@ -311,6 +315,7 @@ mod tests {
                 "chatType",
                 "content",
                 "createdAt",
+                "followupTaskId",
                 "id",
                 "isSelf",
                 "messageId",

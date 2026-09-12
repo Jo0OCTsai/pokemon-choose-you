@@ -6,11 +6,11 @@ use crate::events;
 use crate::models::ChatMessage;
 use chrono::TimeZone;
 use rusqlite::{params, Connection};
-use tauri::State;
+use tauri::{Manager, State};
 
 const MSG_COLS: &str = "id, message_id, chat_id, chat_name, chat_type, sender, sender_id, sent_at, is_self, content, \
                         suggested_title, suggested_category, suggested_due, suggested_priority, suggested_note, suggested_tags, \
-                        ai_status, review_status, task_id, update_task_id, created_at";
+                        ai_status, review_status, task_id, update_task_id, followup_task_id, created_at";
 
 fn row_to_message(row: &rusqlite::Row) -> rusqlite::Result<ChatMessage> {
     let tags_raw: String = row.get(15)?;
@@ -35,7 +35,8 @@ fn row_to_message(row: &rusqlite::Row) -> rusqlite::Result<ChatMessage> {
         review_status: row.get(17)?,
         task_id: row.get(18)?,
         update_task_id: row.get(19)?,
-        created_at: row.get(20)?,
+        followup_task_id: row.get(20)?,
+        created_at: row.get(21)?,
     })
 }
 
@@ -212,6 +213,103 @@ pub fn dismiss_chat_message<R: tauri::Runtime>(
     Ok(())
 }
 
+/// 把消息记为某待办的跟进：插入跟进记录并把消息标记为已并入（followup）。
+/// 后台轮询与强制捕捉的判重分支共用；调用方需先确认目标待办存在。
+pub(crate) fn attach_followup(
+    conn: &Connection,
+    message_id: &str,
+    task_id: i64,
+    content: &str,
+) -> AppResult<()> {
+    conn.execute(
+        "INSERT INTO task_notes (task_id, content, source, created_at) VALUES (?1, ?2, 'ai', ?3)",
+        params![task_id, content, now()],
+    )?;
+    conn.execute(
+        "UPDATE chat_messages SET ai_status='followup', followup_task_id=?2, review_status='accepted'
+         WHERE message_id=?1",
+        params![message_id, task_id],
+    )?;
+    Ok(())
+}
+
+/// 由消息上的更新建议构建待办补丁（只含 AI **明确给出**的字段，留空一律不动）。
+/// apply_chat_message_update 与批量分诊共用。
+fn update_patch_from_message(conn: &Connection, msg: &ChatMessage) -> AppResult<(i64, TaskPatch)> {
+    let Some(task_id) = msg.update_task_id else {
+        return Err(AppError::Invalid("更新建议缺少目标待办".into()));
+    };
+    // 目标已删除则无法应用（提前报错，避免先接受再失败）
+    conn.query_row(
+        "SELECT title FROM tasks WHERE id=?1",
+        params![task_id],
+        |r| r.get::<_, String>(0),
+    )
+    .map_err(|_| AppError::NotFound(format!("目标待办 No.{task_id} 已不存在，无法应用更新")))?;
+
+    let mut patch = TaskPatch {
+        id: task_id,
+        title: None,
+        note: None,
+        category_id: None,
+        priority: None,
+        due_at: None,
+        remind_at: None,
+        status: None,
+        tag_ids: None,
+    };
+    if let Some(v) = msg
+        .suggested_title
+        .as_deref()
+        .map(str::trim)
+        .filter(|s| !s.is_empty())
+    {
+        patch.title = Some(v.to_string());
+    }
+    if let Some(v) = msg
+        .suggested_note
+        .as_deref()
+        .map(str::trim)
+        .filter(|s| !s.is_empty())
+    {
+        patch.note = Some(v.to_string());
+    }
+    if let Some(v) = msg.suggested_due.as_deref().filter(|s| !s.is_empty()) {
+        patch.due_at = Some(serde_json::Value::String(v.to_string()));
+    }
+    if let Some(v) = msg
+        .suggested_priority
+        .as_deref()
+        .filter(|p| matches!(*p, "low" | "normal" | "high" | "urgent"))
+    {
+        patch.priority = Some(v.to_string());
+    }
+    // 分类只认启用中的同名分类，认不出就不动（不同于新建的回落策略）
+    if let Some(name) = msg.suggested_category.as_deref().filter(|s| !s.is_empty()) {
+        if let Ok(cid) = conn.query_row(
+            "SELECT id FROM categories WHERE name=?1 AND enabled=1",
+            params![name],
+            |r| r.get::<_, i64>(0),
+        ) {
+            patch.category_id = Some(cid);
+        }
+    }
+    // AI 给了新标签数组（非空）才全量替换
+    if !msg.suggested_tags.is_empty() {
+        patch.tag_ids = Some(resolve_tag_ids(conn, &msg.suggested_tags)?);
+    }
+    if patch.title.is_none()
+        && patch.note.is_none()
+        && patch.category_id.is_none()
+        && patch.priority.is_none()
+        && patch.due_at.is_none()
+        && patch.tag_ids.is_none()
+    {
+        return Err(AppError::Invalid("更新建议没有任何可应用的变更".into()));
+    }
+    Ok((task_id, patch))
+}
+
 /// 应用 AI 的更新建议：把消息建议字段里**明确给出**的部分打补丁到目标待办
 /// （复用 update_task 的校验 / 标签替换 / 草丛不变量 / 字段级操作日志），
 /// 然后把消息标记为已接受。留空的字段一律不动。
@@ -227,77 +325,7 @@ pub fn apply_chat_message_update<R: tauri::Runtime>(
         if msg.review_status != "pending" || msg.ai_status != "update" {
             return Err(AppError::Invalid("该消息不是待确认的更新建议".into()));
         }
-        let Some(task_id) = msg.update_task_id else {
-            return Err(AppError::Invalid("更新建议缺少目标待办".into()));
-        };
-        // 目标已删除则无法应用（提前报错，避免先接受再失败）
-        conn.query_row(
-            "SELECT title FROM tasks WHERE id=?1",
-            params![task_id],
-            |r| r.get::<_, String>(0),
-        )
-        .map_err(|_| AppError::NotFound(format!("目标待办 No.{task_id} 已不存在，无法应用更新")))?;
-
-        let mut patch = TaskPatch {
-            id: task_id,
-            title: None,
-            note: None,
-            category_id: None,
-            priority: None,
-            due_at: None,
-            remind_at: None,
-            status: None,
-            tag_ids: None,
-        };
-        if let Some(v) = msg
-            .suggested_title
-            .as_deref()
-            .map(str::trim)
-            .filter(|s| !s.is_empty())
-        {
-            patch.title = Some(v.to_string());
-        }
-        if let Some(v) = msg
-            .suggested_note
-            .as_deref()
-            .map(str::trim)
-            .filter(|s| !s.is_empty())
-        {
-            patch.note = Some(v.to_string());
-        }
-        if let Some(v) = msg.suggested_due.as_deref().filter(|s| !s.is_empty()) {
-            patch.due_at = Some(serde_json::Value::String(v.to_string()));
-        }
-        if let Some(v) = msg
-            .suggested_priority
-            .as_deref()
-            .filter(|p| matches!(*p, "low" | "normal" | "high" | "urgent"))
-        {
-            patch.priority = Some(v.to_string());
-        }
-        // 分类只认启用中的同名分类，认不出就不动（不同于新建的回落策略）
-        if let Some(name) = msg.suggested_category.as_deref().filter(|s| !s.is_empty()) {
-            if let Ok(cid) = conn.query_row(
-                "SELECT id FROM categories WHERE name=?1 AND enabled=1",
-                params![name],
-                |r| r.get::<_, i64>(0),
-            ) {
-                patch.category_id = Some(cid);
-            }
-        }
-        // AI 给了新标签数组（非空）才全量替换
-        if !msg.suggested_tags.is_empty() {
-            patch.tag_ids = Some(resolve_tag_ids(&conn, &msg.suggested_tags)?);
-        }
-        if patch.title.is_none()
-            && patch.note.is_none()
-            && patch.category_id.is_none()
-            && patch.priority.is_none()
-            && patch.due_at.is_none()
-            && patch.tag_ids.is_none()
-        {
-            return Err(AppError::Invalid("更新建议没有任何可应用的变更".into()));
-        }
+        let (task_id, patch) = update_patch_from_message(&conn, &msg)?;
         conn.execute(
             "UPDATE chat_messages SET review_status='accepted' WHERE id=?1",
             params![id],
@@ -307,6 +335,146 @@ pub fn apply_chat_message_update<R: tauri::Runtime>(
     update_task(app.clone(), db, patch, Some("radio".into()))?;
     events::broadcast(&app, events::CHAT_MESSAGES_CHANGED);
     Ok(task_id)
+}
+
+/// 批量分诊：accept = todo 建议落成待办 / update 建议应用更新；dismiss = 批量逃走。
+/// 单条失败（已建过/目标已删等）不影响其余，结果逐条汇报。
+#[derive(Debug, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct BatchFailure {
+    pub id: i64,
+    pub error: String,
+}
+
+#[derive(Debug, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct BatchReviewResult {
+    pub ok: usize,
+    pub failed: Vec<BatchFailure>,
+}
+
+#[tauri::command]
+pub fn batch_review_chat_messages<R: tauri::Runtime>(
+    app: tauri::AppHandle<R>,
+    db: State<Db>,
+    ids: Vec<i64>,
+    action: String,
+) -> AppResult<BatchReviewResult> {
+    if ids.is_empty() {
+        return Err(AppError::Invalid("未选择任何消息".into()));
+    }
+    if action != "accept" && action != "dismiss" {
+        return Err(AppError::Invalid(format!("未知操作：{action}")));
+    }
+    let mut result = BatchReviewResult {
+        ok: 0,
+        failed: vec![],
+    };
+    let mut tasks_touched = false;
+    for id in ids {
+        if action == "accept" {
+            // 先在锁内校验并落库状态，再在锁外调 update_task（它自己会拿锁）
+            let prepared = {
+                let conn = db.0.lock().unwrap();
+                let msg = match get_message(&conn, id) {
+                    Ok(m) => m,
+                    Err(e) => {
+                        result.failed.push(BatchFailure {
+                            id,
+                            error: e.to_string(),
+                        });
+                        continue;
+                    }
+                };
+                if msg.review_status != "pending" {
+                    result.failed.push(BatchFailure {
+                        id,
+                        error: "该消息已处理过".into(),
+                    });
+                    continue;
+                }
+                if msg.ai_status == "update" {
+                    match update_patch_from_message(&conn, &msg) {
+                        Ok((_, patch)) => {
+                            conn.execute(
+                                "UPDATE chat_messages SET review_status='accepted' WHERE id=?1",
+                                params![id],
+                            )?;
+                            Prepared::ApplyUpdate(Box::new(patch))
+                        }
+                        Err(e) => {
+                            result.failed.push(BatchFailure {
+                                id,
+                                error: e.to_string(),
+                            });
+                            continue;
+                        }
+                    }
+                } else {
+                    match create_task_from_message(&conn, &msg) {
+                        Ok(_) => Prepared::Created,
+                        Err(e) => {
+                            result.failed.push(BatchFailure {
+                                id,
+                                error: e.to_string(),
+                            });
+                            continue;
+                        }
+                    }
+                }
+            };
+            match prepared {
+                Prepared::Created => {
+                    result.ok += 1;
+                    tasks_touched = true;
+                }
+                Prepared::ApplyUpdate(patch) => {
+                    match update_task(app.clone(), db.clone(), *patch, Some("radio".into())) {
+                        Ok(_) => {
+                            result.ok += 1;
+                            tasks_touched = true;
+                        }
+                        Err(e) => {
+                            // 应用失败回滚确认状态，让用户还能单独重试
+                            let conn = db.0.lock().unwrap();
+                            let _ = conn.execute(
+                                "UPDATE chat_messages SET review_status='pending' WHERE id=?1",
+                                params![id],
+                            );
+                            result.failed.push(BatchFailure {
+                                id,
+                                error: e.to_string(),
+                            });
+                        }
+                    }
+                }
+            }
+        } else {
+            let n = db.0.lock().unwrap().execute(
+                "UPDATE chat_messages SET review_status='dismissed' WHERE id=?1 AND review_status='pending'",
+                params![id],
+            )?;
+            if n > 0 {
+                result.ok += 1;
+            } else {
+                result.failed.push(BatchFailure {
+                    id,
+                    error: "该消息已处理过".into(),
+                });
+            }
+        }
+    }
+    if tasks_touched {
+        events::broadcast(&app, events::TASKS_CHANGED);
+    }
+    events::broadcast(&app, events::CHAT_MESSAGES_CHANGED);
+    Ok(result)
+}
+
+/// 批量分诊中单条消息的锁内处理结果（ApplyUpdate 需要锁外调 update_task）
+enum Prepared {
+    Created,
+    ApplyUpdate(Box<TaskPatch>),
 }
 
 /// 组装判重上下文：现有未完成待办 + 分类 + 标签
@@ -465,39 +633,44 @@ pub async fn force_create_todo<R: tauri::Runtime>(
                 "UPDATE chat_messages SET ai_status='error' WHERE id=?1",
                 params![id],
             );
+            app.state::<crate::health::HealthState>().record_failure(
+                &app,
+                crate::health::AI,
+                &e.to_string(),
+            );
             return Err(e);
         }
     };
+    if sugg.is_some() {
+        app.state::<crate::health::HealthState>()
+            .record_success(&app, crate::health::AI);
+    }
 
     // AI 判重：消息是现有待办的跟进 → 挂跟进记录，不重复建待办
     if let Some(s) = &sugg {
         if s.is_follow_up() {
             let task_id = s.follow_up_task_id.unwrap();
-            let conn = db.0.lock().unwrap();
-            let title: Option<String> = conn
-                .query_row(
-                    "SELECT title FROM tasks WHERE id=?1",
-                    params![task_id],
-                    |r| r.get(0),
-                )
-                .ok();
-            if title.is_none() {
+            let title: Option<String> = {
+                let conn = db.0.lock().unwrap();
+                let title: Option<String> = conn
+                    .query_row(
+                        "SELECT title FROM tasks WHERE id=?1",
+                        params![task_id],
+                        |r| r.get(0),
+                    )
+                    .ok();
+                if title.is_some() {
+                    attach_followup(&conn, &msg.message_id, task_id, &msg.content)?;
+                }
+                title
+            };
+            let Some(title) = title else {
                 return Err(AppError::Invalid(format!(
                     "AI 认为是待办 {task_id} 的跟进，但该待办已不存在"
                 )));
-            }
-            conn.execute(
-                "INSERT INTO task_notes (task_id, content, source, created_at) VALUES (?1, ?2, 'ai', ?3)",
-                params![task_id, msg.content, now()],
-            )?;
-            conn.execute(
-                "UPDATE chat_messages SET ai_status='followup' WHERE id=?1",
-                params![id],
-            )?;
-            drop(conn);
+            };
             events::broadcast(&app, events::TASKS_CHANGED);
             events::broadcast(&app, events::CHAT_MESSAGES_CHANGED);
-            let title = title.unwrap_or_default();
             return Err(AppError::Invalid(format!(
                 "AI 判重：该消息是待办 No.{task_id}「{title}」的跟进，已添加跟进记录"
             )));
@@ -586,6 +759,7 @@ mod tests {
     fn setup() -> tauri::App<tauri::test::MockRuntime> {
         let app = tauri::test::mock_app();
         app.manage(Db(Mutex::new(test_conn())));
+        app.manage(crate::health::HealthState::default());
         app.manage(PendingMainReopen(std::sync::atomic::AtomicBool::new(false)));
         app
     }
@@ -1145,5 +1319,141 @@ mod tests {
         assert_eq!(chat_label("p2p", "李四"), "飞书·私聊「李四」");
         assert_eq!(chat_label("group", "项目群"), "飞书·群聊「项目群」");
         assert_eq!(chat_label("", ""), "飞书");
+    }
+
+    /// 跟进并入：插入跟进记录并把消息标记 followup + 记录目标待办（收音机可见）
+    #[test]
+    fn attach_followup_records_note_and_target() {
+        let app = setup();
+        let task_id = seed_task(&app, "参加周会");
+        let mid = seed_message(&app, "om_f1");
+        {
+            let db = app.state::<Db>();
+            let conn = db.0.lock().unwrap();
+            attach_followup(&conn, "om_f1", task_id, "材料已经寄出了").unwrap();
+        }
+        let msgs = {
+            let db = app.state::<Db>();
+            list_chat_messages(db, None).unwrap()
+        };
+        let m = msgs.iter().find(|m| m.id == mid).unwrap();
+        assert_eq!(m.ai_status, "followup");
+        assert_eq!(m.followup_task_id, Some(task_id));
+        assert_eq!(m.review_status, "accepted");
+        let notes: Vec<(String, String)> = {
+            let db = app.state::<Db>();
+            let conn = db.0.lock().unwrap();
+            let mut stmt = conn
+                .prepare("SELECT content, source FROM task_notes WHERE task_id=?1")
+                .unwrap();
+            stmt.query_map(params![task_id], |r| Ok((r.get(0)?, r.get(1)?)))
+                .unwrap()
+                .collect::<Result<Vec<_>, _>>()
+                .unwrap()
+        };
+        assert_eq!(
+            notes,
+            vec![("材料已经寄出了".to_string(), "ai".to_string())]
+        );
+    }
+
+    /// 批量捕捉：todo 建待办 + update 应用更新；已处理过的单独报失败不影响其余
+    #[test]
+    fn batch_accept_mixes_todo_and_update() {
+        let app = setup();
+        seed_tag(&app, "重要");
+        let task_id = seed_task(&app, "参加周会");
+        let todo_mid = seed_message(&app, "om_b1");
+        let update_mid = seed_update_message(
+            &app,
+            "om_b2",
+            Some(task_id),
+            Some("2026-09-16T09:00"),
+            None,
+            None,
+            "[]",
+        );
+        // 预先逃走一条，批量时按已处理报失败
+        let gone_mid = seed_message(&app, "om_b3");
+        {
+            let db = app.state::<Db>();
+            dismiss_chat_message(app.handle().clone(), db, gone_mid).unwrap();
+        }
+
+        let result = {
+            let db = app.state::<Db>();
+            batch_review_chat_messages(
+                app.handle().clone(),
+                db,
+                vec![todo_mid, update_mid, gone_mid],
+                "accept".into(),
+            )
+            .unwrap()
+        };
+        assert_eq!(result.ok, 2, "{result:?}");
+        assert_eq!(result.failed.len(), 1);
+        assert_eq!(result.failed[0].id, gone_mid);
+
+        // todo 消息建了待办；update 消息应用了改期
+        let task = {
+            let db = app.state::<Db>();
+            get_task(db, task_id).unwrap()
+        };
+        assert_eq!(task.due_at.as_deref(), Some("2026-09-16T09:00"));
+        let msgs = {
+            let db = app.state::<Db>();
+            list_chat_messages(db, None).unwrap()
+        };
+        let todo = msgs.iter().find(|m| m.id == todo_mid).unwrap();
+        assert_eq!(todo.review_status, "accepted");
+        assert!(todo.task_id.is_some());
+        let upd = msgs.iter().find(|m| m.id == update_mid).unwrap();
+        assert_eq!(upd.review_status, "accepted");
+    }
+
+    /// 批量逃走：pending 全部标记 dismissed，非 pending 的进失败列表
+    #[test]
+    fn batch_dismiss_marks_pending_only() {
+        let app = setup();
+        let m1 = seed_message(&app, "om_d1");
+        let m2 = seed_message(&app, "om_d2");
+        {
+            let db = app.state::<Db>();
+            accept_chat_message(app.handle().clone(), db, m1).unwrap();
+        }
+        let result = {
+            let db = app.state::<Db>();
+            batch_review_chat_messages(app.handle().clone(), db, vec![m1, m2], "dismiss".into())
+                .unwrap()
+        };
+        assert_eq!(result.ok, 1);
+        assert_eq!(result.failed.len(), 1, "已捕捉的不能再逃走");
+        let msgs = {
+            let db = app.state::<Db>();
+            list_chat_messages(db, None).unwrap()
+        };
+        assert_eq!(
+            msgs.iter().find(|m| m.id == m2).unwrap().review_status,
+            "dismissed"
+        );
+    }
+
+    /// 空选集与未知操作直接报输入错误
+    #[test]
+    fn batch_rejects_empty_and_unknown_action() {
+        let app = setup();
+        let err = {
+            let db = app.state::<Db>();
+            batch_review_chat_messages(app.handle().clone(), db, vec![], "accept".into())
+                .unwrap_err()
+        };
+        assert!(matches!(err, AppError::Invalid(_)));
+        let mid = seed_message(&app, "om_x1");
+        let err = {
+            let db = app.state::<Db>();
+            batch_review_chat_messages(app.handle().clone(), db, vec![mid], "delete".into())
+                .unwrap_err()
+        };
+        assert!(err.to_string().contains("未知操作"), "{err}");
     }
 }

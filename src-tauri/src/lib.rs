@@ -5,6 +5,7 @@ pub mod db;
 pub mod error;
 mod events;
 mod feishu;
+mod health;
 pub mod models;
 mod scheduler;
 mod shortcuts;
@@ -60,6 +61,7 @@ pub fn run() {
             app.manage(commands::windows::QuickCapturePending(
                 std::sync::atomic::AtomicBool::new(false),
             ));
+            app.manage(health::HealthState::default());
             scheduler::spawn_reminder_loop(app.handle().clone());
             feishu::spawn_poll_loop(app.handle().clone());
             tray::setup(app.handle())?;
@@ -98,6 +100,7 @@ pub fn run() {
             commands::list_chat_messages,
             commands::accept_chat_message,
             commands::dismiss_chat_message,
+            commands::batch_review_chat_messages,
             commands::force_create_todo,
             commands::apply_chat_message_update,
             commands::test_ai_config,
@@ -107,6 +110,9 @@ pub fn run() {
             commands::feishu_oauth_login,
             commands::feishu_oauth_status,
             commands::sync_todoist,
+            commands::integration_health,
+            commands::list_log_entries,
+            commands::build_support_report,
             commands::check_update,
             commands::install_update,
             commands::open_main_window,
