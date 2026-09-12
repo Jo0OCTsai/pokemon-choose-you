@@ -177,6 +177,44 @@ async function onSpriteDblClick() {
 // 手动拖拽（Linux/WebKit 下 data-tauri-drag-region 不可靠）
 const { onDragStart, onDragMove, onDragEnd } = usePetDrag(petWindow);
 
+// ---- 就近可操作提醒：气泡旁直接给动作，消化「提醒→完成」链路的第二步流失 ----
+const reminderTask = ref<{ id: number; title: string; urgent: boolean } | null>(null);
+let reminderTimer: ReturnType<typeof setTimeout> | undefined;
+
+/** 就近完成：不打断当前专注（只有提醒的任务本身在进行中才切换气泡状态） */
+async function completeFromReminder() {
+  const r = reminderTask.value;
+  if (!r) return;
+  reminderTask.value = null;
+  clearTimeout(reminderTimer);
+  try {
+    await api.updateTask({ id: r.id, status: "done" });
+    await refreshCurrent();
+    // 刷新会把气泡重置为当前任务状态，确认文案放在刷新之后
+    say(t("pet.reminderDone", { t: r.title }));
+  } catch {
+    bubbleText();
+  }
+}
+
+/** 就近推迟 10 分钟：回写 remind_at（后端会重置 reminded，到点再敲一次门） */
+async function snoozeFromReminder() {
+  const r = reminderTask.value;
+  if (!r) return;
+  reminderTask.value = null;
+  clearTimeout(reminderTimer);
+  const d = new Date(Date.now() + 10 * 60_000);
+  const pad = (n: number) => String(n).padStart(2, "0");
+  const at = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+  try {
+    await api.updateTask({ id: r.id, remindAt: at });
+    await refreshCurrent();
+    say(t("pet.reminderSnoozed"));
+  } catch {
+    bubbleText();
+  }
+}
+
 const unlisteners: UnlistenFn[] = [];
 onMounted(async () => {
   await Promise.all([categories.load(), settings.load()]);
@@ -188,7 +226,13 @@ onMounted(async () => {
       bubble.value = e.payload.urgent
         ? t("pet.remindUrgent", { t: e.payload.title })
         : t("pet.remindNormal", { t: e.payload.title });
-      setTimeout(bubbleText, 15000);
+      // 就近可操作：提醒气泡直接带「完成 / 推迟 10 分钟」，不打开主面板也能消化
+      reminderTask.value = e.payload;
+      clearTimeout(reminderTimer);
+      reminderTimer = setTimeout(() => {
+        reminderTask.value = null;
+        bubbleText();
+      }, 60_000);
     }),
   );
   // 主程序或外部同步改动数据时跟随刷新，保持两窗口状态一致
@@ -237,6 +281,12 @@ onUnmounted(() => {
         <span class="dialog-text">{{ bubble }}</span>
         <span class="dialog-next">▼</span>
       </div>
+    </div>
+
+    <!-- 就近可操作提醒：提醒气泡旁直接完成 / 推迟，无需打开主面板 -->
+    <div v-if="reminderTask" class="reminder-actions">
+      <button class="btn" @click="completeFromReminder">✔ {{ t("pet.reminderDo") }}</button>
+      <button class="btn ghost" @click="snoozeFromReminder">⇨ {{ t("pet.reminderSnooze") }}</button>
     </div>
 
     <!-- 番茄钟 -->
@@ -552,5 +602,18 @@ onUnmounted(() => {
   background: #fff;
   text-align: center;
   color: #999;
+}
+
+/* 提醒就近动作条 */
+.reminder-actions {
+  display: flex;
+  gap: 8px;
+  justify-content: center;
+  margin-top: 6px;
+}
+.reminder-actions .btn {
+  min-height: 32px;
+  font-size: 13px;
+  padding: 4px 12px;
 }
 </style>
