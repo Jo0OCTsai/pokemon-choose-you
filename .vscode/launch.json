@@ -1,31 +1,32 @@
 {
-  // 调试配置：
-  // - Rust 侧（桌面应用 / pk CLI）用 CodeLLDB（扩展 vadimcn.vscode-lldb，见 extensions.json）
+  // 调试配置（Rust 侧用 LLVM 官方 lldb-dap 扩展 llvm-vs-code-extensions.lldb-dap）：
+  // - 桌面应用 / pk CLI 的编译由 tasks.json 的 cargo 任务负责（lldb-dap 无 cargo 集成字段）
   // - 前端 UI 用 Chrome 连 Vite dev server（浏览器里没有 Tauri IPC，仅适合调界面/样式）
   // devUrl 与 vite.config.ts 一致：http://localhost:1420（strictPort）
+  //
+  // 怎么选：
+  // - 只调 Rust / 跑通整体流程 → 单开「🐾 Tauri 桌面应用」（自动编译 + 起 Vite）
+  // - Rust 与前端断点都要 → 用「🚀 一键本地调试」组合（桌面应用 + Chrome 两会话）
+  // - 调 pk CLI → 单开「🛠 pk CLI」，args 改成要调的子命令
   "version": "0.2.0",
   "configurations": [
     {
-      "type": "lldb",
+      "type": "lldb-dap",
       "request": "launch",
       "name": "🐾 Tauri 桌面应用（Rust）",
-      "cargo": {
-        "args": ["build", "--manifest-path=${workspaceFolder}/src-tauri/Cargo.toml", "--bin", "pokemon-knock"]
-      },
       "program": "${workspaceFolder}/src-tauri/target/debug/pokemon-knock",
-      "preLaunchTask": "vite: dev"
+      "cwd": "${workspaceFolder}",
+      "preLaunchTask": "调试准备：桌面应用"
     },
     {
-      "type": "lldb",
+      "type": "lldb-dap",
       "request": "launch",
       "name": "🛠 pk CLI（Rust）",
-      "cargo": {
-        "args": ["build", "--manifest-path=${workspaceFolder}/src-tauri/Cargo.toml", "--bin", "pk"]
-      },
       "program": "${workspaceFolder}/src-tauri/target/debug/pk",
       // 示例参数：调试任务列表；改 args 换成要调的子命令（task get 1 / note list …）
       "args": ["task", "list"],
-      "cwd": "${workspaceFolder}"
+      "cwd": "${workspaceFolder}",
+      "preLaunchTask": "调试准备：pk CLI"
     },
     {
       "type": "chrome",
@@ -37,6 +38,16 @@
       // WSL2：调试会话在 WSL 侧，需通过 interop 启动 Windows 侧 Chrome；按实际安装路径调整
       "runtimeExecutable": "C:/Program Files/Google/Chrome/Application/chrome.exe",
       "userDataDir": "${workspaceFolder}/.vscode/chrome-debug-profile"
+    }
+  ],
+  "compounds": [
+    {
+      // 一键：桌面应用（Rust 断点）+ Chrome（前端断点）同时起；
+      // 共用 vite: dev 后台任务只会起一个 dev server；
+      // stopAll 让停止时两会话一起收（dev server 终端如仍存活，手动关掉即可）
+      "name": "🚀 一键本地调试（桌面应用 + 前端）",
+      "configurations": ["🐾 Tauri 桌面应用（Rust）", "🌐 前端 UI（Chrome + Vite）"],
+      "stopAll": true
     }
   ]
 }
