@@ -1,0 +1,20 @@
+# lefthook：单工具覆盖 TS+Rust 混仓的 pre-commit 与 commit-msg
+# 首次克隆后由 npm 的 prepare 脚本自动 install
+
+pre-commit:
+  parallel: true
+  jobs:
+    - name: frontend lint + format
+      glob: "*.{ts,vue,json,css,html}"
+      run: npx prettier --write --ignore-unknown {staged_files} && npx eslint --fix {staged_files}
+      stage_fixed: true
+
+    - name: rust format
+      glob: "*.rs"
+      run: cd src-tauri && cargo fmt
+      stage_fixed: true
+
+commit-msg:
+  jobs:
+    - name: commitlint
+      run: npx commitlint --edit {1}
