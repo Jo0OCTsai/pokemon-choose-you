@@ -5,6 +5,10 @@ on:
     tags: ["v*"]
   workflow_dispatch:
 
+permissions:
+  # tauri-action 需要创建 draft release 并上传产物
+  contents: write
+
 jobs:
   build:
     strategy:
