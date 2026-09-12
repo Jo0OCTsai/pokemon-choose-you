@@ -5,12 +5,12 @@
   "rangeStrategy": "bump",
   "packageRules": [
     {
-      "matchFilePatterns": ["src-tauri/**"],
+      "matchFileNames": ["src-tauri/**"],
       "groupName": "rust dependencies",
       "schedule": ["before 9am on Monday"]
     },
     {
-      "matchFilePatterns": ["package.json"],
+      "matchFileNames": ["package.json"],
       "groupName": "npm dependencies"
     }
   ]

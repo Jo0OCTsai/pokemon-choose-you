@@ -1,7 +1,7 @@
 # 🐾 宝可梦来敲门 (Pokemon Knock)
 
-[![CI](https://github.com/joeca/pokemon-knock/actions/workflows/ci.yml/badge.svg)](https://github.com/joeca/pokemon-knock/actions/workflows/ci.yml)
-[![Release](https://github.com/joeca/pokemon-knock/actions/workflows/release.yml/badge.svg)](https://github.com/joeca/pokemon-knock/actions/workflows/release.yml)
+[![CI](https://github.com/Jo0OCTsai/pokemon-knock/actions/workflows/ci.yml/badge.svg)](https://github.com/Jo0OCTsai/pokemon-knock/actions/workflows/ci.yml)
+[![Release](https://github.com/Jo0OCTsai/pokemon-knock/actions/workflows/release.yml/badge.svg)](https://github.com/Jo0OCTsai/pokemon-knock/actions/workflows/release.yml)
 
 一只宝可梦桌宠，陪你捕捉每一天的待办。跨平台（macOS / Windows / Linux），本地优先，轻量常驻。
 
