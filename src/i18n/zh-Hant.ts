@@ -19,7 +19,6 @@ export default {
     goGrass: "丟進草叢",
     goRoute: "加入路線",
     placeholder: "要捕捉哪隻野生寶可夢？（按 Enter 新增）",
-    submit: "＋ 捕捉",
   },
   priority: { low: "低", normal: "普通", high: "高", urgent: "緊急" },
   im: {
@@ -66,7 +65,6 @@ export default {
   defaults: {
     title: "📋 新任務預設值",
     priority: "預設優先級",
-    toGrass: "新任務預設去向",
   },
   ai: {
     title: "🤖 AI 介面（OpenAI 相容）",

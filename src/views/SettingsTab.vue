@@ -32,7 +32,6 @@ const pomoOn = boolSetting("pomodoro_enabled");
 const pomoNotify = boolSetting("pomodoro_notify");
 const notifyOn = boolSetting("notifications_enabled");
 const feishuOn = boolSetting("feishu_enabled");
-const inboxDefault = boolSetting("default_to_inbox");
 
 // 设置分区选单（初代选项界面：上选单下内容）
 const settingsTabs = [
@@ -294,10 +293,6 @@ onUnmounted(() => unlisteners.forEach((u) => u()));
           <label>
             {{ t("defaults.priority") }}
             <DexSelect v-model="settings.values.default_priority" :options="priorityOptions" />
-          </label>
-          <label>
-            {{ t("defaults.toGrass") }}
-            <DexToggle v-model="inboxDefault" :on-label="t('add.goGrass')" :off-label="t('add.goRoute')" />
           </label>
         </section>
       </template>

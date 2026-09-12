@@ -82,13 +82,7 @@ describe("素材兼容性：图鉴换装", () => {
 
 describe("设置兼容性：默认值", () => {
   it("布尔型设置取值合法", () => {
-    for (const k of [
-      "pomodoro_enabled",
-      "pomodoro_notify",
-      "notifications_enabled",
-      "default_to_inbox",
-      "feishu_enabled",
-    ]) {
+    for (const k of ["pomodoro_enabled", "pomodoro_notify", "notifications_enabled", "feishu_enabled"]) {
       expect(["true", "false"]).toContain(SETTING_DEFAULTS[k]);
     }
   });

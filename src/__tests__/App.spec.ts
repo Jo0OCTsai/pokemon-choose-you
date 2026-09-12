@@ -189,14 +189,18 @@ describe("App 图鉴机主面板", () => {
     expect(w.findAll(".entry")).toHaveLength(1);
   });
 
-  it("切换草丛/路线开关后，新建任务进路线（scheduled）", async () => {
+  it("设置截止时间后按钮变「加入路线」，新建任务进路线（scheduled）", async () => {
     const w = await mountApp();
-    // DexToggle 的 offLabel 是"加入路线"，点它把 toInbox 置 false
-    const toggle = w.getComponent({ name: "DexToggle" });
-    await toggle.get("button").trigger("click");
+    // 默认无时间：按钮文案为「丢进草丛」
+    expect(w.get("form.add button[type='submit']").text()).toContain("丢进草丛");
+    // DexDateTime 选好时间后 v-model 更新 newDue
+    await w.getComponent({ name: "DexDateTime" }).vm.$emit("update:modelValue", "2026-09-13T09:00");
+    expect(w.get("form.add button[type='submit']").text()).toContain("加入路线");
     await w.get("form.add input").setValue("路线任务");
     await w.get("form.add").trigger("submit");
-    expect(api.createTask).toHaveBeenCalledWith(expect.objectContaining({ title: "路线任务", scheduled: true }));
+    expect(api.createTask).toHaveBeenCalledWith(
+      expect.objectContaining({ title: "路线任务", dueAt: "2026-09-13T09:00", scheduled: true }),
+    );
   });
 
   it("完成/撤销任务：✔ 置 done 并写 completedAt，图鉴页可撤销", async () => {

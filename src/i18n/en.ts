@@ -19,7 +19,6 @@ export default {
     goGrass: "To grass",
     goRoute: "To route",
     placeholder: "Which wild Pokemon will you catch? (Enter to add)",
-    submit: "+ Catch",
   },
   priority: { low: "Low", normal: "Normal", high: "High", urgent: "Urgent" },
   im: {
@@ -66,7 +65,6 @@ export default {
   defaults: {
     title: "📋 New Task Defaults",
     priority: "Default priority",
-    toGrass: "New task destination",
   },
   ai: {
     title: "🤖 AI (OpenAI compatible)",
