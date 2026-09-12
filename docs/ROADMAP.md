@@ -31,7 +31,6 @@
 
 ### Agent CLI 链路增强
 
-- 📋 **配套 skill 分发**：`pk skill install claude-code` 一键安装（对标 Todoist 官方 `td skill install` 先例）
 
 ### 飞书切换 lark-cli
 
@@ -98,6 +97,7 @@
 - **诊断中心**（设置 → 诊断）：集成健康面板（飞书 / AI / Todoist 三档状态、上次成功、下次轮询、失败计数、待确认积压、一键重试，后台实时刷新）+ 应用内日志查看器（级别 / 来源过滤）+ 脱敏支持报告（版本 + 健康快照 + 最近日志，敏感键与 Bearer 凭证自动遮蔽）
 - **AI**：agent CLI 多配置（Claude Code / OpenCode / Kiro CLI + 自定义）、`pk` CLI 供 agent 调用（task / note / log / category / tag / context，全 JSON 输出）、会话历史快捷入口
 - **会话回链与成本记录**：agent_sessions 表按次落库（session_id / 命令 / 退出码 / 成本 / 时长 / token），分类调用自动记录，`pk session log` 关联任务；任务编辑弹窗展示并可回放转录
+- **配套 skill 分发**：`pk skill install claude-code|opencode [--dir]` 一键装 SKILL.md（含 pk 命令速查与 agent 建议流程），`pk skill show` 输出原文
 - **飞书**：用户身份 OAuth 增量拉取私聊/群聊（无需拉机器人进会话）、富文本渲染、按聊天语境过滤 + 同会话 30 分钟上下文、断网退避重试
 - **桌宠**：番茄钟（时长/短休息/通知可配）、专注模式、快捷图鉴屏、换装
 - **集成**：Todoist 双向同步
