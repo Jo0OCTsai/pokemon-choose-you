@@ -28,7 +28,7 @@ jobs:
         run: npx playwright install --with-deps chromium firefox webkit
       - name: E2E（chromium / firefox / webkit 兼容性矩阵）
         run: npm run test:e2e
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: failure()
         with:
           name: playwright-report
