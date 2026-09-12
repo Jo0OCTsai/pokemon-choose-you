@@ -100,6 +100,12 @@ pub struct AiSuggestion {
     /// action=update 时指向要更新的待办 id
     #[serde(default, rename = "updateTaskId")]
     pub update_task_id: Option<i64>,
+    /// 一句话判定理由（为什么是待办 / 为什么判重 / 为什么不算），随建议展示并落反馈库
+    #[serde(default)]
+    pub reason: Option<String>,
+    /// high / medium / low：对判定的把握，低置信建议让用户多看一眼
+    #[serde(default)]
+    pub confidence: Option<String>,
 }
 
 impl AiSuggestion {
@@ -160,7 +166,9 @@ const SYSTEM_PROMPT: &str = r#"你是待办事项提取助手。给你一组 IM 
 - due: 消息里有明确时间就用 YYYY-MM-DDTHH:MM 格式（参考「当前时间」换算年份），否则留空。
 - tags: 从「可用标签」里选 0~3 个最贴切的标签名组成数组，没有合适的返回 []。
 - followUpTaskId 只在 action="followUp" 时填写，updateTaskId 只在 action="update" 时填写，取值都必须是「现有待办清单」里出现的 id。
-你的最终回复必须只包含一个 JSON 对象（不要解释、不要 Markdown 代码块），格式：{"results":[{"messageId":"m1","action":"todo","title":"...","note":"...","category":"...","priority":"normal","due":"...","tags":[],"followUpTaskId":null,"updateTaskId":null}]}"#;
+- reason: 一句话中文说明判定理由（如「对方明确要求周五前交付」/「与待办 No.3 本质相同」/「纯信息分享无需行动」），不超过 30 字。
+- confidence: 从 high/medium/low 里选：消息直白明确用 high；依赖语境推断（指代、隐含的时间或对象）用 medium；拿不准、像又不像的用 low。
+你的最终回复必须只包含一个 JSON 对象（不要解释、不要 Markdown 代码块），格式：{"results":[{"messageId":"m1","action":"todo","title":"...","note":"...","category":"...","priority":"normal","due":"...","tags":[],"followUpTaskId":null,"updateTaskId":null,"reason":"...","confidence":"high"}]}"#;
 
 /// 组装分类请求的正文：判重上下文 + 消息列表（含来源与同会话上下文）
 fn build_user_content(batch: &[AiMessage], ctx: &ClassifyContext) -> String {
@@ -503,6 +511,10 @@ mod tests {
         );
         assert!(s.contains("当前时间："));
         assert!(s.contains("updateTaskId"), "update 动作在规则中说明");
+        assert!(
+            s.contains("reason") && s.contains("confidence"),
+            "判定理由与置信档位在规则中说明"
+        );
     }
 
     #[test]
@@ -600,7 +612,7 @@ mod tests {
             let agent = fake_agent(
                 "ok",
                 "",
-                r#"{"results":[{"messageId":"m1","action":"todo","title":"参加周会","note":"张三在项目群安排","category":"工作","priority":"high","due":"2026-09-13T10:00","tags":["重要"],"followUpTaskId":null}]}"#,
+                r#"{"results":[{"messageId":"m1","action":"todo","title":"参加周会","note":"张三在项目群安排","category":"工作","priority":"high","due":"2026-09-13T10:00","tags":["重要"],"followUpTaskId":null,"reason":"张三明确安排了会议时间","confidence":"high"}]}"#,
             );
             let out = run(&agent).unwrap();
             assert_eq!(out.len(), 1);
@@ -610,6 +622,25 @@ mod tests {
             assert_eq!(out[0].priority.as_deref(), Some("high"));
             assert_eq!(out[0].tags, vec!["重要".to_string()]);
             assert_eq!(out[0].due.as_deref(), Some("2026-09-13T10:00"));
+            assert_eq!(
+                out[0].reason.as_deref(),
+                Some("张三明确安排了会议时间"),
+                "判定理由随建议透传"
+            );
+            assert_eq!(out[0].confidence.as_deref(), Some("high"));
+        }
+
+        /// reason / confidence 缺省不报错（旧模型 / 简化输出）
+        #[test]
+        fn classify_tolerates_missing_reason_and_confidence() {
+            let agent = fake_agent(
+                "bare",
+                "",
+                r#"{"results":[{"messageId":"m1","action":"todo","title":"参加周会"}]}"#,
+            );
+            let out = run(&agent).unwrap();
+            assert!(out[0].reason.is_none());
+            assert!(out[0].confidence.is_none());
         }
 
         #[test]

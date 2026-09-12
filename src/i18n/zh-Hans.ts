@@ -78,6 +78,18 @@ export default {
     batchRelease: "✕ 批量逃走",
     batchDone: "已处理 {n} 条",
     batchPartial: "{ok} 条成功 · {fail} 条失败",
+    escapeWhy: "为什么逃走？（帮 AI 越判越准）",
+    escapeNoReason: "不填原因",
+    justEscape: "直接逃走",
+    confidence: { high: "高置信", medium: "中置信", low: "低置信" },
+    escapeReasons: {
+      duplicate: "已有类似待办",
+      not_task: "不是给我的任务",
+      wrong_info: "建议内容不对",
+      noise: "闲聊/噪音",
+      outdated: "已过期",
+      other: "其他",
+    },
     type: { bot: "机器人", p2p: "私聊", group: "群聊" },
     status: {
       pending: "AI 待判定",

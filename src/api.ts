@@ -105,14 +105,20 @@ export const api = {
   setSetting: (key: string, value: string) => call<void>("set_setting", { key, value }),
   listChatMessages: (query?: string) => call<ChatMessage[]>("list_chat_messages", { query: query ?? null }),
   acceptChatMessage: (id: number) => call<number>("accept_chat_message", { id }),
-  dismissChatMessage: (id: number) => call<void>("dismiss_chat_message", { id }),
+  /** 逃走（可选原因码落反馈库：duplicate/not_task/wrong_info/noise/outdated/other） */
+  dismissChatMessage: (id: number, reasonCode?: string) =>
+    call<void>("dismiss_chat_message", { id, reasonCode: reasonCode ?? null }),
   /** 强制用 AI 为消息创建待办（AI 先判重，重复则报错说明） */
   forceCreateTodo: (id: number) => call<number>("force_create_todo", { id }),
   /** 应用 AI 的更新建议：把建议字段打补丁到目标待办 */
   applyChatMessageUpdate: (id: number) => call<number>("apply_chat_message_update", { id }),
-  /** 批量分诊：accept = 捕捉/应用更新，dismiss = 批量逃走；单条失败不影响其余 */
-  batchReviewChatMessages: (ids: number[], action: "accept" | "dismiss") =>
-    call<BatchReviewResult>("batch_review_chat_messages", { ids, action }),
+  /** 批量分诊：accept = 捕捉/应用更新，dismiss = 批量逃走（可带原因码）；单条失败不影响其余 */
+  batchReviewChatMessages: (ids: number[], action: "accept" | "dismiss", reasonCode?: string) =>
+    call<BatchReviewResult>("batch_review_chat_messages", {
+      ids,
+      action,
+      reasonCode: reasonCode ?? null,
+    }),
   listAllSettings: () => call<Record<string, string>>("list_all_settings"),
   openMainWindow: () => call<void>("open_main_window"),
   /** 主窗口挂载时领取"快速捕捉"挂起标记（一次性），返回 true 则直接聚焦新增输入框 */

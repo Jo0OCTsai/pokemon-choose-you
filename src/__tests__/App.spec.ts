@@ -373,6 +373,70 @@ describe("App 图鉴机主面板", () => {
     expect(api.acceptChatMessage).toHaveBeenCalledWith(7);
   });
 
+  it("收音机建议显示置信档位与理由；逃走可选原因码落反馈", async () => {
+    tasks = seed([]);
+    vi.mocked(api.listChatMessages).mockResolvedValue([
+      {
+        id: 9,
+        messageId: "m9",
+        chatName: "项目群",
+        sender: "张三",
+        content: "明天上午10点开周会",
+        suggestedTitle: "参加周会",
+        suggestedTags: [],
+        suggestedReason: "张三明确安排了会议时间",
+        suggestedConfidence: "high",
+        aiStatus: "todo",
+        reviewStatus: "pending",
+        taskId: null,
+        createdAt: "2026-09-11T00:00:00Z",
+      },
+    ]);
+    const w = await mountApp();
+    await w.findAll(".menu-btn")[4].trigger("click");
+    expect(w.get(".sug-conf").text()).toBe("高置信");
+    expect(w.text()).toContain("张三明确安排了会议时间");
+
+    // 直接逃走：不填原因
+    vi.mocked(api.dismissChatMessage).mockResolvedValue(undefined);
+    await w
+      .findAll(".im-actions .btn")
+      .find((b) => b.text() === "✕ 逃走")!
+      .trigger("click");
+    await new Promise((r) => setTimeout(r));
+    expect(api.dismissChatMessage).toHaveBeenCalledWith(9, undefined);
+
+    // ▾ 展开原因选择，选「已有类似待办」带原因码逃走
+    vi.mocked(api.listChatMessages).mockResolvedValue([
+      {
+        id: 9,
+        messageId: "m9",
+        chatName: "项目群",
+        sender: "张三",
+        content: "明天上午10点开周会",
+        suggestedTitle: "参加周会",
+        suggestedTags: [],
+        suggestedReason: "张三明确安排了会议时间",
+        suggestedConfidence: "high",
+        aiStatus: "todo",
+        reviewStatus: "pending",
+        taskId: null,
+        createdAt: "2026-09-11T00:00:00Z",
+      },
+    ]);
+    await w
+      .findAll(".im-actions .btn")
+      .find((b) => b.text() === "▾")!
+      .trigger("click");
+    expect(w.find(".escape-reasons").exists()).toBe(true);
+    await w
+      .findAll(".er-chip")
+      .find((b) => b.text() === "已有类似待办")!
+      .trigger("click");
+    await new Promise((r) => setTimeout(r));
+    expect(api.dismissChatMessage).toHaveBeenCalledWith(9, "duplicate");
+  });
+
   it("设置页七个分区可选且默认显示专注", async () => {
     const w = await mountApp();
     await w.findAll(".menu-btn")[5].trigger("click");

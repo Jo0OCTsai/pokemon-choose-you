@@ -1233,7 +1233,8 @@ async fn poll_once_inner(app: &AppHandle) -> AppResult<usize> {
                     );
                     let n = conn.execute(
                         "UPDATE chat_messages SET suggested_title=?2, suggested_category=?3, suggested_due=?4,
-                                suggested_priority=?5, suggested_note=?6, suggested_tags=?7, ai_status='todo'
+                                suggested_priority=?5, suggested_note=?6, suggested_tags=?7,
+                                suggested_reason=?8, suggested_confidence=?9, ai_agent=?10, ai_status='todo'
                          WHERE message_id=?1",
                         params![
                             m.message_id,
@@ -1243,6 +1244,9 @@ async fn poll_once_inner(app: &AppHandle) -> AppResult<usize> {
                             s.priority,
                             s.note,
                             serde_json::to_string(&s.tags).unwrap_or_else(|_| "[]".into()),
+                            s.reason,
+                            s.confidence,
+                            agent.id,
                         ],
                     )?;
                     if n > 0 {
@@ -1259,7 +1263,8 @@ async fn poll_once_inner(app: &AppHandle) -> AppResult<usize> {
                     );
                     conn.execute(
                         "UPDATE chat_messages SET suggested_title=?2, suggested_category=?3, suggested_due=?4,
-                                suggested_priority=?5, suggested_note=?6, suggested_tags=?7, update_task_id=?8, ai_status='update'
+                                suggested_priority=?5, suggested_note=?6, suggested_tags=?7, update_task_id=?8,
+                                suggested_reason=?9, suggested_confidence=?10, ai_agent=?11, ai_status='update'
                          WHERE message_id=?1",
                         params![
                             m.message_id,
@@ -1270,6 +1275,9 @@ async fn poll_once_inner(app: &AppHandle) -> AppResult<usize> {
                             s.note,
                             serde_json::to_string(&s.tags).unwrap_or_else(|_| "[]".into()),
                             s.update_task_id,
+                            s.reason,
+                            s.confidence,
+                            agent.id,
                         ],
                     )?;
                 }
@@ -1286,11 +1294,16 @@ async fn poll_once_inner(app: &AppHandle) -> AppResult<usize> {
                         task_id,
                         &m.content,
                     )?;
+                    conn.execute(
+                        "UPDATE chat_messages SET suggested_reason=?2, suggested_confidence=?3, ai_agent=?4
+                         WHERE message_id=?1",
+                        params![m.message_id, s.reason, s.confidence, agent.id],
+                    )?;
                 }
                 _ => {
                     conn.execute(
-                        "UPDATE chat_messages SET ai_status='none' WHERE message_id=?1",
-                        params![m.message_id],
+                        "UPDATE chat_messages SET ai_agent=?2, ai_status='none' WHERE message_id=?1",
+                        params![m.message_id, agent.id],
                     )?;
                 }
             }
