@@ -8,6 +8,11 @@ use tauri::State;
 #[tauri::command]
 pub fn list_categories(db: State<Db>) -> AppResult<Vec<Category>> {
     let conn = db.0.lock().unwrap();
+    list_categories_conn(&conn)
+}
+
+/// conn 版分类列表（pk CLI 复用）
+pub fn list_categories_conn(conn: &rusqlite::Connection) -> AppResult<Vec<Category>> {
     let mut stmt =
         conn.prepare("SELECT id, name, pokemon, sprite, enabled FROM categories ORDER BY id")?;
     let rows = stmt
@@ -24,8 +29,9 @@ pub fn list_categories(db: State<Db>) -> AppResult<Vec<Category>> {
     Ok(rows)
 }
 
-/// 第一个启用中的分类 id（无启用分类时回落 1，保底兜住 NOT NULL 外键语义）
-pub(crate) fn first_enabled_category(conn: &rusqlite::Connection) -> i64 {
+/// 第一个启用中的分类 id（无启用分类时回落 1，保底兜住 NOT NULL 外键语义）。
+/// pk CLI 经由 create_task_conn 复用。
+pub fn first_enabled_category(conn: &rusqlite::Connection) -> i64 {
     conn.query_row(
         "SELECT id FROM categories WHERE enabled=1 ORDER BY id LIMIT 1",
         [],

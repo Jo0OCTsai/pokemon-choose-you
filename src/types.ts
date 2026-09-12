@@ -97,16 +97,19 @@ export interface FeishuOauthStatus {
   userName: string;
 }
 
-export interface AiLog {
-  id: number;
-  scene: string;
-  model: string;
-  requestBody: string;
-  responseBody: string;
-  ok: boolean;
-  error?: string | null;
-  durationMs: number;
-  createdAt: string;
+/** AI agent CLI 配置（如 Claude Code / OpenCode / Kiro CLI），可配置多个 */
+export interface AgentConfig {
+  id: string;
+  name: string;
+  /** 可执行文件名或绝对路径，如 claude / opencode / kiro */
+  command: string;
+  /** 附加参数（空白分隔）；{prompt} 占位符替换为提示词，缺省时提示词可经标准输入传入 */
+  args: string;
+  /** 打开历史记录界面的参数，如 claude 的 --resume；空则直接启动 */
+  historyArgs: string;
+  /** 单次调用超时（秒） */
+  timeoutSecs: number;
+  enabled: boolean;
 }
 
 export function spriteUrl(sprite: string): string {

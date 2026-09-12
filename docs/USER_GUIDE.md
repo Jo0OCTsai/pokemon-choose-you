@@ -186,18 +186,49 @@ AI 判定时会带上**同会话 30 分钟内的近期上下文**与消息来源
 
 > 断网自动退避重试（间隔翻倍，上限 8 倍），恢复后自动追平，日志可查。
 
-## 对接 AI 接口
+## 配置 AI Agent CLI
 
-用于飞书消息的待办识别。支持任何 OpenAI 兼容接口：
+用于飞书消息的待办识别与判重。改为调用本地 **AI agent 命令行工具**（无头模式），不再走 AI 接口：
 
-| 服务 | Base URL | 模型示例 |
-|---|---|---|
-| OpenAI | `https://api.openai.com/v1` | `gpt-4o-mini` |
-| DeepSeek | `https://api.deepseek.com/v1` | `deepseek-chat` |
-| 智谱 GLM | `https://open.bigmodel.cn/api/paas/v4` | `glm-4-flash`（免费额度） |
-| Kimi | `https://api.moonshot.cn/v1` | `moonshot-v1-8k` |
+| Agent | 命令 | 无头调用 | 历史记录参数 |
+|---|---|---|---|
+| Claude Code | `claude` | `-p {prompt}` | `--resume` |
+| OpenCode | `opencode` | `run {prompt}` | （TUI 自带会话列表） |
+| Kiro CLI | `kiro` | `-p {prompt}` | `--resume` |
+| 其他 | 任意 | 自定义 | 自定义 |
 
-设置 → 集成 → AI 接口：填 Base URL（**到 `/v1` 为止**）、API Key、模型名，点「测试 AI 连接」——会真调一次接口并报告能否识别测试待办。
+设置 → 集成 → AI Agent CLI：
+
+1. 选预设 → 点「＋ 添加 Agent」（也可自定义命令与参数）；
+2. 可配置多个：用单选「用于收音机分类」指定当前生效的 agent，其余作为备用；
+3. 点「测试」会真调一次 agent 并报告能否识别测试待办；
+4. 点「历史记录 ↗」会在新终端中打开该 agent 的会话历史（历史由 agent 工具自己保存）。
+
+要点：
+
+- **{prompt} 占位符**：附加参数中的 `{prompt}` 会被替换为完整提示词；不写占位符则提示词经标准输入传入（适合长提示词）。
+- **超时**：agent 启动 + 推理比直连 API 慢，默认 120 秒，可按需调大。
+- Windows 下 npm 全局命令（`claude.cmd` 等）会自动经 `cmd /C` 回退启动，无需绝对路径。
+
+## pk 命令行（供 AI agent 与终端使用）
+
+应用随包分发 `pk` CLI，全部输出 JSON，可直接给 AI agent 工具（claude code / opencode / kiro…）当工具用，也可自己在终端操作：
+
+```bash
+pk task list [open|done|today|all]   # 任务列表（默认 open）
+pk task get 3                        # 任务详情（含跟进记录）
+pk task search 关键词                 # 搜标题/备注/跟进/标签
+pk task create --title "交周报" --due "2026-09-13T18:00" --tags 重要
+pk task update 3 --priority high --due ""   # 空串清空截止时间
+pk task done 3 && pk task start 5    # 完成 / 开始（全局唯一进行中）
+pk note add 3 对方确认周五交付 --source ai
+pk context                           # 当前时间 + 未完成待办 + 分类 + 标签（AI 判重上下文）
+pk help                              # 完整命令说明
+```
+
+- 与桌面应用共用同一个 SQLite 库（WAL 并发安全），操作同样写入审计日志；
+- 环境变量 `PK_DB` 可指定独立数据库路径（`pk init-db` 可引导空库）；
+- 安装位置：应用安装目录（与主程序同级），加入 PATH 后即可全局使用。
 
 ## 对接 Todoist
 
@@ -231,7 +262,7 @@ WSLg 环境缺字体。下载 [Noto Sans CJK SC](https://github.com/notofonts/no
 user_access_token 有效期约 2 小时，应用用 refresh_token 自动续期（刷新后轮换、本地保存）；约 30 天不用会彻底过期，此时点一次「授权登录」重新授权即可。
 
 **Q：AI 分类结果不准？**
-换模型（推荐带 chat 后缀的 newer 模型）；测试连接功能会直接告诉你模型是否识别出测试待办。
+换一个能力更强的 agent / 模型（agent CLI 内自行配置），或在 agent 中调整模型档位；「测试」按钮会真调一次并告诉你是否识别出测试待办。
 
 **Q：提醒没有提前响？**
 设置 → 专注 → 提前提醒；调度器每 20 秒扫描一次，提前量分钟数会在到期前触发。

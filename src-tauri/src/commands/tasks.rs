@@ -46,8 +46,9 @@ const TASK_COLS: &str = "id, title, note, category_id, status, priority, due_at,
 
 // ---- 操作日志（task_logs）：所有状态与属性变更的审计记录 ----
 
-/// 写一条日志；field 无关的动作（create/delete 等）传空串
-pub(crate) fn log_change(
+/// 写一条日志；field 无关的动作（create/delete 等）传空串。
+/// 供 tauri 命令与 pk CLI（bin/pk.rs）两条入口共用。
+pub fn log_change(
     conn: &Connection,
     task_id: i64,
     action: &str,
@@ -141,7 +142,12 @@ fn origin_of(origin: Option<&str>) -> &str {
 #[tauri::command]
 pub fn list_tasks(db: State<Db>, filter: String) -> AppResult<Vec<Task>> {
     let conn = db.0.lock().unwrap();
-    let sql = match filter.as_str() {
+    list_tasks_conn(&conn, &filter)
+}
+
+/// conn 版查询（pk CLI 复用）：open/done/today/其余全量
+pub fn list_tasks_conn(conn: &Connection, filter: &str) -> AppResult<Vec<Task>> {
+    let sql = match filter {
         "open" => "SELECT {cols} FROM tasks WHERE status IN ('inbox','scheduled','active','paused') ORDER BY
                 CASE status WHEN 'active' THEN 0 WHEN 'paused' THEN 1 WHEN 'scheduled' THEN 2 ELSE 3 END,
                 CASE priority WHEN 'urgent' THEN 0 WHEN 'high' THEN 1 WHEN 'normal' THEN 2 ELSE 3 END,
@@ -158,13 +164,19 @@ pub fn list_tasks(db: State<Db>, filter: String) -> AppResult<Vec<Task>> {
     let mut rows = stmt
         .query_map([], row_to_task)?
         .collect::<Result<Vec<_>, _>>()?;
-    attach_tags(&conn, &mut rows)?;
+    attach_tags(conn, &mut rows)?;
     Ok(rows)
 }
 
 /// 关键词搜索：标题/备注/跟进记录/标签名，任意命中即返回
 #[tauri::command]
 pub fn search_tasks(db: State<Db>, q: String) -> AppResult<Vec<Task>> {
+    let conn = db.0.lock().unwrap();
+    search_tasks_conn(&conn, &q)
+}
+
+/// conn 版搜索（pk CLI 复用）
+pub fn search_tasks_conn(conn: &Connection, q: &str) -> AppResult<Vec<Task>> {
     let q = q.trim().to_string();
     if q.is_empty() {
         return Ok(vec![]);
@@ -175,7 +187,6 @@ pub fn search_tasks(db: State<Db>, q: String) -> AppResult<Vec<Task>> {
             .replace('%', "\\%")
             .replace('_', "\\_")
     );
-    let conn = db.0.lock().unwrap();
     let mut stmt = conn.prepare(&format!(
         "SELECT {TASK_COLS} FROM tasks
          WHERE title LIKE ?1 ESCAPE '\\'
@@ -188,7 +199,7 @@ pub fn search_tasks(db: State<Db>, q: String) -> AppResult<Vec<Task>> {
     let mut rows = stmt
         .query_map(params![like], row_to_task)?
         .collect::<Result<Vec<_>, _>>()?;
-    attach_tags(&conn, &mut rows)?;
+    attach_tags(conn, &mut rows)?;
     Ok(rows)
 }
 
@@ -217,16 +228,25 @@ pub fn create_task<R: tauri::Runtime>(
     task: NewTask,
     origin: Option<String>,
 ) -> AppResult<Task> {
+    let t = {
+        let conn = db.0.lock().unwrap();
+        create_task_conn(&conn, &task, origin_of(origin.as_deref()))?
+    };
+    events::broadcast(&app, events::TASKS_CHANGED);
+    Ok(t)
+}
+
+/// conn 版创建（pk CLI 复用）：标题去空格、落分类、挂标签、保不变量、记日志
+pub fn create_task_conn(conn: &Connection, task: &NewTask, origin: &str) -> AppResult<Task> {
     let title = task.title.trim().to_string();
     if title.is_empty() {
         return Err(AppError::Invalid("标题不能为空".into()));
     }
-    let conn = db.0.lock().unwrap();
     let status = if task.scheduled { "scheduled" } else { "inbox" };
     // 未指定分类时落到第一个启用分类（分类可停用，id=1 未必可用）
     let category_id = task
         .category_id
-        .unwrap_or_else(|| crate::commands::categories::first_enabled_category(&conn));
+        .unwrap_or_else(|| crate::commands::categories::first_enabled_category(conn));
     conn.execute(
         "INSERT INTO tasks (title, note, category_id, status, priority, due_at, remind_at, source, external_id, created_at)
          VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10)",
@@ -245,22 +265,11 @@ pub fn create_task<R: tauri::Runtime>(
     )?;
     let id = conn.last_insert_rowid();
     if let Some(tag_ids) = &task.tag_ids {
-        set_task_tags(&conn, id, tag_ids)?;
+        set_task_tags(conn, id, tag_ids)?;
     }
-    enforce_inbox_invariant(&conn, id)?;
-    log_change(
-        &conn,
-        id,
-        "create",
-        "title",
-        None,
-        Some(&title),
-        origin_of(origin.as_deref()),
-    )?;
-    let t = query_task(&conn, id)?;
-    drop(conn);
-    events::broadcast(&app, events::TASKS_CHANGED);
-    Ok(t)
+    enforce_inbox_invariant(conn, id)?;
+    log_change(conn, id, "create", "title", None, Some(&title), origin)?;
+    query_task(conn, id)
 }
 
 /// 全量替换某任务的标签关联
@@ -287,6 +296,11 @@ fn query_task(conn: &Connection, id: i64) -> AppResult<Task> {
         })?;
     attach_tags(conn, std::slice::from_mut(&mut t))?;
     Ok(t)
+}
+
+/// conn 版取单个任务（pk CLI 复用）
+pub fn get_task_conn(conn: &Connection, id: i64) -> AppResult<Task> {
+    query_task(conn, id)
 }
 
 #[tauri::command]
@@ -331,9 +345,17 @@ pub fn update_task<R: tauri::Runtime>(
     patch: TaskPatch,
     origin: Option<String>,
 ) -> AppResult<Task> {
-    let origin = origin_of(origin.as_deref()).to_string();
-    let conn = db.0.lock().unwrap();
-    let before = query_task(&conn, patch.id)?;
+    let t = {
+        let conn = db.0.lock().unwrap();
+        update_task_conn(&conn, &patch, origin_of(origin.as_deref()))?
+    };
+    events::broadcast(&app, events::TASKS_CHANGED);
+    Ok(t)
+}
+
+/// conn 版更新（pk CLI 复用）：字段级 patch + 不变量 + diff 日志
+pub fn update_task_conn(conn: &Connection, patch: &TaskPatch, origin: &str) -> AppResult<Task> {
+    let before = query_task(conn, patch.id)?;
     let mut sets: Vec<String> = vec![];
     let mut p: Vec<Box<dyn rusqlite::types::ToSql>> = vec![];
     let push = |sets: &mut Vec<String>,
@@ -386,13 +408,11 @@ pub fn update_task<R: tauri::Runtime>(
         )?;
     }
     if let Some(tag_ids) = &patch.tag_ids {
-        set_task_tags(&conn, patch.id, tag_ids)?;
+        set_task_tags(conn, patch.id, tag_ids)?;
     }
-    enforce_inbox_invariant(&conn, patch.id)?;
-    let t = query_task(&conn, patch.id)?;
-    log_task_diff(&conn, &before, &t, &origin)?;
-    drop(conn);
-    events::broadcast(&app, events::TASKS_CHANGED);
+    enforce_inbox_invariant(conn, patch.id)?;
+    let t = query_task(conn, patch.id)?;
+    log_task_diff(conn, &before, &t, origin)?;
     Ok(t)
 }
 
@@ -403,27 +423,26 @@ pub fn delete_task<R: tauri::Runtime>(
     id: i64,
     origin: Option<String>,
 ) -> AppResult<()> {
-    let conn = db.0.lock().unwrap();
+    {
+        let conn = db.0.lock().unwrap();
+        delete_task_conn(&conn, id, origin_of(origin.as_deref()))?;
+    }
+    events::broadcast(&app, events::TASKS_CHANGED);
+    Ok(())
+}
+
+/// conn 版删除（pk CLI 复用）：task_logs 保留 tombstone，关联数据一并清理
+pub fn delete_task_conn(conn: &Connection, id: i64, origin: &str) -> AppResult<()> {
     // tombstone：任务删除后 task_logs 保留（无外键约束），记录删除时的标题
     let title: Option<String> = conn
         .query_row("SELECT title FROM tasks WHERE id=?1", params![id], |r| {
             r.get(0)
         })
         .ok();
-    log_change(
-        &conn,
-        id,
-        "delete",
-        "title",
-        title.as_deref(),
-        None,
-        origin_of(origin.as_deref()),
-    )?;
+    log_change(conn, id, "delete", "title", title.as_deref(), None, origin)?;
     conn.execute("DELETE FROM tasks WHERE id=?1", params![id])?;
     conn.execute("DELETE FROM task_tags WHERE task_id=?1", params![id])?;
     conn.execute("DELETE FROM task_notes WHERE task_id=?1", params![id])?;
-    drop(conn);
-    events::broadcast(&app, events::TASKS_CHANGED);
     Ok(())
 }
 
@@ -444,6 +463,11 @@ fn row_to_note(row: &rusqlite::Row) -> rusqlite::Result<TaskNote> {
 #[tauri::command]
 pub fn list_task_notes(db: State<Db>, task_id: i64) -> AppResult<Vec<TaskNote>> {
     let conn = db.0.lock().unwrap();
+    list_task_notes_conn(&conn, task_id)
+}
+
+/// conn 版跟进记录列表（pk CLI 复用）
+pub fn list_task_notes_conn(conn: &Connection, task_id: i64) -> AppResult<Vec<TaskNote>> {
     let mut stmt = conn.prepare(&format!(
         "SELECT {NOTE_COLS} FROM task_notes WHERE task_id=?1 ORDER BY id"
     ))?;
@@ -461,11 +485,29 @@ pub fn add_task_note<R: tauri::Runtime>(
     task_id: i64,
     content: String,
 ) -> AppResult<TaskNote> {
+    let note = {
+        let conn = db.0.lock().unwrap();
+        add_task_note_conn(&conn, task_id, &content, "manual")?
+    };
+    events::broadcast(&app, events::TASKS_CHANGED);
+    Ok(note)
+}
+
+/// conn 版添加跟进记录（pk CLI 复用；source: manual / ai）
+pub fn add_task_note_conn(
+    conn: &Connection,
+    task_id: i64,
+    content: &str,
+    source: &str,
+) -> AppResult<TaskNote> {
     let content = content.trim().to_string();
     if content.is_empty() {
         return Err(AppError::Invalid("跟进内容不能为空".into()));
     }
-    let conn = db.0.lock().unwrap();
+    let source = match source {
+        "ai" => "ai",
+        _ => "manual",
+    };
     conn.query_row(
         &format!("SELECT {TASK_COLS} FROM tasks WHERE id=?1"),
         params![task_id],
@@ -478,16 +520,14 @@ pub fn add_task_note<R: tauri::Runtime>(
         other => AppError::Db(other),
     })?;
     conn.execute(
-        "INSERT INTO task_notes (task_id, content, source, created_at) VALUES (?1, ?2, 'manual', ?3)",
-        params![task_id, content, now()],
+        "INSERT INTO task_notes (task_id, content, source, created_at) VALUES (?1, ?2, ?3, ?4)",
+        params![task_id, content, source, now()],
     )?;
     let note = conn.query_row(
         &format!("SELECT {NOTE_COLS} FROM task_notes WHERE id=?1"),
         params![conn.last_insert_rowid()],
         row_to_note,
     )?;
-    drop(conn);
-    events::broadcast(&app, events::TASKS_CHANGED);
     Ok(note)
 }
 
@@ -525,6 +565,11 @@ fn row_to_log(row: &rusqlite::Row) -> rusqlite::Result<TaskLog> {
 #[tauri::command]
 pub fn list_task_logs(db: State<Db>, task_id: i64) -> AppResult<Vec<TaskLog>> {
     let conn = db.0.lock().unwrap();
+    list_task_logs_conn(&conn, task_id)
+}
+
+/// conn 版操作日志（pk CLI 复用）
+pub fn list_task_logs_conn(conn: &Connection, task_id: i64) -> AppResult<Vec<TaskLog>> {
     let mut stmt = conn.prepare(&format!(
         "SELECT {LOG_COLS} FROM task_logs WHERE task_id=?1 ORDER BY id DESC LIMIT 200"
     ))?;
@@ -544,44 +589,51 @@ pub fn start_task<R: tauri::Runtime>(
     id: i64,
     origin: Option<String>,
 ) -> AppResult<Task> {
-    let origin = origin_of(origin.as_deref()).to_string();
-    {
+    let t = {
         let mut conn = db.0.lock().unwrap();
-        // 被顶下的任务也要记状态变更日志，先取快照
-        let demoted: Vec<(i64, String)> = {
-            let mut stmt =
-                conn.prepare("SELECT id, status FROM tasks WHERE status IN ('active','paused')")?;
-            let rows = stmt
-                .query_map([], |r| Ok((r.get(0)?, r.get(1)?)))?
-                .collect::<Result<Vec<_>, _>>()?;
-            rows
-        };
-        let tx = conn.transaction()?;
-        tx.execute(
-            "UPDATE tasks SET status='scheduled' WHERE status IN ('active','paused')",
-            [],
-        )?;
-        tx.execute(
-            "UPDATE tasks SET status='active', started_at=COALESCE(started_at, ?2) WHERE id=?1",
-            params![id, now()],
-        )?;
-        tx.commit()?;
-        for (did, dstatus) in &demoted {
-            log_change(
-                &conn,
-                *did,
-                "demote",
-                "status",
-                Some(dstatus),
-                Some("scheduled"),
-                &origin,
-            )?;
-        }
-        log_change(&conn, id, "start", "status", None, Some("active"), &origin)?;
-    }
-    let t = query_task(&db.0.lock().unwrap(), id)?;
+        start_task_conn(&mut conn, id, origin_of(origin.as_deref()))?
+    };
     events::broadcast(&app, events::TASKS_CHANGED);
     Ok(t)
+}
+
+/// conn 版开始任务（pk CLI 复用）
+pub fn start_task_conn(conn: &mut Connection, id: i64, origin: &str) -> AppResult<Task> {
+    // 被顶下的任务也要记状态变更日志，先取快照
+    let demoted: Vec<(i64, String)> = {
+        let mut stmt =
+            conn.prepare("SELECT id, status FROM tasks WHERE status IN ('active','paused')")?;
+        let rows = stmt
+            .query_map([], |r| Ok((r.get(0)?, r.get(1)?)))?
+            .collect::<Result<Vec<_>, _>>()?;
+        rows
+    };
+    let tx = conn.transaction()?;
+    tx.execute(
+        "UPDATE tasks SET status='scheduled' WHERE status IN ('active','paused')",
+        [],
+    )?;
+    let n = tx.execute(
+        "UPDATE tasks SET status='active', started_at=COALESCE(started_at, ?2) WHERE id=?1",
+        params![id, now()],
+    )?;
+    tx.commit()?;
+    if n == 0 {
+        return Err(AppError::NotFound(format!("任务 {id} 不存在")));
+    }
+    for (did, dstatus) in &demoted {
+        log_change(
+            conn,
+            *did,
+            "demote",
+            "status",
+            Some(dstatus),
+            Some("scheduled"),
+            origin,
+        )?;
+    }
+    log_change(conn, id, "start", "status", None, Some("active"), origin)?;
+    query_task(conn, id)
 }
 
 #[tauri::command]
@@ -590,48 +642,56 @@ pub fn pause_current_task<R: tauri::Runtime>(
     db: State<Db>,
     origin: Option<String>,
 ) -> AppResult<Option<Task>> {
-    let origin = origin_of(origin.as_deref()).to_string();
     let t = {
         let conn = db.0.lock().unwrap();
-        let paused_id: Option<i64> = conn
-            .query_row("SELECT id FROM tasks WHERE status='active'", [], |r| {
-                r.get(0)
-            })
-            .ok();
-        conn.execute("UPDATE tasks SET status='paused' WHERE status='active'", [])?;
-        if let Some(pid) = paused_id {
-            log_change(
-                &conn,
-                pid,
-                "pause",
-                "status",
-                Some("active"),
-                Some("paused"),
-                &origin,
-            )?;
-        }
-        conn.query_row(
-            &format!("SELECT {TASK_COLS} FROM tasks WHERE status='paused' ORDER BY focus_seconds DESC LIMIT 1"),
-            [],
-            row_to_task,
-        )
-        .ok()
+        pause_current_task_conn(&conn, origin_of(origin.as_deref()))?
     };
     events::broadcast(&app, events::TASKS_CHANGED);
     Ok(t)
 }
 
+/// conn 版暂停（pk CLI 复用）：当前 active 转为 paused 并记日志
+pub fn pause_current_task_conn(conn: &Connection, origin: &str) -> AppResult<Option<Task>> {
+    let paused_id: Option<i64> = conn
+        .query_row("SELECT id FROM tasks WHERE status='active'", [], |r| {
+            r.get(0)
+        })
+        .ok();
+    conn.execute("UPDATE tasks SET status='paused' WHERE status='active'", [])?;
+    if let Some(pid) = paused_id {
+        log_change(
+            conn,
+            pid,
+            "pause",
+            "status",
+            Some("active"),
+            Some("paused"),
+            origin,
+        )?;
+    }
+    Ok(conn.query_row(
+        &format!("SELECT {TASK_COLS} FROM tasks WHERE status='paused' ORDER BY focus_seconds DESC LIMIT 1"),
+        [],
+        row_to_task,
+    )
+    .ok())
+}
+
 #[tauri::command]
 pub fn get_current_task(db: State<Db>) -> AppResult<Option<Task>> {
     let conn = db.0.lock().unwrap();
-    let t = conn
+    get_current_task_conn(&conn)
+}
+
+/// conn 版当前进行中任务（pk CLI 复用）
+pub fn get_current_task_conn(conn: &Connection) -> AppResult<Option<Task>> {
+    Ok(conn
         .query_row(
             &format!("SELECT {TASK_COLS} FROM tasks WHERE status='active' LIMIT 1"),
             [],
             row_to_task,
         )
-        .ok();
-    Ok(t)
+        .ok())
 }
 
 /// 前端番茄钟每分钟上报专注时长

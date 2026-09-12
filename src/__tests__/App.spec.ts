@@ -25,8 +25,6 @@ vi.mock("../api", () => ({
     dismissChatMessage: vi.fn(),
     forceCreateTodo: vi.fn(),
     listTags: vi.fn(),
-    listAiLogs: vi.fn(),
-    clearAiLogs: vi.fn(),
     searchTasks: vi.fn(),
     listTaskNotes: vi.fn(),
     addTaskNote: vi.fn(),
@@ -37,6 +35,7 @@ vi.mock("../api", () => ({
     deleteTag: vi.fn(),
     listAllSettings: vi.fn(),
     testAiConfig: vi.fn(),
+    openAgentHistory: vi.fn(),
     testFeishuConfig: vi.fn(),
     triggerFeishuPoll: vi.fn(),
     syncTodoist: vi.fn(),
@@ -365,16 +364,53 @@ describe("App 图鉴机主面板", () => {
     expect(api.acceptChatMessage).toHaveBeenCalledWith(7);
   });
 
-  it("设置页七个分区可选且默认显示专注", async () => {
+  it("设置页六个分区可选且默认显示专注", async () => {
     const w = await mountApp();
     await w.findAll(".menu-btn")[5].trigger("click");
     const stabs = w.findAll(".stab");
-    expect(stabs).toHaveLength(7);
+    expect(stabs).toHaveLength(6);
     expect(w.text()).toContain("番茄钟");
     await stabs[3].trigger("click"); // 显示
     expect(w.text()).toContain("日期格式");
     await stabs[1].trigger("click"); // 分类
     expect(w.text()).toContain("皮卡丘");
+  });
+
+  it("设置页集成分区：AI agent 配置增删、主 agent 选择与测试链路", async () => {
+    const w = await mountApp();
+    await w.findAll(".menu-btn")[5].trigger("click");
+    await w.findAll(".stab")[4].trigger("click"); // 集成
+    expect(w.text()).toContain("AI Agent CLI");
+
+    // 默认无 agent；按预设添加一个（Claude Code 预设填充命令与参数）
+    expect(w.findAll(".agent-block")).toHaveLength(0);
+    await w
+      .findAll(".btn")
+      .find((b) => b.text().includes("添加 Agent"))!
+      .trigger("click");
+    const blocks = w.findAll(".agent-block");
+    expect(blocks).toHaveLength(1);
+    const cmd = blocks[0].find(".agent-cmd").element as HTMLInputElement;
+    expect(cmd.value).toBe("claude");
+    expect(w.html()).toContain("-p {prompt}"); // 附加参数预设（i18n 字面量转义后渲染）
+
+    // 选为主 agent 并点测试：先落库（setSetting 带 ai_agents JSON）再调后端测试
+    await blocks[0].find('input[name="primary-agent"]').setValue();
+    await w
+      .findAll(".btn")
+      .find((b) => b.text() === "测试")!
+      .trigger("click");
+    await new Promise((r) => setTimeout(r));
+    expect(api.setSetting).toHaveBeenCalledWith("ai_agents", expect.stringContaining("claude"));
+    expect(api.setSetting).toHaveBeenCalledWith("ai_agent_id", expect.any(String));
+    expect(api.testAiConfig).toHaveBeenCalledTimes(1);
+
+    // 删除后列表清空
+    await w
+      .findAll(".btn")
+      .find((b) => b.text() === "删除")!
+      .trigger("click");
+    expect(w.findAll(".agent-block")).toHaveLength(0);
   });
 
   it("设置页分类分区：进入即列出内置分类，停用开关调用后端", async () => {

@@ -1082,11 +1082,11 @@ pub async fn poll_once(app: &AppHandle) -> AppResult<usize> {
         Some(c) => c,
         None => return Ok(0), // 未配置，静默跳过
     };
-    let acfg = match ai::load_config(&get) {
-        Some(c) => c,
+    let agent = match ai::primary_agent(&get) {
+        Some(a) => a,
         None => {
             return Err(AppError::Invalid(
-                "已配置飞书但未配置 AI 接口，无法分类".into(),
+                "已配置飞书但未配置 AI Agent，无法分类".into(),
             ))
         }
     };
@@ -1175,9 +1175,7 @@ pub async fn poll_once(app: &AppHandle) -> AppResult<usize> {
             let conn = db.0.lock().unwrap();
             crate::commands::radio::classify_context(&conn)?
         };
-        let (suggestions, record) = ai::classify(&acfg, "classify", &batch, &ctx).await;
-        ai::save_log(&db, &record);
-        let suggestions = match suggestions {
+        let suggestions = match ai::classify(&agent, &batch, &ctx).await {
             Ok(s) => s,
             Err(e) => {
                 log::warn!("AI 分类失败（本轮跳过）: {e}");

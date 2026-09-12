@@ -1,4 +1,4 @@
-import type { AiLog, Category, ChatMessage, FeishuOauthStatus, Tag, Task, TaskLog, TaskNote } from "./types";
+import type { Category, ChatMessage, FeishuOauthStatus, Tag, Task, TaskLog, TaskNote } from "./types";
 
 /** 后端 AppError（src-tauri/src/error.rs）经 IPC 序列化后的结构 */
 export type ApiErrorKind = "db" | "not_found" | "invalid" | "network" | "external" | "io" | "tauri";
@@ -99,8 +99,6 @@ export const api = {
   forceCreateTodo: (id: number) => call<number>("force_create_todo", { id }),
   /** 应用 AI 的更新建议：把建议字段打补丁到目标待办 */
   applyChatMessageUpdate: (id: number) => call<number>("apply_chat_message_update", { id }),
-  listAiLogs: (limit?: number) => call<AiLog[]>("list_ai_logs", { limit: limit ?? null }),
-  clearAiLogs: () => call<void>("clear_ai_logs"),
   listAllSettings: () => call<Record<string, string>>("list_all_settings"),
   openMainWindow: () => call<void>("open_main_window"),
   /** 主窗口挂载时领取"快速捕捉"挂起标记（一次性），返回 true 则直接聚焦新增输入框 */
@@ -109,7 +107,10 @@ export const api = {
   checkUpdate: () => call<string>("check_update"),
   /** 下载安装更新并重启 */
   installUpdate: () => call<void>("install_update"),
-  testAiConfig: () => call<string>("test_ai_config"),
+  /** 测试一个 AI agent（不传 id 用收音机分类使用的主 agent） */
+  testAiConfig: (agentId?: string) => call<string>("test_ai_config", { agentId: agentId ?? null }),
+  /** 在系统终端里打开 agent 的历史记录界面（agent 工具自己保存会话历史） */
+  openAgentHistory: (agentId: string) => call<string>("open_agent_history", { agentId }),
   testFeishuConfig: () => call<string>("test_feishu_config"),
   triggerFeishuPoll: () => call<number>("trigger_feishu_poll"),
   /** 发起飞书用户授权：打开浏览器完成 OAuth，本地回调换取 user_access_token */

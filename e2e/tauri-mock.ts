@@ -264,12 +264,10 @@ export async function installTauriMock(page: Page, state: Partial<MockState> = {
           case "delete_task_note":
             broadcast("tasks-changed");
             return null;
-          case "list_ai_logs":
-            return [];
-          case "clear_ai_logs":
-            return null;
+          case "open_agent_history":
+            return "已在 mock 终端中启动（E2E mock）";
           case "test_ai_config":
-            return "连接成功（E2E mock）";
+            return "Agent 调用成功（E2E mock）";
           case "test_feishu_config":
             return "连接成功，已授权「测试用户」，可见 3 个会话（E2E mock）";
           case "trigger_feishu_poll":

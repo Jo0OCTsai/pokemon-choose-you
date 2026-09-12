@@ -29,12 +29,13 @@
 - 图鉴条目卡：条目编号、属性徽章（分类）、优先级圆点（紧急闪烁）、专注时长累计、今日捕捉进度条
 - 分级提醒：普通 = 气泡 + 系统通知；紧急 = 桌宠抖动敲门。提醒调度在 Rust 后台，关掉面板不漏提醒
 - 收音机：飞书消息 → AI 识别新待办/现有待办变更/跟进记录 → 逐条「◎ 捕捉 · 应用更新 / ✕ 逃走」，不强迫决策
-- 设置中心：专注 / 分类（宝可梦换装）/ 显示 / 集成 / 通用 五个分区
+- 设置中心：专注 / 分类（宝可梦换装）/ 标签 / 显示 / 集成 / 通用 六个分区
 - 多语言：简体中文 / 繁體中文 / English，两窗口即时切换
 - 日期时间格式、新任务默认值、开机自启（LaunchAgent / 注册表）
 
 ### 集成
-- **AI**：任意 OpenAI 兼容接口（OpenAI / DeepSeek / 智谱 GLM / Kimi…），只需 Base URL + Key + 模型名
+- **AI Agent CLI**：收音机消息分类由本地 AI agent 命令行工具无头完成（Claude Code / OpenCode / Kiro CLI…），可配置多个、随时切换；调用历史由 agent 工具自带，设置页提供快捷入口
+- **pk 命令行**：随应用分发的 `pk` CLI，供 AI agent 与终端直接读写待办（`pk task list` / `pk task get` / `pk context`…，全 JSON 输出）
 - **飞书**：企业自建应用免公网回调，用户 OAuth 授权后以个人身份增量轮询私聊/群聊（无需拉机器人进会话），富文本渲染、按聊天语境过滤并附带同会话上下文送 AI
 - **Todoist**：双向同步——远端拉取、本地非草丛任务推送、本地完成关闭远端任务
 
@@ -90,11 +91,12 @@ src/                    前端（Vue 3 + TS）
   __tests__/            前端单元测试 + i18n/素材兼容性测试（Vitest）
 e2e/                    端到端测试（Playwright + Tauri IPC mock）
 src-tauri/src/
-  db.rs                 SQLite 初始化 + 默认分类 + 设置读取
-  commands.rs           任务 CRUD / 专注模式 / 分类管理 / 集成命令
+  db.rs                 SQLite 初始化 + 版本迁移 + 默认分类
+  commands/             任务 CRUD / 专注模式 / 分类管理 / 集成命令（conn 层供 pk CLI 复用）
+  bin/pk.rs             pk 命令行：供 AI agent 与终端读写待办（JSON 输出）
   scheduler.rs          提醒调度（提前量、通知开关、多语言通知）
   feishu.rs             飞书用户授权（OAuth）+ 用户身份增量轮询 + 富文本渲染
-  ai.rs                 OpenAI 兼容分类
+  ai.rs                 AI agent CLI 无头调用（多 Agent 配置 / 超时 / 输出解析）
   todoist.rs            Todoist 双向同步
                         （各文件内 #[cfg(test)] 为 Rust 单元测试与契约测试）
 public/pokemon/         宝可梦素材 (PokeAPI sprites)
