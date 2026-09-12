@@ -1,6 +1,8 @@
 {
-  // launch.json 的 preLaunchTask：后台起 Vite dev server（端口 1420，与 tauri.conf.json 的 devUrl 一致）
-  // isBackground + problemMatcher 让调试器等到 "ready in / Local:" 出现即继续，不阻塞在常驻进程上
+  // launch.json 的 preLaunchTask 任务集：
+  // - vite: dev 是后台常驻任务（problemMatcher 等 ready/Local 出现即放行，不阻塞调试会话）
+  // - cargo 构建任务做 debug 编译（lldb-dap 扩展没有 cargo 集成字段，构建走这里）
+  // - 「调试准备」聚合任务把构建与 dev server 组合给 launch.json 引用
   "version": "2.0.0",
   "tasks": [
     {
@@ -20,6 +22,35 @@
           "endsPattern": "ready in|Local:"
         }
       }
+    },
+    {
+      "label": "cargo: build 应用（debug）",
+      "type": "shell",
+      "command": "cargo",
+      "args": ["build", "--manifest-path", "${workspaceFolder}/src-tauri/Cargo.toml", "--bin", "pokemon-knock"],
+      "group": {
+        "kind": "build",
+        "isDefault": true
+      },
+      "problemMatcher": ["$rustc"]
+    },
+    {
+      "label": "cargo: build pk（debug）",
+      "type": "shell",
+      "command": "cargo",
+      "args": ["build", "--manifest-path", "${workspaceFolder}/src-tauri/Cargo.toml", "--bin", "pk"],
+      "group": "build",
+      "problemMatcher": ["$rustc"]
+    },
+    {
+      "label": "调试准备：桌面应用",
+      "dependsOn": ["cargo: build 应用（debug）", "vite: dev"],
+      "problemMatcher": []
+    },
+    {
+      "label": "调试准备：pk CLI",
+      "dependsOn": ["cargo: build pk（debug）"],
+      "problemMatcher": []
     }
   ]
 }
