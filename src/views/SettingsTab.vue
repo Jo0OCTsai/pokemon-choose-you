@@ -8,7 +8,7 @@ import { EVENTS } from "../events";
 import { fmtDateTime, SETTING_KEYS, POKEMON_LIST, useSettingsStore } from "../stores/settings";
 import { useCategoriesStore } from "../stores/categories";
 import { useTagsStore } from "../stores/tags";
-import type { AgentConfig, FeishuOauthStatus } from "../types";
+import type { AgentConfig, FeishuOauthStatus, IntegrationHealth, LogEntry } from "../types";
 import { SUPPORTED_LOCALES } from "../i18n";
 import DexSelect from "../components/DexSelect.vue";
 import DexToggle from "../components/DexToggle.vue";
@@ -43,6 +43,7 @@ const settingsTabs = [
   { key: "tags", labelKey: "stabs.tags" },
   { key: "display", labelKey: "stabs.display" },
   { key: "integrations", labelKey: "stabs.integrations" },
+  { key: "diag", labelKey: "stabs.diag" },
   { key: "general", labelKey: "stabs.general" },
 ] as const;
 const settingsTab = ref<(typeof settingsTabs)[number]["key"]>("focus");
@@ -295,7 +296,84 @@ watch(settingsTab, (tab) => {
   if (tab === "cats") startEditCats();
   if (tab === "tags" && !editingTags.value.length) startEditTags();
   if (tab === "integrations" && !agents.value.length) loadAgents();
+  if (tab === "diag") loadDiagnostics();
 });
+
+// ---- 诊断：集成健康 + 运行日志 ----
+const health = ref<IntegrationHealth[]>([]);
+async function loadHealth() {
+  try {
+    health.value = await api.getIntegrationHealth();
+  } catch {
+    health.value = []; // 非桌面环境（单元测试 mock）静默
+  }
+}
+
+/** 一键重试：飞书立即拉取 / Todoist 立即同步（完成后刷新健康面板） */
+async function retryProvider(provider: string) {
+  testing.value = true;
+  try {
+    if (provider === "feishu") {
+      await api.triggerFeishuPoll();
+    } else if (provider === "todoist") {
+      await api.syncTodoist();
+    }
+    await loadHealth();
+  } catch (e) {
+    testMsg.value = `❌ ${errorMessage(e)}`;
+  } finally {
+    testing.value = false;
+  }
+}
+
+const fmtEpoch = (ms: number) => fmtDateTime(new Date(ms).toISOString());
+
+const logLevel = ref("");
+const logSource = ref("");
+const logEntries = ref<LogEntry[]>([]);
+const logsLoading = ref(false);
+const logLevelOptions = computed(() => [
+  { value: "", label: t("diag.allLevels") },
+  { value: "info", label: "INFO" },
+  { value: "warn", label: "WARN" },
+  { value: "error", label: "ERROR" },
+]);
+async function loadLogs() {
+  logsLoading.value = true;
+  try {
+    logEntries.value = await api.listLogEntries(500, logLevel.value || undefined);
+  } catch {
+    logEntries.value = [];
+  } finally {
+    logsLoading.value = false;
+  }
+}
+/** 来源过滤在本地做（target / message 包含匹配）；倒序展示，最新在最上 */
+const filteredLogs = computed(() => {
+  const src = logSource.value.trim().toLowerCase();
+  const hit = src
+    ? logEntries.value.filter((e) => e.target.toLowerCase().includes(src) || e.message.toLowerCase().includes(src))
+    : logEntries.value;
+  return [...hit].reverse();
+});
+
+function loadDiagnostics() {
+  void loadHealth();
+  void loadLogs();
+}
+
+const reportMsg = ref("");
+async function copyReport() {
+  try {
+    const text = await api.buildSupportReport();
+    await navigator.clipboard.writeText(text);
+    reportMsg.value = t("diag.reportCopied");
+  } catch {
+    reportMsg.value = t("diag.reportFailed");
+  } finally {
+    setTimeout(() => (reportMsg.value = ""), 4000);
+  }
+}
 
 // ---- 开机自启 ----
 const autostart = ref(false);
@@ -364,6 +442,12 @@ onMounted(async () => {
           pct: Math.round((e.payload.downloaded / e.payload.total) * 100),
         });
       }
+    }),
+  );
+  // 链路健康变化（后台轮询成功/失败）→ 停在诊断页时跟随刷新
+  unlisteners.push(
+    await listen(EVENTS.integrationHealthChanged, () => {
+      if (settingsTab.value === "diag") void loadHealth();
     }),
   );
 });
@@ -569,6 +653,75 @@ onUnmounted(() => unlisteners.forEach((u) => u()));
             <button class="btn ghost" :disabled="testing" @click="runTest(api.syncTodoist)">
               {{ t("todoist.sync") }}
             </button>
+          </div>
+        </section>
+      </template>
+
+      <template v-if="settingsTab === 'diag'">
+        <section class="set-card">
+          <h3>{{ t("diag.healthTitle") }}</h3>
+          <p class="hint">{{ t("diag.healthHint") }}</p>
+          <div v-for="h in health" :key="h.provider" class="health-item">
+            <div class="health-row">
+              <span class="health-dot" :class="'h-' + h.status">●</span>
+              <span class="health-name">{{ t(`diag.provider.${h.provider}`) }}</span>
+              <span class="health-state" :class="'hs-' + h.status">{{ t(`diag.status.${h.status}`) }}</span>
+              <span class="health-meta">
+                {{ h.lastSuccessAt ? t("diag.lastSuccess", { v: fmtDateTime(h.lastSuccessAt) }) : t("diag.never") }}
+                <template v-if="h.nextPollAt"> · {{ t("diag.nextPoll", { v: fmtEpoch(h.nextPollAt) }) }}</template>
+                <template v-if="h.provider === 'feishu' && h.pendingCount">
+                  · {{ t("diag.pending", { n: h.pendingCount }) }}</template
+                >
+                <template v-if="h.provider === 'ai' && h.primaryAgent">
+                  · {{ t("diag.primaryAgent", { name: h.primaryAgent }) }}</template
+                >
+              </span>
+              <button
+                v-if="h.provider === 'feishu' && h.configured"
+                class="btn ghost"
+                :disabled="testing"
+                @click="retryProvider('feishu')"
+              >
+                {{ t("diag.pollNow") }}
+              </button>
+              <button
+                v-if="h.provider === 'todoist' && h.configured"
+                class="btn ghost"
+                :disabled="testing"
+                @click="retryProvider('todoist')"
+              >
+                {{ t("diag.syncNow") }}
+              </button>
+            </div>
+            <p v-if="h.lastError" class="hint health-err">{{ fmtDateTime(h.lastErrorAt ?? "") }} · {{ h.lastError }}</p>
+          </div>
+        </section>
+
+        <section class="set-card">
+          <h3>{{ t("diag.logTitle") }}</h3>
+          <div class="log-controls">
+            <label>
+              {{ t("diag.logLevel") }}
+              <DexSelect v-model="logLevel" :options="logLevelOptions" />
+            </label>
+            <input
+              v-model="logSource"
+              class="log-source"
+              :placeholder="t('diag.logSource')"
+              @keydown.enter="loadLogs"
+            />
+            <button class="btn ghost" :disabled="logsLoading" @click="loadLogs">{{ t("diag.refresh") }}</button>
+            <button class="btn ghost" @click="copyReport">{{ t("diag.copyReport") }}</button>
+          </div>
+          <p v-if="reportMsg" class="hint">{{ reportMsg }}</p>
+          <div class="log-view lcd">
+            <div v-if="!filteredLogs.length" class="log-empty">{{ t("diag.logEmpty") }}</div>
+            <div v-for="(e, i) in filteredLogs" :key="i" class="log-line" :class="'lv-' + e.level">
+              <span class="log-time">{{ e.time }}</span>
+              <span class="log-lv">{{ e.level.toUpperCase() }}</span>
+              <span class="log-target">{{ e.target }}</span>
+              <span class="log-msg">{{ e.message }}</span>
+            </div>
           </div>
         </section>
       </template>
@@ -847,6 +1000,147 @@ onUnmounted(() => unlisteners.forEach((u) => u()));
   font-size: 12px;
   font-weight: 700;
   color: var(--dex-navy);
+}
+/* 诊断：集成健康行 */
+.health-item {
+  margin-bottom: 10px;
+}
+.health-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.health-dot {
+  font-size: 14px;
+  line-height: 1;
+}
+/* 三档状态：绿=正常/待运行，黄=降级/暂停，红=故障；灰=未配置 */
+.h-ok,
+.h-idle {
+  color: #2e9e5b;
+}
+.h-degraded,
+.h-paused {
+  color: #c98a06;
+}
+.h-down {
+  color: var(--dex-red);
+  animation: health-blink 1.2s steps(2) infinite;
+}
+.h-off {
+  color: #9a937f;
+}
+@keyframes health-blink {
+  50% {
+    opacity: 0.35;
+  }
+}
+.health-name {
+  font-size: 13px;
+  font-weight: 800;
+  color: var(--dex-navy);
+}
+.health-state {
+  font-size: 12px;
+  font-weight: 700;
+  border: 2px solid var(--dex-navy);
+  border-radius: 6px;
+  padding: 1px 8px;
+  background: #fff;
+}
+.hs-down {
+  background: var(--dex-red);
+  color: #fff;
+}
+.hs-degraded {
+  background: #fff3cd;
+}
+.health-meta {
+  font-size: 12px;
+  color: #777;
+  flex: 1;
+  min-width: 200px;
+}
+.health-err {
+  margin: 4px 0 0 24px;
+  color: var(--dex-red);
+}
+/* 诊断：日志查看器 */
+.log-controls {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 10px;
+  flex-wrap: wrap;
+}
+.log-controls label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  font-size: 13px;
+  color: #555;
+}
+.log-source {
+  flex: 1;
+  min-width: 140px;
+  padding: 8px 10px;
+  border: 3px solid var(--dex-navy);
+  border-radius: 8px;
+  font-size: 13px;
+  font-family: inherit;
+  min-height: 38px;
+}
+.log-view {
+  max-height: 320px;
+  overflow-y: auto;
+  padding: 10px 12px;
+  border: 3px solid var(--dex-navy);
+  border-radius: 10px;
+  font-family: var(--font-mono, monospace);
+  font-size: 11.5px;
+  line-height: 1.7;
+}
+.log-empty {
+  color: var(--lcd-text);
+  opacity: 0.8;
+  text-align: center;
+  padding: 18px 0;
+}
+.log-line {
+  display: flex;
+  gap: 8px;
+  align-items: baseline;
+}
+.log-time {
+  flex: none;
+  opacity: 0.75;
+}
+.log-lv {
+  flex: none;
+  width: 44px;
+  font-weight: 800;
+}
+.log-target {
+  flex: none;
+  opacity: 0.75;
+  word-break: break-all;
+}
+.log-msg {
+  flex: 1;
+  min-width: 0;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+.lv-error .log-lv {
+  color: #ff6b6b;
+}
+.lv-warn .log-lv {
+  color: #ffd166;
+}
+.lv-debug {
+  opacity: 0.65;
 }
 /* 底部状态栏：常驻高度避免消息出现时内容跳动 */
 .set-status {

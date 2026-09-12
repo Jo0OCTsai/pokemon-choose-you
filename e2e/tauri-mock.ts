@@ -276,6 +276,63 @@ export async function installTauriMock(page: Page, state: Partial<MockState> = {
             broadcast("tasks-changed");
             broadcast("chat-messages-changed");
             return 1;
+          case "batch_review_chat_messages":
+            broadcast("tasks-changed");
+            broadcast("chat-messages-changed");
+            return { ok: (args.ids ?? []).length, failed: [] };
+          case "integration_health":
+            return [
+              {
+                provider: "feishu",
+                configured: true,
+                enabled: true,
+                status: "ok",
+                lastSuccessAt: "2026-09-12T08:00:00Z",
+                lastError: null,
+                lastErrorAt: null,
+                consecutiveFailures: 0,
+                nextPollAt: Date.now() + 60_000,
+                pendingCount: 0,
+                primaryAgent: "",
+              },
+              {
+                provider: "ai",
+                configured: true,
+                enabled: true,
+                status: "ok",
+                lastSuccessAt: "2026-09-12T08:00:00Z",
+                lastError: null,
+                lastErrorAt: null,
+                consecutiveFailures: 0,
+                nextPollAt: null,
+                pendingCount: 0,
+                primaryAgent: "Claude Code",
+              },
+              {
+                provider: "todoist",
+                configured: false,
+                enabled: true,
+                status: "off",
+                lastSuccessAt: null,
+                lastError: null,
+                lastErrorAt: null,
+                consecutiveFailures: 0,
+                nextPollAt: null,
+                pendingCount: 0,
+                primaryAgent: "",
+              },
+            ];
+          case "list_log_entries":
+            return [
+              {
+                time: "2026-09-12 08:00:00",
+                level: "info",
+                target: "app_lib",
+                message: "db migrated to v8（E2E mock）",
+              },
+            ];
+          case "build_support_report":
+            return "宝可梦来敲门 支持报告（E2E mock）";
           case "feishu_oauth_login":
             return "授权成功：测试用户（E2E mock）";
           case "feishu_oauth_status":

@@ -1068,8 +1068,18 @@ pub async fn poll_once_test(cfg: &FeishuConfig, db: &Db) -> AppResult<String> {
 }
 
 /// 一轮完整的"拉取 → 全量入库（待判定/仅上下文）→ AI 分类（带判重与同会话上下文）
-/// → 更新消息状态 → 清理过期消息"
+/// → 更新消息状态 → 清理过期消息"。外层同时登记飞书链路健康（成功/失败）。
 pub async fn poll_once(app: &AppHandle) -> AppResult<usize> {
+    let result = poll_once_inner(app).await;
+    let state = app.state::<crate::health::HealthState>();
+    match &result {
+        Ok(_) => state.record_success(app, crate::health::FEISHU),
+        Err(e) => state.record_failure(app, crate::health::FEISHU, &e.to_string()),
+    }
+    result
+}
+
+async fn poll_once_inner(app: &AppHandle) -> AppResult<usize> {
     let db = app.state::<Db>();
     let get = |k: &str| -> Option<String> {
         let conn = db.0.lock().unwrap();
@@ -1179,6 +1189,11 @@ pub async fn poll_once(app: &AppHandle) -> AppResult<usize> {
             Ok(s) => s,
             Err(e) => {
                 log::warn!("AI 分类失败（本轮跳过）: {e}");
+                app.state::<crate::health::HealthState>().record_failure(
+                    app,
+                    crate::health::AI,
+                    &e.to_string(),
+                );
                 let conn = db.0.lock().unwrap();
                 for m in chunk {
                     let _ = conn.execute(
@@ -1189,6 +1204,8 @@ pub async fn poll_once(app: &AppHandle) -> AppResult<usize> {
                 continue;
             }
         };
+        app.state::<crate::health::HealthState>()
+            .record_success(app, crate::health::AI);
         let n_todo = suggestions.iter().filter(|s| s.is_todo()).count();
         let n_update = suggestions.iter().filter(|s| s.is_update()).count();
         let n_follow = suggestions.iter().filter(|s| s.is_follow_up()).count();
@@ -1263,14 +1280,11 @@ pub async fn poll_once(app: &AppHandle) -> AppResult<usize> {
                         "feishu: 消息 {} 判定为待办 {task_id} 的跟进，已记录",
                         m.message_id
                     );
-                    conn.execute(
-                        "INSERT INTO task_notes (task_id, content, source, created_at)
-                         VALUES (?1, ?2, 'ai', ?3)",
-                        params![task_id, m.content, now()],
-                    )?;
-                    conn.execute(
-                        "UPDATE chat_messages SET ai_status='followup' WHERE message_id=?1",
-                        params![m.message_id],
+                    crate::commands::radio::attach_followup(
+                        &conn,
+                        &m.message_id,
+                        task_id,
+                        &m.content,
                     )?;
                 }
                 _ => {
@@ -1361,7 +1375,13 @@ pub fn spawn_poll_loop(app: AppHandle) {
                     }
                 }
             }
-            tokio::time::sleep(Duration::from_secs(interval * backoff)).await;
+            let sleep_secs = interval * backoff;
+            // 入睡前登记下次预计轮询时间（诊断页倒计时展示）
+            app.state::<crate::health::HealthState>().set_next_run(
+                crate::health::FEISHU,
+                chrono::Utc::now().timestamp_millis() + sleep_secs as i64 * 1000,
+            );
+            tokio::time::sleep(Duration::from_secs(sleep_secs)).await;
         }
     });
 }

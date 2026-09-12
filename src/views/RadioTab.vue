@@ -67,7 +67,7 @@ async function forceCreate(m: ChatMessage) {
 
 const aiStatusKey = (m: ChatMessage) => `im.status.${m.aiStatus}`;
 const chatTypeLabel = (m: ChatMessage) => (m.chatType ? t(`im.type.${m.chatType}`) : "");
-/** 更新建议的目标待办标题（图鉴列表里查；已完成/删除的查不到就空） */
+/** 建议（更新/跟进）的目标待办标题（图鉴列表里查；已完成/删除的查不到就空） */
 const taskTitle = (id: number) => tasksStore.open.find((tk) => tk.id === id)?.title ?? "";
 
 async function applyUpdate(m: ChatMessage) {
@@ -85,6 +85,48 @@ async function applyUpdate(m: ChatMessage) {
     setTimeout(() => (forceMsg.value = ""), 5000);
   }
 }
+
+// ---- 批量分诊：勾选多条 pending 建议，一键捕捉 / 逃走 ----
+const selected = ref(new Set<number>());
+const pendingIds = computed(() => list.value.filter((m) => m.reviewStatus === "pending").map((m) => m.id));
+const allSelected = computed(
+  () => pendingIds.value.length > 0 && pendingIds.value.every((id) => selected.value.has(id)),
+);
+
+function toggleAll() {
+  selected.value = allSelected.value ? new Set() : new Set(pendingIds.value);
+}
+function toggleOne(id: number) {
+  const next = new Set(selected.value);
+  if (next.has(id)) {
+    next.delete(id);
+  } else {
+    next.add(id);
+  }
+  selected.value = next;
+}
+
+const batching = ref(false);
+const batchMsg = ref("");
+async function batch(action: "accept" | "dismiss") {
+  const ids = [...selected.value];
+  if (!ids.length || batching.value) return;
+  batching.value = true;
+  batchMsg.value = "";
+  try {
+    const r = await api.batchReviewChatMessages(ids, action);
+    batchMsg.value = r.failed.length
+      ? t("im.batchPartial", { ok: r.ok, fail: r.failed.length })
+      : t("im.batchDone", { n: r.ok });
+    selected.value = new Set();
+    await reload();
+  } catch (e) {
+    batchMsg.value = `❌ ${errorMessage(e)}`;
+  } finally {
+    batching.value = false;
+    setTimeout(() => (batchMsg.value = ""), 5000);
+  }
+}
 </script>
 
 <template>
@@ -92,6 +134,20 @@ async function applyUpdate(m: ChatMessage) {
     <div class="im-toolbar">
       <input v-model="query" class="search-input" :placeholder="t('im.search')" />
       <span v-if="forceMsg" class="force-msg">{{ forceMsg }}</span>
+    </div>
+
+    <div v-if="pendingIds.length" class="batch-bar">
+      <label class="batch-check">
+        <input type="checkbox" :checked="allSelected" @change="toggleAll" />
+        {{ t("im.selectAll") }}（{{ pendingIds.length }}）
+      </label>
+      <button class="btn ghost" :disabled="!selected.size || batching" @click="batch('accept')">
+        {{ t("im.batchCatch") }}{{ selected.size ? `（${selected.size}）` : "" }}
+      </button>
+      <button class="btn ghost" :disabled="!selected.size || batching" @click="batch('dismiss')">
+        {{ t("im.batchRelease") }}{{ selected.size ? `（${selected.size}）` : "" }}
+      </button>
+      <span v-if="batchMsg" class="force-msg">{{ batchMsg }}</span>
     </div>
 
     <div v-if="!list.length" class="empty">{{ t("im.empty1") }}<br />{{ t("im.empty2") }}</div>
@@ -125,11 +181,23 @@ async function applyUpdate(m: ChatMessage) {
       </div>
 
       <div class="im-actions">
+        <input
+          v-if="m.reviewStatus === 'pending'"
+          type="checkbox"
+          class="im-check"
+          :checked="selected.has(m.id)"
+          :aria-label="t('im.selectAll')"
+          @change="toggleOne(m.id)"
+        />
         <template v-if="m.taskId">
           <span class="caught-mark">✔ {{ t("im.caughtTask", { id: m.taskId }) }}</span>
         </template>
         <template v-else-if="m.reviewStatus === 'accepted' && m.aiStatus === 'update'">
           <span class="caught-mark">✔ {{ t("im.updatedTask", { id: m.updateTaskId ?? 0 }) }}</span>
+        </template>
+        <template v-else-if="m.aiStatus === 'followup' && m.followupTaskId">
+          <span class="caught-mark">✔ {{ t("im.followedTask", { id: m.followupTaskId }) }}</span>
+          <span v-if="taskTitle(m.followupTaskId)" class="caught-sub">「{{ taskTitle(m.followupTaskId) }}」</span>
         </template>
         <template v-else-if="m.reviewStatus === 'pending' && m.aiStatus === 'update'">
           <button class="btn" :disabled="forcingId === m.id" @click="applyUpdate(m)">
@@ -169,6 +237,33 @@ async function applyUpdate(m: ChatMessage) {
   display: flex;
   align-items: center;
   gap: 10px;
+}
+/* 批量分诊条：全选 + 批量捕捉/逃走 */
+.batch-bar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.batch-check {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--dex-navy);
+  cursor: pointer;
+}
+.im-check {
+  width: 18px;
+  height: 18px;
+  accent-color: var(--dex-navy);
+  cursor: pointer;
+  flex: none;
+}
+.caught-sub {
+  font-size: 12px;
+  color: #9a937f;
 }
 .search-input {
   flex: 1;

@@ -197,10 +197,15 @@ DROP TABLE IF EXISTS ai_logs;
 DELETE FROM settings WHERE key IN ('ai_base_url', 'ai_api_key', 'ai_model');
 "#;
 
+/// v8：跟进可见性——followup 建议记录并入的目标待办，收音机可跳转查看
+const SCHEMA_V8: &str = r#"
+ALTER TABLE chat_messages ADD COLUMN followup_task_id INTEGER;
+"#;
+
 /// 迁移按序号执行：MIGRATIONS[i] 负责把 `PRAGMA user_version` 从 i 升到 i+1。
 /// 新的 schema 变更一律追加新条目（且只追加，不修改已发布条目），老库逐级前滚。
 const MIGRATIONS: &[&str] = &[
-    SCHEMA_V1, SCHEMA_V2, SCHEMA_V3, SCHEMA_V4, SCHEMA_V5, SCHEMA_V6, SCHEMA_V7,
+    SCHEMA_V1, SCHEMA_V2, SCHEMA_V3, SCHEMA_V4, SCHEMA_V5, SCHEMA_V6, SCHEMA_V7, SCHEMA_V8,
 ];
 
 #[derive(Debug, thiserror::Error)]
@@ -600,6 +605,40 @@ pub(crate) mod tests {
             })
             .unwrap();
         assert_eq!(lang, "x", "无关设置不受影响");
+    }
+
+    /// 回归：v7 库升级 v8 后 followup 建议可记录并入的目标待办
+    #[test]
+    fn migrates_v7_db_adding_followup_task_id() {
+        let conn = Connection::open_in_memory().unwrap();
+        for sql in [
+            SCHEMA_V1, SCHEMA_V2, SCHEMA_V3, SCHEMA_V4, SCHEMA_V5, SCHEMA_V6, SCHEMA_V7,
+        ] {
+            conn.execute_batch(sql).unwrap();
+        }
+        conn.execute("PRAGMA user_version = 7", []).unwrap();
+        conn.execute(
+            "INSERT INTO chat_messages (message_id, content, ai_status, review_status, created_at)
+             VALUES ('om_f', '东西已经寄出了', 'followup', 'accepted', '2026-09-12T00:00:00Z')",
+            [],
+        )
+        .unwrap();
+
+        init_conn(&conn).unwrap();
+        assert_eq!(user_version(&conn), MIGRATIONS.len() as i64);
+        conn.execute(
+            "UPDATE chat_messages SET followup_task_id=3 WHERE message_id='om_f'",
+            [],
+        )
+        .unwrap();
+        let target: Option<i64> = conn
+            .query_row(
+                "SELECT followup_task_id FROM chat_messages WHERE message_id='om_f'",
+                [],
+                |r| r.get(0),
+            )
+            .unwrap();
+        assert_eq!(target, Some(3));
     }
 
     #[test]
