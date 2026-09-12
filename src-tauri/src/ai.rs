@@ -218,12 +218,23 @@ fn build_prompt(batch: &[AiMessage], ctx: &ClassifyContext) -> String {
     format!("{SYSTEM_PROMPT}\n\n{}", build_user_content(batch, ctx))
 }
 
-/// 分类一批消息：无头调用 agent CLI，解析其输出中的 JSON 建议
+/// 分类一批消息（便捷入口）
 pub async fn classify(
     agent: &AgentConfig,
     batch: &[AiMessage],
     ctx: &ClassifyContext,
 ) -> AppResult<Vec<AiSuggestion>> {
+    classify_with_session(agent, batch, ctx)
+        .await
+        .map(|(s, _)| s)
+}
+
+/// 分类一批消息并带回会话元信息（session_id）：无头调用 agent CLI，解析其输出中的 JSON 建议
+pub async fn classify_with_session(
+    agent: &AgentConfig,
+    batch: &[AiMessage],
+    ctx: &ClassifyContext,
+) -> AppResult<(Vec<AiSuggestion>, Option<String>)> {
     let prompt = build_prompt(batch, ctx);
     log::debug!(
         "ai: 经 agent「{}」分类 {} 条消息，prompt: {}",
@@ -233,7 +244,7 @@ pub async fn classify(
     );
     let out = run_agent(agent, &prompt).await?;
     log::debug!("ai: agent 原始输出: {}", trunc(&out, 800));
-    parse_suggestions(&out)
+    parse_suggestions_with_session(&out)
 }
 
 /// 无头调用 agent：args 中的 {prompt} 替换为提示词，未出现时提示词走标准输入
@@ -330,19 +341,29 @@ fn spawn_error(program: &str, e: std::io::Error) -> AppError {
 
 /// agent 的输出风格各异：`claude --output-format json` 会把回答再包一层 {"result":"..."}，
 /// 先解出内层文本再走常规解析
-fn extract_payload(content: &str) -> String {
+fn extract_payload(content: &str) -> (String, Option<String>) {
     let trimmed = content.trim();
     if let Ok(v) = serde_json::from_str::<serde_json::Value>(trimmed) {
         if let Some(inner) = v.get("result").and_then(|r| r.as_str()) {
-            return inner.to_string();
+            let session = v
+                .get("session_id")
+                .and_then(|s| s.as_str())
+                .map(String::from);
+            return (inner.to_string(), session);
         }
     }
-    trimmed.to_string()
+    (trimmed.to_string(), None)
 }
 
 /// 解析 agent 输出：剥 ```json 包裹；前后有闲聊文字时截取首尾花括号之间的 JSON；要求 results 数组
+#[cfg(test)]
 fn parse_suggestions(content: &str) -> AppResult<Vec<AiSuggestion>> {
-    let content = extract_payload(content);
+    parse_suggestions_with_session(content).map(|(s, _)| s)
+}
+
+/// 解析 agent 输出并带回会话 id（claude 信封里的 session_id，供会话回链落库）
+fn parse_suggestions_with_session(content: &str) -> AppResult<(Vec<AiSuggestion>, Option<String>)> {
+    let (content, session_id) = extract_payload(content);
     let content = content
         .trim()
         .trim_start_matches("```json")
@@ -364,8 +385,9 @@ fn parse_suggestions(content: &str) -> AppResult<Vec<AiSuggestion>> {
         parsed["suggestions"].as_array().cloned()
     });
     let results = results.ok_or_else(|| AppError::External("AI 输出缺少 results 数组".into()))?;
-    serde_json::from_value(serde_json::Value::Array(results))
-        .map_err(|e| AppError::External(format!("解析建议失败: {e}")))
+    let suggestions = serde_json::from_value(serde_json::Value::Array(results))
+        .map_err(|e| AppError::External(format!("解析建议失败: {e}")))?;
+    Ok((suggestions, session_id))
 }
 
 /// 日志截断：按字符数截断（中文安全），避免长消息刷爆 512KB 轮转日志
@@ -537,6 +559,19 @@ mod tests {
         let wrapped = serde_json::json!({ "type": "result", "result": inner }).to_string();
         let out = parse_suggestions(&wrapped).unwrap();
         assert!(out[0].is_todo());
+    }
+
+    /// claude 信封里的 session_id 随解析带回（会话回链落库用）
+    #[test]
+    fn parse_extracts_session_id_from_envelope() {
+        let inner = r#"{"results":[{"messageId":"m1","action":"todo"}]}"#;
+        let wrapped = serde_json::json!({ "result": inner, "session_id": "sess-abc" }).to_string();
+        let (out, session) = parse_suggestions_with_session(&wrapped).unwrap();
+        assert_eq!(out.len(), 1);
+        assert_eq!(session.as_deref(), Some("sess-abc"));
+        // 无信封的普通输出没有会话 id
+        let (_, none) = parse_suggestions_with_session(inner).unwrap();
+        assert!(none.is_none());
     }
 
     #[test]

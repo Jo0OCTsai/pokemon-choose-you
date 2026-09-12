@@ -1,4 +1,5 @@
 import type {
+  AgentSession,
   BackupInfo,
   BatchReviewResult,
   Category,
@@ -141,7 +142,10 @@ export const api = {
   /** 测试一个 AI agent（不传 id 用收音机分类使用的主 agent） */
   testAiConfig: (agentId?: string) => call<string>("test_ai_config", { agentId: agentId ?? null }),
   /** 在系统终端里打开 agent 的历史记录界面（agent 工具自己保存会话历史） */
-  openAgentHistory: (agentId: string) => call<string>("open_agent_history", { agentId }),
+  openAgentHistory: (agentId: string, sessionId?: string) =>
+    call<string>("open_agent_history", { agentId, sessionId: sessionId ?? null }),
+  /** Agent 会话：taskId 查该任务时间线，缺省全局最近 100 条（含收音机分类调用） */
+  listAgentSessions: (taskId?: number) => call<AgentSession[]>("list_agent_sessions", { taskId: taskId ?? null }),
   testFeishuConfig: () => call<string>("test_feishu_config"),
   triggerFeishuPoll: () => call<number>("trigger_feishu_poll"),
   /** 发起飞书用户授权：打开浏览器完成 OAuth，本地回调换取 user_access_token */

@@ -99,6 +99,27 @@ export interface ChatMessage {
   createdAt: string;
 }
 
+/** Agent 会话记录：分类调用与 agent 代办按次落库（agent_sessions 表） */
+export interface AgentSession {
+  id: number;
+  /** 关联待办 id；null = 收音机分类等非任务场景 */
+  taskId?: number | null;
+  agentId: string;
+  agentName: string;
+  /** agent 工具的会话 id（如 claude 的 session_id），可回放转录 */
+  sessionId?: string | null;
+  command?: string | null;
+  exitCode?: number | null;
+  /** ok / error */
+  status: string;
+  durationMs?: number | null;
+  /** 本次会话成本（美元） */
+  costUsd?: number | null;
+  inputTokens?: number | null;
+  outputTokens?: number | null;
+  createdAt: string;
+}
+
 /** 数据备份快照（VACUUM INTO 产物，设置页展示与恢复） */
 export interface BackupInfo {
   /** 备份文件名（pokemon-knock-YYYYMMDD-HHMMSS.db） */

@@ -5,6 +5,9 @@
 //! - 与桌面应用共用同一套数据逻辑（conn 层函数），保证状态机不变量与操作日志一致；
 //! - 通过 WAL 与运行中的应用并发读写，PK_DB 环境变量可覆盖数据库路径。
 
+use pokemon_knock_lib::commands::sessions::{
+    list_agent_sessions_conn, log_session_conn, NewAgentSession,
+};
 use pokemon_knock_lib::commands::{categories, tags, tasks};
 use rusqlite::{params, Connection};
 use serde_json::json;
@@ -31,6 +34,10 @@ const HELP: &str = r#"pk — 宝可梦来敲门命令行（供 AI agent 与终�
   note add <task-id> <内容...> [--source manual|ai]
   note list <task-id>
   log <task-id>                      任务操作历史
+  session log [--task <id>] --agent <id> [--session <sid>] [--command <c>] [--exit-code <n>]
+                [--status ok|error] [--duration-ms <n>] [--cost <美元>] [--in-tokens <n>] [--out-tokens <n>]
+                                      记录一次 agent 会话（成本/时长/退出码，可关联任务）
+  session list [--task <id>]         会话列表（--task 查该任务的时间线）
   category list                      分类列表
   tag list                           标签列表
   context                            AI 处理上下文（当前时间/未完成待办/分类/标签）
@@ -43,6 +50,8 @@ const HELP: &str = r#"pk — 宝可梦来敲门命令行（供 AI agent 与终�
   pk task create --title "交周报" --due "2026-09-13T18:00" --tags 重要,需汇报
   pk task update 3 --priority high --due ""
   pk note add 3 对方确认周五交付 --source ai
+  pk session log --task 3 --agent claude-code --session abc123 --cost 0.12 --duration-ms 61000
+  pk session list --task 3
 
 输出: JSON（stdout）。错误: {"error": "..."}（stderr），退出码 1（业务）/ 2（用法）。
 环境变量: PK_DB 覆盖数据库路径（默认为应用数据目录 pokemon-knock.db）。"#;
@@ -280,6 +289,7 @@ fn run(conn: &mut Connection, args: &[String]) -> Result<serde_json::Value, CliE
             }
             Ok(json!({ "tags": tags::list_tags_conn(conn).map_err(db_err)? }))
         }
+        "session" => run_session(conn, rest),
         "context" => run_context(conn),
         "init-db" => {
             // 显式引导（PK_DB 独立库场景）：建库 + 迁移 + 默认分类；对应用主库通常无需执行
@@ -499,6 +509,68 @@ fn run_note(conn: &Connection, rest: &[String]) -> Result<serde_json::Value, Cli
 }
 
 /// AI 处理上下文：当前时间 + 未完成待办 + 分类 + 标签（判重与属性建议的依据）
+fn run_session(conn: &Connection, rest: &[String]) -> Result<serde_json::Value, CliError> {
+    let sub = rest.first().map(String::as_str).unwrap_or("");
+    let p = parse_args(&rest[1.min(rest.len())..]);
+    // parse_args 存键时已剥掉 -- 前缀，这里统一兼容两种写法
+    let flag = |name: &str| p.flag(name.trim_start_matches('-')).map(str::to_string);
+    let task_id = match flag("--task") {
+        Some(v) if !v.is_empty() => Some(
+            v.parse::<i64>()
+                .map_err(|_| usage_err("--task 必须是任务 id 数字"))?,
+        ),
+        _ => None,
+    };
+    match sub {
+        "log" => {
+            let agent_id = flag("--agent").filter(|v| !v.is_empty());
+            let Some(agent_id) = agent_id else {
+                return Err(usage_err(
+                    "session log 需要 --agent <agent-id>（见设置 → 集成）",
+                ));
+            };
+            let num_flag = |name: &str| -> Result<Option<i64>, CliError> {
+                match flag(name) {
+                    Some(v) if !v.is_empty() => v
+                        .parse::<i64>()
+                        .map(Some)
+                        .map_err(|_| usage_err(&format!("{name} 必须是数字"))),
+                    _ => Ok(None),
+                }
+            };
+            let cost_usd = match flag("--cost") {
+                Some(v) if !v.is_empty() => Some(
+                    v.parse::<f64>()
+                        .map_err(|_| usage_err("--cost 必须是数字（美元）"))?,
+                ),
+                _ => None,
+            };
+            let session = log_session_conn(
+                conn,
+                &NewAgentSession {
+                    task_id,
+                    agent_id,
+                    session_id: flag("--session").filter(|v| !v.is_empty()),
+                    command: flag("--command").filter(|v| !v.is_empty()),
+                    exit_code: num_flag("--exit-code")?,
+                    status: flag("--status").unwrap_or_else(|| "ok".into()),
+                    duration_ms: num_flag("--duration-ms")?,
+                    cost_usd,
+                    input_tokens: num_flag("--in-tokens")?,
+                    output_tokens: num_flag("--out-tokens")?,
+                },
+            )
+            .map_err(db_err)?;
+            Ok(json!({ "session": session }))
+        }
+        "list" => {
+            let list = list_agent_sessions_conn(conn, task_id).map_err(db_err)?;
+            Ok(json!({ "sessions": list }))
+        }
+        _ => Err(usage_err("session 子命令支持 log / list，用法见 pk help")),
+    }
+}
+
 fn run_context(conn: &Connection) -> Result<serde_json::Value, CliError> {
     let open_tasks: Vec<(i64, String)> = {
         let mut stmt = conn
@@ -766,6 +838,60 @@ mod tests {
         let id = create(&mut conn, "上下文任务");
         let ctx = run_ok(&mut conn, &["context"]);
         assert_eq!(ctx["openTasks"][0]["id"], json!(id));
+    }
+
+    /// 会话回链与成本记录：log 落库（关联任务 + 成本/时长）→ list 查询任务时间线
+    #[test]
+    fn session_log_and_list_roundtrip() {
+        let mut conn = test_db();
+        let id = create(&mut conn, "修登录bug");
+        let out = run_ok(
+            &mut conn,
+            &[
+                "session",
+                "log",
+                "--task",
+                &id.to_string(),
+                "--agent",
+                "claude-code",
+                "--session",
+                "sess-1",
+                "--command",
+                "claude -p 修登录bug",
+                "--exit-code",
+                "0",
+                "--duration-ms",
+                "61000",
+                "--cost",
+                "0.12",
+                "--in-tokens",
+                "1000",
+                "--out-tokens",
+                "2000",
+            ],
+        );
+        assert_eq!(out["session"]["taskId"], id);
+        assert_eq!(out["session"]["sessionId"], "sess-1");
+        assert_eq!(
+            out["session"]["agentName"], "claude-code",
+            "无配置时用 id 兜底"
+        );
+        assert_eq!(out["session"]["durationMs"], 61000);
+
+        // 任务时间线查得到；全局列表也有
+        let list = run_ok(&mut conn, &["session", "list", "--task", &id.to_string()]);
+        assert_eq!(list["sessions"].as_array().unwrap().len(), 1);
+        let all = run_ok(&mut conn, &["session", "list"]);
+        assert_eq!(all["sessions"].as_array().unwrap().len(), 1);
+
+        // 缺 --agent 报用法错误；关联不存在的任务报业务错误
+        let err = run_err(&mut conn, &["session", "log"]);
+        assert_eq!(err.1, 2, "缺参数是用法错误");
+        let err = run_err(
+            &mut conn,
+            &["session", "log", "--agent", "a", "--task", "999"],
+        );
+        assert!(err.0.contains("不存在"), "{}", err.0);
     }
 
     #[test]

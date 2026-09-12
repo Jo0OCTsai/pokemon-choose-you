@@ -55,6 +55,7 @@ vi.mock("../api", () => ({
     listBackups: vi.fn(),
     createBackupNow: vi.fn(),
     restoreBackup: vi.fn(),
+    listAgentSessions: vi.fn(),
     exportJson: vi.fn(),
     importJson: vi.fn(),
     exportTasksCsv: vi.fn(),
@@ -141,6 +142,7 @@ function wireBackend() {
   vi.mocked(api.consumeQuickCapture).mockResolvedValue(false);
   vi.mocked(api.checkUpdate).mockResolvedValue("");
   vi.mocked(api.listBackups).mockResolvedValue([]);
+  vi.mocked(api.listAgentSessions).mockResolvedValue([]);
   vi.mocked(api.exportJson).mockResolvedValue("pokemon-knock-full-x.json");
   vi.mocked(api.importJson).mockResolvedValue(0);
   vi.mocked(api.exportTasksCsv).mockResolvedValue("pokemon-knock-tasks-x.csv");
@@ -533,6 +535,39 @@ describe("App 图鉴机主面板", () => {
     const w = await mountApp();
     await w.get("form.add input").setValue("明天 5pm 交周报");
     expect(w.find(".nl-preview").exists()).toBe(false);
+  });
+
+  it("编辑弹窗展示 Agent 执行记录（时长/成本/退出码）并可跳转会话", async () => {
+    tasks = seed([{ title: "修登录bug", status: "inbox" }]);
+    vi.mocked(api.listAgentSessions).mockResolvedValue([
+      {
+        id: 1,
+        taskId: 1,
+        agentId: "claude-code",
+        agentName: "Claude Code",
+        sessionId: "sess-1",
+        command: "claude -p 修登录bug",
+        exitCode: 0,
+        status: "ok",
+        durationMs: 61_000,
+        costUsd: 0.12,
+        inputTokens: 1000,
+        outputTokens: 2000,
+        createdAt: "2026-09-13T02:00:00Z",
+      },
+    ]);
+    const w = await mountApp();
+    await w.findAll(".menu-btn")[2].trigger("click"); // 草丛页
+    await new Promise((r) => setTimeout(r));
+    const editBtn = w.findAll(".entry .ops .btn").find((b) => b.text() === "✎")!;
+    await editBtn.trigger("click");
+    await new Promise((r) => setTimeout(r));
+    expect(w.text()).toContain("Agent 执行");
+    expect(w.text()).toContain("用时 1m");
+    expect(w.text()).toContain("$0.12");
+    expect(w.text()).toContain("exit 0");
+    await w.get(".run-open").trigger("click");
+    expect(api.openAgentHistory).toHaveBeenCalledWith("claude-code", "sess-1");
   });
 
   it("设置页七个分区可选且默认显示专注", async () => {

@@ -29,23 +29,37 @@ pub async fn test_ai_config(db: State<'_, Db>, agent_id: Option<String>) -> AppR
 
 /// 在系统终端里打开 agent 的历史记录界面（claude --resume / opencode 等）。
 /// 历史/会话由 agent 工具自己保存，这里只负责唤起。
+/// session_id 存在时追加为第一个参数（如 claude --resume <session_id>）直接回放该会话转录。
 #[tauri::command]
-pub async fn open_agent_history(db: State<'_, Db>, agent_id: String) -> AppResult<String> {
+pub async fn open_agent_history(
+    db: State<'_, Db>,
+    agent_id: String,
+    session_id: Option<String>,
+) -> AppResult<String> {
     let agent = {
         let conn = db.0.lock().unwrap();
         let get = settings_getter(&conn);
         ai::agent_by_id(&get, &agent_id)
             .ok_or_else(|| AppError::Invalid(format!("Agent {agent_id} 不存在，请先保存配置")))?
     };
-    open_agent_in_terminal(&agent).await
+    open_agent_in_terminal(&agent, session_id.as_deref()).await
 }
 
-async fn open_agent_in_terminal(agent: &AgentConfig) -> AppResult<String> {
-    let args: Vec<String> = agent
+async fn open_agent_in_terminal(
+    agent: &AgentConfig,
+    resume_session: Option<&str>,
+) -> AppResult<String> {
+    let mut args: Vec<String> = agent
         .history_args
         .split_whitespace()
         .map(String::from)
         .collect();
+    if let (Some(sess), Some(first)) = (resume_session, args.first()) {
+        // claude 语法：--resume <session_id>；其余 agent 同样把 id 追加到首个历史参数后
+        if first == "--resume" || first == "resume" {
+            args.push(sess.to_string());
+        }
+    }
     spawn_in_terminal(&agent.command, &args)
         .await
         .map(|term| format!("已在 {term} 中启动「{}」", agent.name))
@@ -284,8 +298,8 @@ mod tests {
     fn open_agent_history_rejects_unknown_agent() {
         let app = setup();
         let db = app.state::<Db>();
-        let err =
-            tauri::async_runtime::block_on(open_agent_history(db, "ghost".into())).unwrap_err();
+        let err = tauri::async_runtime::block_on(open_agent_history(db, "ghost".into(), None))
+            .unwrap_err();
         assert!(
             matches!(err, AppError::Invalid(_)),
             "未知 agent 给出输入错误: {err}"

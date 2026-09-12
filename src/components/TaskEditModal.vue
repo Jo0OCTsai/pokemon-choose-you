@@ -5,7 +5,7 @@ import { api, errorMessage } from "../api";
 import { fmtDateTime } from "../stores/settings";
 import { useCategoriesStore } from "../stores/categories";
 import { useTagsStore } from "../stores/tags";
-import type { Task, TaskLog, TaskNote } from "../types";
+import type { AgentSession, Task, TaskLog, TaskNote } from "../types";
 import DexSelect from "./DexSelect.vue";
 import DexDateTime from "./DexDateTime.vue";
 
@@ -111,6 +111,21 @@ async function save() {
   }
 }
 
+// ---- Agent 执行（只读）：会话回链与成本记录，可跳转会话转录 ----
+const sessions = ref<AgentSession[]>([]);
+onMounted(async () => {
+  sessions.value = await api.listAgentSessions(props.task.id).catch(() => []);
+});
+const totalCost = computed(() => sessions.value.reduce((sum, x) => sum + (x.costUsd ?? 0), 0));
+function fmtDuration(ms: number | null | undefined): string {
+  if (!ms || ms < 1000) return "—";
+  if (ms < 60_000) return `${Math.round(ms / 1000)}s`;
+  return `${Math.round(ms / 60_000)}m`;
+}
+function openTranscript(x: AgentSession) {
+  Promise.resolve(api.openAgentHistory(x.agentId, x.sessionId ?? undefined)).catch(() => {});
+}
+
 // ---- 操作历史（只读，最新在前） ----
 const logs = ref<TaskLog[]>([]);
 onMounted(async () => {
@@ -193,6 +208,34 @@ function valueOf(field: string, v: string | null | undefined): string {
             {{ t("edit.addFollowUp") }}
           </button>
         </form>
+      </div>
+
+      <!-- Agent 执行：这个任务花了多少钱、跑了几次 -->
+      <div v-if="sessions.length" class="notes">
+        <div class="notes-head">
+          {{ t("edit.agentRuns") }}<span class="run-cost"> ${{ totalCost.toFixed(2) }}</span>
+        </div>
+        <ul class="note-list">
+          <li v-for="x in sessions" :key="x.id" class="note-item">
+            <span class="note-src" :class="{ err: x.status === 'error' }">{{ x.agentName }}</span>
+            <span class="note-time px">{{ fmtDateTime(x.createdAt) }}</span>
+            <span class="note-content">
+              {{ t("edit.runDuration", { v: fmtDuration(x.durationMs) }) }}
+              <template v-if="x.costUsd != null">· ${{ x.costUsd.toFixed(2) }}</template>
+              <template v-if="x.exitCode != null">· exit {{ x.exitCode }}</template>
+              <template v-if="x.command">· {{ x.command }}</template>
+            </span>
+            <button
+              v-if="x.sessionId"
+              class="note-del run-open"
+              type="button"
+              :title="t('edit.openTranscript')"
+              @click="openTranscript(x)"
+            >
+              ▶
+            </button>
+          </li>
+        </ul>
       </div>
 
       <!-- 操作历史 -->
@@ -402,5 +445,16 @@ function valueOf(field: string, v: string | null | undefined): string {
 .btn-row {
   display: flex;
   gap: 10px;
+}
+/* Agent 执行 */
+.run-cost {
+  color: var(--dex-red);
+}
+.note-src.err {
+  background: var(--dex-red);
+}
+.run-open {
+  color: var(--dex-navy);
+  font-weight: 800;
 }
 </style>
