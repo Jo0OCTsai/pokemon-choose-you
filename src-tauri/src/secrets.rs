@@ -10,10 +10,8 @@ use crate::error::AppResult;
 use rusqlite::{params, Connection};
 use std::sync::OnceLock;
 
-/// 钥匙串里的服务名（同一服务下按 key 区分条目）；改名前为 pokemon-knock，
-/// 由 migrate_legacy_service 搬运
+/// 钥匙串里的服务名（同一服务下按 key 区分条目）
 const SERVICE: &str = "pokemon-choose-you";
-const LEGACY_SERVICE: &str = "pokemon-knock";
 
 /// 走秘钥链路的设置键（其余设置仍存 settings 表）
 pub const SECRET_KEYS: &[&str] = &[
@@ -153,31 +151,6 @@ pub fn migrate_settings_secrets(conn: &Connection) -> usize {
         }
     }
     moved
-}
-
-/// 项目改名迁移：旧服务名下的秘钥搬到新服务名。只读旧不删旧（避免误删），
-/// 新侧已有值时不覆盖；无可钥匙串环境为 no-op。
-pub fn migrate_legacy_service() {
-    if !keyring_available() {
-        return;
-    }
-    for key in SECRET_KEYS {
-        let Ok(old) = keyring::Entry::new(LEGACY_SERVICE, key) else {
-            continue;
-        };
-        let value = match old.get_password() {
-            Ok(v) if !v.is_empty() => v,
-            _ => continue, // 旧侧没有（含 NoEntry 与读失败）
-        };
-        let Ok(new) = keyring::Entry::new(SERVICE, key) else {
-            continue;
-        };
-        if matches!(new.get_password(), Err(keyring::Error::NoEntry))
-            && new.set_password(&value).is_ok()
-        {
-            log::info!("secrets: {key} 已从旧服务名迁至新服务名");
-        }
-    }
 }
 
 #[cfg(test)]

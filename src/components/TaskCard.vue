@@ -4,7 +4,8 @@ import { useI18n } from "vue-i18n";
 import { fmtDateTime, useSettingsStore } from "../stores/settings";
 import { catKeyOf, useCategoriesStore } from "../stores/categories";
 import { relativeDue } from "../relativeTime";
-import { spriteUrl, spriteFallback, type Task } from "../types";
+import type { Task } from "../types";
+import PokemonSprite from "./PokemonSprite.vue";
 
 const props = defineProps<{ task: Task; allowSchedule?: boolean }>();
 const emit = defineEmits<{
@@ -35,12 +36,7 @@ const dueInfo = computed(() => (settings.bool("due_relative") ? relativeDue(prop
     @click="emit('detail', task)"
   >
     <div class="dex-no px">No.{{ String(task.id).padStart(3, "0") }}</div>
-    <img
-      class="sprite"
-      :src="spriteUrl(spriteOf(task.categoryId))"
-      :data-sprite="spriteOf(task.categoryId)"
-      @error="spriteFallback"
-    />
+    <PokemonSprite class="sprite" :sprite="spriteOf(task.categoryId)" />
     <div class="info">
       <div class="row1">
         <span class="prio" :class="task.priority" />

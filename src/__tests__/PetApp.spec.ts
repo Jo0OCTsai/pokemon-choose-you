@@ -147,6 +147,24 @@ describe("PetApp 桌宠", () => {
     expect(w.find(".pomo-pill").exists()).toBe(false);
   });
 
+  it("设置主宝可梦后：空闲展示主宝可梦，气泡与名牌带它的名字", async () => {
+    vi.mocked(api.listAllSettings).mockResolvedValue({ main_pokemon: "eevee" });
+    const w = await mountPet();
+    expect(w.get(".pet-sprite").attributes("src")).toBe("/pokemon/eevee.gif");
+    expect(w.get(".dialog-text").text()).toContain("伊布在等你出发");
+    expect(w.get(".cat-tag").text()).toBe("伊布");
+  });
+
+  it("主宝可梦设置即时生效：settings-changed 后空闲精灵切换", async () => {
+    const w = await mountPet();
+    expect(w.get(".pet-sprite").attributes("src")).toBe("/pokemon/pikachu.gif");
+    vi.mocked(api.listAllSettings).mockResolvedValue({ main_pokemon: "snorlax" });
+    broadcast("settings-changed");
+    await vi.advanceTimersByTimeAsync(250); // 越过去抖
+    await flush();
+    expect(w.get(".pet-sprite").attributes("src")).toBe("/pokemon/snorlax.gif");
+  });
+
   it("有进行中任务且番茄钟开启时自动倒计时并上报专注时长", async () => {
     current = task({ id: 3, title: "写周报" });
     const w = await mountPet();
@@ -293,9 +311,10 @@ describe("PetApp 桌宠", () => {
   it("就近可操作提醒：气泡带完成/推迟动作，动作直接消化无需打开主面板", async () => {
     current = task({ id: 5, title: "交报告" });
     const w = await mountPet();
-    // 后端敲钟：task-reminder 事件
-    broadcast("task-reminder", { id: 5, title: "交报告", urgent: true });
+    // 后端敲钟：task-reminder 事件（pokemon = 任务分类关联的宝可梦名）
+    broadcast("task-reminder", { id: 5, title: "交报告", urgent: true, pokemon: "皮卡丘" });
     await flush();
+    expect(w.get(".dialog-text").text()).toContain("皮卡丘");
     expect(w.get(".dialog-text").text()).toContain("交报告");
     expect(w.find(".reminder-actions").exists()).toBe(true);
 

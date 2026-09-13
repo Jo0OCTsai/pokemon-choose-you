@@ -6,6 +6,7 @@ import { fmtDateTime, useSettingsStore } from "../stores/settings";
 import { useCategoriesStore } from "../stores/categories";
 import { useTagsStore } from "../stores/tags";
 import { parseNlCapture } from "../nlCapture";
+import { pokemonName } from "../pokemon";
 import DexSelect from "./DexSelect.vue";
 import DexDateTime from "./DexDateTime.vue";
 
@@ -52,6 +53,12 @@ watch(
   { immediate: true },
 );
 const categoryOptions = computed(() => enabledCategories.value.map((c) => ({ value: String(c.id), label: c.name })));
+/** 输入框占位符跟随选中分类：野生「宝可梦」换成该分类关联的宝可梦名 */
+const addPlaceholder = computed(() => {
+  const cat = categories.byId.get(newCategory.value);
+  const p = cat ? pokemonName(cat.sprite, cat.pokemon) : "";
+  return p ? t("add.placeholderNamed", { p }) : t("add.placeholder");
+});
 const priorityOptions = computed(() =>
   (["low", "normal", "high", "urgent"] as const).map((p) => ({ value: p, label: t(`priority.${p}`) })),
 );
@@ -100,7 +107,7 @@ defineExpose({ focus });
 
 <template>
   <form class="add" @submit.prevent="submit">
-    <input ref="titleInput" v-model="newTitle" :placeholder="t('add.placeholder')" />
+    <input ref="titleInput" v-model="newTitle" :placeholder="addPlaceholder" />
     <DexSelect v-model="newCategoryStr" :options="categoryOptions" />
     <DexSelect v-model="newPriority" :options="priorityOptions" />
     <DexDateTime v-if="allowSchedule" v-model="newDue" />

@@ -2,7 +2,7 @@
 
 面向开发者的环境搭建、常用命令、测试与发布流程。安装与日常使用见 [操作说明](USER_GUIDE.md)；提交规范与贡献流程见 [贡献指南](../CONTRIBUTING.md)；跨平台已知坑位见 [平台注意事项](PLATFORM_NOTES.md)。
 
-技术栈 Tauri 2 + Vue 3 + Rust：常驻仅桌宠窗口，网络/同步跑在 tokio 后台任务，UI 卡死不影响提醒；数据为 SQLite（WAL）本地存储，日志滚动记录于 `~/.local/share/com.joeca.pokemonchooseyou/logs/`。
+技术栈 Tauri 2 + Vue 3 + Rust：常驻仅桌宠窗口，网络/同步跑在 tokio 后台任务，UI 卡死不影响提醒；数据为 SQLite（WAL）本地存储，日志滚动记录于 `~/.local/share/com.jotsai.pokemonchooseyou/logs/`。
 
 ## 环境搭建
 
@@ -50,9 +50,12 @@ src/                    前端（Vue 3 + TS + Pinia）
   composables/          usePomodoro（番茄钟状态机）/ usePetDrag（手动拖拽）
   api.ts                IPC 封装 + 错误分层
   events.ts             前后端事件名契约（与 src-tauri/src/events.rs 成对）
+  pokemon.ts            全量宝可梦名录（pokemon/catalog.json）+ 本地化名/精灵图候选链/台词存取
   i18n/                 三语语言包（zh-Hans / zh-Hant / en）
   __tests__/            前端单元测试 + i18n/素材兼容性测试（Vitest）
 e2e/                    端到端测试（Playwright + Tauri IPC mock）
+scripts/
+  gen-pokemon-catalog.mjs  从 PokeAPI 重新生成 src/pokemon/catalog.json（新世代发售/译名调整后重跑）
 src-tauri/src/
   db.rs                 SQLite 初始化 + 版本迁移 + 默认分类
   commands/             IPC 命令按域拆分：tasks / categories / tags / settings /
@@ -64,7 +67,7 @@ src-tauri/src/
   todoist.rs            Todoist 双向同步
   health.rs             集成链路健康状态（诊断中心）
                         （各文件内 #[cfg(test)] 为 Rust 单元测试与契约测试）
-public/pokemon/         宝可梦素材 (PokeAPI sprites)
+public/pokemon/         内置宝可梦素材 (PokeAPI sprites；全量名录的其余精灵图运行时从 CDN 加载)
 ```
 
 ## 发布

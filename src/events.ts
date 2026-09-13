@@ -10,7 +10,7 @@ export const EVENTS = {
   chatMessagesChanged: "chat-messages-changed",
   /** 标签配置变化（设置页维护，两窗口跟随） */
   tagsChanged: "tags-changed",
-  /** 提醒到期，payload: { id, title, urgent } */
+  /** 提醒到期，payload: { id, title, urgent, pokemon }（pokemon = 分类关联宝可梦名，可空） */
   taskReminder: "task-reminder",
   /** 全局快捷键"快速捕捉待办"，前端聚焦新增输入框 */
   quickCapture: "quick-capture",

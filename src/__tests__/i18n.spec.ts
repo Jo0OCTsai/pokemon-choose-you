@@ -5,7 +5,8 @@ import zhHans from "../i18n/zh-Hans";
 import zhHant from "../i18n/zh-Hant";
 import en from "../i18n/en";
 import { SUPPORTED_LOCALES, i18n } from "../i18n";
-import { SETTING_DEFAULTS, POKEMON_LIST } from "../stores/settings";
+import { BUNDLED_POKEMON } from "../pokemon";
+import { SETTING_DEFAULTS } from "../stores/settings";
 
 const locales: Record<string, unknown> = { "zh-Hans": zhHans, "zh-Hant": zhHant, en };
 
@@ -71,9 +72,9 @@ describe("i18n 兼容性：三语语言包", () => {
 });
 
 describe("素材兼容性：图鉴换装", () => {
-  it("每只宝可梦在 public/pokemon 下有 gif 或 png 素材", () => {
+  it("内置宝可梦在 public/pokemon 下有 gif 或 png 素材", () => {
     const publicDir = join(process.cwd(), "public", "pokemon");
-    for (const p of POKEMON_LIST) {
+    for (const p of BUNDLED_POKEMON) {
       const hasSprite = existsSync(join(publicDir, `${p.key}.gif`)) || existsSync(join(publicDir, `${p.key}.png`));
       expect(hasSprite, `${p.key} 缺少素材`).toBe(true);
     }

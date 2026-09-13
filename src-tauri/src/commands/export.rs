@@ -8,9 +8,8 @@ use rusqlite::{types::Value as SqlValue, Connection};
 use std::path::{Path, PathBuf};
 use tauri::State;
 
-/// 导出文件名前缀与全量 JSON 的 app 标识字段；pokemon-knock 为改名前的旧值（导入兼容）
+/// 导出文件名前缀与全量 JSON 的 app 标识字段
 const APP_SLUG: &str = "pokemon-choose-you";
-const LEGACY_APP_SLUG: &str = "pokemon-knock";
 
 /// 全量导出包含的表（顺序即导入顺序：被引用表在前）
 const DUMP_TABLES: &[&str] = &[
@@ -185,9 +184,7 @@ pub fn export_json_to(data_dir: &Path, conn: &Connection) -> AppResult<String> {
 pub fn import_json_from(content: &str, conn: &mut Connection) -> AppResult<usize> {
     let parsed: serde_json::Value = serde_json::from_str(content)
         .map_err(|e| AppError::Invalid(format!("不是合法的 JSON 文件: {e}")))?;
-    // app 字段接受新旧两个值：改名前导出的全量 JSON 照常导入
-    let app_ok = parsed["app"] == APP_SLUG || parsed["app"] == LEGACY_APP_SLUG;
-    if !app_ok || parsed["format"] != 1 {
+    if parsed["app"] != APP_SLUG || parsed["format"] != 1 {
         return Err(AppError::Invalid(
             "不是「就决定是你了」的全量导出文件".into(),
         ));
@@ -688,14 +685,6 @@ mod tests {
             .query_row("SELECT COUNT(*) FROM tasks", [], |r| r.get(0))
             .unwrap();
         assert_eq!(count, 2, "失败导入不动库");
-
-        // 改名前的旧 app 标识照常导入
-        let legacy = content.replace(APP_SLUG, LEGACY_APP_SLUG);
-        import_json_from(&legacy, &mut conn).unwrap();
-        let count: i64 = conn
-            .query_row("SELECT COUNT(*) FROM tasks", [], |r| r.get(0))
-            .unwrap();
-        assert_eq!(count, 2, "旧标识文件同样能整体替换");
     }
 
     /// CSV：表头 + BOM + 逗号/引号转义 + 标签拼接

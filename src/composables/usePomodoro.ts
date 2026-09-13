@@ -9,6 +9,8 @@ export function usePomodoro(hooks: {
   /** 当前任务 id（上报专注用），null 时不计时 */
   currentId: () => number | null;
   currentTitle: () => string;
+  /** 当前任务分类关联的宝可梦名（系统通知正文个性化；缺省为空串） */
+  currentPokemon?: () => string;
   /** 番茄专注结束（通知与气泡由调用方决定）；trial = 「先试 5 分钟」超短场，文案与后续不同 */
   onFocusDone: (title: string, trial: boolean) => void;
   onBreakStart: () => void;
@@ -120,7 +122,10 @@ export function usePomodoro(hooks: {
       if (phase.value === "focus") {
         hooks.onFocusDone(hooks.currentTitle(), trial);
         if (settings.sget("pomodoro_notify") === "true") {
-          sendNotification(t("pet.pomoNotifTitle"), t("pet.pomoNotifBody", { t: hooks.currentTitle() }));
+          sendNotification(
+            t("pet.pomoNotifTitle"),
+            t("pet.pomoNotifBody", { t: hooks.currentTitle(), p: hooks.currentPokemon?.() ?? "" }),
+          );
         }
         // 「先试 5 分钟」到期：不自动接休息，收工或继续都由用户决定（零挫败退出门票）
         if (!trial && breakMinutes() > 0) {

@@ -12,6 +12,8 @@
   --type-study: #6890f0;
   --type-life: #78c850;
   --type-health: #a8a878;
+  --type-interest: #ee99ac;
+  /* 社交/紧急已退出默认阵容（v2 迁移），配色保留给存量数据 */
   --type-social: #f08030;
   --type-urgent: #7038f8;
   --p-urgent: #ee1515;
@@ -77,6 +79,9 @@ body {
 }
 .b-health {
   background: var(--type-health);
+}
+.b-interest {
+  background: var(--type-interest);
 }
 .b-social {
   background: var(--type-social);
