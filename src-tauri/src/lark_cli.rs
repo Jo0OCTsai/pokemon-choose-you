@@ -129,24 +129,38 @@ pub struct CliAuthStatus {
     pub user_name: String,
 }
 
+/// 解析 `auth status --json` 输出。实测 1.0.95 的结构：
+/// `{"identities":{"user":{"available":true,"userName":"…","tokenStatus":"valid"}}}`，
+/// `user.available` 是 CLI 对登录态与 token 可用性的综合判定（含刷新）。
+/// 顶层 `logged_in`/`authenticated`/`ok` 布尔作为旧版兜底；结构不认识按未登录处理。
+fn parse_auth_status(v: &serde_json::Value) -> CliAuthStatus {
+    let user = &v["identities"]["user"];
+    let logged_in = user["available"]
+        .as_bool()
+        .or_else(|| {
+            ["logged_in", "authenticated", "ok"]
+                .iter()
+                .find_map(|k| v[k].as_bool())
+        })
+        .unwrap_or(false);
+    let user_name = user["userName"]
+        .as_str()
+        .filter(|s| !s.is_empty())
+        .or_else(|| v["name"].as_str())
+        .or_else(|| v["user"]["name"].as_str())
+        .unwrap_or("飞书用户")
+        .to_string();
+    CliAuthStatus {
+        logged_in,
+        user_name,
+    }
+}
+
 pub async fn auth_status(bin: &str) -> AppResult<CliAuthStatus> {
     let out = run(bin, &["auth", "status", "--json"], Duration::from_secs(15)).await?;
     // 输出不稳定时按未登录处理，让上层给登录指引
     let v: Value = serde_json::from_str(out.trim()).unwrap_or(Value::Null);
-    // 宽容解析：不同版本字段名可能是 logged_in / authenticated / ok
-    let logged_in = ["logged_in", "authenticated", "ok"]
-        .iter()
-        .any(|k| v[k].as_bool() == Some(true));
-    let user_name = v["name"]
-        .as_str()
-        .or_else(|| v["user"]["name"].as_str())
-        .or_else(|| v["identity"]["name"].as_str())
-        .unwrap_or("飞书用户")
-        .to_string();
-    Ok(CliAuthStatus {
-        logged_in,
-        user_name,
-    })
+    Ok(parse_auth_status(&v))
 }
 
 /// lark-cli 是否已初始化配置（绑定应用）：`lark-cli config show` 退出码 0 即已配置。
@@ -342,12 +356,50 @@ mod tests {
         tauri::async_runtime::block_on(async {
             let bin = fake_cli_script(
                 "st",
-                r#"if [ "$1" = "auth" ] && [ "$2" = "status" ] && [ "$3" = "--json" ]; then printf '%s' '{"ok":true,"logged_in":true,"name":"测试用户"}'; else echo "unexpected args: $*" >&2; exit 1; fi"#,
+                r#"if [ "$1" = "auth" ] && [ "$2" = "status" ] && [ "$3" = "--json" ]; then printf '%s' '{"appId":"cli_x","identities":{"user":{"status":"ready","available":true,"userName":"测试用户","tokenStatus":"valid"}},"identity":"user"}'; else echo "unexpected args: $*" >&2; exit 1; fi"#,
             );
             let s = auth_status(&bin).await.unwrap();
             assert!(s.logged_in);
             assert_eq!(s.user_name, "测试用户");
         });
+    }
+
+    /// 回归：lark-cli 1.0.95 实测结构是 identities.user.available/userName——
+    /// 旧解析在顶层找 logged_in 布尔，已登录的 CLI 也恒报未授权
+    #[test]
+    fn parse_auth_status_real_schema() {
+        let logged_in = serde_json::json!({
+            "appId": "cli_x", "brand": "feishu", "defaultAs": "auto",
+            "identities": {
+                "bot": {"status": "ready", "available": true},
+                "user": {
+                    "status": "ready", "available": true,
+                    "openId": "ou_me", "userName": "蔡乔蓉",
+                    "tokenStatus": "valid", "expiresAt": "2026-09-14T02:31:56+08:00"
+                }
+            },
+            "identity": "user"
+        });
+        let s = parse_auth_status(&logged_in);
+        assert!(s.logged_in, "user.available=true 即已登录");
+        assert_eq!(s.user_name, "蔡乔蓉");
+
+        // 未登录：user 身份缺失或 available=false
+        let logged_out = serde_json::json!({
+            "appId": "cli_x",
+            "identities": {"user": {"status": "unauthenticated", "available": false}}
+        });
+        assert!(!parse_auth_status(&logged_out).logged_in);
+        let no_identities = serde_json::json!({"appId": "cli_x"});
+        let s = parse_auth_status(&no_identities);
+        assert!(!s.logged_in);
+        assert_eq!(s.user_name, "飞书用户", "无用户名时兜底");
+
+        // 顶层布尔兜底（旧版/其他发行版的宽容解析）
+        let legacy = serde_json::json!({"ok": true, "logged_in": true, "name": "测试用户"});
+        let s = parse_auth_status(&legacy);
+        assert!(s.logged_in);
+        assert_eq!(s.user_name, "测试用户");
     }
 
     /// config_ready 按 `config show` 退出码判定是否已初始化
