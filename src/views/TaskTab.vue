@@ -7,6 +7,7 @@ import TaskCard from "../components/TaskCard.vue";
 import AddTaskForm from "../components/AddTaskForm.vue";
 import DexDateTime from "../components/DexDateTime.vue";
 import TaskEditModal from "../components/TaskEditModal.vue";
+import ReviewWizard from "../components/ReviewWizard.vue";
 import type { Task } from "../types";
 
 const props = defineProps<{ tab: TaskTabKey }>();
@@ -80,6 +81,9 @@ async function onSaved() {
   await reload();
 }
 
+// ---- 每周复盘（训练师复盘）：图鉴页入口 ----
+const reviewOpen = ref(false);
+
 // ---- 搜索：跨页关键词查询（标题/备注/标签/跟进记录） ----
 const searchQuery = ref("");
 const searchResults = ref<Task[]>([]);
@@ -133,6 +137,7 @@ onMounted(reload);
       >
         <span class="cursor">▶</span>{{ t(`dexFilter.${f}`) }}
       </button>
+      <button class="filter-btn review-btn" @click="reviewOpen = true">🧢 {{ t("review.entry") }}</button>
     </div>
 
     <ul class="dex-list">
@@ -178,6 +183,9 @@ onMounted(reload);
 
     <!-- 全字段编辑弹窗 -->
     <TaskEditModal v-if="editing" :task="editing" @close="editing = null" @saved="onSaved" />
+
+    <!-- 每周复盘向导 -->
+    <ReviewWizard v-if="reviewOpen" @close="reviewOpen = false" />
   </div>
 </template>
 
@@ -241,6 +249,10 @@ onMounted(reload);
   font-size: 10px;
 }
 .filter-btn.on {
+  background: var(--poke-yellow);
+}
+.filter-btn.review-btn {
+  margin-left: auto;
   background: var(--poke-yellow);
 }
 .filter-btn.on .cursor {
