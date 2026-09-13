@@ -242,8 +242,12 @@ export default {
     sshPort: "SSH 連接埠",
     sshKeyPh: "私鑰路徑（可選，如 ~/.ssh/id_ed25519）",
     sshTunnel: "反向隧道連接埠（可選，如 10022）",
+    setupRemote: "一鍵配置遠端 pk",
+    settingUp: "正在配置遠端 pk…（偵測 sshd / 金鑰 / shim / 端到端驗證，約十幾秒）",
+    setupDone: "✅ 遠端 pk 已就緒（pk {v}）——agent 呼叫時通道自動建立，可再點「測試」跑工具探針",
+    setupFailed: "配置未完成，請看失敗步驟的提示",
     sshHint:
-      "經 ssh 在遠端機器無頭執行；提示詞走標準輸入（{'{prompt}'} 佔位符元素自動剔除，如 claude 的 `-p {'{prompt}'}` 變 `-p`）。需先配好免密登入（公鑰），連線逾時 10 秒、整次呼叫受上面設定的逾時約束。填了隧道連接埠時，這條 ssh 連線會把遠端的 127.0.0.1:連接埠 轉回本機 sshd——遠端 pk shim（`pk remote shim --host localhost --port 連接埠` 生成）即可回連執行，本機無需對外開連接埠。",
+      "經 ssh 在遠端機器無頭執行；提示詞走標準輸入（{'{prompt}'} 佔位符元素自動剔除，如 claude 的 `-p {'{prompt}'}` 變 `-p`）。需先配好免密登入（公鑰），連線逾時 10 秒、整次呼叫受上面設定的逾時約束。遠端要用 pk 工具時點上面的「一鍵配置遠端 pk」——應用會把遠端的 127.0.0.1:連接埠 經這條 ssh 連線轉回本機 sshd（反向通道），遠端 agent 經透傳 shim 回本機執行，本機無需對外開任何連接埠。",
     hint: "用本機 AI agent 命令列工具（Claude Code / OpenCode / Kiro CLI 等）處理收音機訊息分類與判重，可設定多個。命令需支援無頭模式；附加參數中的 {'{prompt}'} 會替換為提示詞，沒有 {'{prompt}'} 時提示詞經標準輸入傳入。",
     cliHint:
       "應用同時提供 pk 命令列（pk task list / pk task get …）供 AI agent 與終端機直接讀寫待辦，隨應用一起發布，詳見使用指南。",
@@ -255,7 +259,7 @@ export default {
     modeText: "文字解析（agent 輸出 JSON）",
     modeTools: "工具呼叫（經 pk 落庫）",
     modeHint:
-      '工具呼叫模式：agent 先跑 pk context 拿判重上下文，再用 pk suggest batch 一次性提交判定，結果直接落庫、不再解析輸出文字。需允許 agent 無頭執行 pk 命令（如 claude 加 --allowedTools "Bash(pk*)"），並建議把逾時調大到 300 秒左右。',
+      "工具呼叫模式：agent 先跑 pk context 拿判重上下文，再用 pk suggest batch 一次性提交判定，結果直接落庫、不再解析輸出文字。需允許 agent 無頭執行 pk 命令（如 claude 加 --allowedTools Bash(pk:*)），並建議把逾時調大到 300 秒左右。",
     historyArgs: "歷史參數",
     timeout: "逾時（秒）",
     enabled: "啟用",

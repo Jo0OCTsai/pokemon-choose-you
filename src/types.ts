@@ -167,6 +167,21 @@ export interface AgentConfig {
   remote?: AgentRemote | null;
 }
 
+/** 一键配置远程 pk 的逐步报告（后端 setup_remote_pk） */
+export interface RemotePkStep {
+  name: string;
+  /** ok / skip（幂等复用）/ fail */
+  status: string;
+  detail: string;
+}
+
+export interface RemotePkReport {
+  ok: boolean;
+  steps: RemotePkStep[];
+  /** 端到端验证拿回的远程 pk 版本 */
+  version?: string | null;
+}
+
 /** 集成链路健康（诊断页展示）：飞书 / AI / Todoist */
 export interface IntegrationHealth {
   provider: "feishu" | "ai" | "todoist";

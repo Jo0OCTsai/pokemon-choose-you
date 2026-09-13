@@ -147,7 +147,7 @@ fn build_invocation(agent: &AgentConfig, prompt: &str) -> Invocation {
             if let Some(tp) = r.tunnel.filter(|t| *t != 0) {
                 // 反向隧道：远程侧 127.0.0.1:<tp> ⇄ 本机 sshd，供远程 pk shim 回连（仅本连接存活）
                 argv.push("-R".to_string());
-                argv.push(format!("127.0.0.1:{tp}:localhost:22"));
+                argv.push(format!("127.0.0.1:{tp}:127.0.0.1:22"));
             }
             argv.push(r.host.trim().to_string());
             argv.push("--".to_string());
@@ -162,7 +162,10 @@ fn build_invocation(agent: &AgentConfig, prompt: &str) -> Invocation {
                 .map(posix_quote)
                 .collect::<Vec<_>>()
                 .join(" ");
-            argv.push(remote_line);
+            // 整行再整体引用：ssh 会把 argv 用空格拼接后交远端 shell 重解析，
+            // 不整体引用时 -lc 只吞到第一个词（如 `claude`），其余参数全被降级成位置参数丢失
+            // ——单命令侥幸无感（claude 管道 stdin 等价 -p），带 --allowedTools 等参数时必错
+            argv.push(posix_quote(&remote_line));
             Invocation {
                 program: ssh_bin(),
                 argv,
@@ -224,7 +227,8 @@ pub fn history_invocation(agent: &AgentConfig) -> (String, Vec<String>) {
                 .map(posix_quote)
                 .collect::<Vec<_>>()
                 .join(" ");
-            argv.push(remote_line);
+            // 同 build_invocation：整行整体引用，防 -lc 只吞第一个词（如 `claude --resume` 丢成裸 `claude`）
+            argv.push(posix_quote(&remote_line));
             (ssh_bin(), argv)
         }
     }
@@ -730,9 +734,11 @@ async fn test_tools(agent: &AgentConfig) -> AppResult<String> {
     if content.contains("openTasks") {
         Ok("Agent 调用成功，pk 工具链已连通（context 正常返回）".into())
     } else {
-        Err(AppError::External(
-            "Agent 调用成功但未返回 pk context 输出——请确认 agent 无头模式允许执行 pk 命令（工具白名单），以及 pk 在 PATH 中".into(),
-        ))
+        // 带上 agent 的实际回复片段：被工具白名单拦下 / pk 不在 PATH / 模型自说自话，一眼可辨
+        Err(AppError::External(format!(
+            "Agent 调用成功但未返回 pk context 输出——请确认 agent 无头模式允许执行 pk 命令（工具白名单，如 claude 附加参数 --allowedTools Bash(pk:*)，注意参数按空白切分、不要加引号），以及 pk 在 PATH 中。agent 回复片段：{}",
+            trunc(content.trim(), 200)
+        )))
     }
 }
 
@@ -871,7 +877,7 @@ mod tests {
             .iter()
             .position(|x| x == "-R")
             .expect("带隧道端口时应加 -R");
-        assert_eq!(inv.argv[i + 1], "127.0.0.1:10022:localhost:22");
+        assert_eq!(inv.argv[i + 1], "127.0.0.1:10022:127.0.0.1:22");
 
         // 未配隧道（旧配置缺省）不加 -R
         let b = AgentConfig {
@@ -942,7 +948,7 @@ mod tests {
                 "exec",
                 "\"$SHELL\"",
                 "-lc",
-                "claude -p",
+                "'claude -p'",
             ]
         );
         // {prompt} 元素被剔除（-p 保留，读 stdin），提示词永远走 stdin
@@ -973,7 +979,7 @@ mod tests {
                 "exec",
                 "\"$SHELL\"",
                 "-lc",
-                "opencode run",
+                "'opencode run'",
             ]
         );
         // 历史入口也走 ssh
@@ -1264,7 +1270,7 @@ mod tests {
             let lines: Vec<&str> = argv.lines().collect();
             assert_eq!(
                 &lines[lines.len() - 4..],
-                &["exec", "\"$SHELL\"", "-lc", "claude -p"],
+                &["exec", "\"$SHELL\"", "-lc", "'claude -p'"],
                 "远端命令包登录 shell，占位符元素剔除后以 command -p 结尾: {argv}"
             );
             assert!(!argv.contains("明天交周报"), "提示词绝不进 argv");

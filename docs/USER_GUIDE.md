@@ -277,7 +277,13 @@ AI 判定时会带上**同会话 30 分钟内的近期上下文**与消息来源
 - 需要先配好**公钥免密登录**（BatchMode 不允许交互输密码）；连接超时 10 秒，整次调用仍受该 agent 的超时设置约束
 - 「历史记录」入口同样经 ssh 转发，`claude --resume` 等交互界面照常可用
 - 环境变量 `PK_SSH_BIN` 可覆盖 ssh 客户端程序名（默认 `ssh`）
-- **远程 agent 跑工具调用模式**：数据在本机，远程机器需要一个能回到本机的 `pk`——本机可被直连（局域网 / Tailscale）时，在远程生成透传脚本并放进 PATH：`pk remote shim --host <本机地址> [--port 端口] [--key 私钥] > ~/bin/pk && chmod +x ~/bin/pk`；本机不想开入站端口时，在 agent 的 SSH 配置里填「反向隧道端口」（如 10022），应用的 ssh 连接会把远程 `127.0.0.1:10022` 转回本机 sshd，shim 改用 `pk remote shim --host localhost --port 10022` 生成（隧道只在 agent 调用期间存活，恰好覆盖分类流程）
+- **远程 agent 使用 pk 工具（一键配置）**：数据在本机，远程放一个经**反向隧道**回连的透传 shim——应用的每条 ssh 连接把远程的 `127.0.0.1:隧道端口` 转回本机 sshd，远程 agent 经 shim 回本机执行 pk；隧道随调用建立、随调用拆除，**本机不开放任何入站端口**。用户只需两步：
+  1. **本机开启 sshd**（隧道终点，仅本机回环可达即可，防火墙无需放行）：macOS 系统设置 → 通用 → 共享 → 远程登录；Windows 安装并启动「OpenSSH SSH 服务器」可选功能；Linux `sudo systemctl enable --now sshd`
+  2. agent 的 SSH 配置区点 **「一键配置远程 pk」**（隧道端口默认 10022）
+
+  一键配置自动完成（全程幂等，可重复点击）：生成/复用专用密钥 → 公钥装配本机 `authorized_keys` → 私钥推到远程 `~/.ssh/pk_shim` → 预信任 `[127.0.0.1]:端口` 的主机指纹（shim 走 BatchMode，首次连接的交互确认必须预先写入 known_hosts 才不会失败）→ 安装 shim（内嵌本机 pk 绝对路径）到远程 `~/.local/bin/pk` 并保障登录 shell 的 PATH → 把隧道端口写回 agent 配置 → 开一条真实隧道端到端验证（远程 `pk --version` 应返回本机版本）。失败会指明停在哪一步与修法；成功后可再点「测试」跑工具探针。手工等价命令：`pk remote shim --host <本机用户名>@127.0.0.1 --port 10022`；排障可跑 `pk doctor --ssh <远程>`。
+
+  > 同一远程机器配多个 agent 时请保持相同的隧道端口（shim 按端口回连）。
 
 设置 → 集成 → AI Agent CLI：
 
@@ -296,7 +302,7 @@ AI 判定时会带上**同会话 30 分钟内的近期上下文**与消息来源
 
 - **文本解析（默认）**：应用解析 agent 输出中的 JSON 建议，任何能输出 JSON 的命令都兼容——原有行为。
 - **工具调用（经 pk 落库）**：agent 先跑 `pk context` 拿判重上下文，再用 `pk suggest batch` 把整批判定一次性写回数据库，应用直接回读，不再解析输出文本（更可靠，且判定结果带强校验）。要求 agent 无头模式下允许执行 pk 命令：
-  - Claude Code：附加参数改为 `-p {prompt} --allowedTools "Bash(pk*)"`（白名单语法以所用版本为准）
+  - Claude Code：附加参数改为 `-p {prompt} --allowedTools Bash(pk:*)`（`:*` 为前缀匹配语法；参数按空白切分，**不要加引号**——引号会变成值的一部分）
   - OpenCode / Kiro：在其权限配置中允许执行 `pk` 命令
   - 工具循环比单轮输出慢，建议把超时调大到 300 秒左右；「测试」按钮在该模式下会真跑一次 `pk context`，一次验证命令可用、工具白名单、PATH 与数据库整条链路
 
@@ -316,7 +322,7 @@ pk context                           # 当前时间 + 未完成待办 + 分类 +
 pk task create --title 交周报 --dry-run     # 只校验回显不落库（task update/delete 同）
 pk suggest todo --message <消息id> --title 交周报 --due 2026-09-13T18:00  # 提交 AI 判定建议（写建议列待用户确认）
 pk suggest batch --agent claude-code < suggestions.json                  # 批量提交（stdin 传 {"results":[...]}，整批校验）
-pk remote shim --host user@本机 > pk && chmod +x pk                      # 生成远程透传脚本（agent 在远程、数据在本机时）
+pk remote shim --host <本机用户名>@127.0.0.1 --port 10022 > pk    # 手工生成远程透传脚本（应用内有「一键配置远程 pk」）
 pk doctor                            # 环境自检：数据库/schema/技能安装，每项带修复建议（--ssh <host> 加测远程 pk）
 pk help --json                       # 机器可读的命令目录（供 agent 编程化发现）
 pk help                              # 完整命令说明
