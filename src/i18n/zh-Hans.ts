@@ -270,21 +270,14 @@ export default {
     add: "＋ 添加 Agent",
   },
   feishu: {
-    engine: "拉取引擎",
-    engineBuiltin: "内置直连（自建应用）",
-    engineCli: "lark-cli（官方命令行）",
-    engineHint:
-      "官方 lark-cli 引擎：先 npm install -g {'@'}larksuite/cli，再点「授权登录」在终端完成 lark-cli 自己的初始化与授权（首次会在浏览器自动创建自建应用，凭证由 lark-cli 保管，不进本应用数据库，无需手动填写 App ID/Secret）。",
     enable: "启用后台轮询",
     interval: "轮询间隔",
-    hint: "在飞书开放平台创建「企业自建应用」并开通消息读取权限；点击「授权登录」后将以你的身份拉取私聊与群聊消息（免打扰的会话跳过；发给机器人或发给自己的消息按备忘提取），无需再把机器人拉进会话。",
+    hint: "先 npm install -g {'@'}larksuite/cli，再点「授权登录」在终端完成 lark-cli 自己的初始化与授权（首次会在浏览器自动创建自建应用，凭证由 lark-cli 保管，不进本应用数据库）。授权后以你的身份拉取私聊与群聊消息（免打扰的会话跳过；发给机器人或发给自己的消息按备忘提取）。",
     auth: "授权登录",
     reauth: "重新授权",
-    authing: "等待浏览器完成授权…",
+    authing: "正在终端启动 lark-cli 登录…",
     authorized: "已授权：{name}",
     unauthorized: "未授权（需用户身份才能拉取你的私聊/群消息）",
-    authHint:
-      "授权前先在应用的「安全设置 → 重定向 URL」添加：{url}；并在「权限管理」开通 im:message（或 im:message:readonly）、im:message.p2p_msg:get_as_user、im:message.group_msg:get_as_user 与 im:chat。",
     test: "测试飞书连接",
     pollNow: "立即拉取一次",
     pollResult: "本轮新增 {n} 条建议",

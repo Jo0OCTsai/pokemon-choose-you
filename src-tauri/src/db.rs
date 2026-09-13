@@ -213,6 +213,8 @@ pub fn init(app: &tauri::AppHandle) -> Result<(), Box<dyn std::error::Error>> {
     if moved > 0 {
         log::info!("db: {moved} 条秘钥已迁入 OS 钥匙串");
     }
+    // builtin 飞书引擎已下线：清掉其遗留配置与凭证（lark-cli 凭证由 CLI 自管）
+    crate::secrets::purge_legacy_feishu_keys(&conn);
     app.manage(Db(Mutex::new(conn)));
     Ok(())
 }

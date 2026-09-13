@@ -275,21 +275,14 @@ export default {
     add: "＋ Add Agent",
   },
   feishu: {
-    engine: "Fetch engine",
-    engineBuiltin: "Built-in (own app)",
-    engineCli: "lark-cli (official CLI)",
-    engineHint:
-      "Official lark-cli engine: npm install -g {'@'}larksuite/cli first, then click \"Authorize\" to complete lark-cli's own setup and login in a terminal (first run creates an app for you in the browser; credentials stay with lark-cli, never enter this app's database — no manual App ID/Secret needed).",
     enable: "Enable background polling",
     interval: "Poll interval",
-    hint: "Create an internal app on Feishu Open Platform with message-read scopes, then click Authorize: your direct and group chats are pulled under your own identity (muted chats are skipped; messages you send to a bot, or to yourself, are treated as notes)—no need to add the bot to any chat.",
+    hint: "npm install -g {'@'}larksuite/cli first, then click \"Authorize\" to complete lark-cli's own setup and login in a terminal (first run creates an app for you in the browser; credentials stay with lark-cli, never enter this app's database). Once authorized, your direct and group chats are pulled under your own identity (muted chats are skipped; messages you send to a bot, or to yourself, are treated as notes).",
     auth: "Authorize login",
     reauth: "Re-authorize",
-    authing: "Waiting for authorization in browser…",
+    authing: "Launching lark-cli login in a terminal…",
     authorized: "Authorized: {name}",
     unauthorized: "Not authorized (user identity is required to read your direct/group chats)",
-    authHint:
-      "Before authorizing, add {url} under the app's Security Settings → Redirect URLs, and enable im:message (or im:message:readonly), im:message.p2p_msg:get_as_user, im:message.group_msg:get_as_user and im:chat under Permissions.",
     test: "Test Feishu connection",
     pollNow: "Poll now",
     pollResult: "{n} new suggestions this round",

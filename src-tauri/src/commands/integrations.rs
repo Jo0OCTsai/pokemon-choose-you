@@ -157,15 +157,8 @@ fn shell_quote(s: &str) -> String {
 }
 
 #[tauri::command]
-pub async fn test_feishu_config(db: State<'_, Db>) -> AppResult<String> {
-    let engine = {
-        let conn = db.0.lock().unwrap();
-        let get = settings_getter(&conn);
-        crate::feishu::fetch_engine_from(&get).ok_or_else(|| {
-            AppError::Invalid("请先填写飞书 App ID / App Secret，或切换到 lark-cli 引擎".into())
-        })?
-    };
-    crate::feishu::poll_once_test(&engine, &db).await
+pub async fn test_feishu_config() -> AppResult<String> {
+    crate::feishu::poll_once_test(&crate::lark_cli::lark_bin()).await
 }
 
 #[tauri::command]
@@ -182,56 +175,33 @@ pub struct FeishuOauthStatus {
 }
 
 #[tauri::command]
-pub async fn feishu_oauth_status(db: State<'_, Db>) -> AppResult<FeishuOauthStatus> {
-    // lark-cli 引擎：授权状态由 lark-cli 自管（凭证不进本库），转询其登录态
-    let engine = {
-        let conn = db.0.lock().unwrap();
-        let get = settings_getter(&conn);
-        crate::feishu::fetch_engine_from(&get)
-    };
-    if let Some(crate::feishu::FetchEngine::LarkCli(bin)) = engine {
-        let status =
-            crate::lark_cli::auth_status(&bin)
-                .await
-                .unwrap_or(crate::lark_cli::CliAuthStatus {
-                    logged_in: false,
-                    user_name: String::new(),
-                });
-        return Ok(FeishuOauthStatus {
-            authorized: status.logged_in,
-            user_name: status.user_name,
+pub async fn feishu_oauth_status() -> AppResult<FeishuOauthStatus> {
+    // 授权状态由 lark-cli 自管（凭证不进本库），转询其登录态
+    let status = crate::lark_cli::auth_status(&crate::lark_cli::lark_bin())
+        .await
+        .unwrap_or(crate::lark_cli::CliAuthStatus {
+            logged_in: false,
+            user_name: String::new(),
         });
-    }
-    let (authorized, user_name) = crate::feishu::oauth_status(&db);
     Ok(FeishuOauthStatus {
-        authorized,
-        user_name,
+        authorized: status.logged_in,
+        user_name: status.user_name,
     })
 }
 
-/// 发起用户授权：内置引擎走浏览器 OAuth；lark-cli 引擎在终端里跑 `lark-cli auth login`
+/// 发起用户授权：在系统终端里跑 `lark-cli config init && auth login`（浏览器完成授权）
 #[tauri::command]
-pub async fn feishu_oauth_login(app: AppHandle) -> AppResult<String> {
-    let engine = {
-        use tauri::Manager as _;
-        let db = app.state::<crate::db::Db>();
-        let conn = db.0.lock().unwrap();
-        let get = settings_getter(&conn);
-        crate::feishu::fetch_engine_from(&get)
+pub async fn feishu_oauth_login() -> AppResult<String> {
+    let bin = crate::lark_cli::lark_bin();
+    // 首次使用 lark-cli 需先 config init（浏览器里创建自建应用），之后才是用户授权
+    let line = if crate::lark_cli::config_ready(&bin).await {
+        format!("{bin} auth login --domain im --recommend")
+    } else {
+        format!("{bin} config init --new && {bin} auth login --domain im --recommend")
     };
-    if let Some(crate::feishu::FetchEngine::LarkCli(_)) = engine {
-        let bin = crate::lark_cli::lark_bin();
-        // 首次使用 lark-cli 需先 config init（浏览器里创建自建应用），之后才是用户授权
-        let line = if crate::lark_cli::config_ready(&bin).await {
-            format!("{bin} auth login --domain im --recommend")
-        } else {
-            format!("{bin} config init --new && {bin} auth login --domain im --recommend")
-        };
-        return spawn_line_in_terminal(&line)
-            .await
-            .map(|term| format!("已在 {term} 中启动 lark-cli 登录，完成后回到这里点「测试」"));
-    }
-    crate::feishu::oauth_login(&app).await
+    spawn_line_in_terminal(&line)
+        .await
+        .map(|term| format!("已在 {term} 中启动 lark-cli 登录，完成后回到这里点「测试」"))
 }
 
 #[tauri::command]

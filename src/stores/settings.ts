@@ -35,14 +35,10 @@ export const SETTING_DEFAULTS: Record<string, string> = {
   pokemon_quotes: "{}",
   feishu_poll_interval: "120",
   feishu_enabled: "false",
-  /** 飞书拉取引擎：builtin = 内置直连（自建应用 OAuth），cli = 官方 lark-cli 子进程 */
-  feishu_engine: "builtin",
   /** AI agent CLI 列表（AgentConfig 的 JSON 数组字符串） */
   ai_agents: "[]",
   /** 收音机分类使用的 agent id（空则用第一个启用的） */
   ai_agent_id: "",
-  feishu_app_id: "",
-  feishu_app_secret: "",
   todoist_token: "",
 };
 
@@ -53,7 +49,7 @@ export const SETTING_DEFAULTS: Record<string, string> = {
 export const SECRET_STORED = "__STORED__";
 
 /** 走系统钥匙串的秘钥键（与后端 secrets::SECRET_KEYS 对齐；仅用于输入框占位提示） */
-export const SECRET_KEYS = ["feishu_app_secret", "feishu_user_token", "feishu_refresh_token", "todoist_token"];
+export const SECRET_KEYS = ["todoist_token"];
 
 /** 设置页保存的键全集（与后端 settings 表对齐） */
 export const SETTING_KEYS = [
@@ -80,10 +76,7 @@ export const SETTING_KEYS = [
   "feishu_poll_interval",
   "ai_agents",
   "ai_agent_id",
-  "feishu_app_id",
-  "feishu_app_secret",
   "feishu_enabled",
-  "feishu_engine",
   "todoist_token",
 ];
 

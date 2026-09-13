@@ -40,7 +40,7 @@ src-tauri/src/
 
 - **契约靠测试锁死**：Rust serde ↔ TS 接口（`models.rs`/`types.ts`）、事件名（`events.rs`/`events.ts`）、i18n 三语键位，各有一对测试防漂移，改动时两侧同步。
 - **schema 变更走迁移**：在 `db.rs` 的 `MIGRATIONS` 追加新条目（只追加不修改），`user_version` 会自动前滚。
-- **HTTP 分支必须 wiremock 覆盖**：ai/feishu/todoist 的 reqwest 路径用 mock 服务器写集成测试（此前缺覆盖导致 Todoist 同步两个 bug 长期未被发现）。
+- **HTTP 分支必须 mock 覆盖**：ai/todoist 的 reqwest 路径用 wiremock 写集成测试（此前缺覆盖导致 Todoist 同步两个 bug 长期未被发现）；feishu 走 lark-cli 子进程，用假 CLI 脚本按 API 路由返回数据来测全链路。
 - **写数据的命令必须广播对应事件**：主面板与桌宠靠 `events.rs` 里的变更事件保持两窗口一致，忘了广播就是"另一窗口不刷新"的 bug。
 
 ## 版权红线 ⚠️

@@ -62,7 +62,7 @@ src-tauri/src/
                         integrations / radio / diagnostics / windows（conn 层供 pk CLI 复用）
   bin/pk.rs             pk 命令行：供 AI agent 与终端读写待办（JSON 输出）
   scheduler.rs          提醒调度（提前量、通知开关、多语言通知）
-  feishu.rs             飞书用户授权（OAuth）+ 用户身份增量轮询 + 富文本渲染
+  feishu.rs             用户身份增量轮询（lark-cli 聚合翻页 + 语境规则）+ 富文本渲染
   ai.rs                 AI agent CLI 无头调用（多 Agent 配置 / 超时 / 输出解析）
   todoist.rs            Todoist 双向同步
   health.rs             集成链路健康状态（诊断中心）

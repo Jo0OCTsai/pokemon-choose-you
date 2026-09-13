@@ -34,16 +34,25 @@ fn settings_getter(conn: &Connection) -> impl Fn(&str) -> Option<String> + '_ {
     move |k| crate::secrets::secret_get(conn, k)
 }
 
-fn feishu_configured(conn: &Connection) -> bool {
-    let get = settings_getter(conn);
-    crate::feishu::load_config(&get)
-        .map(|c| !c.app_id.is_empty() && !c.app_secret.is_empty())
-        .is_some_and(|x| x)
+/// 飞书链路是否已具备运行条件：lark-cli 可执行文件存在（绝对路径看文件，命令名扫 PATH）。
+/// 登录态不在诊断快照里判断（需要跑子进程），由轮询失败信息与设置页授权状态展示。
+fn feishu_configured(bin: &str) -> bool {
+    let p = std::path::Path::new(bin);
+    if p.is_file() {
+        return true;
+    }
+    if bin.contains('/') {
+        return false; // 指定了路径但文件不存在
+    }
+    std::env::var_os("PATH")
+        .map(|paths| std::env::split_paths(&paths).any(|dir| dir.join(bin).is_file()))
+        .unwrap_or(false)
 }
 
 fn collect_health<R: tauri::Runtime>(
     app: &tauri::AppHandle<R>,
     conn: &Connection,
+    lark_bin: &str,
 ) -> AppResult<Vec<IntegrationHealthInfo>> {
     let get = settings_getter(conn);
     let state = app.state::<crate::health::HealthState>();
@@ -58,7 +67,7 @@ fn collect_health<R: tauri::Runtime>(
 
     let mut out = vec![];
     for (provider, configured, enabled) in [
-        (health::FEISHU, feishu_configured(conn), feishu_enabled),
+        (health::FEISHU, feishu_configured(lark_bin), feishu_enabled),
         (health::AI, primary_agent.is_some(), true),
         (
             health::TODOIST,
@@ -102,7 +111,7 @@ pub fn integration_health<R: tauri::Runtime>(
     db: State<Db>,
 ) -> AppResult<Vec<IntegrationHealthInfo>> {
     let conn = db.0.lock().unwrap();
-    collect_health(&app, &conn)
+    collect_health(&app, &conn, &crate::lark_cli::lark_bin())
 }
 
 // ---- 运行日志 ----
@@ -310,7 +319,7 @@ pub fn build_support_report<R: tauri::Runtime>(
     report.push_str("—— 集成健康 ——\n");
     let infos = {
         let conn = db.0.lock().unwrap();
-        collect_health(&app, &conn)?
+        collect_health(&app, &conn, &crate::lark_cli::lark_bin())?
     };
     for h in &infos {
         report.push_str(&format!(
@@ -432,15 +441,13 @@ mod tests {
     fn integration_health_combines_state_and_config() {
         let app = setup();
         seed_agent_config(&app);
+        // 假 lark-cli：一个存在的文件即满足「已安装」（登录态不在此判定）
+        let bin = std::env::temp_dir().join(format!("pk-lark-bin-{}", std::process::id()));
+        std::fs::write(&bin, b"#!/bin/sh\n").unwrap();
         {
             let db = app.state::<Db>();
             let conn = db.0.lock().unwrap();
-            for (k, v) in [
-                ("feishu_app_id", "cli_x"),
-                ("feishu_app_secret", "s"),
-                ("feishu_enabled", "true"),
-                ("todoist_token", "tok"),
-            ] {
+            for (k, v) in [("feishu_enabled", "true"), ("todoist_token", "tok")] {
                 conn.execute(
                     "INSERT INTO settings (key, value) VALUES (?1, ?2)",
                     params![k, v],
@@ -456,7 +463,7 @@ mod tests {
         let infos = {
             let db = app.state::<Db>();
             let conn = db.0.lock().unwrap();
-            collect_health(app.handle(), &conn).unwrap()
+            collect_health(app.handle(), &conn, bin.to_str().unwrap()).unwrap()
         };
         let by: std::collections::HashMap<&str, &IntegrationHealthInfo> =
             infos.iter().map(|h| (h.provider.as_str(), h)).collect();
@@ -486,10 +493,11 @@ mod tests {
         let infos = {
             let db = app.state::<Db>();
             let conn = db.0.lock().unwrap();
-            collect_health(app.handle(), &conn).unwrap()
+            collect_health(app.handle(), &conn, bin.to_str().unwrap()).unwrap()
         };
         let feishu = infos.iter().find(|h| h.provider == health::FEISHU).unwrap();
         assert_eq!(feishu.pending_count, 1, "只有 todo/update 算待确认积压");
+        let _ = std::fs::remove_file(&bin);
     }
 
     #[test]
@@ -498,7 +506,7 @@ mod tests {
         let infos = {
             let db = app.state::<Db>();
             let conn = db.0.lock().unwrap();
-            collect_health(app.handle(), &conn).unwrap()
+            collect_health(app.handle(), &conn, "/nonexistent/pk-lark-cli").unwrap()
         };
         assert!(infos.iter().all(|h| h.status == "off"), "{infos:?}");
         assert_eq!(infos.len(), 3);
