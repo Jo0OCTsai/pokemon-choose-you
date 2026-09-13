@@ -189,7 +189,7 @@
 收音机支持两种**拉取引擎**（设置 → 集成 → 飞书 → 拉取引擎）：
 
 - **内置直连（默认）**：用你自己的「企业自建应用」走本应用自建的 OAuth 与 REST 拉取（按下文配置）
-- **lark-cli（官方命令行）**：先 `npm install -g @larksuite/cli`，再点「授权登录」——会打开终端运行 `lark-cli auth login`，凭证由 lark-cli 自己保管（**不进本应用数据库**），无需创建自建应用、无需填 App ID/Secret；消息经 `lark-cli api ... --format json` 拉取。两种引擎的语境过滤与上下文组装完全一致。
+- **lark-cli（官方命令行）**：先 `npm install -g @larksuite/cli`，再点「授权登录」——首次会在终端依次运行 `lark-cli config init --new`（在浏览器里为你自动创建自建应用，无需手动填 App ID/Secret）与 `lark-cli auth login --domain im --recommend`（用户授权），之后只跑登录；凭证由 lark-cli 自己保管（**不进本应用数据库**）；消息经 `lark-cli api ... --format json` 拉取。系统没有可用终端模拟器时（如未装桌面终端的 WSL），错误提示会给出可手动粘贴的完整命令。两种引擎的语境过滤与上下文组装完全一致。
 
 > WebSocket 实时事件：lark-cli 提供 lark-event 订阅能力，但常驻桌宠应用管理长连接生命周期（断线重连、休眠唤醒、多实例）复杂度尚高，当前版本两种引擎均按设置的间隔轮询；接口已按引擎抽象，后续可平滑接入。
 

@@ -65,14 +65,20 @@ async fn open_agent_in_terminal(
 /// 在一个新的终端窗口里运行命令（各系统终端差异大，尽力而为）。
 /// 成功返回实际使用的终端程序名。
 async fn spawn_in_terminal(program: &str, args: &[String]) -> AppResult<&'static str> {
+    let mut line = shell_quote(program).to_string();
+    for a in args {
+        line.push(' ');
+        line.push_str(&shell_quote(a));
+    }
+    spawn_line_in_terminal(&line).await
+}
+
+/// spawn_in_terminal 的整行版本：line 原样交给目标 shell 执行，不再逐参转义
+/// （用于含 && 等 shell 语法的复合命令）。
+async fn spawn_line_in_terminal(line: &str) -> AppResult<&'static str> {
     #[cfg(target_os = "macos")]
     {
         // Terminal.app 不接受命令参数，用 osascript 让它执行一条 shell 命令
-        let mut line = shell_quote(program).to_string();
-        for a in args {
-            line.push(' ');
-            line.push_str(&shell_quote(a));
-        }
         let script = format!("tell application \"Terminal\" to do script \"{line}\"");
         if tokio::process::Command::new("osascript")
             .arg("-e")
@@ -87,14 +93,9 @@ async fn spawn_in_terminal(program: &str, args: &[String]) -> AppResult<&'static
 
     #[cfg(target_os = "windows")]
     {
-        let mut line = shell_quote(program).to_string();
-        for a in args {
-            line.push(' ');
-            line.push_str(&shell_quote(a));
-        }
         let title = "pokemon-knock agent";
         tokio::process::Command::new("cmd")
-            .args(["/C", "start", title, "cmd", "/K", &line])
+            .args(["/C", "start", title, "cmd", "/K", line])
             .spawn()
             .map_err(|e| AppError::External(format!("打开终端失败: {e}")))?;
         return Ok("cmd");
@@ -102,6 +103,7 @@ async fn spawn_in_terminal(program: &str, args: &[String]) -> AppResult<&'static
 
     #[cfg(all(unix, not(target_os = "macos")))]
     {
+        // 经 bash -lc 执行：登录 shell 才带得上 nvm/npm 全局 bin 等用户 PATH
         // 常见 Linux 终端 ×（命令参数风格），逐个尝试
         let candidates: &[(&str, &str)] = &[
             ("gnome-terminal", "--"),
@@ -118,7 +120,7 @@ async fn spawn_in_terminal(program: &str, args: &[String]) -> AppResult<&'static
             if !flag.is_empty() {
                 cmd.args(flag.split_whitespace());
             }
-            cmd.arg(program).args(args);
+            cmd.args(["bash", "-lc", line]);
             match cmd.spawn() {
                 Ok(_) => return Ok(term),
                 Err(e) if e.kind() == std::io::ErrorKind::NotFound => continue,
@@ -127,22 +129,19 @@ async fn spawn_in_terminal(program: &str, args: &[String]) -> AppResult<&'static
                 }
             }
         }
-        Err(AppError::External(
-            "未找到可用的终端模拟器（gnome-terminal / konsole / kitty …），请手动打开终端运行"
-                .into(),
-        ))
+        Err(AppError::External(format!(
+            "未找到可用的终端模拟器（gnome-terminal / konsole / kitty …），请手动打开终端运行：{line}"
+        )))
     }
 
     #[cfg(not(any(unix, windows)))]
     {
-        let _ = (program, args);
+        let _ = line;
         Err(AppError::External("当前平台不支持打开终端".into()))
     }
 }
 
 /// POSIX 风格的 shell 引用：含特殊字符时包单引号，内部单引号转义。
-/// 仅 macOS（osascript）/ Windows（cmd /K）分支使用。
-#[cfg_attr(not(any(target_os = "macos", target_os = "windows")), allow(dead_code))]
 fn shell_quote(s: &str) -> String {
     if s.is_empty() {
         return "''".into();
@@ -221,18 +220,16 @@ pub async fn feishu_oauth_login(app: AppHandle) -> AppResult<String> {
         crate::feishu::fetch_engine_from(&get)
     };
     if let Some(crate::feishu::FetchEngine::LarkCli(_)) = engine {
-        return spawn_in_terminal(
-            &crate::lark_cli::lark_bin(),
-            &[
-                "auth".to_string(),
-                "login".to_string(),
-                "--domain".to_string(),
-                "im".to_string(),
-                "--recommend".to_string(),
-            ],
-        )
-        .await
-        .map(|term| format!("已在 {term} 中启动 lark-cli 登录，完成后回到这里点「测试」"));
+        let bin = crate::lark_cli::lark_bin();
+        // 首次使用 lark-cli 需先 config init（浏览器里创建自建应用），之后才是用户授权
+        let line = if crate::lark_cli::config_ready(&bin).await {
+            format!("{bin} auth login --domain im --recommend")
+        } else {
+            format!("{bin} config init --new && {bin} auth login --domain im --recommend")
+        };
+        return spawn_line_in_terminal(&line)
+            .await
+            .map(|term| format!("已在 {term} 中启动 lark-cli 登录，完成后回到这里点「测试」"));
     }
     crate::feishu::oauth_login(&app).await
 }
