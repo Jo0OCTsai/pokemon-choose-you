@@ -82,6 +82,7 @@ export interface NewTaskInput {
 
 export const api = {
   listTasks: (filter: string) => call<Task[]>("list_tasks", { filter }),
+  dexStats: () => call<{ caught: number; escaped: number }>("dex_stats"),
   searchTasks: (q: string) => call<Task[]>("search_tasks", { q }),
   createTask: (task: NewTaskInput) => call<Task>("create_task", { task: { scheduled: false, ...task } }),
   updateTask: (patch: Partial<Task> & { id: number; tagIds?: number[] }) => call<Task>("update_task", { patch }),

@@ -53,6 +53,17 @@ export default {
       cancelled: "No escaped records yet.",
     },
   },
+  dexStats: {
+    line: "📙 {caught} caught all-time · {escaped} escaped",
+    milestone: {
+      m0: "The dex is empty—your first Pokemon awaits.",
+      m1: "The first one! The dex has started turning.",
+      m10: "10 logged—you've found your trainer rhythm.",
+      m50: "50! A veteran trainer's aura.",
+      m100: "100! A legendary trainer.",
+      m200: "{n}—the dex can barely hold more!",
+    },
+  },
   log: {
     create: "Created",
     update: "Updated",

@@ -44,6 +44,26 @@ fn attach_tags(conn: &Connection, tasks: &mut [Task]) -> AppResult<()> {
 
 const TASK_COLS: &str = "id, title, note, category_id, status, priority, due_at, remind_at, reminded, source, external_id, created_at, completed_at, started_at, cancelled_at, focus_seconds";
 
+// ---- 图鉴页统计（成就页头：累计捕捉/逃走，全量口径不受列表 LIMIT 200 截断） ----
+
+#[derive(Debug, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DexStats {
+    pub caught: i64,
+    pub escaped: i64,
+}
+
+#[tauri::command]
+pub fn dex_stats(db: State<Db>) -> AppResult<DexStats> {
+    let conn = db.0.lock().unwrap();
+    let (caught, escaped): (i64, i64) = conn.query_row(
+        "SELECT COALESCE(SUM(status='done'), 0), COALESCE(SUM(status='cancelled'), 0) FROM tasks",
+        [],
+        |r| Ok((r.get(0)?, r.get(1)?)),
+    )?;
+    Ok(DexStats { caught, escaped })
+}
+
 // ---- 操作日志（task_logs）：所有状态与属性变更的审计记录 ----
 
 /// 写一条日志；field 无关的动作（create/delete 等）传空串。

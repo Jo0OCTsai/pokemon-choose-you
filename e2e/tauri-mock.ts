@@ -112,6 +112,11 @@ export async function installTauriMock(page: Page, state: Partial<MockState> = {
               return fresh().filter((t) => ["inbox", "scheduled", "active", "paused"].includes(t.status));
             return fresh();
           }
+          case "dex_stats": {
+            const caught = db.tasks.filter((t) => t.status === "done").length;
+            const escaped = db.tasks.filter((t) => t.status === "cancelled").length;
+            return { caught, escaped };
+          }
           case "create_task": {
             const t = {
               id: db.nextId++,
