@@ -4,7 +4,7 @@
   "version": "1.0.0",
   "identifier": "com.jotsai.pokemonchooseyou",
   "build": {
-    "beforeDevCommand": "npm run dev",
+    "beforeDevCommand": "node scripts/prepare-pk-cli.mjs && npm run dev",
     "devUrl": "http://localhost:1420",
     "beforeBuildCommand": "npm run build && node scripts/prepare-pk-cli.mjs",
     "frontendDist": "../dist"

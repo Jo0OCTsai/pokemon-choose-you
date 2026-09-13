@@ -147,7 +147,7 @@ fn build_invocation(agent: &AgentConfig, prompt: &str) -> Invocation {
             if let Some(tp) = r.tunnel.filter(|t| *t != 0) {
                 // 反向隧道：远程侧 127.0.0.1:<tp> ⇄ 本机 sshd，供远程 pk shim 回连（仅本连接存活）
                 argv.push("-R".to_string());
-                argv.push(format!("127.0.0.1:{tp}:localhost:22"));
+                argv.push(format!("127.0.0.1:{tp}:127.0.0.1:22"));
             }
             argv.push(r.host.trim().to_string());
             argv.push("--".to_string());
@@ -873,7 +873,7 @@ mod tests {
             .iter()
             .position(|x| x == "-R")
             .expect("带隧道端口时应加 -R");
-        assert_eq!(inv.argv[i + 1], "127.0.0.1:10022:localhost:22");
+        assert_eq!(inv.argv[i + 1], "127.0.0.1:10022:127.0.0.1:22");
 
         // 未配隧道（旧配置缺省）不加 -R
         let b = AgentConfig {
