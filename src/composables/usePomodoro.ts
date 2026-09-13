@@ -9,8 +9,8 @@ export function usePomodoro(hooks: {
   /** 当前任务 id（上报专注用），null 时不计时 */
   currentId: () => number | null;
   currentTitle: () => string;
-  /** 番茄专注结束（通知与气泡由调用方决定） */
-  onFocusDone: (title: string) => void;
+  /** 番茄专注结束（通知与气泡由调用方决定）；trial = 「先试 5 分钟」超短场，文案与后续不同 */
+  onFocusDone: (title: string, trial: boolean) => void;
   onBreakStart: () => void;
   onBreakEnd: () => void;
 }) {
@@ -24,6 +24,8 @@ export function usePomodoro(hooks: {
   let reported = 0;
   let chimedMid = false;
   let chimedFinal = false;
+  /** 「先试 5 分钟」超短场：结束不接休息、不响长钟提示 */
+  let trial = false;
 
   const enabled = () => settings.sget("pomodoro_enabled") === "true";
   const pomoMinutes = () => settings.sgetNum("pomodoro_minutes", 25);
@@ -60,11 +62,21 @@ export function usePomodoro(hooks: {
   }
 
   function start() {
+    beginFocus(pomoMinutes() * 60, false);
+  }
+
+  /** 「先试 5 分钟」零挫败入场券：明示不成也没关系，进入状态自然延续 */
+  function startTrial() {
+    beginFocus(5 * 60, true);
+  }
+
+  function beginFocus(seconds: number, isTrial: boolean) {
     if (hooks.currentId() == null) return;
     stopTick();
     phase.value = "focus";
-    totalSec.value = pomoMinutes() * 60;
-    remainSec.value = totalSec.value;
+    trial = isTrial;
+    totalSec.value = seconds;
+    remainSec.value = seconds;
     reported = 0;
     chimedMid = false;
     chimedFinal = false;
@@ -106,12 +118,15 @@ export function usePomodoro(hooks: {
     if (remainSec.value <= 0) {
       stopTick();
       if (phase.value === "focus") {
-        hooks.onFocusDone(hooks.currentTitle());
+        hooks.onFocusDone(hooks.currentTitle(), trial);
         if (settings.sget("pomodoro_notify") === "true") {
           sendNotification(t("pet.pomoNotifTitle"), t("pet.pomoNotifBody", { t: hooks.currentTitle() }));
         }
-        if (breakMinutes() > 0) {
+        // 「先试 5 分钟」到期：不自动接休息，收工或继续都由用户决定（零挫败退出门票）
+        if (!trial && breakMinutes() > 0) {
           startBreak();
+        } else if (trial) {
+          running.value = false;
         }
       } else {
         running.value = false;
@@ -122,5 +137,5 @@ export function usePomodoro(hooks: {
 
   onUnmounted(stopTick);
 
-  return { remainSec, totalSec, phase, running, mmss, enabled, start, stop, stopTick, sendNotification };
+  return { remainSec, totalSec, phase, running, mmss, enabled, start, startTrial, stop, stopTick, sendNotification };
 }

@@ -51,9 +51,10 @@ const currentCat = computed(() => categories.byId.get(current.value?.categoryId 
 const pomo = usePomodoro({
   currentId: () => current.value?.id ?? null,
   currentTitle: () => current.value?.title ?? "",
-  onFocusDone: (title) => {
+  onFocusDone: (title, trialDone) => {
     petState.value = "urgent";
-    bubble.value = t("pet.pomoDone", { t: title });
+    // 「先试 5 分钟」到期：零挫败出口——继续或收工都被肯定
+    bubble.value = trialDone ? t("pet.trialDone") : t("pet.pomoDone", { t: title });
   },
   onBreakStart: () => say(t("pet.breakStart"), false),
   onBreakEnd: () => {
@@ -61,6 +62,13 @@ const pomo = usePomodoro({
     say(t("pet.breakEnd"));
   },
 });
+
+/** 「先试 5 分钟」：卡在启动上时的零挫败入场券 */
+function startTrial() {
+  if (!current.value) return;
+  pomo.startTrial();
+  say(t("pet.trialStart"), false);
+}
 
 function bubbleText() {
   if (!current.value) {
@@ -276,7 +284,10 @@ onUnmounted(() => {
     <div v-if="current && pomo.enabled()" class="pomo-pill" :class="{ break: pomo.phase.value === 'break' }">
       <span class="px">{{ pomo.phase.value === "break" ? "☕" : "🍅" }} {{ pomo.mmss.value }}</span>
       <button v-if="pomo.running.value" class="pomo-btn" @click="pauseTask">⏸</button>
-      <button v-else class="pomo-btn" @click="resume">▶</button>
+      <template v-else>
+        <button class="pomo-btn" :title="t('pet.trial')" @click="startTrial">🍦</button>
+        <button class="pomo-btn" @click="resume">▶</button>
+      </template>
       <button class="pomo-btn" @click="doneTask">✔</button>
       <button class="pomo-btn" @click="openSwitcher">⇄</button>
     </div>
