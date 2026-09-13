@@ -59,11 +59,12 @@ fn tick<R: tauri::Runtime>(app: &tauri::AppHandle<R>) -> Result<(), Box<dyn std:
     // 不可比（UTC+ 时区下本地字符串普遍偏大），窗口放宽一天，精确判断交给 parse_time
     let now_s = (now + chrono::Duration::days(1)).to_rfc3339();
     let conn = db.0.lock().unwrap();
-    let due: Vec<(i64, String, String, String)> = {
+    let due: Vec<(i64, String, String, String, Option<String>)> = {
         let mut stmt = conn.prepare(
-            "SELECT id, title, priority, remind_at FROM tasks
-             WHERE reminded=0 AND remind_at IS NOT NULL AND remind_at <= ?1
-               AND status IN ('inbox','scheduled','active','paused')",
+            "SELECT t.id, t.title, t.priority, t.remind_at, c.pokemon FROM tasks t
+             LEFT JOIN categories c ON c.id = t.category_id
+             WHERE t.reminded=0 AND t.remind_at IS NOT NULL AND t.remind_at <= ?1
+               AND t.status IN ('inbox','scheduled','active','paused')",
         )?;
         let rows = stmt
             .query_map(params![now_s], |r| {
@@ -72,19 +73,20 @@ fn tick<R: tauri::Runtime>(app: &tauri::AppHandle<R>) -> Result<(), Box<dyn std:
                     r.get::<_, String>(1)?,
                     r.get::<_, String>(2)?,
                     r.get::<_, String>(3)?,
+                    r.get::<_, Option<String>>(4)?,
                 ))
             })?
             .collect::<Result<Vec<_>, _>>()?;
         rows
     };
-    for (id, title, priority, remind_at) in &due {
+    for (id, title, priority, remind_at, pokemon) in &due {
         // datetime-local 传入的是本地无时区时间，解析后与当前 UTC 比较
         let due_time = parse_time(remind_at);
         if due_time.is_none_or(|t| t > now) {
             continue;
         }
         conn.execute("UPDATE tasks SET reminded=1 WHERE id=?1", params![id])?;
-        drop_later_notify(app, *id, title, priority, notify_on);
+        drop_later_notify(app, *id, title, priority, pokemon.as_deref(), notify_on);
     }
 
     // ---- 逾期 fresh start：自动归草丛模式每天跑一次（反羞耻：不堆「羞耻墙」） ----
@@ -243,34 +245,48 @@ fn fresh_start_notification_text(lang: &str, n: usize) -> (String, String) {
     }
 }
 
-/// 按语言设置生成通知标题/正文（紧急与非紧急两档）
-fn notification_text(lang: &str, urgent: bool, title: &str) -> (String, String) {
+/// 按语言设置生成通知标题/正文（紧急与非紧急两档）；body 附分类宝可梦名（有则拼尾）
+fn notification_text(
+    lang: &str,
+    urgent: bool,
+    title: &str,
+    pokemon: Option<&str>,
+) -> (String, String) {
+    // 主体带宝可梦后缀：交报告（皮卡丘）
+    let subject = match pokemon {
+        Some(p) if lang == "en" => format!("{title} ({p})"),
+        Some(p) => format!("{title}（{p}）"),
+        None => title.to_string(),
+    };
     match lang {
         "zh-Hant" => {
             if urgent {
                 (
                     "‼ 訓練家，快看快看！".into(),
-                    format!("緊急任務提醒：{title}"),
+                    format!("緊急任務提醒：{subject}"),
                 )
             } else {
-                ("🐾 訓練家，別忘了".into(), format!("{title}"))
+                ("🐾 訓練家，別忘了".into(), format!("{subject}"))
             }
         }
         "en" => {
             if urgent {
-                ("‼ Trainer, quick look!".into(), format!("Urgent: {title}"))
+                (
+                    "‼ Trainer, quick look!".into(),
+                    format!("Urgent: {subject}"),
+                )
             } else {
-                ("🐾 Trainer, don't forget".into(), format!("{title}"))
+                ("🐾 Trainer, don't forget".into(), format!("{subject}"))
             }
         }
         _ => {
             if urgent {
                 (
                     "‼ 训练家，快看快看！".into(),
-                    format!("紧急任务提醒：{title}"),
+                    format!("紧急任务提醒：{subject}"),
                 )
             } else {
-                ("🐾 训练家，别忘了".into(), format!("{title}"))
+                ("🐾 训练家，别忘了".into(), format!("{subject}"))
             }
         }
     }
@@ -281,12 +297,13 @@ fn drop_later_notify<R: tauri::Runtime>(
     id: i64,
     title: &str,
     priority: &str,
+    pokemon: Option<&str>,
     notify_on: bool,
 ) {
     let urgent = priority == "urgent" || priority == "high";
     if notify_on {
         let lang = crate::db::setting(app, "language").unwrap_or_default();
-        let (title_str, body) = notification_text(&lang, urgent, title);
+        let (title_str, body) = notification_text(&lang, urgent, title, pokemon);
         let _ = app
             .notification()
             .builder()
@@ -469,20 +486,20 @@ mod tests {
 
     #[test]
     fn notification_text_per_language_and_urgency() {
-        let (t, b) = notification_text("zh-Hans", true, "交报告");
+        let (t, b) = notification_text("zh-Hans", true, "交报告", None);
         assert_eq!(t, "‼ 训练家，快看快看！");
         assert_eq!(b, "紧急任务提醒：交报告");
-        let (t, b) = notification_text("zh-Hans", false, "交报告");
+        let (t, b) = notification_text("zh-Hans", false, "交报告", Some("皮卡丘"));
         assert_eq!(t, "🐾 训练家，别忘了");
-        assert_eq!(b, "交报告");
-        let (t, b) = notification_text("zh-Hant", false, "交報告");
+        assert_eq!(b, "交报告（皮卡丘）", "body 附分类宝可梦名");
+        let (t, b) = notification_text("zh-Hant", false, "交報告", None);
         assert_eq!(t, "🐾 訓練家，別忘了");
         assert_eq!(b, "交報告");
-        let (t, b) = notification_text("en", true, "report");
+        let (t, b) = notification_text("en", true, "report", Some("Pikachu"));
         assert_eq!(t, "‼ Trainer, quick look!");
-        assert_eq!(b, "Urgent: report");
+        assert_eq!(b, "Urgent: report (Pikachu)");
         // 未知语言回退简体
-        let (t, _) = notification_text("fr", false, "x");
+        let (t, _) = notification_text("fr", false, "x", None);
         assert_eq!(t, "🐾 训练家，别忘了");
     }
 
