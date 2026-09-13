@@ -187,8 +187,9 @@ pub(crate) fn run_setup(ctx: &RemotePkSetup) -> SetupReport {
         });
     }
 
-    // 1. 本机 pk 定位（命令侧已解析路径，这里验证存在）
-    if !std::path::Path::new(&ctx.pk_path).exists() {
+    // 1. 本机 pk 定位（命令侧已解析路径，这里验证可用：存在、非空占位、可执行）
+    let pk_file = std::path::Path::new(&ctx.pk_path);
+    if !pk_file.exists() {
         fail(
             &mut steps,
             "定位 pk",
@@ -196,6 +197,63 @@ pub(crate) fn run_setup(ctx: &RemotePkSetup) -> SetupReport {
         );
         return report_of(steps, None);
     }
+    // tauri dev 会把 sidecar 占位（src-tauri/binaries/pk-<triple>，空文件）拷到
+    // target/debug/pk 并盖掉 cargo 构建的真二进制——开发态一键配置前需重新构建 pk
+    match pk_file.metadata() {
+        Ok(m) if m.len() == 0 => {
+            fail(
+                &mut steps,
+                "定位 pk",
+                format!(
+                    "{} 是空占位文件（tauri dev 的 sidecar 占位盖掉了真实二进制）。开发态请先跑 `cargo build --bin pk` 再重试；安装版应用无此问题",
+                    ctx.pk_path
+                ),
+            );
+            return report_of(steps, None);
+        }
+        Ok(_) => {}
+        Err(e) => {
+            fail(
+                &mut steps,
+                "定位 pk",
+                format!("读取 {} 失败：{e}", ctx.pk_path),
+            );
+            return report_of(steps, None);
+        }
+    }
+    #[cfg_attr(not(unix), allow(unused_mut))]
+    let mut pk_detail = String::new();
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        let mode = pk_file
+            .metadata()
+            .map(|m| m.permissions().mode())
+            .unwrap_or(0);
+        if mode & 0o111 == 0 {
+            // 占位拷贝常不带执行位；顺手补上（同用户可写，一般都能成功）
+            let fixed = std::fs::set_permissions(
+                pk_file,
+                std::fs::Permissions::from_mode((mode & 0o777) | 0o755),
+            )
+            .is_ok();
+            pk_detail = if fixed {
+                "（已自动补执行权限）".into()
+            } else {
+                fail(
+                    &mut steps,
+                    "定位 pk",
+                    format!("{} 无执行权限且自动补权失败，请手动 chmod +x", ctx.pk_path),
+                );
+                return report_of(steps, None);
+            };
+        }
+    }
+    steps.push(SetupStep {
+        name: "定位 pk".into(),
+        status: "ok".into(),
+        detail: format!("{}{}", ctx.pk_path, pk_detail),
+    });
 
     // 2. 本机 sshd 可达（隧道终点；只扫端口不认证，避免依赖本机自身的免密配置）
     let keyscan = std::process::Command::new(&ctx.keyscan_program)
@@ -441,6 +499,9 @@ pub(crate) fn run_setup(ctx: &RemotePkSetup) -> SetupReport {
     }
     let hint = if out.contains("refused") {
         "隧道端口未通（本步自动建立临时隧道，失败多为 sshd 仅监听 IPv6 或被安全软件拦截）"
+    } else if out.to_lowercase().contains("permission denied") && !out.contains("(publickey") {
+        // 回连与认证都已成功，是本机登录 shell 执行 pk 失败（空占位 / 缺执行位 / 磁盘 noexec）
+        "回连已通但本机无法执行 pk：空占位文件请先 `cargo build --bin pk`（开发态）或重装应用；缺执行位请 chmod +x；排除后重跑本配置"
     } else if out.contains("denied") {
         "认证被拒：重跑一次本配置（公钥装配与私钥推送需同时生效），或检查本机 authorized_keys"
     } else {
@@ -668,6 +729,21 @@ mod tests {
             "无失败步: {:?}",
             report.steps
         );
+        // 非执行位的 pk 被自动补权（ctx_with 写出的是 644）
+        {
+            use std::os::unix::fs::PermissionsExt;
+            let mode = std::fs::metadata(dir.join("pk"))
+                .unwrap()
+                .permissions()
+                .mode();
+            assert_ne!(mode & 0o111, 0, "自动补了执行位");
+            let locate = report.steps.iter().find(|s| s.name == "定位 pk").unwrap();
+            assert!(
+                locate.detail.contains("自动补执行权限"),
+                "{}",
+                locate.detail
+            );
+        }
         // 公钥已装配本机 authorized_keys，内容与生成的公钥一致
         let ak = home.join(".ssh/authorized_keys");
         let ak_text = std::fs::read_to_string(&ak).unwrap();
@@ -699,6 +775,34 @@ mod tests {
         ] {
             assert!(calls.contains(frag), "ssh 调用缺「{frag}」: {calls}");
         }
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn run_setup_rejects_empty_placeholder_pk() {
+        let dir = std::env::temp_dir().join(format!("pk-setup-empty-{}", std::process::id()));
+        let home = dir.join("home");
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&home).unwrap();
+        let (ssh, keyscan) = fake_bins(&dir);
+        let ctx = ctx_with(&dir, &home, &ssh, &keyscan);
+        // tauri dev 的 sidecar 占位：0 字节且无执行位，盖掉真实二进制
+        std::fs::write(dir.join("pk"), "").unwrap();
+
+        let report = run_setup(&ctx);
+        assert!(!report.ok);
+        let locate = report.steps.iter().find(|s| s.name == "定位 pk").unwrap();
+        assert_eq!(locate.status, "fail");
+        assert!(
+            locate.detail.contains("cargo build --bin pk"),
+            "给开发态重建指引: {}",
+            locate.detail
+        );
+        assert!(
+            !report.steps.iter().any(|s| s.name == "本机 sshd"),
+            "空占位直接停在第 1 步: {:?}",
+            report.steps
+        );
         let _ = std::fs::remove_dir_all(&dir);
     }
 
