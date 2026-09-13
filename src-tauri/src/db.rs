@@ -4,7 +4,10 @@ use tauri::Manager;
 
 pub struct Db(pub Mutex<Connection>);
 
-/// v1：初始 schema（建表 + 索引），全部幂等，兼容迁移机制引入前的老库
+/// 1.0.0 初始化基线：完整当前 schema，单条迁移。
+/// 历史增量（标签/收音机、分类停用、任务状态机、飞书元数据、AI 建议与反馈、
+/// agent_sessions、suggested_note）已并入本基线；应用未正式发布过，不存在需前滚的
+/// 存量用户库，本地调试库手动对齐（ALTER 补列 + PRAGMA user_version=1）。
 const SCHEMA_V1: &str = r#"
 CREATE TABLE IF NOT EXISTS tasks (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -20,7 +23,9 @@ CREATE TABLE IF NOT EXISTS tasks (
     external_id TEXT,
     created_at TEXT NOT NULL,
     completed_at TEXT,
-    focus_seconds INTEGER NOT NULL DEFAULT 0
+    focus_seconds INTEGER NOT NULL DEFAULT 0,
+    started_at TEXT,
+    cancelled_at TEXT
 );
 CREATE INDEX IF NOT EXISTS idx_tasks_status ON tasks(status);
 CREATE INDEX IF NOT EXISTS idx_tasks_remind ON tasks(remind_at) WHERE remind_at IS NOT NULL AND reminded = 0;
@@ -30,20 +35,8 @@ CREATE TABLE IF NOT EXISTS categories (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     name TEXT NOT NULL UNIQUE,
     pokemon TEXT NOT NULL,
-    sprite TEXT NOT NULL
-);
-
-CREATE TABLE IF NOT EXISTS im_suggestions (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    message_id TEXT NOT NULL UNIQUE,
-    chat_name TEXT NOT NULL DEFAULT '',
-    sender TEXT NOT NULL DEFAULT '',
-    content TEXT NOT NULL,
-    suggested_title TEXT,
-    suggested_category TEXT,
-    suggested_due TEXT,
-    review_status TEXT NOT NULL DEFAULT 'pending',
-    created_at TEXT NOT NULL
+    sprite TEXT NOT NULL,
+    enabled INTEGER NOT NULL DEFAULT 1
 );
 
 CREATE TABLE IF NOT EXISTS settings (
@@ -57,10 +50,7 @@ CREATE TABLE IF NOT EXISTS sync_state (
     updated_at TEXT NOT NULL,
     PRIMARY KEY (provider)
 );
-"#;
 
-/// v2：标签 / 任务标签 / 跟进记录 / 收音机全量消息（chat_messages 取代 im_suggestions）/ AI 调用日志
-const SCHEMA_V2: &str = r#"
 CREATE TABLE IF NOT EXISTS tags (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     name TEXT NOT NULL UNIQUE,
@@ -85,6 +75,19 @@ CREATE TABLE IF NOT EXISTS task_notes (
 );
 CREATE INDEX IF NOT EXISTS idx_task_notes_task ON task_notes(task_id);
 
+CREATE TABLE IF NOT EXISTS task_logs (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    task_id INTEGER NOT NULL,
+    -- create / update / start / pause / demote / delete / sync_pull / sync_push / sync_close / migrate
+    action TEXT NOT NULL,
+    field TEXT NOT NULL DEFAULT '',
+    old_value TEXT,
+    new_value TEXT,
+    origin TEXT NOT NULL DEFAULT '',
+    created_at TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_task_logs_task ON task_logs(task_id);
+
 CREATE TABLE IF NOT EXISTS chat_messages (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     message_id TEXT NOT NULL UNIQUE,
@@ -100,82 +103,19 @@ CREATE TABLE IF NOT EXISTS chat_messages (
     ai_status TEXT NOT NULL DEFAULT 'pending',
     review_status TEXT NOT NULL DEFAULT 'pending',
     task_id INTEGER,
-    created_at TEXT NOT NULL DEFAULT ''
+    created_at TEXT NOT NULL DEFAULT '',
+    chat_id TEXT NOT NULL DEFAULT '',
+    chat_type TEXT NOT NULL DEFAULT '',
+    sender_id TEXT NOT NULL DEFAULT '',
+    sent_at INTEGER,
+    is_self INTEGER NOT NULL DEFAULT 0,
+    update_task_id INTEGER,
+    followup_task_id INTEGER,
+    suggested_reason TEXT,
+    suggested_confidence TEXT,
+    ai_agent TEXT NOT NULL DEFAULT ''
 );
 CREATE INDEX IF NOT EXISTS idx_chat_messages_created ON chat_messages(created_at);
-
-CREATE TABLE IF NOT EXISTS ai_logs (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    scene TEXT NOT NULL DEFAULT '',
-    model TEXT NOT NULL DEFAULT '',
-    request_body TEXT NOT NULL DEFAULT '',
-    response_body TEXT NOT NULL DEFAULT '',
-    ok INTEGER NOT NULL DEFAULT 1,
-    error TEXT,
-    duration_ms INTEGER NOT NULL DEFAULT 0,
-    created_at TEXT NOT NULL DEFAULT ''
-);
-
--- 旧 im_suggestions 数据并入 chat_messages：有建议标题的视为 AI 已判定待办
-INSERT OR IGNORE INTO chat_messages
-    (message_id, chat_name, sender, content, suggested_title, suggested_category, suggested_due,
-     ai_status, review_status, created_at)
-SELECT message_id, chat_name, sender, content, suggested_title, suggested_category, suggested_due,
-       CASE WHEN suggested_title IS NULL THEN 'none' ELSE 'todo' END,
-       review_status, created_at
-FROM im_suggestions;
-DROP TABLE IF EXISTS im_suggestions;
-"#;
-
-/// v3：分类支持停用（内置分类不可删，改为 enabled=0 隐藏出新建/编辑与 AI 选项）
-const SCHEMA_V3: &str = r#"
-ALTER TABLE categories ADD COLUMN enabled INTEGER NOT NULL DEFAULT 1;
-"#;
-
-/// v4：任务状态机强化——started_at/cancelled_at 字段、task_logs 操作日志表、存量状态归位。
-/// 归位规则：无截止时间且从未开始 → inbox；inbox 但有截止时间 → scheduled。
-const SCHEMA_V4: &str = r#"
-ALTER TABLE tasks ADD COLUMN started_at TEXT;
-ALTER TABLE tasks ADD COLUMN cancelled_at TEXT;
-
-CREATE TABLE IF NOT EXISTS task_logs (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    task_id INTEGER NOT NULL,
-    -- create / update / start / pause / demote / delete / sync_pull / sync_push / sync_close / migrate
-    action TEXT NOT NULL,
-    field TEXT NOT NULL DEFAULT '',
-    old_value TEXT,
-    new_value TEXT,
-    origin TEXT NOT NULL DEFAULT '',
-    created_at TEXT NOT NULL
-);
-CREATE INDEX IF NOT EXISTS idx_task_logs_task ON task_logs(task_id);
-
--- active/paused 必然开始过；专注过又被顶下的任务以迁移时刻近似 started_at
-UPDATE tasks SET started_at = strftime('%Y-%m-%dT%H:%M:%SZ','now')
- WHERE started_at IS NULL AND (status IN ('active','paused') OR focus_seconds > 0);
-
--- inbox + 有截止时间 → scheduled（先记日志再改，日志的 old/new 与更新条件一致）
-INSERT INTO task_logs (task_id, action, field, old_value, new_value, origin, created_at)
-SELECT id, 'migrate', 'status', 'inbox', 'scheduled', 'migration', strftime('%Y-%m-%dT%H:%M:%SZ','now')
-FROM tasks WHERE status='inbox' AND due_at IS NOT NULL;
-UPDATE tasks SET status='scheduled' WHERE status='inbox' AND due_at IS NOT NULL;
-
--- scheduled + 无截止时间 + 从未开始 → inbox
-INSERT INTO task_logs (task_id, action, field, old_value, new_value, origin, created_at)
-SELECT id, 'migrate', 'status', 'scheduled', 'inbox', 'migration', strftime('%Y-%m-%dT%H:%M:%SZ','now')
-FROM tasks WHERE status='scheduled' AND due_at IS NULL AND started_at IS NULL;
-UPDATE tasks SET status='inbox' WHERE status='scheduled' AND due_at IS NULL AND started_at IS NULL;
-"#;
-
-/// v5：飞书用户身份拉取——chat_messages 补会话/发送者元数据，新增飞书用户名缓存表。
-/// chat_type 取值：p2p（单聊）/ group（群聊）/ bot（与本应用机器人的单聊）。
-const SCHEMA_V5: &str = r#"
-ALTER TABLE chat_messages ADD COLUMN chat_id TEXT NOT NULL DEFAULT '';
-ALTER TABLE chat_messages ADD COLUMN chat_type TEXT NOT NULL DEFAULT '';
-ALTER TABLE chat_messages ADD COLUMN sender_id TEXT NOT NULL DEFAULT '';
-ALTER TABLE chat_messages ADD COLUMN sent_at INTEGER;
-ALTER TABLE chat_messages ADD COLUMN is_self INTEGER NOT NULL DEFAULT 0;
 CREATE INDEX IF NOT EXISTS idx_chat_messages_chat ON chat_messages(chat_id, sent_at);
 
 CREATE TABLE IF NOT EXISTS feishu_users (
@@ -183,31 +123,6 @@ CREATE TABLE IF NOT EXISTS feishu_users (
     name TEXT NOT NULL DEFAULT '',
     updated_at TEXT NOT NULL DEFAULT ''
 );
-"#;
-
-/// v6：AI 动作扩展——chat_messages 记录 update 建议指向的目标待办
-const SCHEMA_V6: &str = r#"
-ALTER TABLE chat_messages ADD COLUMN update_task_id INTEGER;
-"#;
-
-/// v7：AI 链路观测下线（改用 AI agent CLI，历史记录由 agent 工具自带）：
-/// 删除 ai_logs 表与旧 AI 接口设置项
-const SCHEMA_V7: &str = r#"
-DROP TABLE IF EXISTS ai_logs;
-DELETE FROM settings WHERE key IN ('ai_base_url', 'ai_api_key', 'ai_model');
-"#;
-
-/// v8：跟进可见性——followup 建议记录并入的目标待办，收音机可跳转查看
-const SCHEMA_V8: &str = r#"
-ALTER TABLE chat_messages ADD COLUMN followup_task_id INTEGER;
-"#;
-
-/// v9：AI 信任与反馈回路——建议附 reason / 置信档位，消息记录判定时的 agent；
-/// 人工裁决（捕捉/逃走/应用更新）落 chat_feedback，关联建议与模型，为判重与提示词迭代积累本地数据
-const SCHEMA_V9: &str = r#"
-ALTER TABLE chat_messages ADD COLUMN suggested_reason TEXT;
-ALTER TABLE chat_messages ADD COLUMN suggested_confidence TEXT;
-ALTER TABLE chat_messages ADD COLUMN ai_agent TEXT NOT NULL DEFAULT '';
 
 CREATE TABLE IF NOT EXISTS chat_feedback (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -221,11 +136,7 @@ CREATE TABLE IF NOT EXISTS chat_feedback (
     created_at TEXT NOT NULL DEFAULT ''
 );
 CREATE INDEX IF NOT EXISTS idx_chat_feedback_message ON chat_feedback(chat_message_id);
-"#;
 
-/// v10：Agent 会话回链与成本记录——分类调用与 agent 代办按次落库
-/// （session_id / 命令 / 退出码 / 时长 / 成本 / token），UI 可跳转会话转录
-const SCHEMA_V10: &str = r#"
 CREATE TABLE IF NOT EXISTS agent_sessions (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     task_id INTEGER,
@@ -245,11 +156,8 @@ CREATE INDEX IF NOT EXISTS idx_agent_sessions_task ON agent_sessions(task_id);
 "#;
 
 /// 迁移按序号执行：MIGRATIONS[i] 负责把 `PRAGMA user_version` 从 i 升到 i+1。
-/// 新的 schema 变更一律追加新条目（且只追加，不修改已发布条目），老库逐级前滚。
-const MIGRATIONS: &[&str] = &[
-    SCHEMA_V1, SCHEMA_V2, SCHEMA_V3, SCHEMA_V4, SCHEMA_V5, SCHEMA_V6, SCHEMA_V7, SCHEMA_V8,
-    SCHEMA_V9, SCHEMA_V10,
-];
+/// 1.0.0 只有一条初始化基线；发布后再有 schema 变更，追加新条目（且只追加，不修改已发布条目）。
+const MIGRATIONS: &[&str] = &[SCHEMA_V1];
 
 #[derive(Debug, thiserror::Error)]
 pub enum MigrateError {
@@ -407,362 +315,24 @@ pub(crate) mod tests {
         assert_eq!(lang, "en");
     }
 
-    /// 回归：v1 老库（含 im_suggestions 数据）升级 v2 后，消息并入 chat_messages 且标签表可用
+    /// 基线自带 suggested_note 列（曾因只进建表语句漏迁移，导致老库收音机查询报缺列）
     #[test]
-    fn migrates_v1_db_moving_im_suggestions_into_chat_messages() {
-        let conn = Connection::open_in_memory().unwrap();
-        conn.execute_batch(SCHEMA_V1).unwrap();
-        conn.execute("PRAGMA user_version = 1", []).unwrap();
+    fn baseline_creates_chat_messages_with_suggested_note() {
+        let conn = test_conn();
         conn.execute(
-            "INSERT INTO im_suggestions (message_id, chat_name, sender, content, suggested_title, suggested_category, suggested_due, review_status, created_at)
-             VALUES ('om_1', '群', '张三', '明天开周会', '参加周会', '工作', '2026-09-13T10:00', 'pending', '2026-09-01T00:00:00Z')",
+            "INSERT INTO chat_messages (message_id, content, suggested_note, created_at)
+             VALUES ('om_n', '提醒我买虾', '家里还有半只', '2026-09-13T00:00:00Z')",
             [],
         )
         .unwrap();
-        conn.execute(
-            "INSERT INTO im_suggestions (message_id, chat_name, sender, content, suggested_title, review_status, created_at)
-             VALUES ('om_2', '群', '李四', '哈哈', NULL, 'dismissed', '2026-09-01T00:00:00Z')",
-            [],
-        )
-        .unwrap();
-
-        init_conn(&conn).unwrap();
-        assert_eq!(user_version(&conn), MIGRATIONS.len() as i64);
-        let todo: (String, String) = conn
+        let note: Option<String> = conn
             .query_row(
-                "SELECT suggested_title, ai_status FROM chat_messages WHERE message_id='om_1'",
-                [],
-                |r| Ok((r.get(0)?, r.get(1)?)),
-            )
-            .unwrap();
-        assert_eq!(todo, ("参加周会".into(), "todo".into()));
-        let none: (i64, String) = conn
-            .query_row(
-                "SELECT COALESCE(task_id, 0), ai_status FROM chat_messages WHERE message_id='om_2'",
-                [],
-                |r| Ok((r.get(0)?, r.get(1)?)),
-            )
-            .unwrap();
-        assert_eq!(none, (0, "none".into()), "无建议标题的消息标记为 none");
-        // 旧表已删除，标签/跟进/AI 日志表可用
-        let tables: i64 = conn
-            .query_row(
-                "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='im_suggestions'",
+                "SELECT suggested_note FROM chat_messages WHERE message_id='om_n'",
                 [],
                 |r| r.get(0),
             )
             .unwrap();
-        assert_eq!(tables, 0, "im_suggestions 已被 chat_messages 取代");
-        conn.execute(
-            "INSERT INTO tags (name, description, created_at) VALUES ('重要', '核心目标', '2026-09-01T00:00:00Z')",
-            [],
-        )
-        .unwrap();
-    }
-
-    /// 回归：v2 库升级 v3 后分类带上 enabled 标志且默认启用
-    #[test]
-    fn migrates_v2_db_adding_category_enabled_flag() {
-        let conn = Connection::open_in_memory().unwrap();
-        conn.execute_batch(SCHEMA_V1).unwrap();
-        conn.execute_batch(SCHEMA_V2).unwrap();
-        conn.execute("PRAGMA user_version = 2", []).unwrap();
-        // 手工造一个 v2 时代的存量分类（改名过的 id=1）
-        conn.execute(
-            "INSERT INTO categories (id, name, pokemon, sprite) VALUES (1, '改名分类', '皮卡丘', 'pikachu')",
-            [],
-        )
-        .unwrap();
-
-        init_conn(&conn).unwrap();
-        assert_eq!(user_version(&conn), MIGRATIONS.len() as i64);
-        let (name, enabled): (String, i64) = conn
-            .query_row("SELECT name, enabled FROM categories WHERE id=1", [], |r| {
-                Ok((r.get(0)?, r.get(1)?))
-            })
-            .unwrap();
-        assert_eq!(name, "改名分类", "升级不动既有数据");
-        assert_eq!(enabled, 1, "存量分类默认启用");
-    }
-
-    /// 回归：v3 库升级 v4 后状态归位——inbox+due → scheduled、scheduled 无 due 未开始 → inbox、
-    /// active/paused 补 started_at，且归位动作写入 task_logs
-    #[test]
-    fn migrates_v3_db_repositioning_task_statuses() {
-        let conn = Connection::open_in_memory().unwrap();
-        conn.execute_batch(SCHEMA_V1).unwrap();
-        conn.execute_batch(SCHEMA_V2).unwrap();
-        conn.execute_batch(SCHEMA_V3).unwrap();
-        conn.execute("PRAGMA user_version = 3", []).unwrap();
-        for (title, status, due) in [
-            ("带时间的草丛", "inbox", Some("2026-09-10T09:00")),
-            ("没时间的路线", "scheduled", None),
-            ("正常路线", "scheduled", Some("2026-09-10T09:00")),
-        ] {
-            conn.execute(
-                "INSERT INTO tasks (title, status, due_at, created_at) VALUES (?1, ?2, ?3, '2026-09-01T00:00:00Z')",
-                rusqlite::params![title, status, due],
-            )
-            .unwrap();
-        }
-        conn.execute(
-            "INSERT INTO tasks (title, status, created_at) VALUES ('进行中', 'active', '2026-09-01T00:00:00Z')",
-            [],
-        )
-        .unwrap();
-
-        init_conn(&conn).unwrap();
-        assert_eq!(user_version(&conn), MIGRATIONS.len() as i64);
-        let status_of = |title: &str| {
-            conn.query_row("SELECT status FROM tasks WHERE title=?1", [title], |r| {
-                r.get::<_, String>(0)
-            })
-            .unwrap()
-        };
-        assert_eq!(status_of("带时间的草丛"), "scheduled");
-        assert_eq!(status_of("没时间的路线"), "inbox");
-        assert_eq!(status_of("正常路线"), "scheduled", "有时间的路线不动");
-        assert_eq!(status_of("进行中"), "active", "进行中不被归位");
-        let active_started: Option<String> = conn
-            .query_row(
-                "SELECT started_at FROM tasks WHERE title='进行中'",
-                [],
-                |r| r.get(0),
-            )
-            .unwrap();
-        assert!(active_started.is_some(), "active 任务补 started_at");
-        let migrated: i64 = conn
-            .query_row(
-                "SELECT COUNT(*) FROM task_logs WHERE action='migrate' AND origin='migration'",
-                [],
-                |r| r.get(0),
-            )
-            .unwrap();
-        assert_eq!(migrated, 2, "两处归位写入日志");
-    }
-
-    /// 回归：v4 库升级 v5 后 chat_messages 带上会话元数据列（存量行取默认值），
-    /// feishu_users 缓存表可用
-    #[test]
-    fn migrates_v4_db_adding_chat_metadata_columns() {
-        let conn = Connection::open_in_memory().unwrap();
-        for sql in [SCHEMA_V1, SCHEMA_V2, SCHEMA_V3, SCHEMA_V4] {
-            conn.execute_batch(sql).unwrap();
-        }
-        conn.execute("PRAGMA user_version = 4", []).unwrap();
-        conn.execute(
-            "INSERT INTO chat_messages (message_id, chat_name, sender, content, ai_status, review_status, created_at)
-             VALUES ('om_old', '项目群', '张三', '老消息', 'todo', 'pending', '2026-09-01T00:00:00Z')",
-            [],
-        )
-        .unwrap();
-
-        init_conn(&conn).unwrap();
-        assert_eq!(user_version(&conn), MIGRATIONS.len() as i64);
-        let (chat_id, chat_type, sender_id, sent_at, is_self): (String, String, String, Option<i64>, i64) = conn
-            .query_row(
-                "SELECT chat_id, chat_type, sender_id, sent_at, is_self FROM chat_messages WHERE message_id='om_old'",
-                [],
-                |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?, r.get(3)?, r.get(4)?)),
-            )
-            .unwrap();
-        assert_eq!(
-            (chat_id.as_str(), chat_type.as_str(), sender_id.as_str()),
-            ("", "", "")
-        );
-        assert!(sent_at.is_none());
-        assert_eq!(is_self, 0, "存量行不带元数据但不丢消息");
-        conn.execute(
-            "INSERT INTO feishu_users (open_id, name, updated_at) VALUES ('ou_a', '张三', '2026-09-12T00:00:00Z')",
-            [],
-        )
-        .unwrap();
-    }
-
-    /// 回归：v5 库升级 v6 后 chat_messages 支持 update 建议的目标待办列
-    #[test]
-    fn migrates_v5_db_adding_update_task_id() {
-        let conn = Connection::open_in_memory().unwrap();
-        for sql in [SCHEMA_V1, SCHEMA_V2, SCHEMA_V3, SCHEMA_V4, SCHEMA_V5] {
-            conn.execute_batch(sql).unwrap();
-        }
-        conn.execute("PRAGMA user_version = 5", []).unwrap();
-
-        init_conn(&conn).unwrap();
-        assert_eq!(user_version(&conn), MIGRATIONS.len() as i64);
-        conn.execute(
-            "INSERT INTO chat_messages (message_id, content, update_task_id) VALUES ('om_u', '改到周四', 5)",
-            [],
-        )
-        .unwrap();
-        let target: Option<i64> = conn
-            .query_row(
-                "SELECT update_task_id FROM chat_messages WHERE message_id='om_u'",
-                [],
-                |r| r.get(0),
-            )
-            .unwrap();
-        assert_eq!(target, Some(5));
-    }
-
-    /// 回归：v6 库升级 v7 后 ai_logs 表被删除、旧 AI 接口设置被清理
-    #[test]
-    fn migrates_v6_db_dropping_ai_logs_and_legacy_ai_settings() {
-        let conn = Connection::open_in_memory().unwrap();
-        for sql in [
-            SCHEMA_V1, SCHEMA_V2, SCHEMA_V3, SCHEMA_V4, SCHEMA_V5, SCHEMA_V6,
-        ] {
-            conn.execute_batch(sql).unwrap();
-        }
-        conn.execute("PRAGMA user_version = 6", []).unwrap();
-        conn.execute(
-            "INSERT INTO ai_logs (scene, model, request_body, response_body, ok, duration_ms, created_at)
-             VALUES ('classify', 'gpt-4o-mini', 'req', 'resp', 1, 10, '2026-09-01T00:00:00Z')",
-            [],
-        )
-        .unwrap();
-        for key in ["ai_base_url", "ai_api_key", "ai_model", "language"] {
-            conn.execute(
-                "INSERT INTO settings (key, value) VALUES (?1, 'x')",
-                rusqlite::params![key],
-            )
-            .unwrap();
-        }
-
-        init_conn(&conn).unwrap();
-        assert_eq!(user_version(&conn), MIGRATIONS.len() as i64);
-        let logs: i64 = conn
-            .query_row(
-                "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='ai_logs'",
-                [],
-                |r| r.get(0),
-            )
-            .unwrap();
-        assert_eq!(logs, 0, "ai_logs 表已删除");
-        let legacy: i64 = conn
-            .query_row(
-                "SELECT COUNT(*) FROM settings WHERE key IN ('ai_base_url','ai_api_key','ai_model')",
-                [],
-                |r| r.get(0),
-            )
-            .unwrap();
-        assert_eq!(legacy, 0, "旧 AI 接口设置被清理");
-        let lang: String = conn
-            .query_row("SELECT value FROM settings WHERE key='language'", [], |r| {
-                r.get(0)
-            })
-            .unwrap();
-        assert_eq!(lang, "x", "无关设置不受影响");
-    }
-
-    /// 回归：v7 库升级 v8 后 followup 建议可记录并入的目标待办
-    #[test]
-    fn migrates_v7_db_adding_followup_task_id() {
-        let conn = Connection::open_in_memory().unwrap();
-        for sql in [
-            SCHEMA_V1, SCHEMA_V2, SCHEMA_V3, SCHEMA_V4, SCHEMA_V5, SCHEMA_V6, SCHEMA_V7,
-        ] {
-            conn.execute_batch(sql).unwrap();
-        }
-        conn.execute("PRAGMA user_version = 7", []).unwrap();
-        conn.execute(
-            "INSERT INTO chat_messages (message_id, content, ai_status, review_status, created_at)
-             VALUES ('om_f', '东西已经寄出了', 'followup', 'accepted', '2026-09-12T00:00:00Z')",
-            [],
-        )
-        .unwrap();
-
-        init_conn(&conn).unwrap();
-        assert_eq!(user_version(&conn), MIGRATIONS.len() as i64);
-        conn.execute(
-            "UPDATE chat_messages SET followup_task_id=3 WHERE message_id='om_f'",
-            [],
-        )
-        .unwrap();
-        let target: Option<i64> = conn
-            .query_row(
-                "SELECT followup_task_id FROM chat_messages WHERE message_id='om_f'",
-                [],
-                |r| r.get(0),
-            )
-            .unwrap();
-        assert_eq!(target, Some(3));
-    }
-
-    /// 回归：v8 库升级 v9 后 chat_messages 带上 reason / 置信 / agent 列（存量行为空），
-    /// chat_feedback 表可写入
-    #[test]
-    fn migrates_v8_db_adding_reason_confidence_and_feedback() {
-        let conn = Connection::open_in_memory().unwrap();
-        for sql in [
-            SCHEMA_V1, SCHEMA_V2, SCHEMA_V3, SCHEMA_V4, SCHEMA_V5, SCHEMA_V6, SCHEMA_V7, SCHEMA_V8,
-        ] {
-            conn.execute_batch(sql).unwrap();
-        }
-        conn.execute("PRAGMA user_version = 8", []).unwrap();
-        conn.execute(
-            "INSERT INTO chat_messages (message_id, content, ai_status, review_status, created_at)
-             VALUES ('om_r', '明天上午10点开周会', 'todo', 'pending', '2026-09-12T00:00:00Z')",
-            [],
-        )
-        .unwrap();
-
-        init_conn(&conn).unwrap();
-        assert_eq!(user_version(&conn), MIGRATIONS.len() as i64);
-        let (reason, confidence, agent): (Option<String>, Option<String>, String) = conn
-            .query_row(
-                "SELECT suggested_reason, suggested_confidence, ai_agent FROM chat_messages WHERE message_id='om_r'",
-                [],
-                |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?)),
-            )
-            .unwrap();
-        assert_eq!(reason, None, "存量建议没有 reason");
-        assert_eq!(confidence, None, "存量建议没有置信档位");
-        assert_eq!(agent, "", "存量消息没有 agent 记录");
-        conn.execute(
-            "INSERT INTO chat_feedback (chat_message_id, message_id, ai_action, action, reason_code, agent_id, agent_name, created_at)
-             VALUES (1, 'om_r', 'todo', 'dismissed', 'duplicate', 'claude-code', 'Claude Code', '2026-09-13T00:00:00Z')",
-            [],
-        )
-        .unwrap();
-        let action: String = conn
-            .query_row(
-                "SELECT action FROM chat_feedback WHERE message_id='om_r'",
-                [],
-                |r| r.get(0),
-            )
-            .unwrap();
-        assert_eq!(action, "dismissed");
-    }
-
-    /// 回归：v9 库升级 v10 后 agent_sessions 可写入
-    #[test]
-    fn migrates_v9_db_adding_agent_sessions() {
-        let conn = Connection::open_in_memory().unwrap();
-        for sql in [
-            SCHEMA_V1, SCHEMA_V2, SCHEMA_V3, SCHEMA_V4, SCHEMA_V5, SCHEMA_V6, SCHEMA_V7, SCHEMA_V8,
-            SCHEMA_V9,
-        ] {
-            conn.execute_batch(sql).unwrap();
-        }
-        conn.execute("PRAGMA user_version = 9", []).unwrap();
-
-        init_conn(&conn).unwrap();
-        assert_eq!(user_version(&conn), MIGRATIONS.len() as i64);
-        conn.execute(
-            "INSERT INTO agent_sessions (task_id, agent_id, agent_name, session_id, command, exit_code, status, duration_ms, cost_usd, input_tokens, output_tokens, created_at)
-             VALUES (5, 'claude-code', 'Claude Code', 'sess-1', 'claude -p ...', 0, 'ok', 61000, 0.12, 1000, 2000, '2026-09-13T00:00:00Z')",
-            [],
-        )
-        .unwrap();
-        let cost: f64 = conn
-            .query_row(
-                "SELECT cost_usd FROM agent_sessions WHERE session_id='sess-1'",
-                [],
-                |r| r.get(0),
-            )
-            .unwrap();
-        assert!((cost - 0.12).abs() < 1e-9);
+        assert_eq!(note.as_deref(), Some("家里还有半只"));
     }
 
     #[test]
