@@ -741,7 +741,7 @@ onUnmounted(() => unlisteners.forEach((u) => u()));
 
       <template v-if="settingsTab === 'integrations'">
         <section class="set-card">
-          <h3>🤖 {{ t("ai.title") }}</h3>
+          <h3>{{ t("ai.title") }}</h3>
           <p class="hint">{{ t("ai.hint") }}</p>
           <div v-for="ag in agents" :key="ag.id" class="agent-block" :class="{ off: !ag.enabled }">
             <div class="agent-row">
