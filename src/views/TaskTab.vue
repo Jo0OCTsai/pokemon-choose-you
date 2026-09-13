@@ -2,6 +2,7 @@
 import { computed, onMounted, ref, watch } from "vue";
 import { useI18n } from "vue-i18n";
 import { api } from "../api";
+import { useSettingsStore } from "../stores/settings";
 import { useTasksStore, type TaskTabKey } from "../stores/tasks";
 import TaskCard from "../components/TaskCard.vue";
 import AddTaskForm from "../components/AddTaskForm.vue";
@@ -14,9 +15,46 @@ const props = defineProps<{ tab: TaskTabKey }>();
 
 const { t } = useI18n();
 const tasksStore = useTasksStore();
+const settings = useSettingsStore();
 const addForm = ref<InstanceType<typeof AddTaskForm> | null>(null);
 
 const visible = computed(() => tasksStore.visibleFor(props.tab));
+
+// ---- 逾期 fresh start（反羞耻）：逾期不原样堆显，折叠为一行「昨天有几只溜走了」 ----
+const todayStr = () => {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+};
+/** 冒险页里逾期的路线任务（未开始、非进行中）——羞耻墙的来源 */
+const overdueScheduled = computed(() =>
+  props.tab === "today"
+    ? visible.value.filter((t) => t.status === "scheduled" && Boolean(t.dueAt) && t.dueAt!.slice(0, 10) < todayStr())
+    : [],
+);
+const overdueMode = () => settings.sget("overdue_mode") || "collapse";
+/** 折叠模式：逾期行收起；点击展开本会话有效 */
+const overdueExpanded = ref(false);
+/** 其余条目 = 当前页可见 - 被折叠的逾期 */
+const entryList = computed(() => {
+  if (props.tab !== "today" || overdueMode() !== "collapse" || overdueExpanded.value) return visible.value;
+  const hidden = new Set(overdueScheduled.value.map((t) => t.id));
+  return visible.value.filter((t) => !hidden.has(t.id));
+});
+const freshStarting = ref(false);
+/** 一键归草丛：清逾期任务的截止时间（不变量自动回 inbox）——fresh start 按钮就在折叠行上 */
+async function freshStartOverdue() {
+  if (freshStarting.value || !overdueScheduled.value.length) return;
+  freshStarting.value = true;
+  try {
+    for (const t of overdueScheduled.value) {
+      await api.updateTask({ id: t.id, dueAt: null });
+    }
+    overdueExpanded.value = false;
+    await tasksStore.reload();
+  } finally {
+    freshStarting.value = false;
+  }
+}
 const showAddForm = computed(() => props.tab !== "done");
 const dexFilters = ["all", "done", "cancelled"] as const;
 
@@ -140,6 +178,16 @@ onMounted(reload);
       <button class="filter-btn review-btn" @click="reviewOpen = true">🧢 {{ t("review.entry") }}</button>
     </div>
 
+    <!-- 逾期折叠行（反羞耻）：不堆「羞耻墙」，一行带过，点击才展开 -->
+    <div v-if="tab === 'today' && overdueMode() === 'collapse' && overdueScheduled.length" class="overdue-row">
+      <button class="overdue-toggle" @click="overdueExpanded = !overdueExpanded">
+        🎒 {{ overdueExpanded ? t("overdue.collapse") : t("overdue.leaked", { n: overdueScheduled.length }) }}
+      </button>
+      <button class="btn ghost overdue-fresh" :disabled="freshStarting" @click="freshStartOverdue">
+        {{ freshStarting ? t("overdue.freshing") : t("overdue.fresh") }}
+      </button>
+    </div>
+
     <ul class="dex-list">
       <li v-if="!displayList.length && !tasksStore.loading" class="empty">
         {{
@@ -155,7 +203,7 @@ onMounted(reload);
         }}
       </li>
       <TaskCard
-        v-for="task in displayList"
+        v-for="task in tab === 'today' ? entryList : displayList"
         :key="task.id"
         :task="task"
         @start="start"
@@ -309,5 +357,35 @@ onMounted(reload);
 .sched-card .btn-row {
   display: flex;
   gap: 10px;
+}
+
+/* 逾期折叠行：低调一行，可展开可一键归草丛 */
+.overdue-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 0 20px 12px;
+  padding: 8px 12px;
+  border: 2px dashed #9a937f;
+  border-radius: 8px;
+  background: #f6f3ea;
+  font-size: 13px;
+}
+.overdue-toggle {
+  border: none;
+  background: none;
+  color: #7b7460;
+  font-weight: 700;
+  font-family: inherit;
+  cursor: pointer;
+  padding: 0;
+}
+.overdue-toggle:hover {
+  color: var(--dex-navy);
+}
+.overdue-fresh {
+  margin-left: auto;
+  min-height: 30px;
+  font-size: 12px;
 }
 </style>

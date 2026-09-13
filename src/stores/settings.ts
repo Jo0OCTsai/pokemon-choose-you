@@ -12,6 +12,8 @@ export const SETTING_DEFAULTS: Record<string, string> = {
   pomodoro_chime: "true",
   remind_ahead_minutes: "0",
   notifications_enabled: "true",
+  /** 逾期任务展示模式：collapse=折叠一行（默认）/ auto_grass=自动归草丛 / show=原样 */
+  overdue_mode: "collapse",
   date_format: "YYYY-MM-DD",
   time_format: "24h",
   /** 相对截止时间（时间盲友好：显示为距现在的距离并按临近程度变色） */
@@ -59,6 +61,7 @@ export const SETTING_KEYS = [
   "pomodoro_chime",
   "notifications_enabled",
   "remind_ahead_minutes",
+  "overdue_mode",
   "date_format",
   "time_format",
   "due_relative",

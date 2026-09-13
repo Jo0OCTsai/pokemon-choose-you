@@ -180,6 +180,32 @@ describe("PetApp 桌宠", () => {
     expect(w.get(".pet-sprite").classes()).toContain("anxious");
   });
 
+  it("「先试 5 分钟」：超短场启动、到期不接休息且零挫败文案", async () => {
+    current = task({ id: 3, title: "卡住的事" });
+    const w = await mountPet();
+    // 有任务时番茄钟自动开跑：先 ⏸ 暂停，未运行态出现 🍦 入口
+    await w
+      .findAll(".pomo-btn")
+      .find((b) => b.text() === "⏸")!
+      .trigger("click");
+    await flush();
+    const trialBtn = w.findAll(".pomo-btn").find((b) => b.text() === "🍦")!;
+    await trialBtn.trigger("click");
+    await flush();
+    expect(w.get(".dialog-text").text()).toContain("不成也没关系");
+    expect(w.get(".pomo-pill .px").text()).toContain("5:00");
+    // 走完 5 分钟：气泡换成零挫败出口文案；不自动进入休息（running 停止而非 break）
+    await vi.advanceTimersByTimeAsync(5 * 60_000 + 1_000);
+    expect(w.get(".dialog-text").text()).toContain("完全 OK");
+    expect(w.get(".pomo-pill .px").text()).toContain("0:00");
+    // 专注按分钟累计上报：合计 ≥ 300 秒
+    const focused = vi
+      .mocked(api.addFocusSeconds)
+      .mock.calls.filter((c) => c[0] === 3)
+      .reduce((a, c) => a + c[1], 0);
+    expect(focused).toBeGreaterThanOrEqual(300);
+  });
+
   it("短番茄钟不响提示音", async () => {
     vi.mocked(api.listAllSettings).mockResolvedValue({ pomodoro_minutes: "25" });
     current = task({});
