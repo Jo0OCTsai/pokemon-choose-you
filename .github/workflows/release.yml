@@ -102,7 +102,7 @@ jobs:
             | Linux | `.AppImage` / `.deb` / `.rpm` | 实验性：置顶需 X11；NVIDIA 白屏设 `WEBKIT_DISABLE_DMABUF_RENDERER=1`；仅 AppImage 支持自动更新 |
 
             安装包未做 OS 代码签名（详见仓库 SECURITY.md）；更新包均经 minisign 签名校验。
-            数据（SQLite）存于本机：Linux `~/.local/share/com.joeca.pokemonchooseyou/` · macOS `~/Library/Application Support/com.joeca.pokemonchooseyou/` · Windows `%APPDATA%\com.joeca.pokemonchooseyou\`。
+            数据（SQLite）存于本机：Linux `~/.local/share/com.jotsai.pokemonchooseyou/` · macOS `~/Library/Application Support/com.jotsai.pokemonchooseyou/` · Windows `%APPDATA%\com.jotsai.pokemonchooseyou\`。
             0.x 阶段数据格式未承诺稳定，升级前请备份数据库文件。
           releaseDraft: true
           args: ${{ matrix.args }}

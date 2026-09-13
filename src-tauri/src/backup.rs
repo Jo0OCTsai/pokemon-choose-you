@@ -5,10 +5,8 @@ use rusqlite::{params, Connection};
 use std::path::{Path, PathBuf};
 use std::time::Duration;
 
-/// 备份文件名前缀 / 后缀（滚动清理与恢复的合法性判断共用）；
-/// pokemon-knock- 为项目改名前的旧前缀：旧快照照常列出/恢复，新快照一律用新前缀
+/// 备份文件名前缀 / 后缀（滚动清理与恢复的合法性判断共用）
 const NAME_PREFIX: &str = "pokemon-choose-you-";
-const LEGACY_NAME_PREFIX: &str = "pokemon-knock-";
 const NAME_SUFFIX: &str = ".db";
 
 pub fn backup_dir(data_dir: &Path) -> PathBuf {
@@ -16,8 +14,7 @@ pub fn backup_dir(data_dir: &Path) -> PathBuf {
 }
 
 fn is_backup_name(name: &str) -> bool {
-    (name.starts_with(NAME_PREFIX) || name.starts_with(LEGACY_NAME_PREFIX))
-        && name.ends_with(NAME_SUFFIX)
+    name.starts_with(NAME_PREFIX) && name.ends_with(NAME_SUFFIX)
 }
 
 /// 创建一份快照，返回文件路径。同一秒内重复创建时追加序号避免覆盖
@@ -260,7 +257,7 @@ mod tests {
         for name in [
             "pokemon-choose-you-20260910-080000.db",
             "pokemon-choose-you-20260911-080000.db",
-            "pokemon-knock-20260912-080000.db",
+            "pokemon-choose-you-20260912-080000.db",
             "pokemon-choose-you-20260913-080000.db",
         ] {
             std::fs::File::create(sub.join(name)).unwrap();
@@ -269,24 +266,23 @@ mod tests {
         std::fs::File::create(sub.join("notes.txt")).unwrap();
 
         let list = list_backups(&dir).unwrap();
-        // 按文件名字典序倒序：过渡期旧前缀字典序更高会整体靠前（旧快照只存在数日，可接受）
         assert_eq!(
             list.iter().map(|b| b.file.as_str()).collect::<Vec<_>>(),
             vec![
-                "pokemon-knock-20260912-080000.db",
                 "pokemon-choose-you-20260913-080000.db",
+                "pokemon-choose-you-20260912-080000.db",
                 "pokemon-choose-you-20260911-080000.db",
                 "pokemon-choose-you-20260910-080000.db",
             ],
-            "倒序排列，旧前缀快照一并识别"
+            "按文件名字典序倒序排列"
         );
 
         let removed = prune_backups(&dir, 2);
         assert_eq!(removed, 2);
         let left = list_backups(&dir).unwrap();
         assert_eq!(left.len(), 2);
-        assert_eq!(left[0].file, "pokemon-knock-20260912-080000.db");
-        assert_eq!(left[1].file, "pokemon-choose-you-20260913-080000.db");
+        assert_eq!(left[0].file, "pokemon-choose-you-20260913-080000.db");
+        assert_eq!(left[1].file, "pokemon-choose-you-20260912-080000.db");
         assert!(sub.join("notes.txt").exists(), "无关文件不动");
     }
 
@@ -329,15 +325,16 @@ mod tests {
     fn restore_rejects_path_traversal_and_foreign_names() {
         let dir = tmp_dir("security");
         let mut conn = test_conn();
-        let evil = "../pokemon-knock.db";
+        let evil = "../pokemon-choose-you.db";
         let err = restore_backup(&dir, &mut conn, evil).unwrap_err();
         assert!(matches!(err, AppError::Invalid(_)), "{err}");
         let err = restore_backup(&dir, &mut conn, "secrets.txt").unwrap_err();
         assert!(matches!(err, AppError::Invalid(_)), "{err}");
-        let err = restore_backup(&dir, &mut conn, "pokemon-knock-20990101-000000.db").unwrap_err();
+        let err =
+            restore_backup(&dir, &mut conn, "pokemon-choose-you-20990101-000000.db").unwrap_err();
         assert!(
             matches!(err, AppError::NotFound(_)),
-            "不存在的备份报 NotFound"
+            "名字合法但不存在的备份报 NotFound"
         );
     }
 

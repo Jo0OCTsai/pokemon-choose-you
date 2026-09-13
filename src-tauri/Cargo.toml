@@ -2,7 +2,7 @@
 name = "pokemon-choose-you"
 version = "1.0.0"
 description = "就决定是你了 — 桌宠待办系统"
-authors = ["joeca"]
+authors = ["JoTsai"]
 edition = "2021"
 # 多 bin（src/main.rs + src/bin/pk.rs）时 tauri-cli 依据 default-run 认主程序；
 # 缺失时打包器会退选 src/bin 下的第一个 bin（pk CLI），产物装出来是 CLI 而非应用

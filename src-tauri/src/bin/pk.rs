@@ -169,22 +169,12 @@ fn fail(msg: &str, code: i32) -> ! {
     std::process::exit(code);
 }
 
-/// 与 tauri 的 app_data_dir 同一规则：config_dir/<identifier>/<db>。
-/// 项目改名后应用启动时会迁移旧目录；迁移尚未发生（旧库还在）时优先用旧路径，
-/// 避免抢在应用前面建出一份空库
+/// 与 tauri 的 app_data_dir 同一规则：config_dir/<identifier>/<db>
 fn default_db_path() -> Result<std::path::PathBuf, String> {
     let cfg = dirs::config_dir().ok_or_else(|| "无法定位用户配置目录".to_string())?;
-    let new_path = cfg
-        .join("com.joeca.pokemonchooseyou")
-        .join("pokemon-choose-you.db");
-    if new_path.exists() {
-        return Ok(new_path);
-    }
-    let legacy = cfg.join("com.joeca.pokemonknock").join("pokemon-knock.db");
-    if legacy.exists() {
-        return Ok(legacy);
-    }
-    Ok(new_path)
+    Ok(cfg
+        .join("com.jotsai.pokemonchooseyou")
+        .join("pokemon-choose-you.db"))
 }
 
 /// 打开应用数据库：平时不做迁移（应用可能比 CLI 旧，抢跑迁移会让应用拒绝启动）；
