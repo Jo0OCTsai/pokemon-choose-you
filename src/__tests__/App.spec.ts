@@ -105,7 +105,7 @@ function seed(seeds: Partial<Task>[]): Task[] {
   return seeds.map((t, i) => ({
     id: i + 1,
     title: t.title ?? `任务${i + 1}`,
-    note: null,
+    note: t.note ?? null,
     categoryId: t.categoryId ?? 1,
     status: t.status ?? "inbox",
     priority: t.priority ?? "normal",
@@ -250,11 +250,15 @@ describe("App 图鉴机主面板", () => {
     expect(w.findAll(".entry")).toHaveLength(1);
   });
 
-  it("设置截止时间后按钮变「加入路线」，新建任务进路线（scheduled）", async () => {
+  it("草丛页设置截止时间后按钮变「加入路线」，新建任务进路线（scheduled）", async () => {
     const w = await mountApp();
-    // 默认无时间：按钮文案为「丢进草丛」
+    // 冒险页（默认）：无时间选择器，按钮恒为「丢进草丛」
     expect(w.get("form.add button[type='submit']").text()).toContain("丢进草丛");
-    // DexDateTime 选好时间后 v-model 更新 newDue
+    expect(w.findComponent({ name: "DexDateTime" }).exists()).toBe(false);
+    // 切到草丛页：时间选择器出现，选好时间后按钮变「加入路线」
+    await w.findAll(".menu-btn")[2].trigger("click");
+    await new Promise((r) => setTimeout(r));
+    expect(w.get("form.add button[type='submit']").text()).toContain("丢进草丛");
     await w.getComponent({ name: "DexDateTime" }).vm.$emit("update:modelValue", "2026-09-13T09:00");
     expect(w.get("form.add button[type='submit']").text()).toContain("加入路线");
     await w.get("form.add input").setValue("路线任务");
@@ -262,6 +266,20 @@ describe("App 图鉴机主面板", () => {
     expect(api.createTask).toHaveBeenCalledWith(
       expect.objectContaining({ title: "路线任务", dueAt: "2026-09-13T09:00", scheduled: true }),
     );
+  });
+
+  it("「加入路线」仅在草丛页出现：冒险/路线页卡片无 📅 按钮", async () => {
+    tasks = seed([
+      { title: "今天做完", status: "scheduled", dueAt: dueToday() },
+      { title: "草丛待办", status: "inbox" },
+    ]);
+    const w = await mountApp();
+    // 冒险页（默认）：卡片操作里没有 📅
+    expect(w.findAll(".entry .ops button[title='加入路线']")).toHaveLength(0);
+    // 草丛页：卡片带 📅
+    await w.findAll(".menu-btn")[2].trigger("click");
+    await new Promise((r) => setTimeout(r));
+    expect(w.findAll(".entry .ops button[title='加入路线']")).toHaveLength(1);
   });
 
   it("完成/撤销任务：✔ 置 done 并写 completedAt，图鉴页可撤销", async () => {
@@ -328,9 +346,7 @@ describe("App 图鉴机主面板", () => {
     const editBtn = w.findAll(".entry .ops .btn").find((b) => b.text() === "✎")!;
     await editBtn.trigger("click");
     expect(w.get(".card h3").text()).toContain("编辑待办");
-    expect(w.text()).toContain("跟进记录");
-    expect(w.text()).toContain("操作历史"); // 历史区块可见
-    expect(w.text()).toContain("重要"); // 标签可选
+    expect(w.text()).toContain("重要"); // 标签可选（跟进记录/操作历史已移入详情抽屉）
     await w.get(".card input").setValue("新标题");
     vi.mocked(api.updateTask).mockResolvedValue(tasks[0]);
     await w.findAll(".card .btn-row .btn")[0].trigger("click");
@@ -538,7 +554,7 @@ describe("App 图鉴机主面板", () => {
     expect(w.find(".nl-preview").exists()).toBe(false);
   });
 
-  it("编辑弹窗展示 Agent 执行记录（时长/成本/退出码）并可跳转会话", async () => {
+  it("点击任务卡片打开详情抽屉：展示 Agent 执行记录（时长/成本/退出码）并可跳转会话", async () => {
     tasks = seed([{ title: "修登录bug", status: "inbox" }]);
     vi.mocked(api.listAgentSessions).mockResolvedValue([
       {
@@ -560,15 +576,35 @@ describe("App 图鉴机主面板", () => {
     const w = await mountApp();
     await w.findAll(".menu-btn")[2].trigger("click"); // 草丛页
     await new Promise((r) => setTimeout(r));
-    const editBtn = w.findAll(".entry .ops .btn").find((b) => b.text() === "✎")!;
-    await editBtn.trigger("click");
+    // 点击任务卡片（非操作按钮）打开详情抽屉
+    await w.findAll(".entry")[0].trigger("click");
     await new Promise((r) => setTimeout(r));
+    expect(w.find(".drawer").exists()).toBe(true);
     expect(w.text()).toContain("Agent 执行");
     expect(w.text()).toContain("用时 1m");
     expect(w.text()).toContain("$0.12");
     expect(w.text()).toContain("exit 0");
     await w.get(".run-open").trigger("click");
     expect(api.openAgentHistory).toHaveBeenCalledWith("claude-code", "sess-1");
+  });
+
+  it("详情抽屉：含跟进记录与操作历史区块，可从抽屉进入全字段编辑", async () => {
+    tasks = seed([{ title: "详情任务", status: "inbox", note: "备注内容" }]);
+    const w = await mountApp();
+    await w.findAll(".menu-btn")[2].trigger("click"); // 草丛页
+    await new Promise((r) => setTimeout(r));
+    await w.findAll(".entry")[0].trigger("click");
+    await new Promise((r) => setTimeout(r));
+    // 抽屉展示任务属性与记录区块（此前要点「编辑」才能看到）
+    const drawer = w.get(".drawer");
+    expect(drawer.text()).toContain("详情任务");
+    expect(drawer.text()).toContain("备注内容");
+    expect(drawer.text()).toContain("跟进记录");
+    expect(drawer.text()).toContain("操作历史");
+    // 从抽屉进入编辑弹窗（抽屉保持在下层）
+    await drawer.get(".btn-row .btn").trigger("click");
+    expect(w.findComponent({ name: "TaskEditModal" }).exists()).toBe(true);
+    expect(w.find(".drawer").exists()).toBe(true);
   });
 
   it("逾期 fresh start：冒险页折叠为一行，可展开，一键归草丛清截止时间", async () => {
@@ -619,7 +655,7 @@ describe("App 图鉴机主面板", () => {
     settings.values.feishu_engine = "cli";
     await new Promise((r) => setTimeout(r));
     expect(w.text()).not.toContain("App Secret");
-    expect(w.text()).toContain("npm install -g @larksuite/lark-cli");
+    expect(w.text()).toContain("npm install -g @larksuite/cli");
     settings.values.feishu_engine = "builtin";
   });
 

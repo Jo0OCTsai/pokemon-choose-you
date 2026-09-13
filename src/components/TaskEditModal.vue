@@ -1,19 +1,18 @@
 <script setup lang="ts">
-import { computed, onMounted, ref, watch } from "vue";
+import { computed, onMounted, ref } from "vue";
 import { useI18n } from "vue-i18n";
 import { api, errorMessage } from "../api";
-import { fmtDateTime } from "../stores/settings";
 import { useCategoriesStore } from "../stores/categories";
 import { useTagsStore } from "../stores/tags";
-import type { AgentSession, Task, TaskLog, TaskNote } from "../types";
+import type { Task } from "../types";
 import DexSelect from "./DexSelect.vue";
 import DexDateTime from "./DexDateTime.vue";
 
-/** 任务全字段编辑弹窗：属性编辑 + 标签 + 跟进记录 + 操作历史（状态由动作驱动，不在此编辑） */
+/** 任务全字段编辑弹窗：属性编辑 + 标签（跟进记录/操作历史在详情抽屉，状态由动作驱动不在此编辑） */
 const props = defineProps<{ task: Task }>();
 const emit = defineEmits<{ close: []; saved: [] }>();
 
-const { t, te } = useI18n();
+const { t } = useI18n();
 const categories = useCategoriesStore();
 const tagsStore = useTagsStore();
 
@@ -53,36 +52,6 @@ function toggleTag(id: number) {
   else selectedTagIds.value.push(id);
 }
 
-// ---- 跟进记录 ----
-const notes = ref<TaskNote[]>([]);
-const newNote = ref("");
-const noteBusy = ref(false);
-async function loadNotes() {
-  notes.value = await api.listTaskNotes(props.task.id);
-}
-onMounted(loadNotes);
-async function addNote() {
-  const content = newNote.value.trim();
-  if (!content) return;
-  noteBusy.value = true;
-  try {
-    await api.addTaskNote(props.task.id, content);
-    newNote.value = "";
-    await loadNotes();
-  } catch (e) {
-    error.value = errorMessage(e);
-  } finally {
-    noteBusy.value = false;
-  }
-}
-async function removeNote(id: number) {
-  await api.deleteTaskNote(id);
-  await loadNotes();
-}
-
-// 弹窗内直接回车提交跟进记录
-watch(newNote, () => (error.value = ""));
-
 async function save() {
   if (!title.value.trim()) {
     error.value = t("edit.titleRequired");
@@ -109,35 +78,6 @@ async function save() {
   } finally {
     saving.value = false;
   }
-}
-
-// ---- Agent 执行（只读）：会话回链与成本记录，可跳转会话转录 ----
-const sessions = ref<AgentSession[]>([]);
-onMounted(async () => {
-  sessions.value = await api.listAgentSessions(props.task.id).catch(() => []);
-});
-const totalCost = computed(() => sessions.value.reduce((sum, x) => sum + (x.costUsd ?? 0), 0));
-function fmtDuration(ms: number | null | undefined): string {
-  if (!ms || ms < 1000) return "—";
-  if (ms < 60_000) return `${Math.round(ms / 1000)}s`;
-  return `${Math.round(ms / 60_000)}m`;
-}
-function openTranscript(x: AgentSession) {
-  Promise.resolve(api.openAgentHistory(x.agentId, x.sessionId ?? undefined)).catch(() => {});
-}
-
-// ---- 操作历史（只读，最新在前） ----
-const logs = ref<TaskLog[]>([]);
-onMounted(async () => {
-  logs.value = await api.listTaskLogs(props.task.id).catch(() => []);
-});
-/** 有对应翻译键就用翻译（状态值 / 动作名），否则原样展示 */
-function tx(key: string, fallback: string): string {
-  return te(key) ? t(key) : fallback;
-}
-function valueOf(field: string, v: string | null | undefined): string {
-  if (v == null || v === "") return "—";
-  return field === "status" ? tx(`status.${v}`, v) : v;
 }
 </script>
 
@@ -188,72 +128,6 @@ function valueOf(field: string, v: string | null | undefined): string {
             <span v-if="!tagsStore.list.length" class="no-tags">{{ t("edit.noTags") }}</span>
           </div>
         </div>
-      </div>
-
-      <!-- 跟进记录 -->
-      <div class="notes">
-        <div class="notes-head">{{ t("edit.followUps") }}</div>
-        <ul class="note-list">
-          <li v-if="!notes.length" class="note-empty">{{ t("edit.noFollowUps") }}</li>
-          <li v-for="n in notes" :key="n.id" class="note-item">
-            <span v-if="n.source === 'ai'" class="note-src">AI</span>
-            <span class="note-time px">{{ fmtDateTime(n.createdAt) }}</span>
-            <span class="note-content">{{ n.content }}</span>
-            <button class="note-del" type="button" @click="removeNote(n.id)">✕</button>
-          </li>
-        </ul>
-        <form class="note-add" @submit.prevent="addNote">
-          <input v-model="newNote" :placeholder="t('edit.followUpPlaceholder')" :disabled="noteBusy" />
-          <button class="btn ghost" type="submit" :disabled="noteBusy || !newNote.trim()">
-            {{ t("edit.addFollowUp") }}
-          </button>
-        </form>
-      </div>
-
-      <!-- Agent 执行：这个任务花了多少钱、跑了几次 -->
-      <div v-if="sessions.length" class="notes">
-        <div class="notes-head">
-          {{ t("edit.agentRuns") }}<span class="run-cost"> ${{ totalCost.toFixed(2) }}</span>
-        </div>
-        <ul class="note-list">
-          <li v-for="x in sessions" :key="x.id" class="note-item">
-            <span class="note-src" :class="{ err: x.status === 'error' }">{{ x.agentName }}</span>
-            <span class="note-time px">{{ fmtDateTime(x.createdAt) }}</span>
-            <span class="note-content">
-              {{ t("edit.runDuration", { v: fmtDuration(x.durationMs) }) }}
-              <template v-if="x.costUsd != null">· ${{ x.costUsd.toFixed(2) }}</template>
-              <template v-if="x.exitCode != null">· exit {{ x.exitCode }}</template>
-              <template v-if="x.command">· {{ x.command }}</template>
-            </span>
-            <button
-              v-if="x.sessionId"
-              class="note-del run-open"
-              type="button"
-              :title="t('edit.openTranscript')"
-              @click="openTranscript(x)"
-            >
-              ▶
-            </button>
-          </li>
-        </ul>
-      </div>
-
-      <!-- 操作历史 -->
-      <div class="notes">
-        <div class="notes-head">{{ t("edit.history") }}</div>
-        <ul class="note-list log-list">
-          <li v-if="!logs.length" class="note-empty">{{ t("edit.noHistory") }}</li>
-          <li v-for="l in logs" :key="l.id" class="note-item">
-            <span class="note-src">{{ l.origin }}</span>
-            <span class="note-time px">{{ fmtDateTime(l.createdAt) }}</span>
-            <span class="note-content">
-              {{ tx(`log.${l.action}`, l.action)
-              }}<template v-if="l.field"
-                >· {{ l.field }}: {{ valueOf(l.field, l.oldValue) }} → {{ valueOf(l.field, l.newValue) }}</template
-              >
-            </span>
-          </li>
-        </ul>
       </div>
 
       <p v-if="error" class="err">❌ {{ error }}</p>
@@ -348,94 +222,6 @@ function valueOf(field: string, v: string | null | undefined): string {
   font-size: 12px;
   color: #9a937f;
 }
-/* 跟进记录 */
-.notes {
-  border-top: 2px dashed #d8d2c0;
-  padding-top: 10px;
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-.notes-head {
-  font-size: 13px;
-  font-weight: 800;
-  color: var(--dex-navy);
-}
-.note-list {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  max-height: 150px;
-  overflow-y: auto;
-}
-.note-item {
-  display: flex;
-  align-items: baseline;
-  gap: 8px;
-  background: var(--lcd);
-  border: 2px solid var(--dex-navy);
-  border-radius: 8px;
-  padding: 6px 8px;
-  font-size: 12.5px;
-}
-.note-src {
-  font-size: 9px;
-  font-weight: 800;
-  color: #fff;
-  background: var(--dex-navy);
-  border-radius: 4px;
-  padding: 1px 5px;
-  flex: none;
-}
-.note-time {
-  font-size: 9px;
-  color: #7b7460;
-  flex: none;
-}
-.note-content {
-  flex: 1;
-  min-width: 0;
-  word-break: break-all;
-}
-.note-del {
-  border: none;
-  background: none;
-  color: var(--dex-red);
-  cursor: pointer;
-  font-size: 12px;
-  padding: 0 2px;
-  flex: none;
-}
-.note-empty {
-  font-size: 12px;
-  color: #9a937f;
-  padding: 4px 2px;
-}
-.note-add {
-  display: flex;
-  gap: 8px;
-}
-.note-add input {
-  flex: 1;
-  min-width: 0;
-  padding: 7px 10px;
-  border: 3px solid var(--dex-navy);
-  border-radius: 8px;
-  font-size: 13px;
-  font-family: inherit;
-}
-.note-add .btn {
-  padding: 7px 10px;
-  min-height: 34px;
-  font-size: 12px;
-}
-/* 操作历史 */
-.log-list .note-content {
-  font-size: 12px;
-}
 .err {
   margin: 0;
   font-size: 12.5px;
@@ -445,16 +231,5 @@ function valueOf(field: string, v: string | null | undefined): string {
 .btn-row {
   display: flex;
   gap: 10px;
-}
-/* Agent 执行 */
-.run-cost {
-  color: var(--dex-red);
-}
-.note-src.err {
-  background: var(--dex-red);
-}
-.run-open {
-  color: var(--dex-navy);
-  font-weight: 800;
 }
 </style>

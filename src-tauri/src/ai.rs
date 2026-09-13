@@ -128,8 +128,18 @@ fn build_invocation(agent: &AgentConfig, prompt: &str) -> Invocation {
             }
             argv.push(r.host.trim().to_string());
             argv.push("--".to_string());
-            argv.push(agent.command.clone());
-            argv.extend(args.into_iter().filter(|a| !a.contains("{prompt}")));
+            // 远端经登录 shell 执行：ssh 非交互会话只加载 .zshenv/.bashrc 之外的初始化，
+            // brew/nvm 的 PATH 常在 .zprofile/.bash_profile（登录时）里，包一层 $SHELL -lc 才找得到命令
+            argv.push("exec".to_string());
+            argv.push("\"$SHELL\"".to_string());
+            argv.push("-lc".to_string());
+            let remote_line = std::iter::once(agent.command.as_str())
+                .chain(args.iter().map(String::as_str))
+                .filter(|a| !a.contains("{prompt}"))
+                .map(posix_quote)
+                .collect::<Vec<_>>()
+                .join(" ");
+            argv.push(remote_line);
             Invocation {
                 program: ssh_bin(),
                 argv,
@@ -137,6 +147,18 @@ fn build_invocation(agent: &AgentConfig, prompt: &str) -> Invocation {
                 remote_host: Some(r.host.clone()),
             }
         }
+    }
+}
+
+/// POSIX 单引号引用：ssh 把 argv 拼接后交远端 shell 重解析，含特殊字符的参数须整体引用
+fn posix_quote(s: &str) -> String {
+    let safe = !s.is_empty()
+        && s.bytes()
+            .all(|b| b.is_ascii_alphanumeric() || b"-_./=@:%+".contains(&b));
+    if safe {
+        s.to_string()
+    } else {
+        format!("'{}'", s.replace('\'', r"'\''"))
     }
 }
 
@@ -171,8 +193,15 @@ pub fn history_invocation(agent: &AgentConfig) -> (String, Vec<String>) {
             }
             argv.push(r.host.trim().to_string());
             argv.push("--".to_string());
-            argv.push(agent.command.clone());
-            argv.extend(args);
+            argv.push("exec".to_string());
+            argv.push("\"$SHELL\"".to_string());
+            argv.push("-lc".to_string());
+            let remote_line = std::iter::once(agent.command.as_str())
+                .chain(args.iter().map(String::as_str))
+                .map(posix_quote)
+                .collect::<Vec<_>>()
+                .join(" ");
+            argv.push(remote_line);
             (ssh_bin(), argv)
         }
     }
@@ -394,7 +423,15 @@ pub async fn run_agent(agent: &AgentConfig, prompt: &str) -> AppResult<String> {
     run_process(&inv.program, &inv.argv, inv.stdin.as_deref(), timeout)
         .await
         .map_err(|e| match &inv.remote_host {
-            Some(host) => AppError::External(format!("SSH 远程执行（{host}）失败: {e}")),
+            Some(host) => {
+                // 127 = 远端 shell 找不到命令：非交互会话 PATH 常缺 brew/nvm，给出可操作指引
+                let hint = if e.to_string().contains("退出码 127") {
+                    "（远端非交互 shell 的 PATH 里找不到该命令：把 brew/nvm 初始化写入远端 ~/.zshenv，或在设置中改用绝对路径）"
+                } else {
+                    ""
+                };
+                AppError::External(format!("SSH 远程执行（{host}）失败: {e}{hint}"))
+            }
             None => e,
         })
 }
@@ -696,8 +733,10 @@ mod tests {
                 "2222",
                 "dev@buildbox",
                 "--",
-                "claude",
-                "-p",
+                "exec",
+                "\"$SHELL\"",
+                "-lc",
+                "claude -p",
             ]
         );
         // {prompt} 元素被剔除（-p 保留，读 stdin），提示词永远走 stdin
@@ -725,8 +764,10 @@ mod tests {
                 "ConnectTimeout=10",
                 "box",
                 "--",
-                "opencode",
-                "run"
+                "exec",
+                "\"$SHELL\"",
+                "-lc",
+                "opencode run",
             ]
         );
         // 历史入口也走 ssh
@@ -1010,9 +1051,9 @@ mod tests {
             assert!(argv.contains("BatchMode=yes"), "免交互开关: {argv}");
             let lines: Vec<&str> = argv.lines().collect();
             assert_eq!(
-                &lines[lines.len() - 2..],
-                &["claude", "-p"],
-                "占位符元素剔除后以 command -p 结尾: {argv}"
+                &lines[lines.len() - 4..],
+                &["exec", "\"$SHELL\"", "-lc", "claude -p"],
+                "远端命令包登录 shell，占位符元素剔除后以 command -p 结尾: {argv}"
             );
             assert!(!argv.contains("明天交周报"), "提示词绝不进 argv");
             let stdin_sent = std::fs::read_to_string(&stdin_marker).unwrap();

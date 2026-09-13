@@ -129,7 +129,7 @@ fn level_rank(level: &str) -> i32 {
     }
 }
 
-/// 解析 tauri-plugin-log 默认格式 `[日期][时间][LEVEL][target] message`；
+/// 解析 tauri-plugin-log 默认格式 `[日期][时间][target][LEVEL] message`；
 /// 不成行的内容（多行消息的续行）并入上一条的 message
 pub fn parse_log_lines(content: &str) -> Vec<LogEntry> {
     let mut entries: Vec<LogEntry> = vec![];
@@ -153,14 +153,14 @@ fn parse_log_line(line: &str) -> Option<LogEntry> {
         groups.push(rest[..end].to_string());
         rest = &rest[end + 1..];
     }
-    let level = groups[2].to_lowercase();
+    let level = groups[3].to_lowercase();
     if level_rank(&level) == 0 {
-        return None; // 第三段不是日志级别，按非日志行处理
+        return None; // 第四段不是日志级别，按非日志行处理
     }
     Some(LogEntry {
         time: format!("{} {}", groups[0], groups[1]),
         level,
-        target: groups[3].clone(),
+        target: groups[2].clone(),
         message: rest.trim_start().to_string(),
     })
 }
@@ -371,20 +371,20 @@ mod tests {
 
     #[test]
     fn parse_log_line_handles_default_format() {
-        let e = parse_log_line("[2026-09-12][23:00:01][INFO][app_lib::feishu] feishu: 拉取 3 条")
+        let e = parse_log_line("[2026-09-12][23:00:01][app_lib::feishu][INFO] feishu: 拉取 3 条")
             .unwrap();
         assert_eq!(e.time, "2026-09-12 23:00:01");
         assert_eq!(e.level, "info");
         assert_eq!(e.target, "app_lib::feishu");
         assert_eq!(e.message, "feishu: 拉取 3 条");
-        // 大小写级别归一；第三段不是已知级别则按非日志行处理
-        assert_eq!(parse_log_line("[d][t][WARN][x] 唔").unwrap().level, "warn");
-        assert!(parse_log_line("[d][t][Note][x] 唔").is_none());
+        // 大小写级别归一；第四段不是已知级别则按非日志行处理
+        assert_eq!(parse_log_line("[d][t][x][WARN] 唔").unwrap().level, "warn");
+        assert!(parse_log_line("[d][t][x][Note] 唔").is_none());
     }
 
     #[test]
     fn parse_log_lines_merges_continuation_lines() {
-        let content = "[a][b][INFO][t] 第一行\n多行消息的续行\n[c][d][ERROR][t2] 第二条";
+        let content = "[a][b][t][INFO] 第一行\n多行消息的续行\n[c][d][t2][ERROR] 第二条";
         let entries = parse_log_lines(content);
         assert_eq!(entries.len(), 2);
         assert!(entries[0].message.contains("多行消息的续行"));

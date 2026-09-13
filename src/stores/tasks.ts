@@ -62,15 +62,18 @@ export const useTasksStore = defineStore("tasks", {
     async reload() {
       this.loading = true;
       try {
-        const [open, done, chatMessages] = await Promise.all([
+        // 各数据源独立失败：任一查询报错不能连累其余（曾因收音机缺列让主窗口任务全消失）
+        const [open, done, chatMessages] = await Promise.allSettled([
           api.listTasks("open"),
           api.listTasks("done"),
           api.listChatMessages(),
         ]);
-        this.open = open;
-        this.done = done;
-        this.doneCount = done.filter((t) => t.status === "done").length;
-        this.chatMessages = chatMessages;
+        if (open.status === "fulfilled") this.open = open.value;
+        if (done.status === "fulfilled") {
+          this.done = done.value;
+          this.doneCount = done.value.filter((t) => t.status === "done").length;
+        }
+        if (chatMessages.status === "fulfilled") this.chatMessages = chatMessages.value;
       } finally {
         this.loading = false;
       }

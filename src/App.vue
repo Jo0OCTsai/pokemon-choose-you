@@ -51,9 +51,7 @@ async function quickCapture() {
 
 const unlisteners: UnlistenFn[] = [];
 onMounted(async () => {
-  await Promise.all([settings.load(), categoriesStore.load(), tagsStore.load(), tasksStore.reload()]);
-
-  // 桌宠窗口或后端同步（飞书/Todoist）改动数据时跟随刷新，保持两窗口状态一致
+  // 先挂事件监听再首拉：首拉失败（如某个查询报错）也不至于让窗口“失聪”，后续数据变更仍能触发刷新
   unlisteners.push(await listen<null>(EVENTS.tasksChanged, () => tasksStore.reload()));
   unlisteners.push(await listen<null>(EVENTS.chatMessagesChanged, () => tasksStore.reload()));
   unlisteners.push(await listen<null>(EVENTS.categoriesChanged, () => categoriesStore.load()));
@@ -61,6 +59,12 @@ onMounted(async () => {
   unlisteners.push(await listen<null>(EVENTS.quickCapture, quickCapture));
   unlisteners.push(await listen<null>(EVENTS.showSettings, () => (tab.value = "settings")));
   unlisteners.push(await listen<string>(EVENTS.updateAvailable, (e) => (latestVersion.value = e.payload)));
+
+  try {
+    await Promise.all([settings.load(), categoriesStore.load(), tagsStore.load(), tasksStore.reload()]);
+  } catch (e) {
+    console.error("初始加载失败", e);
+  }
 
   // Linux 上主窗口销毁重建时事件会被错过，挂载时补领快捷键请求
   if (await api.consumeQuickCapture()) {

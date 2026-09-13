@@ -12,3 +12,6 @@ public
 design
 docs
 *.md
+# release-please 自动生成的配置/清单，格式由工具自管
+.release-please-manifest.json
+release-please-config.json

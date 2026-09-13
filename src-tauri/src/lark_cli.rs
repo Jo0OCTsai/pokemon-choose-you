@@ -33,7 +33,7 @@ async fn run(bin: &str, args: &[&str], timeout: Duration) -> AppResult<String> {
     .map_err(|e| {
         if e.kind() == std::io::ErrorKind::NotFound {
             AppError::Invalid(
-                "找不到 lark-cli：请先 `npm install -g @larksuite/lark-cli` 并重新登录终端".into(),
+                "找不到 lark-cli：请先 `npm install -g @larksuite/cli` 并重新登录终端".into(),
             )
         } else {
             AppError::External(format!("启动 lark-cli 失败: {e}"))
@@ -95,7 +95,34 @@ pub async fn api_get(bin: &str, path: &str, params: Value) -> AppResult<Value> {
     unwrap_envelope(&out, &format!("lark-cli {path}"))
 }
 
-/// 登录态：`lark-cli auth status --format json`
+/// POST 透传调用：`lark-cli api POST <path> --data '<json>' --format json`
+pub async fn api_post(bin: &str, path: &str, body: Value) -> AppResult<Value> {
+    let args: Vec<String> = vec![
+        "api".into(),
+        "POST".into(),
+        path.into(),
+        "--data".into(),
+        body.to_string(),
+        "--format".into(),
+        "json".into(),
+    ];
+    let arg_refs: Vec<&str> = args.iter().map(String::as_str).collect();
+    let out = run(bin, &arg_refs, Duration::from_secs(30)).await?;
+    unwrap_envelope(&out, &format!("lark-cli {path}"))
+}
+
+/// 批量查询会话的个人设置（免打扰等，每批最多 10 个会话）：
+/// POST /open-apis/im/v1/chat_user_setting/batch_query
+pub async fn chat_user_settings(bin: &str, chat_ids: &[String]) -> AppResult<Value> {
+    api_post(
+        bin,
+        "/open-apis/im/v1/chat_user_setting/batch_query",
+        serde_json::json!({ "chat_ids": chat_ids }),
+    )
+    .await
+}
+
+/// 登录态：`lark-cli auth status --json`（auth 域不支持 --format，输出开关是 --json）
 #[derive(Debug)]
 pub struct CliAuthStatus {
     pub logged_in: bool,
@@ -103,12 +130,7 @@ pub struct CliAuthStatus {
 }
 
 pub async fn auth_status(bin: &str) -> AppResult<CliAuthStatus> {
-    let out = run(
-        bin,
-        &["auth", "status", "--format", "json"],
-        Duration::from_secs(15),
-    )
-    .await?;
+    let out = run(bin, &["auth", "status", "--json"], Duration::from_secs(15)).await?;
     // 输出不稳定时按未登录处理，让上层给登录指引
     let v: Value = serde_json::from_str(out.trim()).unwrap_or(Value::Null);
     // 宽容解析：不同版本字段名可能是 logged_in / authenticated / ok
@@ -125,6 +147,14 @@ pub async fn auth_status(bin: &str) -> AppResult<CliAuthStatus> {
         logged_in,
         user_name,
     })
+}
+
+/// lark-cli 是否已初始化配置（绑定应用）：`lark-cli config show` 退出码 0 即已配置。
+/// 未配置时 auth login 会直接报 not_configured，需先走 `config init --new`。
+pub async fn config_ready(bin: &str) -> bool {
+    run(bin, &["config", "show"], Duration::from_secs(10))
+        .await
+        .is_ok()
 }
 
 /// 当前用户身份（open_id + 姓名）：GET /open-apis/authen/v1/user_info
@@ -149,9 +179,14 @@ pub async fn user_identity(bin: &str) -> AppResult<(String, String)> {
     Ok((open_id, name))
 }
 
-/// 会话列表（用户身份）：GET /open-apis/im/v1/chats（--page-all 语义由上层翻页保证）
+/// 会话列表（用户身份）：GET /open-apis/im/v1/chats（--page-all 语义由上层翻页保证）。
+/// types=p2p,group 才会带出单聊（p2p 项含 p2p_target_type/p2p_target_id）。
 pub async fn list_chats(bin: &str, page_size: i64, page_token: Option<&str>) -> AppResult<Value> {
-    let mut params = serde_json::json!({ "page_size": page_size, "user_id_type": "open_id" });
+    let mut params = serde_json::json!({
+        "page_size": page_size,
+        "user_id_type": "open_id",
+        "types": "p2p,group",
+    });
     if let Some(t) = page_token {
         params["page_token"] = Value::String(t.to_string());
     }
@@ -283,6 +318,69 @@ mod tests {
                 .unwrap_err();
             assert!(matches!(err, AppError::Invalid(_)), "{err}");
             assert!(err.to_string().contains("npm install"));
+        });
+    }
+
+    /// 写一个假 lark-cli 脚本，按给定 shell 片段响应（unix）
+    #[cfg(unix)]
+    fn fake_cli_script(name: &str, body: &str) -> String {
+        let dir = std::env::temp_dir().join(format!("pk-lark-{}-{}", name, std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let script = dir.join("lark-cli");
+        std::fs::write(&script, format!("#!/bin/sh\n{body}\n")).unwrap();
+        {
+            use std::os::unix::fs::PermissionsExt;
+            std::fs::set_permissions(&script, std::fs::Permissions::from_mode(0o755)).unwrap();
+        }
+        script.to_string_lossy().into_owned()
+    }
+
+    /// auth status 只认 --json（1.x 无 --format），且能解析登录态
+    #[cfg(unix)]
+    #[test]
+    fn auth_status_uses_json_flag() {
+        tauri::async_runtime::block_on(async {
+            let bin = fake_cli_script(
+                "st",
+                r#"if [ "$1" = "auth" ] && [ "$2" = "status" ] && [ "$3" = "--json" ]; then printf '%s' '{"ok":true,"logged_in":true,"name":"测试用户"}'; else echo "unexpected args: $*" >&2; exit 1; fi"#,
+            );
+            let s = auth_status(&bin).await.unwrap();
+            assert!(s.logged_in);
+            assert_eq!(s.user_name, "测试用户");
+        });
+    }
+
+    /// config_ready 按 `config show` 退出码判定是否已初始化
+    #[cfg(unix)]
+    #[test]
+    fn config_ready_maps_exit_code() {
+        tauri::async_runtime::block_on(async {
+            let ok = fake_cli_script("cfg-ok", r#"echo '{"ok":true}'; exit 0"#);
+            assert!(config_ready(&ok).await);
+            let missing = fake_cli_script(
+                "cfg-missing",
+                r#"echo '{"ok":false,"error":{"subtype":"not_configured"}}' >&2; exit 3"#,
+            );
+            assert!(!config_ready(&missing).await);
+        });
+    }
+
+    /// 免打扰批量查询走 POST 透传并解信封
+    #[cfg(unix)]
+    #[test]
+    fn chat_user_settings_posts_batch_query() {
+        tauri::async_runtime::block_on(async {
+            let bin = fake_cli(
+                "mute",
+                &["/open-apis/im/v1/chat_user_setting/batch_query"],
+                r#"{"ok":true,"data":{"items":[{"chat_id":"oc_a","is_muted":true}]}}"#,
+                "",
+            );
+            let d = chat_user_settings(&bin, &["oc_a".to_string()])
+                .await
+                .unwrap();
+            assert_eq!(d["items"][0]["chat_id"].as_str(), Some("oc_a"));
+            assert_eq!(d["items"][0]["is_muted"].as_bool(), Some(true));
         });
     }
 

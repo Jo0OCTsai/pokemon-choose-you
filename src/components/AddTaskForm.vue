@@ -9,6 +9,7 @@ import { parseNlCapture } from "../nlCapture";
 import DexSelect from "./DexSelect.vue";
 import DexDateTime from "./DexDateTime.vue";
 
+const props = defineProps<{ allowSchedule?: boolean }>();
 const emit = defineEmits<{
   submit: [input: NewTaskInput];
 }>();
@@ -73,8 +74,9 @@ function submit() {
   const raw = newTitle.value.trim();
   if (!raw) return;
   const p = nlPreview.value;
-  // 识别出的字段直接生效（预览里看得见）；手动选的时间（newDue）优先于识别
-  const dueAt = newDue.value || p?.dueAt || "";
+  // 识别出的字段直接生效（预览里看得见）；手动选的时间（newDue）优先于识别。
+  // 手动加时间（加入路线）仅在草丛页提供；非草丛页识别出的时间仍生效，避免丢信息
+  const dueAt = (props.allowSchedule ? newDue.value : "") || p?.dueAt || "";
   emit("submit", {
     title: p?.title || raw,
     categoryId: p?.categoryId ?? newCategory.value,
@@ -101,8 +103,8 @@ defineExpose({ focus });
     <input ref="titleInput" v-model="newTitle" :placeholder="t('add.placeholder')" />
     <DexSelect v-model="newCategoryStr" :options="categoryOptions" />
     <DexSelect v-model="newPriority" :options="priorityOptions" />
-    <DexDateTime v-model="newDue" />
-    <button class="btn" type="submit">{{ newDue ? t("add.goRoute") : t("add.goGrass") }}</button>
+    <DexDateTime v-if="allowSchedule" v-model="newDue" />
+    <button class="btn" type="submit">{{ allowSchedule && newDue ? t("add.goRoute") : t("add.goGrass") }}</button>
 
     <!-- 自然语言识别预览：抽出的标题 + 高亮片段；单击 ✕ 取消本次识别 -->
     <div v-if="nlPreview" class="nl-preview">

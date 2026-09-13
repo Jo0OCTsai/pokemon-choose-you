@@ -8,6 +8,7 @@ import TaskCard from "../components/TaskCard.vue";
 import AddTaskForm from "../components/AddTaskForm.vue";
 import DexDateTime from "../components/DexDateTime.vue";
 import TaskEditModal from "../components/TaskEditModal.vue";
+import TaskDetailDrawer from "../components/TaskDetailDrawer.vue";
 import ReviewWizard from "../components/ReviewWizard.vue";
 import type { Task } from "../types";
 
@@ -119,6 +120,17 @@ async function onSaved() {
   await reload();
 }
 
+// ---- 详情抽屉：点击任务卡片打开；任务从 store 里按 id 取，编辑保存后内容跟随刷新 ----
+const detailId = ref<number | null>(null);
+const detailTask = computed(() => {
+  const id = detailId.value;
+  if (id == null) return null;
+  return tasksStore.open.find((x) => x.id === id) ?? tasksStore.done.find((x) => x.id === id) ?? null;
+});
+function openDetail(task: Task) {
+  detailId.value = task.id;
+}
+
 // ---- 每周复盘（训练师复盘）：图鉴页入口 ----
 const reviewOpen = ref(false);
 
@@ -154,7 +166,7 @@ onMounted(reload);
 
 <template>
   <div class="task-tab">
-    <AddTaskForm v-if="showAddForm" ref="addForm" @submit="addTask" />
+    <AddTaskForm v-if="showAddForm" ref="addForm" :allow-schedule="tab === 'inbox'" @submit="addTask" />
 
     <!-- 搜索栏 -->
     <div class="search-bar">
@@ -206,6 +218,7 @@ onMounted(reload);
         v-for="task in tab === 'today' ? entryList : displayList"
         :key="task.id"
         :task="task"
+        :allow-schedule="tab === 'inbox'"
         @start="start"
         @pause="pauseActive"
         @complete="complete"
@@ -213,6 +226,7 @@ onMounted(reload);
         @cancel="cancel"
         @schedule="schedule"
         @edit="edit"
+        @detail="openDetail"
         @remove="remove"
       />
     </ul>
@@ -228,6 +242,9 @@ onMounted(reload);
         </div>
       </div>
     </div>
+
+    <!-- 详情抽屉：点击任务卡片打开（记录类内容都在这里） -->
+    <TaskDetailDrawer v-if="detailTask" :task="detailTask" @close="detailId = null" @edit="edit" />
 
     <!-- 全字段编辑弹窗 -->
     <TaskEditModal v-if="editing" :task="editing" @close="editing = null" @saved="onSaved" />
