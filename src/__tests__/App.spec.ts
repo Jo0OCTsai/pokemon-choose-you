@@ -590,6 +590,19 @@ describe("App 图鉴机主面板", () => {
     expect(w.get(".entry .due").text()).not.toContain("已逾期");
   });
 
+  it("设置页飞书引擎切换：lark-cli 模式隐藏 App ID/Secret 并显示指引", async () => {
+    const w = await mountApp();
+    await w.findAll(".menu-btn")[5].trigger("click"); // 设置
+    await w.findAll(".stab")[4].trigger("click"); // 集成
+    expect(w.text()).toContain("App ID");
+    const settings = useSettingsStore();
+    settings.values.feishu_engine = "cli";
+    await new Promise((r) => setTimeout(r));
+    expect(w.text()).not.toContain("App Secret");
+    expect(w.text()).toContain("npm install -g @larksuite/lark-cli");
+    settings.values.feishu_engine = "builtin";
+  });
+
   it("设置页七个分区可选且默认显示专注", async () => {
     const w = await mountApp();
     await w.findAll(".menu-btn")[5].trigger("click");
