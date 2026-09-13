@@ -169,10 +169,12 @@ fn fail(msg: &str, code: i32) -> ! {
     std::process::exit(code);
 }
 
-/// 与 tauri 的 app_data_dir 同一规则：config_dir/<identifier>/<db>
+/// 与 tauri 的 app_data_dir 同一规则：data_dir/<identifier>/<db>。
+/// 必须用 data_dir 而非 config_dir——Linux 上两者不同（~/.local/share vs ~/.config），
+/// tauri 的应用数据在 data_dir；macOS/Windows 上两目录相同，不受影响。
 fn default_db_path() -> Result<std::path::PathBuf, String> {
-    let cfg = dirs::config_dir().ok_or_else(|| "无法定位用户配置目录".to_string())?;
-    Ok(cfg
+    let dir = dirs::data_dir().ok_or_else(|| "无法定位用户数据目录".to_string())?;
+    Ok(dir
         .join("com.jotsai.pokemonchooseyou")
         .join("pokemon-choose-you.db"))
 }

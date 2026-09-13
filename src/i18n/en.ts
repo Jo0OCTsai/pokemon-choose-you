@@ -262,7 +262,7 @@ export default {
     modeText: "Parse text output (JSON)",
     modeTools: "Tool calls (via pk)",
     modeHint:
-      'Tools mode: the agent first runs pk context for dedup context, then submits all verdicts in one pk suggest batch — results land in the DB directly, no text parsing. The agent must be allowed to run pk headlessly (e.g. claude with --allowedTools "Bash(pk:*)"), and a larger timeout (~300s) is recommended.',
+      "Tools mode: the agent first runs pk context for dedup context, then submits all verdicts in one pk suggest batch — results land in the DB directly, no text parsing. The agent must be allowed to run pk headlessly (e.g. claude with --allowedTools Bash(pk:*)), and a larger timeout (~300s) is recommended.",
     historyArgs: "History args",
     timeout: "Timeout (s)",
     enabled: "Enabled",
