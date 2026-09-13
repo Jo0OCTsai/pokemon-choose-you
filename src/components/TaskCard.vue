@@ -5,6 +5,7 @@ import { fmtDateTime, useSettingsStore } from "../stores/settings";
 import { catKeyOf, useCategoriesStore } from "../stores/categories";
 import { relativeDue } from "../relativeTime";
 import type { Task } from "../types";
+import { clipWrite, openContextMenu, type ContextMenuItem } from "../contextMenu";
 import PokemonSprite from "./PokemonSprite.vue";
 
 const props = defineProps<{ task: Task; allowSchedule?: boolean }>();
@@ -27,6 +28,41 @@ const spriteOf = (id: number) => categories.byId.get(id)?.sprite ?? "pikachu";
 
 /** 相对截止时间（时间盲友好）：开关关闭时回绝对时间；title 始终带绝对值便于核对 */
 const dueInfo = computed(() => (settings.bool("due_relative") ? relativeDue(props.task.dueAt ?? "") : null));
+
+/** 右键菜单：动作与卡片按钮一一对应（同 emit 复用 TaskTab 的处理器）+ 详情/复制标题 */
+function onContextMenu(e: MouseEvent) {
+  e.preventDefault();
+  const task = props.task;
+  const items: ContextMenuItem[] = [];
+  const editable = task.status !== "done" && task.status !== "cancelled";
+  if (editable) {
+    if (task.status === "active") {
+      items.push({ key: "pause", label: t("entry.pause"), action: () => emit("pause") });
+    } else {
+      items.push({ key: "start", label: t("entry.start"), action: () => emit("start", task) });
+    }
+    if (props.allowSchedule) {
+      items.push({ key: "route", label: t("entry.route"), action: () => emit("schedule", task) });
+    }
+    items.push(
+      { key: "edit", label: t("entry.edit"), action: () => emit("edit", task) },
+      { key: "done", label: t("entry.done"), action: () => emit("complete", task) },
+      { key: "escape", label: t("entry.escape"), action: () => emit("cancel", task) },
+      { key: "release", label: t("entry.release"), danger: true, action: () => emit("remove", task) },
+    );
+  } else {
+    items.push(
+      { key: "undo", label: t("entry.undo"), action: () => emit("uncomplete", task) },
+      { key: "edit", label: t("entry.edit"), action: () => emit("edit", task) },
+      { key: "release", label: t("entry.release"), danger: true, action: () => emit("remove", task) },
+    );
+  }
+  items.push(
+    { key: "detail", label: t("ctx.openDetail"), action: () => emit("detail", task) },
+    { key: "copyTitle", label: t("ctx.copyTitle"), action: () => void clipWrite(task.title) },
+  );
+  openContextMenu(e, items);
+}
 </script>
 
 <template>
@@ -34,6 +70,7 @@ const dueInfo = computed(() => (settings.bool("due_relative") ? relativeDue(prop
     class="entry"
     :class="{ active: task.status === 'active', caught: task.status === 'done', escaped: task.status === 'cancelled' }"
     @click="emit('detail', task)"
+    @contextmenu="onContextMenu"
   >
     <div class="dex-no px">No.{{ String(task.id).padStart(3, "0") }}</div>
     <PokemonSprite class="sprite" :sprite="spriteOf(task.categoryId)" />

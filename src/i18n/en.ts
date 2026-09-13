@@ -15,6 +15,16 @@ export default {
   },
   dt: { none: "Not set", clear: "Clear" },
   error: { prefix: "The Dex hit a snag: " },
+  ctx: {
+    cut: "Cut",
+    copy: "Copy",
+    paste: "Paste",
+    selectAll: "Select All",
+    openDetail: "View details",
+    copyTitle: "Copy title",
+    copyLine: "Copy line",
+    copied: "✔ Copied",
+  },
   spine: {
     tips: [
       "Dex advice: don't bite off more than you can chew.",
@@ -325,6 +335,7 @@ export default {
   },
   general: {
     autostart: "Launch at login (pet appears automatically)",
+    closeToTray: "Close window to tray (app keeps running; quit from the tray menu)",
     nlCapture: "Natural-language quick capture (auto-detect time / category / tags in the input, always cancellable)",
     shortcuts: "Global shortcuts: Ctrl+Shift+K quick capture · Ctrl+Shift+D show/hide pet (⌘⇧K / ⌘⇧D on macOS)",
   },
@@ -416,6 +427,10 @@ export default {
     hint: "Exports land in the app data exports/ folder; the JSON can be imported on another machine (full replace, secrets untouched), and the Markdown report drops straight into a knowledge base.",
     pick: "Choose a JSON file…",
     chosen: "Chose {v}",
+    saveJson: "Save full JSON as…",
+    saveCsv: "Save tasks CSV as…",
+    saveMd: "Save today's report as…",
+    savedTo: "✔ Exported to {v}",
     notJson: "Please pick a .json export file",
     doImport: "Import",
     confirmImport: "Overwrite & import?",
@@ -468,6 +483,10 @@ export default {
   },
   pet: {
     welcome: "Which Pokémon will you catch today? Click me!",
+    menuDex: "Open Pokédex",
+    menuQuick: "Quick Dex screen",
+    menuPause: "Pause current task",
+    menuHide: "Hide pet",
     idle: "Today's adventure hasn't started—click me to pick a target",
     /** Idle bubble when a main Pokemon is set (speaks its name) */
     idleNamed: "{p} is waiting for you! Click me to pick a target",

@@ -12,6 +12,8 @@ import { useTasksStore, type TaskTabKey } from "./stores/tasks";
 import TaskTab from "./views/TaskTab.vue";
 import RadioTab from "./views/RadioTab.vue";
 import SettingsTab from "./views/SettingsTab.vue";
+import DexContextMenu from "./components/DexContextMenu.vue";
+import { openEditableContextMenu } from "./contextMenu";
 
 const { t, tm } = useI18n();
 const settings = useSettingsStore();
@@ -64,6 +66,8 @@ async function quickCapture() {
 
 const unlisteners: UnlistenFn[] = [];
 onMounted(async () => {
+  // 文本输入框的默认右键菜单（剪切/复制/粘贴/全选）；组件级 @contextmenu.prevent 已处理的目标会让位
+  window.addEventListener("contextmenu", openEditableContextMenu);
   rollSpineTip();
   // 先挂事件监听再首拉：首拉失败（如某个查询报错）也不至于让窗口“失聪”，后续数据变更仍能触发刷新
   unlisteners.push(await listen<null>(EVENTS.tasksChanged, () => tasksStore.reload()));
@@ -85,7 +89,10 @@ onMounted(async () => {
     await quickCapture();
   }
 });
-onUnmounted(() => unlisteners.forEach((u) => u()));
+onUnmounted(() => {
+  unlisteners.forEach((u) => u());
+  window.removeEventListener("contextmenu", openEditableContextMenu);
+});
 </script>
 
 <template>
@@ -138,6 +145,9 @@ onUnmounted(() => unlisteners.forEach((u) => u()));
       <RadioTab v-else-if="tab === 'im'" />
       <SettingsTab v-else ref="settingsTab" :latest-version="latestVersion" />
     </main>
+
+    <!-- 全局右键菜单（输入框默认菜单 + 组件自定义菜单共用渲染） -->
+    <DexContextMenu />
   </div>
 </template>
 

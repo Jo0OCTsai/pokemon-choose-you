@@ -11,7 +11,9 @@ import { useSettingsStore } from "./stores/settings";
 import { useCategoriesStore } from "./stores/categories";
 import { usePomodoro } from "./composables/usePomodoro";
 import { usePetDrag } from "./composables/usePetDrag";
+import { openContextMenu, type ContextMenuItem } from "./contextMenu";
 import PokemonSprite from "./components/PokemonSprite.vue";
+import DexContextMenu from "./components/DexContextMenu.vue";
 
 const { t } = useI18n();
 const settings = useSettingsStore();
@@ -213,6 +215,24 @@ async function onSpriteDblClick() {
 // 手动拖拽（Linux/WebKit 下 data-tauri-drag-region 不可靠）
 const { onDragStart, onDragMove, onDragEnd } = usePetDrag(petWindow);
 
+/** 桌宠右键菜单：无桌宠操作按钮悬浮提示后的常驻入口（图鉴机/快捷屏/暂停/隐藏） */
+function onPetContextMenu(e: MouseEvent) {
+  e.preventDefault();
+  const items: ContextMenuItem[] = [
+    { key: "dex", label: t("pet.menuDex"), action: () => void openPanel() },
+    {
+      key: "quick",
+      label: quickOpen.value ? t("pet.quickClose") : t("pet.menuQuick"),
+      action: () => void toggleQuick(),
+    },
+  ];
+  if (current.value) {
+    items.push({ key: "pause", label: t("pet.menuPause"), action: () => void pauseTask() });
+  }
+  items.push({ key: "hide", label: t("pet.menuHide"), action: () => void petWindow.hide() });
+  openContextMenu(e, items);
+}
+
 // ---- 就近可操作提醒：气泡旁直接给动作，消化「提醒→完成」链路的第二步流失 ----
 const reminderTask = ref<{ id: number; title: string; urgent: boolean; pokemon?: string | null } | null>(null);
 let reminderTimer: ReturnType<typeof setTimeout> | undefined;
@@ -299,7 +319,7 @@ onUnmounted(() => {
 <template>
   <div class="pet-stage" @mousedown="onDragStart" @mousemove="onDragMove" @mouseup="onDragEnd" @mouseleave="onDragEnd">
     <!-- 初代战斗布局：精灵在上。命中区固定不动（蹦跳动画在 img 上），保证双击稳定触发 -->
-    <div class="sprite-hit" @click="onSpriteClick" @dblclick="onSpriteDblClick">
+    <div class="sprite-hit" @click="onSpriteClick" @dblclick="onSpriteDblClick" @contextmenu="onPetContextMenu">
       <!-- 剩余时间色环：绿 → 琥珀 → 红，尾段精灵焦急加速 -->
       <svg v-if="ringPct != null" class="pomo-ring" viewBox="0 0 112 112" aria-hidden="true">
         <circle class="ring-bg" cx="56" cy="56" :r="RING_R" />
@@ -382,6 +402,9 @@ onUnmounted(() => {
       </button>
       <button class="switch-item cancel" @click="switching = false">{{ t("pet.switchCancel") }}</button>
     </div>
+
+    <!-- 桌宠右键菜单 -->
+    <DexContextMenu />
   </div>
 </template>
 

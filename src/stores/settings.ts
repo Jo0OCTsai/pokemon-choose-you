@@ -21,6 +21,8 @@ export const SETTING_DEFAULTS: Record<string, string> = {
   default_priority: "normal",
   /** 自然语言快速捕捉（输入框解析「明天 5pm 交周报 #工作」，带预览可取消） */
   nl_capture_enabled: "true",
+  /** 关闭主窗口隐藏到托盘（Rust 侧 CloseRequested 拦截；仅显式 "false" 才真关闭） */
+  close_to_tray: "true",
   /** 每日自动备份（VACUUM INTO 快照，滚动保留） */
   backup_enabled: "true",
   /** 备份滚动保留份数 */
@@ -67,6 +69,7 @@ export const SETTING_KEYS = [
   "due_relative",
   "default_priority",
   "nl_capture_enabled",
+  "close_to_tray",
   "backup_enabled",
   "backup_keep",
   "review_enabled",

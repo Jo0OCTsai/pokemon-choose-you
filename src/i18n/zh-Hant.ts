@@ -15,6 +15,16 @@ export default {
   },
   dt: { none: "未設置", clear: "清空" },
   error: { prefix: "圖鑑機遇到了點狀況：" },
+  ctx: {
+    cut: "剪下",
+    copy: "複製",
+    paste: "貼上",
+    selectAll: "全選",
+    openDetail: "查看詳情",
+    copyTitle: "複製標題",
+    copyLine: "複製本行",
+    copied: "✔ 已複製",
+  },
   spine: {
     tips: [
       "圖鑑機忠告：貪多嚼不爛。",
@@ -319,6 +329,7 @@ export default {
   },
   general: {
     autostart: "開機自動啟動（登入後桌寵自動出現）",
+    closeToTray: "關閉主視窗時收到系統匣（應用繼續常駐；系統匣選單可結束）",
     nlCapture: "自然語言快速捕捉（輸入框自動識別時間 / 分類 / 標籤，可隨時取消）",
     shortcuts: "全域快捷鍵：Ctrl+Shift+K 快速捕捉待辦 · Ctrl+Shift+D 顯示/隱藏桌寵（macOS 為 ⌘⇧K / ⌘⇧D）",
   },
@@ -410,6 +421,10 @@ export default {
     hint: "匯出產物在應用資料目錄 exports/ 下；JSON 可在別的機器匯入（整體覆蓋，密鑰不受影響），Markdown 日報可直接併入知識庫。",
     pick: "選擇 JSON 檔案…",
     chosen: "已選 {v}",
+    saveJson: "另存全量 JSON…",
+    saveCsv: "另存任務 CSV…",
+    saveMd: "另存今日日報…",
+    savedTo: "✔ 已匯出到 {v}",
     notJson: "請選擇 .json 匯出檔案",
     doImport: "匯入",
     confirmImport: "確認覆蓋匯入？",
@@ -461,6 +476,10 @@ export default {
   },
   pet: {
     welcome: "今天想捕捉哪隻寶可夢？點我出發！",
+    menuDex: "開啟圖鑑機",
+    menuQuick: "快捷圖鑑屏",
+    menuPause: "暫停目前任務",
+    menuHide: "隱藏桌寵",
     idle: "今天的冒險還沒開始，點擊我挑個目標吧",
     /** 設了主寶可夢時的待機氣泡（說出牠的名字） */
     idleNamed: "{p}在等你出發！點我挑個目標吧",

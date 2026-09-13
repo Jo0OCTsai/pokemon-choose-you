@@ -1,12 +1,15 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "main",
-  "description": "图鉴机主面板：核心 API + 开机自启（设置页）",
+  "description": "图鉴机主面板：核心 API + 开机自启（设置页）+ 右键菜单剪贴板 + 导出另存为对话框",
   "windows": ["main"],
   "permissions": [
     "core:default",
     "autostart:allow-enable",
     "autostart:allow-disable",
-    "autostart:allow-is-enabled"
+    "autostart:allow-is-enabled",
+    "clipboard-manager:allow-read-text",
+    "clipboard-manager:allow-write-text",
+    "dialog:default"
   ]
 }

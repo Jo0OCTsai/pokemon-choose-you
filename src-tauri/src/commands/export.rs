@@ -38,6 +38,31 @@ fn write_export(data_dir: &Path, name: String, content: &str) -> AppResult<PathB
     Ok(path)
 }
 
+/// 统一出口：dest=用户经保存对话框自选的完整路径（返回全路径），否则写默认 exports/ 目录（返回文件名）
+fn finish_export(
+    data_dir: &Path,
+    name: String,
+    content: &str,
+    dest: Option<&str>,
+) -> AppResult<String> {
+    match dest.filter(|s| !s.trim().is_empty()) {
+        Some(dest) => {
+            let path = Path::new(dest);
+            if let Some(parent) = path.parent() {
+                std::fs::create_dir_all(parent)?;
+            }
+            std::fs::write(path, content)?;
+            log::info!("export: 已写出 {}", path.display());
+            Ok(path.to_string_lossy().into_owned())
+        }
+        None => write_export(data_dir, name, content).map(|p| {
+            p.file_name()
+                .map(|n| n.to_string_lossy().into_owned())
+                .unwrap_or_default()
+        }),
+    }
+}
+
 fn stamp_now() -> String {
     Local::now().format("%Y%m%d-%H%M%S").to_string()
 }
@@ -143,7 +168,7 @@ fn json_to_sql(v: &serde_json::Value) -> SqlValue {
 }
 
 /// 导出全量 JSON：任务/分类/标签/跟进/日志/收音机/设置（秘钥除外，绝不落文件）
-pub fn export_json_to(data_dir: &Path, conn: &Connection) -> AppResult<String> {
+pub fn export_json_to(data_dir: &Path, conn: &Connection, dest: Option<&str>) -> AppResult<String> {
     let mut data = serde_json::Map::new();
     for table in DUMP_TABLES {
         let mut rows = dump_table(conn, table)?;
@@ -169,15 +194,12 @@ pub fn export_json_to(data_dir: &Path, conn: &Connection) -> AppResult<String> {
     });
     let pretty = serde_json::to_string_pretty(&payload)
         .map_err(|e| AppError::External(format!("序列化导出失败: {e}")))?;
-    let path = write_export(
+    finish_export(
         data_dir,
         format!("{APP_SLUG}-full-{}.json", stamp_now()),
         &pretty,
-    )?;
-    Ok(path
-        .file_name()
-        .map(|n| n.to_string_lossy().into_owned())
-        .unwrap_or_default())
+        dest,
+    )
 }
 
 /// 导入全量 JSON：整体替换（事务内清表重灌），秘钥不受影响；返回导入的行数
@@ -256,7 +278,7 @@ fn csv_field(s: &str) -> String {
     }
 }
 
-pub fn export_csv_to(data_dir: &Path, conn: &Connection) -> AppResult<String> {
+pub fn export_csv_to(data_dir: &Path, conn: &Connection, dest: Option<&str>) -> AppResult<String> {
     let mut out = String::new();
     // UTF-8 BOM：Excel 直接双击打开中文不乱码
     out.push('\u{feff}');
@@ -322,15 +344,12 @@ pub fn export_csv_to(data_dir: &Path, conn: &Connection) -> AppResult<String> {
         );
         out.push('\n');
     }
-    let path = write_export(
+    finish_export(
         data_dir,
         format!("{APP_SLUG}-tasks-{}.csv", stamp_now()),
         &out,
-    )?;
-    Ok(path
-        .file_name()
-        .map(|n| n.to_string_lossy().into_owned())
-        .unwrap_or_default())
+        dest,
+    )
 }
 
 // ---- 日报 Markdown ----
@@ -342,7 +361,12 @@ fn local_date(s: &str) -> Option<String> {
         .map(|d| d.with_timezone(&Local).format("%Y-%m-%d").to_string())
 }
 
-pub fn export_daily_md_to(data_dir: &Path, conn: &Connection, date: &str) -> AppResult<String> {
+pub fn export_daily_md_to(
+    data_dir: &Path,
+    conn: &Connection,
+    date: &str,
+    dest: Option<&str>,
+) -> AppResult<String> {
     let mut md = String::new();
     md.push_str(&format!("# 训练家日报 · {date}\n\n"));
 
@@ -451,11 +475,7 @@ pub fn export_daily_md_to(data_dir: &Path, conn: &Connection, date: &str) -> App
             md.push_str(&format!("- No.{tid} {title}：{tag}{content}\n"));
         }
     }
-    let path = write_export(data_dir, format!("{APP_SLUG}-daily-{date}.md"), &md)?;
-    Ok(path
-        .file_name()
-        .map(|n| n.to_string_lossy().into_owned())
-        .unwrap_or_default())
+    finish_export(data_dir, format!("{APP_SLUG}-daily-{date}.md"), &md, dest)
 }
 
 // ---- Tauri 命令 ----
@@ -467,14 +487,15 @@ fn data_dir<R: tauri::Runtime>(app: &tauri::AppHandle<R>) -> AppResult<PathBuf> 
         .map_err(|e| AppError::External(format!("定位应用数据目录失败: {e}")))
 }
 
-/// 全量 JSON 导出（秘钥除外），返回文件名
+/// 全量 JSON 导出（秘钥除外）；dest=用户自选完整路径（另存为），缺省写 exports/。返回文件名或完整路径
 #[tauri::command]
 pub fn export_json<R: tauri::Runtime>(
     app: tauri::AppHandle<R>,
     db: State<Db>,
+    dest: Option<String>,
 ) -> AppResult<String> {
     let conn = db.0.lock().unwrap();
-    export_json_to(&data_dir(&app)?, &conn)
+    export_json_to(&data_dir(&app)?, &conn, dest.as_deref())
 }
 
 /// 全量 JSON 导入（前端经 <input type=file> 读内容传入；整体替换，秘钥不受影响）
@@ -496,26 +517,28 @@ pub fn import_json<R: tauri::Runtime>(
     Ok(n)
 }
 
-/// 任务 CSV 导出（带 BOM，Excel 友好），返回文件名
+/// 任务 CSV 导出（带 BOM，Excel 友好）；dest 同 export_json
 #[tauri::command]
 pub fn export_tasks_csv<R: tauri::Runtime>(
     app: tauri::AppHandle<R>,
     db: State<Db>,
+    dest: Option<String>,
 ) -> AppResult<String> {
     let conn = db.0.lock().unwrap();
-    export_csv_to(&data_dir(&app)?, &conn)
+    export_csv_to(&data_dir(&app)?, &conn, dest.as_deref())
 }
 
-/// 日报 Markdown 导出（缺省今天，可指定日期），返回文件名
+/// 日报 Markdown 导出（缺省今天，可指定日期）；dest 同 export_json
 #[tauri::command]
 pub fn export_daily_md<R: tauri::Runtime>(
     app: tauri::AppHandle<R>,
     db: State<Db>,
     date: Option<String>,
+    dest: Option<String>,
 ) -> AppResult<String> {
     let conn = db.0.lock().unwrap();
     let date = date.unwrap_or_else(|| Local::now().format("%Y-%m-%d").to_string());
-    export_daily_md_to(&data_dir(&app)?, &conn, &date)
+    export_daily_md_to(&data_dir(&app)?, &conn, &date, dest.as_deref())
 }
 
 /// 在文件管理器中打开 exports 目录
@@ -588,7 +611,7 @@ mod tests {
         let conn = test_conn();
         seed(&conn);
 
-        let file = export_json_to(&dir, &conn).unwrap();
+        let file = export_json_to(&dir, &conn, None).unwrap();
         let content = read_export(&dir, &file);
         let parsed: serde_json::Value = serde_json::from_str(&content).unwrap();
         assert_eq!(parsed["app"], APP_SLUG);
@@ -653,7 +676,7 @@ mod tests {
         let dir = tmp_dir("replace");
         let src = test_conn();
         seed(&src);
-        let file = export_json_to(&dir, &src).unwrap();
+        let file = export_json_to(&dir, &src, None).unwrap();
         let content = read_export(&dir, &file);
 
         let mut conn = test_conn();
@@ -693,7 +716,7 @@ mod tests {
         let dir = tmp_dir("csv");
         let conn = test_conn();
         seed(&conn);
-        let file = export_csv_to(&dir, &conn).unwrap();
+        let file = export_csv_to(&dir, &conn, None).unwrap();
         let csv = read_export(&dir, &file);
         assert!(csv.starts_with('\u{feff}'), "带 UTF-8 BOM");
         assert!(csv.contains("id,title,status,priority,category,tags"));
@@ -711,7 +734,7 @@ mod tests {
         let dir = tmp_dir("md");
         let conn = test_conn();
         seed(&conn);
-        let file = export_daily_md_to(&dir, &conn, "2026-09-13").unwrap();
+        let file = export_daily_md_to(&dir, &conn, "2026-09-13", None).unwrap();
         let md = read_export(&dir, &file);
         assert!(file.starts_with("pokemon-choose-you-daily-2026-09-13"));
         assert!(md.contains("# 训练家日报 · 2026-09-13"));
@@ -720,9 +743,31 @@ mod tests {
         assert!(md.contains("- [ ] 交报告"), "未完成任务带勾选框: {md}");
         assert!(md.contains("No.1 写周报：对方确认周五交付"));
         // 其他日期不误收
-        let other = export_daily_md_to(&dir, &conn, "2026-09-12").unwrap();
+        let other = export_daily_md_to(&dir, &conn, "2026-09-12", None).unwrap();
         let md2 = read_export(&dir, &other);
         assert!(md2.contains("今日捕捉 0 只"));
         assert!(!md2.contains("对方确认周五交付"));
+    }
+
+    /// 另存为：dest 指定完整路径时写到该处并返回全路径，不落 exports/；空白 dest 视为未指定
+    #[test]
+    fn custom_dest_writes_exactly_there() {
+        let dir = tmp_dir("dest");
+        let conn = test_conn();
+        seed(&conn);
+        let dest = dir.join("nested").join("backup.json");
+        let returned = export_json_to(&dir, &conn, Some(dest.to_str().unwrap())).unwrap();
+        assert_eq!(returned, dest.to_string_lossy(), "自选路径返回全路径");
+        assert!(dest.exists(), "文件写在自选路径");
+        assert!(
+            !exports_dir(&dir).join(dest.file_name().unwrap()).exists(),
+            "不再叠写 exports/ 下的同名文件"
+        );
+        // 空白字符串按缺省处理（返回 exports/ 下的文件名）
+        let fallback = export_json_to(&dir, &conn, Some("  ")).unwrap();
+        assert!(
+            !fallback.contains(std::path::MAIN_SEPARATOR),
+            "空白 dest 回退默认目录: {fallback}"
+        );
     }
 }

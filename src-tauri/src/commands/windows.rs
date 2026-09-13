@@ -93,6 +93,16 @@ pub fn toggle_pet_window<R: tauri::Runtime>(app: &tauri::AppHandle<R>) {
     }
 }
 
+/// 关闭主窗口的去向：true=隐藏到托盘（默认，常驻惯例），false=真关闭
+pub fn close_to_tray_enabled<R: tauri::Runtime>(app: &tauri::AppHandle<R>) -> bool {
+    parse_close_to_tray(crate::db::setting(app, "close_to_tray").as_deref())
+}
+
+/// 只有显式 "false" 才真关闭；未设置/空/异常值都回退隐藏（托盘常驻应用的安全默认）
+fn parse_close_to_tray(v: Option<&str>) -> bool {
+    !matches!(v, Some("false"))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -135,5 +145,18 @@ mod tests {
         );
         // 用户自行关闭（无挂起请求）时再次进入回调，不应触发重建
         reopen_main_if_pending(app.handle());
+    }
+
+    /// 关闭到托盘的设置解析：默认隐藏，仅显式 false 关闭
+    #[test]
+    fn close_to_tray_defaults_to_hide() {
+        assert!(parse_close_to_tray(None), "未设置时默认隐藏到托盘");
+        assert!(parse_close_to_tray(Some("")), "空串回退默认");
+        assert!(parse_close_to_tray(Some("true")));
+        assert!(
+            parse_close_to_tray(Some("yes")),
+            "非 false 的异常值回退默认"
+        );
+        assert!(!parse_close_to_tray(Some("false")), "显式 false 才真关闭");
     }
 }
