@@ -523,14 +523,38 @@ fn report_of(steps: Vec<SetupStep>, version: Option<String>) -> SetupReport {
     }
 }
 
-/// 定位随应用分发的 pk（与主程序同目录；开发态 cargo 也把 pk 编到同一目录）
+/// 定位随应用分发的 pk。优先 exe 同目录（安装态）；开发态该位置可能是 tauri 拷贝的
+/// 0 字节 sidecar 占位（build.rs 重拷时机取决于启动方式，VS Code 直启 cargo 产物时不刷新），
+/// 回退到 prepare-pk-cli 的产物 binaries/pk-<host-triple>。空文件一律视为占位跳过。
 pub(crate) fn locate_pk() -> Option<PathBuf> {
     let exe = std::env::current_exe().ok()?;
-    let dir = exe.parent()?;
-    ["pk", "pk.exe"]
-        .iter()
-        .map(|n| dir.join(n))
-        .find(|p| p.exists())
+    let mut candidates: Vec<PathBuf> = vec![];
+    if let Some(dir) = exe.parent() {
+        for n in ["pk", "pk.exe"] {
+            candidates.push(dir.join(n));
+        }
+        // 开发态布局：<repo>/src-tauri/target/<profile>/ → 上两级是 src-tauri
+        if let Some(src_tauri) = dir.parent().and_then(|t| t.parent()) {
+            candidates.push(
+                src_tauri
+                    .join("binaries")
+                    .join(format!("pk-{}", host_triple())),
+            );
+        }
+    }
+    candidates
+        .into_iter()
+        .find(|p| p.exists() && p.metadata().map(|m| m.len() > 0).unwrap_or(false))
+}
+
+/// 宿主三元组（与 rustc/prepare-pk-cli 的命名一致），开发态 sidecar 回退用
+fn host_triple() -> String {
+    let os = match std::env::consts::OS {
+        "macos" => "apple-darwin",
+        "windows" => "pc-windows-msvc",
+        _ => "unknown-linux-gnu",
+    };
+    format!("{}-{os}", std::env::consts::ARCH)
 }
 
 /// 一键配置远程 pk：前置只需本机开启 sshd，其余（密钥/公钥/私钥/指纹/shim/PATH/验证）
