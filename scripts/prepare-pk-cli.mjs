@@ -38,6 +38,11 @@ if (triple === "universal-apple-darwin") {
     cwd: root,
     stdio: "inherit",
   });
+  // 打包器要求每个 bundle 二进制都在 target/<triple>/release 下：主程序由 tauri
+  // CLI 双架构 lipo，pk 需要这里同步补一份，否则 .app 打包报 pk does not exist
+  const targetDir = join(root, "src-tauri", "target", triple, "release");
+  mkdirSync(targetDir, { recursive: true });
+  copyFileSync(out, join(targetDir, "pk"));
 } else {
   copyFileSync(build(triple), out);
 }
