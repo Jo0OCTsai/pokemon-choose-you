@@ -417,7 +417,6 @@ export default {
     reminderSnoozed: "好～10 分鐘後再提醒你",
     remindNormal: "🐾 別忘了：「{t}」",
     pomoDone: "🍅 番茄完成！「{t}」捕捉到了嗎？",
-    trial: "先試 5 分鐘",
     trialStart: "就試 5 分鐘，不成也沒關係！",
     trialDone: "🍦 5 分鐘打卡完成！感覺對了就 ▶ 繼續，今天到此為止也完全 OK",
     pomoNotifTitle: "🍅 番茄完成！",
@@ -432,7 +431,6 @@ export default {
     switchTitle: "切換捕捉目標…",
     switchCancel: "取消",
     gotcha: "就決定是你了！{t}",
-    spriteTitle: "點擊展開快捷圖鑑屏 · 雙擊打開圖鑑機",
     quotes: [
       "皮卡皮卡！要專注哦！",
       "就決定是你了！",

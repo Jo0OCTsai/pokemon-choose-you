@@ -310,7 +310,6 @@ onUnmounted(() => {
         :src="spriteUrl(currentCat?.sprite ?? 'pikachu')"
         :data-sprite="currentCat?.sprite ?? 'pikachu'"
         draggable="false"
-        :title="t('pet.spriteTitle')"
         @error="spriteFallback"
       />
     </div>
@@ -335,7 +334,7 @@ onUnmounted(() => {
       <span class="px">{{ pomo.phase.value === "break" ? "☕" : "🍅" }} {{ pomo.mmss.value }}</span>
       <button v-if="pomo.running.value" class="pomo-btn" @click="pauseTask">⏸</button>
       <template v-else>
-        <button class="pomo-btn" :title="t('pet.trial')" @click="startTrial">🍦</button>
+        <button class="pomo-btn" @click="startTrial">🍦</button>
         <button class="pomo-btn" @click="resume">▶</button>
       </template>
       <button class="pomo-btn" @click="doneTask">✔</button>

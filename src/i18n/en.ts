@@ -423,7 +423,6 @@ export default {
     reminderSnoozed: "Okay — I'll knock again in 10 minutes",
     remindNormal: "🐾 Don't forget: '{t}'",
     pomoDone: "🍅 Pomodoro done! Caught '{t}' yet?",
-    trial: "Just 5 min",
     trialStart: "Just 5 minutes — bailing out is totally fine!",
     trialDone: "🍦 5 minutes logged! Continue with ▶ if it feels right, or stop for today — both win",
     pomoNotifTitle: "🍅 Pomodoro done!",
@@ -438,7 +437,6 @@ export default {
     switchTitle: "Switch target…",
     switchCancel: "Cancel",
     gotcha: "I choose you! {t}",
-    spriteTitle: "Click for quick dex · double-click to open Pokedex",
     quotes: [
       "Pika pika! Stay focused!",
       "I choose you!",
