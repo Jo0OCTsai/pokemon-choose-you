@@ -5,14 +5,16 @@ import { getVersion } from "@tauri-apps/api/app";
 import { useI18n } from "vue-i18n";
 import { api, errorMessage } from "../api";
 import { EVENTS } from "../events";
-import { fmtDateTime, SETTING_KEYS, POKEMON_LIST, SECRET_STORED, useSettingsStore } from "../stores/settings";
+import { fmtDateTime, SETTING_KEYS, SECRET_STORED, useSettingsStore } from "../stores/settings";
 import { useCategoriesStore } from "../stores/categories";
 import { useTagsStore } from "../stores/tags";
 import { useTasksStore } from "../stores/tasks";
 import type { AgentConfig, BackupInfo, FeishuOauthStatus, IntegrationHealth, LogEntry } from "../types";
 import { SUPPORTED_LOCALES } from "../i18n";
+import { BUNDLED_POKEMON, POKEMON_BY_KEY, mergePokemonQuotes, pokemonQuotesFor } from "../pokemon";
 import DexSelect from "../components/DexSelect.vue";
 import DexToggle from "../components/DexToggle.vue";
+import PokemonPicker from "../components/PokemonPicker.vue";
 
 /** App 壳监听到 update-available 后传入的版本号（空串 = 无新版本） */
 defineProps<{ latestVersion?: string }>();
@@ -226,7 +228,6 @@ const remindAheadOptions = computed(() =>
     label: n === 0 ? t("remind.onTime") : t("remind.aheadN", { n }),
   })),
 );
-const pokemonOptions = computed(() => POKEMON_LIST.map((p) => ({ value: p.key, label: p.name })));
 const dateFormatOptions = computed(() =>
   ["YYYY-MM-DD", "MM/DD/YYYY", "DD/MM/YYYY"].map((f) => ({ value: f, label: fmtDatePreview(f) })),
 );
@@ -285,8 +286,10 @@ function startEditCats() {
   }));
 }
 async function saveCat(row: { id: number; name: string; pokemonKey: string }) {
-  const pk = POKEMON_LIST.find((p) => p.key === row.pokemonKey) ?? POKEMON_LIST[0];
-  await api.updateCategory(row.id, row.name, pk.name, pk.key);
+  // 全量名录里挑的宝可梦：库存简中名（显示层按语言本地化），未知 key 回退内置第一位
+  const entry = POKEMON_BY_KEY.get(row.pokemonKey);
+  const fallback = BUNDLED_POKEMON[0];
+  await api.updateCategory(row.id, row.name, entry?.hans ?? fallback.name, entry?.key ?? fallback.key);
   await categories.load();
   testMsg.value = t("catSaved");
   setTimeout(() => (testMsg.value = ""), 2000);
@@ -313,9 +316,44 @@ async function removeCat(row: { id: number; name: string }) {
   }
 }
 async function addCat() {
-  await api.createCategory(t("cats.newName"), POKEMON_LIST[0].name, POKEMON_LIST[0].key);
+  await api.createCategory(t("cats.newName"), BUNDLED_POKEMON[0].name, BUNDLED_POKEMON[0].key);
   await categories.load();
   startEditCats();
+}
+
+// ---- 主宝可梦 + 每宝可梦自定义台词 ----
+/** 主宝可梦：选中即存（桌宠空闲展示即时生效，桌宠窗口经 settings-changed 跟随） */
+async function saveMainPokemon(key: string) {
+  settings.values.main_pokemon = key;
+  await settings.save(["main_pokemon"]);
+  testMsg.value = t("saved");
+  setTimeout(() => (testMsg.value = ""), 2000);
+}
+
+/** 台词编辑器当前选中的宝可梦（默认跟主宝可梦，没设则皮卡丘） */
+const quotePokemon = ref("");
+const quoteText = ref("");
+/** 从设置载入该宝可梦的台词到编辑框（切换选中时跟随已保存内容） */
+function loadQuoteText() {
+  quotePokemon.value = settings.sget("main_pokemon") || BUNDLED_POKEMON[0].key;
+  quoteText.value = pokemonQuotesFor(settings.sget, quotePokemon.value).join("\n");
+}
+function onQuotePokemonChange(key: string) {
+  quotePokemon.value = key;
+  quoteText.value = pokemonQuotesFor(settings.sget, key).join("\n");
+}
+const quoteCount = computed(
+  () =>
+    quoteText.value
+      .split("\n")
+      .map((s) => s.trim())
+      .filter(Boolean).length,
+);
+async function saveQuotes() {
+  settings.values.pokemon_quotes = mergePokemonQuotes(settings.sget, quotePokemon.value, quoteText.value);
+  await settings.save(["pokemon_quotes"]);
+  testMsg.value = t("saved");
+  setTimeout(() => (testMsg.value = ""), 2000);
 }
 
 // ---- 标签管理 ----
@@ -476,7 +514,10 @@ async function openHistory(ag: AgentConfig) {
 }
 
 watch(settingsTab, (tab) => {
-  if (tab === "cats") startEditCats();
+  if (tab === "cats") {
+    startEditCats();
+    loadQuoteText();
+  }
   if (tab === "tags" && !editingTags.value.length) startEditTags();
   if (tab === "integrations" && !agents.value.length) loadAgents();
   if (tab === "diag") loadDiagnostics();
@@ -681,15 +722,35 @@ onUnmounted(() => unlisteners.forEach((u) => u()));
 
       <template v-if="settingsTab === 'cats'">
         <section class="set-card">
+          <h3>{{ t("cats.mainTitle") }}</h3>
+          <label class="main-pokemon-line">
+            {{ t("cats.mainLabel") }}
+            <PokemonPicker
+              :model-value="settings.values.main_pokemon"
+              :allow-empty-label="t('cats.mainFollow')"
+              @update:model-value="saveMainPokemon"
+            />
+          </label>
+          <p class="hint">{{ t("cats.mainHint") }}</p>
+          <p class="hint">{{ t("cats.spriteHint") }}</p>
+        </section>
+
+        <section class="set-card">
+          <h3>{{ t("cats.quotesTitle") }}</h3>
+          <div class="quotes-controls">
+            <PokemonPicker :model-value="quotePokemon" @update:model-value="onQuotePokemonChange" />
+            <span class="hint quotes-count">{{ t("cats.quotesCount", { n: quoteCount }) }}</span>
+            <button class="btn ghost" @click="saveQuotes">{{ t("cats.quotesSave") }}</button>
+          </div>
+          <textarea v-model="quoteText" class="quotes-editor" rows="4" :placeholder="t('cats.quotesPh')" />
+          <p class="hint">{{ t("cats.quotesHint") }}</p>
+        </section>
+
+        <section class="set-card">
           <h3>{{ t("cats.title") }}</h3>
           <div v-for="row in editingCats" :key="row.id" class="cat-row" :class="{ off: !row.enabled }">
-            <img
-              class="cat-sprite"
-              :src="`/pokemon/${row.pokemonKey}.gif`"
-              @error="($event.target as HTMLImageElement).src = `/pokemon/${row.pokemonKey}.png`"
-            />
             <input v-model="row.name" class="cat-name" />
-            <DexSelect v-model="row.pokemonKey" :options="pokemonOptions" />
+            <PokemonPicker v-model="row.pokemonKey" />
             <DexToggle
               :model-value="row.enabled"
               :title="t('cats.toggle')"
@@ -1155,6 +1216,32 @@ onUnmounted(() => unlisteners.forEach((u) => u()));
   margin: 0 0 12px;
   font-size: 15px;
 }
+/* 主宝可梦行 */
+.main-pokemon-line {
+  align-items: center;
+}
+/* 台词编辑器 */
+.quotes-controls {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-bottom: 8px;
+}
+.quotes-count {
+  margin: 0;
+}
+.quotes-editor {
+  width: 100%;
+  padding: 8px 10px;
+  border: 3px solid var(--dex-navy);
+  border-radius: 8px;
+  font-size: 13px;
+  font-family: inherit;
+  line-height: 1.7;
+  resize: vertical;
+  min-height: 96px;
+}
 /* 分类编辑行 */
 .cat-row {
   display: flex;
@@ -1164,16 +1251,6 @@ onUnmounted(() => unlisteners.forEach((u) => u()));
 }
 .cat-row.off {
   opacity: 0.5;
-}
-.cat-row.off .cat-sprite {
-  filter: grayscale(1);
-}
-.cat-sprite {
-  width: 36px;
-  height: 36px;
-  image-rendering: pixelated;
-  object-fit: contain;
-  flex: none;
 }
 .cat-name {
   width: 110px;

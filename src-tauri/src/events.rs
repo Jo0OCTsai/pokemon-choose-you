@@ -7,7 +7,7 @@ pub const SETTINGS_CHANGED: &str = "settings-changed";
 pub const CHAT_MESSAGES_CHANGED: &str = "chat-messages-changed";
 /// 标签配置变化（设置页维护，两窗口跟随）
 pub const TAGS_CHANGED: &str = "tags-changed";
-/// 提醒到期（scheduler → 桌宠窗口敲门动画），payload: { id, title, urgent }
+/// 提醒到期（scheduler → 桌宠窗口敲门动画），payload: { id, title, urgent, pokemon }
 pub const TASK_REMINDER: &str = "task-reminder";
 /// 全局快捷键"快速捕捉待办"（后端 → 主窗口），前端聚焦新增输入框
 pub const QUICK_CAPTURE: &str = "quick-capture";

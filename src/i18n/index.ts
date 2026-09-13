@@ -36,12 +36,3 @@ export function bindLocaleToSettings() {
 
 /** 组件外使用（Rust 事件回调等场景） */
 export const t = i18n.global.t;
-
-/** 随机撸宠台词：深夜档（22:00–6:00）换用安睡语录池 */
-export function randomQuote(): string {
-  const hour = new Date().getHours();
-  const key = hour >= 22 || hour < 6 ? "pet.quotesNight" : "pet.quotes";
-  const quotes = i18n.global.tm(key) as unknown[];
-  const arr = quotes.map((q) => String(q));
-  return arr[Math.floor(Math.random() * arr.length)] ?? "";
-}

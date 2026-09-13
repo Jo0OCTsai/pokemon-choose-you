@@ -13,3 +13,4 @@ design
 docs
 *.md
 src-tauri/Cargo.lock
+src/pokemon/catalog.json

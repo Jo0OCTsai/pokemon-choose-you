@@ -201,14 +201,3 @@ export interface BatchReviewResult {
   ok: number;
   failed: { id: number; error: string }[];
 }
-
-export function spriteUrl(sprite: string): string {
-  // 优先动图，无动图则回退静态图（chansey 等没有官方动图）
-  return `/pokemon/${sprite}.gif`;
-}
-
-export function spriteFallback(e: Event) {
-  const el = e.target as HTMLImageElement;
-  el.onerror = null;
-  el.src = `/pokemon/${el.dataset.sprite}.png`;
-}

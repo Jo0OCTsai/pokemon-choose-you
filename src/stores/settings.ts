@@ -29,6 +29,10 @@ export const SETTING_DEFAULTS: Record<string, string> = {
   review_enabled: "true",
   /** 复盘提醒星期（1=周一 … 7=周日） */
   review_dow: "1",
+  /** 主宝可梦（PokeAPI key；空 = 没有任务时跟随第一个分类的宝可梦） */
+  main_pokemon: "",
+  /** 每宝可梦自定义台词（JSON：{ [key]: 多行文本 }，撸宠时随机取用） */
+  pokemon_quotes: "{}",
   feishu_poll_interval: "120",
   feishu_enabled: "false",
   /** 飞书拉取引擎：builtin = 内置直连（自建应用 OAuth），cli = 官方 lark-cli 子进程 */
@@ -71,6 +75,8 @@ export const SETTING_KEYS = [
   "backup_keep",
   "review_enabled",
   "review_dow",
+  "main_pokemon",
+  "pokemon_quotes",
   "feishu_poll_interval",
   "ai_agents",
   "ai_agent_id",
@@ -163,13 +169,3 @@ export function fmtDateTime(s: string | null | undefined, store = useSettingsSto
   if (!s) return "";
   return `${fmtDate(s, store)} ${fmtTime(s, store)}`;
 }
-
-/** 内置宝可梦图鉴（换装用） */
-export const POKEMON_LIST = [
-  { key: "pikachu", name: "皮卡丘" },
-  { key: "psyduck", name: "可达鸭" },
-  { key: "bulbasaur", name: "妙蛙种子" },
-  { key: "chansey", name: "吉利蛋" },
-  { key: "eevee", name: "伊布" },
-  { key: "snorlax", name: "卡比兽" },
-];

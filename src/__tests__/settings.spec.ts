@@ -1,15 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { createPinia, setActivePinia } from "pinia";
 import { api } from "../api";
-import {
-  SETTING_DEFAULTS,
-  POKEMON_LIST,
-  SECRET_STORED,
-  useSettingsStore,
-  fmtDate,
-  fmtTime,
-  fmtDateTime,
-} from "../stores/settings";
+import { SETTING_DEFAULTS, SECRET_STORED, useSettingsStore, fmtDate, fmtTime, fmtDateTime } from "../stores/settings";
 
 vi.mock("../api", () => ({
   api: {
@@ -130,18 +122,15 @@ describe("save：秘钥占位值跳过", () => {
   });
 });
 
-describe("内置图鉴", () => {
-  it("宝可梦 key 不重复且数量为 6", () => {
-    const keys = POKEMON_LIST.map((p) => p.key);
-    expect(new Set(keys).size).toBe(keys.length);
-    expect(keys.length).toBe(6);
-  });
-});
-
 describe("默认设置健全性", () => {
   it("数值型默认值均可解析为数字", () => {
     for (const k of ["pomodoro_minutes", "break_minutes", "remind_ahead_minutes", "feishu_poll_interval"]) {
       expect(Number.isFinite(Number(SETTING_DEFAULTS[k])), k).toBe(true);
     }
+  });
+
+  it("个性化键默认值合法：主宝可梦为空、台词表为空 JSON", () => {
+    expect(SETTING_DEFAULTS.main_pokemon).toBe("");
+    expect(JSON.parse(SETTING_DEFAULTS.pokemon_quotes)).toEqual({});
   });
 });

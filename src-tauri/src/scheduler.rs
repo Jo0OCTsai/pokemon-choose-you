@@ -266,7 +266,7 @@ fn notification_text(
                     format!("緊急任務提醒：{subject}"),
                 )
             } else {
-                ("🐾 訓練家，別忘了".into(), format!("{subject}"))
+                ("🐾 訓練家，別忘了".into(), subject.to_string())
             }
         }
         "en" => {
@@ -276,7 +276,7 @@ fn notification_text(
                     format!("Urgent: {subject}"),
                 )
             } else {
-                ("🐾 Trainer, don't forget".into(), format!("{subject}"))
+                ("🐾 Trainer, don't forget".into(), subject.to_string())
             }
         }
         _ => {
@@ -286,7 +286,7 @@ fn notification_text(
                     format!("紧急任务提醒：{subject}"),
                 )
             } else {
-                ("🐾 训练家，别忘了".into(), format!("{subject}"))
+                ("🐾 训练家，别忘了".into(), subject.to_string())
             }
         }
     }
@@ -311,10 +311,10 @@ fn drop_later_notify<R: tauri::Runtime>(
             .body(body)
             .show();
     }
-    // 桌宠窗口收到后播放敲门/催促动画
+    // 桌宠窗口收到后播放敲门/催促动画（pokemon 附带分类宝可梦名，供气泡文案个性化）
     let _ = app.emit(
         events::TASK_REMINDER,
-        serde_json::json!({ "id": id, "title": title, "urgent": urgent }),
+        serde_json::json!({ "id": id, "title": title, "urgent": urgent, "pokemon": pokemon }),
     );
 }
 
@@ -450,7 +450,7 @@ mod tests {
         assert!(t.contains("草丛") && b.contains("2 只") && !b.contains("失败"));
         let (t, b) = fresh_start_notification_text("zh-Hant", 1);
         assert!(t.contains("草叢") && b.contains("1 隻"));
-        let (t, b) = fresh_start_notification_text("en", 3);
+        let (_, b) = fresh_start_notification_text("en", 3);
         assert!(b.contains("3 overdue"));
     }
 

@@ -4,13 +4,14 @@ import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { api } from "./api";
 import { EVENTS } from "./events";
-import { spriteUrl, spriteFallback, type Task } from "./types";
+import type { Task } from "./types";
 import { useI18n } from "vue-i18n";
-import { randomQuote } from "./i18n";
+import { pokemonName, randomQuote } from "./pokemon";
 import { useSettingsStore } from "./stores/settings";
 import { useCategoriesStore } from "./stores/categories";
 import { usePomodoro } from "./composables/usePomodoro";
 import { usePetDrag } from "./composables/usePetDrag";
+import PokemonSprite from "./components/PokemonSprite.vue";
 
 const { t } = useI18n();
 const settings = useSettingsStore();
@@ -45,16 +46,28 @@ const bubble = ref(t("pet.welcome"));
 const switching = ref(false);
 const quickOpen = ref(false);
 
-const currentCat = computed(() => categories.byId.get(current.value?.categoryId ?? -1) ?? categories.list[0]);
+const currentCat = computed(() => {
+  // 进行中：任务分类的宝可梦；空闲：主宝可梦（未设置则跟随第一个分类）
+  if (current.value) return categories.byId.get(current.value.categoryId) ?? categories.list[0];
+  const mainKey = settings.sget("main_pokemon");
+  if (mainKey) {
+    return { id: -1, name: "", pokemon: pokemonName(mainKey), sprite: mainKey, enabled: true };
+  }
+  return categories.list[0];
+});
+/** 是否配置了主宝可梦（待机气泡换用 idleNamed 文案） */
+const hasMainPokemon = computed(() => settings.sget("main_pokemon") !== "");
 
 // ---- 番茄钟（时长/开关/休息/通知均由设置中心控制） ----
 const pomo = usePomodoro({
   currentId: () => current.value?.id ?? null,
   currentTitle: () => current.value?.title ?? "",
+  // 系统通知正文带上当前分类的宝可梦名（任务相关文案个性化）
+  currentPokemon: () => currentCat.value?.pokemon ?? "",
   onFocusDone: (title, trialDone) => {
     petState.value = "urgent";
     // 「先试 5 分钟」到期：零挫败出口——继续或收工都被肯定
-    bubble.value = trialDone ? t("pet.trialDone") : t("pet.pomoDone", { t: title });
+    bubble.value = trialDone ? t("pet.trialDone") : t("pet.pomoDone", { t: title, p: currentCat.value?.pokemon ?? "" });
   },
   onBreakStart: () => say(t("pet.breakStart"), false),
   onBreakEnd: () => {
@@ -73,7 +86,7 @@ function startTrial() {
 function bubbleText() {
   if (!current.value) {
     petState.value = "idle";
-    bubble.value = t("pet.idle");
+    bubble.value = hasMainPokemon.value ? t("pet.idleNamed", { p: currentCat.value?.pokemon ?? "" }) : t("pet.idle");
     return;
   }
   petState.value = pomo.running.value ? "working" : "paused";
@@ -151,10 +164,10 @@ async function toggleQuick() {
   if (quickOpen.value) {
     await loadQuickList();
     quickSel.value = current.value?.id ?? null;
-    // 一半概率出引导，一半概率出随机撸宠台词
-    say(Math.random() < 0.5 ? t("pet.quickPick") : randomQuote(), false);
+    // 一半概率出引导，一半概率出随机撸宠台词（当前展示的宝可梦有自定义台词则优先）
+    say(Math.random() < 0.5 ? t("pet.quickPick") : randomQuote(currentCat.value?.sprite), false);
   } else {
-    say(randomQuote());
+    say(randomQuote(currentCat.value?.sprite));
   }
   // 展开时把窗口调高，收起恢复（透明窗口，多余高度不可见）
   const { LogicalSize } = await import("@tauri-apps/api/dpi");
@@ -206,7 +219,7 @@ async function onSpriteDblClick() {
 const { onDragStart, onDragMove, onDragEnd } = usePetDrag(petWindow);
 
 // ---- 就近可操作提醒：气泡旁直接给动作，消化「提醒→完成」链路的第二步流失 ----
-const reminderTask = ref<{ id: number; title: string; urgent: boolean } | null>(null);
+const reminderTask = ref<{ id: number; title: string; urgent: boolean; pokemon?: string | null } | null>(null);
 let reminderTimer: ReturnType<typeof setTimeout> | undefined;
 
 /** 就近完成：不打断当前专注（只有提醒的任务本身在进行中才切换气泡状态） */
@@ -219,7 +232,7 @@ async function completeFromReminder() {
     await api.updateTask({ id: r.id, status: "done" });
     await refreshCurrent();
     // 刷新会把气泡重置为当前任务状态，确认文案放在刷新之后
-    say(t("pet.reminderDone", { t: r.title }));
+    say(t("pet.reminderDone", { t: r.title, p: r.pokemon ?? "" }));
   } catch {
     bubbleText();
   }
@@ -249,11 +262,12 @@ onMounted(async () => {
   await refreshCurrent();
 
   unlisteners.push(
-    await listen<{ id: number; title: string; urgent: boolean }>(EVENTS.taskReminder, (e) => {
+    await listen<{ id: number; title: string; urgent: boolean; pokemon?: string | null }>(EVENTS.taskReminder, (e) => {
+      const p = e.payload.pokemon ?? "";
       petState.value = e.payload.urgent ? "urgent" : "working";
       bubble.value = e.payload.urgent
-        ? t("pet.remindUrgent", { t: e.payload.title })
-        : t("pet.remindNormal", { t: e.payload.title });
+        ? t("pet.remindUrgent", { t: e.payload.title, p })
+        : t("pet.remindNormal", { t: e.payload.title, p });
       // 就近可操作：提醒气泡直接带「完成 / 推迟 10 分钟」，不打开主面板也能消化
       reminderTask.value = e.payload;
       clearTimeout(reminderTimer);
@@ -304,16 +318,17 @@ onUnmounted(() => {
           :stroke-dashoffset="RING_C * (1 - ringPct)"
         />
       </svg>
-      <img
+      <PokemonSprite
         class="pet-sprite"
         :class="[petState, { petted, anxious }]"
-        :src="spriteUrl(currentCat?.sprite ?? 'pikachu')"
-        :data-sprite="currentCat?.sprite ?? 'pikachu'"
+        :sprite="currentCat?.sprite ?? 'pikachu'"
         draggable="false"
-        @error="spriteFallback"
       />
     </div>
-    <div v-if="current" class="cat-tag">{{ currentCat?.name }} · {{ currentCat?.pokemon }}</div>
+    <!-- 进行中：分类 · 宝可梦名；空闲配了主宝可梦：只显示宝可梦名 -->
+    <div v-if="current || hasMainPokemon" class="cat-tag">
+      <template v-if="current">{{ currentCat?.name }} · </template>{{ currentCat?.pokemon }}
+    </div>
 
     <!-- 全宽对话框在下 -->
     <div class="dialog" :class="{ alert: petState === 'urgent' }">

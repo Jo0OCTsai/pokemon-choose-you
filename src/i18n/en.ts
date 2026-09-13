@@ -31,6 +31,8 @@ export default {
     goGrass: "To grass",
     goRoute: "To route",
     placeholder: "Which wild Pokemon will you catch? (Enter to add)",
+    /** With a category selected: "wild Pokemon" becomes that category's Pokemon */
+    placeholderNamed: "Which wild {p} will you catch? (Enter to add)",
     nlCancel: "Undo parse",
     nlHint:
       'Natural language supported: type "tomorrow 5pm weekly report #work" to auto-detect time, category and tags, with a cancellable preview',
@@ -192,6 +194,25 @@ export default {
       "The toggle deactivates a category: it disappears from new/edit/AI category options; existing tasks are unaffected and you can re-enable anytime (keep at least one enabled).",
     toggle: "Deactivate / enable",
     newName: "New category",
+    mainTitle: "🐾 Main Pokemon",
+    mainLabel: "Main Pokemon",
+    mainFollow: "Follow the first category",
+    mainHint:
+      "The desk buddy shows the main Pokemon when no task is running; unset = follow the first category's Pokemon.",
+    spriteHint:
+      "The 6 built-in ones ship with sprites; others load from the PokeAPI sprite library on first view (hidden while offline).",
+    quotesTitle: "🎙 Pokemon Quotes",
+    quotesHint:
+      "Write custom lines for the selected Pokemon: one per line, shown at random when you pet the buddy; leave empty for the default pool.",
+    quotesPh: "One per line, e.g.:\nPika pika! Counting on you today!\nTrainer, just 5 minutes?",
+    quotesCount: "{n} lines",
+    quotesSave: "Save quotes",
+  },
+  pk: {
+    searchPh: "Search Pokemon: name / number",
+    empty: "No such Pokemon in the Dex",
+    bundled: "Built-in",
+    footHint: "Catalog from PokeAPI (1025) — search by name, number or English name",
   },
   tags: {
     title: "🏷 Tags",
@@ -450,19 +471,21 @@ export default {
   pet: {
     welcome: "Which Pokémon will you catch today? Click me!",
     idle: "Today's adventure hasn't started—click me to pick a target",
+    /** Idle bubble when a main Pokemon is set (speaks its name) */
+    idleNamed: "{p} is waiting for you! Click me to pick a target",
     working: "{p} is catching: {t}",
     paused: "{p} paused—take a breather~",
-    remindUrgent: "‼ Quick look! '{t}' is urgent!",
+    remindUrgent: "‼ {p} is stomping anxiously: '{t}' is urgent!",
     reminderDo: "Done",
     reminderSnooze: "Snooze 10 min",
-    reminderDone: '✔ Caught "{t}"!',
+    reminderDone: '✔ Caught "{t}"! {p} logged it in the Dex',
     reminderSnoozed: "Okay — I'll knock again in 10 minutes",
-    remindNormal: "🐾 Don't forget: '{t}'",
-    pomoDone: "🍅 Pomodoro done! Caught '{t}' yet?",
+    remindNormal: "🐾 {p} tugs at your sleeve: don't forget '{t}'",
+    pomoDone: "🍅 Pomodoro done! {p} asks: caught '{t}' yet?",
     trialStart: "Just 5 minutes — bailing out is totally fine!",
     trialDone: "🍦 5 minutes logged! Continue with ▶ if it feels right, or stop for today — both win",
     pomoNotifTitle: "🍅 Pomodoro done!",
-    pomoNotifBody: "How far did '{t}' get? Take a break",
+    pomoNotifBody: "How far did '{t}' get? {p} is resting with you~",
     breakStart: "☕ Take a break, the Pokemon keeps time~",
     breakEnd: "Break over! Press ▶ for another round~",
     quickPick: "Pick your next target!",
