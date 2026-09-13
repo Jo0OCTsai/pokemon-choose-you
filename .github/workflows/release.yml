@@ -1,16 +1,46 @@
 name: Release
 
+# 开发版 draft 流：push main（或手动触发）始终构建「当前开发版本」的草稿 Release——
+# 正式发布 = 在 GitHub 上 publish 草稿（publish 时自动创建 v* 标签）；
+# 之后 npm run bump <下一版本> 抬高版本文件，后续构建自然变成下一版的草稿。
+# 版本号唯一来源是 tauri.conf.json 的 version（package.json / Cargo.toml 同步由 npm run bump 维护）。
 on:
   push:
-    tags: ["v*"]
+    branches: [main]
   workflow_dispatch:
 
 permissions:
-  # tauri-action 需要创建 draft release 并上传产物
+  # prepare 删旧草稿、tauri-action 创建 draft release 并上传产物
   contents: write
 
 jobs:
+  prepare:
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.v.outputs.version }}
+      skip: ${{ steps.check.outputs.skip }}
+    steps:
+      - uses: actions/checkout@v7
+      - id: v
+        run: echo "version=$(node -p "require('./src-tauri/tauri.conf.json').version")" >> "$GITHUB_OUTPUT"
+      - id: check
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          VERSION: ${{ steps.v.outputs.version }}
+        run: |
+          if git ls-remote --exit-code --tags origin "v$VERSION" >/dev/null 2>&1; then
+            # tag 存在 = 该版本已正式发布过：跳过构建，提示先抬版本
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+            echo "::notice::v$VERSION 已正式发布（tag 在位）。运行 npm run bump <下一个版本> 后再构建。"
+          else
+            echo "skip=false" >> "$GITHUB_OUTPUT"
+            # 同版本的旧草稿删掉重打，产物不叠加、changelog 不残留
+            gh release delete "v$VERSION" --yes >/dev/null 2>&1 || true
+          fi
+
   build:
+    needs: prepare
+    if: needs.prepare.outputs.skip != 'true'
     strategy:
       fail-fast: false
       matrix:
@@ -48,8 +78,7 @@ jobs:
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         with:
-          # 版本占位符取自 tauri.conf.json 的 version：tag 触发与手动触发都得到 v0.x.y，
-          # 避免手动触发时 github.ref_name（如 "main"）变成 tag 名
+          # 版本占位符取自 tauri.conf.json 的 version：draft 始终跟随当前开发版本
           tagName: v__VERSION__
           releaseName: "就决定是你了 v__VERSION__"
           releaseBody: |

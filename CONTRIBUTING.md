@@ -50,7 +50,7 @@ src-tauri/src/
 
 ## 发布流程
 
-release-please 版本管理、多平台构建与自动更新签名（维护者）见 [开发指南 · 发布](docs/DEVELOPMENT.md#发布)。
+开发版草稿发布流（手动版本号 + 草稿自动构建 + publish 转正）、多平台构建与自动更新签名（维护者）见 [开发指南 · 发布](docs/DEVELOPMENT.md#发布)。
 
 ## 平台注意事项
 
