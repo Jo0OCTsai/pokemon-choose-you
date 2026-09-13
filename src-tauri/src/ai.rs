@@ -732,7 +732,7 @@ async fn test_tools(agent: &AgentConfig) -> AppResult<String> {
     } else {
         // 带上 agent 的实际回复片段：被工具白名单拦下 / pk 不在 PATH / 模型自说自话，一眼可辨
         Err(AppError::External(format!(
-            "Agent 调用成功但未返回 pk context 输出——请确认 agent 无头模式允许执行 pk 命令（工具白名单，如 claude 附加参数 --allowedTools \"Bash(pk:*)\"），以及 pk 在 PATH 中。agent 回复片段：{}",
+            "Agent 调用成功但未返回 pk context 输出——请确认 agent 无头模式允许执行 pk 命令（工具白名单，如 claude 附加参数 --allowedTools Bash(pk:*)，注意参数按空白切分、不要加引号），以及 pk 在 PATH 中。agent 回复片段：{}",
             trunc(content.trim(), 200)
         )))
     }
