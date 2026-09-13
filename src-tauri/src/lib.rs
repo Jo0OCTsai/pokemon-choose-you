@@ -7,6 +7,7 @@ pub mod error;
 mod events;
 mod feishu;
 mod health;
+mod lark_cli;
 pub mod models;
 mod scheduler;
 mod secrets;
