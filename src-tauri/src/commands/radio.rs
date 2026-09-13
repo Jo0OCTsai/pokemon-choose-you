@@ -305,6 +305,157 @@ pub(crate) fn attach_followup(
     Ok(())
 }
 
+/// 把一条 AI 判定落到 chat_messages：todo/update 写建议列等用户确认，
+/// followUp 直接挂跟进记录（复用 attach_followup），其余按 none 记状态。
+/// 后台轮询（feishu）、强制捕捉与 `pk suggest` 共用的单一落库实现；
+/// 调用方负责前置校验（消息存在、枚举合法、目标待办存在）。
+/// 同一消息重复提交 todo/update/none 为覆盖写（幂等）；followUp 二次提交
+/// 会因 review_status 已是 accepted 而被 pk 侧校验拒绝。
+pub fn apply_suggestion_conn(
+    conn: &Connection,
+    s: &ai::AiSuggestion,
+    agent_id: &str,
+) -> AppResult<()> {
+    if s.is_todo() {
+        conn.execute(
+            "UPDATE chat_messages SET suggested_title=?2, suggested_category=?3, suggested_due=?4,
+                    suggested_priority=?5, suggested_note=?6, suggested_tags=?7,
+                    suggested_reason=?8, suggested_confidence=?9, ai_agent=?10, ai_status='todo'
+             WHERE message_id=?1",
+            params![
+                s.message_id,
+                s.title,
+                s.category,
+                s.due,
+                s.priority,
+                s.note,
+                serde_json::to_string(&s.tags).unwrap_or_else(|_| "[]".into()),
+                s.reason,
+                s.confidence,
+                agent_id,
+            ],
+        )?;
+    } else if s.is_update() {
+        conn.execute(
+            "UPDATE chat_messages SET suggested_title=?2, suggested_category=?3, suggested_due=?4,
+                    suggested_priority=?5, suggested_note=?6, suggested_tags=?7, update_task_id=?8,
+                    suggested_reason=?9, suggested_confidence=?10, ai_agent=?11, ai_status='update'
+             WHERE message_id=?1",
+            params![
+                s.message_id,
+                s.title,
+                s.category,
+                s.due,
+                s.priority,
+                s.note,
+                serde_json::to_string(&s.tags).unwrap_or_else(|_| "[]".into()),
+                s.update_task_id,
+                s.reason,
+                s.confidence,
+                agent_id,
+            ],
+        )?;
+    } else if s.is_follow_up() {
+        // 幂等：tools 模式下 pk 已落库，应用侧回读后重放建议时不重复挂跟进
+        let applied: Option<String> = conn
+            .query_row(
+                "SELECT ai_status FROM chat_messages WHERE message_id=?1 AND review_status='accepted'",
+                params![s.message_id],
+                |r| r.get(0),
+            )
+            .ok();
+        if applied.as_deref() == Some("followup") {
+            return Ok(());
+        }
+        // 跟进记录的正文就是消息原文（保留「谁说的、什么时候确认的」）
+        let content: String = conn
+            .query_row(
+                "SELECT content FROM chat_messages WHERE message_id=?1",
+                params![s.message_id],
+                |r| r.get(0),
+            )
+            .map_err(|_| AppError::NotFound(format!("消息 {} 不存在", s.message_id)))?;
+        attach_followup(
+            conn,
+            &s.message_id,
+            s.follow_up_task_id.unwrap_or(0),
+            &content,
+        )?;
+        conn.execute(
+            "UPDATE chat_messages SET suggested_reason=?2, suggested_confidence=?3, ai_agent=?4
+             WHERE message_id=?1",
+            params![s.message_id, s.reason, s.confidence, agent_id],
+        )?;
+    } else {
+        conn.execute(
+            "UPDATE chat_messages SET suggested_reason=?2, suggested_confidence=?3, ai_agent=?4,
+                    ai_status='none'
+             WHERE message_id=?1",
+            params![s.message_id, s.reason, s.confidence, agent_id],
+        )?;
+    }
+    Ok(())
+}
+
+/// tools 模式的回读：agent 经 `pk suggest` 把判定落库后，应用侧从 chat_messages
+/// 读回该批消息的判定结果（替代解析 agent 文本输出）。
+/// 仍为 pending（agent 遗漏未处理）或其他未落库状态的消息，action 标为 "pending"，
+/// 由调用方决定兜底策略（feishu 循环会按 none 落库；全批遗漏则整次判失败）。
+pub fn load_suggestions_conn(
+    conn: &Connection,
+    message_ids: &[String],
+) -> AppResult<Vec<ai::AiSuggestion>> {
+    let mut out = Vec::with_capacity(message_ids.len());
+    for id in message_ids {
+        let hit = conn.query_row(
+            "SELECT ai_status, suggested_title, suggested_category, suggested_due,
+                    suggested_priority, suggested_note, suggested_tags, suggested_reason,
+                    suggested_confidence, update_task_id, followup_task_id
+             FROM chat_messages WHERE message_id=?1",
+            params![id],
+            |r| {
+                let status: String = r.get(0)?;
+                let tags: String = r.get(6)?;
+                Ok(ai::AiSuggestion {
+                    message_id: id.clone(),
+                    action: match status.as_str() {
+                        "todo" => "todo",
+                        "update" => "update",
+                        "followup" => "followUp",
+                        other => {
+                            log::warn!("radio: 消息 {id} 分类后状态仍为「{other}」");
+                            "pending"
+                        }
+                    }
+                    .to_string(),
+                    title: r.get(1)?,
+                    category: r.get(2)?,
+                    due: r.get(3)?,
+                    priority: r.get(4)?,
+                    note: r.get(5)?,
+                    tags: serde_json::from_str(&tags).unwrap_or_default(),
+                    reason: r.get(7)?,
+                    confidence: r.get(8)?,
+                    follow_up_task_id: r.get(10)?,
+                    update_task_id: r.get(9)?,
+                })
+            },
+        );
+        match hit {
+            Ok(s) => out.push(s),
+            Err(rusqlite::Error::QueryReturnedNoRows) => {
+                log::warn!("radio: 回读消息 {id} 不存在，按 none 兜底");
+                out.push(ai::AiSuggestion {
+                    message_id: id.clone(),
+                    ..Default::default()
+                });
+            }
+            Err(e) => return Err(AppError::Db(e)),
+        }
+    }
+    Ok(out)
+}
+
 /// 由消息上的更新建议构建待办补丁（只含 AI **明确给出**的字段，留空一律不动）。
 /// apply_chat_message_update 与批量分诊共用。
 fn update_patch_from_message(conn: &Connection, msg: &ChatMessage) -> AppResult<(i64, TaskPatch)> {
@@ -715,6 +866,7 @@ pub async fn force_create_todo<R: tauri::Runtime>(
             context,
         }],
         &ctx,
+        &db,
     )
     .await;
 
@@ -753,7 +905,7 @@ pub async fn force_create_todo<R: tauri::Runtime>(
                     )
                     .ok();
                 if title.is_some() {
-                    attach_followup(&conn, &msg.message_id, task_id, &msg.content)?;
+                    apply_suggestion_conn(&conn, s, &agent.id)?;
                 }
                 title
             };
@@ -788,25 +940,7 @@ pub async fn force_create_todo<R: tauri::Runtime>(
                     "AI 认为是待办 {task_id} 的变更，但该待办已不存在"
                 )));
             }
-            conn.execute(
-                "UPDATE chat_messages SET suggested_title=?2, suggested_category=?3, suggested_due=?4,
-                        suggested_priority=?5, suggested_note=?6, suggested_tags=?7, update_task_id=?8,
-                        suggested_reason=?9, suggested_confidence=?10, ai_agent=?11, ai_status='update'
-                 WHERE id=?1",
-                params![
-                    id,
-                    s.title,
-                    s.category,
-                    s.due,
-                    s.priority,
-                    s.note,
-                    serde_json::to_string(&s.tags).unwrap_or_else(|_| "[]".into()),
-                    task_id,
-                    s.reason,
-                    s.confidence,
-                    agent.id,
-                ],
-            )?;
+            apply_suggestion_conn(&conn, s, &agent.id)?;
             drop(conn);
             events::broadcast(&app, events::CHAT_MESSAGES_CHANGED);
             let title = title.unwrap_or_default();
@@ -821,24 +955,7 @@ pub async fn force_create_todo<R: tauri::Runtime>(
         let conn = db.0.lock().unwrap();
         let mut msg = get_message(&conn, id)?;
         if let Some(s) = &sugg {
-            conn.execute(
-                "UPDATE chat_messages SET suggested_title=?2, suggested_category=?3, suggested_due=?4,
-                        suggested_priority=?5, suggested_note=?6, suggested_tags=?7,
-                        suggested_reason=?8, suggested_confidence=?9, ai_agent=?10, ai_status='todo'
-                 WHERE id=?1",
-                params![
-                    id,
-                    s.title,
-                    s.category,
-                    s.due,
-                    s.priority,
-                    s.note,
-                    serde_json::to_string(&s.tags).unwrap_or_else(|_| "[]".into()),
-                    s.reason,
-                    s.confidence,
-                    agent.id,
-                ],
-            )?;
+            apply_suggestion_conn(&conn, s, &agent.id)?;
             msg = get_message(&conn, id)?;
         }
         let task_id = create_task_from_message(&conn, &msg)?;
@@ -1728,5 +1845,99 @@ mod tests {
                 .unwrap_err()
         };
         assert!(err.to_string().contains("未知操作"), "{err}");
+    }
+
+    /// tools 模式回读：已落库的判定还原成 AiSuggestion（含 update/followup 的目标 id），
+    /// agent 遗漏（仍 pending）标 action=pending，不存在的消息兜底 none
+    #[test]
+    fn load_suggestions_maps_status_and_flags_missed() {
+        let conn = crate::db::tests::test_conn();
+        conn.execute(
+            "INSERT INTO chat_messages (message_id, content, suggested_title, suggested_priority, ai_status, created_at)
+             VALUES ('om_a', '内容', '交周报', 'high', 'todo', 'x')",
+            [],
+        )
+        .unwrap();
+        conn.execute(
+            "INSERT INTO chat_messages (message_id, content, suggested_title, update_task_id, ai_status, created_at)
+             VALUES ('om_b', '改期', '周会', 7, 'update', 'x')",
+            [],
+        )
+        .unwrap();
+        conn.execute(
+            "INSERT INTO chat_messages (message_id, content, followup_task_id, ai_status, review_status, created_at)
+             VALUES ('om_c', '进展', 9, 'followup', 'accepted', 'x')",
+            [],
+        )
+        .unwrap();
+        conn.execute(
+            "INSERT INTO chat_messages (message_id, content, created_at) VALUES ('om_d', '遗漏', 'x')",
+            [],
+        )
+        .unwrap();
+
+        let out = load_suggestions_conn(
+            &conn,
+            &[
+                "om_a".into(),
+                "om_b".into(),
+                "om_c".into(),
+                "om_d".into(),
+                "om_none".into(),
+            ],
+        )
+        .unwrap();
+        assert!(out[0].is_todo());
+        assert_eq!(out[0].title.as_deref(), Some("交周报"));
+        assert_eq!(out[0].priority.as_deref(), Some("high"));
+        assert!(out[1].is_update());
+        assert_eq!(out[1].update_task_id, Some(7));
+        assert!(out[2].is_follow_up());
+        assert_eq!(out[2].follow_up_task_id, Some(9));
+        assert_eq!(
+            out[3].action, "pending",
+            "agent 遗漏的消息标 pending 待上层兜底"
+        );
+        assert_eq!(out[4].action, "", "不存在的消息兜底 none 语义");
+    }
+
+    /// apply 的 follow-up 幂等：已应用过（followup + accepted）再重放不重复挂跟进
+    #[test]
+    fn apply_follow_up_is_idempotent_on_replay() {
+        let conn = crate::db::tests::test_conn();
+        conn.execute(
+            "INSERT INTO tasks (title, category_id, status, priority, created_at) VALUES ('目标', 1, 'inbox', 'normal', 'x')",
+            [],
+        )
+        .unwrap();
+        conn.execute(
+            "INSERT INTO chat_messages (message_id, content, created_at) VALUES ('om_f', '周五交付确认了', 'x')",
+            [],
+        )
+        .unwrap();
+        let s = ai::AiSuggestion {
+            message_id: "om_f".into(),
+            action: "followUp".into(),
+            follow_up_task_id: Some(1),
+            reason: Some("进展".into()),
+            ..Default::default()
+        };
+        apply_suggestion_conn(&conn, &s, "ag1").unwrap();
+        // tools 模式回读后的重放：不应再插一条跟进
+        apply_suggestion_conn(&conn, &s, "ag1").unwrap();
+        let n: i64 = conn
+            .query_row("SELECT COUNT(*) FROM task_notes WHERE task_id=1", [], |r| {
+                r.get(0)
+            })
+            .unwrap();
+        assert_eq!(n, 1, "重放不重复挂跟进");
+        let status: String = conn
+            .query_row(
+                "SELECT ai_status FROM chat_messages WHERE message_id='om_f'",
+                [],
+                |r| r.get(0),
+            )
+            .unwrap();
+        assert_eq!(status, "followup");
     }
 }

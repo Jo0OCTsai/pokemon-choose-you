@@ -7,7 +7,22 @@
 
 /// 随包分发的 agent 技能模板（教 agent 用 pk 管待办）
 const SKILL_MD: &str = include_str!("../../skills/pokemon-knock.md");
+/// 技能引用文件（渐进披露）：主文件保持精简，参数细节与批处理协议按需再读
+const SKILL_REFS: &[(&str, &str)] = &[
+    (
+        "references/commands.md",
+        include_str!("../../skills/references/commands.md"),
+    ),
+    (
+        "references/suggest-workflow.md",
+        include_str!("../../skills/references/suggest-workflow.md"),
+    ),
+];
+/// 当前技能版本（与 SKILL.md frontmatter 的 version 保持一致，用于安装时的版本对比）
+const SKILL_VERSION: &str = "2";
 
+use pokemon_knock_lib::ai::AiSuggestion;
+use pokemon_knock_lib::commands::radio::apply_suggestion_conn;
 use pokemon_knock_lib::commands::sessions::{
     list_agent_sessions_conn, log_session_conn, NewAgentSession,
 };
@@ -41,9 +56,17 @@ const HELP: &str = r#"pk — 宝可梦来敲门命令行（供 AI agent 与终�
                 [--status ok|error] [--duration-ms <n>] [--cost <美元>] [--in-tokens <n>] [--out-tokens <n>]
                                       记录一次 agent 会话（成本/时长/退出码，可关联任务）
   session list [--task <id>]         会话列表（--task 查该任务的时间线）
+  suggest todo|update|follow-up|none --message <消息id> [--task <待办id>] [--title <t>] [--note <n>]
+                [--category <分类名>] [--priority low|normal|high|urgent] [--due <YYYY-MM-DDTHH:MM>]
+                [--tags <a,b>] [--reason <一句话>] [--confidence high|medium|low] [--agent <agent-id>]
+                                      提交一条 AI 判定建议（todo/update 写建议列待用户确认；follow-up 直接挂跟进）
+  suggest batch [--agent <agent-id>]
+                                      批量提交建议：stdin 传 {"results":[...]}（与应用文本协议同构），整批校验失败则全部不落库
   skill install <claude-code|opencode> [--dir <目录>]
                                       一键安装 pk 使用技能到 agent 的技能目录（对标 td skill install）
   skill show                         打印技能内容（Markdown 原文，可重定向给任意 agent）
+  remote shim --host <本机地址> [--port <n>] [--key <私钥>] [--write <路径>]
+                                      生成远程主机上的 pk 透传脚本（agent 在远程、数据在本机时，命令经 ssh 回本机执行）
   category list                      分类列表
   tag list                           标签列表
   context                            AI 处理上下文（当前时间/未完成待办/分类/标签）
@@ -58,6 +81,8 @@ const HELP: &str = r#"pk — 宝可梦来敲门命令行（供 AI agent 与终�
   pk note add 3 对方确认周五交付 --source ai
   pk session log --task 3 --agent claude-code --session abc123 --cost 0.12 --duration-ms 61000
   pk session list --task 3
+  pk suggest todo --message om_1 --title 交周报 --due 2026-09-13T18:00 --reason 对方明确要求
+  echo '{"results":[{"messageId":"om_1","action":"todo","title":"交周报"}]}' | pk suggest batch --agent claude-code
   pk skill install claude-code
 
 输出: JSON（stdout）。错误: {"error": "..."}（stderr），退出码 1（业务）/ 2（用法）。
@@ -82,6 +107,20 @@ fn main() {
     }
 
     let init_db = args.first().map(String::as_str) == Some("init-db");
+    // remote 只生成脚本不碰库，抢在 open_db 之前处理（避免无库时顺手建出空库文件）
+    if args.first().map(String::as_str) == Some("remote") {
+        match run_remote(&args[1..]) {
+            Ok(v) => {
+                println!(
+                    "{}",
+                    serde_json::to_string_pretty(&v)
+                        .unwrap_or_else(|e| format!("{{\"error\": \"{e}\"}}"))
+                );
+                return;
+            }
+            Err(e) => fail(&e.0, e.1),
+        }
+    }
     let mut conn = match open_db(init_db) {
         Ok(c) => c,
         Err(e) => fail(&e, 1),
@@ -95,6 +134,7 @@ fn main() {
     }
 }
 
+#[derive(Debug)]
 struct CliError(String, i32);
 
 impl From<String> for CliError {
@@ -297,6 +337,7 @@ fn run(conn: &mut Connection, args: &[String]) -> Result<serde_json::Value, CliE
             Ok(json!({ "tags": tags::list_tags_conn(conn).map_err(db_err)? }))
         }
         "session" => run_session(conn, rest),
+        "suggest" => run_suggest(conn, rest),
         "skill" => run_skill(rest),
         "context" => run_context(conn),
         "init-db" => {
@@ -537,7 +578,8 @@ fn skill_dir_for(agent: &str, dir_flag: Option<&str>) -> Result<std::path::PathB
     }
 }
 
-/// 安装/展示 agent 技能。skill show 直接打印 Markdown 原文（不走 JSON，方便重定向）
+/// 安装/展示 agent 技能。install 写入主文件 + references/ 引用文件；
+/// show 拼接全部内容直接打印（不走 JSON，重定向给任意 agent 即完整技能）
 fn run_skill(rest: &[String]) -> Result<serde_json::Value, CliError> {
     let sub = rest.first().map(String::as_str).unwrap_or("");
     let p = parse_args(&rest[1.min(rest.len())..]);
@@ -545,26 +587,61 @@ fn run_skill(rest: &[String]) -> Result<serde_json::Value, CliError> {
     match sub {
         "show" => {
             print!("{SKILL_MD}");
+            for (rel, content) in SKILL_REFS {
+                print!("\n\n---\n\n# 附：{rel}\n\n{content}");
+            }
             std::process::exit(0);
         }
         "install" => {
             let agent = p.positional(0, "agent 名（claude-code / opencode）")?;
             let dir = skill_dir_for(&agent, dir_flag.as_deref())?;
-            std::fs::create_dir_all(&dir)
-                .map_err(|e| CliError(format!("创建技能目录失败: {e}"), 1))?;
-            let path = dir.join("SKILL.md");
-            let existed = path.exists();
-            std::fs::write(&path, SKILL_MD)
-                .map_err(|e| CliError(format!("写入技能失败: {e}"), 1))?;
+            // 已装版本检测：同版本重装幂等，跨版本才提示更新（防旧技能残留误导 agent）
+            let previous = std::fs::read_to_string(dir.join("SKILL.md"))
+                .ok()
+                .and_then(|md| frontmatter_version(&md));
+            for (rel, content) in
+                std::iter::once(("SKILL.md", SKILL_MD)).chain(SKILL_REFS.iter().copied())
+            {
+                let path = dir.join(rel);
+                if let Some(parent) = path.parent() {
+                    std::fs::create_dir_all(parent)
+                        .map_err(|e| CliError(format!("创建技能目录失败: {e}"), 1))?;
+                }
+                std::fs::write(&path, content)
+                    .map_err(|e| CliError(format!("写入 {rel} 失败: {e}"), 1))?;
+            }
             Ok(json!({
                 "installed": true,
-                "updated": existed,
+                "version": SKILL_VERSION,
+                "previousVersion": previous,
+                "updated": previous.as_deref().is_some_and(|v| v != SKILL_VERSION),
                 "agent": agent,
-                "path": path.to_string_lossy(),
+                "path": dir.join("SKILL.md").to_string_lossy(),
             }))
         }
         _ => Err(usage_err("skill 子命令支持 install / show，用法见 pk help")),
     }
+}
+
+/// 读 SKILL.md frontmatter 的 version 行（无 frontmatter 或无该行则 None）
+fn frontmatter_version(md: &str) -> Option<String> {
+    let mut in_fm = false;
+    for line in md.lines() {
+        let t = line.trim();
+        if t == "---" {
+            if in_fm {
+                break;
+            }
+            in_fm = true;
+            continue;
+        }
+        if in_fm {
+            if let Some(v) = t.strip_prefix("version:") {
+                return Some(v.trim().trim_matches('"').to_string());
+            }
+        }
+    }
+    None
 }
 
 fn run_session(conn: &Connection, rest: &[String]) -> Result<serde_json::Value, CliError> {
@@ -626,6 +703,307 @@ fn run_session(conn: &Connection, rest: &[String]) -> Result<serde_json::Value, 
             Ok(json!({ "sessions": list }))
         }
         _ => Err(usage_err("session 子命令支持 log / list，用法见 pk help")),
+    }
+}
+
+const VALID_CONFIDENCE: &[&str] = &["high", "medium", "low"];
+
+/// 提交 AI 判定建议：单条命令供 agent 交互场景与人工调试，
+/// batch 供无头分类流程一次提交整批（stdin JSON 与应用文本协议同构）。
+/// todo/update 写建议列待用户确认，follow-up 直接挂跟进，none 只记状态；
+/// 重复提交同一消息为覆盖写（幂等），已人工确认过的消息拒绝再提交。
+fn run_suggest(conn: &mut Connection, rest: &[String]) -> Result<serde_json::Value, CliError> {
+    let sub = rest.first().map(String::as_str).ok_or_else(|| {
+        usage_err("缺少 suggest 子命令（todo / update / follow-up / none / batch）")
+    })?;
+    let rest = &rest[1..];
+    match sub {
+        "batch" => {
+            let p = parse_args(rest);
+            let agent = p.flag("agent").map(str::to_string);
+            run_suggest_batch(conn, agent.as_deref())
+        }
+        "todo" | "update" | "none" => run_suggest_single(conn, sub, rest),
+        "follow-up" | "followup" => run_suggest_single(conn, "followUp", rest),
+        _ => Err(usage_err(&format!(
+            "未知 suggest 子命令「{sub}」，用法见 pk help"
+        ))),
+    }
+}
+
+fn run_suggest_single(
+    conn: &Connection,
+    action: &str,
+    rest: &[String],
+) -> Result<serde_json::Value, CliError> {
+    let p = parse_args(rest);
+    let message = p
+        .flag("message")
+        .filter(|m| !m.is_empty())
+        .ok_or_else(|| usage_err("suggest 需要 --message <消息id>（待判定消息列表里的 id）"))?;
+    let task_id = match p.flag("task") {
+        Some(t) if !t.is_empty() => Some(
+            t.parse::<i64>()
+                .map_err(|_| usage_err("--task 必须是待办 id 数字"))?,
+        ),
+        _ => None,
+    };
+    let non_empty = |k: &str| p.flag(k).filter(|v| !v.is_empty()).map(String::from);
+    let tags = match p.flag("tags") {
+        Some(t) if !t.is_empty() => t
+            .split([',', '，'])
+            .map(str::trim)
+            .filter(|s| !s.is_empty())
+            .map(String::from)
+            .collect(),
+        _ => vec![],
+    };
+    let s = AiSuggestion {
+        message_id: message.to_string(),
+        action: action.to_string(),
+        title: non_empty("title"),
+        note: non_empty("note"),
+        category: non_empty("category"),
+        priority: non_empty("priority"),
+        due: non_empty("due"),
+        tags,
+        follow_up_task_id: (action == "followUp").then_some(task_id).flatten(),
+        update_task_id: (action == "update").then_some(task_id).flatten(),
+        reason: non_empty("reason"),
+        confidence: non_empty("confidence"),
+    };
+    let agent = p.flag("agent").filter(|a| !a.is_empty()).unwrap_or("cli");
+    validate_suggestion(conn, &s, 1)?;
+    apply_suggestion(conn, &s, agent)?;
+    Ok(json!({ "applied": s.action, "message": s.message_id, "agent": agent }))
+}
+
+fn run_suggest_batch(
+    conn: &mut Connection,
+    agent_flag: Option<&str>,
+) -> Result<serde_json::Value, CliError> {
+    let mut body = String::new();
+    std::io::Read::read_to_string(&mut std::io::stdin(), &mut body)
+        .map_err(|e| CliError(format!("读取标准输入失败: {e}"), 1))?;
+    if body.trim().is_empty() {
+        return Err(usage_err(
+            "batch 需要从标准输入传入 JSON，如：pk suggest batch < suggestions.json",
+        ));
+    }
+    suggest_batch_from_str(conn, &body, agent_flag)
+}
+
+/// batch 的解析与落库（与 stdin 读取分离，便于测试）：整批先校验再单事务落库，一损俱损
+fn suggest_batch_from_str(
+    conn: &mut Connection,
+    body: &str,
+    agent_flag: Option<&str>,
+) -> Result<serde_json::Value, CliError> {
+    let list = parse_batch(body)?;
+    if list.is_empty() {
+        return Err(usage_err("results 为空，无可提交的建议"));
+    }
+    for (i, s) in list.iter().enumerate() {
+        validate_suggestion(conn, s, i + 1)?;
+    }
+    let agent = agent_flag.filter(|a| !a.is_empty()).unwrap_or("cli");
+    let n_todo = list.iter().filter(|s| s.is_todo()).count();
+    let n_update = list.iter().filter(|s| s.is_update()).count();
+    let n_follow = list.iter().filter(|s| s.is_follow_up()).count();
+    let tx = conn.transaction().map_err(sq_err)?;
+    for s in &list {
+        apply_suggestion(&tx, s, agent)?;
+    }
+    tx.commit().map_err(sq_err)?;
+    Ok(json!({
+        "submitted": list.len(),
+        "todo": n_todo,
+        "update": n_update,
+        "followUp": n_follow,
+        "none": list.len() - n_todo - n_update - n_follow,
+        "agent": agent,
+    }))
+}
+
+/// batch 输入：{"results":[...]} 或顶层数组（与应用文本协议同构的 AiSuggestion 列表）
+fn parse_batch(body: &str) -> Result<Vec<AiSuggestion>, CliError> {
+    let v: serde_json::Value = serde_json::from_str(body.trim())
+        .map_err(|e| CliError(format!("batch 输入不是合法 JSON: {e}"), 2))?;
+    let arr = v
+        .get("results")
+        .and_then(|r| r.as_array())
+        .cloned()
+        .or_else(|| v.as_array().cloned())
+        .ok_or_else(|| CliError("batch 输入应为 {\"results\":[...]} 或顶层数组".into(), 2))?;
+    let list: Vec<AiSuggestion> = serde_json::from_value(serde_json::Value::Array(arr))
+        .map_err(|e| CliError(format!("建议条目解析失败: {e}"), 2))?;
+    // 同批重复 messageId 会在 follow-up 场景重复挂跟进，提前拒绝
+    let mut seen = std::collections::HashSet::new();
+    for (i, s) in list.iter().enumerate() {
+        if !seen.insert(s.message_id.clone()) {
+            return Err(CliError(
+                format!(
+                    "第 {} 条与前面的条目 messageId 重复（{}）",
+                    i + 1,
+                    s.message_id
+                ),
+                2,
+            ));
+        }
+    }
+    Ok(list)
+}
+
+/// 落库（AppError → CliError 业务错误）
+fn apply_suggestion(conn: &Connection, s: &AiSuggestion, agent: &str) -> Result<(), CliError> {
+    apply_suggestion_conn(conn, s, agent).map_err(|e| CliError(e.to_string(), 1))
+}
+
+/// 提交前统一校验：消息存在且未被人工确认、action/枚举合法、分类/标签存在、目标待办存在。
+/// 错误信息带序号与 messageId，agent 可据此自纠重试。
+fn validate_suggestion(conn: &Connection, s: &AiSuggestion, idx: usize) -> Result<(), CliError> {
+    let at = format!("第 {idx} 条（messageId={}）", s.message_id);
+    let review: Option<String> = conn
+        .query_row(
+            "SELECT review_status FROM chat_messages WHERE message_id=?1",
+            params![s.message_id],
+            |r| r.get(0),
+        )
+        .ok();
+    let Some(review) = review else {
+        return Err(CliError(
+            format!("{at}:消息不存在（id 须来自待判定消息列表）"),
+            1,
+        ));
+    };
+    if review != "pending" {
+        return Err(CliError(
+            format!("{at}:消息已人工确认过（review_status={review}），不能重复提交建议"),
+            1,
+        ));
+    }
+    match s.action.as_str() {
+        "todo" => {
+            if s.title
+                .as_deref()
+                .map(str::trim)
+                .filter(|t| !t.is_empty())
+                .is_none()
+            {
+                return Err(CliError(format!("{at}:action=todo 需要 title"), 2));
+            }
+        }
+        "update" => {
+            let Some(id) = s.update_task_id else {
+                return Err(CliError(format!("{at}:action=update 需要 updateTaskId"), 2));
+            };
+            ensure_task(conn, id, &at)?;
+        }
+        "followUp" => {
+            let Some(id) = s.follow_up_task_id else {
+                return Err(CliError(
+                    format!("{at}:action=followUp 需要 followUpTaskId"),
+                    2,
+                ));
+            };
+            ensure_task(conn, id, &at)?;
+        }
+        "none" | "" => {}
+        other => {
+            return Err(CliError(
+                format!("{at}:action「{other}」无效，可选 todo/update/followUp/none"),
+                2,
+            ))
+        }
+    }
+    if let Some(p) = s.priority.as_deref().filter(|p| !p.is_empty()) {
+        validate_choice(p, VALID_PRIORITY, "优先级")?;
+    }
+    if let Some(c) = s.confidence.as_deref().filter(|c| !c.is_empty()) {
+        validate_choice(c, VALID_CONFIDENCE, "confidence")?;
+    }
+    if let Some(cat) = s.category.as_deref().filter(|c| !c.is_empty()) {
+        resolve_category(conn, cat)?;
+    }
+    if !s.tags.is_empty() {
+        resolve_tag_ids(conn, &s.tags.join(","))?;
+    }
+    Ok(())
+}
+
+fn ensure_task(conn: &Connection, id: i64, at: &str) -> Result<(), CliError> {
+    let hit: Option<i64> = conn
+        .query_row("SELECT id FROM tasks WHERE id=?1", params![id], |r| {
+            r.get(0)
+        })
+        .ok();
+    if hit.is_some() {
+        Ok(())
+    } else {
+        Err(CliError(
+            format!("{at}:待办 No.{id} 不存在（id 须来自 pk context 的 openTasks）"),
+            1,
+        ))
+    }
+}
+
+/// remote 子命令：生成远程主机上的 pk 透传 shim。
+/// 场景：agent CLI 跑在远程机器、待办库在本机——远程放一个同名 `pk` 包装脚本，
+/// 命令经 ssh 转发回本机执行（应用侧的 SSH 远程 agent 场景）。
+/// 默认把脚本打到 stdout（可重定向），--write 直接落盘并输出 JSON 确认。
+fn run_remote(rest: &[String]) -> Result<serde_json::Value, CliError> {
+    let sub = rest
+        .first()
+        .map(String::as_str)
+        .ok_or_else(|| usage_err("缺少 remote 子命令（目前支持 shim）"))?;
+    if sub != "shim" {
+        return Err(usage_err("remote 子命令目前只支持 shim"));
+    }
+    let p = parse_args(&rest[1..]);
+    let host = p
+        .flag("host")
+        .filter(|h| !h.is_empty())
+        .ok_or_else(|| {
+            usage_err("remote shim 需要 --host <本机地址>（远程机器可达的地址，如 user@192.168.1.10 或 Tailscale 主机名）")
+        })?;
+    let port = match p.flag("port") {
+        Some(v) if !v.is_empty() => Some(
+            v.parse::<u16>()
+                .map_err(|_| usage_err("--port 必须是端口号数字"))?,
+        ),
+        _ => None,
+    };
+    let key = p.flag("key").filter(|k| !k.is_empty());
+    let mut fwd = String::from("ssh -o BatchMode=yes -o ConnectTimeout=10");
+    if let Some(k) = key {
+        fwd.push_str(&format!(" -i {k}"));
+    }
+    if let Some(pn) = port {
+        fwd.push_str(&format!(" -p {pn}"));
+    }
+    fwd.push_str(&format!(" {host} pk \"$@\""));
+    let script = format!(
+        "#!/bin/sh\n# pk 远程透传 shim（pokemon-knock）：把 pk 命令经 ssh 转发回本机执行，数据始终留在本机。\n# 部署：放到远程主机的 PATH 里并 chmod +x，如 ~/bin/pk；本机需开 sshd 并配好免密登录。\nexec {fwd}\n"
+    );
+    match p.flag("write").filter(|w| !w.is_empty()) {
+        Some(path) => {
+            std::fs::write(path, &script)
+                .map_err(|e| CliError(format!("写入 shim 失败: {e}"), 1))?;
+            #[cfg(unix)]
+            {
+                use std::os::unix::fs::PermissionsExt;
+                let _ = std::fs::set_permissions(path, std::fs::Permissions::from_mode(0o755));
+            }
+            Ok(json!({
+                "written": path,
+                "host": host,
+                "executable": cfg!(unix),
+            }))
+        }
+        None => {
+            print!("{script}");
+            std::process::exit(0);
+        }
     }
 }
 
@@ -918,11 +1296,21 @@ mod tests {
         );
         assert_eq!(out["installed"], true);
         assert_eq!(out["updated"], false, "首次安装");
+        assert_eq!(out["version"], "2");
         let md = std::fs::read_to_string(dir.join("SKILL.md")).unwrap();
         assert!(md.contains("pk task create"), "技能内容含命令速查");
         assert!(md.contains("name: pokemon-knock"), "带 frontmatter");
+        assert!(md.contains("pk suggest"), "含建议提交通道");
+        assert!(
+            dir.join("references").join("commands.md").exists(),
+            "引用文件一并安装"
+        );
+        assert!(
+            dir.join("references").join("suggest-workflow.md").exists(),
+            "批处理工作流一并安装"
+        );
 
-        // 重复安装标记为更新
+        // 同版本重装幂等
         let out = run_ok(
             &mut conn,
             &[
@@ -933,7 +1321,26 @@ mod tests {
                 &dir.to_string_lossy(),
             ],
         );
-        assert_eq!(out["updated"], true);
+        assert_eq!(out["updated"], false, "同版本重装幂等");
+
+        // 旧版本在位 → 提示更新
+        std::fs::write(
+            dir.join("SKILL.md"),
+            "---\nname: pokemon-knock\nversion: \"1\"\n---\n旧内容",
+        )
+        .unwrap();
+        let out = run_ok(
+            &mut conn,
+            &[
+                "skill",
+                "install",
+                "claude-code",
+                "--dir",
+                &dir.to_string_lossy(),
+            ],
+        );
+        assert_eq!(out["updated"], true, "跨版本提示更新");
+        assert_eq!(out["previousVersion"], "1");
 
         // 未知 agent 给出 --dir 出路
         let err = run_err(&mut conn, &["skill", "install", "kiro"]);
@@ -1010,6 +1417,43 @@ mod tests {
     }
 
     #[test]
+    fn remote_shim_writes_forwarding_script() {
+        let args = |v: &[&str]| -> Vec<String> { v.iter().map(|s| s.to_string()).collect() };
+        // 缺 --host 是用法错误
+        let err = run_remote(&args(&["shim"])).unwrap_err();
+        assert_eq!(err.1, 2);
+        assert!(err.0.contains("--host"), "{}", err.0);
+
+        let dir = std::env::temp_dir().join(format!("pk-shim-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        let out = run_remote(&args(&[
+            "shim",
+            "--host",
+            "dev@box",
+            "--port",
+            "2222",
+            "--key",
+            "~/.ssh/id_ed",
+            "--write",
+            &dir.to_string_lossy(),
+        ]))
+        .unwrap();
+        assert_eq!(
+            out["written"].as_str().unwrap(),
+            dir.to_string_lossy().as_ref()
+        );
+        let script = std::fs::read_to_string(&dir).unwrap();
+        assert!(script.contains("exec ssh"), "{script}");
+        assert!(script.contains("-p 2222"), "{script}");
+        assert!(script.contains("-i ~/.ssh/id_ed"), "{script}");
+        assert!(
+            script.contains("dev@box pk \"$@\""),
+            "命令透传回本机: {script}"
+        );
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
     fn unknown_commands_are_usage_errors() {
         let mut conn = test_db();
         let err = run_err(&mut conn, &["nonsense"]);
@@ -1018,5 +1462,314 @@ mod tests {
         assert_eq!(err.1, 2);
         let err = run_err(&mut conn, &["task", "get", "abc"]);
         assert_eq!(err.1, 2, "非数字 id 是用法错误");
+    }
+
+    /// 直插一条待判定消息（模拟飞书拉取落库后的状态：ai_status/review_status 均 pending）
+    fn insert_msg(conn: &Connection, message_id: &str, content: &str) {
+        conn.execute(
+            "INSERT INTO chat_messages (message_id, content, sent_at, created_at)
+             VALUES (?1, ?2, 0, 'x')",
+            params![message_id, content],
+        )
+        .unwrap();
+    }
+
+    fn msg_col(conn: &Connection, message_id: &str, col: &str) -> String {
+        conn.query_row(
+            &format!("SELECT {col} FROM chat_messages WHERE message_id=?1"),
+            params![message_id],
+            |r| r.get::<_, String>(0),
+        )
+        .unwrap_or_default()
+    }
+
+    #[test]
+    fn suggest_todo_update_none_roundtrip() {
+        let mut conn = test_db();
+        insert_msg(&conn, "om_1", "明天上午交周报");
+
+        // none：只记状态与理由
+        let out = run_ok(
+            &mut conn,
+            &["suggest", "none", "--message", "om_1", "--reason", "闲聊"],
+        );
+        assert_eq!(out["applied"], "none");
+        assert_eq!(msg_col(&conn, "om_1", "ai_status"), "none");
+        assert_eq!(msg_col(&conn, "om_1", "suggested_reason"), "闲聊");
+
+        // todo：建议列落库 + 幂等覆盖
+        let out = run_ok(
+            &mut conn,
+            &[
+                "suggest",
+                "todo",
+                "--message",
+                "om_1",
+                "--title",
+                "交周报",
+                "--category",
+                "工作",
+                "--priority",
+                "high",
+                "--due",
+                "2026-09-14T10:00",
+                "--reason",
+                "对方明确要求",
+                "--agent",
+                "claude-code",
+            ],
+        );
+        assert_eq!(out["applied"], "todo");
+        assert_eq!(msg_col(&conn, "om_1", "ai_status"), "todo");
+        assert_eq!(msg_col(&conn, "om_1", "suggested_title"), "交周报");
+        assert_eq!(msg_col(&conn, "om_1", "ai_agent"), "claude-code");
+        let out = run_ok(
+            &mut conn,
+            &[
+                "suggest",
+                "todo",
+                "--message",
+                "om_1",
+                "--title",
+                "交周报v2",
+            ],
+        );
+        assert_eq!(out["applied"], "todo");
+        assert_eq!(
+            msg_col(&conn, "om_1", "suggested_title"),
+            "交周报v2",
+            "重提覆盖旧建议"
+        );
+        assert_eq!(
+            msg_col(&conn, "om_1", "ai_agent"),
+            "cli",
+            "不带 --agent 兜底 cli"
+        );
+
+        // update：指向现有待办，落「更新建议」待确认
+        let task = create(&mut conn, "已有待办");
+        let out = run_ok(
+            &mut conn,
+            &[
+                "suggest",
+                "update",
+                "--message",
+                "om_1",
+                "--task",
+                &task.to_string(),
+                "--due",
+                "2026-09-15T09:00",
+            ],
+        );
+        assert_eq!(out["applied"], "update");
+        assert_eq!(msg_col(&conn, "om_1", "ai_status"), "update");
+        let update_task: i64 = conn
+            .query_row(
+                "SELECT update_task_id FROM chat_messages WHERE message_id='om_1'",
+                [],
+                |r| r.get(0),
+            )
+            .unwrap();
+        assert_eq!(update_task, task);
+    }
+
+    #[test]
+    fn suggest_follow_up_attaches_note() {
+        let mut conn = test_db();
+        insert_msg(&conn, "om_2", "周五交付确认了");
+        let task = create(&mut conn, "交付任务");
+        let out = run_ok(
+            &mut conn,
+            &[
+                "suggest",
+                "follow-up",
+                "--message",
+                "om_2",
+                "--task",
+                &task.to_string(),
+                "--reason",
+                "进展确认",
+            ],
+        );
+        assert_eq!(out["applied"], "followUp");
+        assert_eq!(msg_col(&conn, "om_2", "ai_status"), "followup");
+        assert_eq!(
+            msg_col(&conn, "om_2", "review_status"),
+            "accepted",
+            "跟进自动应用"
+        );
+        assert_eq!(msg_col(&conn, "om_2", "suggested_reason"), "进展确认");
+        let note: String = conn
+            .query_row(
+                "SELECT content FROM task_notes WHERE task_id=?1",
+                params![task],
+                |r| r.get(0),
+            )
+            .unwrap();
+        assert_eq!(note, "周五交付确认了", "跟进正文是消息原文");
+        // 已确认的消息不能再提交
+        let err = run_err(&mut conn, &["suggest", "none", "--message", "om_2"]);
+        assert_eq!(err.1, 1);
+        assert!(err.0.contains("人工确认"), "{}", err.0);
+    }
+
+    #[test]
+    fn suggest_validates_input() {
+        let mut conn = test_db();
+        insert_msg(&conn, "om_3", "内容");
+
+        let err = run_err(
+            &mut conn,
+            &["suggest", "todo", "--message", "om_none", "--title", "x"],
+        );
+        assert_eq!(err.1, 1);
+        assert!(err.0.contains("消息不存在"), "{}", err.0);
+
+        let err = run_err(&mut conn, &["suggest", "todo", "--message", "om_3"]);
+        assert_eq!(err.1, 2, "缺 title 是用法错误");
+        assert!(err.0.contains("title"), "{}", err.0);
+
+        let err = run_err(
+            &mut conn,
+            &[
+                "suggest",
+                "todo",
+                "--message",
+                "om_3",
+                "--title",
+                "x",
+                "--priority",
+                "urgent!!",
+            ],
+        );
+        assert_eq!(err.1, 2);
+
+        let err = run_err(
+            &mut conn,
+            &[
+                "suggest",
+                "todo",
+                "--message",
+                "om_3",
+                "--title",
+                "x",
+                "--category",
+                "不存在的分类",
+            ],
+        );
+        assert_eq!(err.1, 1);
+        assert!(err.0.contains("分类"), "{}", err.0);
+
+        let err = run_err(
+            &mut conn,
+            &[
+                "suggest",
+                "todo",
+                "--message",
+                "om_3",
+                "--title",
+                "x",
+                "--tags",
+                "没有的标签",
+            ],
+        );
+        assert!(err.0.contains("未知标签"), "{}", err.0);
+
+        let err = run_err(
+            &mut conn,
+            &[
+                "suggest",
+                "todo",
+                "--message",
+                "om_3",
+                "--title",
+                "x",
+                "--confidence",
+                "maybe",
+            ],
+        );
+        assert!(err.0.contains("confidence"), "{}", err.0);
+
+        // update 的目标待办必须存在、缺 --task 报用法错误
+        let err = run_err(
+            &mut conn,
+            &[
+                "suggest",
+                "update",
+                "--message",
+                "om_3",
+                "--task",
+                "999",
+                "--title",
+                "x",
+            ],
+        );
+        assert!(err.0.contains("不存在"), "{}", err.0);
+        let err = run_err(&mut conn, &["suggest", "update", "--message", "om_3"]);
+        assert!(err.0.contains("updateTaskId"), "{}", err.0);
+    }
+
+    #[test]
+    fn suggest_batch_atomic_and_counts() {
+        let mut conn = test_db();
+        insert_msg(&conn, "om_a", "新任务消息");
+        insert_msg(&conn, "om_b", "闲聊");
+        insert_msg(&conn, "om_c", "进展消息");
+        let task = create(&mut conn, "目标待办");
+
+        let body = r#"{"results":[
+            {"messageId":"om_a","action":"todo","title":"新任务","priority":"high"},
+            {"messageId":"om_b","action":"none","reason":"闲聊"},
+            {"messageId":"om_c","action":"followUp","followUpTaskId":TASK,"reason":"进展"}
+        ]}"#
+        .replace("TASK", &task.to_string());
+        let out = suggest_batch_from_str(&mut conn, &body, Some("claude-code")).unwrap();
+        assert_eq!(out["submitted"], 3);
+        assert_eq!(out["todo"], 1);
+        assert_eq!(out["update"], 0);
+        assert_eq!(out["followUp"], 1);
+        assert_eq!(out["none"], 1);
+        assert_eq!(msg_col(&conn, "om_a", "ai_status"), "todo");
+        assert_eq!(msg_col(&conn, "om_a", "ai_agent"), "claude-code");
+        assert_eq!(msg_col(&conn, "om_c", "ai_status"), "followup");
+
+        // 顶层数组也接受；空 action 按 none；幂等重提覆盖
+        let out = suggest_batch_from_str(
+            &mut conn,
+            r#"[{"messageId":"om_b","reason":"再次确认"}]"#,
+            None,
+        )
+        .unwrap();
+        assert_eq!(out["none"], 1);
+        assert_eq!(msg_col(&conn, "om_b", "suggested_reason"), "再次确认");
+
+        // 整批校验一损俱损：第 2 条消息不存在 → 全部不落库
+        insert_msg(&conn, "om_d", "待覆盖");
+        let bad = r#"{"results":[
+            {"messageId":"om_d","action":"todo","title":"x"},
+            {"messageId":"om_missing","action":"none"}
+        ]}"#;
+        let err = suggest_batch_from_str(&mut conn, bad, None).unwrap_err();
+        assert_eq!(err.1, 1);
+        assert!(err.0.contains("om_missing"), "{}", err.0);
+        assert!(
+            err.0.contains("第 2 条"),
+            "错误带序号供 agent 自纠: {}",
+            err.0
+        );
+        assert_eq!(
+            msg_col(&conn, "om_d", "ai_status"),
+            "pending",
+            "失败批次不落库"
+        );
+
+        // 同批重复 messageId 拒绝（防 follow-up 重复挂跟进）
+        let dup = r#"{"results":[
+            {"messageId":"om_d","action":"none"},
+            {"messageId":"om_d","action":"none"}
+        ]}"#;
+        let err = suggest_batch_from_str(&mut conn, dup, None).unwrap_err();
+        assert_eq!(err.1, 2);
+        assert!(err.0.contains("重复"), "{}", err.0);
     }
 }

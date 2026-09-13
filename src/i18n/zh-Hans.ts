@@ -200,8 +200,9 @@ export default {
     sshHostPh: "user{'@'}host",
     sshPort: "SSH 端口",
     sshKeyPh: "私钥路径（可选，如 ~/.ssh/id_ed25519）",
+    sshTunnel: "反向隧道端口（可选，如 10022）",
     sshHint:
-      "经 ssh 在远程机器无头执行；提示词走标准输入（{'{prompt}'} 占位符元素自动剔除，如 claude 的 `-p {'{prompt}'}` 变 `-p`）。需先配好免密登录（公钥），连接超时 10 秒、整次调用受上面设置的超时约束。",
+      "经 ssh 在远程机器无头执行；提示词走标准输入（{'{prompt}'} 占位符元素自动剔除，如 claude 的 `-p {'{prompt}'}` 变 `-p`）。需先配好免密登录（公钥），连接超时 10 秒、整次调用受上面设置的超时约束。填了隧道端口时，这条 ssh 连接会把远程的 127.0.0.1:端口 转回本机 sshd——远程 pk shim（`pk remote shim --host localhost --port 端口` 生成）即可回连执行，本机无需对外开端口。",
     hint: "用本地 AI agent 命令行工具（Claude Code / OpenCode / Kiro CLI 等）处理收音机消息分类与判重，可配置多个。命令需支持无头模式；附加参数中的 {'{prompt}'} 会替换为提示词，没有 {'{prompt}'} 时提示词经标准输入传入。",
     cliHint:
       "应用同时提供 pk 命令行（pk task list / pk task get …）供 AI agent 与终端直接读写待办，随应用一起分发，详见用户指南。",
@@ -209,6 +210,11 @@ export default {
     cmdPh: "claude / opencode / kiro",
     args: "附加参数",
     argsPh: "-p {'{prompt}'}",
+    mode: "分类结果回收",
+    modeText: "文本解析（agent 输出 JSON）",
+    modeTools: "工具调用（经 pk 落库）",
+    modeHint:
+      '工具调用模式：agent 先跑 pk context 拿判重上下文，再用 pk suggest batch 一次性提交判定，结果直接落库、不再解析输出文本。需允许 agent 无头执行 pk 命令（如 claude 加 --allowedTools "Bash(pk*)"），并建议把超时调大到 300 秒左右。',
     historyArgs: "历史参数",
     timeout: "超时（秒）",
     enabled: "启用",

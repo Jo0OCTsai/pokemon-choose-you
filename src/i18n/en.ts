@@ -204,8 +204,9 @@ export default {
     sshHostPh: "user{'@'}host",
     sshPort: "SSH port",
     sshKeyPh: "Private key path (optional, e.g. ~/.ssh/id_ed25519)",
+    sshTunnel: "Reverse tunnel port (optional, e.g. 10022)",
     sshHint:
-      "Runs the agent headlessly over ssh; the prompt travels via stdin ({'{prompt}'} placeholder args are dropped automatically, e.g. claude's `-p {'{prompt}'}` becomes `-p`). Set up public-key auth first; 10s connect timeout, whole call bounded by the timeout above.",
+      "Runs the agent headlessly over ssh; the prompt travels via stdin ({'{prompt}'} placeholder args are dropped automatically, e.g. claude's `-p {'{prompt}'}` becomes `-p`). Set up public-key auth first; 10s connect timeout, whole call bounded by the timeout above. With a tunnel port, this ssh connection forwards the remote's 127.0.0.1:port back to the local sshd — a remote pk shim (generated via `pk remote shim --host localhost --port <port>`) can then call back without exposing local ports.",
     hint: "Classify and dedupe radio messages with local AI agent CLIs (Claude Code / OpenCode / Kiro CLI, …); one or more can be configured. The command must support headless mode; {'{prompt}'} in extra args is replaced with the prompt; without {'{prompt}'} it is passed via stdin.",
     cliHint:
       "The app also ships a pk CLI (pk task list / pk task get …) for AI agents and terminals to read and write tasks directly. See the user guide.",
@@ -213,6 +214,11 @@ export default {
     cmdPh: "claude / opencode / kiro",
     args: "Extra args",
     argsPh: "-p {'{prompt}'}",
+    mode: "Result collection",
+    modeText: "Parse text output (JSON)",
+    modeTools: "Tool calls (via pk)",
+    modeHint:
+      'Tools mode: the agent first runs pk context for dedup context, then submits all verdicts in one pk suggest batch — results land in the DB directly, no text parsing. The agent must be allowed to run pk headlessly (e.g. claude with --allowedTools "Bash(pk*)"), and a larger timeout (~300s) is recommended.',
     historyArgs: "History args",
     timeout: "Timeout (s)",
     enabled: "Enabled",
