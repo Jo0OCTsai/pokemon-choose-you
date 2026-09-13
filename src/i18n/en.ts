@@ -15,8 +15,16 @@ export default {
   },
   dt: { none: "Not set", clear: "Clear" },
   spine: {
-    tip1: "Dex advice: don't bite off more than you can chew.",
-    tip2: "Send out one Pokemon at a time—focus on the task at hand.",
+    tips: [
+      "Dex advice: don't bite off more than you can chew.",
+      "Send out one Pokemon at a time—focus on the task at hand.",
+      "Wild Pokemon won't walk into a Poké Ball by themselves.",
+      "Let the ones in the grass wait a little longer.",
+      "Escaping isn't shameful—the Dex remembers you showed up.",
+      "A route is finished stop by stop.",
+      "Today's wind is good for setting out.",
+      "Tired? Rest—Snorlax does it too.",
+    ],
   },
   add: {
     goGrass: "To grass",
@@ -460,6 +468,17 @@ export default {
       "Slacking feels good, catching feels better!",
       "Go go go! Almost there!",
       "Pika~ pika~",
+      "You're a great trainer today too!",
+      "Sounds like new waves on the radio~",
+      "Just 5 minutes—it might just click!",
+      "One in the grass is waiting for you.",
+      "Caught it? Log it—the Dex loves new entries.",
+      "Hoo-hah! Go, trainer, go!",
+    ],
+    quotesNight: [
+      "Adventuring this late? I'm with you—but rest soon~",
+      "The grass is quiet at night; set out tomorrow morning.",
+      "Even trainers need sleep—Snorlax went first.",
     ],
   },
 };
