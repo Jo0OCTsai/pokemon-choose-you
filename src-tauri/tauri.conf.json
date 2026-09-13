@@ -1,7 +1,7 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
   "productName": "pokemon-knock",
-  "version": "0.1.0",
+  "version": "1.0.0",
   "identifier": "com.joeca.pokemonknock",
   "build": {
     "beforeDevCommand": "npm run dev",
@@ -41,14 +41,31 @@
   },
   "bundle": {
     "active": true,
-    "targets": ["app", "nsis", "dmg", "appimage", "deb", "rpm"],
+    "targets": [
+      "app",
+      "nsis",
+      "dmg",
+      "appimage",
+      "deb",
+      "rpm"
+    ],
     "createUpdaterArtifacts": true,
-    "icon": ["icons/32x32.png", "icons/128x128.png", "icons/128x128@2x.png", "icons/icon.icns", "icons/icon.ico"],
-    "externalBin": ["binaries/pk"]
+    "icon": [
+      "icons/32x32.png",
+      "icons/128x128.png",
+      "icons/128x128@2x.png",
+      "icons/icon.icns",
+      "icons/icon.ico"
+    ],
+    "externalBin": [
+      "binaries/pk"
+    ]
   },
   "plugins": {
     "updater": {
-      "endpoints": ["https://github.com/Jo0OCTsai/pokemon-knock/releases/latest/download/latest.json"],
+      "endpoints": [
+        "https://github.com/Jo0OCTsai/pokemon-knock/releases/latest/download/latest.json"
+      ],
       "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDg1NEZEN0YyMENBQ0Y5M0EKUldRNithd004dGRQaGFvK3oyN3Voa3gwT0FQeVAzT1Y1Rjg1N05DZTdadkpZZjZ0M1didnNUQlcK"
     }
   }
