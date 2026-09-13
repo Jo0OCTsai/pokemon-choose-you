@@ -3,7 +3,7 @@
 //!
 //! 应用已有「本机 → 远程」的免密 ssh（跑 agent 用），所有步骤都借它完成：
 //! 生成/复用专用密钥 → 公钥装配本机 authorized_keys → 私钥推到远程 →
-//! 预信任 `[localhost]:隧道端口` 的主机指纹 → 安装 shim（内嵌本机 pk 绝对路径）→
+//! 预信任 `[127.0.0.1]:隧道端口` 的主机指纹 → 安装 shim（内嵌本机 pk 绝对路径）→
 //! 保障远程登录 shell 的 PATH → 写回 agent 的隧道端口 → 真实隧道端到端验证。
 //! 全程幂等，重复执行安全；任一步失败即停并报告该步的修复建议。
 
@@ -32,7 +32,7 @@ pub(crate) struct RemotePkSetup {
     pub agent_key: Option<String>,
     /// 反向隧道端口（远程侧监听）
     pub tunnel_port: u16,
-    /// 本机用户名（shim 回连 user@localhost 认证用）
+    /// 本机用户名（shim 回连 user@127.0.0.1 认证用）
     pub local_user: String,
     /// 本机 pk 的绝对路径（内嵌进 shim）
     pub pk_path: String,
@@ -135,7 +135,7 @@ pub(crate) fn shim_script(pk_path: &str, tunnel_port: u16, local_user: &str) -> 
     format!(
         "#!/bin/sh\n\
          # pk 远程透传 shim（pokemon-knock 一键配置生成）：经应用建立的反向隧道回本机执行，数据始终留在本机。\n\
-         exec ssh -o BatchMode=yes -o ConnectTimeout=10 -i \"$HOME/.ssh/pk_shim\" -p {port} {user}@localhost {pk} \"$@\"\n",
+         exec ssh -o BatchMode=yes -o ConnectTimeout=10 -i \"$HOME/.ssh/pk_shim\" -p {port} {user}@127.0.0.1 {pk} \"$@\"\n",
         port = tunnel_port,
         user = local_user,
         pk = quoted_pk,
@@ -154,7 +154,7 @@ fn posix_quote(s: &str) -> String {
     }
 }
 
-/// ssh-keyscan 输出 → known_hosts 条目：主机名改写为 [localhost]:隧道端口
+/// ssh-keyscan 输出 → known_hosts 条目：主机名改写为 [127.0.0.1]:隧道端口
 pub(crate) fn to_known_hosts_lines(keyscan: &str, tunnel_port: u16) -> String {
     let mut out = String::new();
     for line in keyscan.lines() {
@@ -163,7 +163,7 @@ pub(crate) fn to_known_hosts_lines(keyscan: &str, tunnel_port: u16) -> String {
             continue;
         }
         match line.split_once(' ') {
-            Some((_, rest)) => out.push_str(&format!("[localhost]:{tunnel_port} {rest}\n")),
+            Some((_, rest)) => out.push_str(&format!("[127.0.0.1]:{tunnel_port} {rest}\n")),
             None => out.push_str(&format!("{line}\n")),
         }
     }
@@ -406,13 +406,13 @@ pub(crate) fn run_setup(ctx: &RemotePkSetup) -> SetupReport {
         detail: "远程 ~/.ssh/pk_shim（600）".into(),
     });
 
-    // 6. 预信任主机指纹：把本机 sshd 的 host key 以 [localhost]:隧道端口 写进远程 known_hosts
+    // 6. 预信任主机指纹：把本机 sshd 的 host key 以 [127.0.0.1]:隧道端口 写进远程 known_hosts
     //    （shim 走 BatchMode，首次连接的交互式指纹确认会直接失败，必须预先信任；
     //     先 -R 清旧条目，防本机重装系统后指纹变化卡死）
     let kh_entries = to_known_hosts_lines(&host_keys, ctx.tunnel_port);
     let kh_line = format!(
         "mkdir -p \"$HOME/.ssh\" && touch \"$HOME/.ssh/known_hosts\" && chmod 600 \"$HOME/.ssh/known_hosts\"; \
-         ssh-keygen -R \"[localhost]:{p}\" -f \"$HOME/.ssh/known_hosts\" 2>/dev/null; \
+         ssh-keygen -R \"[127.0.0.1]:{p}\" -f \"$HOME/.ssh/known_hosts\" 2>/dev/null; \
          cat >> \"$HOME/.ssh/known_hosts\"",
         p = ctx.tunnel_port
     );
@@ -428,7 +428,7 @@ pub(crate) fn run_setup(ctx: &RemotePkSetup) -> SetupReport {
     steps.push(SetupStep {
         name: "预信任主机指纹".into(),
         status: "ok".into(),
-        detail: format!("[localhost]:{}（隧道终点的本机 sshd）", ctx.tunnel_port),
+        detail: format!("[127.0.0.1]:{}（隧道终点的本机 sshd）", ctx.tunnel_port),
     });
 
     // 7. 安装 shim 到远程 ~/.local/bin（内嵌本机 pk 绝对路径与隧道端口）
@@ -479,7 +479,7 @@ pub(crate) fn run_setup(ctx: &RemotePkSetup) -> SetupReport {
 
     // 9. 端到端验证：真实开一条带 -R 的 ssh 连接执行 pk --version——
     //    执行期间隧道存活，shim 真回连一次本机 sshd，验证整条链
-    let fwd = format!("127.0.0.1:{}:localhost:22", ctx.tunnel_port);
+    let fwd = format!("127.0.0.1:{}:127.0.0.1:22", ctx.tunnel_port);
     let (ok, out) = ssh_run(
         ctx,
         &["-R", &fwd],
@@ -626,7 +626,7 @@ mod tests {
         let s = shim_script("/opt/apps/pokemon knock/pk", 10022, "joeca");
         assert!(s.starts_with("#!/bin/sh"), "{s}");
         assert!(s.contains("-p 10022"), "{s}");
-        assert!(s.contains("joeca@localhost"), "{s}");
+        assert!(s.contains("joeca@127.0.0.1"), "{s}");
         // 含空格路径被引用，避免本机 shell 拆词
         assert!(
             s.contains("'/opt/apps/pokemon knock/pk'")
@@ -647,11 +647,11 @@ mod tests {
         let scan = "# localhost:22 SSH-2.0-OpenSSH_9\nlocalhost ssh-ed25519 AAAAC3NzaTEST key-comment\nlocalhost ssh-rsa AAAAB3TEST2\n";
         let out = to_known_hosts_lines(scan, 10022);
         assert!(
-            out.contains("[localhost]:10022 ssh-ed25519 AAAAC3NzaTEST key-comment\n"),
+            out.contains("[127.0.0.1]:10022 ssh-ed25519 AAAAC3NzaTEST key-comment\n"),
             "{out}"
         );
         assert!(
-            out.contains("[localhost]:10022 ssh-rsa AAAAB3TEST2\n"),
+            out.contains("[127.0.0.1]:10022 ssh-rsa AAAAB3TEST2\n"),
             "{out}"
         );
         assert!(!out.contains('#'), "注释行剔除: {out}");
@@ -770,7 +770,7 @@ mod tests {
             "known_hosts",
             ".local/bin/pk",
             "command -v pk",
-            "-R 127.0.0.1:10022:localhost:22",
+            "-R 127.0.0.1:10022:127.0.0.1:22",
             "pk --version",
         ] {
             assert!(calls.contains(frag), "ssh 调用缺「{frag}」: {calls}");

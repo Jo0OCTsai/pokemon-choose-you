@@ -281,7 +281,7 @@ AI 判定时会带上**同会话 30 分钟内的近期上下文**与消息来源
   1. **本机开启 sshd**（隧道终点，仅本机回环可达即可，防火墙无需放行）：macOS 系统设置 → 通用 → 共享 → 远程登录；Windows 安装并启动「OpenSSH SSH 服务器」可选功能；Linux `sudo systemctl enable --now sshd`
   2. agent 的 SSH 配置区点 **「一键配置远程 pk」**（隧道端口默认 10022）
 
-  一键配置自动完成（全程幂等，可重复点击）：生成/复用专用密钥 → 公钥装配本机 `authorized_keys` → 私钥推到远程 `~/.ssh/pk_shim` → 预信任 `[localhost]:端口` 的主机指纹（shim 走 BatchMode，首次连接的交互确认必须预先写入 known_hosts 才不会失败）→ 安装 shim（内嵌本机 pk 绝对路径）到远程 `~/.local/bin/pk` 并保障登录 shell 的 PATH → 把隧道端口写回 agent 配置 → 开一条真实隧道端到端验证（远程 `pk --version` 应返回本机版本）。失败会指明停在哪一步与修法；成功后可再点「测试」跑工具探针。手工等价命令：`pk remote shim --host <本机用户名>@localhost --port 10022`；排障可跑 `pk doctor --ssh <远程>`。
+  一键配置自动完成（全程幂等，可重复点击）：生成/复用专用密钥 → 公钥装配本机 `authorized_keys` → 私钥推到远程 `~/.ssh/pk_shim` → 预信任 `[127.0.0.1]:端口` 的主机指纹（shim 走 BatchMode，首次连接的交互确认必须预先写入 known_hosts 才不会失败）→ 安装 shim（内嵌本机 pk 绝对路径）到远程 `~/.local/bin/pk` 并保障登录 shell 的 PATH → 把隧道端口写回 agent 配置 → 开一条真实隧道端到端验证（远程 `pk --version` 应返回本机版本）。失败会指明停在哪一步与修法；成功后可再点「测试」跑工具探针。手工等价命令：`pk remote shim --host <本机用户名>@127.0.0.1 --port 10022`；排障可跑 `pk doctor --ssh <远程>`。
 
   > 同一远程机器配多个 agent 时请保持相同的隧道端口（shim 按端口回连）。
 
@@ -322,7 +322,7 @@ pk context                           # 当前时间 + 未完成待办 + 分类 +
 pk task create --title 交周报 --dry-run     # 只校验回显不落库（task update/delete 同）
 pk suggest todo --message <消息id> --title 交周报 --due 2026-09-13T18:00  # 提交 AI 判定建议（写建议列待用户确认）
 pk suggest batch --agent claude-code < suggestions.json                  # 批量提交（stdin 传 {"results":[...]}，整批校验）
-pk remote shim --host <本机用户名>@localhost --port 10022 > pk    # 手工生成远程透传脚本（应用内有「一键配置远程 pk」）
+pk remote shim --host <本机用户名>@127.0.0.1 --port 10022 > pk    # 手工生成远程透传脚本（应用内有「一键配置远程 pk」）
 pk doctor                            # 环境自检：数据库/schema/技能安装，每项带修复建议（--ssh <host> 加测远程 pk）
 pk help --json                       # 机器可读的命令目录（供 agent 编程化发现）
 pk help                              # 完整命令说明
