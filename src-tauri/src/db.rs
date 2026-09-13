@@ -162,9 +162,25 @@ CREATE TABLE IF NOT EXISTS agent_sessions (
 CREATE INDEX IF NOT EXISTS idx_agent_sessions_task ON agent_sessions(task_id);
 "#;
 
+/// v2：内置分类调整——「社交」「紧急」退出默认阵容，「兴趣」（伊布）加入。
+/// 只按名字动默认分类（用户改过名的分类不碰）；其下任务迁去第一个非目标的启用分类。
+/// 新库（categories 为空）不在此插入，由 init_conn 的默认种子负责。
+const MIGRATION_V2: &str = r#"
+UPDATE tasks SET category_id = COALESCE(
+    (SELECT id FROM categories WHERE enabled=1 AND name NOT IN ('社交','紧急') ORDER BY id LIMIT 1),
+    (SELECT MIN(id) FROM categories WHERE name NOT IN ('社交','紧急')),
+    1)
+  WHERE category_id IN (SELECT id FROM categories WHERE name IN ('社交','紧急'));
+DELETE FROM categories WHERE name IN ('社交','紧急');
+INSERT INTO categories (name, pokemon, sprite)
+  SELECT '兴趣', '伊布', 'eevee'
+  WHERE EXISTS(SELECT 1 FROM categories)
+    AND NOT EXISTS(SELECT 1 FROM categories WHERE name='兴趣');
+"#;
+
 /// 迁移按序号执行：MIGRATIONS[i] 负责把 `PRAGMA user_version` 从 i 升到 i+1。
-/// 1.0.0 只有一条初始化基线；发布后再有 schema 变更，追加新条目（且只追加，不修改已发布条目）。
-const MIGRATIONS: &[&str] = &[SCHEMA_V1];
+/// 发布后再有 schema/种子变更，追加新条目（且只追加，不修改已发布条目）。
+const MIGRATIONS: &[&str] = &[SCHEMA_V1, MIGRATION_V2];
 
 /// 当前程序期望的 schema 版本（pk doctor 用它对比库的 user_version 判断「库比程序新/旧」；
 /// pk 自身不执行迁移——迁移只由应用启动时做，避免抢跑后让旧应用拒绝启动）
@@ -202,8 +218,7 @@ const DEFAULT_CATEGORIES: &[(&str, &str, &str)] = &[
     ("学习", "可达鸭", "psyduck"),
     ("生活", "妙蛙种子", "bulbasaur"),
     ("健康", "吉利蛋", "chansey"),
-    ("社交", "伊布", "eevee"),
-    ("紧急", "卡比兽", "snorlax"),
+    ("兴趣", "伊布", "eevee"),
 ];
 
 pub fn init(app: &tauri::AppHandle) -> Result<(), Box<dyn std::error::Error>> {
@@ -266,12 +281,16 @@ fn migrate_legacy_dir(new_dir: &Path) -> bool {
     }
 }
 
-/// 迁移 + 写入默认分类（幂等），init 与单元测试共用
+/// 迁移 + 写入默认分类（幂等），init 与单元测试共用。
+/// 种子按「id 或名字已存在都跳过」判定：改过名的默认分类保留不改，
+/// 迁移已补过的分类（id 不在默认位）也不会重复插入。
 pub fn init_conn(conn: &Connection) -> Result<(), MigrateError> {
     migrate(conn)?;
     for (i, (name, pokemon, sprite)) in DEFAULT_CATEGORIES.iter().enumerate() {
         conn.execute(
-            "INSERT OR IGNORE INTO categories (id, name, pokemon, sprite) VALUES (?1, ?2, ?3, ?4)",
+            "INSERT INTO categories (id, name, pokemon, sprite)
+             SELECT ?1, ?2, ?3, ?4
+             WHERE NOT EXISTS (SELECT 1 FROM categories WHERE id=?1 OR name=?2)",
             rusqlite::params![i as i64 + 1, name, pokemon, sprite],
         )?;
     }
@@ -322,6 +341,98 @@ pub(crate) mod tests {
             .query_row("SELECT COUNT(*) FROM categories", [], |r| r.get(0))
             .unwrap();
         assert_eq!(n, DEFAULT_CATEGORIES.len() as i64);
+    }
+
+    /// v1 → v2：内置分类换阵——社交/紧急 的任务迁去第一个启用分类后被删，兴趣补位；
+    /// 用户改过名的旧分类不受影响
+    #[test]
+    fn v2_migration_swaps_default_categories() {
+        // 手工搭一个 v1 老库：六只默认分类（含社交/紧急）+ 用户改过名的「娱乐」+ 挂在社交下的任务
+        let conn = Connection::open_in_memory().unwrap();
+        conn.execute_batch(SCHEMA_V1).unwrap();
+        conn.execute_batch("PRAGMA user_version = 1;").unwrap();
+        let old: &[&str] = &["工作", "学习", "生活", "健康", "社交", "紧急"];
+        for (i, name) in old.iter().enumerate() {
+            conn.execute(
+                "INSERT INTO categories (id, name, pokemon, sprite) VALUES (?1, ?2, 'x', 'x')",
+                rusqlite::params![i as i64 + 1, name],
+            )
+            .unwrap();
+        }
+        conn.execute(
+            "INSERT INTO categories (name, pokemon, sprite) VALUES ('娱乐', 'x', 'x')",
+            [],
+        )
+        .unwrap(); // id 7：用户自建
+        conn.execute(
+            "INSERT INTO tasks (title, category_id, status, created_at) VALUES ('社交任务', 5, 'inbox', '2026-09-01T00:00:00Z')",
+            [],
+        )
+        .unwrap();
+        conn.execute(
+            "INSERT INTO tasks (title, category_id, status, created_at) VALUES ('紧急任务', 6, 'inbox', '2026-09-01T00:00:00Z')",
+            [],
+        )
+        .unwrap();
+
+        init_conn(&conn).unwrap(); // migrate v2 + 默认种子
+
+        let names: Vec<String> = {
+            let mut stmt = conn
+                .prepare("SELECT name FROM categories ORDER BY id")
+                .unwrap();
+            stmt.query_map([], |r| r.get::<_, String>(0))
+                .unwrap()
+                .collect::<Result<Vec<_>, _>>()
+                .unwrap()
+        };
+        assert_eq!(names, vec!["工作", "学习", "生活", "健康", "娱乐", "兴趣"]);
+        let (pokemon, sprite): (String, String) = conn
+            .query_row(
+                "SELECT pokemon, sprite FROM categories WHERE name='兴趣'",
+                [],
+                |r| Ok((r.get(0)?, r.get(1)?)),
+            )
+            .unwrap();
+        assert_eq!((pokemon.as_str(), sprite.as_str()), ("伊布", "eevee"));
+        let task_cats: Vec<i64> = {
+            let mut stmt = conn
+                .prepare("SELECT category_id FROM tasks ORDER BY id")
+                .unwrap();
+            stmt.query_map([], |r| r.get::<_, i64>(0))
+                .unwrap()
+                .collect::<Result<Vec<_>, _>>()
+                .unwrap()
+        };
+        assert_eq!(
+            task_cats,
+            vec![1, 1],
+            "社交/紧急 下的任务迁去第一个启用分类（工作）"
+        );
+        // 种子不会重复插兴趣（名字已存在）也不会动改过名的行
+        let dup: i64 = conn
+            .query_row(
+                "SELECT COUNT(*) FROM categories WHERE name='兴趣'",
+                [],
+                |r| r.get(0),
+            )
+            .unwrap();
+        assert_eq!(dup, 1);
+    }
+
+    /// v2 迁移幂等：已迁过的库重复执行不重复插兴趣、不动数据
+    #[test]
+    fn v2_migration_is_idempotent() {
+        let conn = test_conn();
+        let before: i64 = conn
+            .query_row("SELECT COUNT(*) FROM categories", [], |r| r.get(0))
+            .unwrap();
+        migrate(&conn).unwrap(); // 已是最新版本，no-op
+        init_conn(&conn).unwrap();
+        let after: i64 = conn
+            .query_row("SELECT COUNT(*) FROM categories", [], |r| r.get(0))
+            .unwrap();
+        assert_eq!(before, after);
     }
 
     /// 临时目录里预置旧 identifier 目录与旧库文件，验证整目录 + 库文件一次性搬运
@@ -377,7 +488,8 @@ pub(crate) mod tests {
             rows[0],
             (1, "工作".into(), "皮卡丘".into(), "pikachu".into())
         );
-        assert_eq!(rows.len(), 6);
+        assert_eq!(rows.len(), 5);
+        assert_eq!(rows[4].1, "兴趣");
     }
 
     /// 回归：迁移机制引入前的老库（表已存在但 user_version=0）升级不丢数据

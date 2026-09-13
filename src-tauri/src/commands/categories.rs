@@ -200,7 +200,7 @@ mod tests {
             )
             .unwrap()
         };
-        assert!(cat.id > 6);
+        assert!(cat.id > 5);
         assert!(cat.enabled, "新建分类默认启用");
         {
             let db = app.state::<Db>();
@@ -308,7 +308,7 @@ mod tests {
         };
         let cat3 = cats.iter().find(|c| c.id == 3).unwrap();
         assert!(!cat3.enabled, "停用后列表仍返回但标记 enabled=false");
-        assert!(cats.iter().filter(|c| c.enabled).count() == 5);
+        assert!(cats.iter().filter(|c| c.enabled).count() == 4);
         set_enabled(&app, 3, true).unwrap();
         let cats = {
             let db = app.state::<Db>();
@@ -320,10 +320,10 @@ mod tests {
     #[test]
     fn cannot_disable_the_last_enabled_category() {
         let app = setup();
-        for id in 1..=5 {
+        for id in 1..=4 {
             set_enabled(&app, id, false).unwrap();
         }
-        let err = set_enabled(&app, 6, false).unwrap_err();
+        let err = set_enabled(&app, 5, false).unwrap_err();
         assert!(
             matches!(err, AppError::Invalid(_)),
             "最后一个启用分类不可停用: {err}"

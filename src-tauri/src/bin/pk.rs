@@ -1763,15 +1763,15 @@ mod tests {
         let cats = run_ok(&mut conn, &["category", "list"]);
         assert_eq!(
             cats["categories"].as_array().map(Vec::len),
-            Some(6),
-            "内置六分类"
+            Some(5),
+            "内置五分类"
         );
 
         let ctx = run_ok(&mut conn, &["context"]);
         assert!(ctx["now"].is_string());
         assert_eq!(
             ctx["categories"].as_array().map(Vec::len),
-            Some(6),
+            Some(5),
             "context 只列启用分类"
         );
         assert_eq!(ctx["openTasks"].as_array().map(Vec::len), Some(0));

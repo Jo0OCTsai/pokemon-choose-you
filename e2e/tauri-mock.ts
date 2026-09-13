@@ -45,8 +45,7 @@ export const DEFAULT_CATEGORIES: MockCategory[] = [
   { id: 2, name: "学习", pokemon: "可达鸭", sprite: "psyduck", enabled: true },
   { id: 3, name: "生活", pokemon: "妙蛙种子", sprite: "bulbasaur", enabled: true },
   { id: 4, name: "健康", pokemon: "吉利蛋", sprite: "chansey", enabled: true },
-  { id: 5, name: "社交", pokemon: "伊布", sprite: "eevee", enabled: true },
-  { id: 6, name: "紧急", pokemon: "卡比兽", sprite: "snorlax", enabled: true },
+  { id: 5, name: "兴趣", pokemon: "伊布", sprite: "eevee", enabled: true },
 ];
 
 export function task(partial: Partial<MockTask> & { id: number; title: string }): MockTask {

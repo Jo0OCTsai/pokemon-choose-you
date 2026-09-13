@@ -18,13 +18,14 @@ export const useCategoriesStore = defineStore("categories", {
   },
 });
 
-/** 分类名 → 徽章配色 key（图鉴条目卡用） */
+/** 分类名 → 徽章配色 key（图鉴条目卡用）；社交/紧急为旧默认，存量数据仍能命中配色 */
 export function catKeyOf(byId: Map<number, Category>, id: number): string {
   const cls: Record<string, string> = {
     工作: "work",
     学习: "study",
     生活: "life",
     健康: "health",
+    兴趣: "interest",
     社交: "social",
     紧急: "urgent",
   };
