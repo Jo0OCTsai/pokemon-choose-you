@@ -123,6 +123,15 @@ export default {
     noHistory: "暂无操作记录",
     titleRequired: "标题不能为空",
   },
+  detail: {
+    status: "状态",
+    source: "来源",
+    focus: "专注",
+    created: "创建",
+    completed: "完成",
+    escaped: "逃走",
+    edit: "编辑",
+  },
   stabs: {
     focus: "专注",
     cats: "分类",

@@ -105,7 +105,7 @@ function seed(seeds: Partial<Task>[]): Task[] {
   return seeds.map((t, i) => ({
     id: i + 1,
     title: t.title ?? `任务${i + 1}`,
-    note: null,
+    note: t.note ?? null,
     categoryId: t.categoryId ?? 1,
     status: t.status ?? "inbox",
     priority: t.priority ?? "normal",
@@ -346,9 +346,7 @@ describe("App 图鉴机主面板", () => {
     const editBtn = w.findAll(".entry .ops .btn").find((b) => b.text() === "✎")!;
     await editBtn.trigger("click");
     expect(w.get(".card h3").text()).toContain("编辑待办");
-    expect(w.text()).toContain("跟进记录");
-    expect(w.text()).toContain("操作历史"); // 历史区块可见
-    expect(w.text()).toContain("重要"); // 标签可选
+    expect(w.text()).toContain("重要"); // 标签可选（跟进记录/操作历史已移入详情抽屉）
     await w.get(".card input").setValue("新标题");
     vi.mocked(api.updateTask).mockResolvedValue(tasks[0]);
     await w.findAll(".card .btn-row .btn")[0].trigger("click");
@@ -556,7 +554,7 @@ describe("App 图鉴机主面板", () => {
     expect(w.find(".nl-preview").exists()).toBe(false);
   });
 
-  it("编辑弹窗展示 Agent 执行记录（时长/成本/退出码）并可跳转会话", async () => {
+  it("点击任务卡片打开详情抽屉：展示 Agent 执行记录（时长/成本/退出码）并可跳转会话", async () => {
     tasks = seed([{ title: "修登录bug", status: "inbox" }]);
     vi.mocked(api.listAgentSessions).mockResolvedValue([
       {
@@ -578,15 +576,35 @@ describe("App 图鉴机主面板", () => {
     const w = await mountApp();
     await w.findAll(".menu-btn")[2].trigger("click"); // 草丛页
     await new Promise((r) => setTimeout(r));
-    const editBtn = w.findAll(".entry .ops .btn").find((b) => b.text() === "✎")!;
-    await editBtn.trigger("click");
+    // 点击任务卡片（非操作按钮）打开详情抽屉
+    await w.findAll(".entry")[0].trigger("click");
     await new Promise((r) => setTimeout(r));
+    expect(w.find(".drawer").exists()).toBe(true);
     expect(w.text()).toContain("Agent 执行");
     expect(w.text()).toContain("用时 1m");
     expect(w.text()).toContain("$0.12");
     expect(w.text()).toContain("exit 0");
     await w.get(".run-open").trigger("click");
     expect(api.openAgentHistory).toHaveBeenCalledWith("claude-code", "sess-1");
+  });
+
+  it("详情抽屉：含跟进记录与操作历史区块，可从抽屉进入全字段编辑", async () => {
+    tasks = seed([{ title: "详情任务", status: "inbox", note: "备注内容" }]);
+    const w = await mountApp();
+    await w.findAll(".menu-btn")[2].trigger("click"); // 草丛页
+    await new Promise((r) => setTimeout(r));
+    await w.findAll(".entry")[0].trigger("click");
+    await new Promise((r) => setTimeout(r));
+    // 抽屉展示任务属性与记录区块（此前要点「编辑」才能看到）
+    const drawer = w.get(".drawer");
+    expect(drawer.text()).toContain("详情任务");
+    expect(drawer.text()).toContain("备注内容");
+    expect(drawer.text()).toContain("跟进记录");
+    expect(drawer.text()).toContain("操作历史");
+    // 从抽屉进入编辑弹窗（抽屉保持在下层）
+    await drawer.get(".btn-row .btn").trigger("click");
+    expect(w.findComponent({ name: "TaskEditModal" }).exists()).toBe(true);
+    expect(w.find(".drawer").exists()).toBe(true);
   });
 
   it("逾期 fresh start：冒险页折叠为一行，可展开，一键归草丛清截止时间", async () => {

@@ -123,6 +123,15 @@ export default {
     noHistory: "暫無操作記錄",
     titleRequired: "標題不能為空",
   },
+  detail: {
+    status: "狀態",
+    source: "來源",
+    focus: "專注",
+    created: "建立",
+    completed: "完成",
+    escaped: "逃走",
+    edit: "編輯",
+  },
   stabs: {
     focus: "專注",
     cats: "分類",

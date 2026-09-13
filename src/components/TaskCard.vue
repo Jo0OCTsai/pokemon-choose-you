@@ -16,6 +16,7 @@ const emit = defineEmits<{
   schedule: [task: Task];
   edit: [task: Task];
   remove: [task: Task];
+  detail: [task: Task];
 }>();
 
 const { t } = useI18n();
@@ -31,6 +32,7 @@ const dueInfo = computed(() => (settings.bool("due_relative") ? relativeDue(prop
   <li
     class="entry"
     :class="{ active: task.status === 'active', caught: task.status === 'done', escaped: task.status === 'cancelled' }"
+    @click="emit('detail', task)"
   >
     <div class="dex-no px">No.{{ String(task.id).padStart(3, "0") }}</div>
     <img
@@ -68,7 +70,7 @@ const dueInfo = computed(() => (settings.bool("due_relative") ? relativeDue(prop
         </span>
       </div>
     </div>
-    <div class="ops">
+    <div class="ops" @click.stop>
       <template v-if="task.status !== 'done' && task.status !== 'cancelled'">
         <button v-if="task.status !== 'active'" class="btn" @click="emit('start', task)">
           {{ t("entry.start") }}
@@ -106,6 +108,7 @@ const dueInfo = computed(() => (settings.bool("due_relative") ? relativeDue(prop
   align-items: center;
   gap: 12px;
   list-style: none;
+  cursor: pointer;
 }
 .entry.active {
   outline: 3px solid var(--poke-yellow);

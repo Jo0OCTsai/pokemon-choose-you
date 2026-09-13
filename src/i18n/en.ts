@@ -127,6 +127,15 @@ export default {
     noHistory: "No activity yet",
     titleRequired: "Title cannot be empty",
   },
+  detail: {
+    status: "Status",
+    source: "Source",
+    focus: "Focus",
+    created: "Created",
+    completed: "Completed",
+    escaped: "Escaped",
+    edit: "Edit",
+  },
   stabs: {
     focus: "Focus",
     cats: "Categories",
