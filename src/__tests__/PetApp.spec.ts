@@ -147,12 +147,12 @@ describe("PetApp 桌宠", () => {
     expect(w.find(".pomo-pill").exists()).toBe(false);
   });
 
-  it("设置主宝可梦后：空闲展示主宝可梦，气泡与名牌带它的名字", async () => {
+  it("设置主宝可梦后：空闲只换精灵图，气泡与名牌不带它的名字", async () => {
     vi.mocked(api.listAllSettings).mockResolvedValue({ main_pokemon: "eevee" });
     const w = await mountPet();
     expect(w.get(".pet-sprite").attributes("src")).toBe("/pokemon/eevee.gif");
-    expect(w.get(".dialog-text").text()).toContain("伊布在等你出发");
-    expect(w.get(".cat-tag").text()).toBe("伊布");
+    expect(w.get(".dialog-text").text()).toBe("今天的冒险还没开始，点击我挑个目标吧");
+    expect(w.find(".cat-tag").exists()).toBe(false);
   });
 
   it("主宝可梦设置即时生效：settings-changed 后空闲精灵切换", async () => {

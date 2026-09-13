@@ -14,12 +14,38 @@ use std::sync::OnceLock;
 const SERVICE: &str = "pokemon-choose-you";
 
 /// 走秘钥链路的设置键（其余设置仍存 settings 表）
-pub const SECRET_KEYS: &[&str] = &[
-    "feishu_app_secret",
-    "feishu_user_token",
-    "feishu_refresh_token",
-    "todoist_token",
-];
+pub const SECRET_KEYS: &[&str] = &["todoist_token"];
+
+/// 已下线的 builtin 飞书引擎遗留键：settings 行 + 钥匙串条目都清掉。
+/// 秘钥类三个走 secret_delete（两边都清，无残留不算失败），其余普通行 SQL 删除。
+pub fn purge_legacy_feishu_keys(conn: &Connection) {
+    const LEGACY_SECRET_KEYS: &[&str] = &[
+        "feishu_app_secret",
+        "feishu_user_token",
+        "feishu_refresh_token",
+    ];
+    const LEGACY_SETTINGS_KEYS: &[&str] = &[
+        "feishu_engine",
+        "feishu_app_id",
+        "feishu_token_expires_at",
+        "feishu_user_open_id",
+        "feishu_user_name",
+    ];
+    let mut purged = 0;
+    for key in LEGACY_SECRET_KEYS {
+        if secret_delete(conn, key).is_err() {
+            log::warn!("secrets: 清理遗留秘钥 {key} 失败");
+        }
+    }
+    for key in LEGACY_SETTINGS_KEYS {
+        if let Ok(n) = conn.execute("DELETE FROM settings WHERE key=?1", params![key]) {
+            purged += n;
+        }
+    }
+    if purged > 0 {
+        log::info!("secrets: 已清理 builtin 飞书引擎遗留设置 {purged} 项");
+    }
+}
 
 pub fn is_secret_key(key: &str) -> bool {
     SECRET_KEYS.contains(&key)
@@ -212,10 +238,53 @@ mod tests {
     #[test]
     fn is_secret_key_matches_known_keys() {
         assert!(is_secret_key("todoist_token"));
-        assert!(is_secret_key("feishu_user_token"));
-        assert!(is_secret_key("feishu_app_secret"));
-        assert!(is_secret_key("feishu_refresh_token"));
+        assert!(!is_secret_key("feishu_user_token"));
+        assert!(!is_secret_key("feishu_app_secret"));
         assert!(!is_secret_key("language"));
         assert!(!is_secret_key("ai_agents"));
+    }
+
+    /// builtin 飞书引擎下线后的遗留清理：settings 行与秘钥回落数据都删干净，幂等
+    #[test]
+    fn purge_legacy_feishu_keys_removes_all_traces() {
+        let conn = test_conn();
+        for (k, v) in [
+            ("feishu_engine", "builtin"),
+            ("feishu_app_id", "cli_x"),
+            ("feishu_app_secret", "s"),
+            ("feishu_user_token", "t"),
+            ("feishu_refresh_token", "r"),
+            ("feishu_token_expires_at", "99"),
+            ("feishu_user_open_id", "ou"),
+            ("feishu_user_name", "我"),
+            ("todoist_token", "keep"),
+        ] {
+            conn.execute(
+                "INSERT INTO settings (key, value) VALUES (?1, ?2)",
+                params![k, v],
+            )
+            .unwrap();
+        }
+        purge_legacy_feishu_keys(&conn);
+        for key in [
+            "feishu_engine",
+            "feishu_app_id",
+            "feishu_app_secret",
+            "feishu_user_token",
+            "feishu_refresh_token",
+            "feishu_token_expires_at",
+            "feishu_user_open_id",
+            "feishu_user_name",
+        ] {
+            assert_eq!(setting(&conn, key), None, "{key} 应被清理");
+        }
+        assert_eq!(
+            secret_get(&conn, "todoist_token").as_deref(),
+            Some("keep"),
+            "无关秘键不受影响"
+        );
+        // 幂等：重复清理无副作用
+        purge_legacy_feishu_keys(&conn);
+        assert_eq!(setting(&conn, "feishu_app_id"), None);
     }
 }

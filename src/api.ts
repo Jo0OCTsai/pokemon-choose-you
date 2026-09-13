@@ -156,9 +156,9 @@ export const api = {
   listAgentSessions: (taskId?: number) => call<AgentSession[]>("list_agent_sessions", { taskId: taskId ?? null }),
   testFeishuConfig: () => call<string>("test_feishu_config"),
   triggerFeishuPoll: () => call<number>("trigger_feishu_poll"),
-  /** 发起飞书用户授权：打开浏览器完成 OAuth，本地回调换取 user_access_token */
+  /** 发起飞书用户授权：在系统终端里跑 lark-cli 登录（凭证由 lark-cli 保管） */
   feishuOauthLogin: () => call<string>("feishu_oauth_login"),
-  /** 飞书用户授权状态（是否已授权 + 授权用户名） */
+  /** 飞书授权状态（lark-cli 登录态：是否已登录 + 用户名） */
   feishuOauthStatus: () => call<FeishuOauthStatus>("feishu_oauth_status"),
   syncTodoist: () => call<string>("sync_todoist"),
   /** 集成健康汇总（飞书 / AI / Todoist） */

@@ -111,14 +111,17 @@ describe("日期时间格式化", () => {
 describe("save：秘钥占位值跳过", () => {
   it("占位值原样保存时跳过该键，普通值与改动过的秘钥正常提交", async () => {
     const settings = useSettingsStore();
-    settings.values.todoist_token = SECRET_STORED; // 已保存、未改动
     settings.values.language = "en";
-    settings.values.feishu_app_secret = "new-secret"; // 用户输入的新值
-    await settings.save(["todoist_token", "language", "feishu_app_secret"]);
-    expect(api.setSetting).toHaveBeenCalledTimes(2);
+    settings.values.todoist_token = SECRET_STORED; // 已保存、未改动 → 跳过
+    await settings.save(["language", "todoist_token"]);
+    expect(api.setSetting).toHaveBeenCalledTimes(1);
     expect(api.setSetting).toHaveBeenCalledWith("language", "en");
-    expect(api.setSetting).toHaveBeenCalledWith("feishu_app_secret", "new-secret");
     expect(api.setSetting).not.toHaveBeenCalledWith("todoist_token", SECRET_STORED);
+
+    // 用户输入了新值 → 正常提交
+    settings.values.todoist_token = "new-token";
+    await settings.save(["todoist_token"]);
+    expect(api.setSetting).toHaveBeenCalledWith("todoist_token", "new-token");
   });
 });
 

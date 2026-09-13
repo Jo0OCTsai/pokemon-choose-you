@@ -272,21 +272,14 @@ export default {
     add: "＋ 新增 Agent",
   },
   feishu: {
-    engine: "拉取引擎",
-    engineBuiltin: "內建直連（自建應用）",
-    engineCli: "lark-cli（官方命令列）",
-    engineHint:
-      "官方 lark-cli 引擎：先 npm install -g {'@'}larksuite/cli，再點「授權登入」在終端完成 lark-cli 自己的初始化與授權（首次會在瀏覽器自動建立自建應用，憑證由 lark-cli 保管，不進本應用資料庫，無需手動填寫 App ID/Secret）。",
     enable: "啟用背景輪詢",
     interval: "輪詢間隔",
-    hint: "在飛書開放平台建立「企業自建應用」並開通訊息讀取權限；點擊「授權登入」後將以你的身分拉取私聊與群聊訊息（免打擾的會話跳過；發給機器人或發給自己的訊息按備忘提取），無需再把機器人拉進會話。",
+    hint: "先 npm install -g {'@'}larksuite/cli，再點「授權登入」在終端完成 lark-cli 自己的初始化與授權（首次會在瀏覽器自動建立自建應用，憑證由 lark-cli 保管，不進本應用資料庫）。授權後以你的身分拉取私聊與群聊訊息（免打擾的會話跳過；發給機器人或發給自己的訊息按備忘提取）。",
     auth: "授權登入",
     reauth: "重新授權",
-    authing: "等待瀏覽器完成授權…",
+    authing: "正在終端啟動 lark-cli 登入…",
     authorized: "已授權：{name}",
     unauthorized: "未授權（需使用者身分才能拉取你的私聊/群訊息）",
-    authHint:
-      "授權前先在應用的「安全設定 → 重導向 URL」新增：{url}；並在「權限管理」開通 im:message（或 im:message:readonly）、im:message.p2p_msg:get_as_user、im:message.group_msg:get_as_user 與 im:chat。",
     test: "測試飛書連線",
     pollNow: "立即拉取一次",
     pollResult: "本輪新增 {n} 條建議",
