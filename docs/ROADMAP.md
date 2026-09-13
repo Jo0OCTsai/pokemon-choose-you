@@ -79,6 +79,8 @@
 - **Agent SSH 远程执行**：agent 配置可指定 SSH 目标（host/端口/私钥），无头调用与历史入口均经 `ssh --` 以登录 shell（`$SHELL -lc`）转发——非交互会话也能找到 brew/nvm 安装的 CLI；提示词走 stdin 免遭远端 shell 重解析，BatchMode 免交互、连接超时 10 秒；远端找不到命令（退出码 127）时附 PATH 修复指引
 - **会话回链与成本记录**：agent_sessions 表按次落库（session_id / 命令 / 退出码 / 成本 / 时长 / token），分类调用自动记录，`pk session log` 关联任务；任务详情抽屉展示并可回放转录
 - **配套 skill 分发**：`pk skill install claude-code|opencode [--dir]` 一键装 SKILL.md（含 pk 命令速查与 agent 建议流程），`pk skill show` 输出原文
+- **Agent 工具调用模式（pk suggest）**：分类结果回收双模式——text（解析 agent 输出 JSON，默认）或 tools（agent 先 `pk context` 拿判重上下文、`pk suggest batch` 一次性把整批判定写回数据库，应用直接回读不再解析输出文本）；`pk suggest todo|update|follow-up|none|batch` 全套提交命令（todo/update 写建议列保留人工确认、follow-up 自动挂跟进，整批校验一损俱损、同消息幂等覆盖），建议落库收敛为 conn 层单一实现；技能改为渐进披露多文件（SKILL.md + references/ 参数表与批处理工作流，带版本标记、跨版本重装提示更新）；连接测试在 tools 模式改为工具探针（真跑一次 pk context，验证白名单/PATH/数据库整条链路）
+- **远程 agent 用 pk（shim 透传 + 反向隧道）**：`pk remote shim --host <本机> [--port] [--key] [--write]` 生成远程透传脚本，pk 命令经 ssh 回本机执行、数据始终留在本机；agent 的 SSH 配置可填反向隧道端口（`-R` 把远程侧 127.0.0.1:端口 转回本机 sshd），本机不开入站端口也能跑 tools 模式
 - **飞书**：用户身份 OAuth 增量拉取私聊/群聊（无需拉机器人进会话）、富文本渲染、按聊天语境过滤 + 同会话 30 分钟上下文、断网退避重试
 - **飞书双引擎**：拉取引擎可切换——内置直连（自建应用 OAuth）或官方 lark-cli（MIT，`config init` 首跑建应用、`auth login` 授权、`api ... --format json` 拉取，凭证由 lark-cli 自管不进本库）；语境过滤与上下文组装两引擎一致。拉取覆盖 p2p 单聊（`types=p2p,group`）——与机器人的单聊及「发给自己的会话」里用户发的消息按备忘提取；免打扰会话整个跳过（折叠状态开放平台未暴露，以免打扰为最接近的可见信号）
 - **任务详情抽屉**：点击任务卡片右侧滑出——属性总览（分类/优先级/状态/截止/标签/来源/专注/时间戳）+ 跟进记录（可直接补充）+ Agent 执行 + 操作历史；编辑弹窗瘦身为纯表单
