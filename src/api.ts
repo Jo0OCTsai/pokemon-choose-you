@@ -7,6 +7,7 @@ import type {
   FeishuOauthStatus,
   IntegrationHealth,
   LogEntry,
+  RemotePkReport,
   Tag,
   Task,
   TaskLog,
@@ -148,6 +149,9 @@ export const api = {
   /** 在系统终端里打开 agent 的历史记录界面（agent 工具自己保存会话历史） */
   openAgentHistory: (agentId: string, sessionId?: string) =>
     call<string>("open_agent_history", { agentId, sessionId: sessionId ?? null }),
+  /** 一键配置远程 pk：密钥/公钥/指纹/shim/PATH 全自动，成功写回隧道端口 */
+  setupRemotePk: (agentId: string, port?: number) =>
+    call<RemotePkReport>("setup_remote_pk", { agentId, port: port ?? null }),
   /** Agent 会话：taskId 查该任务时间线，缺省全局最近 100 条（含收音机分类调用） */
   listAgentSessions: (taskId?: number) => call<AgentSession[]>("list_agent_sessions", { taskId: taskId ?? null }),
   testFeishuConfig: () => call<string>("test_feishu_config"),
