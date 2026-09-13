@@ -95,6 +95,33 @@ pub async fn api_get(bin: &str, path: &str, params: Value) -> AppResult<Value> {
     unwrap_envelope(&out, &format!("lark-cli {path}"))
 }
 
+/// POST 透传调用：`lark-cli api POST <path> --data '<json>' --format json`
+pub async fn api_post(bin: &str, path: &str, body: Value) -> AppResult<Value> {
+    let args: Vec<String> = vec![
+        "api".into(),
+        "POST".into(),
+        path.into(),
+        "--data".into(),
+        body.to_string(),
+        "--format".into(),
+        "json".into(),
+    ];
+    let arg_refs: Vec<&str> = args.iter().map(String::as_str).collect();
+    let out = run(bin, &arg_refs, Duration::from_secs(30)).await?;
+    unwrap_envelope(&out, &format!("lark-cli {path}"))
+}
+
+/// 批量查询会话的个人设置（免打扰等，每批最多 10 个会话）：
+/// POST /open-apis/im/v1/chat_user_setting/batch_query
+pub async fn chat_user_settings(bin: &str, chat_ids: &[String]) -> AppResult<Value> {
+    api_post(
+        bin,
+        "/open-apis/im/v1/chat_user_setting/batch_query",
+        serde_json::json!({ "chat_ids": chat_ids }),
+    )
+    .await
+}
+
 /// 登录态：`lark-cli auth status --json`（auth 域不支持 --format，输出开关是 --json）
 #[derive(Debug)]
 pub struct CliAuthStatus {
@@ -152,9 +179,14 @@ pub async fn user_identity(bin: &str) -> AppResult<(String, String)> {
     Ok((open_id, name))
 }
 
-/// 会话列表（用户身份）：GET /open-apis/im/v1/chats（--page-all 语义由上层翻页保证）
+/// 会话列表（用户身份）：GET /open-apis/im/v1/chats（--page-all 语义由上层翻页保证）。
+/// types=p2p,group 才会带出单聊（p2p 项含 p2p_target_type/p2p_target_id）。
 pub async fn list_chats(bin: &str, page_size: i64, page_token: Option<&str>) -> AppResult<Value> {
-    let mut params = serde_json::json!({ "page_size": page_size, "user_id_type": "open_id" });
+    let mut params = serde_json::json!({
+        "page_size": page_size,
+        "user_id_type": "open_id",
+        "types": "p2p,group",
+    });
     if let Some(t) = page_token {
         params["page_token"] = Value::String(t.to_string());
     }
@@ -330,6 +362,25 @@ mod tests {
                 r#"echo '{"ok":false,"error":{"subtype":"not_configured"}}' >&2; exit 3"#,
             );
             assert!(!config_ready(&missing).await);
+        });
+    }
+
+    /// 免打扰批量查询走 POST 透传并解信封
+    #[cfg(unix)]
+    #[test]
+    fn chat_user_settings_posts_batch_query() {
+        tauri::async_runtime::block_on(async {
+            let bin = fake_cli(
+                "mute",
+                &["/open-apis/im/v1/chat_user_setting/batch_query"],
+                r#"{"ok":true,"data":{"items":[{"chat_id":"oc_a","is_muted":true}]}}"#,
+                "",
+            );
+            let d = chat_user_settings(&bin, &["oc_a".to_string()])
+                .await
+                .unwrap();
+            assert_eq!(d["items"][0]["chat_id"].as_str(), Some("oc_a"));
+            assert_eq!(d["items"][0]["is_muted"].as_bool(), Some(true));
         });
     }
 

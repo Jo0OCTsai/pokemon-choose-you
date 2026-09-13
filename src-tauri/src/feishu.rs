@@ -523,12 +523,25 @@ struct ChatSummary {
     chat_id: String,
     name: String,
     chat_mode: String,
+    /// p2p 会话的对端类型：Some("bot") = 与机器人的单聊（用户发的消息按备忘提取）
+    p2p_target_type: Option<String>,
+    /// p2p 会话的对端 open_id（等于本人即"发给自己的会话"）
+    p2p_target_id: Option<String>,
 }
 
-/// 会话列表（tenant token 返回机器人所在会话；user token 返回授权用户的全部会话，含单聊）
-async fn list_chats(cfg: &FeishuConfig, access_token: &str) -> AppResult<Vec<ChatSummary>> {
+/// 会话列表（tenant token 返回机器人所在会话；user token 返回授权用户的全部会话，含单聊）。
+/// include_p2p 才带出 p2p 单聊（types 参数仅 user token 支持）。
+async fn list_chats(
+    cfg: &FeishuConfig,
+    access_token: &str,
+    include_p2p: bool,
+) -> AppResult<Vec<ChatSummary>> {
     let client = reqwest::Client::new();
-    let url = format!("{}/im/v1/chats?page_size=100", cfg.base_url);
+    let url = format!(
+        "{}/im/v1/chats?page_size=100{}",
+        cfg.base_url,
+        if include_p2p { "&types=p2p,group" } else { "" }
+    );
     let resp = client
         .get(&url)
         .bearer_auth(access_token)
@@ -550,6 +563,8 @@ async fn list_chats(cfg: &FeishuConfig, access_token: &str) -> AppResult<Vec<Cha
             chat_id,
             name: item["name"].as_str().unwrap_or("未命名会话").to_string(),
             chat_mode: item["chat_mode"].as_str().unwrap_or("group").to_string(),
+            p2p_target_type: item["p2p_target_type"].as_str().map(String::from),
+            p2p_target_id: item["p2p_target_id"].as_str().map(String::from),
         });
     }
     Ok(out)
@@ -598,7 +613,8 @@ async fn bot_context(cfg: &FeishuConfig) -> BotContext {
         }
     }
     // bot 所在单聊：与用户会话列表求交集即得「用户 ↔ 本机器人」单聊
-    match list_chats(cfg, &t).await {
+    // （types=p2p 仅 user token 支持，这里 tenant token 只查群聊）
+    match list_chats(cfg, &t, false).await {
         Ok(chats) => {
             ctx.p2p_chat_ids = chats
                 .into_iter()
@@ -956,7 +972,7 @@ impl FetchEngine {
         match self {
             FetchEngine::Builtin(cfg) => {
                 let t = token.expect("内置引擎的身份必带 token");
-                list_chats(cfg, t).await
+                list_chats(cfg, t, true).await
             }
             FetchEngine::LarkCli(bin) => {
                 let mut out = vec![];
@@ -972,6 +988,8 @@ impl FetchEngine {
                             chat_id,
                             name: item["name"].as_str().unwrap_or("未命名会话").to_string(),
                             chat_mode: item["chat_mode"].as_str().unwrap_or("group").to_string(),
+                            p2p_target_type: item["p2p_target_type"].as_str().map(String::from),
+                            p2p_target_id: item["p2p_target_id"].as_str().map(String::from),
                         });
                     }
                     let has_more = d["has_more"].as_bool().unwrap_or(false);
@@ -983,6 +1001,62 @@ impl FetchEngine {
                 Ok(out)
             }
         }
+    }
+
+    /// 批量查询会话免打扰状态（折叠状态开放平台未暴露，免打扰是最接近的可见信号，
+    /// 折叠的噪音会话通常也被设为免打扰）。查询失败降级为空集合，不阻断拉取。
+    async fn muted_chat_ids(&self, token: Option<&str>, chat_ids: &[String]) -> HashSet<String> {
+        let mut out = HashSet::new();
+        for chunk in chat_ids.chunks(10) {
+            let items: Option<Vec<serde_json::Value>> = match self {
+                FetchEngine::Builtin(cfg) => {
+                    let t = match token {
+                        Some(t) => t,
+                        None => continue,
+                    };
+                    let url = format!("{}/im/v1/chat_user_setting/batch_query", cfg.base_url);
+                    match reqwest::Client::new()
+                        .post(&url)
+                        .bearer_auth(t)
+                        .timeout(Duration::from_secs(10))
+                        .json(&serde_json::json!({ "chat_ids": chunk }))
+                        .send()
+                        .await
+                    {
+                        Ok(resp) => match feishu_json::<serde_json::Value>(resp, "查询免打扰状态")
+                            .await
+                        {
+                            Ok(v) => v["data"]["items"].as_array().cloned(),
+                            Err(e) => {
+                                log::warn!("feishu: 查询免打扰状态失败（跳过过滤）: {e}");
+                                None
+                            }
+                        },
+                        Err(e) => {
+                            log::warn!("feishu: 查询免打扰状态失败（跳过过滤）: {e}");
+                            None
+                        }
+                    }
+                }
+                FetchEngine::LarkCli(bin) => {
+                    match crate::lark_cli::chat_user_settings(bin, chunk).await {
+                        Ok(d) => d["items"].as_array().cloned(),
+                        Err(e) => {
+                            log::warn!("feishu: lark-cli 查询免打扰状态失败（跳过过滤）: {e}");
+                            None
+                        }
+                    }
+                }
+            };
+            for item in items.unwrap_or_default() {
+                if item["is_muted"].as_bool() == Some(true) {
+                    if let Some(id) = item["chat_id"].as_str() {
+                        out.insert(id.to_string());
+                    }
+                }
+            }
+        }
+        out
     }
 
     async fn messages_page(
@@ -1100,9 +1174,18 @@ async fn pull_new_messages(
     since_ms: Option<i64>,
 ) -> AppResult<(Vec<NewMessage>, i64)> {
     let identity = engine.identity(db).await?;
-    let chats = engine.chats(identity.token.as_deref()).await?;
+    let mut chats = engine.chats(identity.token.as_deref()).await?;
     if chats.is_empty() {
         log::info!("feishu: 授权用户不在任何会话中，无消息可拉取");
+    }
+    // 免打扰会话（≈折叠的噪音源）不拉取：查询失败降级为不过滤
+    let chat_ids: Vec<String> = chats.iter().map(|c| c.chat_id.clone()).collect();
+    let muted = engine
+        .muted_chat_ids(identity.token.as_deref(), &chat_ids)
+        .await;
+    if !muted.is_empty() {
+        chats.retain(|c| !muted.contains(&c.chat_id));
+        log::debug!("feishu: 跳过 {} 个免打扰会话", muted.len());
     }
     let bot = engine.bot().await;
     let mut names = cached_names(db);
@@ -1112,7 +1195,13 @@ async fn pull_new_messages(
     let (start_s, end_s) = window_secs(since_ms, now_ms);
     let mut out = vec![];
     for chat in &chats {
-        let mut chat_is_bot = chat.chat_mode == "p2p" && bot.p2p_chat_ids.contains(&chat.chat_id);
+        // 会话级识别：p2p 且对端是机器人（types=p2p,group 才带出该字段）
+        let mut chat_is_bot = (chat.chat_mode == "p2p"
+            && chat.p2p_target_type.as_deref() == Some("bot"))
+            || bot.p2p_chat_ids.contains(&chat.chat_id);
+        // 「发给自己的会话」（p2p 对端即本人）：我的消息视作备忘
+        let target_is_self =
+            chat.chat_mode == "p2p" && chat.p2p_target_id.as_deref() == Some(&identity.open_id);
         // 处理当前会话的所有分页
         let mut page_token: Option<String> = None;
         let mut chat_count = 0usize;
@@ -1165,7 +1254,7 @@ async fn pull_new_messages(
                 };
                 let needs_ai = match chat_type {
                     "bot" => is_self,
-                    "p2p" => !is_self,
+                    "p2p" => !is_self || target_is_self,
                     _ => !is_self && !is_our_bot,
                 } && !is_media_only(msg_type);
                 // 发送者显示名：自己/机器人/单聊对方（会话名即对方）/群成员缓存
@@ -1986,7 +2075,9 @@ esac
                 })))
                 .mount(&server)
                 .await;
-            let chats = list_chats(&test_cfg(&server.uri()), "t").await.unwrap();
+            let chats = list_chats(&test_cfg(&server.uri()), "t", true)
+                .await
+                .unwrap();
             assert_eq!(chats.len(), 2);
             assert_eq!(chats[0].chat_mode, "group");
             assert_eq!(chats[1].chat_mode, "p2p");
@@ -2006,7 +2097,9 @@ esac
                 })))
                 .mount(&server)
                 .await;
-            let err = list_chats(&test_cfg(&server.uri()), "t").await.unwrap_err();
+            let err = list_chats(&test_cfg(&server.uri()), "t", true)
+                .await
+                .unwrap_err();
             let msg = err.to_string();
             assert!(
                 msg.contains("99991672") && msg.contains("no permission"),
@@ -2028,7 +2121,9 @@ esac
                 )
                 .mount(&server)
                 .await;
-            let err = list_chats(&test_cfg(&server.uri()), "t").await.unwrap_err();
+            let err = list_chats(&test_cfg(&server.uri()), "t", true)
+                .await
+                .unwrap_err();
             let msg = err.to_string();
             assert!(
                 msg.contains("502") && msg.contains("Bad Gateway"),
@@ -2091,15 +2186,31 @@ esac
                 })))
                 .mount(&server)
                 .await;
-            // 用户会话列表（user token）：机器人单聊 + 好友单聊 + 项目群
+            // 用户会话列表（user token）：机器人单聊 + 好友单聊 + 发给自己的会话 + 项目群 + 免打扰噪音群
             Mock::given(method("GET"))
                 .and(path("/im/v1/chats"))
                 .and(header("authorization", "Bearer u-tok"))
                 .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
                     "data": { "items": [
-                        { "chat_id": "oc_bot", "name": "皮卡丘助手", "chat_mode": "p2p" },
-                        { "chat_id": "oc_friend", "name": "李四", "chat_mode": "p2p" },
-                        { "chat_id": "oc_group", "name": "项目群", "chat_mode": "group" }
+                        { "chat_id": "oc_bot", "name": "皮卡丘助手", "chat_mode": "p2p", "p2p_target_type": "bot", "p2p_target_id": "ou_bot2" },
+                        { "chat_id": "oc_friend", "name": "李四", "chat_mode": "p2p", "p2p_target_type": "user", "p2p_target_id": "ou_li" },
+                        { "chat_id": "oc_myself", "name": "我", "chat_mode": "p2p", "p2p_target_type": "user", "p2p_target_id": "ou_me" },
+                        { "chat_id": "oc_group", "name": "项目群", "chat_mode": "group" },
+                        { "chat_id": "oc_noisy", "name": "灌水群", "chat_mode": "group" }
+                    ]}
+                })))
+                .mount(&server)
+                .await;
+            // 免打扰状态：灌水群被免打扰（≈折叠的噪音源），其余正常
+            Mock::given(method("POST"))
+                .and(path("/im/v1/chat_user_setting/batch_query"))
+                .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                    "data": { "items": [
+                        { "chat_id": "oc_bot", "is_muted": false },
+                        { "chat_id": "oc_friend", "is_muted": false },
+                        { "chat_id": "oc_myself", "is_muted": false },
+                        { "chat_id": "oc_group", "is_muted": false },
+                        { "chat_id": "oc_noisy", "is_muted": true }
                     ]}
                 })))
                 .mount(&server)
@@ -2136,6 +2247,30 @@ esac
                             &text("把合同发我一下"), t0),
                         msg("om_f2", ("ou_me", "user"), "text",
                             &text("好的马上"), t0 + 1000)
+                    ], "has_more": false }
+                })))
+                .mount(&server)
+                .await;
+            // 发给自己的会话：我的消息视作备忘（送AI）
+            Mock::given(method("GET"))
+                .and(path("/im/v1/messages"))
+                .and(query_param("container_id", "oc_myself"))
+                .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                    "data": { "items": [
+                        msg("om_s1", ("ou_me", "user"), "text",
+                            &text("明早出门前寄快递"), t0)
+                    ], "has_more": false }
+                })))
+                .mount(&server)
+                .await;
+            // 免打扰群的消息：若被拉取则断言失败（应整会话跳过）
+            Mock::given(method("GET"))
+                .and(path("/im/v1/messages"))
+                .and(query_param("container_id", "oc_noisy"))
+                .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                    "data": { "items": [
+                        msg("om_noisy", ("ou_zhao", "user"), "text",
+                            &text("灌水消息不该出现"), t0)
                     ], "has_more": false }
                 })))
                 .mount(&server)
@@ -2186,6 +2321,16 @@ esac
             assert!(f1.needs_ai && !f1.is_self, "对方单聊消息送 AI");
             assert_eq!(f1.sender_name, "李四", "单聊会话名即对方");
             assert!(!find("om_f2").needs_ai, "我自己发的只作上下文");
+            let s1 = find("om_s1");
+            assert_eq!(s1.chat_type, "p2p");
+            assert!(
+                s1.is_self && s1.needs_ai,
+                "发给自己的会话，我的消息视作备忘送 AI"
+            );
+            assert!(
+                msgs.iter().all(|m| m.chat_id != "oc_noisy"),
+                "免打扰会话整会话跳过，不拉取消息"
+            );
             let g1 = find("om_g1");
             assert_eq!(g1.chat_type, "group");
             assert!(g1.needs_ai);
