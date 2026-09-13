@@ -203,6 +203,11 @@ export default {
     add: "＋ 添加 Agent",
   },
   feishu: {
+    engine: "拉取引擎",
+    engineBuiltin: "内置直连（自建应用）",
+    engineCli: "lark-cli（官方命令行）",
+    engineHint:
+      "官方 lark-cli 引擎：先 npm install -g @larksuite/lark-cli，再点「授权登录」在终端完成 lark-cli 自己的授权（凭证由 lark-cli 保管，不进本应用数据库，无需填写 App ID/Secret）。",
     enable: "启用后台轮询",
     interval: "轮询间隔",
     hint: "在飞书开放平台创建「企业自建应用」并开通消息读取权限；点击「授权登录」后将以你的身份拉取私聊与群聊消息，无需再把机器人拉进会话。",
