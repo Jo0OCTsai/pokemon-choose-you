@@ -1,6 +1,6 @@
 [package]
 name = "pokemon-knock"
-version = "0.1.0"
+version = "1.0.0"
 description = "宝可梦来敲门 — 桌宠待办系统"
 authors = ["joeca"]
 edition = "2021"
