@@ -4,6 +4,27 @@
 版本号遵循 [Semantic Versioning](https://semver.org/lang/zh-CN/)。
 本文件由 release-please 自动维护——合并 release PR 时更新，请勿手工编辑已发布段落。
 
+## [1.1.0](https://github.com/Jo0OCTsai/pokemon-knock/compare/pokemon-knock-v1.0.0...pokemon-knock-v1.1.0) (2026-09-13)
+
+
+### Features
+
+* 「加入路线」操作收进草丛页（其他页面隐藏表单时间选择器与卡片 📅） ([06def6f](https://github.com/Jo0OCTsai/pokemon-knock/commit/06def6fb1da4a060b45d224b4df7f02bc975455a))
+* AI 分类工具调用模式——agent 经 pk suggest 落库、应用回读，替代解析输出文本 ([2343d16](https://github.com/Jo0OCTsai/pokemon-knock/commit/2343d1672c155a6758f79e645a215ec9d9976cc1))
+* AI 分类工具调用模式——agent 经 pk 落库、应用回读，替代解析输出文本 ([d02fb68](https://github.com/Jo0OCTsai/pokemon-knock/commit/d02fb68e5fde1b42dd5f3aa566ded43d11ee68fa))
+* pk 的 agent 友好性四件套——doctor 自检、--dry-run、list --limit、help --json ([09fad0e](https://github.com/Jo0OCTsai/pokemon-knock/commit/09fad0e22e18f002bb36f1a15e476b92187654cc))
+* 点击任务卡片打开详情抽屉（属性总览 + 跟进记录/Agent 执行/操作历史迁入），编辑弹窗瘦身为纯表单 ([647b31b](https://github.com/Jo0OCTsai/pokemon-knock/commit/647b31b45102c2eb2edeb3006ca6a1e3cd2752b5))
+
+
+### Bug Fixes
+
+* lark-cli 引擎适配 1.x CLI（auth status --json、首跑 config init、无终端时给出手动命令） ([92f8a7e](https://github.com/Jo0OCTsai/pokemon-knock/commit/92f8a7e32fb6d96b7b7919f3c3338430735ee69c))
+* 主窗口首拉失败隔离（收音机查询报错不再清空任务列表），事件监听先于首拉注册 ([d50e42e](https://github.com/Jo0OCTsai/pokemon-knock/commit/d50e42ea44d58062b5ef487212fda7a04d92b3bd))
+* 修正运行日志解析段序颠倒（级别/模块取反）导致 UI 日志列表恒为空 ([7fbe1ce](https://github.com/Jo0OCTsai/pokemon-knock/commit/7fbe1ce2d9310c0d2dc6c0c3c14547c2fae690ff))
+* 更正 lark-cli 安装命令包名为 @larksuite/cli（文档与界面文案） ([57ba41e](https://github.com/Jo0OCTsai/pokemon-knock/commit/57ba41e5f006ae00e5696b2f009a34509921c907))
+* 远程 agent 经登录 shell 执行（ssh 127 附 PATH 指引）；去重 AI 标题机器人图标 ([0b1efa2](https://github.com/Jo0OCTsai/pokemon-knock/commit/0b1efa2f06ebadf9c3ac4d333920bffb6920ebb9))
+* 飞书拉取补上 p2p 单聊（机器人会话此前从未被轮询），免打扰会话整会话跳过 ([4ec7b40](https://github.com/Jo0OCTsai/pokemon-knock/commit/4ec7b405c54b50bcbc4d77fce077910f7266e15e))
+
 ## [1.0.0](https://github.com/Jo0OCTsai/pokemon-knock/compare/pokemon-knock-v0.1.0...pokemon-knock-v1.0.0) (2026-09-13)
 
 
