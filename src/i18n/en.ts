@@ -31,6 +31,8 @@ export default {
     goGrass: "To grass",
     goRoute: "To route",
     placeholder: "Which wild Pokemon will you catch? (Enter to add)",
+    /** With a category selected: "wild Pokemon" becomes that category's Pokemon */
+    placeholderNamed: "Which wild {p} will you catch? (Enter to add)",
     nlCancel: "Undo parse",
     nlHint:
       'Natural language supported: type "tomorrow 5pm weekly report #work" to auto-detect time, category and tags, with a cancellable preview',
@@ -467,6 +469,8 @@ export default {
   pet: {
     welcome: "Which Pokémon will you catch today? Click me!",
     idle: "Today's adventure hasn't started—click me to pick a target",
+    /** Idle bubble when a main Pokemon is set (speaks its name) */
+    idleNamed: "{p} is waiting for you! Click me to pick a target",
     working: "{p} is catching: {t}",
     paused: "{p} paused—take a breather~",
     remindUrgent: "‼ {p} is stomping anxiously: '{t}' is urgent!",

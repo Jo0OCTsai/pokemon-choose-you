@@ -31,6 +31,8 @@ export default {
     goGrass: "丟進草叢",
     goRoute: "加入路線",
     placeholder: "要捕捉哪隻野生寶可夢？（按 Enter 新增）",
+    /** 選中分類後：野生「寶可夢」換成該分類關聯的寶可夢名 */
+    placeholderNamed: "要捕捉哪隻野生{p}？（按 Enter 新增）",
     nlCancel: "取消識別",
     nlHint: "支援自然語言：直接寫「明天 5pm 交週報 #工作」自動識別時間、分類與標籤，識別結果有預覽、可取消",
   },
@@ -460,6 +462,8 @@ export default {
   pet: {
     welcome: "今天想捕捉哪隻寶可夢？點我出發！",
     idle: "今天的冒險還沒開始，點擊我挑個目標吧",
+    /** 設了主寶可夢時的待機氣泡（說出牠的名字） */
+    idleNamed: "{p}在等你出發！點我挑個目標吧",
     working: "{p}正在捕捉：{t}",
     paused: "{p}暫停中，休息一下~",
     remindUrgent: "‼ {p}急得直跺腳：「{t}」很緊急！",
