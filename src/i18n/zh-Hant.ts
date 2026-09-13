@@ -259,7 +259,7 @@ export default {
     modeText: "文字解析（agent 輸出 JSON）",
     modeTools: "工具呼叫（經 pk 落庫）",
     modeHint:
-      '工具呼叫模式：agent 先跑 pk context 拿判重上下文，再用 pk suggest batch 一次性提交判定，結果直接落庫、不再解析輸出文字。需允許 agent 無頭執行 pk 命令（如 claude 加 --allowedTools "Bash(pk*)"），並建議把逾時調大到 300 秒左右。',
+      '工具呼叫模式：agent 先跑 pk context 拿判重上下文，再用 pk suggest batch 一次性提交判定，結果直接落庫、不再解析輸出文字。需允許 agent 無頭執行 pk 命令（如 claude 加 --allowedTools "Bash(pk:*)"），並建議把逾時調大到 300 秒左右。',
     historyArgs: "歷史參數",
     timeout: "逾時（秒）",
     enabled: "啟用",
