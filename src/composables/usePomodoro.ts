@@ -1,6 +1,7 @@
 import { computed, onUnmounted, ref } from "vue";
 import { api } from "../api";
 import { t } from "../i18n";
+import { chime } from "../chime";
 import { useSettingsStore } from "../stores/settings";
 
 /** 从 PetApp 抽出的番茄钟状态机：倒计时、每分钟上报专注、番茄结束通知 + 短休息 */
@@ -15,10 +16,14 @@ export function usePomodoro(hooks: {
 }) {
   const settings = useSettingsStore();
   const remainSec = ref(25 * 60);
+  /** 本轮总时长（秒）：色环比例与中点提示的基准 */
+  const totalSec = ref(25 * 60);
   const phase = ref<"focus" | "break">("focus");
   const running = ref(false);
   let timer: ReturnType<typeof setInterval> | null = null;
   let reported = 0;
+  let chimedMid = false;
+  let chimedFinal = false;
 
   const enabled = () => settings.sget("pomodoro_enabled") === "true";
   const pomoMinutes = () => settings.sgetNum("pomodoro_minutes", 25);
@@ -58,8 +63,11 @@ export function usePomodoro(hooks: {
     if (hooks.currentId() == null) return;
     stopTick();
     phase.value = "focus";
-    remainSec.value = pomoMinutes() * 60;
+    totalSec.value = pomoMinutes() * 60;
+    remainSec.value = totalSec.value;
     reported = 0;
+    chimedMid = false;
+    chimedFinal = false;
     running.value = true;
     timer = setInterval(onTick, 1000);
   }
@@ -76,11 +84,23 @@ export function usePomodoro(hooks: {
   function onTick() {
     remainSec.value -= 1;
     if (phase.value === "focus") {
-      const total = pomoMinutes() * 60;
+      const total = totalSec.value;
       const elapsed = total - remainSec.value;
       if (elapsed - reported >= 60) {
         api.addFocusSeconds(hooks.currentId() ?? 0, elapsed - reported).catch(() => {});
         reported = elapsed;
+      }
+      // 时间感知与过度专注保护：长番茄钟（≥45 分钟）中点一声、剩 5 分钟两声轻提示
+      const chimeOn = settings.sget("pomodoro_chime") !== "false";
+      if (chimeOn && total >= 45 * 60) {
+        if (!chimedMid && remainSec.value <= total / 2) {
+          chimedMid = true;
+          chime(1);
+        }
+        if (!chimedFinal && remainSec.value <= 300 && remainSec.value > 0) {
+          chimedFinal = true;
+          chime(2);
+        }
       }
     }
     if (remainSec.value <= 0) {
@@ -102,5 +122,5 @@ export function usePomodoro(hooks: {
 
   onUnmounted(stopTick);
 
-  return { remainSec, phase, running, mmss, enabled, start, stop, stopTick, sendNotification };
+  return { remainSec, totalSec, phase, running, mmss, enabled, start, stop, stopTick, sendNotification };
 }
