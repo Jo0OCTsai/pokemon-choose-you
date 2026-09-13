@@ -6,7 +6,7 @@ import { api } from "./api";
 import { EVENTS } from "./events";
 import type { Task } from "./types";
 import { useI18n } from "vue-i18n";
-import { pokemonName, randomQuote } from "./pokemon";
+import { randomQuote } from "./pokemon";
 import { useSettingsStore } from "./stores/settings";
 import { useCategoriesStore } from "./stores/categories";
 import { usePomodoro } from "./composables/usePomodoro";
@@ -46,17 +46,12 @@ const bubble = ref(t("pet.welcome"));
 const switching = ref(false);
 const quickOpen = ref(false);
 
-const currentCat = computed(() => {
-  // 进行中：任务分类的宝可梦；空闲：主宝可梦（未设置则跟随第一个分类）
-  if (current.value) return categories.byId.get(current.value.categoryId) ?? categories.list[0];
-  const mainKey = settings.sget("main_pokemon");
-  if (mainKey) {
-    return { id: -1, name: "", pokemon: pokemonName(mainKey), sprite: mainKey, enabled: true };
-  }
-  return categories.list[0];
+const currentCat = computed(() => categories.byId.get(current.value?.categoryId ?? -1) ?? categories.list[0]);
+/** 桌宠当前精灵：进行中用任务分类的宝可梦；空闲用主宝可梦（只换精灵图，不进文案；未设置跟随第一个分类） */
+const petSprite = computed(() => {
+  if (current.value) return currentCat.value?.sprite ?? "pikachu";
+  return settings.sget("main_pokemon") || currentCat.value?.sprite || "pikachu";
 });
-/** 是否配置了主宝可梦（待机气泡换用 idleNamed 文案） */
-const hasMainPokemon = computed(() => settings.sget("main_pokemon") !== "");
 
 // ---- 番茄钟（时长/开关/休息/通知均由设置中心控制） ----
 const pomo = usePomodoro({
@@ -86,7 +81,7 @@ function startTrial() {
 function bubbleText() {
   if (!current.value) {
     petState.value = "idle";
-    bubble.value = hasMainPokemon.value ? t("pet.idleNamed", { p: currentCat.value?.pokemon ?? "" }) : t("pet.idle");
+    bubble.value = t("pet.idle");
     return;
   }
   petState.value = pomo.running.value ? "working" : "paused";
@@ -165,9 +160,9 @@ async function toggleQuick() {
     await loadQuickList();
     quickSel.value = current.value?.id ?? null;
     // 一半概率出引导，一半概率出随机撸宠台词（当前展示的宝可梦有自定义台词则优先）
-    say(Math.random() < 0.5 ? t("pet.quickPick") : randomQuote(currentCat.value?.sprite), false);
+    say(Math.random() < 0.5 ? t("pet.quickPick") : randomQuote(petSprite.value), false);
   } else {
-    say(randomQuote(currentCat.value?.sprite));
+    say(randomQuote(petSprite.value));
   }
   // 展开时把窗口调高，收起恢复（透明窗口，多余高度不可见）
   const { LogicalSize } = await import("@tauri-apps/api/dpi");
@@ -321,14 +316,11 @@ onUnmounted(() => {
       <PokemonSprite
         class="pet-sprite"
         :class="[petState, { petted, anxious }]"
-        :sprite="currentCat?.sprite ?? 'pikachu'"
+        :sprite="petSprite"
         draggable="false"
       />
     </div>
-    <!-- 进行中：分类 · 宝可梦名；空闲配了主宝可梦：只显示宝可梦名 -->
-    <div v-if="current || hasMainPokemon" class="cat-tag">
-      <template v-if="current">{{ currentCat?.name }} · </template>{{ currentCat?.pokemon }}
-    </div>
+    <div v-if="current" class="cat-tag">{{ currentCat?.name }} · {{ currentCat?.pokemon }}</div>
 
     <!-- 全宽对话框在下 -->
     <div class="dialog" :class="{ alert: petState === 'urgent' }">

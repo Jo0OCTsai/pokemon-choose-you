@@ -31,8 +31,6 @@ export default {
     goGrass: "丢进草丛",
     goRoute: "加入路线",
     placeholder: "要捕捉哪只野生宝可梦？（回车添加）",
-    /** 选中分类后：野生「宝可梦」换成该分类关联的宝可梦名 */
-    placeholderNamed: "要捕捉哪只野生{p}？（回车添加）",
     nlCancel: "取消识别",
     nlHint: "支持自然语言：直接写「明天 5pm 交周报 #工作」自动识别时间、分类与标签，识别结果有预览、可取消",
   },
@@ -469,8 +467,6 @@ export default {
   pet: {
     welcome: "今天想捕捉哪只宝可梦？点我出发！",
     idle: "今天的冒险还没开始，点击我挑个目标吧",
-    /** 设了主宝可梦时的待机气泡（说出它的名字） */
-    idleNamed: "{p}在等你出发！点我挑个目标吧",
     working: "{p}正在捕捉：{t}",
     paused: "{p}暂停中，休息一下~",
     remindUrgent: "‼ {p}急得直跺脚：「{t}」很紧急！",
