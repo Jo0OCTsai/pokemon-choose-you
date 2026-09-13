@@ -48,6 +48,6 @@ body:
       label: 日志（可选）
       description: |
         日志目录：
-        - Linux: ~/.local/share/com.joeca.pokemonknock/logs
-        - macOS: ~/Library/Logs/com.joeca.pokemonknock
-        - Windows: %APPDATA%\com.joeca.pokemonknock\logs
+        - Linux: ~/.local/share/com.joeca.pokemonchooseyou/logs
+        - macOS: ~/Library/Logs/com.joeca.pokemonchooseyou
+        - Windows: %APPDATA%\com.joeca.pokemonchooseyou\logs

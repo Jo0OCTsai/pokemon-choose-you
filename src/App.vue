@@ -1,7 +1,8 @@
 <script setup lang="ts">
-import { computed, nextTick, onMounted, onUnmounted, ref } from "vue";
+import { computed, nextTick, onMounted, onUnmounted, ref, watch } from "vue";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 import { useI18n } from "vue-i18n";
+import { i18n } from "./i18n";
 import { api } from "./api";
 import { EVENTS } from "./events";
 import { useSettingsStore } from "./stores/settings";
@@ -12,7 +13,7 @@ import TaskTab from "./views/TaskTab.vue";
 import RadioTab from "./views/RadioTab.vue";
 import SettingsTab from "./views/SettingsTab.vue";
 
-const { t } = useI18n();
+const { t, tm } = useI18n();
 const settings = useSettingsStore();
 const categoriesStore = useCategoriesStore();
 const tagsStore = useTagsStore();
@@ -31,6 +32,18 @@ const tabs: { key: Tab; labelKey: string; descKey: string }[] = [
 
 const tab = ref<Tab>("today");
 const curTab = computed(() => tabs.find((x) => x.key === tab.value) ?? tabs[0]);
+// 机脊小贴士：语录池随机一条，启动与每次切页换一条（语言切换后重抽，保持同池随机）
+const spineTip = ref("");
+function rollSpineTip() {
+  const tips = tm("spine.tips") as unknown[];
+  const arr = tips.map((x) => String(x));
+  if (arr.length) spineTip.value = arr[Math.floor(Math.random() * arr.length)];
+}
+watch(tab, rollSpineTip);
+watch(
+  () => i18n.global.locale.value,
+  () => rollSpineTip(),
+);
 const isTaskTab = computed(() => ["today", "inbox", "scheduled", "done"].includes(tab.value));
 // 模板里 isTaskTab 的 v-if 收窄不了模板表达式的类型，这里集中收窄一次
 const activeTaskTab = computed<TaskTabKey>(() => (isTaskTab.value ? (tab.value as TaskTabKey) : "today"));
@@ -51,6 +64,7 @@ async function quickCapture() {
 
 const unlisteners: UnlistenFn[] = [];
 onMounted(async () => {
+  rollSpineTip();
   // 先挂事件监听再首拉：首拉失败（如某个查询报错）也不至于让窗口“失聪”，后续数据变更仍能触发刷新
   unlisteners.push(await listen<null>(EVENTS.tasksChanged, () => tasksStore.reload()));
   unlisteners.push(await listen<null>(EVENTS.chatMessagesChanged, () => tasksStore.reload()));
@@ -97,7 +111,7 @@ onUnmounted(() => unlisteners.forEach((u) => u()));
           </span>
         </button>
       </nav>
-      <div class="tip">{{ t("spine.tip1") }}<br />{{ t("spine.tip2") }}</div>
+      <div class="tip">{{ spineTip }}</div>
     </aside>
 
     <!-- 内容区 -->

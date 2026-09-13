@@ -1,12 +1,12 @@
 ---
-name: pokemon-knock
-description: 宝可梦来敲门（pokemon-knock）待办管理技能——用 pk 命令读写本地待办库：建任务/查任务/完成任务/记跟进/提交 AI 判定建议/记录会话成本。当用户提到待办、任务清单、周报、deadline、打卡或「帮我记一下」时使用。
+name: pokemon-choose-you
+description: 就决定是你了（pokemon-choose-you）待办管理技能——用 pk 命令读写本地待办库：建任务/查任务/完成任务/记跟进/提交 AI 判定建议/记录会话成本。当用户提到待办、任务清单、周报、deadline、打卡或「帮我记一下」时使用。
 version: "2"
 ---
 
-# 宝可梦来敲门 · pk 命令技能
+# 就决定是你了 · pk 命令技能
 
-桌宠待办应用「宝可梦来敲门」的本地命令行。所有命令输出 UTF-8 JSON（stdout），错误输出 `{"error": "..."}` 到 stderr（退出码 1=业务 / 2=用法）。
+桌宠待办应用「就决定是你了」的本地命令行。所有命令输出 UTF-8 JSON（stdout），错误输出 `{"error": "..."}` 到 stderr（退出码 1=业务 / 2=用法）。
 
 ## 使用约定
 

@@ -2,7 +2,7 @@
 
 面向开发者的环境搭建、常用命令、测试与发布流程。安装与日常使用见 [操作说明](USER_GUIDE.md)；提交规范与贡献流程见 [贡献指南](../CONTRIBUTING.md)；跨平台已知坑位见 [平台注意事项](PLATFORM_NOTES.md)。
 
-技术栈 Tauri 2 + Vue 3 + Rust：常驻仅桌宠窗口，网络/同步跑在 tokio 后台任务，UI 卡死不影响提醒；数据为 SQLite（WAL）本地存储，日志滚动记录于 `~/.local/share/com.joeca.pokemonknock/logs/`。
+技术栈 Tauri 2 + Vue 3 + Rust：常驻仅桌宠窗口，网络/同步跑在 tokio 后台任务，UI 卡死不影响提醒；数据为 SQLite（WAL）本地存储，日志滚动记录于 `~/.local/share/com.joeca.pokemonchooseyou/logs/`。
 
 ## 环境搭建
 
@@ -77,7 +77,7 @@ public/pokemon/         宝可梦素材 (PokeAPI sprites)
 自动更新走 minisign 签名，**签名不可关闭**：
 
 ```bash
-npx tauri signer generate -w ~/.tauri/pokemon-knock.key   # 私钥务必保存在仓库外
+npx tauri signer generate -w ~/.tauri/pokemon-choose-you.key   # 私钥务必保存在仓库外
 ```
 
 - 公钥已内联在 `src-tauri/tauri.conf.json` 的 `plugins.updater.pubkey`。

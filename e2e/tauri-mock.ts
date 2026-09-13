@@ -112,6 +112,11 @@ export async function installTauriMock(page: Page, state: Partial<MockState> = {
               return fresh().filter((t) => ["inbox", "scheduled", "active", "paused"].includes(t.status));
             return fresh();
           }
+          case "dex_stats": {
+            const caught = db.tasks.filter((t) => t.status === "done").length;
+            const escaped = db.tasks.filter((t) => t.status === "cancelled").length;
+            return { caught, escaped };
+          }
           case "create_task": {
             const t = {
               id: db.nextId++,
@@ -239,23 +244,23 @@ export async function installTauriMock(page: Page, state: Partial<MockState> = {
           case "list_backups":
             return [
               {
-                file: "pokemon-knock-20260901-080000.db",
+                file: "pokemon-choose-you-20260901-080000.db",
                 size: 16384,
                 createdAt: "2026-09-01T08:00:00+08:00",
               },
             ];
           case "create_backup_now":
-            return "pokemon-knock-20260913-120000.db";
+            return "pokemon-choose-you-20260913-120000.db";
           case "export_json":
-            return "pokemon-knock-full-mock.json";
+            return "pokemon-choose-you-full-mock.json";
           case "import_json":
             broadcast("tasks-changed");
             broadcast("settings-changed");
             return 0;
           case "export_tasks_csv":
-            return "pokemon-knock-tasks-mock.csv";
+            return "pokemon-choose-you-tasks-mock.csv";
           case "export_daily_md":
-            return "pokemon-knock-daily-mock.md";
+            return "pokemon-choose-you-daily-mock.md";
           case "open_exports_dir":
             return null;
           case "restore_backup":
@@ -363,7 +368,7 @@ export async function installTauriMock(page: Page, state: Partial<MockState> = {
               },
             ];
           case "build_support_report":
-            return "宝可梦来敲门 支持报告（E2E mock）";
+            return "就决定是你了 支持报告（E2E mock）";
           case "feishu_oauth_login":
             return "授权成功：测试用户（E2E mock）";
           case "feishu_oauth_status":

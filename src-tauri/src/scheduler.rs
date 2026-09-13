@@ -59,11 +59,12 @@ fn tick<R: tauri::Runtime>(app: &tauri::AppHandle<R>) -> Result<(), Box<dyn std:
     // 不可比（UTC+ 时区下本地字符串普遍偏大），窗口放宽一天，精确判断交给 parse_time
     let now_s = (now + chrono::Duration::days(1)).to_rfc3339();
     let conn = db.0.lock().unwrap();
-    let due: Vec<(i64, String, String, String)> = {
+    let due: Vec<(i64, String, String, String, Option<String>)> = {
         let mut stmt = conn.prepare(
-            "SELECT id, title, priority, remind_at FROM tasks
-             WHERE reminded=0 AND remind_at IS NOT NULL AND remind_at <= ?1
-               AND status IN ('inbox','scheduled','active','paused')",
+            "SELECT t.id, t.title, t.priority, t.remind_at, c.pokemon FROM tasks t
+             LEFT JOIN categories c ON c.id = t.category_id
+             WHERE t.reminded=0 AND t.remind_at IS NOT NULL AND t.remind_at <= ?1
+               AND t.status IN ('inbox','scheduled','active','paused')",
         )?;
         let rows = stmt
             .query_map(params![now_s], |r| {
@@ -72,19 +73,20 @@ fn tick<R: tauri::Runtime>(app: &tauri::AppHandle<R>) -> Result<(), Box<dyn std:
                     r.get::<_, String>(1)?,
                     r.get::<_, String>(2)?,
                     r.get::<_, String>(3)?,
+                    r.get::<_, Option<String>>(4)?,
                 ))
             })?
             .collect::<Result<Vec<_>, _>>()?;
         rows
     };
-    for (id, title, priority, remind_at) in &due {
+    for (id, title, priority, remind_at, pokemon) in &due {
         // datetime-local 传入的是本地无时区时间，解析后与当前 UTC 比较
         let due_time = parse_time(remind_at);
         if due_time.is_none_or(|t| t > now) {
             continue;
         }
         conn.execute("UPDATE tasks SET reminded=1 WHERE id=?1", params![id])?;
-        drop_later_notify(app, *id, title, priority, notify_on);
+        drop_later_notify(app, *id, title, priority, pokemon.as_deref(), notify_on);
     }
 
     // ---- 逾期 fresh start：自动归草丛模式每天跑一次（反羞耻：不堆「羞耻墙」） ----
@@ -99,6 +101,16 @@ fn tick<R: tauri::Runtime>(app: &tauri::AppHandle<R>) -> Result<(), Box<dyn std:
             );
             if n > 0 {
                 let _ = app.emit(crate::events::TASKS_CHANGED, ());
+                // 温和告知（反羞耻：溜回去不是失败，想好了再去看）
+                if notify_on {
+                    let (fs_title, fs_body) = fresh_start_notification_text(&lang, n);
+                    let _ = app
+                        .notification()
+                        .builder()
+                        .title(fs_title)
+                        .body(fs_body)
+                        .show();
+                }
             }
         }
     }
@@ -117,7 +129,8 @@ fn tick<R: tauri::Runtime>(app: &tauri::AppHandle<R>) -> Result<(), Box<dyn std:
         &today_local.format("%Y-%m-%d").to_string(),
     );
     if due_today {
-        let (title, body) = review_notification_text(&lang);
+        let (caught, focus_min) = week_stats(&conn);
+        let (title, body) = review_notification_text(&lang, caught, focus_min);
         conn.execute(
             "INSERT INTO settings (key, value) VALUES ('review_last_notified', ?1)
              ON CONFLICT(key) DO UPDATE SET value=?1",
@@ -180,46 +193,100 @@ fn review_due(
     enabled && today_dow == review_dow && last_notified != Some(today)
 }
 
-/// 复盘提醒文案（三语）
-fn review_notification_text(lang: &str) -> (String, String) {
+/// 本周捕捉数与专注分钟（近 7 天完成口径，与训练家复盘向导一致）
+fn week_stats(conn: &rusqlite::Connection) -> (usize, i64) {
+    match conn.query_row(
+        "SELECT COUNT(*), COALESCE(SUM(focus_seconds), 0) / 60 FROM tasks
+         WHERE status='done' AND datetime(completed_at) >= datetime('now', '-7 days')",
+        [],
+        |r| Ok((r.get::<_, i64>(0)? as usize, r.get::<_, i64>(1)?)),
+    ) {
+        Ok(v) => v,
+        Err(e) => {
+            log::warn!("review: 统计本周捕捉失败（通知降级为不带数字）: {e}");
+            (0, 0)
+        }
+    }
+}
+
+/// 复盘提醒文案（三语，带本周战绩）
+fn review_notification_text(lang: &str, caught: usize, focus_min: i64) -> (String, String) {
     match lang {
         "zh-Hant" => (
             "🧢 訓練家複盤".into(),
-            "一週的收穫該清點了：到圖鑑頁點「複盤」逐站整理路線與草叢".into(),
+            format!("本週捕捉 {caught} 隻、專注 {focus_min} 分鐘——到圖鑑頁點「複盤」逐站整理路線與草叢"),
         ),
         "en" => (
             "🧢 Trainer review".into(),
-            "Time to count this week's catches — open the Dex tab and run the review".into(),
+            format!("{caught} caught, {focus_min} focus min this week — open the Dex tab and run the review"),
         ),
         _ => (
-            "🧢 训练师复盘".into(),
-            "一周的收获得清点一下了：到图鉴页点「复盘」逐站整理路线与草丛".into(),
+            "🧢 训练家复盘".into(),
+            format!("本周捕捉 {caught} 只、专注 {focus_min} 分钟——到图鉴页点「复盘」逐站整理路线与草丛"),
         ),
     }
 }
 
-/// 按语言设置生成通知标题/正文（紧急与非紧急两档）
-fn notification_text(lang: &str, urgent: bool, title: &str) -> (String, String) {
+/// 逾期归草丛的温和告知（三语；反羞耻语气：溜回去不是失败）
+fn fresh_start_notification_text(lang: &str, n: usize) -> (String, String) {
+    match lang {
+        "zh-Hant" => (
+            "🐾 有寶可夢溜回草叢".into(),
+            format!("{n} 隻逾期的小傢伙回了草叢——想好了再去看，不急"),
+        ),
+        "en" => (
+            "🐾 Some Pokemon slipped back".into(),
+            format!("{n} overdue friends returned to the grass — visit when you're ready"),
+        ),
+        _ => (
+            "🐾 有宝可梦溜回草丛".into(),
+            format!("{n} 只逾期的小家伙回了草丛——想好了再去看，不急"),
+        ),
+    }
+}
+
+/// 按语言设置生成通知标题/正文（紧急与非紧急两档）；body 附分类宝可梦名（有则拼尾）
+fn notification_text(
+    lang: &str,
+    urgent: bool,
+    title: &str,
+    pokemon: Option<&str>,
+) -> (String, String) {
+    // 主体带宝可梦后缀：交报告（皮卡丘）
+    let subject = match pokemon {
+        Some(p) if lang == "en" => format!("{title} ({p})"),
+        Some(p) => format!("{title}（{p}）"),
+        None => title.to_string(),
+    };
     match lang {
         "zh-Hant" => {
             if urgent {
-                ("‼ 寶可夢來敲門".into(), format!("緊急任務提醒：{title}"))
+                (
+                    "‼ 訓練家，快看快看！".into(),
+                    format!("緊急任務提醒：{subject}"),
+                )
             } else {
-                ("🐾 寶可夢來敲門".into(), format!("別忘了：{title}"))
+                ("🐾 訓練家，別忘了".into(), format!("{subject}"))
             }
         }
         "en" => {
             if urgent {
-                ("‼ Pokemon Knock!".into(), format!("Urgent: {title}"))
+                (
+                    "‼ Trainer, quick look!".into(),
+                    format!("Urgent: {subject}"),
+                )
             } else {
-                ("🐾 Pokemon Knock!".into(), format!("Don't forget: {title}"))
+                ("🐾 Trainer, don't forget".into(), format!("{subject}"))
             }
         }
         _ => {
             if urgent {
-                ("‼ 宝可梦来敲门".into(), format!("紧急任务提醒：{title}"))
+                (
+                    "‼ 训练家，快看快看！".into(),
+                    format!("紧急任务提醒：{subject}"),
+                )
             } else {
-                ("🐾 宝可梦来敲门".into(), format!("别忘了：{title}"))
+                ("🐾 训练家，别忘了".into(), format!("{subject}"))
             }
         }
     }
@@ -230,12 +297,13 @@ fn drop_later_notify<R: tauri::Runtime>(
     id: i64,
     title: &str,
     priority: &str,
+    pokemon: Option<&str>,
     notify_on: bool,
 ) {
     let urgent = priority == "urgent" || priority == "high";
     if notify_on {
         let lang = crate::db::setting(app, "language").unwrap_or_default();
-        let (title_str, body) = notification_text(&lang, urgent, title);
+        let (title_str, body) = notification_text(&lang, urgent, title, pokemon);
         let _ = app
             .notification()
             .builder()
@@ -364,32 +432,75 @@ mod tests {
 
     #[test]
     fn review_notification_text_covers_three_languages() {
-        let (t, b) = review_notification_text("zh-Hans");
+        let (t, b) = review_notification_text("zh-Hans", 3, 95);
         assert!(t.contains("复盘") && b.contains("草丛"));
-        let (t, _) = review_notification_text("zh-Hant");
-        assert!(t.contains("複盤"));
-        let (t, b) = review_notification_text("en");
-        assert!(t.contains("review") && b.len() > 10);
+        assert!(
+            b.contains("3 只") && b.contains("95 分钟"),
+            "带本周战绩: {b}"
+        );
+        let (t, b) = review_notification_text("zh-Hant", 1, 0);
+        assert!(t.contains("複盤") && b.contains("1 隻"));
+        let (t, b) = review_notification_text("en", 2, 30);
+        assert!(t.contains("review") && b.contains("2 caught") && b.len() > 10);
+    }
+
+    #[test]
+    fn fresh_start_notification_text_is_gentle() {
+        let (t, b) = fresh_start_notification_text("zh-Hans", 2);
+        assert!(t.contains("草丛") && b.contains("2 只") && !b.contains("失败"));
+        let (t, b) = fresh_start_notification_text("zh-Hant", 1);
+        assert!(t.contains("草叢") && b.contains("1 隻"));
+        let (t, b) = fresh_start_notification_text("en", 3);
+        assert!(b.contains("3 overdue"));
+    }
+
+    #[test]
+    fn week_stats_counts_done_within_seven_days() {
+        let conn = crate::db::tests::test_conn();
+        let now = chrono::Utc::now();
+        for (i, days_ago) in [0, 3, 6, 8].iter().enumerate() {
+            conn.execute(
+                "INSERT INTO tasks (title, status, created_at, completed_at, focus_seconds)
+                 VALUES (?1, 'done', ?2, ?2, ?3)",
+                rusqlite::params![
+                    format!("t{i}"),
+                    (now - chrono::Duration::days(*days_ago)).to_rfc3339(),
+                    (i as i64) * 600
+                ],
+            )
+            .unwrap();
+        }
+        // 进行中的专注时长不计入
+        conn.execute(
+            "INSERT INTO tasks (title, status, created_at, focus_seconds)
+             VALUES ('open', 'active', ?1, 99999)",
+            rusqlite::params![now.to_rfc3339()],
+        )
+        .unwrap();
+        let (caught, focus_min) = week_stats(&conn);
+        assert_eq!(caught, 3, "只数近 7 天完成的");
+        assert_eq!(focus_min, 30, "专注分钟 = (0+1+2)*600s / 60");
     }
 
     // ---- notification_text：三语 × 紧急/普通 ----
 
     #[test]
     fn notification_text_per_language_and_urgency() {
-        let (t, b) = notification_text("zh-Hans", true, "交报告");
-        assert_eq!(t, "‼ 宝可梦来敲门");
+        let (t, b) = notification_text("zh-Hans", true, "交报告", None);
+        assert_eq!(t, "‼ 训练家，快看快看！");
         assert_eq!(b, "紧急任务提醒：交报告");
-        let (t, _) = notification_text("zh-Hans", false, "交报告");
-        assert_eq!(t, "🐾 宝可梦来敲门");
-        let (t, b) = notification_text("zh-Hant", false, "交報告");
-        assert_eq!(t, "🐾 寶可夢來敲門");
-        assert_eq!(b, "別忘了：交報告");
-        let (t, b) = notification_text("en", true, "report");
-        assert_eq!(t, "‼ Pokemon Knock!");
-        assert_eq!(b, "Urgent: report");
+        let (t, b) = notification_text("zh-Hans", false, "交报告", Some("皮卡丘"));
+        assert_eq!(t, "🐾 训练家，别忘了");
+        assert_eq!(b, "交报告（皮卡丘）", "body 附分类宝可梦名");
+        let (t, b) = notification_text("zh-Hant", false, "交報告", None);
+        assert_eq!(t, "🐾 訓練家，別忘了");
+        assert_eq!(b, "交報告");
+        let (t, b) = notification_text("en", true, "report", Some("Pikachu"));
+        assert_eq!(t, "‼ Trainer, quick look!");
+        assert_eq!(b, "Urgent: report (Pikachu)");
         // 未知语言回退简体
-        let (t, _) = notification_text("fr", false, "x");
-        assert_eq!(t, "🐾 宝可梦来敲门");
+        let (t, _) = notification_text("fr", false, "x", None);
+        assert_eq!(t, "🐾 训练家，别忘了");
     }
 
     // ---- tick：mock 运行时 + 内存库 ----

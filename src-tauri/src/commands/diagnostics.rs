@@ -299,7 +299,7 @@ pub fn build_support_report<R: tauri::Runtime>(
     db: State<Db>,
 ) -> AppResult<String> {
     let mut report = String::new();
-    report.push_str("宝可梦来敲门 支持报告\n");
+    report.push_str("就决定是你了 支持报告\n");
     report.push_str(&format!(
         "版本：{} · 平台：{} · 生成时间：{}\n\n",
         app.package_info().version,

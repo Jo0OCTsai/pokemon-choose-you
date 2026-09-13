@@ -2,5 +2,5 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 fn main() {
-    pokemon_knock_lib::run()
+    pokemon_choose_you_lib::run()
 }

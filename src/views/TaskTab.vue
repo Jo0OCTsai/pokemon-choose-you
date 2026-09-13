@@ -59,8 +59,29 @@ async function freshStartOverdue() {
 const showAddForm = computed(() => props.tab !== "done");
 const dexFilters = ["all", "done", "cancelled"] as const;
 
+// ---- 图鉴页统计页头：累计捕捉/逃走 + 里程碑贺词（全量口径，不随列表截断） ----
+const dexStats = ref<{ caught: number; escaped: number } | null>(null);
+async function loadDexStats() {
+  if (props.tab !== "done") return;
+  try {
+    dexStats.value = await api.dexStats();
+  } catch {
+    dexStats.value = null; // 统计拿不到就不展示页头，不挡列表
+  }
+}
+const dexMilestone = computed(() => {
+  const n = dexStats.value?.caught ?? 0;
+  if (n >= 200) return "m200";
+  if (n >= 100) return "m100";
+  if (n >= 50) return "m50";
+  if (n >= 10) return "m10";
+  if (n >= 1) return "m1";
+  return "m0";
+});
+
 async function reload() {
   await tasksStore.reload();
+  await loadDexStats();
 }
 
 async function addTask(input: Parameters<typeof api.createTask>[0]) {
@@ -131,7 +152,7 @@ function openDetail(task: Task) {
   detailId.value = task.id;
 }
 
-// ---- 每周复盘（训练师复盘）：图鉴页入口 ----
+// ---- 每周复盘（训练家复盘）：图鉴页入口 ----
 const reviewOpen = ref(false);
 
 // ---- 搜索：跨页关键词查询（标题/备注/标签/跟进记录） ----
@@ -174,6 +195,12 @@ onMounted(reload);
       <span v-if="searchMode" class="search-hint">
         {{ searching ? t("search.searching") : t("search.resultCount", { n: searchResults.length }) }}
       </span>
+    </div>
+
+    <!-- 图鉴页统计页头：成就汇总 + 里程碑贺词 -->
+    <div v-if="tab === 'done' && dexStats" class="dex-stats lcd">
+      <div class="stats-line">{{ t("dexStats.line", dexStats) }}</div>
+      <div class="stats-milestone">{{ t(`dexStats.milestone.${dexMilestone}`, { n: dexStats.caught }) }}</div>
     </div>
 
     <!-- 图鉴筛选：全部 / 已捕捉 / 已逃走（沿用设置页分区选单 stab 的控件语言） -->
@@ -284,6 +311,21 @@ onMounted(reload);
   font-size: 12px;
   color: #9a937f;
   font-weight: 700;
+}
+/* 图鉴页统计页头：复用 .lcd 复古屏，配色走 LCD 令牌 */
+.dex-stats {
+  margin: 0 20px 10px;
+  padding: 8px 12px;
+}
+.stats-line {
+  font-weight: 700;
+  font-size: 13px;
+  color: var(--lcd-text);
+}
+.stats-milestone {
+  margin-top: 2px;
+  font-size: 12px;
+  color: var(--lcd-text);
 }
 /* 图鉴筛选：与设置页 stab 分区选单同一套控件语言 */
 .dex-filter {

@@ -14,7 +14,7 @@
       "type": "lldb-dap",
       "request": "launch",
       "name": "🐾 Tauri 桌面应用（Rust）",
-      "program": "${workspaceFolder}/src-tauri/target/debug/pokemon-knock",
+      "program": "${workspaceFolder}/src-tauri/target/debug/pokemon-choose-you",
       "cwd": "${workspaceFolder}",
       "preLaunchTask": "调试准备：桌面应用"
     },

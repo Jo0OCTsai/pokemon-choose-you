@@ -61,7 +61,7 @@ pub fn setup<R: tauri::Runtime>(app: &AppHandle<R>) -> tauri::Result<()> {
     )?;
 
     let mut builder = TrayIconBuilder::with_id("main-tray")
-        .tooltip("宝可梦来敲门")
+        .tooltip("就决定是你了")
         .menu(&menu)
         // 左键不弹菜单（Windows 惯例），交给 on_tray_icon_event 打开图鉴机
         .show_menu_on_left_click(false)

@@ -1,12 +1,12 @@
 # 贡献指南
 
-感谢有意向宝可梦来敲门贡献！这是一个 Tauri 2 + Vue 3 + Rust 的桌宠待办应用。
+感谢有意向「就决定是你了」贡献！这是一个 Tauri 2 + Vue 3 + Rust 的桌宠待办应用。
 
 ## 快速开始
 
 ```bash
-git clone https://github.com/Jo0OCTsai/pokemon-knock.git
-cd pokemon-knock
+git clone https://github.com/Jo0OCTsai/pokemon-choose-you.git
+cd pokemon-choose-you
 ```
 
 环境搭建（系统依赖、中文字体、lefthook hooks）、常用命令（lint / format / 测试 / clippy）与目录结构见 [开发指南](docs/DEVELOPMENT.md)。

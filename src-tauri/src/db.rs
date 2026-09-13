@@ -1,8 +1,15 @@
 use rusqlite::Connection;
+use std::path::Path;
 use std::sync::Mutex;
 use tauri::Manager;
 
 pub struct Db(pub Mutex<Connection>);
+
+/// 数据库文件名（应用数据目录内）；项目改名前为 pokemon-knock.db，由 migrate_legacy 搬运
+pub const DB_FILE: &str = "pokemon-choose-you.db";
+/// 项目改名前的 identifier / 库文件名：一次性迁移的识别依据
+const LEGACY_IDENTIFIER: &str = "com.joeca.pokemonknock";
+const LEGACY_DB_FILE: &str = "pokemon-knock.db";
 
 /// 1.0.0 初始化基线：完整当前 schema，单条迁移。
 /// 历史增量（标签/收音机、分类停用、任务状态机、飞书元数据、AI 建议与反馈、
@@ -201,8 +208,9 @@ const DEFAULT_CATEGORIES: &[(&str, &str, &str)] = &[
 
 pub fn init(app: &tauri::AppHandle) -> Result<(), Box<dyn std::error::Error>> {
     let dir = app.path().app_data_dir()?;
+    migrate_legacy_dir(&dir);
     std::fs::create_dir_all(&dir)?;
-    let conn = Connection::open(dir.join("pokemon-knock.db"))?;
+    let conn = Connection::open(dir.join(DB_FILE))?;
     conn.execute_batch("PRAGMA journal_mode=WAL; PRAGMA synchronous=NORMAL;")?;
     init_conn(&conn)?;
     // 存量秘钥迁 OS 钥匙串（不可用则留在 settings 表，读取端回落兜底）
@@ -210,8 +218,52 @@ pub fn init(app: &tauri::AppHandle) -> Result<(), Box<dyn std::error::Error>> {
     if moved > 0 {
         log::info!("db: {moved} 条秘钥已迁入 OS 钥匙串");
     }
+    // 钥匙串服务名随项目改名：旧服务下的秘钥搬至新服务（读旧不删旧）
+    crate::secrets::migrate_legacy_service();
     app.manage(Db(Mutex::new(conn)));
     Ok(())
+}
+
+/// 一次性迁移：改名前的数据目录整目录搬至新 identifier 目录，库文件随之换新名。
+/// 新目录已存在（含全新安装）或旧目录不存在时为 no-op；任何失败只告警不阻塞启动
+/// （旧数据原样留在旧目录，可手动改名）。返回是否实际搬运。
+fn migrate_legacy_dir(new_dir: &Path) -> bool {
+    let Some(parent) = new_dir.parent() else {
+        return false;
+    };
+    let old_dir = parent.join(LEGACY_IDENTIFIER);
+    if new_dir.exists() || !old_dir.is_dir() {
+        return false;
+    }
+    match std::fs::rename(&old_dir, new_dir) {
+        Ok(()) => {
+            let old_db = new_dir.join(LEGACY_DB_FILE);
+            let new_db = new_dir.join(DB_FILE);
+            if old_db.exists() && !new_db.exists() {
+                if let Err(e) = std::fs::rename(&old_db, &new_db) {
+                    log::warn!(
+                        "db: 库文件改名失败（{e}）：{} 手动改名为 {} 即可",
+                        old_db.display(),
+                        new_db.display()
+                    );
+                }
+            }
+            log::info!(
+                "db: 已迁移旧数据目录 {} → {}",
+                old_dir.display(),
+                new_dir.display()
+            );
+            true
+        }
+        Err(e) => {
+            log::warn!(
+                "db: 旧数据目录迁移失败（{e}）：旧数据保留在 {}，可手动改名为 {}",
+                old_dir.display(),
+                new_dir.display()
+            );
+            false
+        }
+    }
 }
 
 /// 迁移 + 写入默认分类（幂等），init 与单元测试共用
@@ -270,6 +322,43 @@ pub(crate) mod tests {
             .query_row("SELECT COUNT(*) FROM categories", [], |r| r.get(0))
             .unwrap();
         assert_eq!(n, DEFAULT_CATEGORIES.len() as i64);
+    }
+
+    /// 临时目录里预置旧 identifier 目录与旧库文件，验证整目录 + 库文件一次性搬运
+    #[test]
+    fn migrate_legacy_dir_moves_old_dir_and_db_file() {
+        let parent = std::env::temp_dir().join(format!("pk-migrate-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&parent);
+        std::fs::create_dir_all(parent.join(LEGACY_IDENTIFIER).join("backups")).unwrap();
+        std::fs::write(parent.join(LEGACY_IDENTIFIER).join(LEGACY_DB_FILE), "db").unwrap();
+        std::fs::write(
+            parent
+                .join(LEGACY_IDENTIFIER)
+                .join("backups")
+                .join("pokemon-knock-20260913.db"),
+            "backup",
+        )
+        .unwrap();
+
+        let new_dir = parent.join("pokemonchooseyou");
+        assert!(migrate_legacy_dir(&new_dir));
+        assert!(!parent.join(LEGACY_IDENTIFIER).exists(), "旧目录整体搬走");
+        assert!(new_dir.join(DB_FILE).exists(), "库文件换成新名");
+        assert!(
+            new_dir.join("backups").exists(),
+            "其余内容（备份等）随目录保留"
+        );
+
+        // 新目录已存在或旧目录不存在时为 no-op，且不误删任何东西
+        std::fs::create_dir_all(parent.join(LEGACY_IDENTIFIER)).unwrap();
+        std::fs::write(parent.join(LEGACY_IDENTIFIER).join(LEGACY_DB_FILE), "again").unwrap();
+        assert!(!migrate_legacy_dir(&new_dir));
+        assert!(
+            parent.join(LEGACY_IDENTIFIER).exists(),
+            "新目录在场时不碰旧目录"
+        );
+        assert!(new_dir.join(DB_FILE).exists());
+        let _ = std::fs::remove_dir_all(&parent);
     }
 
     #[test]

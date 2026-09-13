@@ -57,7 +57,7 @@ beforeEach(() => {
   useCategoriesStore().list = [{ id: 1, name: "工作", pokemon: "皮卡丘", sprite: "pikachu", enabled: true }];
 });
 
-describe("ReviewWizard 训练师复盘", () => {
+describe("ReviewWizard 训练家复盘", () => {
   it("总览统计本周捕捉/专注/路线/草丛", async () => {
     const w = await mountWizard(
       [
@@ -66,7 +66,7 @@ describe("ReviewWizard 训练师复盘", () => {
       ],
       [{ title: "完成的", status: "done", completedAt: new Date().toISOString(), focusSeconds: 1500 }],
     );
-    expect(w.text()).toContain("训练师复盘");
+    expect(w.text()).toContain("训练家复盘");
     expect(w.get(".stat-row").text()).toContain("1"); // 本周捕捉 1
     expect(w.text()).toContain("本周捕捉");
     expect(w.text()).toContain("25"); // 专注 25 分钟

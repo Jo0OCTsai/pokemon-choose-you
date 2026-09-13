@@ -85,6 +85,7 @@ pub fn run() {
             commands::create_backup_now,
             commands::restore_backup,
             commands::list_tasks,
+            commands::dex_stats,
             commands::search_tasks,
             commands::create_task,
             commands::get_task,
