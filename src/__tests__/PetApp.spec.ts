@@ -290,6 +290,39 @@ describe("PetApp 桌宠", () => {
     expect(w.find(".quick-dex").exists()).toBe(false);
   });
 
+  it("就近可操作提醒：气泡带完成/推迟动作，动作直接消化无需打开主面板", async () => {
+    current = task({ id: 5, title: "交报告" });
+    const w = await mountPet();
+    // 后端敲钟：task-reminder 事件
+    broadcast("task-reminder", { id: 5, title: "交报告", urgent: true });
+    await flush();
+    expect(w.get(".dialog-text").text()).toContain("交报告");
+    expect(w.find(".reminder-actions").exists()).toBe(true);
+
+    // 推迟 10 分钟：回写 remindAt（本地无时区格式），气泡确认
+    vi.mocked(api.updateTask).mockResolvedValue(current);
+    await w
+      .findAll(".reminder-actions .btn")
+      .find((b) => b.text().includes("推迟"))!
+      .trigger("click");
+    await flush();
+    expect(api.updateTask).toHaveBeenCalledWith(
+      expect.objectContaining({ id: 5, remindAt: expect.stringMatching(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/) }),
+    );
+    expect(w.get(".dialog-text").text()).toContain("10 分钟");
+    expect(w.find(".reminder-actions").exists()).toBe(false);
+
+    // 再敲一次，这次就近完成
+    broadcast("task-reminder", { id: 5, title: "交报告", urgent: false });
+    await flush();
+    await w
+      .findAll(".reminder-actions .btn")
+      .find((b) => b.text().includes("完成"))!
+      .trigger("click");
+    await flush();
+    expect(api.updateTask).toHaveBeenCalledWith({ id: 5, status: "done" });
+  });
+
   it("番茄钟关闭时不自动倒计时", async () => {
     current = task({});
     vi.mocked(api.listAllSettings).mockResolvedValue({ pomodoro_enabled: "false" });
