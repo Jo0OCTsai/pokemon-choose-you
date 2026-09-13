@@ -189,8 +189,10 @@ body {
   border: 3px solid var(--dex-navy);
   animation: pk-breathe 2.5s infinite;
 }
+/* 今日任务过多：常亮深红提示，不闪——任务最满的时候不该被红灯加码焦虑 */
 .dex-big-led.alert {
-  animation: pk-blink 0.8s infinite;
+  animation: none;
+  background: radial-gradient(circle at 35% 30%, #ffb1a6, #b00d0d 55%, #750707);
 }
 .dex-sub-leds {
   display: flex;

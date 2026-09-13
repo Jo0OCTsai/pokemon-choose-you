@@ -189,10 +189,14 @@ export default {
   },
   remind: {
     title: "🔔 Reminders & Notifications",
-    enable: "Task reminder notifications (pet still hints even without system popups)",
+    enable: "Task reminder notifications (system popups and pet knock follow this switch together)",
     ahead: "Remind ahead",
     onTime: "On time",
     aheadN: "{n} min early",
+    quiet: "Quiet hours (silence non-urgent reminders; urgent still knocks)",
+    quietStart: "Quiet from",
+    quietEnd: "Quiet until",
+    quietHint: "e.g. 22:00–08:00: no reminder popups overnight, except urgent tasks.",
   },
   cats: {
     title: "🗂 Categories · Pokemon Outfits",
@@ -242,6 +246,7 @@ export default {
     h12: "12-hour (6:00 PM)",
     overdueMode: "Overdue display",
     dueRelative: 'Relative due times ("in 3h / tomorrow 3:00 PM / 2d overdue", colored by urgency)',
+    reduceMotion: "Reduce motion (stop blink & hop animations; auto-on when the OS reduce-motion preference is set)",
     preview: "Preview: {v}",
     language: "Language",
   },

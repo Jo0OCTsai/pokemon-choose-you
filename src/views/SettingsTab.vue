@@ -44,6 +44,8 @@ const feishuOn = boolSetting("feishu_enabled");
 const nlCaptureOn = boolSetting("nl_capture_enabled");
 const closeToTrayOn = boolSetting("close_to_tray");
 const dueRelativeOn = boolSetting("due_relative");
+const reduceMotionOn = boolSetting("reduce_motion");
+const quietOn = boolSetting("quiet_hours_enabled");
 const overdueModeOptions = computed(() => [
   { value: "collapse", label: t("overdue.modeCollapse") },
   { value: "auto_grass", label: t("overdue.modeAuto") },
@@ -259,6 +261,11 @@ const remindAheadOptions = computed(() =>
     label: n === 0 ? t("remind.onTime") : t("remind.aheadN", { n }),
   })),
 );
+/** 勿扰时段边界：整点下拉（跨零点区间如 22:00–08:00 由后端判断） */
+const quietTimeOptions = Array.from({ length: 24 }, (_, h) => {
+  const hh = String(h).padStart(2, "0");
+  return { value: `${hh}:00`, label: hh };
+});
 const dateFormatOptions = computed(() =>
   ["YYYY-MM-DD", "MM/DD/YYYY", "DD/MM/YYYY"].map((f) => ({ value: f, label: fmtDatePreview(f) })),
 );
@@ -789,6 +796,16 @@ onUnmounted(() => unlisteners.forEach((u) => u()));
             {{ t("remind.ahead") }}
             <DexSelect v-model="settings.values.remind_ahead_minutes" :options="remindAheadOptions" />
           </label>
+          <label>{{ t("remind.quiet") }}<DexToggle v-model="quietOn" /></label>
+          <label>
+            {{ t("remind.quietStart") }}
+            <DexSelect v-model="settings.values.quiet_start" :options="quietTimeOptions" />
+          </label>
+          <label>
+            {{ t("remind.quietEnd") }}
+            <DexSelect v-model="settings.values.quiet_end" :options="quietTimeOptions" />
+          </label>
+          <p class="hint">{{ t("remind.quietHint") }}</p>
         </section>
       </template>
 
@@ -867,6 +884,7 @@ onUnmounted(() => unlisteners.forEach((u) => u()));
             <DexSelect v-model="settings.values.time_format" :options="timeFormatOptions" />
           </label>
           <label>{{ t("display.dueRelative") }}<DexToggle v-model="dueRelativeOn" /></label>
+          <label>{{ t("display.reduceMotion") }}<DexToggle v-model="reduceMotionOn" /></label>
           <label>
             {{ t("display.overdueMode") }}
             <DexSelect v-model="settings.values.overdue_mode" :options="overdueModeOptions" />

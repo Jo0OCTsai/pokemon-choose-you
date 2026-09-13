@@ -12,6 +12,12 @@ export const SETTING_DEFAULTS: Record<string, string> = {
   pomodoro_chime: "true",
   remind_ahead_minutes: "0",
   notifications_enabled: "true",
+  /** 勿扰时段：时段内静默非紧急提醒（紧急仍敲门）；start==end 视为关闭 */
+  quiet_hours_enabled: "true",
+  quiet_start: "22:00",
+  quiet_end: "08:00",
+  /** 减弱动效：true = 始终停用闪烁/蹦跳动画；false = 跟随系统「减弱动态效果」偏好 */
+  reduce_motion: "false",
   /** 逾期任务展示模式：collapse=折叠一行（默认）/ auto_grass=自动归草丛 / show=原样 */
   overdue_mode: "collapse",
   date_format: "YYYY-MM-DD",
@@ -63,6 +69,10 @@ export const SETTING_KEYS = [
   "pomodoro_chime",
   "notifications_enabled",
   "remind_ahead_minutes",
+  "quiet_hours_enabled",
+  "quiet_start",
+  "quiet_end",
+  "reduce_motion",
   "overdue_mode",
   "date_format",
   "time_format",
@@ -104,6 +114,11 @@ export const useSettingsStore = defineStore("settings", {
     bool(key: string): boolean {
       return this.sget(key) === "true";
     },
+    /** 注意力友好：把「减弱动效」写到 <html> 上（dex.css 里与系统 prefers-reduced-motion 同等生效） */
+    applyMotionPreference() {
+      if (typeof document === "undefined") return;
+      document.documentElement.classList.toggle("reduce-motion", this.bool("reduce_motion"));
+    },
     /** 拉库并合并默认值（空串回退默认） */
     async load() {
       const all = await api.listAllSettings();
@@ -112,6 +127,7 @@ export const useSettingsStore = defineStore("settings", {
         merged[k] = v === "" ? (SETTING_DEFAULTS[k] ?? v) : v;
       }
       this.values = merged;
+      this.applyMotionPreference();
     },
     async save(keys: string[]) {
       for (const k of keys) {
@@ -119,6 +135,7 @@ export const useSettingsStore = defineStore("settings", {
         if (v === SECRET_STORED) continue; // 占位值原样保存 = 未改动，跳过
         await api.setSetting(k, v);
       }
+      this.applyMotionPreference();
     },
   },
 });

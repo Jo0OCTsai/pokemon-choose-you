@@ -5,7 +5,8 @@ use rusqlite::params;
 use tauri::{AppHandle, Emitter, Manager};
 use tauri_plugin_notification::NotificationExt;
 
-/// 每 20 秒扫描一次到期提醒：系统通知 + 事件推给桌宠窗口播放"敲门"动画
+/// 每 20 秒扫描一次到期提醒：到期先聚合（多条只发一条）、过勿扰滤网，再双通道送达
+/// （系统通知 + 事件推给桌宠窗口播放"敲门"动画，两通道同受通知开关控制）
 pub fn spawn_reminder_loop(app: AppHandle) {
     tauri::async_runtime::spawn(async move {
         loop {
@@ -47,6 +48,17 @@ fn tick<R: tauri::Runtime>(app: &tauri::AppHandle<R>) -> Result<(), Box<dyn std:
     let notify_on = get("notifications_enabled")
         .map(|v| v != "false")
         .unwrap_or(true);
+    // 勿扰时段（注意力友好）：默认 22:00–08:00，时段内静默非紧急提醒（紧急仍敲门）；
+    // 边界解析失败视为关闭（fail open，宁可多提醒也不静默丢事）
+    let quiet_on = get("quiet_hours_enabled")
+        .map(|v| v != "false")
+        .unwrap_or(true);
+    let quiet_start = get("quiet_start").unwrap_or_else(|| "22:00".into());
+    let quiet_end = get("quiet_end").unwrap_or_else(|| "08:00".into());
+    let in_quiet = quiet_on
+        && parse_hm(&quiet_start)
+            .zip(parse_hm(&quiet_end))
+            .is_some_and(|(s, e)| in_quiet_hours(chrono::Local::now().time(), s, e));
     // fresh start / 复盘提醒设置在拿 Db 锁之前读齐（tick 后半段持有 conn 锁，再调 get 会死锁）
     let overdue_mode = get("overdue_mode").unwrap_or_else(|| "collapse".into());
     let fresh_start_last_run = get("fresh_start_last_run");
@@ -79,6 +91,8 @@ fn tick<R: tauri::Runtime>(app: &tauri::AppHandle<R>) -> Result<(), Box<dyn std:
             .collect::<Result<Vec<_>, _>>()?;
         rows
     };
+    // 先全部标记 reminded 防重发，再统一决定怎么送达（聚合 + 勿扰滤网）
+    let mut fired: Vec<Reminder> = Vec::new();
     for (id, title, priority, remind_at, pokemon) in &due {
         // datetime-local 传入的是本地无时区时间，解析后与当前 UTC 比较
         let due_time = parse_time(remind_at);
@@ -86,8 +100,25 @@ fn tick<R: tauri::Runtime>(app: &tauri::AppHandle<R>) -> Result<(), Box<dyn std:
             continue;
         }
         conn.execute("UPDATE tasks SET reminded=1 WHERE id=?1", params![id])?;
-        drop_later_notify(app, *id, title, priority, pokemon.as_deref(), notify_on);
+        fired.push(Reminder {
+            id: *id,
+            title: title.clone(),
+            priority: priority.clone(),
+            pokemon: pokemon.clone(),
+        });
     }
+    // 勿扰时段：非紧急提醒静默跳过（已标记 reminded，不在时段结束后补响——深夜的提醒清晨再响只会更吵）
+    if in_quiet {
+        let before = fired.len();
+        fired.retain(|r| r.urgent());
+        if fired.len() < before {
+            log::info!(
+                "quiet hours {quiet_start}-{quiet_end}: {} 条非紧急提醒静默",
+                before - fired.len()
+            );
+        }
+    }
+    deliver_reminders(app, &fired, notify_on, &lang);
 
     // ---- 逾期 fresh start：自动归草丛模式每天跑一次（反羞耻：不堆「羞耻墙」） ----
     if overdue_mode == "auto_grass" {
@@ -101,8 +132,8 @@ fn tick<R: tauri::Runtime>(app: &tauri::AppHandle<R>) -> Result<(), Box<dyn std:
             );
             if n > 0 {
                 let _ = app.emit(crate::events::TASKS_CHANGED, ());
-                // 温和告知（反羞耻：溜回去不是失败，想好了再去看）
-                if notify_on {
+                // 温和告知（反羞耻：溜回去不是失败，想好了再去看）；勿扰时段内不打扰
+                if notify_on && !in_quiet {
                     let (fs_title, fs_body) = fresh_start_notification_text(&lang, n);
                     let _ = app
                         .notification()
@@ -137,7 +168,7 @@ fn tick<R: tauri::Runtime>(app: &tauri::AppHandle<R>) -> Result<(), Box<dyn std:
             params![today_local.format("%Y-%m-%d").to_string()],
         )?;
         log::info!("review: 每周复盘提醒已发送");
-        if notify_on {
+        if notify_on && !in_quiet {
             let _ = app.notification().builder().title(title).body(body).show();
         }
     }
@@ -292,30 +323,116 @@ fn notification_text(
     }
 }
 
-fn drop_later_notify<R: tauri::Runtime>(
-    app: &tauri::AppHandle<R>,
+/// 一条到期提醒（送达用：标题 + 优先级 + 分类宝可梦）
+struct Reminder {
     id: i64,
-    title: &str,
-    priority: &str,
-    pokemon: Option<&str>,
+    title: String,
+    priority: String,
+    pokemon: Option<String>,
+}
+
+impl Reminder {
+    /// 紧急档（urgent/high）：更强的提醒文案，且不受勿扰时段约束
+    fn urgent(&self) -> bool {
+        self.priority == "urgent" || self.priority == "high"
+    }
+}
+
+/// 到期提醒的送达（注意力友好：一次只强调一件事）：
+/// 单条原样送达；多条聚合为一条系统通知、桌宠只敲一次门（代表选紧急优先，
+/// 气泡带就近「完成/推迟」，其余几条去冒险页看）。语言由调用方读好传入——
+/// 这里绝不能再碰设置表（调用方 tick 还持有连接锁，重复加锁会死锁）。
+fn deliver_reminders<R: tauri::Runtime>(
+    app: &tauri::AppHandle<R>,
+    fired: &[Reminder],
     notify_on: bool,
+    lang: &str,
 ) {
-    let urgent = priority == "urgent" || priority == "high";
-    if notify_on {
-        let lang = crate::db::setting(app, "language").unwrap_or_default();
-        let (title_str, body) = notification_text(&lang, urgent, title, pokemon);
-        let _ = app
-            .notification()
-            .builder()
-            .title(title_str)
-            .body(body)
-            .show();
+    if fired.is_empty() || !notify_on {
+        return;
+    }
+    if fired.len() == 1 {
+        let r = &fired[0];
+        let (title, body) = notification_text(lang, r.urgent(), &r.title, r.pokemon.as_deref());
+        let _ = app.notification().builder().title(title).body(body).show();
+    } else {
+        let any_urgent = fired.iter().any(|r| r.urgent());
+        let titles: Vec<&str> = fired.iter().map(|r| r.title.as_str()).collect();
+        let (title, body) = aggregated_notification_text(lang, &titles, any_urgent);
+        let _ = app.notification().builder().title(title).body(body).show();
     }
     // 桌宠窗口收到后播放敲门/催促动画（pokemon 附带分类宝可梦名，供气泡文案个性化）
+    let repr = fired.iter().find(|r| r.urgent()).unwrap_or(&fired[0]);
     let _ = app.emit(
         events::TASK_REMINDER,
-        serde_json::json!({ "id": id, "title": title, "urgent": urgent, "pokemon": pokemon }),
+        serde_json::json!({
+            "id": repr.id, "title": repr.title, "urgent": repr.urgent(), "pokemon": repr.pokemon
+        }),
     );
+}
+
+/// 聚合通知文案（三语）：N 只宝可梦同时敲门，点名前几条，其余到冒险页看
+fn aggregated_notification_text(lang: &str, titles: &[&str], any_urgent: bool) -> (String, String) {
+    let n = titles.len();
+    let sep = if lang == "en" { ", " } else { "、" };
+    let shown = titles.iter().take(3).copied().collect::<Vec<_>>().join(sep);
+    let badge = if any_urgent { "‼" } else { "🐾" };
+    match lang {
+        "zh-Hant" => {
+            let detail = if n > 3 {
+                format!("{shown} 等 {n} 項")
+            } else {
+                shown
+            };
+            (
+                format!("{badge} {n} 隻寶可夢同時敲門！"),
+                format!("點名：{detail}——到冒險頁逐隻看看"),
+            )
+        }
+        "en" => {
+            let detail = if n > 3 {
+                format!("{shown} and more")
+            } else {
+                shown
+            };
+            (
+                format!("{badge} {n} Pokemon knocking at once!"),
+                format!("{detail} are due — check the Adventure list"),
+            )
+        }
+        _ => {
+            let detail = if n > 3 {
+                format!("{shown} 等 {n} 项")
+            } else {
+                shown
+            };
+            (
+                format!("{badge} {n} 只宝可梦同时敲门！"),
+                format!("点名：{detail}——到冒险页逐只看看"),
+            )
+        }
+    }
+}
+
+/// "HH:MM" → NaiveTime（设置里的勿扰边界）
+fn parse_hm(s: &str) -> Option<chrono::NaiveTime> {
+    chrono::NaiveTime::parse_from_str(s, "%H:%M").ok()
+}
+
+/// 勿扰时段判定：start==end 视为关闭；支持跨零点区间（如 22:00–08:00）
+fn in_quiet_hours(
+    now: chrono::NaiveTime,
+    start: chrono::NaiveTime,
+    end: chrono::NaiveTime,
+) -> bool {
+    if start == end {
+        return false;
+    }
+    if start < end {
+        now >= start && now < end
+    } else {
+        now >= start || now < end
+    }
 }
 
 #[cfg(test)]
@@ -501,6 +618,65 @@ mod tests {
         // 未知语言回退简体
         let (t, _) = notification_text("fr", false, "x", None);
         assert_eq!(t, "🐾 训练家，别忘了");
+    }
+
+    // ---- in_quiet_hours / parse_hm：勿扰时段判定 ----
+
+    fn hm(s: &str) -> chrono::NaiveTime {
+        parse_hm(s).unwrap()
+    }
+
+    #[test]
+    fn quiet_hours_covers_normal_and_wrap_ranges() {
+        let start = hm("22:00");
+        let end = hm("08:00");
+        // 跨零点区间：深夜与清晨都在勿扰内，白天不在
+        assert!(in_quiet_hours(hm("23:30"), start, end));
+        assert!(in_quiet_hours(hm("05:59"), start, end));
+        assert!(!in_quiet_hours(hm("12:00"), start, end));
+        // 边界：起点含、终点不含
+        assert!(in_quiet_hours(hm("22:00"), start, end));
+        assert!(!in_quiet_hours(hm("08:00"), start, end));
+        // 不跨零点的区间
+        assert!(in_quiet_hours(hm("13:00"), hm("12:00"), hm("14:00")));
+        assert!(!in_quiet_hours(hm("15:00"), hm("12:00"), hm("14:00")));
+        // start == end 视为关闭
+        assert!(!in_quiet_hours(hm("12:00"), hm("22:00"), hm("22:00")));
+    }
+
+    #[test]
+    fn parse_hm_rejects_garbage() {
+        assert!(parse_hm("22:00").is_some());
+        assert!(parse_hm("25:00").is_none());
+        assert!(parse_hm("22:99").is_none());
+        assert!(parse_hm("").is_none());
+    }
+
+    // ---- aggregated_notification_text：聚合通知文案 ----
+
+    #[test]
+    fn aggregated_notification_text_three_languages() {
+        let (t, b) = aggregated_notification_text("zh-Hans", &["交周报", "取快递"], false);
+        assert!(t.contains("2 只") && t.contains("🐾"), "{t}");
+        assert!(b.contains("交周报、取快递"), "{b}");
+        let (t, _) = aggregated_notification_text("zh-Hans", &["a"], true);
+        assert!(t.contains("‼"), "含紧急任务时用紧急前缀");
+        let (t, b) = aggregated_notification_text("zh-Hant", &["a", "b"], false);
+        assert!(t.contains("2 隻") && b.contains("冒險頁"));
+        let (t, b) = aggregated_notification_text("en", &["a", "b"], false);
+        assert!(t.contains("2 Pokemon") && b.contains("Adventure"));
+        // 未知语言回退简体
+        let (t, _) = aggregated_notification_text("fr", &["a"], false);
+        assert!(t.contains("1 只"));
+    }
+
+    #[test]
+    fn aggregated_notification_text_lists_at_most_three_titles() {
+        let titles = ["一", "二", "三", "四", "五"];
+        let (_, b) = aggregated_notification_text("zh-Hans", &titles, false);
+        assert!(b.contains("一、二、三"), "只点名前 3 条: {b}");
+        assert!(b.contains("等 5 项"), "尾部汇总总数: {b}");
+        assert!(!b.contains("四"), "第 4 条不点名: {b}");
     }
 
     // ---- tick：mock 运行时 + 内存库 ----

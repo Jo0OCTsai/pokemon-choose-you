@@ -188,10 +188,14 @@ export default {
   },
   remind: {
     title: "🔔 提醒與通知",
-    enable: "任務提醒通知（關閉後桌寵仍會提示，但不彈系統通知）",
+    enable: "任務提醒通知（系統通知與桌寵敲門提醒一起開關）",
     ahead: "提前提醒",
     onTime: "準時",
     aheadN: "提前 {n} 分鐘",
+    quiet: "勿擾時段（時段內靜默非緊急提醒，緊急任務仍敲門）",
+    quietStart: "勿擾開始",
+    quietEnd: "勿擾結束",
+    quietHint: "例如 22:00–08:00：深夜到清晨不再彈提醒打擾，緊急任務除外。",
   },
   cats: {
     title: "🗂 任務分類 · 寶可夢換裝",
@@ -238,6 +242,7 @@ export default {
     h12: "12 小時制（6:00 PM）",
     overdueMode: "逾期任務展示",
     dueRelative: "相對截止時間（顯示為「3 小時後 / 明天 15:00 / 已逾期 2 天」並按臨近程度變色）",
+    reduceMotion: "減弱動效（停用閃爍與蹦跳動畫；系統開啟「減少動態效果」時自動生效）",
     preview: "預覽：{v}",
     language: "語言",
   },

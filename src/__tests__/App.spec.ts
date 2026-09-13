@@ -115,7 +115,7 @@ function seed(seeds: Partial<Task>[]): Task[] {
     source: "local",
     externalId: null,
     createdAt: "2026-09-01T00:00:00Z",
-    completedAt: null,
+    completedAt: t.completedAt ?? null,
     focusSeconds: 0,
     tags: t.tags ?? [],
   }));
@@ -179,8 +179,8 @@ function wireBackend() {
   vi.mocked(api.updateTask).mockImplementation(async (patch) => {
     const t = tasks.find((x) => x.id === patch.id)!;
     Object.assign(t, patch);
-    if (patch.status === "done" && !t.completedAt) t.completedAt = "2026-09-12T10:00:00Z";
-    if (patch.status === "cancelled" && !t.cancelledAt) t.cancelledAt = "2026-09-12T10:00:00Z";
+    if (patch.status === "done" && !t.completedAt) t.completedAt = new Date().toISOString();
+    if (patch.status === "cancelled" && !t.cancelledAt) t.cancelledAt = new Date().toISOString();
     return t;
   });
   vi.mocked(api.startTask).mockImplementation(async (id: number) => {
@@ -232,7 +232,8 @@ describe("App 图鉴机主面板", () => {
     expect(entries[0].get(".title").text()).toBe("写周报");
     expect(entries[0].get(".dex-no").text()).toBe("No.001");
     expect(entries[0].get(".badge").text()).toBe("工作");
-    expect(w.text()).toContain("CAUGHT 0/2");
+    // 进度分母与冒险页同口径：草丛任务不稀释今天的进度
+    expect(w.text()).toContain("CAUGHT 0/1");
   });
 
   it("添加任务：默认进草丛（inbox），提交后清空输入并刷新", async () => {
@@ -822,7 +823,7 @@ describe("App 图鉴机主面板", () => {
 
     tasks = seed([
       { title: "原有任务", status: "scheduled", dueAt: dueToday() },
-      { title: "桌宠完成的任务", status: "done" },
+      { title: "桌宠完成的任务", status: "done", completedAt: new Date().toISOString() },
     ]);
     broadcast("tasks-changed");
     await new Promise((r) => setTimeout(r));

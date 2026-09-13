@@ -211,3 +211,22 @@ body {
     transform: translateX(4px);
   }
 }
+
+/* 注意力友好：系统「减弱动态效果」偏好或应用内「减弱动效」开关生效时，
+   动画与过渡即时完成（fill-mode 默认 none，结束后回到静态样式——LED 常亮、圆点不消失，只是不闪不跳） */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+html.reduce-motion *,
+html.reduce-motion *::before,
+html.reduce-motion *::after {
+  animation-duration: 0.01ms !important;
+  animation-iteration-count: 1 !important;
+  transition-duration: 0.01ms !important;
+}
