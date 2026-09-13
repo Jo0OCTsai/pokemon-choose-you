@@ -39,6 +39,7 @@ const notifyOn = boolSetting("notifications_enabled");
 const chimeOn = boolSetting("pomodoro_chime");
 const feishuOn = boolSetting("feishu_enabled");
 const nlCaptureOn = boolSetting("nl_capture_enabled");
+const dueRelativeOn = boolSetting("due_relative");
 const reviewOn = boolSetting("review_enabled");
 const reviewDowOptions = computed(() =>
   [1, 2, 3, 4, 5, 6, 7].map((d) => ({ value: String(d), label: t(`reviewDow.${d}`) })),
@@ -707,6 +708,7 @@ onUnmounted(() => unlisteners.forEach((u) => u()));
             {{ t("display.time") }}
             <DexSelect v-model="settings.values.time_format" :options="timeFormatOptions" />
           </label>
+          <label>{{ t("display.dueRelative") }}<DexToggle v-model="dueRelativeOn" /></label>
           <label>
             {{ t("display.language") }}
             <DexSelect v-model="settings.values.language" :options="languageOptions" />
