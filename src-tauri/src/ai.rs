@@ -162,7 +162,10 @@ fn build_invocation(agent: &AgentConfig, prompt: &str) -> Invocation {
                 .map(posix_quote)
                 .collect::<Vec<_>>()
                 .join(" ");
-            argv.push(remote_line);
+            // 整行再整体引用：ssh 会把 argv 用空格拼接后交远端 shell 重解析，
+            // 不整体引用时 -lc 只吞到第一个词（如 `claude`），其余参数全被降级成位置参数丢失
+            // ——单命令侥幸无感（claude 管道 stdin 等价 -p），带 --allowedTools 等参数时必错
+            argv.push(posix_quote(&remote_line));
             Invocation {
                 program: ssh_bin(),
                 argv,
@@ -224,7 +227,8 @@ pub fn history_invocation(agent: &AgentConfig) -> (String, Vec<String>) {
                 .map(posix_quote)
                 .collect::<Vec<_>>()
                 .join(" ");
-            argv.push(remote_line);
+            // 同 build_invocation：整行整体引用，防 -lc 只吞第一个词（如 `claude --resume` 丢成裸 `claude`）
+            argv.push(posix_quote(&remote_line));
             (ssh_bin(), argv)
         }
     }
@@ -944,7 +948,7 @@ mod tests {
                 "exec",
                 "\"$SHELL\"",
                 "-lc",
-                "claude -p",
+                "'claude -p'",
             ]
         );
         // {prompt} 元素被剔除（-p 保留，读 stdin），提示词永远走 stdin
@@ -975,7 +979,7 @@ mod tests {
                 "exec",
                 "\"$SHELL\"",
                 "-lc",
-                "opencode run",
+                "'opencode run'",
             ]
         );
         // 历史入口也走 ssh
@@ -1266,7 +1270,7 @@ mod tests {
             let lines: Vec<&str> = argv.lines().collect();
             assert_eq!(
                 &lines[lines.len() - 4..],
-                &["exec", "\"$SHELL\"", "-lc", "claude -p"],
+                &["exec", "\"$SHELL\"", "-lc", "'claude -p'"],
                 "远端命令包登录 shell，占位符元素剔除后以 command -p 结尾: {argv}"
             );
             assert!(!argv.contains("明天交周报"), "提示词绝不进 argv");
