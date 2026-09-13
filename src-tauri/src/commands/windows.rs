@@ -74,7 +74,7 @@ pub fn open_main_window<R: tauri::Runtime>(app: tauri::AppHandle<R>) -> AppResul
 
 fn build_main_window<R: tauri::Runtime>(app: &tauri::AppHandle<R>) -> AppResult<()> {
     tauri::WebviewWindowBuilder::new(app, "main", tauri::WebviewUrl::App("index.html".into()))
-        .title("宝可梦来敲门")
+        .title("就决定是你了")
         .inner_size(980.0, 700.0)
         .min_inner_size(760.0, 540.0)
         .build()

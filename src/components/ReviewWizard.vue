@@ -8,7 +8,7 @@ import { useTasksStore } from "../stores/tasks";
 import type { Task } from "../types";
 
 /**
- * 每周回顾向导（「训练师复盘」）：
+ * 每周回顾向导（「训练家复盘」）：
  * 总览 → 路线逐站复盘（保留/完成/归草丛/逃走）→ 草丛批量归位 → 收尾标记本周已复盘。
  * OmniFocus 内置 Review 但无提醒；这里提醒由后端 scheduler 每周触发。
  */
@@ -184,7 +184,7 @@ function next() {
               </span>
               <span>{{ categories.byId.get(current.categoryId)?.name }}</span>
               <span>{{ t(`priority.${current.priority}`) }}</span>
-              <span>{{ current.status }}</span>
+              <span>{{ t(`status.${current.status}`) }}</span>
             </div>
             <p v-if="current.note" class="st-note">{{ current.note }}</p>
           </div>

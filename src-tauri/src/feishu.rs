@@ -391,7 +391,7 @@ fn read_callback_request(stream: &mut TcpStream) -> Option<(String, String)> {
 
 fn write_callback_response(stream: &mut TcpStream, ok: bool) {
     let body = if ok {
-        "<html><body><h2>✔ 授权成功</h2><p>请回到「宝可梦来敲门」继续。</p></body></html>"
+        "<html><body><h2>✔ 授权成功</h2><p>请回到「就决定是你了」继续。</p></body></html>"
     } else {
         "<html><body><h2>授权参数异常</h2><p>请回到应用重新发起授权。</p></body></html>"
     };

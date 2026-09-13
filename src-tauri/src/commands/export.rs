@@ -182,7 +182,9 @@ pub fn import_json_from(content: &str, conn: &mut Connection) -> AppResult<usize
     let parsed: serde_json::Value = serde_json::from_str(content)
         .map_err(|e| AppError::Invalid(format!("不是合法的 JSON 文件: {e}")))?;
     if parsed["app"] != "pokemon-knock" || parsed["format"] != 1 {
-        return Err(AppError::Invalid("不是宝可梦来敲门的全量导出文件".into()));
+        return Err(AppError::Invalid(
+            "不是「就决定是你了」的全量导出文件".into(),
+        ));
     }
     let data = parsed["data"]
         .as_object()
@@ -339,7 +341,7 @@ fn local_date(s: &str) -> Option<String> {
 
 pub fn export_daily_md_to(data_dir: &Path, conn: &Connection, date: &str) -> AppResult<String> {
     let mut md = String::new();
-    md.push_str(&format!("# 训练师日报 · {date}\n\n"));
+    md.push_str(&format!("# 训练家日报 · {date}\n\n"));
 
     // 今日捕捉（完成）：按分类分组
     let mut stmt = conn.prepare(
@@ -709,7 +711,7 @@ mod tests {
         let file = export_daily_md_to(&dir, &conn, "2026-09-13").unwrap();
         let md = read_export(&dir, &file);
         assert!(file.starts_with("pokemon-knock-daily-2026-09-13"));
-        assert!(md.contains("# 训练师日报 · 2026-09-13"));
+        assert!(md.contains("# 训练家日报 · 2026-09-13"));
         assert!(md.contains("今日捕捉 1 只，专注 25 分钟"));
         assert!(md.contains("- ✅ 写周报（工作·皮卡丘 · high · 专注 25 分钟）"));
         assert!(md.contains("- [ ] 交报告"), "未完成任务带勾选框: {md}");

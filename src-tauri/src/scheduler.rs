@@ -192,7 +192,7 @@ fn review_notification_text(lang: &str) -> (String, String) {
             "Time to count this week's catches — open the Dex tab and run the review".into(),
         ),
         _ => (
-            "🧢 训练师复盘".into(),
+            "🧢 训练家复盘".into(),
             "一周的收获得清点一下了：到图鉴页点「复盘」逐站整理路线与草丛".into(),
         ),
     }
@@ -203,23 +203,29 @@ fn notification_text(lang: &str, urgent: bool, title: &str) -> (String, String) 
     match lang {
         "zh-Hant" => {
             if urgent {
-                ("‼ 寶可夢來敲門".into(), format!("緊急任務提醒：{title}"))
+                (
+                    "‼ 訓練家，快看快看！".into(),
+                    format!("緊急任務提醒：{title}"),
+                )
             } else {
-                ("🐾 寶可夢來敲門".into(), format!("別忘了：{title}"))
+                ("🐾 訓練家，別忘了".into(), format!("{title}"))
             }
         }
         "en" => {
             if urgent {
-                ("‼ Pokemon Knock!".into(), format!("Urgent: {title}"))
+                ("‼ Trainer, quick look!".into(), format!("Urgent: {title}"))
             } else {
-                ("🐾 Pokemon Knock!".into(), format!("Don't forget: {title}"))
+                ("🐾 Trainer, don't forget".into(), format!("{title}"))
             }
         }
         _ => {
             if urgent {
-                ("‼ 宝可梦来敲门".into(), format!("紧急任务提醒：{title}"))
+                (
+                    "‼ 训练家，快看快看！".into(),
+                    format!("紧急任务提醒：{title}"),
+                )
             } else {
-                ("🐾 宝可梦来敲门".into(), format!("别忘了：{title}"))
+                ("🐾 训练家，别忘了".into(), format!("{title}"))
             }
         }
     }
@@ -377,19 +383,20 @@ mod tests {
     #[test]
     fn notification_text_per_language_and_urgency() {
         let (t, b) = notification_text("zh-Hans", true, "交报告");
-        assert_eq!(t, "‼ 宝可梦来敲门");
+        assert_eq!(t, "‼ 训练家，快看快看！");
         assert_eq!(b, "紧急任务提醒：交报告");
-        let (t, _) = notification_text("zh-Hans", false, "交报告");
-        assert_eq!(t, "🐾 宝可梦来敲门");
+        let (t, b) = notification_text("zh-Hans", false, "交报告");
+        assert_eq!(t, "🐾 训练家，别忘了");
+        assert_eq!(b, "交报告");
         let (t, b) = notification_text("zh-Hant", false, "交報告");
-        assert_eq!(t, "🐾 寶可夢來敲門");
-        assert_eq!(b, "別忘了：交報告");
+        assert_eq!(t, "🐾 訓練家，別忘了");
+        assert_eq!(b, "交報告");
         let (t, b) = notification_text("en", true, "report");
-        assert_eq!(t, "‼ Pokemon Knock!");
+        assert_eq!(t, "‼ Trainer, quick look!");
         assert_eq!(b, "Urgent: report");
         // 未知语言回退简体
         let (t, _) = notification_text("fr", false, "x");
-        assert_eq!(t, "🐾 宝可梦来敲门");
+        assert_eq!(t, "🐾 训练家，别忘了");
     }
 
     // ---- tick：mock 运行时 + 内存库 ----

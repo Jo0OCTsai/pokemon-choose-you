@@ -51,7 +51,7 @@ jobs:
           # 版本占位符取自 tauri.conf.json 的 version：tag 触发与手动触发都得到 v0.x.y，
           # 避免手动触发时 github.ref_name（如 "main"）变成 tag 名
           tagName: v__VERSION__
-          releaseName: "宝可梦来敲门 v__VERSION__"
+          releaseName: "就决定是你了 v__VERSION__"
           releaseBody: |
             🐾 一只宝可梦桌宠，陪你捕捉每一天的待办。本地优先，轻量常驻。
 

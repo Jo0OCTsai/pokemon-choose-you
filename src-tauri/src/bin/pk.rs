@@ -1,4 +1,4 @@
-//! pk — 宝可梦来敲门命令行工具。
+//! pk — 就决定是你了命令行工具。
 //!
 //! 供 AI agent CLI（claude code / opencode / kiro …）与终端用户直接读写待办库：
 //! - 全部输出为 UTF-8 JSON（stdout），错误输出 JSON 到 stderr 并以非零码退出；
@@ -30,7 +30,7 @@ use pokemon_knock_lib::commands::{categories, tags, tasks};
 use rusqlite::{params, Connection};
 use serde_json::json;
 
-const HELP: &str = r#"pk — 宝可梦来敲门命令行（供 AI agent 与终端使用）
+const HELP: &str = r#"pk — 就决定是你了命令行（供 AI agent 与终端使用）
 
 用法:
   pk <命令> [参数]...
@@ -1488,7 +1488,7 @@ fn help_schema() -> String {
     let v = json!({
         "name": "pk",
         "version": env!("CARGO_PKG_VERSION"),
-        "description": "宝可梦来敲门待办库命令行（供 AI agent 与终端使用）",
+        "description": "就决定是你了待办库命令行（供 AI agent 与终端使用）",
         "output": "stdout 恒为 JSON；错误输出 {\"error\":...} 到 stderr",
         "exitCodes": { "0": "成功", "1": "业务错误", "2": "用法错误" },
         "env": { "PK_DB": "覆盖数据库路径（默认为应用数据目录 pokemon-knock.db）" },

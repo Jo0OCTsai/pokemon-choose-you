@@ -363,7 +363,7 @@ export async function installTauriMock(page: Page, state: Partial<MockState> = {
               },
             ];
           case "build_support_report":
-            return "宝可梦来敲门 支持报告（E2E mock）";
+            return "就决定是你了 支持报告（E2E mock）";
           case "feishu_oauth_login":
             return "授权成功：测试用户（E2E mock）";
           case "feishu_oauth_status":

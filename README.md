@@ -1,4 +1,4 @@
-# 🐾 宝可梦来敲门 (Pokemon Knock)
+# ⚡ 就决定是你了 (I Choose You!)
 
 [![CI](https://github.com/Jo0OCTsai/pokemon-knock/actions/workflows/ci.yml/badge.svg)](https://github.com/Jo0OCTsai/pokemon-knock/actions/workflows/ci.yml)
 [![Release](https://github.com/Jo0OCTsai/pokemon-knock/actions/workflows/release.yml/badge.svg)](https://github.com/Jo0OCTsai/pokemon-knock/actions/workflows/release.yml)

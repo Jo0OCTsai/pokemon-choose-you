@@ -11,7 +11,7 @@ export default {
     im: "Radio",
     imDesc: "Tune in to Feishu waves and catch todos",
     settings: "Settings",
-    settingsDesc: "System configuration",
+    settingsDesc: "Trainer gear & Dex tuning",
   },
   dt: { none: "Not set", clear: "Clear" },
   spine: {
@@ -336,6 +336,7 @@ export default {
     escape: "Release",
     routeTip: "Deal with each on the spot: check off done ones, release dead ones, shelve unsure ones to grass.",
     routeEmpty: "Route is empty — nothing to review.",
+    overdue: "kept waiting",
     skipRoute: "Skip route",
     next: "Next",
     selectAllGrass: "Select all",
@@ -427,7 +428,7 @@ export default {
     emptyRoute: "Your route is empty—set a due time to plan the next stop!",
   },
   pet: {
-    welcome: "Pokemon Knock! Click me to open the quick dex",
+    welcome: "Which Pokémon will you catch today? Click me!",
     idle: "Today's adventure hasn't started—click me to pick a target",
     working: "{p} is catching: {t}",
     paused: "{p} paused—take a breather~",

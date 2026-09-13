@@ -131,7 +131,7 @@ function openDetail(task: Task) {
   detailId.value = task.id;
 }
 
-// ---- 每周复盘（训练师复盘）：图鉴页入口 ----
+// ---- 每周复盘（训练家复盘）：图鉴页入口 ----
 const reviewOpen = ref(false);
 
 // ---- 搜索：跨页关键词查询（标题/备注/标签/跟进记录） ----
