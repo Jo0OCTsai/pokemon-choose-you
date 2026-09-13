@@ -96,6 +96,7 @@
 - **收音机**：飞书消息全量展示与查询、60 天自动清理、强制创建（先判重）、◎ 捕捉 / ✕ 逃走人工裁决；AI 判定三动作——新待办 / 更新建议（确认后打补丁到目标待办）/ 跟进（自动并入并显示「已并入待办 No.x」）；待处理消息批量分诊（全选批量捕捉 / 逃走，单条失败不影响其余）；每条建议附**判定理由 + 置信档位（高/中/低）**，逃走可选原因码，反馈连同建议与模型落本地库（chat_feedback）
 - **诊断中心**（设置 → 诊断）：集成健康面板（飞书 / AI / Todoist 三档状态、上次成功、下次轮询、失败计数、待确认积压、一键重试，后台实时刷新）+ 应用内日志查看器（级别 / 来源过滤）+ 脱敏支持报告（版本 + 健康快照 + 最近日志，敏感键与 Bearer 凭证自动遮蔽）
 - **AI**：agent CLI 多配置（Claude Code / OpenCode / Kiro CLI + 自定义）、`pk` CLI 供 agent 调用（task / note / log / category / tag / context，全 JSON 输出）、会话历史快捷入口
+- **Agent SSH 远程执行**：agent 配置可指定 SSH 目标（host/端口/私钥），无头调用与历史入口均经 `ssh --` 转发；提示词走 stdin 免遭远端 shell 重解析，BatchMode 免交互、连接超时 10 秒
 - **会话回链与成本记录**：agent_sessions 表按次落库（session_id / 命令 / 退出码 / 成本 / 时长 / token），分类调用自动记录，`pk session log` 关联任务；任务编辑弹窗展示并可回放转录
 - **配套 skill 分发**：`pk skill install claude-code|opencode [--dir]` 一键装 SKILL.md（含 pk 命令速查与 agent 建议流程），`pk skill show` 输出原文
 - **飞书**：用户身份 OAuth 增量拉取私聊/群聊（无需拉机器人进会话）、富文本渲染、按聊天语境过滤 + 同会话 30 分钟上下文、断网退避重试

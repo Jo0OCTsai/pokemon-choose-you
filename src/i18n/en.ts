@@ -188,6 +188,12 @@ export default {
   },
   ai: {
     title: "🤖 AI Agent CLI",
+    sshOn: "Run over SSH (agent CLI lives on another machine)",
+    sshHostPh: "user@host",
+    sshPort: "SSH port",
+    sshKeyPh: "Private key path (optional, e.g. ~/.ssh/id_ed25519)",
+    sshHint:
+      "Runs the agent headlessly over ssh; the prompt travels via stdin ({'{prompt}'} placeholder args are dropped automatically, e.g. claude's `-p {'{prompt}'}` becomes `-p`). Set up public-key auth first; 10s connect timeout, whole call bounded by the timeout above.",
     hint: "Classify and dedupe radio messages with local AI agent CLIs (Claude Code / OpenCode / Kiro CLI, …); one or more can be configured. The command must support headless mode; {'{prompt}'} in extra args is replaced with the prompt; without {'{prompt}'} it is passed via stdin.",
     cliHint:
       "The app also ships a pk CLI (pk task list / pk task get …) for AI agents and terminals to read and write tasks directly. See the user guide.",

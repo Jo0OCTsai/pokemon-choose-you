@@ -184,6 +184,12 @@ export default {
   },
   ai: {
     title: "🤖 AI Agent CLI",
+    sshOn: "SSH 遠端執行（agent CLI 裝在別的機器上）",
+    sshHostPh: "user@host",
+    sshPort: "SSH 連接埠",
+    sshKeyPh: "私鑰路徑（可選，如 ~/.ssh/id_ed25519）",
+    sshHint:
+      "經 ssh 在遠端機器無頭執行；提示詞走標準輸入（{'{prompt}'} 佔位符元素自動剔除，如 claude 的 `-p {'{prompt}'}` 變 `-p`）。需先配好免密登入（公鑰），連線逾時 10 秒、整次呼叫受上面設定的逾時約束。",
     hint: "用本機 AI agent 命令列工具（Claude Code / OpenCode / Kiro CLI 等）處理收音機訊息分類與判重，可設定多個。命令需支援無頭模式；附加參數中的 {'{prompt}'} 會替換為提示詞，沒有 {'{prompt}'} 時提示詞經標準輸入傳入。",
     cliHint:
       "應用同時提供 pk 命令列（pk task list / pk task get …）供 AI agent 與終端機直接讀寫待辦，隨應用一起發布，詳見使用指南。",

@@ -402,6 +402,11 @@ async function saveAgents() {
   await settings.save(["ai_agents", "ai_agent_id"]);
 }
 
+/** 开/关 SSH 远程执行：开启给默认值（端口 22），关闭清空 */
+function toggleRemote(ag: AgentConfig, on: boolean) {
+  ag.remote = on ? { host: "", port: 22, keyPath: "" } : null;
+}
+
 function addAgent() {
   const preset = AGENT_PRESETS[agentPreset.value] ?? AGENT_PRESETS.custom;
   agents.value.push({ id: newId(), timeoutSecs: 120, enabled: true, ...preset });
@@ -735,6 +740,30 @@ onUnmounted(() => unlisteners.forEach((u) => u()));
               {{ t("ai.timeout") }}
               <input v-model.number="ag.timeoutSecs" type="number" min="10" step="10" />
             </label>
+            <label class="chk-line">
+              <input
+                type="checkbox"
+                :checked="!!ag.remote"
+                @change="toggleRemote(ag, ($event.target as HTMLInputElement).checked)"
+              />
+              {{ t("ai.sshOn") }}
+            </label>
+            <template v-if="ag.remote">
+              <div class="agent-row ssh-row">
+                <input v-model="ag.remote.host" class="agent-cmd" :placeholder="t('ai.sshHostPh')" />
+                <input
+                  v-model.number="ag.remote.port"
+                  class="ssh-port"
+                  type="number"
+                  min="1"
+                  max="65535"
+                  :title="t('ai.sshPort')"
+                  :aria-label="t('ai.sshPort')"
+                />
+                <input v-model="ag.remote.keyPath" class="agent-cmd" :placeholder="t('ai.sshKeyPh')" />
+              </div>
+              <p class="hint">{{ t("ai.sshHint") }}</p>
+            </template>
             <label class="chk-line">
               <input v-model="settings.values.ai_agent_id" type="radio" name="primary-agent" :value="ag.id" />
               {{ t("ai.primary") }}
@@ -1436,5 +1465,17 @@ onUnmounted(() => unlisteners.forEach((u) => u()));
   inset: 0;
   opacity: 0;
   cursor: pointer;
+}
+
+/* SSH 远程执行配置行 */
+.ssh-row .ssh-port {
+  width: 84px;
+  flex: none;
+  padding: 6px 8px;
+  border: 3px solid var(--dex-navy);
+  border-radius: 8px;
+  font-size: 13px;
+  font-family: inherit;
+  min-height: 34px;
 }
 </style>

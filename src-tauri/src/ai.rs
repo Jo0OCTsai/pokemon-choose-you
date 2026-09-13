@@ -6,8 +6,37 @@ use tokio::io::AsyncWriteExt;
 /// 单次 agent 调用的超时下限（秒）：agent CLI 启动 + 推理普遍慢于直连 API
 const MIN_TIMEOUT_SECS: u64 = 10;
 
+/// SSH 远程执行配置：agent CLI 装在远程机器（工作站/服务器）上时，
+/// 本地经 `ssh host -- command` 无头调用，提示词走 stdin。
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", default)]
+pub struct AgentRemote {
+    /// ssh 目标（user@host）
+    pub host: String,
+    /// ssh 端口
+    #[serde(default = "default_ssh_port")]
+    pub port: u16,
+    /// 私钥路径（空则走 ssh 默认 ~/.ssh/id_*）
+    pub key_path: Option<String>,
+}
+
+fn default_ssh_port() -> u16 {
+    22
+}
+
+impl Default for AgentRemote {
+    fn default() -> Self {
+        Self {
+            host: String::new(),
+            port: default_ssh_port(),
+            key_path: None,
+        }
+    }
+}
+
 /// 一个 AI agent CLI 工具的调用配置（Claude Code / OpenCode / Kiro CLI 等），
 /// 无头调用本地 agent 进程完成分类，替代旧的 OpenAI 兼容 HTTP 接口。
+/// remote 配置后改为经 SSH 在远程机器执行。
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", default)]
 pub struct AgentConfig {
@@ -15,13 +44,17 @@ pub struct AgentConfig {
     pub name: String,
     /// 可执行文件名或绝对路径，如 claude / opencode / kiro
     pub command: String,
-    /// 附加参数（按空白切分）。{prompt} 占位符替换为提示词；未出现时提示词经标准输入传入
+    /// 附加参数（按空白切分）。{prompt} 占位符替换为提示词；未出现时提示词经标准输入传入；
+    /// SSH 远程模式下占位符元素被剔除、提示词一律走标准输入
     pub args: String,
     /// 打开历史记录界面用的参数（按空白切分），如 claude 的 --resume；空则直接启动
     pub history_args: String,
     /// 单次调用超时（秒）
     pub timeout_secs: u64,
     pub enabled: bool,
+    /// SSH 远程执行（None = 本地执行）
+    #[serde(default)]
+    pub remote: Option<AgentRemote>,
 }
 
 impl Default for AgentConfig {
@@ -34,6 +67,113 @@ impl Default for AgentConfig {
             history_args: String::new(),
             timeout_secs: 120,
             enabled: true,
+            remote: None,
+        }
+    }
+}
+
+/// ssh 客户端程序名：PK_SSH_BIN 可覆盖（测试注入/Windows 指向 plink 的 wrapper 等）
+pub fn ssh_bin() -> String {
+    std::env::var("PK_SSH_BIN").unwrap_or_else(|_| "ssh".into())
+}
+
+/// 一次无头调用的实际命令行：本地直接执行 / 远程包一层 ssh
+struct Invocation {
+    program: String,
+    argv: Vec<String>,
+    stdin: Option<String>,
+    /// 出错时附加上下文（远程主机）
+    remote_host: Option<String>,
+}
+
+/// 组装实际执行的命令行（纯函数，独立测试）。
+/// - 本地：args 中的 {prompt} 替换为提示词；未出现时提示词走标准输入
+/// - 远程：`ssh -o BatchMode=yes -o ConnectTimeout=10 [-i key] [-p port] host -- command args...`；
+///   提示词一律走标准输入——ssh 会把 argv 拼接后交远端 shell 重解析，长提示词里的引号/换行必被打碎，
+///   stdin 转发没有这个问题。args 中带 {prompt} 的元素剔除（如 `claude -p {prompt}` → `claude -p`，
+///   -p 本身支持读 stdin），保证语义等价。
+fn build_invocation(agent: &AgentConfig, prompt: &str) -> Invocation {
+    let args: Vec<String> = agent.args.split_whitespace().map(String::from).collect();
+    let remote = agent.remote.as_ref().filter(|r| !r.host.trim().is_empty());
+    match remote {
+        None => {
+            let via_stdin = !args.iter().any(|a| a.contains("{prompt}"));
+            let argv: Vec<String> = args.iter().map(|a| a.replace("{prompt}", prompt)).collect();
+            Invocation {
+                program: agent.command.clone(),
+                argv,
+                stdin: via_stdin.then(|| prompt.to_string()),
+                remote_host: None,
+            }
+        }
+        Some(r) => {
+            let mut argv = vec![
+                "-o".to_string(),
+                "BatchMode=yes".to_string(), // 免交互：密钥不通直接失败，不挂起等密码
+                "-o".to_string(),
+                "ConnectTimeout=10".to_string(),
+            ];
+            if let Some(key) = r
+                .key_path
+                .as_ref()
+                .map(|k| k.trim())
+                .filter(|k| !k.is_empty())
+            {
+                argv.push("-i".to_string());
+                argv.push(key.to_string());
+            }
+            if r.port != 0 && r.port != 22 {
+                argv.push("-p".to_string());
+                argv.push(r.port.to_string());
+            }
+            argv.push(r.host.trim().to_string());
+            argv.push("--".to_string());
+            argv.push(agent.command.clone());
+            argv.extend(args.into_iter().filter(|a| !a.contains("{prompt}")));
+            Invocation {
+                program: ssh_bin(),
+                argv,
+                stdin: Some(prompt.to_string()),
+                remote_host: Some(r.host.clone()),
+            }
+        }
+    }
+}
+
+/// 打开历史记录界面的实际命令行（本地直启 / 远程 ssh 转发）
+pub fn history_invocation(agent: &AgentConfig) -> (String, Vec<String>) {
+    let args: Vec<String> = agent
+        .history_args
+        .split_whitespace()
+        .map(String::from)
+        .collect();
+    match agent.remote.as_ref().filter(|r| !r.host.trim().is_empty()) {
+        None => (agent.command.clone(), args),
+        Some(r) => {
+            let mut argv = vec![
+                "-o".to_string(),
+                "BatchMode=yes".to_string(),
+                "-o".to_string(),
+                "ConnectTimeout=10".to_string(),
+            ];
+            if let Some(key) = r
+                .key_path
+                .as_ref()
+                .map(|k| k.trim())
+                .filter(|k| !k.is_empty())
+            {
+                argv.push("-i".to_string());
+                argv.push(key.to_string());
+            }
+            if r.port != 0 && r.port != 22 {
+                argv.push("-p".to_string());
+                argv.push(r.port.to_string());
+            }
+            argv.push(r.host.trim().to_string());
+            argv.push("--".to_string());
+            argv.push(agent.command.clone());
+            argv.extend(args);
+            (ssh_bin(), argv)
         }
     }
 }
@@ -247,14 +387,16 @@ pub async fn classify_with_session(
     parse_suggestions_with_session(&out)
 }
 
-/// 无头调用 agent：args 中的 {prompt} 替换为提示词，未出现时提示词走标准输入
+/// 无头调用 agent：本地执行或 SSH 远程执行（见 build_invocation 的组装规则）
 pub async fn run_agent(agent: &AgentConfig, prompt: &str) -> AppResult<String> {
-    let args: Vec<String> = agent.args.split_whitespace().map(String::from).collect();
-    let via_stdin = !args.iter().any(|a| a.contains("{prompt}"));
-    let argv: Vec<String> = args.iter().map(|a| a.replace("{prompt}", prompt)).collect();
-    let stdin = if via_stdin { Some(prompt) } else { None };
+    let inv = build_invocation(agent, prompt);
     let timeout = Duration::from_secs(agent.timeout_secs.max(MIN_TIMEOUT_SECS));
-    run_process(&agent.command, &argv, stdin, timeout).await
+    run_process(&inv.program, &inv.argv, inv.stdin.as_deref(), timeout)
+        .await
+        .map_err(|e| match &inv.remote_host {
+            Some(host) => AppError::External(format!("SSH 远程执行（{host}）失败: {e}")),
+            None => e,
+        })
 }
 
 /// 启动外部进程并等待结束，返回 stdout。进程未找到给出可操作的提示；
@@ -500,6 +642,122 @@ mod tests {
         assert!(agent_by_id(&get, "nope").is_none());
     }
 
+    // ---- build_invocation：本地 / SSH 远程两路的命令行组装 ----
+
+    #[test]
+    fn invocation_local_modes() {
+        // {prompt} 占位符 → 提示词进 argv
+        let mut a = AgentConfig {
+            args: "-p {prompt}".into(),
+            ..Default::default()
+        };
+        let inv = build_invocation(&a, "你好");
+        assert_eq!(inv.program, "");
+        assert_eq!(inv.argv, vec!["-p".to_string(), "你好".to_string()]);
+        assert!(inv.stdin.is_none(), "占位符模式不走 stdin");
+        assert!(inv.remote_host.is_none());
+
+        // 无占位符 → 提示词走 stdin
+        a.args = "-p".into();
+        let inv = build_invocation(&a, "你好");
+        assert_eq!(inv.argv, vec!["-p".to_string()]);
+        assert_eq!(inv.stdin.as_deref(), Some("你好"));
+
+        // remote 配了但 host 为空 → 仍走本地
+        a.remote = Some(crate::ai::AgentRemote::default());
+        let inv = build_invocation(&a, "你好");
+        assert!(inv.remote_host.is_none(), "空 host 视为未配置");
+    }
+
+    #[test]
+    fn invocation_remote_wraps_ssh() {
+        let a = AgentConfig {
+            command: "claude".into(),
+            args: "-p {prompt}".into(),
+            remote: Some(AgentRemote {
+                host: "dev@buildbox".into(),
+                port: 2222,
+                key_path: Some("~/.ssh/id_ed25519".into()),
+            }),
+            ..Default::default()
+        };
+        let inv = build_invocation(&a, "明天 5pm 交周报");
+        assert_eq!(inv.program, "ssh");
+        assert_eq!(
+            inv.argv,
+            vec![
+                "-o",
+                "BatchMode=yes",
+                "-o",
+                "ConnectTimeout=10",
+                "-i",
+                "~/.ssh/id_ed25519",
+                "-p",
+                "2222",
+                "dev@buildbox",
+                "--",
+                "claude",
+                "-p",
+            ]
+        );
+        // {prompt} 元素被剔除（-p 保留，读 stdin），提示词永远走 stdin
+        assert!(!inv.argv.iter().any(|x| x.contains("交周报")));
+        assert_eq!(inv.stdin.as_deref(), Some("明天 5pm 交周报"));
+        assert_eq!(inv.remote_host.as_deref(), Some("dev@buildbox"));
+
+        // 默认端口 22 不加 -p；无密钥不加 -i
+        let b = AgentConfig {
+            command: "opencode".into(),
+            args: "run {prompt}".into(),
+            remote: Some(AgentRemote {
+                host: "box".into(),
+                ..Default::default()
+            }),
+            ..Default::default()
+        };
+        let inv = build_invocation(&b, "x");
+        assert_eq!(
+            inv.argv,
+            vec![
+                "-o",
+                "BatchMode=yes",
+                "-o",
+                "ConnectTimeout=10",
+                "box",
+                "--",
+                "opencode",
+                "run"
+            ]
+        );
+        // 历史入口也走 ssh
+        let (prog, argv) = history_invocation(&b);
+        assert_eq!(prog, "ssh");
+        assert!(argv.contains(&"--".to_string()) && argv.contains(&"box".to_string()));
+    }
+
+    /// ai_agents JSON 带 remote（camelCase）往返；缺省无 remote 也兼容
+    #[test]
+    fn load_agents_parses_remote_config() {
+        let raw = r#"[{"id":"r1","name":"远程 Claude","command":"claude","args":"-p {prompt}",
+                      "historyArgs":"","timeoutSecs":180,"enabled":true,
+                      "remote":{"host":"dev@box","port":2222,"keyPath":"/home/me/.ssh/id"}}]"#;
+        let get = getter(&[("ai_agents", raw)]);
+        let agents = load_agents(&get);
+        assert_eq!(agents.len(), 1);
+        let r = agents[0].remote.as_ref().unwrap();
+        assert_eq!(r.host, "dev@box");
+        assert_eq!(r.port, 2222);
+        assert_eq!(r.key_path.as_deref(), Some("/home/me/.ssh/id"));
+        // port 缺省回落 22
+        let raw2 = r#"[{"id":"r2","name":"x","command":"claude","remote":{"host":"box"}}]"#;
+        let get2 = getter(&[("ai_agents", raw2)]);
+        assert_eq!(load_agents(&get2)[0].remote.as_ref().unwrap().port, 22);
+        // 老配置（无 remote）照常
+        let raw3 = r#"[{"id":"r3","name":"本地","command":"claude"}]"#;
+        let get3 = getter(&[("ai_agents", raw3)]);
+        assert!(load_agents(&get3)[0].remote.is_none());
+    }
+
     // ---- build_prompt：判重上下文与消息语境必须进提示词 ----
 
     #[test]
@@ -705,6 +963,64 @@ mod tests {
             assert_eq!(out[0].update_task_id, Some(3));
             assert_eq!(out[0].due.as_deref(), Some("2026-09-15T10:00"));
             assert_eq!(out[0].tags, vec!["重要".to_string()]);
+        }
+
+        /// SSH 远程执行：经假 ssh 程序（PK_SSH_BIN 注入）组装 BatchMode/--、提示词走 stdin、
+        /// stdout 的 JSON 照常解析
+        #[test]
+        fn remote_agent_runs_via_ssh_with_stdin_prompt() {
+            let dir = std::env::temp_dir().join(format!("pk-agent-test-{}", std::process::id()));
+            std::fs::create_dir_all(&dir).unwrap();
+            let ssh = dir.join("fake-ssh.sh");
+            let marker = dir.join("ssh-argv.txt");
+            let stdin_marker = dir.join("ssh-stdin.txt");
+            let script = format!(
+                "#!/bin/sh\nprintf '%s\\n' \"$@\" > {argv}\ncat > {stdin}\nprintf '%s' '{payload}'\n",
+                argv = marker.to_string_lossy(),
+                stdin = stdin_marker.to_string_lossy(),
+                payload = r#"{"results":[{"messageId":"m1","action":"todo","title":"远程待办"}]}"#,
+            );
+            std::fs::write(&ssh, script).unwrap();
+            {
+                use std::os::unix::fs::PermissionsExt;
+                std::fs::set_permissions(&ssh, std::fs::Permissions::from_mode(0o755)).unwrap();
+            }
+            // PK_SSH_BIN 指向假 ssh（build_invocation 读取；进程内全局，本测试独占语义清晰）
+            std::env::set_var("PK_SSH_BIN", &ssh);
+
+            let agent = AgentConfig {
+                id: "r".into(),
+                name: "远程".into(),
+                command: "claude".into(),
+                args: "-p {prompt}".into(),
+                history_args: String::new(),
+                timeout_secs: 30,
+                enabled: true,
+                remote: Some(AgentRemote {
+                    host: "dev@box".into(),
+                    ..Default::default()
+                }),
+            };
+            let out = tauri::async_runtime::block_on(run_agent(&agent, "明天交周报")).unwrap();
+            std::env::remove_var("PK_SSH_BIN");
+
+            let argv = std::fs::read_to_string(&marker).unwrap();
+            assert!(argv.contains("dev@box"), "目标主机进 argv: {argv}");
+            assert!(argv.contains("--"), "命令分隔符进 argv: {argv}");
+            assert!(argv.contains("BatchMode=yes"), "免交互开关: {argv}");
+            let lines: Vec<&str> = argv.lines().collect();
+            assert_eq!(
+                &lines[lines.len() - 2..],
+                &["claude", "-p"],
+                "占位符元素剔除后以 command -p 结尾: {argv}"
+            );
+            assert!(!argv.contains("明天交周报"), "提示词绝不进 argv");
+            let stdin_sent = std::fs::read_to_string(&stdin_marker).unwrap();
+            assert!(
+                stdin_sent.contains("明天交周报"),
+                "提示词经 stdin 转发: {stdin_sent}"
+            );
+            assert!(out.contains("远程待办"), "stdout 照常解析: {out}");
         }
 
         /// args 无 {prompt} 占位符时提示词必须经 stdin 送达（脚本把 stdin 存文件验证）

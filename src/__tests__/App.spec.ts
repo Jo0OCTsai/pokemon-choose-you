@@ -668,6 +668,43 @@ describe("App 图鉴机主面板", () => {
     expect(w.findAll(".agent-block")).toHaveLength(0);
   });
 
+  it("AI agent 支持配置 SSH 远程执行并序列化进 ai_agents", async () => {
+    const w = await mountApp();
+    await w.findAll(".menu-btn")[5].trigger("click"); // 设置
+    await w.findAll(".stab")[4].trigger("click"); // 集成
+    // 添加一个 Claude Code 预设
+    await w
+      .findAll(".btn")
+      .find((b) => b.text().includes("添加 Agent"))!
+      .trigger("click");
+    const block = w.findAll(".agent-block")[0];
+    // 开启 SSH：出现 host/port/key 输入
+    const sshToggle = block
+      .findAll('input[type="checkbox"]')
+      .find((c) => (c.element as HTMLInputElement).closest(".chk-line"))!;
+    await sshToggle.setValue(true);
+    expect(block.find(".ssh-row").exists()).toBe(true);
+    const [host, , key] = block.findAll(".ssh-row input");
+    await host.setValue("dev@buildbox");
+    await key.setValue("~/.ssh/id_ed25519");
+    // 保存：ai_agents JSON 携带 remote
+    await block
+      .findAll(".btn")
+      .find((b) => b.text() === "保存")!
+      .trigger("click");
+    await new Promise((r) => setTimeout(r));
+    const saved = vi.mocked(api.setSetting).mock.calls.find((c) => c[0] === "ai_agents")?.[1] ?? "";
+    const parsed = JSON.parse(saved);
+    expect(parsed[0].remote).toMatchObject({
+      host: "dev@buildbox",
+      port: 22,
+      keyPath: "~/.ssh/id_ed25519",
+    });
+    // 关闭 SSH：remote 清空
+    await sshToggle.setValue(false);
+    expect(block.find(".ssh-row").exists()).toBe(false);
+  });
+
   it("设置页分类分区：进入即列出内置分类，停用开关调用后端", async () => {
     const w = await mountApp();
     await w.findAll(".menu-btn")[5].trigger("click");
