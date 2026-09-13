@@ -6,7 +6,7 @@ import { catKeyOf, useCategoriesStore } from "../stores/categories";
 import { relativeDue } from "../relativeTime";
 import { spriteUrl, spriteFallback, type Task } from "../types";
 
-const props = defineProps<{ task: Task }>();
+const props = defineProps<{ task: Task; allowSchedule?: boolean }>();
 const emit = defineEmits<{
   start: [task: Task];
   pause: [];
@@ -74,7 +74,9 @@ const dueInfo = computed(() => (settings.bool("due_relative") ? relativeDue(prop
           {{ t("entry.start") }}
         </button>
         <button v-else class="btn ghost" @click="emit('pause')">{{ t("entry.pause") }}</button>
-        <button class="btn ghost icon" :title="t('entry.route')" @click="emit('schedule', task)">📅</button>
+        <button v-if="allowSchedule" class="btn ghost icon" :title="t('entry.route')" @click="emit('schedule', task)">
+          📅
+        </button>
         <button class="btn ghost icon" :title="t('entry.edit')" @click="emit('edit', task)">✎</button>
         <button class="btn" :title="t('entry.done')" @click="emit('complete', task)">✔</button>
         <button class="btn ghost icon esc" :title="t('entry.escape')" @click="emit('cancel', task)">🚪</button>

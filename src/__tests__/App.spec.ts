@@ -250,11 +250,15 @@ describe("App 图鉴机主面板", () => {
     expect(w.findAll(".entry")).toHaveLength(1);
   });
 
-  it("设置截止时间后按钮变「加入路线」，新建任务进路线（scheduled）", async () => {
+  it("草丛页设置截止时间后按钮变「加入路线」，新建任务进路线（scheduled）", async () => {
     const w = await mountApp();
-    // 默认无时间：按钮文案为「丢进草丛」
+    // 冒险页（默认）：无时间选择器，按钮恒为「丢进草丛」
     expect(w.get("form.add button[type='submit']").text()).toContain("丢进草丛");
-    // DexDateTime 选好时间后 v-model 更新 newDue
+    expect(w.findComponent({ name: "DexDateTime" }).exists()).toBe(false);
+    // 切到草丛页：时间选择器出现，选好时间后按钮变「加入路线」
+    await w.findAll(".menu-btn")[2].trigger("click");
+    await new Promise((r) => setTimeout(r));
+    expect(w.get("form.add button[type='submit']").text()).toContain("丢进草丛");
     await w.getComponent({ name: "DexDateTime" }).vm.$emit("update:modelValue", "2026-09-13T09:00");
     expect(w.get("form.add button[type='submit']").text()).toContain("加入路线");
     await w.get("form.add input").setValue("路线任务");
@@ -262,6 +266,20 @@ describe("App 图鉴机主面板", () => {
     expect(api.createTask).toHaveBeenCalledWith(
       expect.objectContaining({ title: "路线任务", dueAt: "2026-09-13T09:00", scheduled: true }),
     );
+  });
+
+  it("「加入路线」仅在草丛页出现：冒险/路线页卡片无 📅 按钮", async () => {
+    tasks = seed([
+      { title: "今天做完", status: "scheduled", dueAt: dueToday() },
+      { title: "草丛待办", status: "inbox" },
+    ]);
+    const w = await mountApp();
+    // 冒险页（默认）：卡片操作里没有 📅
+    expect(w.findAll(".entry .ops button[title='加入路线']")).toHaveLength(0);
+    // 草丛页：卡片带 📅
+    await w.findAll(".menu-btn")[2].trigger("click");
+    await new Promise((r) => setTimeout(r));
+    expect(w.findAll(".entry .ops button[title='加入路线']")).toHaveLength(1);
   });
 
   it("完成/撤销任务：✔ 置 done 并写 completedAt，图鉴页可撤销", async () => {

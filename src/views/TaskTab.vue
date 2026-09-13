@@ -154,7 +154,7 @@ onMounted(reload);
 
 <template>
   <div class="task-tab">
-    <AddTaskForm v-if="showAddForm" ref="addForm" @submit="addTask" />
+    <AddTaskForm v-if="showAddForm" ref="addForm" :allow-schedule="tab === 'inbox'" @submit="addTask" />
 
     <!-- 搜索栏 -->
     <div class="search-bar">
@@ -206,6 +206,7 @@ onMounted(reload);
         v-for="task in tab === 'today' ? entryList : displayList"
         :key="task.id"
         :task="task"
+        :allow-schedule="tab === 'inbox'"
         @start="start"
         @pause="pauseActive"
         @complete="complete"
