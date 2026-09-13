@@ -302,7 +302,7 @@ AI 判定时会带上**同会话 30 分钟内的近期上下文**与消息来源
 
 - **文本解析（默认）**：应用解析 agent 输出中的 JSON 建议，任何能输出 JSON 的命令都兼容——原有行为。
 - **工具调用（经 pk 落库）**：agent 先跑 `pk context` 拿判重上下文，再用 `pk suggest batch` 把整批判定一次性写回数据库，应用直接回读，不再解析输出文本（更可靠，且判定结果带强校验）。要求 agent 无头模式下允许执行 pk 命令：
-  - Claude Code：附加参数改为 `-p {prompt} --allowedTools "Bash(pk*)"`（白名单语法以所用版本为准）
+  - Claude Code：附加参数改为 `-p {prompt} --allowedTools "Bash(pk:*)"`（`:*` 为前缀匹配语法；以所用版本文档为准）
   - OpenCode / Kiro：在其权限配置中允许执行 `pk` 命令
   - 工具循环比单轮输出慢，建议把超时调大到 300 秒左右；「测试」按钮在该模式下会真跑一次 `pk context`，一次验证命令可用、工具白名单、PATH 与数据库整条链路
 
