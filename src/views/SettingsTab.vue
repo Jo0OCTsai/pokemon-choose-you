@@ -40,6 +40,11 @@ const chimeOn = boolSetting("pomodoro_chime");
 const feishuOn = boolSetting("feishu_enabled");
 const nlCaptureOn = boolSetting("nl_capture_enabled");
 const dueRelativeOn = boolSetting("due_relative");
+const overdueModeOptions = computed(() => [
+  { value: "collapse", label: t("overdue.modeCollapse") },
+  { value: "auto_grass", label: t("overdue.modeAuto") },
+  { value: "show", label: t("overdue.modeShow") },
+]);
 const reviewOn = boolSetting("review_enabled");
 const reviewDowOptions = computed(() =>
   [1, 2, 3, 4, 5, 6, 7].map((d) => ({ value: String(d), label: t(`reviewDow.${d}`) })),
@@ -709,6 +714,10 @@ onUnmounted(() => unlisteners.forEach((u) => u()));
             <DexSelect v-model="settings.values.time_format" :options="timeFormatOptions" />
           </label>
           <label>{{ t("display.dueRelative") }}<DexToggle v-model="dueRelativeOn" /></label>
+          <label>
+            {{ t("display.overdueMode") }}
+            <DexSelect v-model="settings.values.overdue_mode" :options="overdueModeOptions" />
+          </label>
           <label>
             {{ t("display.language") }}
             <DexSelect v-model="settings.values.language" :options="languageOptions" />

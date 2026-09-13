@@ -180,6 +180,7 @@ export default {
     time: "Time format",
     h24: "24-hour (18:00)",
     h12: "12-hour (6:00 PM)",
+    overdueMode: "Overdue display",
     dueRelative: 'Relative due times ("in 3h / tomorrow 3:00 PM / 2d overdue", colored by urgency)',
     preview: "Preview: {v}",
     language: "Language",
@@ -266,6 +267,15 @@ export default {
     autostart: "Launch at login (pet appears automatically)",
     nlCapture: "Natural-language quick capture (auto-detect time / category / tags in the input, always cancellable)",
     shortcuts: "Global shortcuts: Ctrl+Shift+K quick capture · Ctrl+Shift+D show/hide pet (⌘⇧K / ⌘⇧D on macOS)",
+  },
+  overdue: {
+    collapse: "Hide",
+    leaked: "{n} slipped away yesterday (click to peek)",
+    fresh: "Send all to grass",
+    freshing: "Moving…",
+    modeCollapse: "Collapse to one line",
+    modeAuto: "Auto-send to grass (clears overdue times daily)",
+    modeShow: "Show as-is",
   },
   rel: {
     overdueMin: "{n} min overdue",

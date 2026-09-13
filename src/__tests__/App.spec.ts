@@ -571,6 +571,26 @@ describe("App 图鉴机主面板", () => {
     expect(api.openAgentHistory).toHaveBeenCalledWith("claude-code", "sess-1");
   });
 
+  it("逾期 fresh start：冒险页折叠为一行，可展开，一键归草丛清截止时间", async () => {
+    tasks = seed([
+      { title: "逾期的活", status: "scheduled", dueAt: "2026-09-10T09:00" },
+      { title: "今天到期", status: "scheduled", dueAt: dueToday() },
+    ]);
+    const w = await mountApp();
+    // 逾期被折叠：列表只见「今天到期」，折叠行带数量
+    expect(w.findAll(".entry")).toHaveLength(1);
+    expect(w.get(".overdue-toggle").text()).toContain("1");
+    // 展开可见逾期条目
+    await w.get(".overdue-toggle").trigger("click");
+    await new Promise((r) => setTimeout(r));
+    expect(w.findAll(".entry")).toHaveLength(2);
+    // 展开态一键归草丛：清截止时间
+    vi.mocked(api.updateTask).mockResolvedValue(tasks[0]);
+    await w.get(".overdue-fresh").trigger("click");
+    await new Promise((r) => setTimeout(r));
+    expect(api.updateTask).toHaveBeenCalledWith(expect.objectContaining({ id: 1, dueAt: null }));
+  });
+
   it("任务卡截止时间显示相对距离并按临近程度变色", async () => {
     const overdue = new Date(Date.now() - 5 * 3_600_000);
     const iso = (d: Date) =>
