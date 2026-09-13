@@ -20,6 +20,7 @@
     "test:e2e:chromium": "playwright test --project=chromium",
     "test:rust": "cd src-tauri && cargo test",
     "clippy": "cargo clippy --manifest-path src-tauri/Cargo.toml --all-targets -- -D warnings",
+    "bump": "node scripts/bump-version.mjs",
     "prepare": "lefthook install || true"
   },
   "dependencies": {

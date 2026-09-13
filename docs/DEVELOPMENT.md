@@ -69,8 +69,12 @@ public/pokemon/         宝可梦素材 (PokeAPI sprites)
 
 ## 发布
 
-1. 合并到 `main` 后 [release-please](https://github.com/googleapis/release-please) 自动开/更新 release PR（版本号同步 `package.json`、`src-tauri/Cargo.toml`、`src-tauri/tauri.conf.json`）。
-2. 合并 release PR → 推 `v*` 标签 → 触发 `release.yml`：tauri-action 出 macOS（Intel + Apple Silicon 双架构 dmg）/ Windows（NSIS）/ Linux（deb / rpm / AppImage）安装包，自动建草稿 Release，并产出 `latest.json`（自动更新清单）。
+开发版草稿流：版本号手动管理，草稿自动构建，正式发布是一个显式动作。
+
+1. **开发中**：每次合并到 `main` 自动触发 `release.yml`，按 tauri.conf.json 的当前版本构建全平台草稿 Release（macOS 双架构 dmg / Windows NSIS / Linux deb·rpm·AppImage + `latest.json` 更新清单）。同版本旧草稿会被删掉重打，产物不叠加。
+2. **正式发布**：在 GitHub Releases 页把草稿 **publish**——publish 的瞬间自动创建 `v*` 标签，这就是正式发布动作。
+3. **抬版本**：发布后运行 `npm run bump <下一版本>`（如 `npm run bump 1.1.0`），同步 `package.json` / `src-tauri/tauri.conf.json` / `src-tauri/Cargo.toml` / `Cargo.lock` 四处版本并提交；之后每次合并又开始构建新版本的草稿。
+4. 版本已正式发布（tag 在位）时 `release.yml` 会自动跳过构建并提示先 bump，不会覆盖已发布版本。
 
 ### 自动更新签名（维护者）
 
