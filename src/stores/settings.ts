@@ -21,8 +21,14 @@ export const SETTING_DEFAULTS: Record<string, string> = {
   backup_enabled: "true",
   /** 备份滚动保留份数 */
   backup_keep: "7",
+  /** 每周复盘提醒（图鉴页「复盘」向导入口） */
+  review_enabled: "true",
+  /** 复盘提醒星期（1=周一 … 7=周日） */
+  review_dow: "1",
   feishu_poll_interval: "120",
   feishu_enabled: "false",
+  /** 飞书拉取引擎：builtin = 内置直连（自建应用 OAuth），cli = 官方 lark-cli 子进程 */
+  feishu_engine: "builtin",
   /** AI agent CLI 列表（AgentConfig 的 JSON 数组字符串） */
   ai_agents: "[]",
   /** 收音机分类使用的 agent id（空则用第一个启用的） */
@@ -57,12 +63,15 @@ export const SETTING_KEYS = [
   "nl_capture_enabled",
   "backup_enabled",
   "backup_keep",
+  "review_enabled",
+  "review_dow",
   "feishu_poll_interval",
   "ai_agents",
   "ai_agent_id",
   "feishu_app_id",
   "feishu_app_secret",
   "feishu_enabled",
+  "feishu_engine",
   "todoist_token",
 ];
 

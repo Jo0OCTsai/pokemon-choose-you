@@ -47,9 +47,13 @@ fn tick<R: tauri::Runtime>(app: &tauri::AppHandle<R>) -> Result<(), Box<dyn std:
     let notify_on = get("notifications_enabled")
         .map(|v| v != "false")
         .unwrap_or(true);
-    // fresh start 设置在拿 Db 锁之前读齐（tick 后半段持有 conn 锁，再调 get 会死锁）
+    // fresh start / 复盘提醒设置在拿 Db 锁之前读齐（tick 后半段持有 conn 锁，再调 get 会死锁）
     let overdue_mode = get("overdue_mode").unwrap_or_else(|| "collapse".into());
     let fresh_start_last_run = get("fresh_start_last_run");
+    let review_enabled = get("review_enabled").map(|v| v != "false").unwrap_or(true);
+    let review_dow: u32 = get("review_dow").and_then(|v| v.parse().ok()).unwrap_or(1);
+    let review_last_notified = get("review_last_notified");
+    let lang = get("language").unwrap_or_else(|| "zh-Hans".into());
     let now = chrono::Utc::now() + chrono::Duration::minutes(lead_min);
     // SQL 预筛只是粗筛：datetime-local 存的是无时区本地时间，与 UTC RFC3339 字典序
     // 不可比（UTC+ 时区下本地字符串普遍偏大），窗口放宽一天，精确判断交给 parse_time
@@ -98,6 +102,32 @@ fn tick<R: tauri::Runtime>(app: &tauri::AppHandle<R>) -> Result<(), Box<dyn std:
             }
         }
     }
+
+    // ---- 每周复盘提醒：到设定星期当天提醒一次（主流任务应用没有的 OmniFocus 式空位） ----
+    let today_local = chrono::Local::now();
+    let due_today = review_due(
+        review_enabled,
+        review_dow,
+        today_local
+            .format("%u")
+            .to_string()
+            .parse::<u32>()
+            .unwrap_or(1), // %u：周一=1…周日=7
+        review_last_notified.as_deref(),
+        &today_local.format("%Y-%m-%d").to_string(),
+    );
+    if due_today {
+        let (title, body) = review_notification_text(&lang);
+        conn.execute(
+            "INSERT INTO settings (key, value) VALUES ('review_last_notified', ?1)
+             ON CONFLICT(key) DO UPDATE SET value=?1",
+            params![today_local.format("%Y-%m-%d").to_string()],
+        )?;
+        log::info!("review: 每周复盘提醒已发送");
+        if notify_on {
+            let _ = app.notification().builder().title(title).body(body).show();
+        }
+    }
     Ok(())
 }
 
@@ -136,6 +166,36 @@ pub fn run_fresh_start(conn: &rusqlite::Connection, today: &str) -> usize {
         log::info!("fresh-start: {n} 只逾期的溜回草丛（清截止时间，不删任务）");
     }
     n
+}
+
+/// 每周复盘提醒决策（独立出来便于测试）：
+/// 开启 + 今天是设定星期（1=周一…7=周日）+ 今天还没提醒过
+fn review_due(
+    enabled: bool,
+    review_dow: u32,
+    today_dow: u32,
+    last_notified: Option<&str>,
+    today: &str,
+) -> bool {
+    enabled && today_dow == review_dow && last_notified != Some(today)
+}
+
+/// 复盘提醒文案（三语）
+fn review_notification_text(lang: &str) -> (String, String) {
+    match lang {
+        "zh-Hant" => (
+            "🧢 訓練家複盤".into(),
+            "一週的收穫該清點了：到圖鑑頁點「複盤」逐站整理路線與草叢".into(),
+        ),
+        "en" => (
+            "🧢 Trainer review".into(),
+            "Time to count this week's catches — open the Dex tab and run the review".into(),
+        ),
+        _ => (
+            "🧢 训练师复盘".into(),
+            "一周的收获得清点一下了：到图鉴页点「复盘」逐站整理路线与草丛".into(),
+        ),
+    }
 }
 
 /// 按语言设置生成通知标题/正文（紧急与非紧急两档）
@@ -286,6 +346,30 @@ mod tests {
         assert_eq!(logs, 1, "归位写审计日志");
         // 再跑一次是 no-op
         assert_eq!(run_fresh_start(&conn, "2026-09-13"), 0);
+    }
+
+    // ---- review_due：每周复盘提醒决策 ----
+    #[test]
+    fn review_due_fires_once_on_configured_weekday() {
+        // 周三(3)、设定周三：开启且未提醒过 → 触发
+        assert!(review_due(true, 3, 3, None, "2026-09-13"));
+        // 已提醒过 → 当天不再触发
+        assert!(!review_due(true, 3, 3, Some("2026-09-13"), "2026-09-13"));
+        // 其他天 / 关闭开关 → 不触发
+        assert!(!review_due(true, 3, 4, None, "2026-09-13"));
+        assert!(!review_due(false, 3, 3, None, "2026-09-13"));
+        // 周日 = 7（ISO %u 约定）
+        assert!(review_due(true, 7, 7, None, "2026-09-13"));
+    }
+
+    #[test]
+    fn review_notification_text_covers_three_languages() {
+        let (t, b) = review_notification_text("zh-Hans");
+        assert!(t.contains("复盘") && b.contains("草丛"));
+        let (t, _) = review_notification_text("zh-Hant");
+        assert!(t.contains("複盤"));
+        let (t, b) = review_notification_text("en");
+        assert!(t.contains("review") && b.len() > 10);
     }
 
     // ---- notification_text：三语 × 紧急/普通 ----

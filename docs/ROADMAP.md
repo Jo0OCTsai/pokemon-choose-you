@@ -99,7 +99,9 @@
 - **会话回链与成本记录**：agent_sessions 表按次落库（session_id / 命令 / 退出码 / 成本 / 时长 / token），分类调用自动记录，`pk session log` 关联任务；任务编辑弹窗展示并可回放转录
 - **配套 skill 分发**：`pk skill install claude-code|opencode [--dir]` 一键装 SKILL.md（含 pk 命令速查与 agent 建议流程），`pk skill show` 输出原文
 - **飞书**：用户身份 OAuth 增量拉取私聊/群聊（无需拉机器人进会话）、富文本渲染、按聊天语境过滤 + 同会话 30 分钟上下文、断网退避重试
+- **飞书双引擎**：拉取引擎可切换——内置直连（自建应用 OAuth）或官方 lark-cli（MIT，`auth login` 授权、`api ... --format json` 拉取、凭证由 lark-cli 自管不进本库）；语境过滤与上下文组装两引擎一致；WebSocket 事件订阅已评估（lark-event 可用，长连接生命周期管理留作后续）
 - **桌宠**：番茄钟（时长/短休息/通知可配）、专注模式、快捷图鉴屏、换装
+- **每周复盘（训练师复盘）**：图鉴页四步向导——总览统计/路线逐站就地处置（保留·完成·归草丛·逃走）/草丛批量放生/收尾记录；设置可选提醒日、到点系统通知每周一次（OmniFocus 式回顾 + 提醒的差异化组合）
 - **集成**：Todoist 双向同步
 - **数据安全**：秘钥（飞书 App Secret / OAuth token / Todoist Token）迁 OS 钥匙串（Keychain / Credential Manager / Secret Service），启动自动迁移存量明文，无钥匙串环境回落本地库；后端不再回传明文
 - **自动版本化备份**：`VACUUM INTO` 每日快照（滚动保留可配，默认 7 份）+ 设置页手动备份/列表/在线恢复（SQLite backup API 灌回，免重启）
