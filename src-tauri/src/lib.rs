@@ -120,6 +120,7 @@ pub fn run() {
             commands::apply_chat_message_update,
             commands::test_ai_config,
             commands::open_agent_history,
+            commands::setup_remote_pk,
             commands::test_feishu_config,
             commands::trigger_feishu_poll,
             commands::feishu_oauth_login,

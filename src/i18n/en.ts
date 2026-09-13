@@ -246,8 +246,13 @@ export default {
     sshPort: "SSH port",
     sshKeyPh: "Private key path (optional, e.g. ~/.ssh/id_ed25519)",
     sshTunnel: "Reverse tunnel port (optional, e.g. 10022)",
+    setupRemote: "Set up remote pk (one click)",
+    settingUp: "Setting up remote pk… (sshd / keys / shim / end-to-end check, ~15s)",
+    setupDone:
+      "✅ Remote pk ready (pk {v}) — the tunnel comes up automatically on each agent call; “Test” runs the probe",
+    setupFailed: "Setup did not finish — see the failed step's hint",
     sshHint:
-      "Runs the agent headlessly over ssh; the prompt travels via stdin ({'{prompt}'} placeholder args are dropped automatically, e.g. claude's `-p {'{prompt}'}` becomes `-p`). Set up public-key auth first; 10s connect timeout, whole call bounded by the timeout above. With a tunnel port, this ssh connection forwards the remote's 127.0.0.1:port back to the local sshd — a remote pk shim (generated via `pk remote shim --host localhost --port <port>`) can then call back without exposing local ports.",
+      "Runs the agent headlessly over ssh; the prompt travels via stdin ({'{prompt}'} placeholder args are dropped automatically, e.g. claude's `-p {'{prompt}'}` becomes `-p`). Set up public-key auth first; 10s connect timeout, whole call bounded by the timeout above. For pk on the remote, click “Set up remote pk” above — the app forwards the remote's 127.0.0.1:port back to the local sshd over this ssh connection (reverse tunnel), and the remote agent calls home through a forwarding shim. No local inbound ports are exposed.",
     hint: "Classify and dedupe radio messages with local AI agent CLIs (Claude Code / OpenCode / Kiro CLI, …); one or more can be configured. The command must support headless mode; {'{prompt}'} in extra args is replaced with the prompt; without {'{prompt}'} it is passed via stdin.",
     cliHint:
       "The app also ships a pk CLI (pk task list / pk task get …) for AI agents and terminals to read and write tasks directly. See the user guide.",

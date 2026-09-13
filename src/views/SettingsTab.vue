@@ -9,7 +9,7 @@ import { fmtDateTime, SETTING_KEYS, SECRET_STORED, useSettingsStore } from "../s
 import { useCategoriesStore } from "../stores/categories";
 import { useTagsStore } from "../stores/tags";
 import { useTasksStore } from "../stores/tasks";
-import type { AgentConfig, BackupInfo, FeishuOauthStatus, IntegrationHealth, LogEntry } from "../types";
+import type { AgentConfig, BackupInfo, FeishuOauthStatus, IntegrationHealth, LogEntry, RemotePkReport } from "../types";
 import { SUPPORTED_LOCALES } from "../i18n";
 import { BUNDLED_POKEMON, POKEMON_BY_KEY, mergePokemonQuotes, pokemonQuotesFor } from "../pokemon";
 import DexSelect from "../components/DexSelect.vue";
@@ -513,6 +513,34 @@ async function openHistory(ag: AgentConfig) {
   }
 }
 
+/** 一键配置远程 pk：后端读的是已保存配置，先把表单落库再触发；成功后刷新设置与表单 */
+async function setupRemotePkFor(ag: AgentRow) {
+  testing.value = true;
+  testMsg.value = t("ai.settingUp");
+  try {
+    await saveAgents();
+    const port = Number(ag.remote?.tunnel) || 10022;
+    const report = await api.setupRemotePk(ag.id, port);
+    testMsg.value = renderSetupReport(report);
+    if (report.ok) {
+      await settings.load();
+      loadAgents();
+    }
+  } catch (e) {
+    testMsg.value = `❌ ${errorMessage(e)}`;
+  } finally {
+    testing.value = false;
+  }
+}
+
+function renderSetupReport(r: RemotePkReport): string {
+  if (r.ok) {
+    return t("ai.setupDone", { v: r.version || "?" });
+  }
+  const failed = r.steps.find((s) => s.status === "fail");
+  return failed ? `❌ ${failed.name}：${failed.detail}` : `❌ ${t("ai.setupFailed")}`;
+}
+
 watch(settingsTab, (tab) => {
   if (tab === "cats") {
     startEditCats();
@@ -869,6 +897,11 @@ onUnmounted(() => unlisteners.forEach((u) => u()));
                 {{ t("ai.sshTunnel") }}
                 <input v-model.number="ag.remote.tunnel" type="number" min="1" max="65535" placeholder="10022" />
               </label>
+              <div class="btn-row">
+                <button class="btn ghost" :disabled="testing" @click="setupRemotePkFor(ag)">
+                  {{ t("ai.setupRemote") }}
+                </button>
+              </div>
               <p class="hint">{{ t("ai.sshHint") }}</p>
             </template>
             <label class="chk-line">
