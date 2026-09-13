@@ -39,6 +39,15 @@ const notifyOn = boolSetting("notifications_enabled");
 const chimeOn = boolSetting("pomodoro_chime");
 const feishuOn = boolSetting("feishu_enabled");
 const nlCaptureOn = boolSetting("nl_capture_enabled");
+const reviewOn = boolSetting("review_enabled");
+const reviewDowOptions = computed(() =>
+  [1, 2, 3, 4, 5, 6, 7].map((d) => ({ value: String(d), label: t(`reviewDow.${d}`) })),
+);
+const feishuEngineCli = computed(() => settings.values.feishu_engine === "cli");
+const engineOptions = computed(() => [
+  { value: "builtin", label: t("feishu.engineBuiltin") },
+  { value: "cli", label: t("feishu.engineCli") },
+]);
 
 // 秘钥输入：后端只回「已保存」占位值，展示为空 + 占位提示；改动才提交新值
 function secretField(key: string) {
@@ -760,15 +769,22 @@ onUnmounted(() => unlisteners.forEach((u) => u()));
 
         <section class="set-card">
           <h3>💬 {{ t("tabs.im") === "Radio" ? "Feishu" : "飞书" }}</h3>
-          <label>App ID<input v-model="settings.values.feishu_app_id" /></label>
-          <label
-            >App Secret<input
-              v-model="feishuAppSecret"
-              type="password"
-              autocomplete="off"
-              :placeholder="secretStored('feishu_app_secret') ? t('secret.stored') : ''"
-          /></label>
-          <p class="hint">{{ t("feishu.hint") }}</p>
+          <label>
+            {{ t("feishu.engine") }}
+            <DexSelect v-model="settings.values.feishu_engine" :options="engineOptions" />
+          </label>
+          <p v-if="feishuEngineCli" class="hint">{{ t("feishu.engineHint") }}</p>
+          <template v-if="!feishuEngineCli">
+            <label>App ID<input v-model="settings.values.feishu_app_id" /></label>
+            <label
+              >App Secret<input
+                v-model="feishuAppSecret"
+                type="password"
+                autocomplete="off"
+                :placeholder="secretStored('feishu_app_secret') ? t('secret.stored') : ''"
+            /></label>
+            <p class="hint">{{ t("feishu.hint") }}</p>
+          </template>
           <div class="auth-line">
             <span class="auth-state">
               {{
@@ -781,7 +797,7 @@ onUnmounted(() => unlisteners.forEach((u) => u()));
               {{ oauthBusy ? t("feishu.authing") : feishuAuth?.authorized ? t("feishu.reauth") : t("feishu.auth") }}
             </button>
           </div>
-          <p class="hint">{{ t("feishu.authHint", { url: OAUTH_REDIRECT_URL }) }}</p>
+          <p v-if="!feishuEngineCli" class="hint">{{ t("feishu.authHint", { url: OAUTH_REDIRECT_URL }) }}</p>
           <label>{{ t("feishu.enable") }}<DexToggle v-model="feishuOn" /></label>
           <label>
             {{ t("feishu.interval") }}
@@ -925,6 +941,16 @@ onUnmounted(() => unlisteners.forEach((u) => u()));
             </li>
           </ul>
           <p v-else-if="backupsLoaded" class="hint">{{ t("backup.empty") }}</p>
+        </section>
+
+        <section class="set-card">
+          <h3>{{ t("reviewCfg.title") }}</h3>
+          <label>{{ t("reviewCfg.enable") }}<DexToggle v-model="reviewOn" /></label>
+          <label>
+            {{ t("reviewCfg.dow") }}
+            <DexSelect v-model="settings.values.review_dow" :options="reviewDowOptions" />
+          </label>
+          <p class="hint">{{ t("review.finishTip") }}</p>
         </section>
 
         <section class="set-card">

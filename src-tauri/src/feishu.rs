@@ -611,11 +611,11 @@ async fn bot_context(cfg: &FeishuConfig) -> BotContext {
     ctx
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, Default)]
 struct MsgPage {
     data: MsgData,
 }
-#[derive(Deserialize)]
+#[derive(Deserialize, Default)]
 struct MsgData {
     items: Option<Vec<serde_json::Value>>,
     #[serde(default)]
@@ -900,23 +900,211 @@ async fn fetch_members(
     out
 }
 
+/// 拉取引擎的用户身份（token 仅供内置引擎后续 REST 调用；lark-cli 引擎凭证自管）
+struct UserIdentity {
+    open_id: String,
+    name: String,
+    token: Option<String>,
+}
+
+/// 消息拉取引擎：内置直连（自建应用 OAuth + REST）或官方 lark-cli 子进程。
+/// 语境过滤（谁的消息送 AI）与上下文组装在两引擎间完全一致。
+pub enum FetchEngine {
+    /// 内置直连：需要自建应用的 App ID/Secret + 用户 OAuth
+    Builtin(FeishuConfig),
+    /// 官方 lark-cli：用户经 lark-cli 自己的授权登录（凭证由 lark-cli 保管，不进本应用库）
+    LarkCli(String),
+}
+
+/// 便捷入口：从设置构建引擎（commands 层用）
+pub fn fetch_engine_from(get: &dyn Fn(&str) -> Option<String>) -> Option<FetchEngine> {
+    FetchEngine::from_settings(get)
+}
+
+impl FetchEngine {
+    /// 设置 feishu_engine = "cli" 时走 lark-cli；否则内置直连（缺省）
+    fn from_settings(get: &dyn Fn(&str) -> Option<String>) -> Option<FetchEngine> {
+        match get("feishu_engine").as_deref() {
+            Some("cli") => Some(FetchEngine::LarkCli(crate::lark_cli::lark_bin())),
+            _ => feishu_config(get).map(FetchEngine::Builtin),
+        }
+    }
+
+    async fn identity(&self, db: &Db) -> AppResult<UserIdentity> {
+        match self {
+            FetchEngine::Builtin(cfg) => {
+                let st = Settings(db);
+                let a = user_auth(cfg, &st).await?;
+                Ok(UserIdentity {
+                    open_id: a.open_id,
+                    name: a.name,
+                    token: Some(a.token),
+                })
+            }
+            FetchEngine::LarkCli(bin) => {
+                let (open_id, name) = crate::lark_cli::user_identity(bin).await?;
+                Ok(UserIdentity {
+                    open_id,
+                    name,
+                    token: None,
+                })
+            }
+        }
+    }
+
+    async fn chats(&self, token: Option<&str>) -> AppResult<Vec<ChatSummary>> {
+        match self {
+            FetchEngine::Builtin(cfg) => {
+                let t = token.expect("内置引擎的身份必带 token");
+                list_chats(cfg, t).await
+            }
+            FetchEngine::LarkCli(bin) => {
+                let mut out = vec![];
+                let mut page_token: Option<String> = None;
+                loop {
+                    let d = crate::lark_cli::list_chats(bin, 100, page_token.as_deref()).await?;
+                    for item in d["items"].as_array().cloned().unwrap_or_default() {
+                        let chat_id = item["chat_id"].as_str().unwrap_or_default().to_string();
+                        if chat_id.is_empty() {
+                            continue;
+                        }
+                        out.push(ChatSummary {
+                            chat_id,
+                            name: item["name"].as_str().unwrap_or("未命名会话").to_string(),
+                            chat_mode: item["chat_mode"].as_str().unwrap_or("group").to_string(),
+                        });
+                    }
+                    let has_more = d["has_more"].as_bool().unwrap_or(false);
+                    page_token = d["page_token"].as_str().map(String::from);
+                    if !has_more || page_token.is_none() || out.len() > 500 {
+                        break;
+                    }
+                }
+                Ok(out)
+            }
+        }
+    }
+
+    async fn messages_page(
+        &self,
+        token: Option<&str>,
+        chat_id: &str,
+        start_s: i64,
+        end_s: i64,
+        page_token: Option<String>,
+    ) -> AppResult<MsgPage> {
+        match self {
+            FetchEngine::Builtin(cfg) => {
+                let t = token.expect("内置引擎的身份必带 token");
+                let client = reqwest::Client::new();
+                let mut url = format!(
+                    "{}/im/v1/messages?container_id_type=chat&container_id={}&page_size=50&start_time={start_s}&end_time={end_s}",
+                    cfg.base_url, chat_id
+                );
+                if let Some(t) = &page_token {
+                    url.push_str(&format!("&page_token={t}"));
+                }
+                let resp = client
+                    .get(&url)
+                    .bearer_auth(t)
+                    .timeout(Duration::from_secs(20))
+                    .send()
+                    .await
+                    .map_err(|e| AppError::Network(format!("拉取消息失败: {e}")))?;
+                if !resp.status().is_success() {
+                    log::warn!("feishu: chat {chat_id} 拉取失败 {}", resp.status());
+                    return Ok(MsgPage::default());
+                }
+                feishu_json(resp, "拉取消息").await
+            }
+            FetchEngine::LarkCli(bin) => {
+                let d = crate::lark_cli::list_messages(
+                    bin,
+                    chat_id,
+                    start_s,
+                    end_s,
+                    page_token.as_deref(),
+                )
+                .await?;
+                Ok(MsgPage {
+                    data: MsgData {
+                        items: d["items"].as_array().cloned(),
+                        has_more: d["has_more"].as_bool().unwrap_or(false),
+                        page_token: d["page_token"].as_str().map(String::from),
+                    },
+                })
+            }
+        }
+    }
+
+    async fn members(&self, token: Option<&str>, chat_id: &str) -> Vec<(String, String)> {
+        match self {
+            FetchEngine::Builtin(cfg) => {
+                let t = token.expect("内置引擎的身份必带 token");
+                fetch_members(cfg, t, chat_id).await
+            }
+            FetchEngine::LarkCli(bin) => {
+                let mut out = vec![];
+                let mut page_token: Option<String> = None;
+                for _ in 0..MEMBERS_MAX_PAGES {
+                    match crate::lark_cli::list_members(bin, chat_id, page_token.as_deref()).await {
+                        Ok(d) => {
+                            for item in d["items"].as_array().cloned().unwrap_or_default() {
+                                if let Some(id) =
+                                    item["member_id"].as_str().filter(|s| !s.is_empty())
+                                {
+                                    out.push((
+                                        id.to_string(),
+                                        item["name"].as_str().unwrap_or_default().to_string(),
+                                    ));
+                                }
+                            }
+                            let has_more = d["has_more"].as_bool().unwrap_or(false);
+                            page_token = d["page_token"].as_str().map(String::from);
+                            if !has_more || page_token.is_none() {
+                                break;
+                            }
+                        }
+                        Err(e) => {
+                            log::warn!("feishu: lark-cli 拉取群「{chat_id}」成员失败: {e}");
+                            break;
+                        }
+                    }
+                }
+                out
+            }
+        }
+    }
+
+    async fn bot(&self) -> BotContext {
+        match self {
+            FetchEngine::Builtin(cfg) => bot_context(cfg).await,
+            // lark-cli 用它自己的内置应用身份，不存在「本应用机器人」：
+            // 单聊一律按 p2p 处理（对方消息送 AI），机器人语境自然缺席
+            FetchEngine::LarkCli(_) => BotContext {
+                open_id: None,
+                name: String::new(),
+                p2p_chat_ids: HashSet::new(),
+            },
+        }
+    }
+}
+
 /// 用户身份增量拉取。消息处理语境：
 /// - 与机器人的单聊：只把「当前用户发给机器人的」送 AI（bot 回复与其他人的消息只作上下文）；
 /// - 与他人的单聊：只把「对方发来的」送 AI（用户自己发出的作上下文）；
 /// - 群聊：除自己与本应用机器人外的消息送 AI。
 async fn pull_new_messages(
-    cfg: &FeishuConfig,
+    engine: &FetchEngine,
     db: &Db,
     since_ms: Option<i64>,
 ) -> AppResult<(Vec<NewMessage>, i64)> {
-    let st = Settings(db);
-    let auth = user_auth(cfg, &st).await?;
-    let client = reqwest::Client::new();
-    let chats = list_chats(cfg, &auth.token).await?;
+    let identity = engine.identity(db).await?;
+    let chats = engine.chats(identity.token.as_deref()).await?;
     if chats.is_empty() {
         log::info!("feishu: 授权用户不在任何会话中，无消息可拉取");
     }
-    let bot = bot_context(cfg).await;
+    let bot = engine.bot().await;
     let mut names = cached_names(db);
     let mut refreshed_chats: HashSet<String> = HashSet::new();
 
@@ -929,25 +1117,15 @@ async fn pull_new_messages(
         let mut page_token: Option<String> = None;
         let mut chat_count = 0usize;
         loop {
-            let mut url = format!(
-                "{}/im/v1/messages?container_id_type=chat&container_id={}&page_size=50&start_time={start_s}&end_time={end_s}",
-                cfg.base_url, chat.chat_id
-            );
-            if let Some(t) = &page_token {
-                url.push_str(&format!("&page_token={t}"));
-            }
-            let resp = client
-                .get(&url)
-                .bearer_auth(&auth.token)
-                .timeout(Duration::from_secs(20))
-                .send()
-                .await
-                .map_err(|e| AppError::Network(format!("拉取消息失败: {e}")))?;
-            if !resp.status().is_success() {
-                log::warn!("feishu: chat {} 拉取失败 {}", chat.chat_id, resp.status());
-                break;
-            }
-            let page: MsgPage = feishu_json(resp, "拉取消息").await?;
+            let page = engine
+                .messages_page(
+                    identity.token.as_deref(),
+                    &chat.chat_id,
+                    start_s,
+                    end_s,
+                    page_token,
+                )
+                .await?;
             for m in page.data.items.unwrap_or_default() {
                 let message_id = m["message_id"].as_str().unwrap_or_default().to_string();
                 if message_id.is_empty() {
@@ -971,7 +1149,7 @@ async fn pull_new_messages(
                 if text.trim().is_empty() {
                     continue;
                 }
-                let is_self = sender_type == "user" && sender_id == auth.open_id;
+                let is_self = sender_type == "user" && sender_id == identity.open_id;
                 let is_our_bot =
                     sender_type == "app" && bot.open_id.as_deref() == Some(sender_id.as_str());
                 // 消息内兜底：单聊里出现本应用机器人 → 该会话就是机器人单聊
@@ -992,7 +1170,7 @@ async fn pull_new_messages(
                 } && !is_media_only(msg_type);
                 // 发送者显示名：自己/机器人/单聊对方（会话名即对方）/群成员缓存
                 let sender_name = if is_self {
-                    auth.name.clone()
+                    identity.name.clone()
                 } else if is_our_bot {
                     bot.name.clone()
                 } else if chat.chat_mode == "p2p" {
@@ -1006,7 +1184,9 @@ async fn pull_new_messages(
                             // 首次遇到陌生发送者：拉一次群成员名单补缓存（每群每轮最多一次）
                             if !refreshed_chats.contains(&chat.chat_id) {
                                 refreshed_chats.insert(chat.chat_id.clone());
-                                let members = fetch_members(cfg, &auth.token, &chat.chat_id).await;
+                                let members = engine
+                                    .members(identity.token.as_deref(), &chat.chat_id)
+                                    .await;
                                 save_names(db, &members);
                                 for (oid, n) in &members {
                                     names.insert(oid.clone(), n.clone());
@@ -1053,16 +1233,19 @@ fn short_id(id: &str) -> String {
     id.chars().take(11).collect()
 }
 
-/// 连接测试：验证应用凭证 + 用户授权 + 会话可见性
-pub async fn poll_once_test(cfg: &FeishuConfig, db: &Db) -> AppResult<String> {
-    let st = Settings(db);
-    let auth = user_auth(cfg, &st).await?;
-    let chats = list_chats(cfg, &auth.token).await?;
+/// 连接测试（引擎化）：验证身份 + 会话可见性
+pub async fn poll_once_test(engine: &FetchEngine, db: &Db) -> AppResult<String> {
+    let identity = engine.identity(db).await?;
+    let chats = engine.chats(identity.token.as_deref()).await?;
     let groups = chats.iter().filter(|c| c.chat_mode != "p2p").count();
     let p2p = chats.len() - groups;
+    let engine_label = match engine {
+        FetchEngine::LarkCli(_) => "lark-cli",
+        FetchEngine::Builtin(_) => "直连",
+    };
     Ok(format!(
-        "连接成功：已授权「{}」，可见 {} 个会话（群聊 {groups} · 单聊 {p2p}）",
-        auth.name,
+        "连接成功（{engine_label}）：已授权「{}」，可见 {} 个会话（群聊 {groups} · 单聊 {p2p}）",
+        identity.name,
         chats.len()
     ))
 }
@@ -1088,9 +1271,9 @@ async fn poll_once_inner(app: &AppHandle) -> AppResult<usize> {
         })
         .ok()
     };
-    let fcfg = match feishu_config(&get) {
-        Some(c) => c,
-        None => return Ok(0), // 未配置，静默跳过
+    let engine = match FetchEngine::from_settings(&get) {
+        Some(e) => e,
+        None => return Ok(0), // 未配置（引擎及其凭证），静默跳过
     };
     let agent = match ai::primary_agent(&get) {
         Some(a) => a,
@@ -1102,7 +1285,7 @@ async fn poll_once_inner(app: &AppHandle) -> AppResult<usize> {
     };
 
     let since: Option<i64> = get("feishu_cursor").and_then(|s| s.parse().ok());
-    let (messages, cursor) = pull_new_messages(&fcfg, &db, since).await?;
+    let (messages, cursor) = pull_new_messages(&engine, &db, since).await?;
 
     // 1. 全量入库：待判定的进收音机，其余（自己发的、机器人回复等）标记 skipped 只作上下文
     let fresh: Vec<NewMessage> = {
@@ -1605,6 +1788,61 @@ mod tests {
         }
     }
 
+    /// lark-cli 引擎拉取：假 CLI 脚本按 API 路由返回数据；无机器人语境（单聊全部按 p2p）
+    #[cfg(unix)]
+    #[test]
+    fn pull_via_lark_cli_engine_keeps_context_rules() {
+        tauri::async_runtime::block_on(async {
+            let dir = std::env::temp_dir().join(format!("pk-lark-pull-{}", std::process::id()));
+            std::fs::create_dir_all(&dir).unwrap();
+            let script = dir.join("lark-cli");
+            // 用户信息 / 会话列表 / 消息页：identity=ou_me(我)，两个会话（p2p 李四 + 群）
+            std::fs::write(
+                &script,
+                r#"#!/bin/sh
+case "$3" in
+  /open-apis/authen/v1/user_info)
+    printf '%s' '{"ok":true,"data":{"open_id":"ou_me","name":"我"}}' ;;
+  /open-apis/im/v1/chats)
+    printf '%s' '{"ok":true,"data":{"items":[{"chat_id":"oc_p2p","name":"李四","chat_mode":"p2p"},{"chat_id":"oc_g","name":"项目群","chat_mode":"group"}],"has_more":false}}' ;;
+  /open-apis/im/v1/messages)
+    printf '%s' '{"ok":true,"data":{"items":[{"message_id":"om_1","msg_type":"text","create_time":"1789200000000","sender":{"id":"ou_li","sender_type":"user"},"body":{"content":"{\"text\":\"明天交报告\"}"}},{"message_id":"om_2","msg_type":"text","create_time":"1789200001000","sender":{"id":"ou_me","sender_type":"user"},"body":{"content":"{\"text\":\"收到\"}"}}],"has_more":false}}' ;;
+  /open-apis/im/v1/chats/oc_g/members)
+    printf '%s' '{"ok":true,"data":{"items":[{"member_id":"ou_li","name":"李四"}],"has_more":false}}' ;;
+  *)
+    echo 'unexpected path' >&2; exit 1 ;;
+esac
+"#,
+            )
+            .unwrap();
+            {
+                use std::os::unix::fs::PermissionsExt;
+                std::fs::set_permissions(&script, std::fs::Permissions::from_mode(0o755)).unwrap();
+            }
+            let bin = script.to_string_lossy().into_owned();
+
+            let app = tauri::test::mock_app();
+            use tauri::Manager;
+            app.manage(Db(std::sync::Mutex::new(crate::db::tests::test_conn())));
+            let db = app.state::<Db>();
+            let (msgs, cursor) = pull_new_messages(&FetchEngine::LarkCli(bin), &db, None)
+                .await
+                .unwrap();
+            assert!(!msgs.is_empty(), "消息解析成功");
+            assert!(cursor > 0);
+            let find = |id: &str| msgs.iter().find(|m| m.message_id == id).unwrap();
+            let m1 = find("om_1");
+            assert_eq!(m1.chat_type, "p2p", "无自建机器人语境，单聊即 p2p");
+            assert!(!m1.is_self && m1.needs_ai, "对方发来的送 AI");
+            assert_eq!(m1.content, "明天交报告");
+            assert_eq!(m1.sender_name, "李四", "单聊发送者名取会话名");
+            let m2 = find("om_2");
+            assert!(m2.is_self && !m2.needs_ai, "自己发的只作上下文");
+            assert_eq!(m2.sender_name, "我");
+            let _ = std::fs::remove_dir_all(&dir);
+        });
+    }
+
     #[test]
     fn token_error_is_external() {
         tauri::async_runtime::block_on(async {
@@ -1931,9 +2169,10 @@ mod tests {
                 .mount(&server)
                 .await;
 
-            let (msgs, _cursor) = pull_new_messages(&test_cfg(&server.uri()), &db, None)
-                .await
-                .unwrap();
+            let (msgs, _cursor) =
+                pull_new_messages(&FetchEngine::Builtin(test_cfg(&server.uri())), &db, None)
+                    .await
+                    .unwrap();
             let find = |id: &str| msgs.iter().find(|m| m.message_id == id).unwrap();
             let b1 = find("om_b1");
             assert_eq!(b1.chat_type, "bot");
@@ -2038,9 +2277,10 @@ mod tests {
                 })))
                 .mount(&server)
                 .await;
-            let (msgs, _) = pull_new_messages(&test_cfg(&server.uri()), &db, None)
-                .await
-                .unwrap();
+            let (msgs, _) =
+                pull_new_messages(&FetchEngine::Builtin(test_cfg(&server.uri())), &db, None)
+                    .await
+                    .unwrap();
             let by_id = |id: &str| msgs.iter().find(|m| m.message_id == id).unwrap();
             // 机器人的消息先出现 → 会话被识别为 bot 单聊，我的消息随后送 AI
             assert!(!by_id("om_1").needs_ai);
