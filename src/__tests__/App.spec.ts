@@ -579,7 +579,7 @@ describe("App 图鉴机主面板", () => {
     const settings = useSettingsStore();
     settings.values.feishu_engine = "cli";
     await new Promise((r) => setTimeout(r));
-    expect(w.text()).not.toContain("App Secret", "cli 引擎不需要自建应用凭证");
+    expect(w.text()).not.toContain("App Secret");
     expect(w.text()).toContain("npm install -g @larksuite/lark-cli");
     settings.values.feishu_engine = "builtin";
   });
