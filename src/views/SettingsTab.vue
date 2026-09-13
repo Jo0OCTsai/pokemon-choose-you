@@ -381,12 +381,14 @@ async function feishuLogin() {
 }
 
 // ---- AI agent CLI 管理 ----
+/** 表单里的 agent 行：mode 经加载/新建归一，永远是 text/tools 之一 */
+type AgentRow = AgentConfig & { mode: string };
 /** 无头调用约定的预设：{prompt} 占位符由应用替换为提示词 */
-const AGENT_PRESETS: Record<string, Omit<AgentConfig, "id" | "timeoutSecs" | "enabled">> = {
-  claude: { name: "Claude Code", command: "claude", args: "-p {prompt}", historyArgs: "--resume" },
-  opencode: { name: "OpenCode", command: "opencode", args: "run {prompt}", historyArgs: "" },
-  kiro: { name: "Kiro CLI", command: "kiro", args: "-p {prompt}", historyArgs: "--resume" },
-  custom: { name: "", command: "", args: "{prompt}", historyArgs: "" },
+const AGENT_PRESETS: Record<string, Omit<AgentConfig, "id" | "timeoutSecs" | "enabled" | "mode"> & { mode: string }> = {
+  claude: { name: "Claude Code", command: "claude", args: "-p {prompt}", historyArgs: "--resume", mode: "text" },
+  opencode: { name: "OpenCode", command: "opencode", args: "run {prompt}", historyArgs: "", mode: "text" },
+  kiro: { name: "Kiro CLI", command: "kiro", args: "-p {prompt}", historyArgs: "--resume", mode: "text" },
+  custom: { name: "", command: "", args: "{prompt}", historyArgs: "", mode: "text" },
 };
 const presetOptions = [
   { value: "claude", label: "Claude Code" },
@@ -394,8 +396,13 @@ const presetOptions = [
   { value: "kiro", label: "Kiro CLI" },
   { value: "custom", label: "Custom" },
 ];
+/** 分类结果回收方式：text=解析 agent 输出的 JSON 文本；tools=agent 经 pk 工具落库、应用回读 */
+const agentModeOptions = computed(() => [
+  { value: "text", label: t("ai.modeText") },
+  { value: "tools", label: t("ai.modeTools") },
+]);
 const agentPreset = ref("claude");
-const agents = ref<AgentConfig[]>([]);
+const agents = ref<AgentRow[]>([]);
 
 function newId(): string {
   return typeof crypto !== "undefined" && "randomUUID" in crypto
@@ -406,15 +413,23 @@ function newId(): string {
 function loadAgents() {
   try {
     const parsed = JSON.parse(settings.sget("ai_agents") || "[]");
-    agents.value = Array.isArray(parsed) ? parsed : [];
+    // 旧配置无 mode 字段：归一成 text，下拉框才有选中项
+    agents.value = Array.isArray(parsed)
+      ? parsed.map((a: AgentConfig): AgentRow => ({ ...a, mode: a.mode ?? "text" }))
+      : [];
   } catch {
     agents.value = [];
   }
 }
 
-/** 把本地编辑的 agent 列表序列化进设置并落库 */
+/** 把本地编辑的 agent 列表序列化进设置并落库（隧道端口空值归一成 null，空串会让后端反序列化失败） */
 async function saveAgents() {
-  settings.values.ai_agents = JSON.stringify(agents.value);
+  settings.values.ai_agents = JSON.stringify(
+    agents.value.map((a) => ({
+      ...a,
+      remote: a.remote ? { ...a.remote, tunnel: a.remote.tunnel || null } : null,
+    })),
+  );
   await settings.save(["ai_agents", "ai_agent_id"]);
 }
 
@@ -755,6 +770,11 @@ onUnmounted(() => unlisteners.forEach((u) => u()));
               <input v-model="ag.args" :placeholder="t('ai.argsPh')" />
             </label>
             <label>
+              {{ t("ai.mode") }}
+              <DexSelect v-model="ag.mode" :options="agentModeOptions" />
+            </label>
+            <p v-if="ag.mode === 'tools'" class="hint">{{ t("ai.modeHint") }}</p>
+            <label>
               {{ t("ai.historyArgs") }}
               <input v-model="ag.historyArgs" placeholder="--resume" />
             </label>
@@ -784,6 +804,10 @@ onUnmounted(() => unlisteners.forEach((u) => u()));
                 />
                 <input v-model="ag.remote.keyPath" class="agent-cmd" :placeholder="t('ai.sshKeyPh')" />
               </div>
+              <label>
+                {{ t("ai.sshTunnel") }}
+                <input v-model.number="ag.remote.tunnel" type="number" min="1" max="65535" placeholder="10022" />
+              </label>
               <p class="hint">{{ t("ai.sshHint") }}</p>
             </template>
             <label class="chk-line">

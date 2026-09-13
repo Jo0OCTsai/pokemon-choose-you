@@ -159,6 +159,12 @@ CREATE INDEX IF NOT EXISTS idx_agent_sessions_task ON agent_sessions(task_id);
 /// 1.0.0 只有一条初始化基线；发布后再有 schema 变更，追加新条目（且只追加，不修改已发布条目）。
 const MIGRATIONS: &[&str] = &[SCHEMA_V1];
 
+/// 当前程序期望的 schema 版本（pk doctor 用它对比库的 user_version 判断「库比程序新/旧」；
+/// pk 自身不执行迁移——迁移只由应用启动时做，避免抢跑后让旧应用拒绝启动）
+pub fn expected_schema_version() -> i64 {
+    MIGRATIONS.len() as i64
+}
+
 #[derive(Debug, thiserror::Error)]
 pub enum MigrateError {
     #[error("数据库版本 {0} 比当前程序支持的更新，请升级应用后再打开")]

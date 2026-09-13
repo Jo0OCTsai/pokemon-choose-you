@@ -277,6 +277,7 @@ AI 判定时会带上**同会话 30 分钟内的近期上下文**与消息来源
 - 需要先配好**公钥免密登录**（BatchMode 不允许交互输密码）；连接超时 10 秒，整次调用仍受该 agent 的超时设置约束
 - 「历史记录」入口同样经 ssh 转发，`claude --resume` 等交互界面照常可用
 - 环境变量 `PK_SSH_BIN` 可覆盖 ssh 客户端程序名（默认 `ssh`）
+- **远程 agent 跑工具调用模式**：数据在本机，远程机器需要一个能回到本机的 `pk`——本机可被直连（局域网 / Tailscale）时，在远程生成透传脚本并放进 PATH：`pk remote shim --host <本机地址> [--port 端口] [--key 私钥] > ~/bin/pk && chmod +x ~/bin/pk`；本机不想开入站端口时，在 agent 的 SSH 配置里填「反向隧道端口」（如 10022），应用的 ssh 连接会把远程 `127.0.0.1:10022` 转回本机 sshd，shim 改用 `pk remote shim --host localhost --port 10022` 生成（隧道只在 agent 调用期间存活，恰好覆盖分类流程）
 
 设置 → 集成 → AI Agent CLI：
 
@@ -291,6 +292,14 @@ AI 判定时会带上**同会话 30 分钟内的近期上下文**与消息来源
 - **超时**：agent 启动 + 推理比直连 API 慢，默认 120 秒，可按需调大。
 - Windows 下 npm 全局命令（`claude.cmd` 等）会自动经 `cmd /C` 回退启动，无需绝对路径。
 
+**结果回收模式**（每个 agent 独立选择）：
+
+- **文本解析（默认）**：应用解析 agent 输出中的 JSON 建议，任何能输出 JSON 的命令都兼容——原有行为。
+- **工具调用（经 pk 落库）**：agent 先跑 `pk context` 拿判重上下文，再用 `pk suggest batch` 把整批判定一次性写回数据库，应用直接回读，不再解析输出文本（更可靠，且判定结果带强校验）。要求 agent 无头模式下允许执行 pk 命令：
+  - Claude Code：附加参数改为 `-p {prompt} --allowedTools "Bash(pk*)"`（白名单语法以所用版本为准）
+  - OpenCode / Kiro：在其权限配置中允许执行 `pk` 命令
+  - 工具循环比单轮输出慢，建议把超时调大到 300 秒左右；「测试」按钮在该模式下会真跑一次 `pk context`，一次验证命令可用、工具白名单、PATH 与数据库整条链路
+
 ## pk 命令行（供 AI agent 与终端使用）
 
 应用随包分发 `pk` CLI，全部输出 JSON，可直接给 AI agent 工具（claude code / opencode / kiro…）当工具用，也可自己在终端操作：
@@ -304,10 +313,17 @@ pk task update 3 --priority high --due ""   # 空串清空截止时间
 pk task done 3 && pk task start 5    # 完成 / 开始（全局唯一进行中）
 pk note add 3 对方确认周五交付 --source ai
 pk context                           # 当前时间 + 未完成待办 + 分类 + 标签（AI 判重上下文）
+pk task create --title 交周报 --dry-run     # 只校验回显不落库（task update/delete 同）
+pk suggest todo --message <消息id> --title 交周报 --due 2026-09-13T18:00  # 提交 AI 判定建议（写建议列待用户确认）
+pk suggest batch --agent claude-code < suggestions.json                  # 批量提交（stdin 传 {"results":[...]}，整批校验）
+pk remote shim --host user@本机 > pk && chmod +x pk                      # 生成远程透传脚本（agent 在远程、数据在本机时）
+pk doctor                            # 环境自检：数据库/schema/技能安装，每项带修复建议（--ssh <host> 加测远程 pk）
+pk help --json                       # 机器可读的命令目录（供 agent 编程化发现）
 pk help                              # 完整命令说明
 ```
 
-- **技能一键分发**：`pk skill install claude-code` 把 pk 使用技能（SKILL.md，含命令速查与建议流程）装进 agent 的技能目录（claude-code → `~/.claude/skills/`，opencode → `~/.config/opencode/skill/`）；其他 agent 用 `--dir <目录>` 指定落点，或 `pk skill show` 打印原文自行粘贴
+- **技能一键分发**：`pk skill install claude-code` 把 pk 使用技能装进 agent 的技能目录（claude-code → `~/.claude/skills/`，opencode → `~/.config/opencode/skill/`），含主文件 SKILL.md 与 references/ 引用文件（完整参数表、无头分类工作流），带版本标记、跨版本重装会提示更新；其他 agent 用 `--dir <目录>` 指定落点，或 `pk skill show` 打印全部内容自行粘贴
+- **agent 友好性**：`--dry-run`（task create/update/delete 只校验回显不落库）、`task list --limit`（默认 50 条，`truncated` 提示用 search 收窄）、`help --json`（机器可读命令目录）、`doctor` 环境自检——检查数据库存在性、schema 版本、完整性、WAL 并发、context 读链路与技能安装版本，每项 ok/warn/fail 并附 `fix` 修复建议（有 fail 退出码 1）；远程部署排障加 `pk doctor --ssh <user@host>`，端到端验证 ssh 免密 → shim 在 PATH → 回连本机整条链
 - **会话回链与成本记录**：agent 代办后 `pk session log --task 3 --agent claude-code --session <id> --cost 0.12 --duration-ms 61000` 落一条会话；任务编辑弹窗的「Agent 执行」区展示每次的时长 / 成本 / 退出码（含收音机分类调用），有会话 id 的可一键在终端回放转录（`claude --resume <id>`）
 - 与桌面应用共用同一个 SQLite 库（WAL 并发安全），操作同样写入审计日志；
 - 环境变量 `PK_DB` 可指定独立数据库路径（`pk init-db` 可引导空库）；

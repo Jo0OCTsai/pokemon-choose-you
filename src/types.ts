@@ -144,6 +144,8 @@ export interface AgentRemote {
   port: number;
   /** 私钥路径（空走 ssh 默认） */
   keyPath?: string | null;
+  /** 反向隧道端口：随 ssh 连接把远程侧 127.0.0.1:<port> 转回本机 sshd，供远程 pk shim 回连 */
+  tunnel?: number | null;
 }
 
 /** AI agent CLI 配置（如 Claude Code / OpenCode / Kiro CLI），可配置多个 */
@@ -159,6 +161,8 @@ export interface AgentConfig {
   /** 单次调用超时（秒） */
   timeoutSecs: number;
   enabled: boolean;
+  /** 分类结果回收方式：text=解析输出 JSON（缺省）；tools=agent 经 pk 工具落库、应用回读 */
+  mode?: string;
   /** SSH 远程执行（null/缺省 = 本地执行） */
   remote?: AgentRemote | null;
 }

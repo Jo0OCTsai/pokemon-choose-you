@@ -1,4 +1,4 @@
-mod ai;
+pub mod ai;
 pub mod backup;
 // db / models / error / commands 对外公开：pk CLI（src/bin/pk.rs）以 crate 库形式复用同一套数据逻辑
 pub mod commands;

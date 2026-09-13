@@ -1459,7 +1459,7 @@ async fn poll_once_inner(app: &AppHandle) -> AppResult<usize> {
         };
         // 分类调用按次落 agent_sessions（会话回链与成本观察：时长 / 会话 id / 成败）
         let started = std::time::Instant::now();
-        let classified = ai::classify_with_session(&agent, &batch, &ctx).await;
+        let classified = ai::classify_with_session(&agent, &batch, &ctx, &db).await;
         let duration_ms = started.elapsed().as_millis() as i64;
         let suggestions = match classified {
             Ok((s, session_id)) => {
@@ -1529,92 +1529,47 @@ async fn poll_once_inner(app: &AppHandle) -> AppResult<usize> {
             .collect();
         let conn = db.0.lock().unwrap();
         for m in chunk {
-            match by_id.get(&m.message_id) {
-                Some(s) if s.is_todo() => {
-                    log::info!(
-                        "feishu: 新待办「{}」分类 {} 优先级 {} due {:?} 标签 {:?}（消息 {}）",
-                        s.title.as_deref().unwrap_or("-"),
-                        s.category.as_deref().unwrap_or("-"),
-                        s.priority.as_deref().unwrap_or("-"),
-                        s.due,
-                        s.tags,
-                        s.message_id
-                    );
-                    let n = conn.execute(
-                        "UPDATE chat_messages SET suggested_title=?2, suggested_category=?3, suggested_due=?4,
-                                suggested_priority=?5, suggested_note=?6, suggested_tags=?7,
-                                suggested_reason=?8, suggested_confidence=?9, ai_agent=?10, ai_status='todo'
-                         WHERE message_id=?1",
-                        params![
-                            m.message_id,
-                            s.title,
-                            s.category,
-                            s.due,
-                            s.priority,
-                            s.note,
-                            serde_json::to_string(&s.tags).unwrap_or_else(|_| "[]".into()),
-                            s.reason,
-                            s.confidence,
-                            agent.id,
-                        ],
-                    )?;
-                    if n > 0 {
-                        saved += 1;
-                    }
+            // 未被提及的消息按 none 记状态（AI 没给判定不等于跳过）
+            let fallback;
+            let s: &ai::AiSuggestion = match by_id.get(&m.message_id) {
+                Some(s) => s,
+                None => {
+                    fallback = ai::AiSuggestion {
+                        message_id: m.message_id.clone(),
+                        ..Default::default()
+                    };
+                    &fallback
                 }
-                Some(s) if s.is_update() => {
-                    // AI 判定是对现有待办的变更（改期/改优先级等）：
-                    // 落成「更新建议」卡，用户在收音机确认后才应用
-                    log::info!(
-                        "feishu: 消息 {} 判定为待办 {} 的变更建议（待确认）",
-                        m.message_id,
-                        s.update_task_id.unwrap_or(0)
-                    );
-                    conn.execute(
-                        "UPDATE chat_messages SET suggested_title=?2, suggested_category=?3, suggested_due=?4,
-                                suggested_priority=?5, suggested_note=?6, suggested_tags=?7, update_task_id=?8,
-                                suggested_reason=?9, suggested_confidence=?10, ai_agent=?11, ai_status='update'
-                         WHERE message_id=?1",
-                        params![
-                            m.message_id,
-                            s.title,
-                            s.category,
-                            s.due,
-                            s.priority,
-                            s.note,
-                            serde_json::to_string(&s.tags).unwrap_or_else(|_| "[]".into()),
-                            s.update_task_id,
-                            s.reason,
-                            s.confidence,
-                            agent.id,
-                        ],
-                    )?;
-                }
-                Some(s) if s.is_follow_up() => {
-                    // AI 判定是对现有待办的跟进：直接挂跟进记录，不建新待办
-                    let task_id = s.follow_up_task_id.unwrap_or(0);
-                    log::info!(
-                        "feishu: 消息 {} 判定为待办 {task_id} 的跟进，已记录",
-                        m.message_id
-                    );
-                    crate::commands::radio::attach_followup(
-                        &conn,
-                        &m.message_id,
-                        task_id,
-                        &m.content,
-                    )?;
-                    conn.execute(
-                        "UPDATE chat_messages SET suggested_reason=?2, suggested_confidence=?3, ai_agent=?4
-                         WHERE message_id=?1",
-                        params![m.message_id, s.reason, s.confidence, agent.id],
-                    )?;
-                }
-                _ => {
-                    conn.execute(
-                        "UPDATE chat_messages SET ai_agent=?2, ai_status='none' WHERE message_id=?1",
-                        params![m.message_id, agent.id],
-                    )?;
-                }
+            };
+            if s.is_todo() {
+                log::info!(
+                    "feishu: 新待办「{}」分类 {} 优先级 {} due {:?} 标签 {:?}（消息 {}）",
+                    s.title.as_deref().unwrap_or("-"),
+                    s.category.as_deref().unwrap_or("-"),
+                    s.priority.as_deref().unwrap_or("-"),
+                    s.due,
+                    s.tags,
+                    s.message_id
+                );
+            } else if s.is_update() {
+                // AI 判定是对现有待办的变更（改期/改优先级等）：
+                // 落成「更新建议」卡，用户在收音机确认后才应用
+                log::info!(
+                    "feishu: 消息 {} 判定为待办 {} 的变更建议（待确认）",
+                    m.message_id,
+                    s.update_task_id.unwrap_or(0)
+                );
+            } else if s.is_follow_up() {
+                // AI 判定是对现有待办的跟进：直接挂跟进记录，不建新待办
+                log::info!(
+                    "feishu: 消息 {} 判定为待办 {} 的跟进，已记录",
+                    m.message_id,
+                    s.follow_up_task_id.unwrap_or(0)
+                );
+            }
+            crate::commands::radio::apply_suggestion_conn(&conn, s, &agent.id)?;
+            if s.is_todo() {
+                saved += 1;
             }
         }
     }

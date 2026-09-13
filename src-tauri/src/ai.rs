@@ -18,6 +18,11 @@ pub struct AgentRemote {
     pub port: u16,
     /// 私钥路径（空则走 ssh 默认 ~/.ssh/id_*）
     pub key_path: Option<String>,
+    /// 反向隧道端口：随这条 ssh 连接把远程侧 127.0.0.1:<port> 转发回本机 sshd，
+    /// 供远程主机上的 pk 透传 shim 回连执行（agent 在远程、数据在本机的场景）。
+    /// None = 不建隧道（远程 shim 需能直连本机）。
+    #[serde(default)]
+    pub tunnel: Option<u16>,
 }
 
 fn default_ssh_port() -> u16 {
@@ -30,6 +35,7 @@ impl Default for AgentRemote {
             host: String::new(),
             port: default_ssh_port(),
             key_path: None,
+            tunnel: None,
         }
     }
 }
@@ -52,9 +58,20 @@ pub struct AgentConfig {
     /// 单次调用超时（秒）
     pub timeout_secs: u64,
     pub enabled: bool,
+    /// 分类结果的回收方式：text = 解析 agent 输出的 JSON 文本（旧）；
+    /// tools = agent 通过 pk CLI 把判定写回数据库，应用从库回读（新，无文本解析）
+    #[serde(default)]
+    pub mode: String,
     /// SSH 远程执行（None = 本地执行）
     #[serde(default)]
     pub remote: Option<AgentRemote>,
+}
+
+impl AgentConfig {
+    /// tools 模式：agent 经 pk 工具提交判定，应用侧不解析其文本输出
+    pub fn uses_tools(&self) -> bool {
+        self.mode == "tools"
+    }
 }
 
 impl Default for AgentConfig {
@@ -67,6 +84,7 @@ impl Default for AgentConfig {
             history_args: String::new(),
             timeout_secs: 120,
             enabled: true,
+            mode: "text".into(),
             remote: None,
         }
     }
@@ -125,6 +143,11 @@ fn build_invocation(agent: &AgentConfig, prompt: &str) -> Invocation {
             if r.port != 0 && r.port != 22 {
                 argv.push("-p".to_string());
                 argv.push(r.port.to_string());
+            }
+            if let Some(tp) = r.tunnel.filter(|t| *t != 0) {
+                // 反向隧道：远程侧 127.0.0.1:<tp> ⇄ 本机 sshd，供远程 pk shim 回连（仅本连接存活）
+                argv.push("-R".to_string());
+                argv.push(format!("127.0.0.1:{tp}:localhost:22"));
             }
             argv.push(r.host.trim().to_string());
             argv.push("--".to_string());
@@ -242,7 +265,7 @@ pub struct ClassifyContext {
     pub tags: Vec<(String, String)>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct AiSuggestion {
     #[serde(rename = "messageId")]
     pub message_id: String,
@@ -367,7 +390,13 @@ fn build_user_content(batch: &[AiMessage], ctx: &ClassifyContext) -> String {
             }
         }
     }
-    s.push_str("消息：\n");
+    s.push_str(&render_messages(batch));
+    s
+}
+
+/// 消息列表渲染（两种模式的正文共用）：[id] + 来源 + 发送者 + 内容 + 同会话上下文
+fn render_messages(batch: &[AiMessage]) -> String {
+    let mut s = String::from("消息：\n");
     for m in batch {
         s.push_str(&format!("[{}] 来源：{}\n", m.message_id, m.chat_label));
         s.push_str(&format!("发送者：{}\n", m.sender));
@@ -387,19 +416,73 @@ fn build_prompt(batch: &[AiMessage], ctx: &ClassifyContext) -> String {
     format!("{SYSTEM_PROMPT}\n\n{}", build_user_content(batch, ctx))
 }
 
+/// tools 模式系统提示词：判定规则与 SYSTEM_PROMPT 一致，但结果经 pk 工具写回数据库。
+/// 判重上下文（待办清单/分类/标签）由 agent 自行 `pk context` 获取；
+/// <AGENT_ID> 占位符替换为该 agent 的 id（pk 侧记录建议来源）。
+const TOOLS_SYSTEM_PROMPT: &str = r#"你是待办事项提取助手，通过 pk 命令行工具工作。给你一组 IM 消息（含来源、发送者、内容与同会话上下文），找出其中隐含的待办事项、承诺、或对方希望你完成/参加的事情，并把判定结果用 pk 工具写回数据库。
+规则：
+- 每条消息带「来源」标签：单聊是对方直接对你说的，语气常更直接；群聊可能是@你或不点名安排；「与机器人的私聊」是用户发给助手 bot 的，是用户给自己记的备忘/指令，同样要提取。上下文里标注为「我」的是用户自己说的话，只用于理解指代与时间，不是待办来源。
+- 同会话上下文仅供参考：帮你理解对话背景（前因后果、时间指代），最终判断只针对消息本身。
+- 只提取"需要用户行动"的内容（任务、承诺、会议、deadline、请求）。闲聊、通知、纯信息分享不算。
+- 判重：先执行 `pk context` 拿现有待办清单；已有本质相同的未完成待办时绝不再新建，改按 update / followUp / none 处理。
+- action 只能是 "todo"、"update"、"followUp"、"none" 之一：
+  - todo：新的待办事项。
+  - update：消息明确修改现有待办的属性（改期/改时间、调整优先级、更换标题、变更交付要求）。填 updateTaskId，且只填需要变更的字段（title/note/priority/due/tags），不变的字段留空、tags 用 [] 表示不变；需要变更标签时给出完整的新标签数组。
+  - followUp：消息是现有待办的补充信息、进展汇报或确认，不改变任务本身属性。填 followUpTaskId。
+  - none：只是重复提及、没有新信息。
+- title 用简短的祈使句中文概括要做的事（不超过 20 字）。
+- note 一句话补充上下文（谁提出的、在哪里、要什么），没有就留空。
+- category 从 pk context 的 categories 里选最贴切的一个，不要发明不存在的名字。
+- priority 从 low/normal/high/urgent 里选：对方明确催促或当天到期用 urgent/high，默认 normal。
+- due: 消息里有明确时间就用 YYYY-MM-DDTHH:MM 格式（对照 pk context 的 now 换算年份），否则留空。
+- tags: 从 pk context 的 tags 里选 0~3 个最贴切的标签名组成数组，没有合适的用 []。
+- followUpTaskId 只在 action="followUp" 时填写，updateTaskId 只在 action="update" 时填写，取值都必须是 pk context 的 openTasks 里出现的 id。
+- reason: 一句话中文说明判定理由（如「对方明确要求周五前交付」/「与待办 No.3 本质相同」/「纯信息分享无需行动」），不超过 30 字。
+- confidence: 从 high/medium/low 里选：消息直白明确用 high；依赖语境推断（指代、隐含的时间或对象）用 medium；拿不准、像又不像的用 low。
+执行流程（务必遵守）：
+1. 先执行 `pk context` 获取当前时间、现有待办清单、可用分类与标签。
+2. 逐条判定正文中的消息（方括号 [ ] 里是消息 id）。
+3. 把全部判定整理成 {"results":[...]}（字段 messageId/action/title/note/category/priority/due/tags/followUpTaskId/updateTaskId/reason/confidence），一次性提交：
+   pk suggest batch --agent <AGENT_ID> <<'JSON'
+   {"results":[ ... ]}
+   JSON
+4. 输出含 "submitted" 即成功，回复一行总结即可。校验失败会报明第几条、什么问题——修正后整批重试，已提示「已人工确认」的消息剔除即可。
+禁止：不要用 pk task create 直接建任务（分类结果的出口是 pk suggest，用户需要确认后生效）；不要输出 JSON 建议文本；不要编造消息 id 或待办 id。"#;
+
+/// tools 模式提示词：规则 + 消息列表（无判重上下文，agent 自行 pk context）
+fn build_tools_prompt(agent: &AgentConfig, batch: &[AiMessage]) -> String {
+    format!("{TOOLS_SYSTEM_PROMPT}\n\n{}", render_messages(batch)).replace("<AGENT_ID>", &agent.id)
+}
+
 /// 分类一批消息（便捷入口）
 pub async fn classify(
     agent: &AgentConfig,
     batch: &[AiMessage],
     ctx: &ClassifyContext,
+    db: &crate::db::Db,
 ) -> AppResult<Vec<AiSuggestion>> {
-    classify_with_session(agent, batch, ctx)
+    classify_with_session(agent, batch, ctx, db)
         .await
         .map(|(s, _)| s)
 }
 
-/// 分类一批消息并带回会话元信息（session_id）：无头调用 agent CLI，解析其输出中的 JSON 建议
+/// 分类一批消息并带回会话元信息（session_id）：按 agent 的 mode 分派——
+/// text = 无头调用后解析 stdout JSON；tools = agent 经 pk 落库、应用回读
 pub async fn classify_with_session(
+    agent: &AgentConfig,
+    batch: &[AiMessage],
+    ctx: &ClassifyContext,
+    db: &crate::db::Db,
+) -> AppResult<(Vec<AiSuggestion>, Option<String>)> {
+    if agent.uses_tools() {
+        classify_tools_with_session(agent, batch, db).await
+    } else {
+        classify_text_with_session(agent, batch, ctx).await
+    }
+}
+
+/// text 模式：无头调用 agent CLI，解析其输出中的 JSON 建议
+async fn classify_text_with_session(
     agent: &AgentConfig,
     batch: &[AiMessage],
     ctx: &ClassifyContext,
@@ -414,6 +497,41 @@ pub async fn classify_with_session(
     let out = run_agent(agent, &prompt).await?;
     log::debug!("ai: agent 原始输出: {}", trunc(&out, 800));
     parse_suggestions_with_session(&out)
+}
+
+/// tools 模式：agent 通过 pk 工具把判定写回数据库，应用不解析其文本输出，
+/// 跑完后从库回读该批消息的判定结果；stdout 仅提取 session_id 供遥测回链
+async fn classify_tools_with_session(
+    agent: &AgentConfig,
+    batch: &[AiMessage],
+    db: &crate::db::Db,
+) -> AppResult<(Vec<AiSuggestion>, Option<String>)> {
+    let prompt = build_tools_prompt(agent, batch);
+    log::debug!(
+        "ai: 经 agent「{}」（tools 模式）分类 {} 条消息，prompt: {}",
+        agent.name,
+        batch.len(),
+        trunc(&prompt, 500)
+    );
+    let out = run_agent(agent, &prompt).await?;
+    log::debug!("ai: agent 原始输出: {}", trunc(&out, 800));
+    let (_, session_id) = extract_payload(&out);
+    let ids: Vec<String> = batch.iter().map(|m| m.message_id.clone()).collect();
+    // agent 进程已结束才拿锁，回读期间不跨 await 持锁
+    let suggestions = {
+        let conn = db.0.lock().unwrap();
+        crate::commands::radio::load_suggestions_conn(&conn, &ids)?
+    };
+    // agent 退出 0 但一条都没落库（pk 不在 PATH / 工具白名单没放行等）→ 判失败，
+    // 让调用方按错误路径标记，避免整批被静默标 none；部分遗漏由调用方按 none 兜底
+    let missed = suggestions.iter().filter(|s| s.action == "pending").count();
+    if missed == batch.len() {
+        return Err(AppError::External(format!(
+            "agent「{}」执行完成但没有任何判定落库（{} 条全部遗漏）——请确认其无头模式允许执行 pk 命令（工具白名单）、pk 在 PATH 中；可用「测试」按钮跑一次工具探针",
+            agent.name, missed
+        )));
+    }
+    Ok((suggestions, session_id))
 }
 
 /// 无头调用 agent：本地执行或 SSH 远程执行（见 build_invocation 的组装规则）
@@ -574,18 +692,23 @@ fn trunc(s: &str, n: usize) -> String {
     s.chars().take(n).collect()
 }
 
-/// 连接测试：让 agent 处理一条内置的测试消息并验证能识别出待办
+/// 连接测试：text 模式让 agent 处理一条内置测试消息并验证能识别出待办；
+/// tools 模式改为工具探针（跑 pk context），一次验证命令可用 + shell 白名单 + PATH + 数据库可达
 pub async fn test(agent: &AgentConfig) -> AppResult<String> {
+    if agent.uses_tools() {
+        return test_tools(agent).await;
+    }
     let ctx = ClassifyContext {
         categories: vec!["工作".into()],
         ..Default::default()
     };
-    let res = classify(
+    let res = classify_text_with_session(
         agent,
         &[AiMessage::simple("test", "系统", "明天上午10点开周会")],
         &ctx,
     )
-    .await;
+    .await
+    .map(|(r, _)| r);
     match res {
         Ok(r) if r.first().is_some_and(|s| s.is_todo()) => Ok(format!(
             "Agent 调用成功，并正确识别出测试待办「{}」",
@@ -593,6 +716,23 @@ pub async fn test(agent: &AgentConfig) -> AppResult<String> {
         )),
         Ok(_) => Ok("Agent 调用成功，但未识别出测试待办，建议检查 agent 配置或更换模型".into()),
         Err(e) => Err(e),
+    }
+}
+
+/// tools 模式连接测试：让 agent 执行 pk context 并原样返回输出
+async fn test_tools(agent: &AgentConfig) -> AppResult<String> {
+    let out = run_agent(
+        agent,
+        "执行命令 pk context，并把它的标准输出原样返回，不要添加任何解释。",
+    )
+    .await?;
+    let (content, _) = extract_payload(&out);
+    if content.contains("openTasks") {
+        Ok("Agent 调用成功，pk 工具链已连通（context 正常返回）".into())
+    } else {
+        Err(AppError::External(
+            "Agent 调用成功但未返回 pk context 输出——请确认 agent 无头模式允许执行 pk 命令（工具白名单），以及 pk 在 PATH 中".into(),
+        ))
     }
 }
 
@@ -679,7 +819,72 @@ mod tests {
         assert!(agent_by_id(&get, "nope").is_none());
     }
 
+    // ---- tools 模式：配置兼容性与提示词 ----
+
+    #[test]
+    fn tools_mode_config_and_prompt() {
+        // 旧配置（无 mode 字段）按 text 解析；显式 tools 生效
+        let legacy: AgentConfig = serde_json::from_str(
+            r#"{"id":"ag1","name":"Claude","command":"claude","args":"","history_args":"","timeout_secs":60,"enabled":true}"#,
+        )
+        .unwrap();
+        assert!(!legacy.uses_tools(), "旧配置缺省 text 模式");
+        let tools: AgentConfig =
+            serde_json::from_str(r#"{"id":"ag2","name":"C","command":"claude","mode":"tools"}"#)
+                .unwrap();
+        assert!(tools.uses_tools());
+
+        let prompt = build_tools_prompt(
+            &tools,
+            &[AiMessage::simple("om_9", "老板", "明天 10 点开周会")],
+        );
+        assert!(prompt.contains("pk suggest batch"), "指示批量提交");
+        assert!(prompt.contains("--agent ag2"), "带上 agent id 记录建议来源");
+        assert!(prompt.contains("[om_9]"), "消息 id 在正文");
+        assert!(
+            !prompt.contains("现有待办清单（id. 标题）"),
+            "判重上下文改由 agent 用 pk context 获取，不再内嵌正文"
+        );
+        assert!(
+            !prompt.contains("最终回复必须只包含一个 JSON 对象"),
+            "tools 模式不再要求输出 JSON 文本"
+        );
+    }
+
     // ---- build_invocation：本地 / SSH 远程两路的命令行组装 ----
+
+    #[test]
+    fn invocation_remote_tunnel_forwards_local_sshd() {
+        let a = AgentConfig {
+            command: "claude".into(),
+            args: "-p".into(),
+            remote: Some(AgentRemote {
+                host: "box".into(),
+                tunnel: Some(10022),
+                ..Default::default()
+            }),
+            ..Default::default()
+        };
+        let inv = build_invocation(&a, "x");
+        let i = inv
+            .argv
+            .iter()
+            .position(|x| x == "-R")
+            .expect("带隧道端口时应加 -R");
+        assert_eq!(inv.argv[i + 1], "127.0.0.1:10022:localhost:22");
+
+        // 未配隧道（旧配置缺省）不加 -R
+        let b = AgentConfig {
+            command: "claude".into(),
+            args: "-p".into(),
+            remote: Some(AgentRemote {
+                host: "box".into(),
+                ..Default::default()
+            }),
+            ..Default::default()
+        };
+        assert!(!build_invocation(&b, "x").argv.contains(&"-R".to_string()));
+    }
 
     #[test]
     fn invocation_local_modes() {
@@ -715,6 +920,7 @@ mod tests {
                 host: "dev@buildbox".into(),
                 port: 2222,
                 key_path: Some("~/.ssh/id_ed25519".into()),
+                tunnel: None,
             }),
             ..Default::default()
         };
@@ -934,10 +1140,15 @@ mod tests {
         }
 
         fn run(agent: &AgentConfig) -> AppResult<Vec<AiSuggestion>> {
+            // text 模式不触库，回读句柄仅为满足 classify 的签名
+            let db = crate::db::Db(std::sync::Mutex::new(
+                rusqlite::Connection::open_in_memory().unwrap(),
+            ));
             tauri::async_runtime::block_on(classify(
                 agent,
                 &[AiMessage::simple("m1", "张三", "明天上午10点开周会")],
                 &ctx(),
+                &db,
             ))
         }
 
@@ -1037,6 +1248,7 @@ mod tests {
                 history_args: String::new(),
                 timeout_secs: 30,
                 enabled: true,
+                mode: "text".into(),
                 remote: Some(AgentRemote {
                     host: "dev@box".into(),
                     ..Default::default()
