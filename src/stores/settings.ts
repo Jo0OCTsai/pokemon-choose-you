@@ -12,6 +12,8 @@ export const SETTING_DEFAULTS: Record<string, string> = {
   notifications_enabled: "true",
   date_format: "YYYY-MM-DD",
   time_format: "24h",
+  /** 相对截止时间（时间盲友好：显示为距现在的距离并按临近程度变色） */
+  due_relative: "true",
   default_priority: "normal",
   /** 自然语言快速捕捉（输入框解析「明天 5pm 交周报 #工作」，带预览可取消） */
   nl_capture_enabled: "true",
@@ -56,6 +58,7 @@ export const SETTING_KEYS = [
   "remind_ahead_minutes",
   "date_format",
   "time_format",
+  "due_relative",
   "default_priority",
   "nl_capture_enabled",
   "backup_enabled",
