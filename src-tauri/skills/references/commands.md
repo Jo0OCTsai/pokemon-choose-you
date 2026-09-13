@@ -6,15 +6,15 @@
 
 | 命令 | 参数 | 说明 |
 |---|---|---|
-| `pk task list [open\|done\|today\|all]` | 过滤词可选，默认 open | 任务列表 |
+| `pk task list [open\|done\|today\|all]` | `--limit N\|all`（默认 50） | 任务列表；`total`/`truncated` 标记是否截断，截断时用 `task search` 收窄 |
 | `pk task get <id>` | | 任务详情（含跟进记录） |
 | `pk task search <关键词>` | | 搜标题/备注/跟进/标签 |
-| `pk task create` | `--title <t>`（必填）`--note <n>` `--category <分类名>` `--priority low\|normal\|high\|urgent` `--due <YYYY-MM-DD\|YYYY-MM-DDTHH:MM>` `--tags <a,b>` | 建任务；带 --due 自动进路线（scheduled），来源标记 cli |
-| `pk task update <id>` | `--title` `--note` `--category` `--priority` `--due`（空串清空）`--remind` `--status <状态>` `--tags <a,b>` | 只改传入的字段；--status 可选 inbox/scheduled/active/paused/done/cancelled |
+| `pk task create` | `--title <t>`（必填）`--note <n>` `--category <分类名>` `--priority low\|normal\|high\|urgent` `--due <YYYY-MM-DD\|YYYY-MM-DDTHH:MM>` `--tags <a,b>` `--dry-run` | 建任务；带 --due 自动进路线（scheduled）；`--dry-run` 只校验回显不落库 |
+| `pk task update <id>` | `--title` `--note` `--category` `--priority` `--due`（空串清空）`--remind` `--status <状态>` `--tags <a,b>` `--dry-run` | 只改传入的字段；`--dry-run` 只校验回显将变更的字段 |
 | `pk task done <id>` | | 完成任务（写完成时间） |
 | `pk task start <id>` / `pk task pause` | | 开始（全局唯一进行中，原进行中顶回 scheduled）/ 暂停 |
 | `pk task current` | | 当前进行中的任务 |
-| `pk task delete <id>` | | 删除任务 |
+| `pk task delete <id>` | `--dry-run` | 删除任务；`--dry-run` 只确认存在性 |
 
 ## 跟进与历史
 
@@ -57,3 +57,10 @@
 |---|---|
 | `pk category list` / `pk tag list` | 分类/标签列表 |
 | `pk context` | 当前时间 + 未完成待办（id+标题）+ 启用分类 + 标签；判定与建任务的判重上下文 |
+
+## 诊断与发现（doctor / help）
+
+| 命令 | 说明 |
+|---|---|
+| `pk doctor [--ssh <user@host>]` | 环境自检：数据库/schema 版本/完整性/并发配置/context 读链路/技能安装版本，每项带 `fix` 修复建议；有 fail 退出码 1。**命令报错又看不懂时先跑它**。`--ssh` 加测远程 pk 可达性（排查 shim 部署，端到端验证 ssh 免密 → shim 在 PATH → 回连本机） |
+| `pk help --json` | 机器可读命令目录（全部命令 + 退出码/环境变量契约），编程化发现命令面用 |

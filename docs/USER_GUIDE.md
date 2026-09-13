@@ -313,13 +313,17 @@ pk task update 3 --priority high --due ""   # 空串清空截止时间
 pk task done 3 && pk task start 5    # 完成 / 开始（全局唯一进行中）
 pk note add 3 对方确认周五交付 --source ai
 pk context                           # 当前时间 + 未完成待办 + 分类 + 标签（AI 判重上下文）
+pk task create --title 交周报 --dry-run     # 只校验回显不落库（task update/delete 同）
 pk suggest todo --message <消息id> --title 交周报 --due 2026-09-13T18:00  # 提交 AI 判定建议（写建议列待用户确认）
 pk suggest batch --agent claude-code < suggestions.json                  # 批量提交（stdin 传 {"results":[...]}，整批校验）
 pk remote shim --host user@本机 > pk && chmod +x pk                      # 生成远程透传脚本（agent 在远程、数据在本机时）
+pk doctor                            # 环境自检：数据库/schema/技能安装，每项带修复建议（--ssh <host> 加测远程 pk）
+pk help --json                       # 机器可读的命令目录（供 agent 编程化发现）
 pk help                              # 完整命令说明
 ```
 
 - **技能一键分发**：`pk skill install claude-code` 把 pk 使用技能装进 agent 的技能目录（claude-code → `~/.claude/skills/`，opencode → `~/.config/opencode/skill/`），含主文件 SKILL.md 与 references/ 引用文件（完整参数表、无头分类工作流），带版本标记、跨版本重装会提示更新；其他 agent 用 `--dir <目录>` 指定落点，或 `pk skill show` 打印全部内容自行粘贴
+- **agent 友好性**：`--dry-run`（task create/update/delete 只校验回显不落库）、`task list --limit`（默认 50 条，`truncated` 提示用 search 收窄）、`help --json`（机器可读命令目录）、`doctor` 环境自检——检查数据库存在性、schema 版本、完整性、WAL 并发、context 读链路与技能安装版本，每项 ok/warn/fail 并附 `fix` 修复建议（有 fail 退出码 1）；远程部署排障加 `pk doctor --ssh <user@host>`，端到端验证 ssh 免密 → shim 在 PATH → 回连本机整条链
 - **会话回链与成本记录**：agent 代办后 `pk session log --task 3 --agent claude-code --session <id> --cost 0.12 --duration-ms 61000` 落一条会话；任务编辑弹窗的「Agent 执行」区展示每次的时长 / 成本 / 退出码（含收音机分类调用），有会话 id 的可一键在终端回放转录（`claude --resume <id>`）
 - 与桌面应用共用同一个 SQLite 库（WAL 并发安全），操作同样写入审计日志；
 - 环境变量 `PK_DB` 可指定独立数据库路径（`pk init-db` 可引导空库）；

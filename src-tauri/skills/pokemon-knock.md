@@ -29,6 +29,8 @@ pk task start <id> / pk task pause           # 开始（全局唯一进行中）
 pk task current                              # 当前进行中的任务
 pk note add <task-id> 对方确认周五交付 --source ai
 pk suggest todo --message <消息id> --title 交周报 --due 2026-09-13T18:00 --reason 对方明确要求
+pk task create --title 交周报 --dry-run      # 只校验回显不落库（task update/delete 同）
+pk doctor                                    # 环境自检（命令报错看不懂时先跑它，按 fix 修复）
 pk session log --task <id> --agent claude-code --session <会话id> --cost 0.12 --duration-ms 61000
 pk session list --task <id>                  # 该任务的 agent 执行时间线（时长/成本/退出码）
 ```
@@ -48,4 +50,5 @@ pk session list --task <id>                  # 该任务的 agent 执行时间�
 
 - 数据库与应用共享（WAL 并发安全）；找不到库时先让用户启动一次应用，或用 `PK_DB` 环境变量指定路径
 - 时间格式 `YYYY-MM-DDTHH:MM`（本地时区）；空串表示清空
-- 命令报错自带可操作提示（未知分类/标签、目标待办不存在、消息已确认等），按提示修正后重试
+- 命令报错自带可操作提示（未知分类/标签、目标待办不存在、消息已确认等），按提示修正后重试；仍不明就跑 `pk doctor` 按 `fix` 修复
+- `task list` 默认最多回 50 条（响应里 `truncated: true` 会提示），要看更多用 `task search` 收窄或 `--limit all`

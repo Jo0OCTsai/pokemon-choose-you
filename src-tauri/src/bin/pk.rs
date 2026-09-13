@@ -36,19 +36,20 @@ const HELP: &str = r#"pk — 宝可梦来敲门命令行（供 AI agent 与终�
   pk <命令> [参数]...
 
 命令:
-  task list [open|done|today|all]    任务列表（默认 open：未完成待办）
+  task list [open|done|today|all]    任务列表（默认 open：未完成待办；--limit N|all 默认 50，超出截断并提示用 search）
   task get <id>                      任务详情（含跟进记录）
   task search <关键词>                搜索标题/备注/跟进记录/标签
   task create --title <t> [--note <n>] [--category <分类名>] [--priority low|normal|high|urgent]
-                [--due <YYYY-MM-DDTHH:MM>] [--scheduled] [--tags <a,b>]
+                [--due <YYYY-MM-DDTHH:MM>] [--scheduled] [--tags <a,b>] [--dry-run]
+                （--dry-run 只校验并回显将创建的内容，不落库）
   task update <id> [--title <t>] [--note <n>] [--category <分类名>] [--priority <p>]
-                [--due <时间>] [--remind <时间>] [--status <状态>] [--tags <a,b>]
-                （--due/--remind 传空串 "" 表示清空）
+                [--due <时间>] [--remind <时间>] [--status <状态>] [--tags <a,b>] [--dry-run]
+                （--due/--remind 传空串 "" 表示清空；--dry-run 只校验并回显变更，不落库）
   task done <id>                     完成任务
   task start <id>                    开始任务（全局唯一进行中）
   task pause                         暂停当前进行中的任务
   task current                       查看当前进行中的任务
-  task delete <id>                   删除任务
+  task delete <id> [--dry-run]       删除任务（--dry-run 只确认存在性，不删除）
   note add <task-id> <内容...> [--source manual|ai]
   note list <task-id>
   log <task-id>                      任务操作历史
@@ -70,8 +71,10 @@ const HELP: &str = r#"pk — 宝可梦来敲门命令行（供 AI agent 与终�
   category list                      分类列表
   tag list                           标签列表
   context                            AI 处理上下文（当前时间/未完成待办/分类/标签）
+  doctor [--ssh <user@host>]         环境自检：数据库/schema/完整性/技能安装（每项带修复建议）；
+                                      --ssh 加测远程 pk 可达性（agent 在远程时排查 shim 部署）
   init-db                            初始化 PK_DB 指定的空库（应用主库通常无需执行）
-  help                               本帮助
+  help [--json]                      本帮助；--json 输出机器可读的命令目录（供 agent 编程化发现）
 
 示例:
   pk task list open
@@ -95,7 +98,12 @@ fn main() {
             .iter()
             .any(|a| a == "help" || a == "--help" || a == "-h")
     {
-        println!("{HELP}");
+        // help --json：机器可读的命令目录（供 agent 编程化发现命令面）
+        if args.iter().any(|a| a == "--json") {
+            println!("{}", help_schema());
+        } else {
+            println!("{HELP}");
+        }
         return;
     }
     if args
@@ -120,6 +128,19 @@ fn main() {
             }
             Err(e) => fail(&e.0, e.1),
         }
+    }
+    // doctor 同样抢在 open_db 之前：库缺失/损坏正是它要诊断的内容，不能还没开诊就退出
+    if args.first().map(String::as_str) == Some("doctor") {
+        let p = parse_args(&args[1..]);
+        let ssh = p.flag("ssh").filter(|s| !s.is_empty()).map(String::from);
+        let db_override = std::env::var_os("PK_DB").map(std::path::PathBuf::from);
+        let (report, code) = doctor_report(db_override.as_deref(), ssh.as_deref());
+        println!(
+            "{}",
+            serde_json::to_string_pretty(&report)
+                .unwrap_or_else(|e| format!("{{\"error\": \"{e}\"}}"))
+        );
+        std::process::exit(code);
     }
     let mut conn = match open_db(init_db) {
         Ok(c) => c,
@@ -364,8 +385,26 @@ fn run_task(conn: &mut Connection, rest: &[String]) -> Result<serde_json::Value,
     match sub {
         "list" => {
             let filter = p.positionals.first().map(String::as_str).unwrap_or("open");
-            let list = tasks::list_tasks_conn(conn, filter).map_err(db_err)?;
-            Ok(json!({ "filter": filter, "count": list.len(), "tasks": list }))
+            let mut list = tasks::list_tasks_conn(conn, filter).map_err(db_err)?;
+            // 默认截断到 50 条：防大库全量 JSON 刷爆 agent 上下文（Anthropic 工具设计建议的 token 瘦身）
+            let total = list.len();
+            let limit = parse_limit(&p)?;
+            let truncated = limit.is_some_and(|n| total > n);
+            if let Some(n) = limit {
+                list.truncate(n);
+            }
+            Ok(json!({
+                "filter": filter,
+                "count": list.len(),
+                "total": total,
+                "truncated": truncated,
+                "hint": if truncated {
+                    Some("结果已截断：用 task search <关键词> 收窄，或 --limit all 看全量")
+                } else {
+                    None
+                },
+                "tasks": list,
+            }))
         }
         "get" => {
             let id = id_of(&p)?;
@@ -404,6 +443,34 @@ fn run_task(conn: &mut Connection, rest: &[String]) -> Result<serde_json::Value,
             };
             // 有截止时间即视为排期（scheduled），与收音机建待办的规则一致
             let scheduled = p.flag("scheduled").is_some() || due.is_some();
+            // --dry-run：参数全部照常校验（含分类/标签存在性），只回显不落库
+            if p.flag("dry-run").is_some() {
+                let tag_names: Vec<String> = p
+                    .flag("tags")
+                    .filter(|t| !t.is_empty())
+                    .map(|t| {
+                        t.split([',', '，'])
+                            .map(str::trim)
+                            .filter(|s| !s.is_empty())
+                            .map(String::from)
+                            .collect()
+                    })
+                    .unwrap_or_default();
+                return Ok(json!({
+                    "dryRun": true,
+                    "wouldCreate": {
+                        "title": title,
+                        "note": p.flag("note").filter(|s| !s.is_empty()),
+                        "category": p.flag("category").filter(|s| !s.is_empty()),
+                        "priority": priority,
+                        "due": due,
+                        "remind": p.flag("remind").filter(|s| !s.is_empty()),
+                        "tags": tag_names,
+                        "scheduled": scheduled,
+                        "source": "cli",
+                    }
+                }));
+            }
             let new = tasks::NewTask {
                 title: title.to_string(),
                 note: p.flag("note").filter(|s| !s.is_empty()).map(String::from),
@@ -454,6 +521,29 @@ fn run_task(conn: &mut Connection, rest: &[String]) -> Result<serde_json::Value,
                 Some(t) => Some(resolve_tag_ids(conn, t)?),
                 None => None,
             };
+            // --dry-run：校验照常（含目标待办存在性），只回显将变更的字段
+            if p.flag("dry-run").is_some() {
+                if !task_exists(conn, id) {
+                    return Err(CliError(
+                        format!("任务 {id} 不存在（先用 pk task list 查 id）"),
+                        1,
+                    ));
+                }
+                return Ok(json!({
+                    "dryRun": true,
+                    "wouldUpdate": {
+                        "id": id,
+                        "title": p.flag("title").filter(|s| !s.is_empty()),
+                        "note": p.flag("note"),
+                        "category": p.flag("category").filter(|s| !s.is_empty()),
+                        "priority": priority,
+                        "due": due,
+                        "remind": remind,
+                        "status": status,
+                        "tags": p.flag("tags").filter(|s| !s.is_empty()),
+                    }
+                }));
+            }
             let patch = tasks::TaskPatch {
                 id,
                 title: p.flag("title").filter(|s| !s.is_empty()).map(String::from),
@@ -499,6 +589,15 @@ fn run_task(conn: &mut Connection, rest: &[String]) -> Result<serde_json::Value,
         }
         "delete" => {
             let id = id_of(&p)?;
+            if p.flag("dry-run").is_some() {
+                if !task_exists(conn, id) {
+                    return Err(CliError(
+                        format!("任务 {id} 不存在（先用 pk task list 查 id）"),
+                        1,
+                    ));
+                }
+                return Ok(json!({ "dryRun": true, "wouldDelete": id }));
+            }
             tasks::delete_task_conn(conn, id, "cli").map_err(db_err)?;
             Ok(json!({ "deleted": id }))
         }
@@ -932,18 +1031,33 @@ fn validate_suggestion(conn: &Connection, s: &AiSuggestion, idx: usize) -> Resul
 }
 
 fn ensure_task(conn: &Connection, id: i64, at: &str) -> Result<(), CliError> {
-    let hit: Option<i64> = conn
-        .query_row("SELECT id FROM tasks WHERE id=?1", params![id], |r| {
-            r.get(0)
-        })
-        .ok();
-    if hit.is_some() {
+    if task_exists(conn, id) {
         Ok(())
     } else {
         Err(CliError(
             format!("{at}:待办 No.{id} 不存在（id 须来自 pk context 的 openTasks）"),
             1,
         ))
+    }
+}
+
+/// 待办 id 是否存在（dry-run 与 suggest 校验共用）
+fn task_exists(conn: &Connection, id: i64) -> bool {
+    conn.query_row("SELECT id FROM tasks WHERE id=?1", params![id], |r| {
+        r.get::<_, i64>(0)
+    })
+    .is_ok()
+}
+
+/// task list 的 --limit：缺省 50；`all`（或 0）不截断
+fn parse_limit(p: &Parsed) -> Result<Option<usize>, CliError> {
+    match p.flag("limit") {
+        None => Ok(Some(50)),
+        Some(v) if v.eq_ignore_ascii_case("all") || v == "0" => Ok(None),
+        Some(v) => v
+            .parse::<usize>()
+            .map(Some)
+            .map_err(|_| usage_err("--limit 须是正整数或 all")),
     }
 }
 
@@ -1005,6 +1119,385 @@ fn run_remote(rest: &[String]) -> Result<serde_json::Value, CliError> {
             std::process::exit(0);
         }
     }
+}
+
+/// doctor 单项检查的 JSON 条目：name + ok/warn/fail + detail + 可选 fix（照跑即可修复的命令/动作）
+fn doctor_check(
+    name: &str,
+    status: &str,
+    detail: String,
+    fix: Option<String>,
+) -> serde_json::Value {
+    json!({ "name": name, "status": status, "detail": detail, "fix": fix })
+}
+
+/// 环境自检（对标 brew/gh doctor）：数据库存在性与 schema 版本、完整性、并发配置、
+/// context 读链路、技能安装版本；--ssh <host> 时额外测远程 pk 可达性（排查 shim 部署）。
+/// 有 fail 时退出码 1；warn 不影响退出码（可选改进项）。库缺失/损坏本身就是诊断对象，
+/// 因此 doctor 不走常规 open_db（那会直接失败），而是逐项检查并汇报。
+fn doctor_report(
+    db_override: Option<&std::path::Path>,
+    ssh_target: Option<&str>,
+) -> (serde_json::Value, i32) {
+    let mut checks = vec![doctor_check(
+        "version",
+        "ok",
+        format!("pk {}", env!("CARGO_PKG_VERSION")),
+        None,
+    )];
+
+    let path = match db_override {
+        Some(p) => p.to_path_buf(),
+        None => default_db_path().unwrap_or_default(),
+    };
+    if !path.exists() {
+        checks.push(doctor_check(
+            "database",
+            "fail",
+            format!("数据库不存在：{}", path.display()),
+            Some("先启动一次应用（或 pk init-db / 用 PK_DB 指定路径）".into()),
+        ));
+    } else {
+        checks.push(doctor_check(
+            "database",
+            "ok",
+            path.display().to_string(),
+            None,
+        ));
+        match Connection::open(&path) {
+            Ok(conn) => {
+                // 只设 busy_timeout 不动 journal_mode：并发检查要读库的真实持久状态
+                let _ = conn.execute_batch("PRAGMA busy_timeout=5000;");
+                checks.extend(schema_checks(&conn));
+                checks.push(integrity_check(&conn));
+                checks.push(concurrency_check(&conn));
+                checks.push(context_check(&conn));
+            }
+            Err(e) => checks.push(doctor_check(
+                "database",
+                "fail",
+                format!("打开失败：{e}"),
+                Some("检查文件权限与所在磁盘状态".into()),
+            )),
+        }
+    }
+    checks.extend(skill_doctor_checks());
+    if let Some(host) = ssh_target {
+        checks.push(remote_doctor_check(host));
+    }
+
+    let count = |st: &str| checks.iter().filter(|c| c["status"] == st).count();
+    let fail = count("fail");
+    (
+        json!({
+            "checks": checks,
+            "summary": {
+                "ok": count("ok"),
+                "warn": count("warn"),
+                "fail": fail,
+            }
+        }),
+        if fail > 0 { 1 } else { 0 },
+    )
+}
+
+/// schema 版本与关键表：库比程序新（pk 需随应用升级）/ 库落后（应用未完成迁移）/ 缺表
+fn schema_checks(conn: &Connection) -> Vec<serde_json::Value> {
+    let mut out = vec![];
+    let version: i64 = conn
+        .query_row("PRAGMA user_version", [], |r| r.get(0))
+        .unwrap_or(-1);
+    let expected = pokemon_knock_lib::db::expected_schema_version();
+    if version == expected {
+        out.push(doctor_check(
+            "schema",
+            "ok",
+            format!("schema v{version}，与当前 pk 一致"),
+            None,
+        ));
+    } else if version > expected {
+        out.push(doctor_check(
+            "schema",
+            "fail",
+            format!("数据库 schema v{version} 比本 pk（v{expected}）新"),
+            Some("pk 随应用分发：升级应用后其自带的 pk 会自动接管".into()),
+        ));
+    } else {
+        out.push(doctor_check(
+            "schema",
+            "fail",
+            format!("数据库 schema v{version} 落后于 pk（v{expected}），应用未完成迁移"),
+            Some("启动一次应用完成迁移（pk 自身不执行迁移）".into()),
+        ));
+    }
+    const TABLES: &[&str] = &[
+        "tasks",
+        "categories",
+        "tags",
+        "task_tags",
+        "task_notes",
+        "task_logs",
+        "chat_messages",
+        "chat_feedback",
+        "agent_sessions",
+        "settings",
+        "sync_state",
+        "feishu_users",
+    ];
+    let present: Vec<String> = {
+        let mut stmt = match conn
+            .prepare("SELECT name FROM sqlite_master WHERE type='table' AND name LIKE '%_%'")
+        {
+            Ok(s) => s,
+            Err(_) => return out,
+        };
+        stmt.query_map([], |r| r.get::<_, String>(0))
+            .map(|rows| rows.filter_map(Result::ok).collect())
+            .unwrap_or_default()
+    };
+    let missing: Vec<&str> = TABLES
+        .iter()
+        .filter(|t| !present.iter().any(|p| p == *t))
+        .copied()
+        .collect();
+    if missing.is_empty() {
+        out.push(doctor_check(
+            "tables",
+            "ok",
+            format!("{} 张表齐全", TABLES.len()),
+            None,
+        ));
+    } else {
+        out.push(doctor_check(
+            "tables",
+            "fail",
+            format!("缺少表：{}", missing.join("、")),
+            Some("schema 与 pk 版本不匹配，升级应用后重试".into()),
+        ));
+    }
+    out
+}
+
+fn integrity_check(conn: &Connection) -> serde_json::Value {
+    let rows: Vec<String> = conn
+        .prepare("PRAGMA quick_check")
+        .and_then(|mut stmt| {
+            stmt.query_map([], |r| r.get::<_, String>(0))
+                .map(|rows| rows.filter_map(Result::ok).collect())
+        })
+        .unwrap_or_default();
+    if rows.iter().all(|r| r == "ok") {
+        doctor_check("integrity", "ok", "quick_check 通过".into(), None)
+    } else {
+        doctor_check(
+            "integrity",
+            "fail",
+            rows.join("; ").chars().take(200).collect(),
+            Some("先关闭应用再复查；确认损坏可从设置 → 备份恢复".into()),
+        )
+    }
+}
+
+fn concurrency_check(conn: &Connection) -> serde_json::Value {
+    let mode: String = conn
+        .query_row("PRAGMA journal_mode", [], |r| r.get(0))
+        .unwrap_or_default();
+    if mode == "wal" {
+        doctor_check(
+            "concurrency",
+            "ok",
+            "WAL 已启用，可与运行中的应用并发读写".into(),
+            None,
+        )
+    } else {
+        doctor_check(
+            "concurrency",
+            "warn",
+            format!("journal_mode={mode}，与应用并发读写可能报 BUSY"),
+            Some("启动一次应用或运行任一 pk 读写命令即自动切为 WAL".into()),
+        )
+    }
+}
+
+fn context_check(conn: &Connection) -> serde_json::Value {
+    match run_context(conn) {
+        Ok(ctx) => doctor_check(
+            "context",
+            "ok",
+            format!(
+                "读链路正常：分类 {} · 标签 {} · 未完成待办 {}",
+                ctx["categories"].as_array().map(Vec::len).unwrap_or(0),
+                ctx["tags"].as_array().map(Vec::len).unwrap_or(0),
+                ctx["openTasks"].as_array().map(Vec::len).unwrap_or(0)
+            ),
+            None,
+        ),
+        Err(e) => doctor_check(
+            "context",
+            "fail",
+            format!("读取上下文失败：{}", e.0),
+            Some("结合上面 schema/integrity 检查结果定位".into()),
+        ),
+    }
+}
+
+/// 技能安装状态：未安装提示可选安装（warn），旧版本提示更新
+fn skill_doctor_checks() -> Vec<serde_json::Value> {
+    let mut out = vec![];
+    for agent in ["claude-code", "opencode"] {
+        let entry = match skill_dir_for(agent, None) {
+            Ok(dir) => dir.join("SKILL.md"),
+            Err(_) => {
+                out.push(doctor_check(
+                    "skill",
+                    "warn",
+                    format!("{agent}：无法定位技能目录（home 缺失）"),
+                    None,
+                ));
+                continue;
+            }
+        };
+        match std::fs::read_to_string(&entry)
+            .ok()
+            .and_then(|md| frontmatter_version(&md))
+        {
+            Some(v) if v == SKILL_VERSION => out.push(doctor_check(
+                "skill",
+                "ok",
+                format!("{agent}：v{v}（{}）", entry.display()),
+                None,
+            )),
+            Some(v) => out.push(doctor_check(
+                "skill",
+                "warn",
+                format!("{agent}：技能 v{v} 旧于内置 v{SKILL_VERSION}"),
+                Some(format!("pk skill install {agent}")),
+            )),
+            None => out.push(doctor_check(
+                "skill",
+                "warn",
+                format!("{agent}：未安装（交互/无头场景建议安装）"),
+                Some(format!("pk skill install {agent}")),
+            )),
+        }
+    }
+    out
+}
+
+/// 远程 pk 可达性：BatchMode ssh 到目标跑 `pk --version`。
+/// 远程部署的是 shim 时，这一条会端到端验证「ssh 免密 → shim 在 PATH → 回连本机 → 本机 pk」整条链。
+fn remote_doctor_check(host: &str) -> serde_json::Value {
+    match std::process::Command::new("ssh")
+        .args(["-o", "BatchMode=yes", "-o", "ConnectTimeout=10"])
+        .arg(host)
+        .args(["--", "pk", "--version"])
+        .output()
+    {
+        Ok(o) if o.status.success() => {
+            let v = String::from_utf8_lossy(&o.stdout).trim().to_string();
+            doctor_check("remote", "ok", format!("{host} 的 pk 可用：{v}"), None)
+        }
+        Ok(o) => {
+            let stderr = String::from_utf8_lossy(&o.stderr);
+            let hint = if stderr.contains("127") || o.status.code() == Some(127) {
+                "远端 PATH 里没有 pk：确认 shim 已放进 PATH（如 ~/bin）并 chmod +x"
+            } else {
+                "检查免密登录（公钥）、主机可达性与 shim 部署"
+            };
+            doctor_check(
+                "remote",
+                "fail",
+                format!(
+                    "{host} 执行 pk 失败（退出码 {:?}）：{}",
+                    o.status.code(),
+                    stderr.trim().chars().take(160).collect::<String>()
+                ),
+                Some(hint.into()),
+            )
+        }
+        Err(e) => doctor_check(
+            "remote",
+            "fail",
+            format!("无法启动 ssh：{e}"),
+            Some("确认本机装有 ssh 客户端".into()),
+        ),
+    }
+}
+
+/// help --json 的数据源：命令目录（与 HELP 文本各司其职——前者给 agent 编程化发现，后者给人读）
+const COMMAND_INDEX: &[(&str, &str)] = &[
+    (
+        "task list",
+        "任务列表（open|done|today|all；--limit N|all 默认 50，超出截断并提示用 search）",
+    ),
+    ("task get <id>", "任务详情（含跟进记录）"),
+    ("task search <关键词>", "搜标题/备注/跟进/标签"),
+    (
+        "task create",
+        "建任务（--title 必填；--dry-run 只校验回显不落库）",
+    ),
+    (
+        "task update <id>",
+        "更新字段（--due \"\" 清空；--dry-run 只校验回显）",
+    ),
+    ("task done <id>", "完成任务"),
+    ("task start <id>", "开始任务（全局唯一进行中）"),
+    ("task pause", "暂停当前进行中任务"),
+    ("task current", "当前进行中任务"),
+    ("task delete <id>", "删除任务（--dry-run 只确认存在性）"),
+    (
+        "note add <task-id> <内容...>",
+        "记跟进（--source manual|ai）",
+    ),
+    ("note list <task-id>", "跟进列表"),
+    ("log <task-id>", "任务操作历史"),
+    (
+        "suggest todo|update|follow-up|none",
+        "提交单条 AI 判定建议（--message 必填；写建议列待用户确认）",
+    ),
+    (
+        "suggest batch",
+        "批量提交建议（stdin 传 {\"results\":[...]}，整批校验一损俱损）",
+    ),
+    (
+        "session log",
+        "记录 agent 会话（--agent 必填；成本/时长/退出码）",
+    ),
+    ("session list", "会话列表（--task 查任务时间线）"),
+    (
+        "skill install <agent>",
+        "安装技能（claude-code|opencode，或 --dir 指定）",
+    ),
+    ("skill show", "打印技能全文"),
+    ("remote shim", "生成远程 pk 透传脚本（--host 必填）"),
+    ("category list", "分类列表"),
+    ("tag list", "标签列表"),
+    (
+        "context",
+        "当前时间 + 未完成待办 + 分类 + 标签（判定与建任务的判重上下文）",
+    ),
+    (
+        "doctor",
+        "环境自检（数据库/schema/技能安装，每项带修复建议；--ssh <host> 加测远程 pk）",
+    ),
+    ("init-db", "初始化 PK_DB 指定的空库"),
+    ("help --json", "机器可读命令目录（本命令）"),
+];
+
+fn help_schema() -> String {
+    let v = json!({
+        "name": "pk",
+        "version": env!("CARGO_PKG_VERSION"),
+        "description": "宝可梦来敲门待办库命令行（供 AI agent 与终端使用）",
+        "output": "stdout 恒为 JSON；错误输出 {\"error\":...} 到 stderr",
+        "exitCodes": { "0": "成功", "1": "业务错误", "2": "用法错误" },
+        "env": { "PK_DB": "覆盖数据库路径（默认为应用数据目录 pokemon-knock.db）" },
+        "commands": COMMAND_INDEX
+            .iter()
+            .map(|(c, s)| json!({ "command": c, "summary": s }))
+            .collect::<Vec<_>>(),
+    });
+    serde_json::to_string_pretty(&v).unwrap_or_else(|_| "{}".into())
 }
 
 fn run_context(conn: &Connection) -> Result<serde_json::Value, CliError> {
@@ -1462,6 +1955,196 @@ mod tests {
         assert_eq!(err.1, 2);
         let err = run_err(&mut conn, &["task", "get", "abc"]);
         assert_eq!(err.1, 2, "非数字 id 是用法错误");
+    }
+
+    #[test]
+    fn doctor_ok_on_fresh_db_and_fails_on_missing() {
+        let dir = std::env::temp_dir().join(format!("pk-doctor-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        let dbp = dir.join("d.db");
+        {
+            let conn = Connection::open(&dbp).unwrap();
+            db::init_conn(&conn).unwrap();
+        }
+        let (report, code) = doctor_report(Some(&dbp), None);
+        assert_eq!(code, 0, "健康库退出码 0（warn 不算失败）: {report}");
+        assert_eq!(report["summary"]["fail"], 0);
+        let by = |n: &str| {
+            report["checks"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .find(|c| c["name"] == n)
+                .unwrap_or_else(|| panic!("缺检查项 {n}: {report}"))
+                .clone()
+        };
+        assert_eq!(by("database")["status"], "ok");
+        assert_eq!(by("schema")["status"], "ok");
+        assert_eq!(by("tables")["status"], "ok");
+        assert_eq!(by("integrity")["status"], "ok");
+        assert_eq!(by("context")["status"], "ok");
+        // 新库未跑过应用/pk 读写，journal_mode 可能还没切 WAL → warn 合法
+        assert_ne!(by("concurrency")["status"], "fail");
+
+        // 库不存在：database fail + 退出码 1 + 修复建议
+        let (report, code) = doctor_report(Some(&dir.join("none.db")), None);
+        assert_eq!(code, 1);
+        assert_eq!(report["summary"]["fail"], 1);
+        let db_check = report["checks"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|c| c["name"] == "database")
+            .unwrap();
+        assert_eq!(db_check["status"], "fail");
+        assert!(db_check["fix"].is_string(), "fail 项必带修复建议");
+
+        // 库 schema 比程序新：fail + 指引升级
+        {
+            let conn = Connection::open(&dbp).unwrap();
+            conn.execute_batch("PRAGMA user_version = 99;").unwrap();
+        }
+        let (report, code) = doctor_report(Some(&dbp), None);
+        assert_eq!(code, 1);
+        let schema = report["checks"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|c| c["name"] == "schema")
+            .unwrap();
+        assert_eq!(schema["status"], "fail");
+        assert!(schema["detail"].as_str().unwrap().contains("v99"));
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn dry_run_validates_without_writing() {
+        let mut conn = test_db();
+        conn.execute(
+            "INSERT INTO tags (name, description, created_at) VALUES ('重要', '', 'x')",
+            [],
+        )
+        .unwrap();
+
+        // create：非法参数照常拒绝（dry-run 不是绕过校验的后门）
+        let err = run_err(
+            &mut conn,
+            &[
+                "task",
+                "create",
+                "--title",
+                "x",
+                "--priority",
+                "nope",
+                "--dry-run",
+            ],
+        );
+        assert_eq!(err.1, 2);
+
+        let out = run_ok(
+            &mut conn,
+            &[
+                "task",
+                "create",
+                "--title",
+                "交周报",
+                "--category",
+                "工作",
+                "--due",
+                "2026-09-14T10:00",
+                "--tags",
+                "重要",
+                "--dry-run",
+            ],
+        );
+        assert_eq!(out["dryRun"], true);
+        assert_eq!(out["wouldCreate"]["title"], "交周报");
+        assert_eq!(out["wouldCreate"]["scheduled"], true, "带 due 即排期");
+        assert_eq!(out["wouldCreate"]["tags"], json!(["重要"]));
+        let list = run_ok(&mut conn, &["task", "list"]);
+        assert_eq!(list["total"], 0, "dry-run 不落库");
+
+        // update：目标不存在报业务错误；存在时只回显不改
+        let id = create(&mut conn, "真任务");
+        let err = run_err(
+            &mut conn,
+            &["task", "update", "999", "--priority", "high", "--dry-run"],
+        );
+        assert_eq!(err.1, 1);
+        assert!(err.0.contains("不存在"), "{}", err.0);
+        let out = run_ok(
+            &mut conn,
+            &[
+                "task",
+                "update",
+                &id.to_string(),
+                "--priority",
+                "high",
+                "--dry-run",
+            ],
+        );
+        assert_eq!(out["wouldUpdate"]["priority"], "high");
+        let got = run_ok(&mut conn, &["task", "get", &id.to_string()]);
+        assert_eq!(got["task"]["priority"], "normal", "dry-run 不改库");
+
+        // delete：只确认存在性
+        let out = run_ok(&mut conn, &["task", "delete", &id.to_string(), "--dry-run"]);
+        assert_eq!(out["wouldDelete"], json!(id));
+        let got = run_ok(&mut conn, &["task", "get", &id.to_string()]);
+        assert_eq!(got["task"]["id"], json!(id), "dry-run 不删除");
+    }
+
+    #[test]
+    fn task_list_limits_with_truncation_hint() {
+        let mut conn = test_db();
+        for i in 0..3 {
+            create(&mut conn, &format!("任务{i}"));
+        }
+        // 默认 50：小库不截断
+        let out = run_ok(&mut conn, &["task", "list"]);
+        assert_eq!(out["count"], 3);
+        assert_eq!(out["total"], 3);
+        assert_eq!(out["truncated"], false);
+        assert!(out["hint"].is_null(), "未截断不给提示");
+
+        // --limit 2：截断 + 提示收窄手段
+        let out = run_ok(&mut conn, &["task", "list", "--limit", "2"]);
+        assert_eq!(out["count"], 2);
+        assert_eq!(out["total"], 3);
+        assert_eq!(out["truncated"], true);
+        assert!(out["hint"].as_str().unwrap().contains("search"));
+
+        // --limit all / 0：不截断
+        let out = run_ok(&mut conn, &["task", "list", "--limit", "all"]);
+        assert_eq!(out["count"], 3);
+        assert_eq!(out["truncated"], false);
+        let out = run_ok(&mut conn, &["task", "list", "--limit", "0"]);
+        assert_eq!(out["count"], 3);
+
+        let err = run_err(&mut conn, &["task", "list", "--limit", "很多"]);
+        assert_eq!(err.1, 2, "非法 limit 是用法错误");
+    }
+
+    /// help --json 的机器可读目录：合法 JSON、含契约信息与全部命令
+    #[test]
+    fn help_schema_lists_commands_and_contract() {
+        let v: serde_json::Value = serde_json::from_str(&help_schema()).unwrap();
+        assert_eq!(v["name"], "pk");
+        assert_eq!(v["version"], env!("CARGO_PKG_VERSION"));
+        assert!(v["exitCodes"]["2"].is_string(), "退出码契约");
+        assert!(v["env"]["PK_DB"].is_string());
+        let cmds = v["commands"].as_array().unwrap();
+        assert!(cmds.len() >= COMMAND_INDEX.len());
+        for must in [
+            "task create",
+            "suggest batch",
+            "doctor",
+            "remote shim",
+            "context",
+        ] {
+            assert!(cmds.iter().any(|c| c["command"] == must), "缺命令 {must}");
+        }
     }
 
     /// 直插一条待判定消息（模拟飞书拉取落库后的状态：ai_status/review_status 均 pending）
