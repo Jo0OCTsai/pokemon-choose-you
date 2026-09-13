@@ -1,6 +1,6 @@
 [package]
 name = "pokemon-choose-you"
-version = "1.0.0"
+version = "2.0.0"
 description = "就决定是你了 — 桌宠待办系统"
 authors = ["joeca"]
 edition = "2021"
