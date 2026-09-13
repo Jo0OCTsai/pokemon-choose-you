@@ -188,7 +188,7 @@ export default {
   ai: {
     title: "🤖 AI Agent CLI",
     sshOn: "SSH 远程执行（agent CLI 装在别的机器上）",
-    sshHostPh: "user@host",
+    sshHostPh: "user{'@'}host",
     sshPort: "SSH 端口",
     sshKeyPh: "私钥路径（可选，如 ~/.ssh/id_ed25519）",
     sshHint:

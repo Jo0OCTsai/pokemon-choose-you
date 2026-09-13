@@ -192,7 +192,7 @@ export default {
   ai: {
     title: "🤖 AI Agent CLI",
     sshOn: "Run over SSH (agent CLI lives on another machine)",
-    sshHostPh: "user@host",
+    sshHostPh: "user{'@'}host",
     sshPort: "SSH port",
     sshKeyPh: "Private key path (optional, e.g. ~/.ssh/id_ed25519)",
     sshHint:
