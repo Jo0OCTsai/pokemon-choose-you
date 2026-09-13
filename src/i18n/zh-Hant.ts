@@ -14,6 +14,7 @@ export default {
     settingsDesc: "訓練家的裝備與圖鑑機調校",
   },
   dt: { none: "未設置", clear: "清空" },
+  error: { prefix: "圖鑑機遇到了點狀況：" },
   spine: {
     tips: [
       "圖鑑機忠告：貪多嚼不爛。",

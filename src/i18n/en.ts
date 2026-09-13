@@ -14,6 +14,7 @@ export default {
     settingsDesc: "Trainer gear & Dex tuning",
   },
   dt: { none: "Not set", clear: "Clear" },
+  error: { prefix: "The Dex hit a snag: " },
   spine: {
     tips: [
       "Dex advice: don't bite off more than you can chew.",

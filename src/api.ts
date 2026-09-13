@@ -12,6 +12,7 @@ import type {
   TaskLog,
   TaskNote,
 } from "./types";
+import { i18n } from "./i18n";
 
 /** 后端 AppError（src-tauri/src/error.rs）经 IPC 序列化后的结构 */
 export type ApiErrorKind = "db" | "not_found" | "invalid" | "network" | "external" | "io" | "tauri";
@@ -43,9 +44,11 @@ export class ApiError extends Error {
   }
 }
 
-/** 错误展示文案：直接用归一化后的 message */
+/** 错误展示文案：图鉴机视角的轻前缀 + 保留技术原文（排障信息不盖住）。
+ *  i18n 在此延迟取值调用（模块环 api→i18n→settings→api 无初始化期依赖，运行时安全） */
 export function errorMessage(e: unknown): string {
-  return e instanceof ApiError ? e.message : ApiError.from(e).message;
+  const raw = e instanceof ApiError ? e.message : ApiError.from(e).message;
+  return `${i18n.global.t("error.prefix")}${raw}`;
 }
 
 /** 操作日志的来源标识：取调用窗口 label（main / pet），非 Tauri 环境为空 */

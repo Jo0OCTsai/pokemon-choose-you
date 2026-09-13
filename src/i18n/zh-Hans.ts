@@ -14,6 +14,7 @@ export default {
     settingsDesc: "训练家的装备与图鉴机调校",
   },
   dt: { none: "未设置", clear: "清空" },
+  error: { prefix: "图鉴机遇到了点状况：" },
   spine: {
     tips: [
       "图鉴机忠告：贪多嚼不烂。",
