@@ -8,12 +8,16 @@ export const SETTING_DEFAULTS: Record<string, string> = {
   pomodoro_minutes: "25",
   break_minutes: "5",
   pomodoro_notify: "true",
+  /** 长番茄钟（≥45 分钟）中点与剩 5 分钟轻提示音 */
+  pomodoro_chime: "true",
   remind_ahead_minutes: "0",
   notifications_enabled: "true",
   /** 逾期任务展示模式：collapse=折叠一行（默认）/ auto_grass=自动归草丛 / show=原样 */
   overdue_mode: "collapse",
   date_format: "YYYY-MM-DD",
   time_format: "24h",
+  /** 相对截止时间（时间盲友好：显示为距现在的距离并按临近程度变色） */
+  due_relative: "true",
   default_priority: "normal",
   /** 自然语言快速捕捉（输入框解析「明天 5pm 交周报 #工作」，带预览可取消） */
   nl_capture_enabled: "true",
@@ -54,11 +58,13 @@ export const SETTING_KEYS = [
   "pomodoro_minutes",
   "break_minutes",
   "pomodoro_notify",
+  "pomodoro_chime",
   "notifications_enabled",
   "remind_ahead_minutes",
   "overdue_mode",
   "date_format",
   "time_format",
+  "due_relative",
   "default_priority",
   "nl_capture_enabled",
   "backup_enabled",

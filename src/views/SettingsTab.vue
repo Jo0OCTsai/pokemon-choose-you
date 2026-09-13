@@ -36,8 +36,10 @@ function boolSetting(key: string) {
 const pomoOn = boolSetting("pomodoro_enabled");
 const pomoNotify = boolSetting("pomodoro_notify");
 const notifyOn = boolSetting("notifications_enabled");
+const chimeOn = boolSetting("pomodoro_chime");
 const feishuOn = boolSetting("feishu_enabled");
 const nlCaptureOn = boolSetting("nl_capture_enabled");
+const dueRelativeOn = boolSetting("due_relative");
 const overdueModeOptions = computed(() => [
   { value: "collapse", label: t("overdue.modeCollapse") },
   { value: "auto_grass", label: t("overdue.modeAuto") },
@@ -644,6 +646,7 @@ onUnmounted(() => unlisteners.forEach((u) => u()));
             <DexSelect v-model="settings.values.break_minutes" :options="breakOptions" />
           </label>
           <label>{{ t("focus.notify") }}<DexToggle v-model="pomoNotify" /></label>
+          <label>{{ t("focus.chime") }}<DexToggle v-model="chimeOn" /></label>
         </section>
 
         <section class="set-card">
@@ -710,6 +713,7 @@ onUnmounted(() => unlisteners.forEach((u) => u()));
             {{ t("display.time") }}
             <DexSelect v-model="settings.values.time_format" :options="timeFormatOptions" />
           </label>
+          <label>{{ t("display.dueRelative") }}<DexToggle v-model="dueRelativeOn" /></label>
           <label>
             {{ t("display.overdueMode") }}
             <DexSelect v-model="settings.values.overdue_mode" :options="overdueModeOptions" />
