@@ -220,7 +220,7 @@ export default {
     engineBuiltin: "Built-in (own app)",
     engineCli: "lark-cli (official CLI)",
     engineHint:
-      "Official lark-cli engine: npm install -g {'@'}larksuite/lark-cli first, then click \"Authorize\" to complete lark-cli's own login in a terminal (credentials stay with lark-cli, never enter this app's database — no App ID/Secret needed).",
+      "Official lark-cli engine: npm install -g {'@'}larksuite/cli first, then click \"Authorize\" to complete lark-cli's own login in a terminal (credentials stay with lark-cli, never enter this app's database — no App ID/Secret needed).",
     enable: "Enable background polling",
     interval: "Poll interval",
     hint: "Create an internal app on Feishu Open Platform with message-read scopes, then click Authorize: your direct and group chats are pulled under your own identity—no need to add the bot to any chat.",

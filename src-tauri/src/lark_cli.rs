@@ -33,7 +33,7 @@ async fn run(bin: &str, args: &[&str], timeout: Duration) -> AppResult<String> {
     .map_err(|e| {
         if e.kind() == std::io::ErrorKind::NotFound {
             AppError::Invalid(
-                "找不到 lark-cli：请先 `npm install -g @larksuite/lark-cli` 并重新登录终端".into(),
+                "找不到 lark-cli：请先 `npm install -g @larksuite/cli` 并重新登录终端".into(),
             )
         } else {
             AppError::External(format!("启动 lark-cli 失败: {e}"))

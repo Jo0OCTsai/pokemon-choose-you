@@ -619,7 +619,7 @@ describe("App 图鉴机主面板", () => {
     settings.values.feishu_engine = "cli";
     await new Promise((r) => setTimeout(r));
     expect(w.text()).not.toContain("App Secret");
-    expect(w.text()).toContain("npm install -g @larksuite/lark-cli");
+    expect(w.text()).toContain("npm install -g @larksuite/cli");
     settings.values.feishu_engine = "builtin";
   });
 
