@@ -93,7 +93,7 @@ async fn spawn_line_in_terminal(line: &str) -> AppResult<&'static str> {
 
     #[cfg(target_os = "windows")]
     {
-        let title = "pokemon-knock agent";
+        let title = "pokemon-choose-you agent";
         tokio::process::Command::new("cmd")
             .args(["/C", "start", title, "cmd", "/K", line])
             .spawn()

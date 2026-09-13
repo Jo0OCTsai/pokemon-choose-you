@@ -3361,7 +3361,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "pokemon-knock"
+name = "pokemon-choose-you"
 version = "1.0.0"
 dependencies = [
  "chrono",

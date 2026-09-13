@@ -9,8 +9,8 @@
 - **Now**：当前正在做的；**Next**：完成 Now 之后的计划；**Later**：方向性探索，欢迎用 issue 推动或改变排序
 - 状态图例：🚧 进行中 · 📋 已排期 · 🔍 探索中 · ⬜ 待办
 - 每个条目先说**要解决的问题**，再说方案——方案会变，问题不变
-- 已发布功能请看 GitHub [Releases](https://github.com/Jo0OCTsai/pokemon-knock/releases)，本文只在文末保留近期亮点
-- 想提需求、报 bug 或建议优先级？直接开 [issue](https://github.com/Jo0OCTsai/pokemon-knock/issues)（有 bug 报告 / 功能请求模板）——这份排序很大程度由反馈驱动
+- 已发布功能请看 GitHub [Releases](https://github.com/Jo0OCTsai/pokemon-choose-you/releases)，本文只在文末保留近期亮点
+- 想提需求、报 bug 或建议优先级？直接开 [issue](https://github.com/Jo0OCTsai/pokemon-choose-you/issues)（有 bug 报告 / 功能请求模板）——这份排序很大程度由反馈驱动
 
 ---
 

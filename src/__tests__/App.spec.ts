@@ -144,10 +144,10 @@ function wireBackend() {
   vi.mocked(api.checkUpdate).mockResolvedValue("");
   vi.mocked(api.listBackups).mockResolvedValue([]);
   vi.mocked(api.listAgentSessions).mockResolvedValue([]);
-  vi.mocked(api.exportJson).mockResolvedValue("pokemon-knock-full-x.json");
+  vi.mocked(api.exportJson).mockResolvedValue("pokemon-choose-you-full-x.json");
   vi.mocked(api.importJson).mockResolvedValue(0);
-  vi.mocked(api.exportTasksCsv).mockResolvedValue("pokemon-knock-tasks-x.csv");
-  vi.mocked(api.exportDailyMd).mockResolvedValue("pokemon-knock-daily-x.md");
+  vi.mocked(api.exportTasksCsv).mockResolvedValue("pokemon-choose-you-tasks-x.csv");
+  vi.mocked(api.exportDailyMd).mockResolvedValue("pokemon-choose-you-daily-x.md");
   vi.mocked(api.openExportsDir).mockResolvedValue(undefined);
   vi.mocked(api.installUpdate).mockResolvedValue(undefined);
   vi.mocked(api.listTasks).mockImplementation(async (filter: string) => {
@@ -506,16 +506,16 @@ describe("App 图鉴机主面板", () => {
 
   it("设置页通用区：数据备份卡片可立即备份并展示列表", async () => {
     vi.mocked(api.listBackups).mockResolvedValue([
-      { file: "pokemon-knock-20260913-080000.db", size: 20480, createdAt: "2026-09-13T08:00:00+08:00" },
+      { file: "pokemon-choose-you-20260913-080000.db", size: 20480, createdAt: "2026-09-13T08:00:00+08:00" },
     ]);
-    vi.mocked(api.createBackupNow).mockResolvedValue("pokemon-knock-20260913-120000.db");
+    vi.mocked(api.createBackupNow).mockResolvedValue("pokemon-choose-you-20260913-120000.db");
     const w = await mountApp();
     await w.findAll(".menu-btn")[5].trigger("click"); // 设置
     await w.findAll(".stab")[6].trigger("click"); // 通用
     await new Promise((r) => setTimeout(r)); // 挂载时异步拉取备份列表
     expect(w.text()).toContain("数据备份");
     expect(w.findAll(".backup-row")).toHaveLength(1);
-    expect(w.text()).toContain("pokemon-knock-20260913-080000.db");
+    expect(w.text()).toContain("pokemon-choose-you-20260913-080000.db");
 
     await w
       .findAll(".btn")
@@ -523,7 +523,7 @@ describe("App 图鉴机主面板", () => {
       .trigger("click");
     await new Promise((r) => setTimeout(r));
     expect(api.createBackupNow).toHaveBeenCalled();
-    expect(w.text()).toContain("已备份 pokemon-knock-20260913-120000.db");
+    expect(w.text()).toContain("已备份 pokemon-choose-you-20260913-120000.db");
   });
 
   it("设置页通用区：导出三件套与打开目录", async () => {
@@ -536,7 +536,7 @@ describe("App 图鉴机主面板", () => {
       .trigger("click");
     await new Promise((r) => setTimeout(r));
     expect(api.exportJson).toHaveBeenCalled();
-    expect(w.text()).toContain("已导出 pokemon-knock-full-x.json");
+    expect(w.text()).toContain("已导出 pokemon-choose-you-full-x.json");
 
     await w
       .findAll(".btn")

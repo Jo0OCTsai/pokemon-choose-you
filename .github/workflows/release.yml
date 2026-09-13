@@ -44,7 +44,7 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           # 自动更新签名（bundle.createUpdaterArtifacts 开启后 tauri-action 会自动产出并上传 latest.json）
-          # 私钥生成：npx tauri signer generate -w ~/.tauri/pokemon-knock.key ；须配置为仓库 secret
+          # 私钥生成：npx tauri signer generate -w ~/.tauri/pokemon-choose-you.key ；须配置为仓库 secret
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         with:
@@ -73,7 +73,7 @@ jobs:
             | Linux | `.AppImage` / `.deb` / `.rpm` | 实验性：置顶需 X11；NVIDIA 白屏设 `WEBKIT_DISABLE_DMABUF_RENDERER=1`；仅 AppImage 支持自动更新 |
 
             安装包未做 OS 代码签名（详见仓库 SECURITY.md）；更新包均经 minisign 签名校验。
-            数据（SQLite）存于本机：Linux `~/.local/share/com.joeca.pokemonknock/` · macOS `~/Library/Application Support/com.joeca.pokemonknock/` · Windows `%APPDATA%\com.joeca.pokemonknock\`。
+            数据（SQLite）存于本机：Linux `~/.local/share/com.joeca.pokemonchooseyou/` · macOS `~/Library/Application Support/com.joeca.pokemonchooseyou/` · Windows `%APPDATA%\com.joeca.pokemonchooseyou\`。
             0.x 阶段数据格式未承诺稳定，升级前请备份数据库文件。
           releaseDraft: true
           args: ${{ matrix.args }}

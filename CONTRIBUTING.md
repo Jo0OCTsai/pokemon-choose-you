@@ -5,8 +5,8 @@
 ## 快速开始
 
 ```bash
-git clone https://github.com/Jo0OCTsai/pokemon-knock.git
-cd pokemon-knock
+git clone https://github.com/Jo0OCTsai/pokemon-choose-you.git
+cd pokemon-choose-you
 ```
 
 环境搭建（系统依赖、中文字体、lefthook hooks）、常用命令（lint / format / 测试 / clippy）与目录结构见 [开发指南](docs/DEVELOPMENT.md)。

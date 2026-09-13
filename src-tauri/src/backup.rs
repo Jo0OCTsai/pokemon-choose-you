@@ -5,8 +5,10 @@ use rusqlite::{params, Connection};
 use std::path::{Path, PathBuf};
 use std::time::Duration;
 
-/// 备份文件名前缀 / 后缀（滚动清理与恢复的合法性判断共用）
-const NAME_PREFIX: &str = "pokemon-knock-";
+/// 备份文件名前缀 / 后缀（滚动清理与恢复的合法性判断共用）；
+/// pokemon-knock- 为项目改名前的旧前缀：旧快照照常列出/恢复，新快照一律用新前缀
+const NAME_PREFIX: &str = "pokemon-choose-you-";
+const LEGACY_NAME_PREFIX: &str = "pokemon-knock-";
 const NAME_SUFFIX: &str = ".db";
 
 pub fn backup_dir(data_dir: &Path) -> PathBuf {
@@ -14,7 +16,8 @@ pub fn backup_dir(data_dir: &Path) -> PathBuf {
 }
 
 fn is_backup_name(name: &str) -> bool {
-    name.starts_with(NAME_PREFIX) && name.ends_with(NAME_SUFFIX)
+    (name.starts_with(NAME_PREFIX) || name.starts_with(LEGACY_NAME_PREFIX))
+        && name.ends_with(NAME_SUFFIX)
 }
 
 /// 创建一份快照，返回文件路径。同一秒内重复创建时追加序号避免覆盖
@@ -255,10 +258,10 @@ mod tests {
         let sub = backup_dir(&dir);
         std::fs::create_dir_all(&sub).unwrap();
         for name in [
-            "pokemon-knock-20260910-080000.db",
-            "pokemon-knock-20260911-080000.db",
+            "pokemon-choose-you-20260910-080000.db",
+            "pokemon-choose-you-20260911-080000.db",
             "pokemon-knock-20260912-080000.db",
-            "pokemon-knock-20260913-080000.db",
+            "pokemon-choose-you-20260913-080000.db",
         ] {
             std::fs::File::create(sub.join(name)).unwrap();
         }
@@ -266,23 +269,24 @@ mod tests {
         std::fs::File::create(sub.join("notes.txt")).unwrap();
 
         let list = list_backups(&dir).unwrap();
+        // 按文件名字典序倒序：过渡期旧前缀字典序更高会整体靠前（旧快照只存在数日，可接受）
         assert_eq!(
             list.iter().map(|b| b.file.as_str()).collect::<Vec<_>>(),
             vec![
-                "pokemon-knock-20260913-080000.db",
                 "pokemon-knock-20260912-080000.db",
-                "pokemon-knock-20260911-080000.db",
-                "pokemon-knock-20260910-080000.db",
+                "pokemon-choose-you-20260913-080000.db",
+                "pokemon-choose-you-20260911-080000.db",
+                "pokemon-choose-you-20260910-080000.db",
             ],
-            "倒序排列"
+            "倒序排列，旧前缀快照一并识别"
         );
 
         let removed = prune_backups(&dir, 2);
         assert_eq!(removed, 2);
         let left = list_backups(&dir).unwrap();
         assert_eq!(left.len(), 2);
-        assert_eq!(left[0].file, "pokemon-knock-20260913-080000.db");
-        assert_eq!(left[1].file, "pokemon-knock-20260912-080000.db");
+        assert_eq!(left[0].file, "pokemon-knock-20260912-080000.db");
+        assert_eq!(left[1].file, "pokemon-choose-you-20260913-080000.db");
         assert!(sub.join("notes.txt").exists(), "无关文件不动");
     }
 

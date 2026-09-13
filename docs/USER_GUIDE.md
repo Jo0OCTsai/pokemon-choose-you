@@ -24,7 +24,7 @@
 
 - **macOS**：双击 `.dmg`，将应用拖入「应用程序」。首次打开若提示"无法验证开发者"，在「系统设置 → 隐私与安全性」点击「仍要打开」
 - **Windows**：运行 NSIS 安装包（`.exe`），按向导完成安装
-- **Linux**（实验性）：`.deb` / `.rpm` 用包管理器安装，或下载 `.AppImage` 加执行权限后直接运行（`chmod +x pokemon-knock_*.AppImage && ./pokemon-knock_*.AppImage`）。注意：桌宠窗口需 X11（Wayland 下置顶不可靠）；NVIDIA 显卡若白屏/黑块，启动前 `export WEBKIT_DISABLE_DMABUF_RENDERER=1`
+- **Linux**（实验性）：`.deb` / `.rpm` 用包管理器安装，或下载 `.AppImage` 加执行权限后直接运行（`chmod +x pokemon-choose-you_*.AppImage && ./pokemon-choose-you_*.AppImage`）。注意：桌宠窗口需 X11（Wayland 下置顶不可靠）；NVIDIA 显卡若白屏/黑块，启动前 `export WEBKIT_DISABLE_DMABUF_RENDERER=1`
 
 ### 首次启动
 
@@ -35,7 +35,7 @@
 
 建议第一件事：打开图鉴机 → 设置 → 通用 → 打开「开机自动启动」，以后登录系统桌宠自动出现。
 
-> 数据全部存在本地（macOS: `~/Library/Application Support/com.joeca.pokemonknock/`，Windows: `%APPDATA%/com.joeca.pokemonknock/`，Linux: `~/.local/share/com.joeca.pokemonknock/`），卸载重装不丢任务。
+> 数据全部存在本地（macOS: `~/Library/Application Support/com.joeca.pokemonchooseyou/`，Windows: `%APPDATA%/com.joeca.pokemonchooseyou/`，Linux: `~/.local/share/com.joeca.pokemonchooseyou/`），卸载重装不丢任务。
 >
 > **自动备份**：每天第一份快照存在数据目录的 `backups/` 下（`VACUUM INTO` 压缩产物），默认滚动保留 7 份，可在 设置 → 通用 → 数据备份 调整份数、立即备份或从任意一份恢复（恢复立即生效、无需重启，会覆盖当前全部数据；秘钥在系统钥匙串不受影响）。
 >
@@ -355,7 +355,7 @@ WSLg 环境缺字体。下载 [Noto Sans CJK SC](https://github.com/notofonts/no
 - 应用内：设置 → 专注 → 「任务提醒通知」需开启
 
 **Q：飞书拉不到消息？**
-依次检查：①「授权登录」显示成功（未授权时轮询会报"请先授权"）；② 上述四个权限都已开通且应用版本已发布；③ 重定向 URL 与 `http://127.0.0.1:23981/callback` 完全一致（授权页报 20029 就是这里不符）；④ 日志 `~/.local/share/com.joeca.pokemonknock/logs/`（macOS/Windows 路径见上）里有 `feishu poll failed` 具体原因；⑤「测试飞书连接」是否成功。
+依次检查：①「授权登录」显示成功（未授权时轮询会报"请先授权"）；② 上述四个权限都已开通且应用版本已发布；③ 重定向 URL 与 `http://127.0.0.1:23981/callback` 完全一致（授权页报 20029 就是这里不符）；④ 日志 `~/.local/share/com.joeca.pokemonchooseyou/logs/`（macOS/Windows 路径见上）里有 `feishu poll failed` 具体原因；⑤「测试飞书连接」是否成功。
 
 **Q：授权过期了怎么办？**
 user_access_token 有效期约 2 小时，应用用 refresh_token 自动续期（刷新后轮换、本地保存）；约 30 天不用会彻底过期，此时点一次「授权登录」重新授权即可。
@@ -367,7 +367,7 @@ user_access_token 有效期约 2 小时，应用用 refresh_token 自动续期�
 设置 → 专注 → 提前提醒；调度器每 20 秒扫描一次，提前量分钟数会在到期前触发。
 
 **Q：数据在哪里 / 怎么备份？**
-全部在本地 SQLite：见上文数据目录，备份整个目录即可（含 `pokemon-knock.db`）。
+全部在本地 SQLite：见上文数据目录，备份整个目录即可（含 `pokemon-choose-you.db`）。
 
 **Q：想暂时隐藏桌宠？**
 直接关闭桌宠窗口，图鉴机仍后台提醒（通知照常）；重新打开应用即可唤回。托盘常驻模式在路线图上。

@@ -239,23 +239,23 @@ export async function installTauriMock(page: Page, state: Partial<MockState> = {
           case "list_backups":
             return [
               {
-                file: "pokemon-knock-20260901-080000.db",
+                file: "pokemon-choose-you-20260901-080000.db",
                 size: 16384,
                 createdAt: "2026-09-01T08:00:00+08:00",
               },
             ];
           case "create_backup_now":
-            return "pokemon-knock-20260913-120000.db";
+            return "pokemon-choose-you-20260913-120000.db";
           case "export_json":
-            return "pokemon-knock-full-mock.json";
+            return "pokemon-choose-you-full-mock.json";
           case "import_json":
             broadcast("tasks-changed");
             broadcast("settings-changed");
             return 0;
           case "export_tasks_csv":
-            return "pokemon-knock-tasks-mock.csv";
+            return "pokemon-choose-you-tasks-mock.csv";
           case "export_daily_md":
-            return "pokemon-knock-daily-mock.md";
+            return "pokemon-choose-you-daily-mock.md";
           case "open_exports_dir":
             return null;
           case "restore_backup":

@@ -8,6 +8,10 @@ use rusqlite::{types::Value as SqlValue, Connection};
 use std::path::{Path, PathBuf};
 use tauri::State;
 
+/// 导出文件名前缀与全量 JSON 的 app 标识字段；pokemon-knock 为改名前的旧值（导入兼容）
+const APP_SLUG: &str = "pokemon-choose-you";
+const LEGACY_APP_SLUG: &str = "pokemon-knock";
+
 /// 全量导出包含的表（顺序即导入顺序：被引用表在前）
 const DUMP_TABLES: &[&str] = &[
     "categories",
@@ -159,7 +163,7 @@ pub fn export_json_to(data_dir: &Path, conn: &Connection) -> AppResult<String> {
         );
     }
     let payload = serde_json::json!({
-        "app": "pokemon-knock",
+        "app": APP_SLUG,
         "format": 1,
         "exportedAt": crate::db::now(),
         "data": data,
@@ -168,7 +172,7 @@ pub fn export_json_to(data_dir: &Path, conn: &Connection) -> AppResult<String> {
         .map_err(|e| AppError::External(format!("序列化导出失败: {e}")))?;
     let path = write_export(
         data_dir,
-        format!("pokemon-knock-full-{}.json", stamp_now()),
+        format!("{APP_SLUG}-full-{}.json", stamp_now()),
         &pretty,
     )?;
     Ok(path
@@ -181,7 +185,9 @@ pub fn export_json_to(data_dir: &Path, conn: &Connection) -> AppResult<String> {
 pub fn import_json_from(content: &str, conn: &mut Connection) -> AppResult<usize> {
     let parsed: serde_json::Value = serde_json::from_str(content)
         .map_err(|e| AppError::Invalid(format!("不是合法的 JSON 文件: {e}")))?;
-    if parsed["app"] != "pokemon-knock" || parsed["format"] != 1 {
+    // app 字段接受新旧两个值：改名前导出的全量 JSON 照常导入
+    let app_ok = parsed["app"] == APP_SLUG || parsed["app"] == LEGACY_APP_SLUG;
+    if !app_ok || parsed["format"] != 1 {
         return Err(AppError::Invalid(
             "不是「就决定是你了」的全量导出文件".into(),
         ));
@@ -321,7 +327,7 @@ pub fn export_csv_to(data_dir: &Path, conn: &Connection) -> AppResult<String> {
     }
     let path = write_export(
         data_dir,
-        format!("pokemon-knock-tasks-{}.csv", stamp_now()),
+        format!("{APP_SLUG}-tasks-{}.csv", stamp_now()),
         &out,
     )?;
     Ok(path
@@ -448,7 +454,7 @@ pub fn export_daily_md_to(data_dir: &Path, conn: &Connection, date: &str) -> App
             md.push_str(&format!("- No.{tid} {title}：{tag}{content}\n"));
         }
     }
-    let path = write_export(data_dir, format!("pokemon-knock-daily-{date}.md"), &md)?;
+    let path = write_export(data_dir, format!("{APP_SLUG}-daily-{date}.md"), &md)?;
     Ok(path
         .file_name()
         .map(|n| n.to_string_lossy().into_owned())
@@ -588,7 +594,7 @@ mod tests {
         let file = export_json_to(&dir, &conn).unwrap();
         let content = read_export(&dir, &file);
         let parsed: serde_json::Value = serde_json::from_str(&content).unwrap();
-        assert_eq!(parsed["app"], "pokemon-knock");
+        assert_eq!(parsed["app"], APP_SLUG);
         assert_eq!(parsed["data"]["tasks"].as_array().unwrap().len(), 2);
         assert!(
             !content.contains("real-secret"),
@@ -682,6 +688,14 @@ mod tests {
             .query_row("SELECT COUNT(*) FROM tasks", [], |r| r.get(0))
             .unwrap();
         assert_eq!(count, 2, "失败导入不动库");
+
+        // 改名前的旧 app 标识照常导入
+        let legacy = content.replace(APP_SLUG, LEGACY_APP_SLUG);
+        import_json_from(&legacy, &mut conn).unwrap();
+        let count: i64 = conn
+            .query_row("SELECT COUNT(*) FROM tasks", [], |r| r.get(0))
+            .unwrap();
+        assert_eq!(count, 2, "旧标识文件同样能整体替换");
     }
 
     /// CSV：表头 + BOM + 逗号/引号转义 + 标签拼接
@@ -710,7 +724,7 @@ mod tests {
         seed(&conn);
         let file = export_daily_md_to(&dir, &conn, "2026-09-13").unwrap();
         let md = read_export(&dir, &file);
-        assert!(file.starts_with("pokemon-knock-daily-2026-09-13"));
+        assert!(file.starts_with("pokemon-choose-you-daily-2026-09-13"));
         assert!(md.contains("# 训练家日报 · 2026-09-13"));
         assert!(md.contains("今日捕捉 1 只，专注 25 分钟"));
         assert!(md.contains("- ✅ 写周报（工作·皮卡丘 · high · 专注 25 分钟）"));

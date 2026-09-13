@@ -6,7 +6,7 @@
 //! - 通过 WAL 与运行中的应用并发读写，PK_DB 环境变量可覆盖数据库路径。
 
 /// 随包分发的 agent 技能模板（教 agent 用 pk 管待办）
-const SKILL_MD: &str = include_str!("../../skills/pokemon-knock.md");
+const SKILL_MD: &str = include_str!("../../skills/pokemon-choose-you.md");
 /// 技能引用文件（渐进披露）：主文件保持精简，参数细节与批处理协议按需再读
 const SKILL_REFS: &[(&str, &str)] = &[
     (
@@ -21,12 +21,12 @@ const SKILL_REFS: &[(&str, &str)] = &[
 /// 当前技能版本（与 SKILL.md frontmatter 的 version 保持一致，用于安装时的版本对比）
 const SKILL_VERSION: &str = "2";
 
-use pokemon_knock_lib::ai::AiSuggestion;
-use pokemon_knock_lib::commands::radio::apply_suggestion_conn;
-use pokemon_knock_lib::commands::sessions::{
+use pokemon_choose_you_lib::ai::AiSuggestion;
+use pokemon_choose_you_lib::commands::radio::apply_suggestion_conn;
+use pokemon_choose_you_lib::commands::sessions::{
     list_agent_sessions_conn, log_session_conn, NewAgentSession,
 };
-use pokemon_knock_lib::commands::{categories, tags, tasks};
+use pokemon_choose_you_lib::commands::{categories, tags, tasks};
 use rusqlite::{params, Connection};
 use serde_json::json;
 
@@ -89,7 +89,7 @@ const HELP: &str = r#"pk — 就决定是你了命令行（供 AI agent 与终�
   pk skill install claude-code
 
 输出: JSON（stdout）。错误: {"error": "..."}（stderr），退出码 1（业务）/ 2（用法）。
-环境变量: PK_DB 覆盖数据库路径（默认为应用数据目录 pokemon-knock.db）。"#;
+环境变量: PK_DB 覆盖数据库路径（默认为应用数据目录 pokemon-choose-you.db）。"#;
 
 fn main() {
     let args: Vec<String> = std::env::args().skip(1).collect();
@@ -169,10 +169,22 @@ fn fail(msg: &str, code: i32) -> ! {
     std::process::exit(code);
 }
 
-/// 与 tauri 的 app_data_dir 同一规则：config_dir/<identifier>/pokemon-knock.db
+/// 与 tauri 的 app_data_dir 同一规则：config_dir/<identifier>/<db>。
+/// 项目改名后应用启动时会迁移旧目录；迁移尚未发生（旧库还在）时优先用旧路径，
+/// 避免抢在应用前面建出一份空库
 fn default_db_path() -> Result<std::path::PathBuf, String> {
     let cfg = dirs::config_dir().ok_or_else(|| "无法定位用户配置目录".to_string())?;
-    Ok(cfg.join("com.joeca.pokemonknock").join("pokemon-knock.db"))
+    let new_path = cfg
+        .join("com.joeca.pokemonchooseyou")
+        .join("pokemon-choose-you.db");
+    if new_path.exists() {
+        return Ok(new_path);
+    }
+    let legacy = cfg.join("com.joeca.pokemonknock").join("pokemon-knock.db");
+    if legacy.exists() {
+        return Ok(legacy);
+    }
+    Ok(new_path)
 }
 
 /// 打开应用数据库：平时不做迁移（应用可能比 CLI 旧，抢跑迁移会让应用拒绝启动）；
@@ -244,7 +256,7 @@ fn usage_err(msg: &str) -> CliError {
     CliError(msg.to_string(), 2)
 }
 
-fn db_err(e: pokemon_knock_lib::error::AppError) -> CliError {
+fn db_err(e: pokemon_choose_you_lib::error::AppError) -> CliError {
     CliError(e.to_string(), 1)
 }
 
@@ -363,7 +375,7 @@ fn run(conn: &mut Connection, args: &[String]) -> Result<serde_json::Value, CliE
         "context" => run_context(conn),
         "init-db" => {
             // 显式引导（PK_DB 独立库场景）：建库 + 迁移 + 默认分类；对应用主库通常无需执行
-            pokemon_knock_lib::db::init_conn(conn).map_err(|e| CliError(e.to_string(), 1))?;
+            pokemon_choose_you_lib::db::init_conn(conn).map_err(|e| CliError(e.to_string(), 1))?;
             Ok(json!({ "initialized": true }))
         }
         _ => Err(usage_err(&format!("未知命令「{cmd}」，用法见 pk help"))),
@@ -665,12 +677,12 @@ fn skill_dir_for(agent: &str, dir_flag: Option<&str>) -> Result<std::path::PathB
     }
     let home = dirs::home_dir().ok_or_else(|| CliError("无法定位用户主目录".into(), 1))?;
     match agent {
-        "claude-code" | "claude" => Ok(home.join(".claude").join("skills").join("pokemon-knock")),
+        "claude-code" | "claude" => Ok(home.join(".claude").join("skills").join("pokemon-choose-you")),
         "opencode" => Ok(home
             .join(".config")
             .join("opencode")
             .join("skill")
-            .join("pokemon-knock")),
+            .join("pokemon-choose-you")),
         other => Err(usage_err(&format!(
             "暂不认识 agent「{other}」的技能目录：支持 claude-code / opencode，其他 agent 用 --dir <目录> 指定，或 pk skill show 自行粘贴"
         ))),
@@ -1097,7 +1109,7 @@ fn run_remote(rest: &[String]) -> Result<serde_json::Value, CliError> {
     }
     fwd.push_str(&format!(" {host} pk \"$@\""));
     let script = format!(
-        "#!/bin/sh\n# pk 远程透传 shim（pokemon-knock）：把 pk 命令经 ssh 转发回本机执行，数据始终留在本机。\n# 部署：放到远程主机的 PATH 里并 chmod +x，如 ~/bin/pk；本机需开 sshd 并配好免密登录。\nexec {fwd}\n"
+        "#!/bin/sh\n# pk 远程透传 shim（pokemon-choose-you）：把 pk 命令经 ssh 转发回本机执行，数据始终留在本机。\n# 部署：放到远程主机的 PATH 里并 chmod +x，如 ~/bin/pk；本机需开 sshd 并配好免密登录。\nexec {fwd}\n"
     );
     match p.flag("write").filter(|w| !w.is_empty()) {
         Some(path) => {
@@ -1207,7 +1219,7 @@ fn schema_checks(conn: &Connection) -> Vec<serde_json::Value> {
     let version: i64 = conn
         .query_row("PRAGMA user_version", [], |r| r.get(0))
         .unwrap_or(-1);
-    let expected = pokemon_knock_lib::db::expected_schema_version();
+    let expected = pokemon_choose_you_lib::db::expected_schema_version();
     if version == expected {
         out.push(doctor_check(
             "schema",
@@ -1491,7 +1503,7 @@ fn help_schema() -> String {
         "description": "就决定是你了待办库命令行（供 AI agent 与终端使用）",
         "output": "stdout 恒为 JSON；错误输出 {\"error\":...} 到 stderr",
         "exitCodes": { "0": "成功", "1": "业务错误", "2": "用法错误" },
-        "env": { "PK_DB": "覆盖数据库路径（默认为应用数据目录 pokemon-knock.db）" },
+        "env": { "PK_DB": "覆盖数据库路径（默认为应用数据目录 pokemon-choose-you.db）" },
         "commands": COMMAND_INDEX
             .iter()
             .map(|(c, s)| json!({ "command": c, "summary": s }))
@@ -1540,7 +1552,7 @@ fn run_context(conn: &Connection) -> Result<serde_json::Value, CliError> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use pokemon_knock_lib::db;
+    use pokemon_choose_you_lib::db;
 
     /// 每个用例独立的内存库（迁移 + 默认分类），复用应用的 init_conn 保证 schema 一致
     fn test_db() -> Connection {
@@ -1792,7 +1804,7 @@ mod tests {
         assert_eq!(out["version"], "2");
         let md = std::fs::read_to_string(dir.join("SKILL.md")).unwrap();
         assert!(md.contains("pk task create"), "技能内容含命令速查");
-        assert!(md.contains("name: pokemon-knock"), "带 frontmatter");
+        assert!(md.contains("name: pokemon-choose-you"), "带 frontmatter");
         assert!(md.contains("pk suggest"), "含建议提交通道");
         assert!(
             dir.join("references").join("commands.md").exists(),
@@ -1819,7 +1831,7 @@ mod tests {
         // 旧版本在位 → 提示更新
         std::fs::write(
             dir.join("SKILL.md"),
-            "---\nname: pokemon-knock\nversion: \"1\"\n---\n旧内容",
+            "---\nname: pokemon-choose-you\nversion: \"1\"\n---\n旧内容",
         )
         .unwrap();
         let out = run_ok(
@@ -1843,7 +1855,7 @@ mod tests {
         // 目录规则：claude-code / opencode 的落点结构正确（不实际写）
         let claude = skill_dir_for("claude-code", None).unwrap_or_else(|e| panic!("{}", e.0));
         assert!(
-            claude.ends_with(".claude/skills/pokemon-knock")
+            claude.ends_with(".claude/skills/pokemon-choose-you")
                 || claude.to_string_lossy().contains(".claude"),
             "{claude:?}"
         );

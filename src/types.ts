@@ -122,7 +122,7 @@ export interface AgentSession {
 
 /** 数据备份快照（VACUUM INTO 产物，设置页展示与恢复） */
 export interface BackupInfo {
-  /** 备份文件名（pokemon-knock-YYYYMMDD-HHMMSS.db） */
+  /** 备份文件名（pokemon-choose-you-YYYYMMDD-HHMMSS.db） */
   file: string;
   /** 字节数 */
   size: number;

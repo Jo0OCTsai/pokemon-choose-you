@@ -27,7 +27,7 @@
       "label": "cargo: build 应用（debug）",
       "type": "shell",
       "command": "cargo",
-      "args": ["build", "--manifest-path", "${workspaceFolder}/src-tauri/Cargo.toml", "--bin", "pokemon-knock"],
+      "args": ["build", "--manifest-path", "${workspaceFolder}/src-tauri/Cargo.toml", "--bin", "pokemon-choose-you"],
       "group": {
         "kind": "build",
         "isDefault": true
