@@ -270,6 +270,13 @@ AI 判定时会带上**同会话 30 分钟内的近期上下文**与消息来源
 | Kiro CLI | `kiro` | `-p {prompt}` | `--resume` |
 | 其他 | 任意 | 自定义 | 自定义 |
 
+**SSH 远程执行**：agent CLI 不在本机时，在 agent 配置里勾选「SSH 远程执行」并填目标（`user@host`，可指定端口与私钥路径）。实际执行的命令是 `ssh -o BatchMode=yes -o ConnectTimeout=10 [-i 密钥] [-p 端口] user@host -- <command> <args...>`：
+
+- 提示词一律走**标准输入**转发（`{prompt}` 占位符参数自动剔除，如 `claude -p {prompt}` 远程执行为 `claude -p` + stdin），避免 ssh 拼接 argv 后被远端 shell 打碎
+- 需要先配好**公钥免密登录**（BatchMode 不允许交互输密码）；连接超时 10 秒，整次调用仍受该 agent 的超时设置约束
+- 「历史记录」入口同样经 ssh 转发，`claude --resume` 等交互界面照常可用
+- 环境变量 `PK_SSH_BIN` 可覆盖 ssh 客户端程序名（默认 `ssh`）
+
 设置 → 集成 → AI Agent CLI：
 
 1. 选预设 → 点「＋ 添加 Agent」（也可自定义命令与参数）；

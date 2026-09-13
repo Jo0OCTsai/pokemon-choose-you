@@ -136,6 +136,16 @@ export interface FeishuOauthStatus {
   userName: string;
 }
 
+/** SSH 远程执行：agent CLI 装在远程机器上，本地经 `ssh host -- command` 无头调用 */
+export interface AgentRemote {
+  /** ssh 目标（user@host） */
+  host: string;
+  /** ssh 端口（默认 22） */
+  port: number;
+  /** 私钥路径（空走 ssh 默认） */
+  keyPath?: string | null;
+}
+
 /** AI agent CLI 配置（如 Claude Code / OpenCode / Kiro CLI），可配置多个 */
 export interface AgentConfig {
   id: string;
@@ -149,6 +159,8 @@ export interface AgentConfig {
   /** 单次调用超时（秒） */
   timeoutSecs: number;
   enabled: boolean;
+  /** SSH 远程执行（null/缺省 = 本地执行） */
+  remote?: AgentRemote | null;
 }
 
 /** 集成链路健康（诊断页展示）：飞书 / AI / Todoist */

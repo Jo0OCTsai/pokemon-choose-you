@@ -49,18 +49,15 @@ async fn open_agent_in_terminal(
     agent: &AgentConfig,
     resume_session: Option<&str>,
 ) -> AppResult<String> {
-    let mut args: Vec<String> = agent
-        .history_args
-        .split_whitespace()
-        .map(String::from)
-        .collect();
+    // 本地直启；SSH 远程 agent 则在终端里经 ssh 转发（claude --resume 等交互界面照常可用）
+    let (program, mut args) = crate::ai::history_invocation(agent);
     if let (Some(sess), Some(first)) = (resume_session, args.first()) {
         // claude 语法：--resume <session_id>；其余 agent 同样把 id 追加到首个历史参数后
         if first == "--resume" || first == "resume" {
             args.push(sess.to_string());
         }
     }
-    spawn_in_terminal(&agent.command, &args)
+    spawn_in_terminal(&program, &args)
         .await
         .map(|term| format!("已在 {term} 中启动「{}」", agent.name))
 }
