@@ -14,6 +14,7 @@ mod secrets;
 mod shortcuts;
 mod todoist;
 mod tray;
+mod which;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {

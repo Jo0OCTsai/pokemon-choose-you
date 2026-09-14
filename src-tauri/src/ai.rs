@@ -105,7 +105,9 @@ struct Invocation {
 }
 
 /// 组装实际执行的命令行（纯函数，独立测试）。
-/// - 本地：args 中的 {prompt} 替换为提示词；未出现时提示词走标准输入
+/// - 本地：args 中的 {prompt} 替换为提示词；未出现时提示词走标准输入；
+///   裸命令名先经 which::resolve 补扫 GUI 进程缺失的 PATH（macOS Dock/Finder 启动
+///   看不到 Homebrew/nvm 里的 claude 等），显式路径原样透传
 /// - 远程：`ssh -o BatchMode=yes -o ConnectTimeout=10 [-i key] [-p port] host -- command args...`；
 ///   提示词一律走标准输入——ssh 会把 argv 拼接后交远端 shell 重解析，长提示词里的引号/换行必被打碎，
 ///   stdin 转发没有这个问题。args 中带 {prompt} 的元素剔除（如 `claude -p {prompt}` → `claude -p`，
@@ -118,7 +120,7 @@ fn build_invocation(agent: &AgentConfig, prompt: &str) -> Invocation {
             let via_stdin = !args.iter().any(|a| a.contains("{prompt}"));
             let argv: Vec<String> = args.iter().map(|a| a.replace("{prompt}", prompt)).collect();
             Invocation {
-                program: agent.command.clone(),
+                program: crate::which::resolve(&agent.command),
                 argv,
                 stdin: via_stdin.then(|| prompt.to_string()),
                 remote_host: None,
@@ -633,7 +635,7 @@ async fn spawn_and_wait(
 fn spawn_error(program: &str, e: std::io::Error) -> AppError {
     if e.kind() == std::io::ErrorKind::NotFound {
         AppError::Invalid(format!(
-            "找不到命令「{program}」：请先安装该 agent CLI 并确认在 PATH 中，或在设置里填写绝对路径"
+            "找不到命令「{program}」：请先安装该 agent CLI；若已安装仍报此错，GUI 应用可能看不到终端的 PATH，请在设置里填写绝对路径"
         ))
     } else {
         AppError::External(format!("启动「{program}」失败: {e}"))
@@ -915,6 +917,40 @@ mod tests {
         a.remote = Some(crate::ai::AgentRemote::default());
         let inv = build_invocation(&a, "你好");
         assert!(inv.remote_host.is_none(), "空 host 视为未配置");
+    }
+
+    /// 回归：GUI 进程不继承终端 PATH，本地分支的裸命令名要解析成绝对路径；
+    /// 远程分支保持用户配置原样（由远端登录 shell 自行解析）。
+    #[cfg(unix)]
+    #[test]
+    fn invocation_local_resolves_bare_command() {
+        let a = AgentConfig {
+            command: "sh".into(),
+            args: "-p".into(),
+            ..Default::default()
+        };
+        let inv = build_invocation(&a, "x");
+        assert!(
+            std::path::Path::new(&inv.program).is_absolute(),
+            "PATH 中的裸命令应解析为绝对路径，got {}",
+            inv.program
+        );
+
+        let r = AgentConfig {
+            command: "claude".into(),
+            args: "-p".into(),
+            remote: Some(crate::ai::AgentRemote {
+                host: "box".into(),
+                ..Default::default()
+            }),
+            ..Default::default()
+        };
+        let inv = build_invocation(&r, "x");
+        assert!(!inv.program.contains("claude"), "远程分支的程序是 ssh");
+        assert!(
+            inv.argv.iter().any(|x| x.contains("claude")),
+            "远端命令行保留用户配置的命令名"
+        );
     }
 
     #[test]

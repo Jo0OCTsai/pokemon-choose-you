@@ -34,7 +34,8 @@ fn settings_getter(conn: &Connection) -> impl Fn(&str) -> Option<String> + '_ {
     move |k| crate::secrets::secret_get(conn, k)
 }
 
-/// 飞书链路是否已具备运行条件：lark-cli 可执行文件存在（绝对路径看文件，命令名扫 PATH）。
+/// 飞书链路是否已具备运行条件：lark-cli 可执行文件存在（lark_bin() 返回已补扫
+/// GUI 缺失目录的绝对路径，这里看文件即可；裸命令名兜底扫进程 PATH）。
 /// 登录态不在诊断快照里判断（需要跑子进程），由轮询失败信息与设置页授权状态展示。
 fn feishu_configured(bin: &str) -> bool {
     let p = std::path::Path::new(bin);
