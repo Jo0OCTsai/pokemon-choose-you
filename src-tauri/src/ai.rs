@@ -587,7 +587,10 @@ async fn spawn_and_wait(
     timeout: Duration,
 ) -> AppResult<String> {
     let mut cmd = tokio::process::Command::new(program);
-    cmd.args(argv)
+    // 子进程注入补扫后的 PATH：agent CLI（claude 等）的 node 解释器可能在
+    // GUI 进程 PATH 之外（Homebrew/nvm），shebang 的 env node 会找不到
+    cmd.env("PATH", crate::which::child_path())
+        .args(argv)
         .stdin(if stdin.is_some() {
             std::process::Stdio::piped()
         } else {

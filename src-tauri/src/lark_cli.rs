@@ -12,12 +12,15 @@ pub fn lark_bin() -> String {
     crate::which::resolve(&std::env::var("LARK_CLI_BIN").unwrap_or_else(|_| "lark-cli".into()))
 }
 
-/// 跑一条 lark-cli 命令，要求退出码 0，返回 stdout 文本
+/// 跑一条 lark-cli 命令，要求退出码 0，返回 stdout 文本。
+/// 子进程注入补扫后的 PATH：lark-cli 是 node 脚本（`#!/usr/bin/env node`），
+/// GUI 进程的 PATH 里没有 node 时会退出码 127（env: node not found）。
 async fn run(bin: &str, args: &[&str], timeout: Duration) -> AppResult<String> {
     let out = tokio::time::timeout(
         timeout,
         tokio::process::Command::new(bin)
             .args(args)
+            .env("PATH", crate::which::child_path())
             .stdin(std::process::Stdio::null())
             .stdout(std::process::Stdio::piped())
             .stderr(std::process::Stdio::piped())
@@ -334,6 +337,43 @@ mod tests {
             assert!(matches!(err, AppError::Invalid(_)), "{err}");
             assert!(err.to_string().contains("npm install"));
         });
+    }
+
+    /// 回归：lark-cli 是 `#!/usr/bin/env node` 脚本，node 也不在 GUI 进程 PATH 里时
+    /// 退出码 127（env: node not found）——子进程必须带上补扫后的 PATH 找得到解释器。
+    /// 用唯一命名的假解释器模拟 node，避免与真机 PATH 里的真 node 撞车。
+    #[cfg(unix)]
+    #[test]
+    fn run_child_path_lets_shebang_find_interpreter() {
+        use std::os::unix::fs::PermissionsExt;
+        let home = std::env::temp_dir().join(format!("pk-shebang-{}", std::process::id()));
+        let nvm_bin = home.join(".nvm/versions/node/v20.11.1/bin");
+        std::fs::create_dir_all(&nvm_bin).unwrap();
+        // 假 node：shebang 解释器本体（真实场景里是 nvm/homebrew 的 node）
+        std::fs::write(
+            nvm_bin.join("pk-fake-node-xyz"),
+            "#!/bin/sh\nprintf '%s' '{\"identities\":{\"user\":{\"available\":true,\"userName\":\"补扫链路\"}}}'\n",
+        )
+        .unwrap();
+        // 假 lark-cli：shebang 指向 env + 唯一解释器名，验证子进程 PATH 补扫
+        let cli = nvm_bin.join("pk-fake-cli");
+        std::fs::write(&cli, "#!/usr/bin/env pk-fake-node-xyz\n").unwrap();
+        for f in [nvm_bin.join("pk-fake-node-xyz"), cli.clone()] {
+            std::fs::set_permissions(&f, std::fs::Permissions::from_mode(0o755)).unwrap();
+        }
+        // HOME 指到夹具：补扫目录才会包含夹具 nvm bin（PATH 保持真机原样，不干扰并行测试）
+        let prev = std::env::var_os("HOME");
+        std::env::set_var("HOME", &home);
+        let status = tauri::async_runtime::block_on(auth_status(cli.to_str().unwrap()));
+        if let Some(p) = prev {
+            std::env::set_var("HOME", p);
+        } else {
+            std::env::remove_var("HOME");
+        }
+        let s = status.expect("shebang 解释器经补扫 PATH 找到，命令应成功");
+        assert!(s.logged_in);
+        assert_eq!(s.user_name, "补扫链路");
+        std::fs::remove_dir_all(&home).ok();
     }
 
     /// 写一个假 lark-cli 脚本，按给定 shell 片段响应（unix）

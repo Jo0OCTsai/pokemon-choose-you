@@ -15,6 +15,39 @@ pub fn resolve(bin: &str) -> String {
     )
 }
 
+/// 子进程环境用的 PATH：进程原 PATH 在前、补扫目录在后。
+/// lark-cli / claude 等 CLI 多为 node 脚本（shebang `#!/usr/bin/env node`），
+/// 解析到 CLI 本体的绝对路径还不够——shebang 里的 `env node` 按子进程 PATH
+/// 找解释器，GUI 进程的 PATH 里没有 node 时退出码 127（env: node not found）。
+pub fn child_path() -> std::ffi::OsString {
+    child_path_in(
+        std::env::var_os("PATH"),
+        std::env::var_os("HOME")
+            .as_deref()
+            .map(std::path::Path::new),
+    )
+}
+
+/// child_path 的纯函数版（测试用）。
+fn child_path_in(
+    path_env: Option<std::ffi::OsString>,
+    home: Option<&std::path::Path>,
+) -> std::ffi::OsString {
+    std::env::join_paths(search_dirs(path_env, home)).unwrap_or_default()
+}
+
+/// 进程 PATH 各目录 + 补扫目录（resolve 与 child_path 共用的搜索序）。
+fn search_dirs(
+    path_env: Option<std::ffi::OsString>,
+    home: Option<&std::path::Path>,
+) -> Vec<std::path::PathBuf> {
+    let mut dirs: Vec<std::path::PathBuf> = path_env
+        .map(|p| std::env::split_paths(&p).collect())
+        .unwrap_or_default();
+    dirs.extend(extra_bin_dirs_in(home));
+    dirs
+}
+
 /// resolve 的纯函数版（测试用）：给定 PATH 与家目录解析 bin。
 fn resolve_in(
     bin: &str,
@@ -24,11 +57,7 @@ fn resolve_in(
     if bin.is_empty() || bin.contains('/') {
         return bin.to_string(); // 空名 / 显式路径（含 LARK_CLI_BIN 类注入）不改写
     }
-    let mut dirs: Vec<std::path::PathBuf> = path_env
-        .map(|p| std::env::split_paths(&p).collect())
-        .unwrap_or_default();
-    dirs.extend(extra_bin_dirs_in(home));
-    for dir in dirs {
+    for dir in search_dirs(path_env, home) {
         let f = dir.join(bin);
         if f.is_file() {
             return f.to_string_lossy().into_owned();
@@ -117,5 +146,31 @@ mod tests {
         );
         std::fs::remove_dir_all(&home).ok();
         std::fs::remove_dir_all(&on_path).ok();
+    }
+
+    /// 子进程 PATH 同样补扫：原 PATH 在前、补扫目录在后（shebang 的 env node 靠它找解释器）
+    #[cfg(unix)]
+    #[test]
+    fn child_path_appends_extra_dirs_after_original() {
+        let home = std::path::Path::new("/fake-home");
+        let got = child_path_in(Some(std::ffi::OsString::from("/usr/bin:/bin")), Some(home))
+            .to_string_lossy()
+            .into_owned();
+        let paths: Vec<&str> = got.split(':').collect();
+        assert_eq!(&paths[..2], &["/usr/bin", "/bin"], "原 PATH 保序在前");
+        assert!(paths.contains(&"/usr/local/bin"), "补扫目录跟在后面: {got}");
+        assert!(
+            got.contains("/fake-home/.nvm") || got.contains("/fake-home/.volta/bin"),
+            "家目录下的版本管理器目录也在: {got}"
+        );
+
+        // PATH 为空时仍只有补扫目录
+        let only = child_path_in(None, Some(home))
+            .to_string_lossy()
+            .into_owned();
+        assert!(
+            only.starts_with("/usr/local/bin"),
+            "空 PATH 退化为纯补扫: {only}"
+        );
     }
 }
