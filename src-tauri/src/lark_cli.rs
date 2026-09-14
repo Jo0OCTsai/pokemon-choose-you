@@ -6,9 +6,10 @@ use crate::error::{AppError, AppResult};
 use serde_json::Value;
 use std::time::Duration;
 
-/// lark-cli 可执行文件：LARK_CLI_BIN 可覆盖（测试注入脚本用）
+/// lark-cli 可执行文件：LARK_CLI_BIN 可覆盖（测试注入脚本用）。
+/// 裸命令名会解析成绝对路径——GUI 进程不继承登录 shell 的 PATH（见 which 模块）。
 pub fn lark_bin() -> String {
-    std::env::var("LARK_CLI_BIN").unwrap_or_else(|_| "lark-cli".into())
+    crate::which::resolve(&std::env::var("LARK_CLI_BIN").unwrap_or_else(|_| "lark-cli".into()))
 }
 
 /// 跑一条 lark-cli 命令，要求退出码 0，返回 stdout 文本
@@ -33,7 +34,7 @@ async fn run(bin: &str, args: &[&str], timeout: Duration) -> AppResult<String> {
     .map_err(|e| {
         if e.kind() == std::io::ErrorKind::NotFound {
             AppError::Invalid(
-                "找不到 lark-cli：请先 `npm install -g @larksuite/cli` 并重新登录终端".into(),
+                "找不到 lark-cli：请先 `npm install -g @larksuite/cli` 并重启本应用（若已安装，可用环境变量 LARK_CLI_BIN 指定其绝对路径）".into(),
             )
         } else {
             AppError::External(format!("启动 lark-cli 失败: {e}"))
