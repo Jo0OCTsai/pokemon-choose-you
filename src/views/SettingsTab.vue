@@ -12,6 +12,7 @@ import { useTasksStore } from "../stores/tasks";
 import type { AgentConfig, BackupInfo, FeishuOauthStatus, IntegrationHealth, LogEntry, RemotePkReport } from "../types";
 import { SUPPORTED_LOCALES } from "../i18n";
 import { BUNDLED_POKEMON, POKEMON_BY_KEY, mergePokemonQuotes, pokemonQuotesFor } from "../pokemon";
+import { clipWrite, openContextMenu } from "../contextMenu";
 import DexSelect from "../components/DexSelect.vue";
 import DexToggle from "../components/DexToggle.vue";
 import PokemonPicker from "../components/PokemonPicker.vue";
@@ -41,7 +42,10 @@ const notifyOn = boolSetting("notifications_enabled");
 const chimeOn = boolSetting("pomodoro_chime");
 const feishuOn = boolSetting("feishu_enabled");
 const nlCaptureOn = boolSetting("nl_capture_enabled");
+const closeToTrayOn = boolSetting("close_to_tray");
 const dueRelativeOn = boolSetting("due_relative");
+const reduceMotionOn = boolSetting("reduce_motion");
+const quietOn = boolSetting("quiet_hours_enabled");
 const overdueModeOptions = computed(() => [
   { value: "collapse", label: t("overdue.modeCollapse") },
   { value: "auto_grass", label: t("overdue.modeAuto") },
@@ -151,6 +155,41 @@ async function runExport(action: () => Promise<string>) {
   }
 }
 
+/** 另存为：系统保存对话框自选位置（与后端 stamp_now 同款时间戳做缺省文件名） */
+async function exportAs(kind: "json" | "csv" | "md") {
+  if (exporting.value) return;
+  const { save } = await import("@tauri-apps/plugin-dialog");
+  const now = new Date();
+  const p2 = (n: number) => String(n).padStart(2, "0");
+  const stamp = `${now.getFullYear()}${p2(now.getMonth() + 1)}${p2(now.getDate())}-${p2(now.getHours())}${p2(now.getMinutes())}${p2(now.getSeconds())}`;
+  const preset = {
+    json: { name: `pokemon-choose-you-full-${stamp}.json`, ext: "json" },
+    csv: { name: `pokemon-choose-you-tasks-${stamp}.csv`, ext: "csv" },
+    md: { name: `pokemon-choose-you-daily-${stamp}.md`, ext: "md" },
+  }[kind];
+  const dest = await save({
+    defaultPath: preset.name,
+    filters: [{ name: preset.ext.toUpperCase(), extensions: [preset.ext] }],
+  });
+  if (!dest) return; // 对话框取消
+  exporting.value = true;
+  exportMsg.value = "";
+  try {
+    const path =
+      kind === "json"
+        ? await api.exportJson(dest)
+        : kind === "csv"
+          ? await api.exportTasksCsv(dest)
+          : await api.exportDailyMd(undefined, dest);
+    exportMsg.value = t("export.savedTo", { v: path });
+  } catch (e) {
+    exportMsg.value = `❌ ${errorMessage(e)}`;
+  } finally {
+    exporting.value = false;
+    setTimeout(() => (exportMsg.value = ""), 6000);
+  }
+}
+
 function onImportFileChosen(e: Event) {
   const input = e.target as HTMLInputElement;
   const file = input.files?.[0];
@@ -222,6 +261,11 @@ const remindAheadOptions = computed(() =>
     label: n === 0 ? t("remind.onTime") : t("remind.aheadN", { n }),
   })),
 );
+/** 勿扰时段边界：整点下拉（跨零点区间如 22:00–08:00 由后端判断） */
+const quietTimeOptions = Array.from({ length: 24 }, (_, h) => {
+  const hh = String(h).padStart(2, "0");
+  return { value: `${hh}:00`, label: hh };
+});
 const dateFormatOptions = computed(() =>
   ["YYYY-MM-DD", "MM/DD/YYYY", "DD/MM/YYYY"].map((f) => ({ value: f, label: fmtDatePreview(f) })),
 );
@@ -601,6 +645,21 @@ const filteredLogs = computed(() => {
   return [...hit].reverse();
 });
 
+function logLineText(e: LogEntry): string {
+  return `${e.time} ${e.level.toUpperCase()} ${e.target} ${e.message}`;
+}
+
+/** 复制单行日志（悬停按钮或右键），结果借用支持报告的提示位反馈 */
+async function copyLogLine(e: LogEntry) {
+  const ok = await clipWrite(logLineText(e));
+  reportMsg.value = ok ? t("ctx.copied") : t("diag.reportFailed");
+  setTimeout(() => (reportMsg.value = ""), 2000);
+}
+
+function onLogContextMenu(ev: MouseEvent, e: LogEntry) {
+  openContextMenu(ev, [{ key: "copyLine", label: t("ctx.copyLine"), action: () => void copyLogLine(e) }]);
+}
+
 function loadDiagnostics() {
   void loadHealth();
   void loadLogs();
@@ -737,6 +796,16 @@ onUnmounted(() => unlisteners.forEach((u) => u()));
             {{ t("remind.ahead") }}
             <DexSelect v-model="settings.values.remind_ahead_minutes" :options="remindAheadOptions" />
           </label>
+          <label>{{ t("remind.quiet") }}<DexToggle v-model="quietOn" /></label>
+          <label>
+            {{ t("remind.quietStart") }}
+            <DexSelect v-model="settings.values.quiet_start" :options="quietTimeOptions" />
+          </label>
+          <label>
+            {{ t("remind.quietEnd") }}
+            <DexSelect v-model="settings.values.quiet_end" :options="quietTimeOptions" />
+          </label>
+          <p class="hint">{{ t("remind.quietHint") }}</p>
         </section>
       </template>
 
@@ -815,6 +884,7 @@ onUnmounted(() => unlisteners.forEach((u) => u()));
             <DexSelect v-model="settings.values.time_format" :options="timeFormatOptions" />
           </label>
           <label>{{ t("display.dueRelative") }}<DexToggle v-model="dueRelativeOn" /></label>
+          <label>{{ t("display.reduceMotion") }}<DexToggle v-model="reduceMotionOn" /></label>
           <label>
             {{ t("display.overdueMode") }}
             <DexSelect v-model="settings.values.overdue_mode" :options="overdueModeOptions" />
@@ -1028,11 +1098,18 @@ onUnmounted(() => unlisteners.forEach((u) => u()));
           <p v-if="reportMsg" class="hint">{{ reportMsg }}</p>
           <div class="log-view lcd">
             <div v-if="!filteredLogs.length" class="log-empty">{{ t("diag.logEmpty") }}</div>
-            <div v-for="(e, i) in filteredLogs" :key="i" class="log-line" :class="'lv-' + e.level">
+            <div
+              v-for="(e, i) in filteredLogs"
+              :key="i"
+              class="log-line"
+              :class="'lv-' + e.level"
+              @contextmenu.prevent.stop="onLogContextMenu($event, e)"
+            >
               <span class="log-time">{{ e.time }}</span>
               <span class="log-lv">{{ e.level.toUpperCase() }}</span>
               <span class="log-target">{{ e.target }}</span>
               <span class="log-msg">{{ e.message }}</span>
+              <button class="log-copy" :title="t('ctx.copyLine')" @click.stop="copyLogLine(e)">⧉</button>
             </div>
           </div>
         </section>
@@ -1044,6 +1121,7 @@ onUnmounted(() => unlisteners.forEach((u) => u()));
           <label
             >{{ t("general.autostart") }}<DexToggle :model-value="autostart" @update:model-value="onAutostart"
           /></label>
+          <label>{{ t("general.closeToTray") }}<DexToggle v-model="closeToTrayOn" /></label>
           <label>{{ t("general.nlCapture") }}<DexToggle v-model="nlCaptureOn" /></label>
           <p class="hint">{{ t("add.nlHint") }}</p>
           <p class="hint">{{ t("general.shortcuts") }}</p>
@@ -1100,6 +1178,17 @@ onUnmounted(() => unlisteners.forEach((u) => u()));
               {{ t("export.md") }}
             </button>
             <button class="btn ghost" @click="api.openExportsDir()">{{ t("export.openDir") }}</button>
+          </div>
+          <div class="backup-controls">
+            <button class="btn ghost" :disabled="exporting" @click="exportAs('json')">
+              {{ t("export.saveJson") }}
+            </button>
+            <button class="btn ghost" :disabled="exporting" @click="exportAs('csv')">
+              {{ t("export.saveCsv") }}
+            </button>
+            <button class="btn ghost" :disabled="exporting" @click="exportAs('md')">
+              {{ t("export.saveMd") }}
+            </button>
           </div>
           <p class="hint">{{ t("export.hint") }}</p>
           <div class="backup-controls">
@@ -1515,6 +1604,30 @@ onUnmounted(() => unlisteners.forEach((u) => u()));
   display: flex;
   gap: 8px;
   align-items: baseline;
+}
+/* 行内复制按钮：悬停行时出现，不挤占日志文本 */
+.log-copy {
+  flex: none;
+  border: 2px solid var(--lcd-text);
+  border-radius: 4px;
+  background: transparent;
+  color: var(--lcd-text);
+  font-size: 11px;
+  line-height: 1;
+  padding: 2px 5px;
+  cursor: pointer;
+  font-family: inherit;
+  opacity: 0;
+  align-self: center;
+}
+.log-line:hover .log-copy,
+.log-copy:focus-visible {
+  opacity: 0.85;
+}
+.log-copy:hover {
+  opacity: 1;
+  background: var(--lcd-text);
+  color: var(--lcd);
 }
 .log-time {
   flex: none;

@@ -130,11 +130,12 @@ export const api = {
   listBackups: () => call<BackupInfo[]>("list_backups"),
   createBackupNow: () => call<string>("create_backup_now"),
   restoreBackup: (file: string) => call<void>("restore_backup", { file }),
-  /** 导出/导入三件套：全量 JSON（可回导）/ 任务 CSV / 日报 Markdown，均返回产物文件名 */
-  exportJson: () => call<string>("export_json"),
+  /** 导出/导入三件套：全量 JSON（可回导）/ 任务 CSV / 日报 Markdown；默认目录返回文件名，dest 自选路径返回全路径 */
+  exportJson: (dest?: string) => call<string>("export_json", { dest: dest ?? null }),
   importJson: (content: string) => call<number>("import_json", { content }),
-  exportTasksCsv: () => call<string>("export_tasks_csv"),
-  exportDailyMd: (date?: string) => call<string>("export_daily_md", { date: date ?? null }),
+  exportTasksCsv: (dest?: string) => call<string>("export_tasks_csv", { dest: dest ?? null }),
+  exportDailyMd: (date?: string, dest?: string) =>
+    call<string>("export_daily_md", { date: date ?? null, dest: dest ?? null }),
   openExportsDir: () => call<void>("open_exports_dir"),
   listAllSettings: () => call<Record<string, string>>("list_all_settings"),
   openMainWindow: () => call<void>("open_main_window"),

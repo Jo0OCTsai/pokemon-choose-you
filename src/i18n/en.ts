@@ -15,6 +15,16 @@ export default {
   },
   dt: { none: "Not set", clear: "Clear" },
   error: { prefix: "The Dex hit a snag: " },
+  ctx: {
+    cut: "Cut",
+    copy: "Copy",
+    paste: "Paste",
+    selectAll: "Select All",
+    openDetail: "View details",
+    copyTitle: "Copy title",
+    copyLine: "Copy line",
+    copied: "✔ Copied",
+  },
   spine: {
     tips: [
       "Dex advice: don't bite off more than you can chew.",
@@ -179,10 +189,14 @@ export default {
   },
   remind: {
     title: "🔔 Reminders & Notifications",
-    enable: "Task reminder notifications (pet still hints even without system popups)",
+    enable: "Task reminder notifications (system popups and pet knock follow this switch together)",
     ahead: "Remind ahead",
     onTime: "On time",
     aheadN: "{n} min early",
+    quiet: "Quiet hours (silence non-urgent reminders; urgent still knocks)",
+    quietStart: "Quiet from",
+    quietEnd: "Quiet until",
+    quietHint: "e.g. 22:00–08:00: no reminder popups overnight, except urgent tasks.",
   },
   cats: {
     title: "🗂 Categories · Pokemon Outfits",
@@ -232,6 +246,7 @@ export default {
     h12: "12-hour (6:00 PM)",
     overdueMode: "Overdue display",
     dueRelative: 'Relative due times ("in 3h / tomorrow 3:00 PM / 2d overdue", colored by urgency)',
+    reduceMotion: "Reduce motion (stop blink & hop animations; auto-on when the OS reduce-motion preference is set)",
     preview: "Preview: {v}",
     language: "Language",
   },
@@ -325,6 +340,7 @@ export default {
   },
   general: {
     autostart: "Launch at login (pet appears automatically)",
+    closeToTray: "Close window to tray (app keeps running; quit from the tray menu)",
     nlCapture: "Natural-language quick capture (auto-detect time / category / tags in the input, always cancellable)",
     shortcuts: "Global shortcuts: Ctrl+Shift+K quick capture · Ctrl+Shift+D show/hide pet (⌘⇧K / ⌘⇧D on macOS)",
   },
@@ -416,6 +432,10 @@ export default {
     hint: "Exports land in the app data exports/ folder; the JSON can be imported on another machine (full replace, secrets untouched), and the Markdown report drops straight into a knowledge base.",
     pick: "Choose a JSON file…",
     chosen: "Chose {v}",
+    saveJson: "Save full JSON as…",
+    saveCsv: "Save tasks CSV as…",
+    saveMd: "Save today's report as…",
+    savedTo: "✔ Exported to {v}",
     notJson: "Please pick a .json export file",
     doImport: "Import",
     confirmImport: "Overwrite & import?",
@@ -468,6 +488,10 @@ export default {
   },
   pet: {
     welcome: "Which Pokémon will you catch today? Click me!",
+    menuDex: "Open Pokédex",
+    menuQuick: "Quick Dex screen",
+    menuPause: "Pause current task",
+    menuHide: "Hide pet",
     idle: "Today's adventure hasn't started—click me to pick a target",
     /** Idle bubble when a main Pokemon is set (speaks its name) */
     idleNamed: "{p} is waiting for you! Click me to pick a target",

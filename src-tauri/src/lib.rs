@@ -26,6 +26,8 @@ pub fn run() {
         }))
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_notification::init())
+        .plugin(tauri_plugin_clipboard_manager::init())
+        .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_autostart::init(
             tauri_plugin_autostart::MacosLauncher::LaunchAgent,
             None,
@@ -53,6 +55,15 @@ pub fn run() {
         )
         .setup(|app| {
             use tauri::Manager;
+            // panic 显式捕获进轮转日志（诊断页/支持报告可见），再交还默认 hook 保留 stderr 输出
+            let default_panic = std::panic::take_hook();
+            std::panic::set_hook(Box::new(move |info| {
+                log::error!(
+                    "[panic] {info}\n{}",
+                    std::backtrace::Backtrace::force_capture()
+                );
+                default_panic(info);
+            }));
             // macOS：桌宠型常驻应用不占 Dock 图标（Accessory），入口收敛到托盘与快捷键。
             // Builder 上无此方法，须在 App 上设置（macOS 专属 API）
             #[cfg(target_os = "macos")]
@@ -138,6 +149,26 @@ pub fn run() {
         .expect("error while building tauri application");
 
     app.run(|app_handle, event| {
+        // 关闭主窗口 → 隐藏到托盘（常驻应用惯例；退出入口在托盘菜单）。设置可改为真关闭。
+        if let tauri::RunEvent::WindowEvent {
+            label,
+            event: tauri::WindowEvent::CloseRequested { api, .. },
+            ..
+        } = &event
+        {
+            if label == "main" && commands::windows::close_to_tray_enabled(app_handle) {
+                use tauri::Manager;
+                api.prevent_close();
+                if let Some(win) = app_handle.get_webview_window("main") {
+                    use tauri_plugin_window_state::AppHandleExt;
+                    // 隐藏即长期驻留：显式落一次窗口状态（与插件配置一致只存 POSITION），
+                    // 避免退出时 Destroyed 时序漏存
+                    let _ = app_handle
+                        .save_window_state(tauri_plugin_window_state::StateFlags::POSITION);
+                    let _ = win.hide();
+                }
+            }
+        }
         // main 窗口销毁后按需重建（Linux 上桌宠双击走销毁重开路径）。
         // 回调收到 Destroyed 时 label 已从管理器注销，直接建新窗口无同名冲突。
         if let tauri::RunEvent::WindowEvent {

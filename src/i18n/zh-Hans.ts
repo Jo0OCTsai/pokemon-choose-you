@@ -15,6 +15,16 @@ export default {
   },
   dt: { none: "未设置", clear: "清空" },
   error: { prefix: "图鉴机遇到了点状况：" },
+  ctx: {
+    cut: "剪切",
+    copy: "复制",
+    paste: "粘贴",
+    selectAll: "全选",
+    openDetail: "查看详情",
+    copyTitle: "复制标题",
+    copyLine: "复制本行",
+    copied: "✔ 已复制",
+  },
   spine: {
     tips: [
       "图鉴机忠告：贪多嚼不烂。",
@@ -178,10 +188,14 @@ export default {
   },
   remind: {
     title: "🔔 提醒与通知",
-    enable: "任务提醒通知（关闭后桌宠仍会提示，但不弹系统通知）",
+    enable: "任务提醒通知（系统通知与桌宠敲门提醒一起开关）",
     ahead: "提前提醒",
     onTime: "准时",
     aheadN: "提前 {n} 分钟",
+    quiet: "勿扰时段（时段内静默非紧急提醒，紧急任务仍敲门）",
+    quietStart: "勿扰开始",
+    quietEnd: "勿扰结束",
+    quietHint: "例如 22:00–08:00：深夜到清晨不再弹提醒打扰，紧急任务除外。",
   },
   cats: {
     title: "🗂 任务分类 · 宝可梦换装",
@@ -228,6 +242,7 @@ export default {
     h12: "12 小时制（6:00 PM）",
     overdueMode: "逾期任务展示",
     dueRelative: "相对截止时间（显示为「3 小时后 / 明天 15:00 / 已逾期 2 天」并按临近程度变色）",
+    reduceMotion: "减弱动效（停用闪烁与蹦跳动画；系统开启「减弱动态效果」时自动生效）",
     preview: "预览：{v}",
     language: "语言",
   },
@@ -319,6 +334,7 @@ export default {
   },
   general: {
     autostart: "开机自动启动（登录后桌宠自动出现）",
+    closeToTray: "关闭主窗口时收到托盘（应用继续驻留；托盘菜单可退出）",
     nlCapture: "自然语言快速捕捉（输入框自动识别时间 / 分类 / 标签，可随时取消）",
     shortcuts: "全局快捷键：Ctrl+Shift+K 快速捕捉待办 · Ctrl+Shift+D 显示/隐藏桌宠（macOS 为 ⌘⇧K / ⌘⇧D）",
   },
@@ -410,6 +426,10 @@ export default {
     hint: "导出产物在应用数据目录 exports/ 下；JSON 可在别的机器导入（整体覆盖，秘钥不受影响），Markdown 日报可直接并入知识库。",
     pick: "选择 JSON 文件…",
     chosen: "已选 {v}",
+    saveJson: "另存全量 JSON…",
+    saveCsv: "另存任务 CSV…",
+    saveMd: "另存今日日报…",
+    savedTo: "✔ 已导出到 {v}",
     notJson: "请选择 .json 导出文件",
     doImport: "导入",
     confirmImport: "确认覆盖导入？",
@@ -461,6 +481,10 @@ export default {
   },
   pet: {
     welcome: "今天想捕捉哪只宝可梦？点我出发！",
+    menuDex: "打开图鉴机",
+    menuQuick: "快捷图鉴屏",
+    menuPause: "暂停当前任务",
+    menuHide: "隐藏桌宠",
     idle: "今天的冒险还没开始，点击我挑个目标吧",
     /** 设了主宝可梦时的待机气泡（说出它的名字） */
     idleNamed: "{p}在等你出发！点我挑个目标吧",
