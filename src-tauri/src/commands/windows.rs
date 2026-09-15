@@ -132,12 +132,19 @@ mod tests {
             app.get_webview_window("main").is_some(),
             "关闭后应重建 main 窗口"
         );
-        // 再次调用（窗口存在）：销毁并挂起重开；mock 不驱动事件循环，Destroyed 回调由下方手动模拟
-        open_main_window(app.handle().clone()).expect("再次调用销毁旧窗口");
+        // 再次调用（窗口存在）：Linux 销毁旧窗口并挂起重开（mock 不驱动事件循环，
+        // Destroyed 回调由下方手动模拟）；macOS/Windows 走恢复置前，不会置位
+        open_main_window(app.handle().clone()).expect("再次调用处理已有窗口");
+        #[cfg(target_os = "linux")]
         assert!(
             app.state::<PendingMainReopen>().0.load(Ordering::SeqCst),
-            "应挂起重开请求"
+            "Linux 上应挂起重开请求"
         );
+        // 非 Linux 路径不置位，手动置位以覆盖 Destroyed 回调对标记的消费逻辑
+        #[cfg(not(target_os = "linux"))]
+        app.state::<PendingMainReopen>()
+            .0
+            .store(true, Ordering::SeqCst);
         reopen_main_if_pending(app.handle());
         assert!(
             !app.state::<PendingMainReopen>().0.load(Ordering::SeqCst),

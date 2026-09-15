@@ -88,7 +88,7 @@ async fn spawn_line_in_terminal(line: &str) -> AppResult<&'static str> {
         {
             return Ok("Terminal");
         }
-        return Err(AppError::External("无法打开 macOS 终端".into()));
+        Err(AppError::External("无法打开 macOS 终端".into()))
     }
 
     #[cfg(target_os = "windows")]
