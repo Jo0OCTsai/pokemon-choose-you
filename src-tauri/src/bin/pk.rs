@@ -93,6 +93,9 @@ const HELP: &str = r#"pk — 就决定是你了命令行（供 AI agent 与终�
 
 fn main() {
     let args: Vec<String> = std::env::args().skip(1).collect();
+    // 应用拉起的 agent 场景下把执行轨迹写回应用日志文件（PK_LOG_FILE 由应用注入、
+    // 经 agent 的 Bash 工具继承到这里；终端手工使用时无此变量，静默跳过）
+    cli_log("INFO", &format!("pk {}", args.join(" ")));
     if args.is_empty()
         || args
             .iter()
@@ -165,8 +168,38 @@ impl From<String> for CliError {
 }
 
 fn fail(msg: &str, code: i32) -> ! {
+    cli_log("ERROR", &format!("失败退出（码 {code}）: {msg}"));
     eprintln!("{}", json!({ "error": msg }));
     std::process::exit(code);
+}
+
+/// 往应用日志文件追加一行轨迹。格式与 tauri-plugin-log 一致
+/// （`[日期][时间][target][级别] 消息`，时间为 UTC），诊断页日志视图按此解析；
+/// 单行一次 O_APPEND 写入，与应用进程的写入交错安全；任何失败静默放弃（日志不碍主流程）。
+fn cli_log(level: &str, msg: &str) {
+    let Some(path) = std::env::var_os("PK_LOG_FILE") else {
+        return;
+    };
+    let line = format_log_line(chrono::Utc::now(), level, msg);
+    use std::io::Write as _;
+    let Ok(mut f) = std::fs::OpenOptions::new()
+        .create(true)
+        .append(true)
+        .open(path)
+    else {
+        return;
+    };
+    let _ = writeln!(f, "{line}");
+}
+
+fn format_log_line(now: chrono::DateTime<chrono::Utc>, level: &str, msg: &str) -> String {
+    format!(
+        "[{}][{}][pk][{}] {}",
+        now.format("%Y-%m-%d"),
+        now.format("%H:%M:%S"),
+        level,
+        msg.replace('\n', " ")
+    )
 }
 
 /// 与 tauri 的 app_data_dir 同一规则：data_dir/<identifier>/<db>。
@@ -918,6 +951,16 @@ fn suggest_batch_from_str(
         apply_suggestion(&tx, s, agent)?;
     }
     tx.commit().map_err(sq_err)?;
+    let line = format!(
+        "suggest batch 提交 {} 条（todo {} / update {} / followUp {} / none {}）agent={}",
+        list.len(),
+        n_todo,
+        n_update,
+        n_follow,
+        list.len() - n_todo - n_update - n_follow,
+        agent
+    );
+    cli_log("INFO", &line);
     Ok(json!({
         "submitted": list.len(),
         "todo": n_todo,
@@ -1566,6 +1609,22 @@ mod tests {
     fn create(conn: &mut Connection, title: &str) -> i64 {
         let out = run_ok(conn, &["task", "create", "--title", title]);
         out["created"]["id"].as_i64().unwrap()
+    }
+
+    /// pk 写进应用日志文件的行必须能被诊断页的日志解析器识别（target=pk、级别正确），
+    /// 否则 agent 的 pk 调用在日志视图里不可见
+    #[test]
+    fn cli_log_line_parses_as_log_entry() {
+        let now = chrono::Utc::now();
+        let line = format_log_line(now, "INFO", "pk suggest batch --agent claude-code");
+        let entries = pokemon_choose_you_lib::commands::diagnostics::parse_log_lines(&line);
+        let e = entries.first().expect("单行应解析为一条日志");
+        assert_eq!(e.target, "pk");
+        assert_eq!(e.level, "info");
+        assert_eq!(e.message, "pk suggest batch --agent claude-code");
+        // 换行压平成空格：日志文件一行一条，诊断页按行解析
+        let multi = format_log_line(now, "ERROR", "失败退出（码 1）: 带换行\n的消息");
+        assert!(!multi.contains('\n'), "消息内换行须压平: {multi}");
     }
 
     #[test]

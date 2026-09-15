@@ -8,6 +8,7 @@ mod events;
 mod feishu;
 mod health;
 mod lark_cli;
+mod logshare;
 pub mod models;
 mod scheduler;
 mod secrets;
@@ -50,6 +51,9 @@ pub fn run() {
                 } else {
                     log::LevelFilter::Info
                 })
+                // keyring-core 每次钥匙串读写打 3-4 行 debug（含条目内幕），刷满日志文件；
+                // 秘钥读写本身只有 warn 才值得看
+                .level_for("keyring_core", log::LevelFilter::Warn)
                 .max_file_size(512_000)
                 .rotation_strategy(tauri_plugin_log::RotationStrategy::KeepOne)
                 .build(),
@@ -70,6 +74,9 @@ pub fn run() {
             #[cfg(target_os = "macos")]
             app.set_activation_policy(tauri::ActivationPolicy::Accessory);
             db::init(app.handle())?;
+            // 登记插件日志文件路径：拉起 agent 时注入 PK_LOG_FILE，让 pk 的执行轨迹
+            // 写回同一日志文件（诊断页可见），见 logshare 模块
+            logshare::init(app.path().app_log_dir().ok(), &app.package_info().name);
             app.manage(commands::windows::PendingMainReopen(
                 std::sync::atomic::AtomicBool::new(false),
             ));

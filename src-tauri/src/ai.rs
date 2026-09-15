@@ -1,5 +1,6 @@
 use crate::error::{AppError, AppResult};
 use serde::{Deserialize, Serialize};
+use std::path::PathBuf;
 use std::time::Duration;
 use tokio::io::AsyncWriteExt;
 
@@ -533,7 +534,7 @@ async fn classify_tools_with_session(
     let missed = suggestions.iter().filter(|s| s.action == "pending").count();
     if missed == batch.len() {
         return Err(AppError::External(format!(
-            "agent「{}」执行完成但没有任何判定落库（{} 条全部遗漏）——请确认其无头模式允许执行 pk 命令（工具白名单）、pk 在 PATH 中；可用「测试」按钮跑一次工具探针",
+            "agent「{}」执行完成但没有任何判定落库（{} 条全部遗漏）——请确认其无头模式允许执行 pk 命令（工具白名单，本机 pk 目录已随调用注入 PATH）；可用「测试」按钮跑一次工具探针",
             agent.name, missed
         )));
     }
@@ -544,7 +545,21 @@ async fn classify_tools_with_session(
 pub async fn run_agent(agent: &AgentConfig, prompt: &str) -> AppResult<String> {
     let inv = build_invocation(agent, prompt);
     let timeout = Duration::from_secs(agent.timeout_secs.max(MIN_TIMEOUT_SECS));
-    run_process(&inv.program, &inv.argv, inv.stdin.as_deref(), timeout)
+    // 本地调用把随应用分发的 pk 所在目录前插进子进程 PATH：GUI 进程不继承登录 shell 的
+    // PATH，agent 的 Bash 工具里裸名 pk 找不到（开发态在 target/debug，安装态在应用目录）；
+    // 远程模式由远端 shim 负责可达，不注入
+    let pk_dir = if inv.remote_host.is_none() {
+        crate::commands::remote_pk::locate_pk().and_then(|p| p.parent().map(PathBuf::from))
+    } else {
+        None
+    };
+    run_process(
+        &inv.program,
+        &inv.argv,
+        inv.stdin.as_deref(),
+        pk_dir.as_deref(),
+        timeout,
+    )
         .await
         .map_err(|e| match &inv.remote_host {
             Some(host) => {
@@ -562,19 +577,21 @@ pub async fn run_agent(agent: &AgentConfig, prompt: &str) -> AppResult<String> {
 
 /// 启动外部进程并等待结束，返回 stdout。进程未找到给出可操作的提示；
 /// Windows 上 npm 全局命令多为 .cmd 垫片，直接 spawn 会失败，回退 cmd /C 再试一次。
+/// pk_dir 非空时前插进子进程 PATH（见 run_agent）。
 async fn run_process(
     program: &str,
     argv: &[String],
     stdin: Option<&str>,
+    pk_dir: Option<&std::path::Path>,
     timeout: Duration,
 ) -> AppResult<String> {
-    match spawn_and_wait(program, argv, stdin, timeout).await {
+    match spawn_and_wait(program, argv, stdin, pk_dir, timeout).await {
         Ok(out) => Ok(out),
         #[cfg(windows)]
         Err(AppError::Invalid(_)) => {
             let mut cmd_argv = vec!["/C".to_string(), program.to_string()];
             cmd_argv.extend(argv.iter().cloned());
-            spawn_and_wait("cmd", &cmd_argv, stdin, timeout).await
+            spawn_and_wait("cmd", &cmd_argv, stdin, pk_dir, timeout).await
         }
         Err(e) => Err(e),
     }
@@ -584,9 +601,18 @@ async fn spawn_and_wait(
     program: &str,
     argv: &[String],
     stdin: Option<&str>,
+    pk_dir: Option<&std::path::Path>,
     timeout: Duration,
 ) -> AppResult<String> {
     let mut cmd = tokio::process::Command::new(program);
+    if let Some(path) = pk_dir.and_then(augmented_path) {
+        cmd.env("PATH", path);
+    }
+    // 注入共享日志文件路径：agent 的 Bash 工具把它继承给 pk，pk 的执行轨迹
+    // 写回应用日志（诊断页可见）；远程 ssh 模式下环境不透传，等价于无日志，无副作用
+    if let Some(log_file) = crate::logshare::agent_log_file() {
+        cmd.env("PK_LOG_FILE", log_file);
+    }
     cmd.args(argv)
         .stdin(if stdin.is_some() {
             std::process::Stdio::piped()
@@ -640,6 +666,22 @@ fn spawn_error(program: &str, e: std::io::Error) -> AppError {
     } else {
         AppError::External(format!("启动「{program}」失败: {e}"))
     }
+}
+
+/// pk 目录前插到当前 PATH 前面（保留原有条目）；当前进程没有 PATH 或拼接失败时返回
+/// None，保持子进程环境原样
+fn augmented_path(dir: &std::path::Path) -> Option<std::ffi::OsString> {
+    augment_path(dir, std::env::var_os("PATH"))
+}
+
+/// augmented_path 的纯函数版（测试用）
+fn augment_path(
+    dir: &std::path::Path,
+    base: Option<std::ffi::OsString>,
+) -> Option<std::ffi::OsString> {
+    let mut dirs = vec![dir.to_path_buf()];
+    dirs.extend(std::env::split_paths(&base?));
+    std::env::join_paths(dirs).ok()
 }
 
 /// agent 的输出风格各异：`claude --output-format json` 会把回答再包一层 {"result":"..."}，
@@ -738,7 +780,7 @@ async fn test_tools(agent: &AgentConfig) -> AppResult<String> {
     } else {
         // 带上 agent 的实际回复片段：被工具白名单拦下 / pk 不在 PATH / 模型自说自话，一眼可辨
         Err(AppError::External(format!(
-            "Agent 调用成功但未返回 pk context 输出——请确认 agent 无头模式允许执行 pk 命令（工具白名单，如 claude 附加参数 --allowedTools Bash(pk:*)，注意参数按空白切分、不要加引号），以及 pk 在 PATH 中。agent 回复片段：{}",
+            "Agent 调用成功但未返回 pk context 输出——请确认 agent 无头模式允许执行 pk 命令（工具白名单，如 claude 附加参数 --allowedTools Bash(pk:*)，注意参数按空白切分、不要加引号；本机 pk 目录已自动注入 agent 的 PATH，若 agent 仍找不到 pk，开发态多为占位未构建，先跑 cargo build --bin pk）。agent 回复片段：{}",
             trunc(content.trim(), 200)
         )))
     }
@@ -1372,6 +1414,7 @@ mod tests {
                 &agent.command,
                 &[],
                 None,
+                None,
                 Duration::from_secs(1),
             ))
             .unwrap_err();
@@ -1415,5 +1458,58 @@ mod tests {
             let msg = tauri::async_runtime::block_on(test(&blind)).unwrap();
             assert!(msg.contains("未识别"), "未识别时给出建议: {msg}");
         }
+
+        /// 本地调用注入 pk 目录：agent 子进程里裸名 pk 可解析（GUI 进程 PATH 缺失的回归）
+        #[test]
+        fn local_agent_sees_injected_pk_dir_on_path() {
+            let dir = std::env::temp_dir().join(format!("pk-path-test-{}", std::process::id()));
+            let pk_dir = dir.join("bundled");
+            std::fs::create_dir_all(&pk_dir).unwrap();
+            {
+                use std::os::unix::fs::PermissionsExt;
+                std::fs::write(pk_dir.join("pk"), "#!/bin/sh\nprintf 'openTasks:[]'").unwrap();
+                std::fs::set_permissions(pk_dir.join("pk"), std::fs::Permissions::from_mode(0o755))
+                    .unwrap();
+            }
+            // 假 agent 即一段 shell：直接跑裸名 pk，PATH 未注入时必然 command not found
+            let agent = dir.join("agent.sh");
+            std::fs::write(&agent, "#!/bin/sh\npk context\n").unwrap();
+            {
+                use std::os::unix::fs::PermissionsExt;
+                std::fs::set_permissions(&agent, std::fs::Permissions::from_mode(0o755)).unwrap();
+            }
+            let out = tauri::async_runtime::block_on(run_process(
+                agent.to_string_lossy().as_ref(),
+                &[],
+                None,
+                Some(&pk_dir),
+                Duration::from_secs(10),
+            ))
+            .unwrap();
+            assert!(
+                out.contains("openTasks"),
+                "注入的 pk 目录应排在子进程 PATH 首位，裸名 pk 可执行: {out}"
+            );
+            std::fs::remove_dir_all(&dir).ok();
+        }
+    }
+
+    /// PATH 前插：注入目录排最前、原有条目全保留；无 PATH 时返回 None 保持原环境
+    #[cfg(unix)]
+    #[test]
+    fn augment_path_prepends_dir_and_keeps_entries() {
+        let base = std::env::join_paths(["/usr/bin", "/bin"]).ok();
+        let got = augment_path(std::path::Path::new("/opt/app"), base).unwrap();
+        let parts: Vec<PathBuf> = std::env::split_paths(&got).collect();
+        assert_eq!(parts[0], PathBuf::from("/opt/app"), "注入目录排最前");
+        assert!(
+            parts.contains(&PathBuf::from("/usr/bin")),
+            "原有条目保留: {got:?}"
+        );
+        assert_eq!(
+            augment_path(std::path::Path::new("/opt/app"), None),
+            None,
+            "无 PATH 时不改写环境"
+        );
     }
 }
