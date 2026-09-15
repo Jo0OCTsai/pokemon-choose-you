@@ -1252,13 +1252,15 @@ onUnmounted(() => unlisteners.forEach((u) => u()));
   display: flex;
   flex-direction: column;
   gap: 14px;
-  padding: 4px 0 20px;
+  padding: 4px 20px 20px;
 }
+/* 跟随窗口伸缩，超过阅读舒适宽度后收口居中（水平留白移到 .set-body 的 padding） */
 .settings-tabs,
 .set-card {
-  max-width: 680px;
-  margin-left: 20px;
-  margin-right: 20px;
+  width: 100%;
+  max-width: 920px;
+  margin-left: auto;
+  margin-right: auto;
 }
 /* 设置分区选单：初代菜单样式 */
 .settings-tabs {

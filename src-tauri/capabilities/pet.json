@@ -1,13 +1,17 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "pet",
-  "description": "桌宠窗口：核心 API + 拖动/调高 + 番茄钟通知 + 右键菜单隐藏",
+  "description": "桌宠窗口：核心 API + 拖动/调高 + 点击穿透 + 番茄钟通知 + 右键菜单隐藏",
   "windows": ["pet"],
   "permissions": [
     "core:default",
     "core:window:allow-start-dragging",
     "core:window:allow-set-size",
     "core:window:allow-hide",
+    "core:window:allow-set-ignore-cursor-events",
+    "core:window:allow-cursor-position",
+    "core:window:allow-outer-position",
+    "core:window:allow-scale-factor",
     "notification:default"
   ]
 }
