@@ -11,6 +11,7 @@ import { useSettingsStore } from "./stores/settings";
 import { useCategoriesStore } from "./stores/categories";
 import { usePomodoro } from "./composables/usePomodoro";
 import { usePetDrag } from "./composables/usePetDrag";
+import { usePetClickThrough } from "./composables/usePetClickThrough";
 import { openContextMenu, type ContextMenuItem } from "./contextMenu";
 import PokemonSprite from "./components/PokemonSprite.vue";
 import DexContextMenu from "./components/DexContextMenu.vue";
@@ -215,6 +216,9 @@ async function onSpriteDblClick() {
 // 手动拖拽（Linux/WebKit 下 data-tauri-drag-region 不可靠）
 const { onDragStart, onDragMove, onDragEnd } = usePetDrag(petWindow);
 
+// 透明区域点击穿透：精灵两侧/快捷屏下方的空白放行给下层应用（见 composable 注释）
+let disposeClickThrough: (() => void) | null = null;
+
 /** 桌宠右键菜单：无桌宠操作按钮悬浮提示后的常驻入口（图鉴机/快捷屏/暂停/隐藏） */
 function onPetContextMenu(e: MouseEvent) {
   e.preventDefault();
@@ -273,6 +277,7 @@ async function snoozeFromReminder() {
 
 const unlisteners: UnlistenFn[] = [];
 onMounted(async () => {
+  disposeClickThrough = usePetClickThrough();
   await Promise.all([categories.load(), settings.load()]);
   await refreshCurrent();
 
@@ -313,6 +318,7 @@ onMounted(async () => {
 onUnmounted(() => {
   unlisteners.forEach((u) => u());
   if (clickTimer) clearTimeout(clickTimer);
+  disposeClickThrough?.();
 });
 </script>
 
@@ -417,6 +423,12 @@ onUnmounted(() => {
   height: 100vh;
   position: relative;
   font-family: "Noto Sans CJK SC", "Noto Sans SC", "PingFang SC", "Microsoft YaHei", sans-serif;
+  /* 空白区不接鼠标：事件与点击穿透的命中检测都只看实体子元素
+     （子元素恢复 auto；事件仍会冒泡到 stage 的拖拽处理器） */
+  pointer-events: none;
+}
+.pet-stage > * {
+  pointer-events: auto;
 }
 
 /* 初代对话框：白底 + 双线框，全宽在精灵下方 */

@@ -8,12 +8,16 @@
     <title>桌宠</title>
     <style>
       html,
-      body {
+      body,
+      /* 页面根与挂载容器一律不接鼠标：桌宠空白区的点击穿透按「实体子元素」
+         命中检测（usePetClickThrough），容器自身必须让开 */
+      #app {
         margin: 0;
         padding: 0;
         background: transparent;
         overflow: hidden;
         user-select: none;
+        pointer-events: none;
       }
     </style>
   </head>

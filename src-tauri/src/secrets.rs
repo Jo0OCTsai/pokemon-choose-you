@@ -91,9 +91,11 @@ fn keyring_available() -> bool {
     })
 }
 
-/// 读秘钥：钥匙串优先，回落 settings 表
+/// 读秘钥：钥匙串优先，回落 settings 表。
+/// 只有秘钥键才查钥匙串——settings_getter 把所有设置键都路由到这里，飞书轮询等
+/// 高频调用方每个键都跑一趟 Keychain IPC，既慢又把 keyring_core 的 debug 日志刷满。
 pub fn secret_get(conn: &Connection, key: &str) -> Option<String> {
-    if keyring_available() {
+    if is_secret_key(key) && keyring_available() {
         if let Ok(entry) = keyring::Entry::new(SERVICE, key) {
             match entry.get_password() {
                 Ok(v) if !v.is_empty() => return Some(v),
