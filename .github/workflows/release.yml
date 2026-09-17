@@ -50,7 +50,8 @@ jobs:
           - platform: windows-latest # Windows (NSIS 安装包)
             args: ""
           - platform: ubuntu-22.04 # Linux (deb / rpm / AppImage)，22.04 的 glibc 较老、产物兼容性好
-            args: ""
+            # productName「POKéMON Choose You」含空格与非 ASCII，deb/rpm 包名不合法：Linux 打包覆盖回 ASCII 产品名
+            args: "--config src-tauri/tauri.linux.conf.json"
     runs-on: ${{ matrix.platform }}
     steps:
       - uses: actions/checkout@v7

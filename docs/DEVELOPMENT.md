@@ -17,6 +17,8 @@ npm run tauri build   # 打包 (macOS: dmg / Windows: NSIS / Linux: deb·rpm·Ap
 
 首次运行还需要中文字体（WSLg）：`~/.local/share/fonts` 放入 Noto Sans CJK 即可；NVIDIA 显卡白屏/黑块等平台坑位见 [平台注意事项](PLATFORM_NOTES.md)。
 
+应用显示名 `POKéMON Choose You`（中文系统经 `src-tauri/resources/*.lproj/InfoPlist.strings` 显示「就决定是你了」）；Linux 本地打包需加 `--config src-tauri/tauri.linux.conf.json` 覆盖回 ASCII 产品名（deb/rpm 包名不认空格与非 ASCII），release 流水线已自带。
+
 ## 常用命令
 
 | 命令 | 说明 |
