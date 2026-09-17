@@ -605,7 +605,14 @@ async fn spawn_and_wait(
     timeout: Duration,
 ) -> AppResult<String> {
     let mut cmd = tokio::process::Command::new(program);
-    if let Some(path) = pk_dir.and_then(augmented_path) {
+    // PATH 补齐（见 which 模块）：node 脚本 agent（claude 等）的 shebang 依赖
+    // env node，GUI 精简 PATH 下会 127；pk_dir 前插让 agent 的 Bash 工具里裸名 pk 可解析
+    let mut extra_dirs = pk_dir
+        .map(|d| d.to_path_buf())
+        .into_iter()
+        .collect::<Vec<_>>();
+    extra_dirs.extend(crate::which::script_host_dirs(program));
+    if let Some(path) = crate::which::augmented_path(&extra_dirs) {
         cmd.env("PATH", path);
     }
     // 注入共享日志文件路径：agent 的 Bash 工具把它继承给 pk，pk 的执行轨迹
@@ -670,20 +677,6 @@ fn spawn_error(program: &str, e: std::io::Error) -> AppError {
 
 /// pk 目录前插到当前 PATH 前面（保留原有条目）；当前进程没有 PATH 或拼接失败时返回
 /// None，保持子进程环境原样
-fn augmented_path(dir: &std::path::Path) -> Option<std::ffi::OsString> {
-    augment_path(dir, std::env::var_os("PATH"))
-}
-
-/// augmented_path 的纯函数版（测试用）
-fn augment_path(
-    dir: &std::path::Path,
-    base: Option<std::ffi::OsString>,
-) -> Option<std::ffi::OsString> {
-    let mut dirs = vec![dir.to_path_buf()];
-    dirs.extend(std::env::split_paths(&base?));
-    std::env::join_paths(dirs).ok()
-}
-
 /// agent 的输出风格各异：`claude --output-format json` 会把回答再包一层 {"result":"..."}，
 /// 先解出内层文本再走常规解析
 fn extract_payload(content: &str) -> (String, Option<String>) {
@@ -1492,24 +1485,5 @@ mod tests {
             );
             std::fs::remove_dir_all(&dir).ok();
         }
-    }
-
-    /// PATH 前插：注入目录排最前、原有条目全保留；无 PATH 时返回 None 保持原环境
-    #[cfg(unix)]
-    #[test]
-    fn augment_path_prepends_dir_and_keeps_entries() {
-        let base = std::env::join_paths(["/usr/bin", "/bin"]).ok();
-        let got = augment_path(std::path::Path::new("/opt/app"), base).unwrap();
-        let parts: Vec<PathBuf> = std::env::split_paths(&got).collect();
-        assert_eq!(parts[0], PathBuf::from("/opt/app"), "注入目录排最前");
-        assert!(
-            parts.contains(&PathBuf::from("/usr/bin")),
-            "原有条目保留: {got:?}"
-        );
-        assert_eq!(
-            augment_path(std::path::Path::new("/opt/app"), None),
-            None,
-            "无 PATH 时不改写环境"
-        );
     }
 }
