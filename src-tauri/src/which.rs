@@ -65,6 +65,39 @@ fn extra_bin_dirs_in(home: Option<&std::path::Path>) -> Vec<std::path::PathBuf> 
     dirs
 }
 
+/// node 脚本宿主目录：脚本所在目录 + node 解析出的所在目录（去重；裸命令名无
+/// 父目录则跳过）。npm 全局 bin 里 node 与 CLI 同目录——lark-cli / claude 等
+/// `#!/usr/bin/env node` 脚本被直接 spawn 时，GUI 进程的精简 PATH 会让 shebang
+/// 里的 env node 找不到 node（退出码 127: env: node: No such file or directory）。
+pub fn script_host_dirs(bin: &str) -> Vec<std::path::PathBuf> {
+    script_host_dirs_in(bin, &resolve("node"))
+}
+
+/// script_host_dirs 的纯函数版（测试用）
+fn script_host_dirs_in(bin: &str, node_bin: &str) -> Vec<std::path::PathBuf> {
+    let mut dirs: Vec<std::path::PathBuf> = Vec::new();
+    for cand in [bin, node_bin] {
+        if let Some(dir) = std::path::Path::new(cand).parent() {
+            if !dir.as_os_str().is_empty() && !dirs.iter().any(|d| d == dir) {
+                dirs.push(dir.to_path_buf());
+            }
+        }
+    }
+    dirs
+}
+
+/// 子进程 PATH：extra 目录前插、进程 PATH 保留在后；extra 为空时返回 None（不改写环境）
+pub fn augmented_path(extra: &[std::path::PathBuf]) -> Option<std::ffi::OsString> {
+    if extra.is_empty() {
+        return None;
+    }
+    let mut all = extra.to_vec();
+    if let Some(base) = std::env::var_os("PATH") {
+        all.extend(std::env::split_paths(&base));
+    }
+    std::env::join_paths(all).ok()
+}
+
 /// nvm 版本目录名（如 v20.11.1）的排序键：按段数字比较，避免字典序把 v9 排在 v20 后
 fn node_version_key(bin_dir: &std::path::Path) -> Vec<u64> {
     bin_dir
@@ -117,5 +150,44 @@ mod tests {
         );
         std::fs::remove_dir_all(&home).ok();
         std::fs::remove_dir_all(&on_path).ok();
+    }
+
+    /// 回归：lark-cli 等 npm 全局 CLI 是 #!/usr/bin/env node 脚本，直接 spawn 时
+    /// shebang 的 env node 要在子进程 PATH 里找到 node——宿主目录须含脚本与 node 所在目录
+    #[test]
+    fn script_host_dirs_cover_bin_and_node() {
+        // 脚本与 node 同目录（npm 全局 bin 的常态）：去重为一个
+        assert_eq!(
+            script_host_dirs_in("/nvm/v20/bin/lark-cli", "/nvm/v20/bin/node"),
+            vec![std::path::PathBuf::from("/nvm/v20/bin")]
+        );
+        // 不同目录：两个都收，脚本目录优先
+        assert_eq!(
+            script_host_dirs_in("/nvm/v20/bin/lark-cli", "/usr/local/bin/node"),
+            vec![
+                std::path::PathBuf::from("/nvm/v20/bin"),
+                std::path::PathBuf::from("/usr/local/bin")
+            ]
+        );
+        // 裸命令名（未解析到路径）没有父目录，跳过
+        assert!(script_host_dirs_in("lark-cli", "node").is_empty());
+    }
+
+    /// PATH 前插：补齐目录排最前、原有条目全保留；无补齐目录时返回 None 保持原环境
+    #[test]
+    fn augmented_path_prepends_and_keeps_entries() {
+        assert_eq!(augmented_path(&[]), None, "无补齐目录时不改写环境");
+        let got = augmented_path(&[std::path::PathBuf::from("/opt/app")]).unwrap();
+        let parts: Vec<std::path::PathBuf> = std::env::split_paths(&got).collect();
+        assert_eq!(
+            parts[0],
+            std::path::PathBuf::from("/opt/app"),
+            "补齐目录排最前"
+        );
+        if let Some(base) = std::env::var_os("PATH") {
+            for d in std::env::split_paths(&base) {
+                assert!(parts.contains(&d), "原有条目保留: {got:?}");
+            }
+        }
     }
 }

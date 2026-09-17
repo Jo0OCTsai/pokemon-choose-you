@@ -14,10 +14,15 @@ pub fn lark_bin() -> String {
 
 /// 跑一条 lark-cli 命令，要求退出码 0，返回 stdout 文本
 async fn run(bin: &str, args: &[&str], timeout: Duration) -> AppResult<String> {
+    let mut cmd = tokio::process::Command::new(bin);
+    // lark-cli 是 #!/usr/bin/env node 脚本：GUI 进程的精简 PATH 里 env node 找不到
+    // node（退出码 127），把 CLI 与 node 所在目录前插进子进程 PATH（见 which 模块）
+    if let Some(path) = crate::which::augmented_path(&crate::which::script_host_dirs(bin)) {
+        cmd.env("PATH", path);
+    }
     let out = tokio::time::timeout(
         timeout,
-        tokio::process::Command::new(bin)
-            .args(args)
+        cmd.args(args)
             .stdin(std::process::Stdio::null())
             .stdout(std::process::Stdio::piped())
             .stderr(std::process::Stdio::piped())
@@ -434,6 +439,37 @@ mod tests {
                 .unwrap();
             assert_eq!(d["items"][0]["chat_id"].as_str(), Some("oc_a"));
             assert_eq!(d["items"][0]["is_muted"].as_bool(), Some(true));
+        });
+    }
+
+    /// 回归：lark-cli 是 #!/usr/bin/env node 脚本，GUI 进程的 PATH 里常没有 node，
+    /// 直接 spawn 会 env: node: No such file or directory（退出码 127）——
+    /// 子进程 PATH 补进 CLI 所在目录后，shebang 的 env node 应命中同目录的 node
+    /// （npm 全局 bin 里 node 与 CLI 同目录）
+    #[cfg(unix)]
+    #[test]
+    fn node_shebang_resolves_via_script_dir() {
+        tauri::async_runtime::block_on(async {
+            let dir = std::env::temp_dir().join(format!("pk-lark-node-{}", std::process::id()));
+            std::fs::create_dir_all(&dir).unwrap();
+            {
+                use std::os::unix::fs::PermissionsExt;
+                // 假 node：打印 user_info 信封，证明 env node 命中的是它
+                std::fs::write(
+                    dir.join("node"),
+                    "#!/bin/sh\nprintf '%s' '{\"ok\":true,\"data\":{\"open_id\":\"ou_x\",\"name\":\"N\"}}'",
+                )
+                .unwrap();
+                std::fs::write(dir.join("lark-cli"), "#!/usr/bin/env node\n").unwrap();
+                for f in ["node", "lark-cli"] {
+                    std::fs::set_permissions(dir.join(f), PermissionsExt::from_mode(0o755))
+                        .unwrap();
+                }
+            }
+            let bin = dir.join("lark-cli").to_string_lossy().into_owned();
+            let (open_id, _) = user_identity(&bin).await.unwrap();
+            assert_eq!(open_id, "ou_x");
+            std::fs::remove_dir_all(&dir).ok();
         });
     }
 
