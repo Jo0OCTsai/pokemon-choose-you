@@ -271,7 +271,7 @@ export default {
     args: "附加参数",
     argsPh: "-p {'{prompt}'}",
     workdir: "工作目录",
-    workdirPh: "空 = 应用数据目录；可填绝对路径或 ~/路径",
+    workdirPh: "空 = ~/.choose-you；可填绝对路径或 ~/路径",
     mode: "分类结果回收",
     modeText: "文本解析（agent 输出 JSON）",
     modeTools: "工具调用（经 pk 落库）",

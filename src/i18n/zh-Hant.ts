@@ -271,7 +271,7 @@ export default {
     args: "附加參數",
     argsPh: "-p {'{prompt}'}",
     workdir: "工作目錄",
-    workdirPh: "空 = 應用資料目錄；可填絕對路徑或 ~/路徑",
+    workdirPh: "空 = ~/.choose-you；可填絕對路徑或 ~/路徑",
     mode: "分類結果回收",
     modeText: "文字解析（agent 輸出 JSON）",
     modeTools: "工具呼叫（經 pk 落庫）",

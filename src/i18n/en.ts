@@ -276,7 +276,7 @@ export default {
     args: "Extra args",
     argsPh: "-p {'{prompt}'}",
     workdir: "Working directory",
-    workdirPh: "empty = app data dir; absolute or ~/path",
+    workdirPh: "empty = ~/.choose-you; absolute or ~/path",
     mode: "Result collection",
     modeText: "Parse text output (JSON)",
     modeTools: "Tool calls (via pk)",

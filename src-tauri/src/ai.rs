@@ -57,7 +57,7 @@ pub struct AgentConfig {
     pub args: String,
     /// 打开历史记录界面用的参数（按空白切分），如 claude 的 --resume；空则直接启动
     pub history_args: String,
-    /// 工作目录（空 = 应用数据目录 data_dir/<identifier>，支持 ~ 前缀）：
+    /// 工作目录（空 = ~/.choose-you，支持 ~ 前缀）：
     /// agent 及其工具的相对路径基准；远程模式下是远程机器上的路径
     pub workdir: String,
     /// 单次调用超时（秒）
@@ -196,15 +196,17 @@ fn build_invocation(agent: &AgentConfig, prompt: &str) -> Invocation {
     }
 }
 
-/// agent 进程的工作目录：显式配置优先（~ 前缀展开为主目录），缺省用带应用标识的数据目录。
+/// agent 缺省工作目录名（主目录下）：应用专属工作区，agent 的产物集中在这里，
+/// 不混入数据库所在的应用数据目录
+const DEFAULT_WORKDIR: &str = ".choose-you";
+
+/// agent 进程的工作目录：显式配置优先（~ 前缀展开为主目录），缺省用 ~/.choose-you。
 /// GUI 进程的 cwd 不可控——Dock/Finder 启动时是 /，开发态是 src-tauri——
 /// 必须显式指定，agent 的相对路径操作（读写文件、git 等）才不会落在随机位置
 fn agent_workdir(agent: &AgentConfig) -> Option<PathBuf> {
     let configured = agent.workdir.trim();
     if configured.is_empty() {
-        // 缺省 = data_dir/<identifier>（与 pk 的数据库同目录），agent 的产物不散落用户目录；
-        // 尽力确保存在——目录缺失说明数据库也还没建，等于应用从没跑过，属极端场景
-        let dir = dirs::data_dir().map(|d| d.join(crate::db::APP_IDENTIFIER));
+        let dir = dirs::home_dir().map(|h| h.join(DEFAULT_WORKDIR));
         if let Some(d) = &dir {
             std::fs::create_dir_all(d).ok();
         }
@@ -735,7 +737,7 @@ async fn spawn_and_wait(
     if let Some(dir) = cwd {
         if !dir.is_dir() {
             return Err(AppError::Invalid(format!(
-                "Agent 工作目录不存在: {}（请在设置中改正，留空则用应用数据目录）",
+                "Agent 工作目录不存在: {}（请在设置中改正，留空则用 ~/.choose-you）",
                 dir.display()
             )));
         }
@@ -1216,13 +1218,10 @@ mod tests {
         };
         assert_eq!(build_invocation(&a, "x").cwd, Some(home.join("proj")));
 
-        // 未配置 → 应用数据目录（带标识、与 pk 数据库同目录），不继承 GUI 进程的 cwd
-        let app_dir = dirs::data_dir()
-            .expect("测试环境应有数据目录")
-            .join(crate::db::APP_IDENTIFIER);
+        // 未配置 → ~/.choose-you（应用专属工作区），不继承 GUI 进程的 cwd
         assert_eq!(
             build_invocation(&AgentConfig::default(), "x").cwd,
-            Some(app_dir)
+            Some(home.join(".choose-you"))
         );
     }
 
