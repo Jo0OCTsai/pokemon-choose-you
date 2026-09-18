@@ -20,7 +20,7 @@ export const EVENTS = {
   updateAvailable: "update-available",
   /** 更新包下载进度，payload: { downloaded, total }（字节） */
   updateProgress: "update-progress",
-  /** 集成健康状态变化（飞书/AI/Todoist 链路的成功/失败记录），诊断页跟随刷新 */
+  /** 集成健康状态变化（飞书/AI 链路的成功/失败记录），诊断页跟随刷新 */
   integrationHealthChanged: "integration-health-changed",
 } as const;
 

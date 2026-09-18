@@ -5,7 +5,7 @@ use crate::events;
 use tauri::{AppHandle, Emitter, State};
 use tauri_plugin_updater::UpdaterExt;
 
-// ---- 集成：AI Agent CLI / 飞书 / Todoist ----
+// ---- 集成：AI Agent CLI / 飞书 ----
 
 /// 设置读取：秘钥类键经 secrets 模块（OS 钥匙串优先，settings 表回落），其余直读表
 fn settings_getter(conn: &rusqlite::Connection) -> impl Fn(&str) -> Option<String> + '_ {
@@ -232,11 +232,6 @@ pub async fn feishu_oauth_login() -> AppResult<String> {
     spawn_line_in_terminal(&line)
         .await
         .map(|term| format!("已在 {term} 中启动 lark-cli 登录，完成后回到这里点「测试」"))
-}
-
-#[tauri::command]
-pub async fn sync_todoist(app: AppHandle) -> AppResult<String> {
-    crate::todoist::sync(&app).await
 }
 
 // ---- 自动更新（tauri-plugin-updater，endpoint/公钥在 tauri.conf.json） ----

@@ -318,11 +318,8 @@ export default {
     argsPh: "-p {'{prompt}'}",
     workdir: "Working directory",
     workdirPh: "empty = ~/.choose-you; absolute or ~/path",
-    mode: "Result collection",
-    modeText: "Parse text output (JSON)",
-    modeTools: "Tool calls (via pk)",
-    modeHint:
-      "Tools mode: the agent first runs pk context for dedup context, then submits all verdicts in one pk suggest batch — results land in the DB directly, no text parsing. The agent must be allowed to run pk headlessly (e.g. claude with --allowedTools Bash(pk:*)), and a larger timeout (~300s) is recommended.",
+    toolsHint:
+      "The agent first runs pk context for dedup context, then submits all verdicts in one pk suggest batch — results land in the DB directly. The agent must be allowed to run pk headlessly (e.g. claude with --allowedTools Bash(pk:*)), and a larger timeout (~300s) is recommended.",
     historyArgs: "History args",
     timeout: "Timeout (s)",
     enabled: "Enabled",
@@ -347,15 +344,11 @@ export default {
     pollNow: "Poll now",
     pollResult: "{n} new suggestions this round",
   },
-  todoist: {
-    hint: "Todoist Settings → Integrations → API token. Remote tasks are pulled locally; non-inbox local tasks are pushed; completing locally closes the remote task.",
-    sync: "Sync now",
-  },
   diag: {
     healthTitle: "🩺 Integration health",
     healthHint:
-      "Runtime status of the Feishu / AI / Todoist pipelines. Failures back off and retry automatically; you can also trigger them manually.",
-    provider: { feishu: "Feishu radio", ai: "AI Agent", todoist: "Todoist" },
+      "Runtime status of the Feishu / AI pipelines. Failures back off and retry automatically; you can also trigger them manually.",
+    provider: { feishu: "Feishu radio", ai: "AI Agent" },
     status: {
       off: "Not configured",
       paused: "Paused",
@@ -370,7 +363,6 @@ export default {
     pending: "{n} pending suggestions",
     primaryAgent: "Classify agent: {name}",
     pollNow: "Poll now",
-    syncNow: "Sync now",
     logTitle: "📜 Logs",
     logLevel: "Level",
     allLevels: "All",
@@ -412,9 +404,6 @@ export default {
     thu: "Thu",
     fri: "Fri",
     sat: "Sat",
-  },
-  secret: {
-    stored: "Saved in the OS keychain — type to replace (clear to remove)",
   },
   review: {
     title: "Trainer review",

@@ -360,19 +360,6 @@ export async function installTauriMock(page: Page, state: Partial<MockState> = {
                 pendingCount: 0,
                 primaryAgent: "Claude Code",
               },
-              {
-                provider: "todoist",
-                configured: false,
-                enabled: true,
-                status: "off",
-                lastSuccessAt: null,
-                lastError: null,
-                lastErrorAt: null,
-                consecutiveFailures: 0,
-                nextPollAt: null,
-                pendingCount: 0,
-                primaryAgent: "",
-              },
             ];
           case "list_log_entries":
             return [
@@ -389,8 +376,6 @@ export async function installTauriMock(page: Page, state: Partial<MockState> = {
             return "授权成功：测试用户（E2E mock）";
           case "feishu_oauth_status":
             return { authorized: true, userName: "测试用户" };
-          case "sync_todoist":
-            return "同步完成（E2E mock）";
           // ---- 插件 ----
           case "plugin:autostart|isEnabled":
             return false;

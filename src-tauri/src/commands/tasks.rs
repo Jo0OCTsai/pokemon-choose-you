@@ -165,7 +165,7 @@ fn enforce_inbox_invariant(conn: &Connection, id: i64) -> AppResult<()> {
 }
 
 /// 命令层通用的变更来源：前端 api.call 会带上调用窗口 label（main / pet），
-/// 后端链路（radio / todoist / migration）各自显式传入
+/// 后端链路（radio / migration）各自显式传入
 fn origin_of(origin: Option<&str>) -> &str {
     match origin {
         Some(o) if !o.is_empty() => o,

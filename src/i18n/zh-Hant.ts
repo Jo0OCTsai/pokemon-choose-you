@@ -313,11 +313,8 @@ export default {
     argsPh: "-p {'{prompt}'}",
     workdir: "工作目錄",
     workdirPh: "空 = ~/.choose-you；可填絕對路徑或 ~/路徑",
-    mode: "分類結果回收",
-    modeText: "文字解析（agent 輸出 JSON）",
-    modeTools: "工具呼叫（經 pk 落庫）",
-    modeHint:
-      "工具呼叫模式：agent 先跑 pk context 拿判重上下文，再用 pk suggest batch 一次性提交判定，結果直接落庫、不再解析輸出文字。需允許 agent 無頭執行 pk 命令（如 claude 加 --allowedTools Bash(pk:*)），並建議把逾時調大到 300 秒左右。",
+    toolsHint:
+      "agent 先跑 pk context 拿判重上下文，再用 pk suggest batch 一次性提交判定，結果直接落庫。需允許 agent 無頭執行 pk 命令（如 claude 加 --allowedTools Bash(pk:*)），並建議把逾時調大到 300 秒左右。",
     historyArgs: "歷史參數",
     timeout: "逾時（秒）",
     enabled: "啟用",
@@ -342,14 +339,10 @@ export default {
     pollNow: "立即拉取一次",
     pollResult: "本輪新增 {n} 條建議",
   },
-  todoist: {
-    hint: "Todoist 設定 → Integrations → API token。遠端任務拉取到本地；本地非草叢任務推送到遠端；本地完成的任務會關閉遠端任務。",
-    sync: "立即同步",
-  },
   diag: {
     healthTitle: "🩺 整合健康",
-    healthHint: "飛書 / AI / Todoist 三條鏈路的運行狀態；失敗會自動退避重試，也可立即手動觸發。",
-    provider: { feishu: "飛書電波", ai: "AI Agent", todoist: "Todoist" },
+    healthHint: "飛書 / AI 兩條鏈路的運行狀態；失敗會自動退避重試，也可立即手動觸發。",
+    provider: { feishu: "飛書電波", ai: "AI Agent" },
     status: {
       off: "未設定",
       paused: "已暫停",
@@ -364,7 +357,6 @@ export default {
     pending: "待確認建議 {n}",
     primaryAgent: "分類 Agent：{name}",
     pollNow: "立即拉取",
-    syncNow: "立即同步",
     logTitle: "📜 運行日誌",
     logLevel: "級別",
     allLevels: "全部",
@@ -406,9 +398,6 @@ export default {
     thu: "週四",
     fri: "週五",
     sat: "週六",
-  },
-  secret: {
-    stored: "已保存在系統鑰匙圈，輸入可更換（清空即移除）",
   },
   review: {
     title: "訓練家複盤",

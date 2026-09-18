@@ -605,7 +605,7 @@ async fn poll_once_inner(app: &AppHandle) -> AppResult<usize> {
         );
     }
 
-    // 2. 分批送 AI（每批 20 条，避免超 token），带判重上下文与同会话近期消息
+    // 2. 分批送 AI（每批 20 条，避免超 token），带同会话近期消息作上下文
     let actionable: Vec<&NewMessage> = fresh.iter().filter(|m| m.needs_ai).collect();
     let mut saved = 0usize;
     for chunk in actionable.chunks(20) {
@@ -629,13 +629,10 @@ async fn poll_once_inner(app: &AppHandle) -> AppResult<usize> {
                 })
                 .collect::<Vec<_>>()
         };
-        let ctx = {
-            let conn = db.0.lock().unwrap();
-            crate::commands::radio::classify_context(&conn)?
-        };
-        // 分类调用按次落 agent_sessions（会话回链与成本观察：时长 / 会话 id / 成败）
+        // 分类调用按次落 agent_sessions（会话回链与成本观察：时长 / 会话 id / 成败）；
+        // 判重上下文由 agent 执行 pk context 自取
         let started = std::time::Instant::now();
-        let classified = ai::classify_with_session(&agent, &batch, &ctx, &db).await;
+        let classified = ai::classify_with_session(&agent, &batch, &db).await;
         let duration_ms = started.elapsed().as_millis() as i64;
         let suggestions = match classified {
             Ok((s, session_id)) => {

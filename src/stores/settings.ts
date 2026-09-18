@@ -47,17 +47,14 @@ export const SETTING_DEFAULTS: Record<string, string> = {
   ai_agents: "[]",
   /** 收音机分类使用的 agent id（空则用第一个启用的） */
   ai_agent_id: "",
-  todoist_token: "",
 };
 
 /**
  * 秘钥键的「已保存」占位值：后端不回传明文，listAllSettings 对已保存秘钥返回该值。
  * 前端原样保存时后端跳过写入；输入新值则以新值覆盖；清空则删除。
+ * （当前无活跃秘钥键，保留占位协议供未来集成使用。）
  */
 export const SECRET_STORED = "__STORED__";
-
-/** 走系统钥匙串的秘钥键（与后端 secrets::SECRET_KEYS 对齐；仅用于输入框占位提示） */
-export const SECRET_KEYS = ["todoist_token"];
 
 /** 设置页保存的键全集（与后端 settings 表对齐） */
 export const SETTING_KEYS = [
@@ -90,7 +87,6 @@ export const SETTING_KEYS = [
   "ai_agents",
   "ai_agent_id",
   "feishu_enabled",
-  "todoist_token",
 ];
 
 /** 全局共享设置（设置页写入，两个窗口读取），取代旧的模块级 reactive */

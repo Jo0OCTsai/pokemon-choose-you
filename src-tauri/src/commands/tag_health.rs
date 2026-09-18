@@ -155,7 +155,11 @@ fn local_report(tags: &[Tag]) -> TagCheckupReport {
 fn pair_similarity(a: &str, b: &str) -> f64 {
     let x: Vec<char> = a.chars().collect();
     let y: Vec<char> = b.chars().collect();
-    let (short, long) = if x.len() <= y.len() { (&x, &y) } else { (&y, &x) };
+    let (short, long) = if x.len() <= y.len() {
+        (&x, &y)
+    } else {
+        (&y, &x)
+    };
     if long.is_empty() {
         return 0.0;
     }
@@ -212,7 +216,11 @@ struct JudgeNewDim {
 
 /// LLM 复核：确认/否决本地候选并补充理由，另可建议新维度。
 /// 判定失败不致命——调用方保留本地预筛结果（judged=false）
-async fn judge_with_agent(agent: &AgentConfig, tags: &[Tag], report: &mut TagCheckupReport) -> AppResult<()> {
+async fn judge_with_agent(
+    agent: &AgentConfig,
+    tags: &[Tag],
+    report: &mut TagCheckupReport,
+) -> AppResult<()> {
     let mut prompt = String::from(
         "你是待办应用的标签词表治理助手。下面是当前标签词表（按维度分组，含使用次数）与一组「近义合并候选对」（本地字符串相似度预筛，可能有误报）。请复核并只输出一个 JSON 对象（不要解释、不要 Markdown）。\n任务：\n1. merges：逐对判断是否真的同义/重复——只有表达同一含义才 merge=true，给出 into（应保留的规范名，优先使用次数多的）与不超过 20 字的理由；字面相似但含义不同的判 false。\n2. newDimensions：如果发现 >=3 个标签语义上同属一个现有维度之外的新分类面（如「精力」「渠道」），建议最多 2 个新维度（name 用 2~4 字中文，tags 列出应归入的既有标签名）；没有就给空数组。\n输出格式：{\"merges\":[{\"from\":\"名\",\"into\":\"名\",\"merge\":true,\"reason\":\"...\"}],\"newDimensions\":[{\"name\":\"名\",\"tags\":[\"名\"],\"reason\":\"...\"}]}\n\n词表：\n",
     );
@@ -393,9 +401,11 @@ pub fn move_tags_to_dimension_conn(
         return Err(AppError::Invalid("维度名与标签列表不能为空".into()));
     }
     let exists: Option<i64> = conn
-        .query_row("SELECT id FROM tag_dimensions WHERE key=?1", params![key], |r| {
-            r.get(0)
-        })
+        .query_row(
+            "SELECT id FROM tag_dimensions WHERE key=?1",
+            params![key],
+            |r| r.get(0),
+        )
         .ok();
     let dim_id = match exists {
         Some(id) => id,
@@ -447,7 +457,14 @@ mod tests {
     use crate::db::tests::test_conn;
 
     /// 直插标签（含 usage 控制：usage 由 task_tags 计数而来，测试里直接挂任务）
-    fn seed(conn: &Connection, name: &str, dimension_id: i64, origin: &str, age_days: i64, attach: bool) -> i64 {
+    fn seed(
+        conn: &Connection,
+        name: &str,
+        dimension_id: i64,
+        origin: &str,
+        age_days: i64,
+        attach: bool,
+    ) -> i64 {
         let created = (chrono::Utc::now() - chrono::Duration::days(age_days)).to_rfc3339();
         conn.execute(
             "INSERT INTO tags (name, dimension_id, origin, created_at) VALUES (?1, ?2, ?3, ?4)",
@@ -475,7 +492,10 @@ mod tests {
         assert!(pair_similarity("周报", "工作周报") >= 0.89, "包含关系高分");
         assert!(pair_similarity("周报", "周报") == 1.0);
         assert!(pair_similarity("ab", "ab") == 1.0);
-        assert!(pair_similarity("重要", "紧急") < SIMILARITY_THRESHOLD, "不同义词不进候选");
+        assert!(
+            pair_similarity("重要", "紧急") < SIMILARITY_THRESHOLD,
+            "不同义词不进候选"
+        );
         assert!(pair_similarity("", "") == 0.0);
         // 中英文混合按字符比较
         assert!(pair_similarity("PokemonApp", "PokemonAPP") >= SIMILARITY_THRESHOLD);
@@ -559,7 +579,13 @@ mod tests {
         assert_eq!(
             mk,
             vec![
-                "dimension", "fromId", "fromName", "intoId", "intoName", "judged", "reason",
+                "dimension",
+                "fromId",
+                "fromName",
+                "intoId",
+                "intoName",
+                "judged",
+                "reason",
                 "similarity",
             ]
         );
@@ -597,16 +623,20 @@ mod tests {
                 |r| r.get(0),
             )
             .unwrap();
-        assert_eq!(
-            linked, 3,
-            "保留标签原有 1 处 + 被并标签的 2 处全部归位"
-        );
+        assert_eq!(linked, 3, "保留标签原有 1 处 + 被并标签的 2 处全部归位");
         let left: i64 = conn
-            .query_row("SELECT COUNT(*) FROM tags WHERE id=?1", params![gone], |r| r.get(0))
+            .query_row(
+                "SELECT COUNT(*) FROM tags WHERE id=?1",
+                params![gone],
+                |r| r.get(0),
+            )
             .unwrap();
         assert_eq!(left, 0, "被合并标签删除");
         assert!(merge_tag_conn(&conn, gone, gone).is_err(), "不能合并到自身");
-        assert!(merge_tag_conn(&conn, 999, keep).is_err(), "不存在报 NotFound");
+        assert!(
+            merge_tag_conn(&conn, 999, keep).is_err(),
+            "不存在报 NotFound"
+        );
     }
 
     #[test]

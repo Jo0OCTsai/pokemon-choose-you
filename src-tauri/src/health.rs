@@ -1,14 +1,13 @@
 use std::collections::HashMap;
 use std::sync::Mutex;
 
-/// 集成健康状态：三条外部链路（feishu / ai / todoist）的运行时记录。
+/// 集成健康状态：两条外部链路（feishu / ai）的运行时记录。
 /// 内存态（重启后重新积累），每次成功/失败变化广播事件供诊断页刷新。
 #[derive(Default)]
 pub struct HealthState(pub Mutex<HashMap<String, ProviderHealth>>);
 
 pub const FEISHU: &str = "feishu";
 pub const AI: &str = "ai";
-pub const TODOIST: &str = "todoist";
 
 #[derive(Debug, Clone, Default, PartialEq, serde::Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -143,6 +142,6 @@ mod tests {
         state.set_next_run(FEISHU, 1_789_000_000_000);
         assert_eq!(state.snapshot(FEISHU).next_run_at, Some(1_789_000_000_000));
         // 未记录过的 provider 快照安全退化为默认值
-        assert_eq!(state.snapshot(TODOIST), ProviderHealth::default());
+        assert_eq!(state.snapshot(AI), ProviderHealth::default());
     }
 }

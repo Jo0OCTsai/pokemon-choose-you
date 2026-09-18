@@ -1,4 +1,4 @@
-use crate::ai::{self, AgentConfig, AiMessage, ClassifyContext, DimCtx, ProposedTag, TagCtx};
+use crate::ai::{self, AgentConfig, AiMessage, ProposedTag};
 use crate::commands::tags as tag_cmds;
 use crate::commands::tasks::{update_task, TaskPatch};
 use crate::db::{now, Db};
@@ -833,68 +833,6 @@ enum Prepared {
     ApplyUpdate(Box<TaskPatch>),
 }
 
-/// 组装判重上下文：现有未完成待办 + 分类 + 标签（按维度，含剩余可新建名额）
-pub(crate) fn classify_context(conn: &Connection) -> AppResult<ClassifyContext> {
-    let open_tasks: Vec<(i64, String)> = {
-        let mut stmt = conn.prepare(
-            "SELECT id, title FROM tasks WHERE status IN ('inbox','scheduled','active','paused') ORDER BY id",
-        )?;
-        let rows = stmt
-            .query_map([], |r| Ok((r.get(0)?, r.get(1)?)))?
-            .collect::<Result<Vec<_>, _>>()?;
-        rows
-    };
-    let categories: Vec<String> = {
-        let mut stmt = conn.prepare("SELECT name FROM categories WHERE enabled=1 ORDER BY id")?;
-        let rows = stmt
-            .query_map([], |r| r.get(0))?
-            .collect::<Result<Vec<_>, _>>()?;
-        rows
-    };
-    let dimensions: Vec<DimCtx> = {
-        let mut stmt = conn.prepare(
-            "SELECT d.key, d.name, d.cardinality,
-                    d.max_tags - (SELECT COUNT(*) FROM tags t WHERE t.dimension_id = d.id)
-             FROM tag_dimensions d WHERE d.enabled=1 ORDER BY d.sort, d.id",
-        )?;
-        let rows = stmt
-            .query_map([], |r| {
-                Ok(DimCtx {
-                    key: r.get(0)?,
-                    name: r.get(1)?,
-                    single: r.get::<_, String>(2)? == "single",
-                    remaining: r.get(3)?,
-                })
-            })?
-            .collect::<Result<Vec<_>, _>>()?;
-        rows
-    };
-    // 停用维度下的标签不进词表（与停用分类同策略）
-    let tags: Vec<TagCtx> = {
-        let mut stmt = conn.prepare(
-            "SELECT d.key, t.name, t.description FROM tags t
-             JOIN tag_dimensions d ON d.id = t.dimension_id
-             WHERE d.enabled=1 ORDER BY d.sort, t.id",
-        )?;
-        let rows = stmt
-            .query_map([], |r| {
-                Ok(TagCtx {
-                    dimension: r.get(0)?,
-                    name: r.get(1)?,
-                    description: r.get(2)?,
-                })
-            })?
-            .collect::<Result<Vec<_>, _>>()?;
-        rows
-    };
-    Ok(ClassifyContext {
-        open_tasks,
-        categories,
-        tags,
-        dimensions,
-    })
-}
-
 /// AI prompt 里的来源标签：告诉模型消息来自哪种会话、谁在说话
 pub(crate) fn chat_label(chat_type: &str, chat_name: &str) -> String {
     match chat_type {
@@ -986,9 +924,9 @@ pub async fn force_create_todo<R: tauri::Runtime>(
     let agent = agent.ok_or_else(|| AppError::Invalid("请先在设置中配置 AI Agent".into()))?;
 
     // 判定对象带上来源标签与同会话近期上下文，和后台轮询的语境一致
-    let (ctx, label, context) = {
+    // （判重上下文由 agent 执行 pk context 自取）
+    let (label, context) = {
         let conn = db.0.lock().unwrap();
-        let ctx = classify_context(&conn)?;
         let label = chat_label(&msg.chat_type, &msg.chat_name);
         let context = match msg.sent_at {
             Some(at) => {
@@ -996,7 +934,7 @@ pub async fn force_create_todo<R: tauri::Runtime>(
             }
             None => vec![],
         };
-        (ctx, label, context)
+        (label, context)
     };
     let res = ai::classify(
         &agent,
@@ -1007,7 +945,6 @@ pub async fn force_create_todo<R: tauri::Runtime>(
             content: msg.content.clone(),
             context,
         }],
-        &ctx,
         &db,
     )
     .await;
@@ -1562,75 +1499,6 @@ mod tests {
                 ("dismissed".to_string(), "noise".to_string())
             ]
         );
-    }
-
-    #[test]
-    fn classify_context_lists_open_tasks_categories_tags() {
-        let app = setup();
-        seed_tag(&app, "重要");
-        {
-            let db = app.state::<Db>();
-            let conn = db.0.lock().unwrap();
-            conn.execute(
-                "INSERT INTO tasks (title, status, created_at) VALUES ('进行中的', 'scheduled', '2026-09-01T00:00:00Z')",
-                [],
-            )
-            .unwrap();
-            conn.execute(
-                "INSERT INTO tasks (title, status, completed_at, created_at) VALUES ('完成的', 'done', '2026-09-01T00:00:00Z', '2026-09-01T00:00:00Z')",
-                [],
-            )
-            .unwrap();
-        }
-        let ctx = {
-            let db = app.state::<Db>();
-            let conn = db.0.lock().unwrap();
-            classify_context(&conn).unwrap()
-        };
-        assert_eq!(
-            ctx.open_tasks,
-            vec![(1_i64, "进行中的".to_string())],
-            "done 不进判重清单"
-        );
-        assert!(ctx.categories.contains(&"工作".to_string()));
-        assert_eq!(
-            ctx.tags,
-            vec![TagCtx {
-                dimension: "topic".into(),
-                name: "重要".to_string(),
-                description: String::new()
-            }]
-        );
-        assert_eq!(
-            ctx.dimensions.len(),
-            4,
-            "内置四维度进词表: {:?}",
-            ctx.dimensions
-        );
-        assert_eq!(ctx.dimensions[0].key, "project");
-        assert!(ctx.dimensions[0].single, "项目维度单选");
-        assert_eq!(ctx.dimensions[0].remaining, 20, "空词表时剩余名额 = 上限");
-    }
-
-    /// 停用的分类不进 AI 分类选项
-    #[test]
-    fn classify_context_excludes_disabled_categories() {
-        let app = setup();
-        {
-            let db = app.state::<Db>();
-            crate::commands::categories::set_category_enabled(app.handle().clone(), db, 1, false)
-                .unwrap();
-        }
-        let ctx = {
-            let db = app.state::<Db>();
-            let conn = db.0.lock().unwrap();
-            classify_context(&conn).unwrap()
-        };
-        assert!(
-            !ctx.categories.contains(&"工作".to_string()),
-            "停用分类不进 prompt"
-        );
-        assert_eq!(ctx.categories.first().map(String::as_str), Some("学习"));
     }
 
     /// AI 建议了停用分类名时，回落到第一个启用分类而不是停用的同名分类

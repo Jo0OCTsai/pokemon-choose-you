@@ -46,7 +46,6 @@ vi.mock("../api", () => ({
     openAgentHistory: vi.fn(),
     testFeishuConfig: vi.fn(),
     triggerFeishuPoll: vi.fn(),
-    syncTodoist: vi.fn(),
     createCategory: vi.fn(),
     updateCategory: vi.fn(),
     deleteCategory: vi.fn(),

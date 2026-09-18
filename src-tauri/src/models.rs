@@ -14,7 +14,7 @@ pub struct Task {
     pub due_at: Option<String>,
     pub remind_at: Option<String>,
     pub reminded: bool,
-    /// local / feishu / todoist
+    /// local / feishu（历史数据可能还有已下线集成的 todoist）
     pub source: String,
     pub external_id: Option<String>,
     pub created_at: String,
@@ -126,7 +126,7 @@ pub struct TaskLog {
     pub field: String,
     pub old_value: Option<String>,
     pub new_value: Option<String>,
-    /// 变更来源窗口/链路：main / pet / radio / todoist / migration
+    /// 变更来源窗口/链路：main / pet / radio / migration（历史数据可能还有已下线集成的 todoist）
     pub origin: String,
     pub created_at: String,
 }
@@ -329,7 +329,15 @@ mod tests {
         };
         assert_eq!(
             keys_of(serde_json::to_value(&g).unwrap()),
-            vec!["createdAt", "description", "dimension", "id", "name", "origin", "usage"]
+            vec![
+                "createdAt",
+                "description",
+                "dimension",
+                "id",
+                "name",
+                "origin",
+                "usage"
+            ]
         );
         // dimension/origin/usage 缺失时容忍（老载荷）
         let old: Tag = serde_json::from_value(serde_json::json!({

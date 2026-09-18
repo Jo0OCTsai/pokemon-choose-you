@@ -13,7 +13,6 @@ pub mod models;
 mod scheduler;
 mod secrets;
 mod shortcuts;
-mod todoist;
 mod tray;
 mod which;
 
@@ -151,7 +150,6 @@ pub fn run() {
             commands::trigger_feishu_poll,
             commands::feishu_oauth_login,
             commands::feishu_oauth_status,
-            commands::sync_todoist,
             commands::integration_health,
             commands::list_log_entries,
             commands::build_support_report,

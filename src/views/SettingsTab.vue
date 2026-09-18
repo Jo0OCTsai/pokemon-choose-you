@@ -5,7 +5,7 @@ import { getVersion } from "@tauri-apps/api/app";
 import { useI18n } from "vue-i18n";
 import { api, errorMessage } from "../api";
 import { EVENTS } from "../events";
-import { fmtDateTime, SETTING_KEYS, SECRET_STORED, useSettingsStore } from "../stores/settings";
+import { fmtDateTime, SETTING_KEYS, useSettingsStore } from "../stores/settings";
 import { useCategoriesStore } from "../stores/categories";
 import { useTagsStore } from "../stores/tags";
 import { useTasksStore } from "../stores/tasks";
@@ -55,18 +55,6 @@ const reviewOn = boolSetting("review_enabled");
 const reviewDowOptions = computed(() =>
   [1, 2, 3, 4, 5, 6, 7].map((d) => ({ value: String(d), label: t(`reviewDow.${d}`) })),
 );
-
-// 秘钥输入：后端只回「已保存」占位值，展示为空 + 占位提示；改动才提交新值
-function secretField(key: string) {
-  return computed({
-    get: () => (settings.values[key] === SECRET_STORED ? "" : (settings.values[key] ?? "")),
-    set: (v: string) => {
-      settings.values[key] = v;
-    },
-  });
-}
-const todoistToken = secretField("todoist_token");
-const secretStored = (key: string) => settings.values[key] === SECRET_STORED;
 
 // ---- 数据备份：每日快照滚动保留 + 手动备份 + 从备份恢复 ----
 const backupOn = boolSetting("backup_enabled");
@@ -519,14 +507,12 @@ async function feishuLogin() {
 }
 
 // ---- AI agent CLI 管理 ----
-/** 表单里的 agent 行：mode 经加载/新建归一，永远是 text/tools 之一 */
-type AgentRow = AgentConfig & { mode: string };
 /** 无头调用约定的预设：{prompt} 占位符由应用替换为提示词 */
-const AGENT_PRESETS: Record<string, Omit<AgentConfig, "id" | "timeoutSecs" | "enabled" | "mode"> & { mode: string }> = {
-  claude: { name: "Claude Code", command: "claude", args: "-p {prompt}", historyArgs: "--resume", mode: "text" },
-  opencode: { name: "OpenCode", command: "opencode", args: "run {prompt}", historyArgs: "", mode: "text" },
-  kiro: { name: "Kiro CLI", command: "kiro", args: "-p {prompt}", historyArgs: "--resume", mode: "text" },
-  custom: { name: "", command: "", args: "{prompt}", historyArgs: "", mode: "text" },
+const AGENT_PRESETS: Record<string, Omit<AgentConfig, "id" | "timeoutSecs" | "enabled">> = {
+  claude: { name: "Claude Code", command: "claude", args: "-p {prompt}", historyArgs: "--resume" },
+  opencode: { name: "OpenCode", command: "opencode", args: "run {prompt}", historyArgs: "" },
+  kiro: { name: "Kiro CLI", command: "kiro", args: "-p {prompt}", historyArgs: "--resume" },
+  custom: { name: "", command: "", args: "{prompt}", historyArgs: "" },
 };
 const presetOptions = [
   { value: "claude", label: "Claude Code" },
@@ -534,13 +520,8 @@ const presetOptions = [
   { value: "kiro", label: "Kiro CLI" },
   { value: "custom", label: "Custom" },
 ];
-/** 分类结果回收方式：text=解析 agent 输出的 JSON 文本；tools=agent 经 pk 工具落库、应用回读 */
-const agentModeOptions = computed(() => [
-  { value: "text", label: t("ai.modeText") },
-  { value: "tools", label: t("ai.modeTools") },
-]);
 const agentPreset = ref("claude");
-const agents = ref<AgentRow[]>([]);
+const agents = ref<AgentConfig[]>([]);
 
 function newId(): string {
   return typeof crypto !== "undefined" && "randomUUID" in crypto
@@ -551,9 +532,9 @@ function newId(): string {
 function loadAgents() {
   try {
     const parsed = JSON.parse(settings.sget("ai_agents") || "[]");
-    // 旧配置无 mode/workdir 字段：归一成 text/空串，下拉框才有选中项、输入框受控
+    // 旧配置无 workdir 字段：归一成空串，输入框受控；残留的 mode 字段（对接方式已下线）忽略
     agents.value = Array.isArray(parsed)
-      ? parsed.map((a: AgentConfig): AgentRow => ({ ...a, mode: a.mode ?? "text", workdir: a.workdir ?? "" }))
+      ? parsed.map((a: AgentConfig): AgentConfig => ({ ...a, workdir: a.workdir ?? "" }))
       : [];
   } catch {
     agents.value = [];
@@ -614,7 +595,7 @@ async function openHistory(ag: AgentConfig) {
 }
 
 /** 一键配置远程 pk：后端读的是已保存配置，先把表单落库再触发；成功后刷新设置与表单 */
-async function setupRemotePkFor(ag: AgentRow) {
+async function setupRemotePkFor(ag: AgentConfig) {
   testing.value = true;
   testMsg.value = t("ai.settingUp");
   try {
@@ -664,14 +645,12 @@ async function loadHealth() {
   }
 }
 
-/** 一键重试：飞书立即拉取 / Todoist 立即同步（完成后刷新健康面板） */
+/** 一键重试：飞书立即拉取（完成后刷新健康面板） */
 async function retryProvider(provider: string) {
   testing.value = true;
   try {
     if (provider === "feishu") {
       await api.triggerFeishuPoll();
-    } else if (provider === "todoist") {
-      await api.syncTodoist();
     }
     await loadHealth();
   } catch (e) {
@@ -1030,11 +1009,7 @@ onUnmounted(() => unlisteners.forEach((u) => u()));
               {{ t("ai.workdir") }}
               <input v-model="ag.workdir" :placeholder="t('ai.workdirPh')" />
             </label>
-            <label>
-              {{ t("ai.mode") }}
-              <DexSelect v-model="ag.mode" :options="agentModeOptions" />
-            </label>
-            <p v-if="ag.mode === 'tools'" class="hint">{{ t("ai.modeHint") }}</p>
+            <p class="hint">{{ t("ai.toolsHint") }}</p>
             <label>
               {{ t("ai.historyArgs") }}
               <input v-model="ag.historyArgs" placeholder="--resume" />
@@ -1130,23 +1105,6 @@ onUnmounted(() => unlisteners.forEach((u) => u()));
             </button>
           </div>
         </section>
-
-        <section class="set-card">
-          <h3>✅ Todoist</h3>
-          <label
-            >API Token<input
-              v-model="todoistToken"
-              type="password"
-              autocomplete="off"
-              :placeholder="secretStored('todoist_token') ? t('secret.stored') : ''"
-          /></label>
-          <p class="hint">{{ t("todoist.hint") }}</p>
-          <div class="btn-row">
-            <button class="btn ghost" :disabled="testing" @click="runTest(api.syncTodoist)">
-              {{ t("todoist.sync") }}
-            </button>
-          </div>
-        </section>
       </template>
 
       <template v-if="settingsTab === 'diag'">
@@ -1175,14 +1133,6 @@ onUnmounted(() => unlisteners.forEach((u) => u()));
                 @click="retryProvider('feishu')"
               >
                 {{ t("diag.pollNow") }}
-              </button>
-              <button
-                v-if="h.provider === 'todoist' && h.configured"
-                class="btn ghost"
-                :disabled="testing"
-                @click="retryProvider('todoist')"
-              >
-                {{ t("diag.syncNow") }}
               </button>
             </div>
             <p v-if="h.lastError" class="hint health-err">{{ fmtDateTime(h.lastErrorAt ?? "") }} · {{ h.lastError }}</p>
