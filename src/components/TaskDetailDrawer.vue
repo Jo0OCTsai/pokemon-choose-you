@@ -110,7 +110,11 @@ onMounted(async () => {
         </div>
         <div class="kv">
           <span class="k">{{ t("edit.tags") }}</span
-          ><span class="v">{{ task.tags.length ? task.tags.map((n) => `# ${n}`).join(" ") : "—" }}</span>
+          ><span class="v">{{
+            task.tags.length
+              ? task.tags.map((r) => (r.dimension === "project" ? `⛳ ${r.name}` : `# ${r.name}`)).join(" ")
+              : "—"
+          }}</span>
         </div>
         <div class="kv">
           <span class="k">{{ t("detail.source") }}</span

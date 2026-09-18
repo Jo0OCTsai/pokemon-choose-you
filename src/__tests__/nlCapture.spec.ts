@@ -73,12 +73,14 @@ describe("parseNlCapture 分类与标签", () => {
     expect(r!.dueAt).toBeNull();
   });
 
-  it("未知 # 名与停用分类留在标题里，不猜", () => {
+  it("词表外的 # 名收集为「将新建」，停用分类不当分类用", () => {
     const r = parseNlCapture("#不存在的 复习第三章", ctx());
-    expect(r).toBeNull();
+    expect(r!.newTagNames).toEqual(["不存在的"]);
+    expect(r!.title).toBe("复习第三章");
     const r2 = parseNlCapture("明天 #休整 玩耍", ctx());
-    expect(r2!.title).toBe("#休整 玩耍");
+    expect(r2!.title).toBe("玩耍");
     expect(r2!.categoryId).toBeNull();
+    expect(r2!.newTagNames).toEqual(["休整"]); // 停用分类名不再留在标题，按新标签收集
   });
 
   it("分类与标签可同时命中", () => {

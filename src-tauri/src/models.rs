@@ -14,7 +14,7 @@ pub struct Task {
     pub due_at: Option<String>,
     pub remind_at: Option<String>,
     pub reminded: bool,
-    /// local / feishu / todoist
+    /// local / feishu（历史数据可能还有已下线集成的 todoist）
     pub source: String,
     pub external_id: Option<String>,
     pub created_at: String,
@@ -26,9 +26,19 @@ pub struct Task {
     #[serde(default)]
     pub cancelled_at: Option<String>,
     pub focus_seconds: i64,
-    /// 标签名列表（task_tags JOIN tags 聚合，非独立列）
+    /// 标签引用列表（task_tags JOIN tags/tag_dimensions 聚合，非独立列）
     #[serde(default)]
-    pub tags: Vec<String>,
+    pub tags: Vec<TagRef>,
+}
+
+/// 任务上挂的标签引用：名字 + 归属维度 key（展示分组与项目单选渲染用）
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TagRef {
+    pub name: String,
+    /// project / context / person / topic / 自定义维度 key
+    #[serde(default = "default_dimension")]
+    pub dimension: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -49,12 +59,48 @@ fn default_true() -> bool {
     true
 }
 
+/// 老载荷缺 dimension 字段时归主题维度（存量数据兜底）
+fn default_dimension() -> String {
+    "topic".into()
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Tag {
     pub id: i64,
     pub name: String,
     pub description: String,
+    /// 归属维度 key（project/context/person/topic/自定义）
+    #[serde(default = "default_dimension")]
+    pub dimension: String,
+    /// manual / ai / nl / agent（谁建的，治理审计用）
+    #[serde(default)]
+    pub origin: String,
+    /// 挂在多少个任务上（设置页治理展示）
+    #[serde(default)]
+    pub usage: i64,
+    /// 创建时间（RFC3339；僵尸标签的年龄判定用）
+    #[serde(default)]
+    pub created_at: String,
+}
+
+/// 标签维度：一组正交的归类面（分面分类）。维度封闭少而稳，标签在维度内开放生长
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TagDimension {
+    pub id: i64,
+    /// 稳定标识（AI 协议与 TagRef.dimension 用），内置 project/context/person/topic
+    pub key: String,
+    /// 展示名（项目/场景/人物/主题…）
+    pub name: String,
+    /// single（任务上至多 1 个）/ multi
+    pub cardinality: String,
+    /// 标签数上限（防碎片化）
+    pub max_tags: i64,
+    pub sort: i64,
+    /// 停用后不进新建/编辑与 AI 选项，已有标签不受影响
+    #[serde(default = "default_true")]
+    pub enabled: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -80,7 +126,7 @@ pub struct TaskLog {
     pub field: String,
     pub old_value: Option<String>,
     pub new_value: Option<String>,
-    /// 变更来源窗口/链路：main / pet / radio / todoist / migration
+    /// 变更来源窗口/链路：main / pet / radio / migration（历史数据可能还有已下线集成的 todoist）
     pub origin: String,
     pub created_at: String,
 }
@@ -114,8 +160,8 @@ pub struct ChatMessage {
     pub suggested_due: Option<String>,
     pub suggested_priority: Option<String>,
     pub suggested_note: Option<String>,
-    /// AI 建议的标签名（JSON 数组字符串解析而来）
-    pub suggested_tags: Vec<String>,
+    /// AI 建议的标签（JSON 数组解析而来；兼容旧协议纯字符串，见 ai::ProposedTag）
+    pub suggested_tags: Vec<crate::ai::ProposedTag>,
     /// AI 判定理由（为什么是待办 / 为什么不算），随建议展示并落反馈库
     #[serde(default)]
     pub suggested_reason: Option<String>,
@@ -209,7 +255,10 @@ mod tests {
             started_at: None,
             cancelled_at: None,
             focus_seconds: 0,
-            tags: vec!["重要".into()],
+            tags: vec![TagRef {
+                name: "重要".into(),
+                dimension: "topic".into(),
+            }],
         };
         assert_eq!(
             keys_of(serde_json::to_value(&t).unwrap()),
@@ -273,11 +322,78 @@ mod tests {
             id: 1,
             name: "重要".into(),
             description: "核心目标相关".into(),
+            dimension: "topic".into(),
+            origin: "manual".into(),
+            usage: 3,
+            created_at: "2026-09-01T00:00:00Z".into(),
         };
         assert_eq!(
             keys_of(serde_json::to_value(&g).unwrap()),
-            vec!["description", "id", "name"]
+            vec![
+                "createdAt",
+                "description",
+                "dimension",
+                "id",
+                "name",
+                "origin",
+                "usage"
+            ]
         );
+        // dimension/origin/usage 缺失时容忍（老载荷）
+        let old: Tag = serde_json::from_value(serde_json::json!({
+            "id": 1, "name": "重要", "description": "核心目标相关"
+        }))
+        .unwrap();
+        assert_eq!(old.dimension, "topic");
+        assert_eq!(old.origin, "");
+        assert_eq!(old.usage, 0);
+    }
+
+    #[test]
+    fn tag_ref_json_contract_matches_ts_interface() {
+        let r = TagRef {
+            name: "PokemonApp".into(),
+            dimension: "project".into(),
+        };
+        assert_eq!(
+            keys_of(serde_json::to_value(&r).unwrap()),
+            vec!["dimension", "name"]
+        );
+        // dimension 缺失时容忍（老载荷按 topic）
+        let old: TagRef = serde_json::from_value(serde_json::json!({ "name": "重要" })).unwrap();
+        assert_eq!(old.dimension, "topic");
+    }
+
+    #[test]
+    fn tag_dimension_json_contract_matches_ts_interface() {
+        let d = TagDimension {
+            id: 1,
+            key: "project".into(),
+            name: "项目".into(),
+            cardinality: "single".into(),
+            max_tags: 20,
+            sort: 1,
+            enabled: true,
+        };
+        assert_eq!(
+            keys_of(serde_json::to_value(&d).unwrap()),
+            vec![
+                "cardinality",
+                "enabled",
+                "id",
+                "key",
+                "maxTags",
+                "name",
+                "sort",
+            ]
+        );
+        // enabled 缺失时容忍（老载荷按启用处理）
+        let old: TagDimension = serde_json::from_value(serde_json::json!({
+            "id": 1, "key": "project", "name": "项目", "cardinality": "single",
+            "maxTags": 20, "sort": 1
+        }))
+        .unwrap();
+        assert!(old.enabled);
     }
 
     #[test]

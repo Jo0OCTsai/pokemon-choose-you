@@ -1,0 +1,633 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>桌宠动画与交互 · 情绪价值方案演示（Pet Interaction Demo）</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=Noto+Sans+SC:wght@400;500;700;900&display=swap" rel="stylesheet" />
+<link href="https://cdn.jsdelivr.net/npm/@vp-tw/cjk-web-fonts-fusion-pixel-font@0.0.1/dist/12px/proportional/zh_hans/Fusion-Pixel-12px-Proportional-Simplified-Chinese.css" rel="stylesheet" />
+<style>
+/* ============ 令牌（与 DESIGN_REFRESH_PROPOSAL / PET_INTERACTION_DESIGN 同源） ============ */
+:root {
+  --dex-red: #EE1515; --dex-red-dark: #B01010; --danger: #E00F0F;
+  --dex-body: #F5F0DC; --dex-navy: #1A1B25; --poke-yellow: #FFCB05;
+  --lcd: #C4CFA1; --lcd-text: #3A4A32; --lcd-dark: #9CAA86;
+  --ink: #1A1B25; --ink-soft: #6B6657; --ink-faint: #9A937F;
+  --ok: #2E9E5B; --ok-soft: #DFF3E4; --ok-ink: #1D6B3C;
+  --hover: #FFF3C4;
+  /* 动效令牌（本方案新增） */
+  --t-tap: 80ms; --t-pop: 150ms; --t-act: 300ms; --t-scene: 600ms;
+  --e-pop: cubic-bezier(.34,1.56,.64,1);
+  --e-snap: cubic-bezier(.2,.9,.3,1.2);
+  --e-sway: cubic-bezier(.45,0,.55,1);
+  --e-sleep: cubic-bezier(.4,0,.6,1);
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  background: #2E3140 repeating-linear-gradient(45deg, #2E3140 0 12px, #2B2E3B 12px 24px);
+  font-family: "Noto Sans SC", "Noto Sans CJK SC", "PingFang SC", "Microsoft YaHei", sans-serif;
+  color: var(--ink);
+  padding: 36px 20px 80px;
+  display: flex; flex-direction: column; align-items: center; gap: 28px;
+}
+.px { font-family: "Press Start 2P", monospace; }
+.px-cn { font-family: "Fusion Pixel 12px Proportional Simplified Chinese", "Noto Sans SC", sans-serif; }
+:focus-visible { outline: 3px solid var(--poke-yellow); outline-offset: 2px; }
+
+/* 减弱动效（演示用开关，模拟应用内开关 + 系统偏好） */
+html.reduce-motion *, html.reduce-motion *::before, html.reduce-motion *::after {
+  animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important;
+}
+
+section, header.page-head {
+  width: min(1160px, 100%);
+  background: var(--dex-body);
+  border: 4px solid var(--dex-navy);
+  border-radius: 16px;
+  box-shadow: 8px 8px 0 rgba(0,0,0,.4);
+  padding: 20px 26px 26px;
+}
+.sec-head { display: flex; align-items: baseline; gap: 14px; flex-wrap: wrap; margin-bottom: 6px; }
+.sec-head .no { font-size: 16px; }
+.sec-head h2 { font-size: 16px; font-weight: 700; }
+.sec-desc { font-size: 13px; color: var(--ink-soft); line-height: 1.8; margin-bottom: 16px; max-width: 92ch; }
+kbd {
+  font-family: "Press Start 2P", monospace; font-size: 8px;
+  border: 2px solid var(--dex-navy); border-bottom-width: 3px; border-radius: 4px;
+  background: #fff; padding: 3px 5px; margin: 0 1px; display: inline-block;
+}
+
+.btn {
+  border: 3px solid var(--dex-navy); border-radius: 8px;
+  background: var(--poke-yellow); color: var(--ink);
+  font-size: 13px; font-weight: 700; padding: 7px 12px; cursor: pointer;
+  box-shadow: 3px 3px 0 var(--dex-navy);
+  transition: transform var(--t-tap), box-shadow var(--t-tap);
+  min-height: 36px; font-family: inherit;
+}
+.btn:active { transform: translate(2px,2px); box-shadow: 1px 1px 0 var(--dex-navy); }
+.btn.ghost { background: #fff; }
+.btn.red { background: var(--danger); color: #fff; }
+.btn.on { background: var(--ok-soft); color: var(--ok-ink); }
+
+/* ============ 舞台 ============ */
+.stage-wrap { display: grid; grid-template-columns: minmax(300px, 380px) 1fr; gap: 16px; align-items: start; }
+@media (max-width: 900px) { .stage-wrap { grid-template-columns: 1fr; } }
+.stage {
+  border: 3px solid var(--dex-navy); border-radius: 12px; overflow: hidden;
+  background: #DDE8CE;
+  background-image:
+    linear-gradient(45deg, rgba(255,255,255,.35) 25%, transparent 25%, transparent 75%, rgba(255,255,255,.35) 75%),
+    linear-gradient(45deg, rgba(255,255,255,.35) 25%, transparent 25%, transparent 75%, rgba(255,255,255,.35) 75%);
+  background-size: 24px 24px; background-position: 0 0, 12px 12px;
+  box-shadow: inset 0 0 0 3px rgba(26,27,37,.08);
+  min-height: 420px;
+  display: flex; align-items: flex-start; justify-content: center;
+  position: relative;
+  user-select: none;
+}
+.petwin {
+  width: 250px;
+  padding: 14px 10px 12px;
+  display: flex; flex-direction: column; align-items: center;
+  position: relative;
+}
+.sprite-hit { position: relative; width: 104px; height: 104px; display: flex; align-items: flex-end; justify-content: center; cursor: grab; touch-action: none; }
+.sprite-hit:active { cursor: grabbing; }
+.pet-sprite {
+  width: 96px; height: 96px; image-rendering: pixelated;
+  transform-origin: 50% 100%;
+  will-change: transform;
+}
+/* —— 状态循环 —— */
+.pet-sprite.st-working { animation: hop 1.6s var(--e-sway) infinite; }
+.pet-sprite.st-idle { animation: breathe 3.4s var(--e-sleep) infinite; }
+.pet-sprite.st-paused { filter: grayscale(.7); animation: breathe 4.5s var(--e-sleep) infinite; }
+.pet-sprite.st-asleep { filter: grayscale(.35) brightness(.92); animation: breathe 3.2s var(--e-sleep) infinite; }
+.pet-sprite.st-anxious { animation: hop .6s var(--e-sway) infinite; }
+/* —— 微动作（一次性，JS 挂类） —— */
+.pet-sprite.ma-blink { animation: blinkEye 240ms linear; }
+.pet-sprite.ma-look { animation: look 1s var(--e-sway); }
+.pet-sprite.ma-flip { animation: flip 1.2s var(--e-sway); }
+.pet-sprite.ma-yawn { animation: yawn 900ms var(--e-sleep); }
+.pet-sprite.ma-pet { animation: petted .9s var(--e-pop); }
+.pet-sprite.ma-pet2 { animation: petted2 .5s var(--e-pop); }
+.pet-sprite.ma-hop1 { animation: hopOne 550ms var(--e-pop); }
+.pet-sprite.ma-wake { animation: wake 650ms var(--e-pop); }
+.pet-sprite.ma-drag { animation: wiggle .3s var(--e-sway) infinite; }
+.pet-sprite.dragging { animation: tilt .2s var(--e-snap) forwards; }
+.pet-sprite.ma-release { animation: squash 400ms var(--e-pop); }
+
+@keyframes hop { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-7px); } }
+@keyframes hopOne { 0% { transform: translateY(0) scale(1,1); } 18% { transform: translateY(2px) scale(1.05,.88); } 55% { transform: translateY(-9px) scale(.96,1.06); } 85% { transform: translateY(1px) scale(1.04,.92); } 100% { transform: translateY(0) scale(1,1); } }
+@keyframes breathe { 0%,100% { transform: scale(1,1); } 50% { transform: scale(1.015,1.02); } }
+@keyframes blinkEye { 0%,100% { transform: scaleY(1); } 50% { transform: scaleY(.12); } }
+@keyframes look { 0%,100% { transform: translateX(0) rotate(0); } 25% { transform: translateX(4px) rotate(2deg); } 50% { transform: translateX(-4px) rotate(-2deg); } 75% { transform: translateX(2px) rotate(1deg); } }
+@keyframes flip { 0%,100% { transform: scaleX(1); } 50% { transform: scaleX(-1); } }
+@keyframes yawn { 0%,100% { transform: scale(1,1) translateY(0); } 45% { transform: scale(.94,1.12) translateY(2px); } }
+@keyframes petted { 0% { transform: scale(1,1); } 12% { transform: scale(.92,.9) translateY(2px); } 40% { transform: scale(1.16,1.18) rotate(-5deg); } 65% { transform: scale(.96,.95) rotate(4deg); } 85% { transform: scale(1.04,1.04) rotate(-2deg); } 100% { transform: scale(1,1); } }
+@keyframes petted2 { 0% { transform: scale(1,1); } 45% { transform: scale(1.15,1.15) rotate(-4deg); } 100% { transform: scale(1,1); } }
+@keyframes wake { 0% { transform: scale(1,.9); } 50% { transform: scale(1.1,1.14) translateY(-6px); } 100% { transform: scale(1,1); } }
+@keyframes wiggle { 0%,100% { transform: rotate(0); } 50% { transform: rotate(3deg); } }
+@keyframes tilt { to { transform: rotate(8deg) scale(1.02,.98); } }
+@keyframes squash { 0% { transform: rotate(8deg) scale(1.02,.98); } 35% { transform: rotate(0) scale(1.1,.84) translateY(3px); } 70% { transform: rotate(0) scale(.97,1.04) translateY(-3px); } 100% { transform: rotate(0) scale(1,1); } }
+
+/* —— 色环 —— */
+.ring { position: absolute; inset: 0; width: 104px; height: 104px; pointer-events: none; opacity: .9; }
+.ring circle { fill: none; stroke-width: 4; }
+.ring .bg { stroke: rgba(28,34,68,.14); }
+.ring .fg { stroke: #5be36b; stroke-linecap: round; transform: rotate(-90deg); transform-origin: 52px 52px; stroke-dasharray: 327; transition: stroke-dashoffset 1s linear, stroke .5s; }
+
+/* —— 对话框 —— */
+.dialog { width: 100%; background: #fff; border: 3px solid var(--dex-navy); border-radius: 6px; box-shadow: 3px 3px 0 var(--dex-navy); margin-top: 12px; }
+.dialog.alert { animation: shake .4s var(--e-sway) 3; }
+.dialog-inner { border: 2px solid var(--dex-navy); border-radius: 3px; margin: 3px; padding: 8px 10px; min-height: 44px; display: flex; align-items: center; gap: 8px; }
+.dialog-text { flex: 1; font-size: 12.5px; font-weight: 700; line-height: 1.6; }
+/* ▼ v2：默认静态，新事件闪 3 次后停 */
+.dialog-next { flex: none; align-self: flex-end; font-size: 11px; color: var(--dex-red); opacity: .9; }
+.dialog.is-new .dialog-next { animation: blink3 1.8s steps(1) forwards; }
+@keyframes blink3 { 0%,20% { opacity: 1; } 10%,30% { opacity: .15; } 40%,60% { opacity: 1; } 50%,70% { opacity: .15; } 100% { opacity: .9; } }
+@keyframes shake { 0%,100% { transform: translateX(0); } 25% { transform: translateX(-4px); } 75% { transform: translateX(4px); } }
+
+/* —— 药丸（v2：2 钮 + 上下文） —— */
+.pill { margin-top: 8px; display: flex; align-items: center; gap: 8px; background: #fff; border: 3px solid var(--dex-navy); border-radius: 8px; box-shadow: 3px 3px 0 var(--dex-navy); padding: 5px 10px; }
+.pill .px { font-size: 11px; color: var(--danger); }
+.pill-btn { width: 30px; height: 30px; border: 3px solid var(--dex-navy); border-radius: 6px; background: var(--poke-yellow); cursor: pointer; font-size: 13px; box-shadow: 2px 2px 0 var(--dex-navy); }
+.pill-btn:active { transform: translate(1px,1px); box-shadow: 1px 1px 0 var(--dex-navy); }
+
+/* —— zzz —— */
+.zzz { position: absolute; top: 6px; right: 18px; pointer-events: none; }
+.zzz i {
+  position: absolute; font-style: normal; font-weight: 900; color: var(--dex-navy); opacity: 0;
+  font-family: "Press Start 2P", monospace;
+}
+.zzz i:nth-child(1) { font-size: 8px; animation: zfloat 3s var(--e-sleep) infinite; }
+.zzz i:nth-child(2) { font-size: 10px; animation: zfloat 3s var(--e-sleep) 1s infinite; }
+.zzz i:nth-child(3) { font-size: 12px; animation: zfloat 3s var(--e-sleep) 2s infinite; }
+@keyframes zfloat { 0% { transform: translate(0,0); opacity: 0; } 20% { opacity: .85; } 100% { transform: translate(14px,-30px); opacity: 0; } }
+
+/* —— 精灵球 & 捕捉演出 —— */
+.ball { position: absolute; width: 34px; height: 34px; border-radius: 50%; border: 3px solid var(--dex-navy); overflow: hidden; background: linear-gradient(180deg, var(--dex-red) 0 48%, #fff 48% 100%); box-shadow: 2px 2px 0 rgba(26,27,37,.35); pointer-events: none; z-index: 5; }
+.ball::after { content: ""; position: absolute; left: 50%; top: 50%; width: 10px; height: 10px; transform: translate(-50%,-50%); background: #fff; border: 3px solid var(--dex-navy); border-radius: 50%; }
+.ball-fly { animation: flyX 300ms linear forwards; }
+.ball-fly .ball { animation: flyY 300ms var(--e-pop) forwards; }
+@keyframes flyX { from { transform: translateX(0); } to { transform: translateX(-6px); } }
+@keyframes flyY { from { transform: translateY(120px) scale(.8); } to { transform: translateY(0) scale(1); } }
+.ball-land { animation: ballSquash 350ms var(--e-pop) forwards; }
+@keyframes ballSquash { 0% { transform: scale(1,1); } 40% { transform: scale(1.15,.8) translateY(4px); } 100% { transform: scale(1,1) translateY(0); } }
+.ball-shake { animation: ballShake 600ms var(--e-sway); }
+@keyframes ballShake { 0%,100% { transform: rotate(0); } 15% { transform: rotate(-14deg); } 32% { transform: rotate(14deg); } 50% { transform: rotate(-12deg); } 68% { transform: rotate(12deg); } 85% { transform: rotate(-6deg); } }
+.star { position: absolute; width: 10px; height: 10px; background: var(--poke-yellow); border: 2px solid var(--dex-navy); transform: rotate(45deg); pointer-events: none; z-index: 6; animation: starFly var(--t-act) var(--e-pop) forwards; }
+.star.big { width: 14px; height: 14px; background: #fff; }
+@keyframes starFly { 0% { transform: translate(0,0) rotate(45deg) scale(1); opacity: 1; } 100% { transform: translate(var(--dx), var(--dy)) rotate(225deg) scale(.4); opacity: 0; } }
+
+/* —— 控制面板 —— */
+.controls { display: flex; flex-direction: column; gap: 12px; }
+.ctl-group { border: 3px solid var(--dex-navy); border-radius: 12px; background: #fff; box-shadow: 4px 4px 0 var(--dex-navy); padding: 12px 14px; }
+.ctl-group h3 { font-size: 11px; letter-spacing: 1px; color: var(--ink-soft); font-weight: 700; margin-bottom: 10px; }
+.ctl-row { display: flex; flex-wrap: wrap; gap: 8px; }
+.ctl-note { font-size: 11.5px; color: var(--ink-soft); margin-top: 8px; line-height: 1.7; }
+
+/* ============ 时序图 ============ */
+.timeline { display: flex; border: 3px solid var(--dex-navy); border-radius: 8px; overflow: hidden; box-shadow: 3px 3px 0 var(--dex-navy); height: 64px; position: relative; background: #fff; }
+.tl-seg { display: flex; flex-direction: column; justify-content: center; padding: 6px 10px; border-right: 2px solid var(--dex-navy); position: relative; min-width: 0; }
+.tl-seg:last-child { border-right: none; }
+.tl-seg b { font-size: 12px; }
+.tl-seg span { font-size: 10px; color: var(--ink-soft); }
+.tl-play { position: absolute; top: 0; bottom: 0; left: 0; width: 0; background: rgba(255,203,5,.4); border-right: 3px solid var(--dex-red); z-index: 2; pointer-events: none; }
+.timeline.playing .tl-play { animation: playhead 1320ms linear forwards; }
+@keyframes playhead { to { width: 100%; } }
+
+/* ============ 缓动卡 ============ */
+.ease-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px; }
+.ease-card { border: 3px solid var(--dex-navy); border-radius: 12px; background: #fff; box-shadow: 4px 4px 0 var(--dex-navy); padding: 12px 14px; }
+.ease-card .track { height: 44px; border: 2px dashed var(--ink-faint); border-radius: 6px; position: relative; margin: 8px 0; overflow: hidden; }
+.ease-card .mover { position: absolute; left: 6px; top: 50%; width: 24px; height: 24px; margin-top: -12px; border-radius: 6px; background: var(--poke-yellow); border: 3px solid var(--dex-navy); }
+.ease-card.go .mover { animation: slide 900ms var(--curve) 2 alternate; }
+@keyframes slide { to { left: calc(100% - 30px); } }
+.ease-card code { font-family: ui-monospace, Menlo, monospace; font-size: 11px; color: var(--ink-soft); display: block; margin-bottom: 4px; }
+
+/* ============ 极简前后对比 ============ */
+.cmp { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+@media (max-width: 760px) { .cmp { grid-template-columns: 1fr; } }
+.cmp-col { border: 3px solid var(--dex-navy); border-radius: 12px; background: #fff; box-shadow: 4px 4px 0 var(--dex-navy); padding: 12px; }
+.cmp-col h3 { font-size: 12px; margin-bottom: 8px; }
+.cmp-col.old h3 { color: var(--danger); }
+.cmp-col.new h3 { color: var(--ok-ink); }
+.cmp-win { border: 2px solid var(--dex-navy); border-radius: 10px; background: #F2F7EA; padding: 10px; display: flex; flex-direction: column; align-items: center; gap: 6px; }
+.cmp-sprite { width: 56px; height: 56px; image-rendering: pixelated; }
+.cmp-tag { font-size: 9px; background: #fff; border: 2px solid var(--dex-navy); border-radius: 6px; padding: 0 6px; font-weight: 700; }
+.cmp-dialog { width: 100%; background: #fff; border: 2px solid var(--dex-navy); border-radius: 4px; font-size: 9.5px; font-weight: 700; padding: 4px 6px; }
+.cmp-pill { display: flex; gap: 3px; align-items: center; background: #fff; border: 2px solid var(--dex-navy); border-radius: 6px; padding: 2px 5px; }
+.cmp-pill i { font-style: normal; font-size: 9px; width: 16px; height: 16px; display: inline-flex; align-items: center; justify-content: center; border: 2px solid var(--dex-navy); border-radius: 4px; background: var(--poke-yellow); }
+.cmp-pill i.off { background: #ECEADA; color: var(--ink-faint); }
+.cmp-note { font-size: 11px; color: var(--ink-soft); line-height: 1.7; margin-top: 8px; }
+
+footer { width: min(1160px, 100%); font-size: 12px; color: #9aa0b5; line-height: 2; text-align: center; }
+</style>
+</head>
+<body>
+
+<header class="page-head">
+  <div class="px" style="font-size:8px;color:var(--ink-faint);letter-spacing:1px">PET INTERACTION DEMO · 2026-09</div>
+  <h1 class="px-cn" style="font-size:24px;margin:10px 0 4px">桌宠动画与交互 · 情绪价值方案演示</h1>
+  <p style="font-size:13px;color:var(--ink-soft);line-height:1.8;max-width:76ch">配套 <b>design/PET_INTERACTION_DESIGN.md</b>。核心立场：桌宠是镜子不是闹钟——情感价值来自对每个动作的回应，不来自照料责任。本页可交互触发全部动效：左侧舞台直接<b>拖拽精灵</b>（悬挂物理）、<b>按住 600ms 撸宠</b>、点按钮看各状态与捕捉演出。</p>
+  <div style="margin-top:12px;border-top:2px dashed var(--ink-faint);padding-top:10px;font-size:12px;color:var(--ink-soft)">
+    <b>试这三件事：</b>① 舞台里把精灵拎起来再放下；② 按「★ 捕捉演出」看掷球三摇星星（1.3 秒，可点击跳过）；③ 打开「生命感调度器」，什么都不做，看它自己眨眼、左右看。
+    <label style="margin-left:16px;cursor:pointer"><input type="checkbox" id="rmToggle" /> 模拟「减弱动效」（全部动画即时完成）</label>
+  </div>
+</header>
+
+<!-- ================= 1 舞台 ================= -->
+<section>
+  <div class="sec-head"><span class="no px">1</span><h2 class="px-cn">桌宠舞台（真实交互）</h2></div>
+  <p class="sec-desc">精灵可拖拽（拖动=悬挂倾斜+小碎步，松手=挤压回弹）、按住 600ms=撸宠；对话框 ▼ 演示 v2 规则——新事件闪 3 次后转为静态。演出中点击舞台任意处可跳过。</p>
+  <div class="stage-wrap">
+    <div class="stage" id="stage">
+      <div class="petwin">
+        <div class="sprite-hit" id="spriteHit">
+          <svg class="ring" id="ring" viewBox="0 0 104 104" aria-hidden="true">
+            <circle class="bg" cx="52" cy="52" r="50"></circle>
+            <circle class="fg" id="ringFg" cx="52" cy="52" r="50" stroke-dashoffset="82"></circle>
+          </svg>
+          <img class="pet-sprite st-idle" id="sprite" src="../public/pokemon/pikachu.gif" alt="皮卡丘" draggable="false" />
+          <div class="zzz" id="zzz" hidden><i>z</i><i>z</i><i>z</i></div>
+        </div>
+        <div class="dialog" id="dialog">
+          <div class="dialog-inner">
+            <span class="dialog-text" id="bubble">皮卡丘在等你出发！点我挑个目标吧</span>
+            <span class="dialog-next">▼</span>
+          </div>
+        </div>
+        <div class="pill" id="pill">
+          <span class="px">🍅 24:31</span>
+          <button class="pill-btn" title="暂停">⏸</button>
+          <button class="pill-btn" title="完成">✔</button>
+        </div>
+      </div>
+    </div>
+    <div class="controls">
+      <div class="ctl-group">
+        <h3>生命微动作（调度器池 · 见 §4.4）</h3>
+        <div class="ctl-row">
+          <button class="btn ghost" data-ma="ma-blink">眨眼</button>
+          <button class="btn ghost" data-ma="ma-look">左右看</button>
+          <button class="btn ghost" data-ma="ma-flip">翻面</button>
+          <button class="btn ghost" data-ma="ma-yawn">哈欠</button>
+        </div>
+        <div class="ctl-note">全部为「一次性事件 + 随机间隔」，不是循环动画——这是对「动效即信息」的显式豁免：它在过自己的日子。working 态调度器自动降频。</div>
+      </div>
+      <div class="ctl-group">
+        <h3>状态（镜子：反映你的工作）</h3>
+        <div class="ctl-row">
+          <button class="btn" data-st="st-idle">待机</button>
+          <button class="btn" data-st="st-working">专注</button>
+          <button class="btn" data-st="st-paused">暂停</button>
+          <button class="btn" data-st="st-anxious">焦急(尾段)</button>
+          <button class="btn ghost" data-st="st-asleep" id="sleepBtn">睡觉 zzz</button>
+        </div>
+        <div class="ctl-note">睡觉态出现浮动 zzz；再点任意状态或碰精灵会「揉眼醒来」（ma-wake）。</div>
+      </div>
+      <div class="ctl-group">
+        <h3>事件演出（juice：预备 → 动作 → 回应）</h3>
+        <div class="ctl-row">
+          <button class="btn red" id="catchBtn">★ 捕捉演出</button>
+          <button class="btn ghost" data-ma="ma-hop1">回应一跳</button>
+          <button class="btn ghost" id="wakeBtn">醒来</button>
+        </div>
+        <div class="ctl-note">捕捉演出 = 产品名的由来时刻：精灵球三摇 + 星星，≤1.5s、点击可跳过。时序见下方 §2。</div>
+      </div>
+      <div class="ctl-group">
+        <h3>生命感调度器</h3>
+        <div class="ctl-row">
+          <button class="btn ghost" id="schedBtn">▶ 启动调度器</button>
+          <span class="ctl-note" id="schedInfo" style="margin:0">idle 态每 4~9s 随机一个微动作；working 只保留眨眼且频率减半</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ================= 2 捕捉演出时序 ================= -->
+<section>
+  <div class="sec-head"><span class="no px">2</span><h2 class="px-cn">捕捉演出时序（总 1320ms）</h2></div>
+  <p class="sec-desc">宽度按时长等比。点击「重播」在舞台与时间轴上同步演出；「跳过」演示用户随时可打断（点击舞台同样有效）。</p>
+  <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:12px">
+    <button class="btn" id="replayBtn">▶ 重播演出</button>
+    <button class="btn ghost" id="skipBtn">✕ 跳过</button>
+    <span style="font-size:12px;color:var(--ink-soft)">点击跳过 = 回应不打扰原则：演出永不绑架用户时间</span>
+  </div>
+  <div class="timeline" id="timeline">
+    <div class="tl-seg" style="flex:120"><b>预备</b><span>120ms · 蹲下蓄力</span></div>
+    <div class="tl-seg" style="flex:300"><b>动作</b><span>300ms · 掷球抛物线</span></div>
+    <div class="tl-seg" style="flex:600;background:var(--hover)"><b>高潮 · 三摇</b><span>600ms ±14°×3</span></div>
+    <div class="tl-seg" style="flex:300"><b>回应</b><span>300ms · 星星+气泡</span></div>
+    <div class="tl-play"></div>
+  </div>
+</section>
+
+<!-- ================= 3 动效令牌 ================= -->
+<section>
+  <div class="sec-head"><span class="no px">3</span><h2 class="px-cn">动效令牌 · 可爱三律</h2></div>
+  <p class="sec-desc">可爱不靠改精灵，靠时机与物理：<b>落地必挤压 · 过冲必回弹 · 动作带预备帧</b>。点击卡片看四种缓动的差异——禁用匀速与线性（那是机器，不是生物）。</p>
+  <div class="ease-grid">
+    <div class="ease-card" style="--curve:cubic-bezier(.34,1.56,.64,1)">
+      <b style="font-size:12px">--e-pop 弹出过冲</b><code>cubic-bezier(.34,1.56,.64,1)</code>
+      <div class="track"><div class="mover"></div></div>
+      <div class="ctl-note">回弹感：撸宠、庆祝、松手回弹</div>
+    </div>
+    <div class="ease-card" style="--curve:cubic-bezier(.2,.9,.3,1.2)">
+      <b style="font-size:12px">--e-snap 快落轻冲</b><code>cubic-bezier(.2,.9,.3,1.2)</code>
+      <div class="track"><div class="mover"></div></div>
+      <div class="ctl-note">落地、拖拽倾斜</div>
+    </div>
+    <div class="ease-card" style="--curve:cubic-bezier(.45,0,.55,1)">
+      <b style="font-size:12px">--e-sway 摇摆往返</b><code>cubic-bezier(.45,0,.55,1)</code>
+      <div class="track"><div class="mover"></div></div>
+      <div class="ctl-note">主循环跳跃、球摇、左右看</div>
+    </div>
+    <div class="ease-card" style="--curve:cubic-bezier(.4,0,.6,1)">
+      <b style="font-size:12px">--e-sleep 呼吸</b><code>cubic-bezier(.4,0,.6,1)</code>
+      <div class="track"><div class="mover"></div></div>
+      <div class="ctl-note">睡觉/待机呼吸（±2% 幅度）</div>
+    </div>
+  </div>
+</section>
+
+<!-- ================= 4 信息极简 ================= -->
+<section>
+  <div class="sec-head"><span class="no px">4</span><h2 class="px-cn">信息极简：常驻元素审计</h2></div>
+  <p class="sec-desc">「只保留必要的信息」的执行结果：桌宠静景从 6 类元素收敛到 4 类。每个留下的元素都要挣自己的位置。</p>
+  <div class="cmp">
+    <div class="cmp-col old">
+      <h3>现状（6 元素 · 5 钮）</h3>
+      <div class="cmp-win">
+        <div style="position:relative">
+          <img class="cmp-sprite" src="../public/pokemon/pikachu.gif" alt="" />
+          <div class="cmp-tag">工作 · 皮卡丘</div>
+        </div>
+        <div class="cmp-dialog">皮卡丘正在捕捉：给老板发周报 ▼</div>
+        <div class="cmp-pill"><i>🍅</i><i>⏸</i><i>🍦</i><i>▶</i><i>✔</i><i>⇄</i></div>
+      </div>
+      <div class="cmp-note">常驻分类标签占一行视觉税；药丸 5 钮里 🍐▶⇄ 是低频操作常驻占位；▼ 永久闪烁占用「同屏唯一闪烁」名额。</div>
+    </div>
+    <div class="cmp-col new">
+      <h3>v2（4 元素 · 2 钮 + 上下文）</h3>
+      <div class="cmp-win">
+        <img class="cmp-sprite" src="../public/pokemon/pikachu.gif" alt="" />
+        <div class="cmp-dialog">皮卡丘接下了「周报」！▼<span style="color:var(--ok-ink)">（开场说一次，之后精灵图即分类）</span></div>
+        <div class="cmp-pill"><i>🍅</i><i>⏸</i><i>✔</i><i class="off" title="暂停态才出现">▶</i><i class="off" title="移入右键菜单">⇄</i></div>
+      </div>
+      <div class="cmp-note">灰显钮 = 上下文出现：▶/🍦 只在暂停态、⇄ 收进右键菜单；分类并入开场气泡；▼ 默认静态、新事件闪 3 次。色环保留（时间盲友好刚需，未画）。</div>
+    </div>
+  </div>
+</section>
+
+<!-- ================= 5 红线 ================= -->
+<section>
+  <div class="sec-head"><span class="no px">5</span><h2 class="px-cn">注意力红线（每阶段回归验收）</h2></div>
+  <p class="sec-desc" style="margin-bottom:10px">情绪价值的边界——越过任何一条，陪伴就变成打扰：</p>
+  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:10px;font-size:13px">
+    <div style="border:3px solid var(--dex-navy);border-radius:10px;background:#fff;box-shadow:3px 3px 0 var(--dex-navy);padding:10px 14px"><b>同屏闪烁 ≤ 1</b><br><span style="color:var(--ink-soft)">▼ 已让位；紧急时只有优先级点/抖动占用名额</span></div>
+    <div style="border:3px solid var(--dex-navy);border-radius:10px;background:#fff;box-shadow:3px 3px 0 var(--dex-navy);padding:10px 14px"><b>演出 ≤ 1.5s 且可跳过</b><br><span style="color:var(--ink-soft)">点击即跳过；庆祝绑架时间 = 羞辱感倒置</span></div>
+    <div style="border:3px solid var(--dex-navy);border-radius:10px;background:#fff;box-shadow:3px 3px 0 var(--dex-navy);padding:10px 14px"><b>永不主动索要注意力</b><br><span style="color:var(--ink-soft)">一切演出是用户动作/设定事件的回应（Clippy 红线）</span></div>
+    <div style="border:3px solid var(--dex-navy);border-radius:10px;background:#fff;box-shadow:3px 3px 0 var(--dex-navy);padding:10px 14px"><b>激励只有正反馈</b><br><span style="color:var(--ink-soft)">无连击惩罚、无失望表情、无损失厌恶（Duo 反例）</span></div>
+    <div style="border:3px solid var(--dex-navy);border-radius:10px;background:#fff;box-shadow:3px 3px 0 var(--dex-navy);padding:10px 14px"><b>减弱动效双通道全关</b><br><span style="color:var(--ink-soft)">微动作/演出/物理全部跟随，静态语义不丢</span></div>
+    <div style="border:3px solid var(--dex-navy);border-radius:10px;background:#fff;box-shadow:3px 3px 0 var(--dex-navy);padding:10px 14px"><b>静景 ≤ 4 元素</b><br><span style="color:var(--ink-soft)">精灵 / 色环 / 一句话对话框 / 2 钮药丸</span></div>
+  </div>
+</section>
+
+<footer>
+  演示页字体同 design-refresh-demo.html（Google Fonts + jsdelivr @vp-tw Fusion Pixel 子集，正式落地走 npm 本地打包）· 精灵图为本地内置素材<br>
+  配套文档：<code>design/PET_INTERACTION_DESIGN.md</code>（方案全文） · <code>design/DESIGN_REFRESH_PROPOSAL.md</code>（整体设计焕新）
+</footer>
+
+<script>
+(function () {
+  "use strict";
+  var sprite = document.getElementById("sprite");
+  var hit = document.getElementById("spriteHit");
+  var stage = document.getElementById("stage");
+  var bubble = document.getElementById("bubble");
+  var dialog = document.getElementById("dialog");
+  var zzz = document.getElementById("zzz");
+  var ringFg = document.getElementById("ringFg");
+  var ring = document.getElementById("ring");
+  var sprites = ["pikachu", "psyduck", "bulbasaur", "snorlax", "chansey", "eevee"];
+  var names = { pikachu: "皮卡丘", psyduck: "可达鸭", bulbasaur: "妙蛙种子", snorlax: "卡比兽", chansey: "吉利蛋", eevee: "伊布" };
+  var spi = 0;
+  var busy = false;          // 演出/微动作互斥
+  var skipFlag = false;      // 演出跳过
+  var RM = function () { return document.documentElement.classList.contains("reduce-motion"); };
+  var sleep = function (ms) { return new Promise(function (r) { setTimeout(r, RM() ? 0 : ms); }); };
+
+  function say(text, isNew) {
+    bubble.textContent = text;
+    dialog.classList.remove("is-new", "alert");
+    if (isNew) {
+      void dialog.offsetWidth; // 重触发动画
+      dialog.classList.add("is-new");
+    }
+  }
+  function name() { return names[sprites[spi]]; }
+
+  // ---- 微动作（一次性）：与状态循环动画叠加用 wrapper 技术——把状态类挪到 hit，微动作放 sprite
+  // 简化：微动作直接覆盖 animation（结束后恢复状态类）
+  function micro(cls, dur) {
+    if (busy) return;
+    var st = sprite.dataset.st || "st-idle";
+    busy = true;
+    sprite.classList.remove("st-idle", "st-working", "st-paused", "st-asleep", "st-anxious");
+    sprite.classList.add(cls);
+    setTimeout(function () {
+      sprite.classList.remove(cls);
+      sprite.classList.add(st);
+      busy = false;
+    }, RM() ? 0 : dur);
+  }
+
+  // ---- 状态切换
+  function setState(st) {
+    if (busy) return;
+    var wasAsleep = sprite.classList.contains("st-asleep");
+    sprite.dataset.st = st;
+    sprite.classList.remove("st-idle", "st-working", "st-paused", "st-asleep", "st-anxious");
+    sprite.classList.add(st);
+    zzz.hidden = st !== "st-asleep";
+    ring.style.display = (st === "st-working" || st === "st-anxious") ? "" : "none";
+    var texts = {
+      "st-idle": name() + "在等你出发！",
+      "st-working": name() + "正在捕捉：给老板发周报",
+      "st-paused": name() + "暂停中，休息一下~",
+      "st-anxious": name() + "有点着急：只剩 3 分钟啦！",
+      "st-asleep": "（睡着了，动一下鼠标或点点它）"
+    };
+    if (st === "st-asleep") { say(texts[st]); }
+    else if (wasAsleep) { micro("ma-wake", 650); say("呜哇——" + name() + "揉揉眼睛：你回来啦！", true); }
+    else { say(texts[st]); }
+  }
+  document.querySelectorAll("[data-st]").forEach(function (b) {
+    b.addEventListener("click", function () { setState(b.getAttribute("data-st")); });
+  });
+  document.querySelectorAll("[data-ma]").forEach(function (b) {
+    b.addEventListener("click", function () {
+      var cls = b.getAttribute("data-ma");
+      var dur = { "ma-blink": 240, "ma-look": 1000, "ma-flip": 1200, "ma-yawn": 900 }[cls] || 400;
+      micro(cls, dur);
+    });
+  });
+  document.getElementById("wakeBtn").addEventListener("click", function () {
+    sprite.dataset.st = "st-idle";
+    setState("st-asleep");
+    setTimeout(function () { setState("st-idle"); }, 250);
+  });
+
+  // ---- 拖拽物理：按住不动 600ms = 撸宠；移动超阈值 = 拖拽
+  var drag = null, holdTimer = null, petting = false;
+  hit.addEventListener("pointerdown", function (e) {
+    if (busy) return;
+    skipFlag = true; // 按下即视为跳过演出
+    drag = { x0: e.clientX, y0: e.clientY, moved: false };
+    holdTimer = setTimeout(function () {
+      if (drag && !drag.moved) { petting = true; micro("ma-pet", 900); say("♪ " + name() + "被摸得眯起了眼~", true); }
+    }, 600);
+  });
+  window.addEventListener("pointermove", function (e) {
+    if (!drag) return;
+    var dx = e.clientX - drag.x0, dy = e.clientY - drag.y0;
+    if (!drag.moved && Math.hypot(dx, dy) > 6) {
+      drag.moved = true; clearTimeout(holdTimer);
+      sprite.classList.add("dragging");
+      sprite.classList.add("ma-drag");
+      say("（被拎起来了！小碎步紧张中）");
+    }
+    if (drag.moved) {
+      var w = stage.getBoundingClientRect();
+      hit.style.position = "absolute";
+      hit.style.left = Math.max(4, Math.min(w.width - 108, e.clientX - w.left - 52)) + "px";
+      hit.style.top = Math.max(4, e.clientY - w.top - 60) + "px";
+    }
+  });
+  window.addEventListener("pointerup", function () {
+    clearTimeout(holdTimer);
+    if (drag && drag.moved) {
+      sprite.classList.remove("dragging", "ma-drag");
+      busy = true;
+      sprite.classList.add("ma-release");
+      setTimeout(function () { sprite.classList.remove("ma-release"); busy = false; setState(sprite.dataset.st || "st-idle"); say("咚！安全落地～"); }, RM() ? 0 : 420);
+    }
+    drag = null; petting = false;
+  });
+
+  // ---- 捕捉演出
+  var timeline = document.getElementById("timeline");
+  async function catchScene() {
+    if (busy) return;
+    busy = true; skipFlag = false;
+    var st = sprite.dataset.st || "st-idle";
+    // 预备：蹲下
+    sprite.classList.remove("st-idle", "st-working", "st-paused", "st-asleep", "st-anxious");
+    sprite.style.transform = "scale(.9,.86)";
+    say(name() + "蓄力一掷…", true);
+    await sleep(120); if (skipFlag) return end(st);
+    // 动作：球从对话框飞向精灵
+    var ballWrap = document.createElement("div");
+    ballWrap.className = "ball-fly";
+    ballWrap.style.cssText = "position:absolute;left:50%;top:50%;margin:-17px 0 0 -17px;z-index:5";
+    var ball = document.createElement("div"); ball.className = "ball";
+    ballWrap.appendChild(ball); hit.appendChild(ballWrap);
+    sprite.style.opacity = "0";
+    await sleep(300); if (skipFlag) return end(st, ballWrap);
+    // 高潮：落地挤压 + 三摇（两轮 600ms）
+    ball.classList.add("ball-land");
+    await sleep(350); if (skipFlag) return end(st, ballWrap);
+    ball.classList.remove("ball-land"); ball.classList.add("ball-shake");
+    timeline.classList.remove("playing"); void timeline.offsetWidth; timeline.classList.add("playing");
+    await sleep(600); if (skipFlag) return end(st, ballWrap);
+    await sleep(0); if (skipFlag) return end(st, ballWrap);
+    // 回应：星星 + 换精灵
+    burstStars(hit, 6, false);
+    ballWrap.remove();
+    spi = (spi + 1) % sprites.length;
+    sprite.src = "../public/pokemon/" + sprites[spi] + ".gif";
+    sprite.style.opacity = "";
+    busy = false;
+    setState("st-idle");
+    say("✔ 捕捉成功！" + names[sprites[spi]] + "记入图鉴，就决定是你了！", true);
+    timeline.classList.remove("playing");
+    function end(st2, bw) {
+      if (bw) bw.remove();
+      sprite.style.opacity = ""; sprite.style.transform = "";
+      busy = false; setState(st2 === "st-asleep" ? "st-idle" : st2);
+      timeline.classList.remove("playing");
+    }
+  }
+  function burstStars(container, n, big) {
+    for (var i = 0; i < n; i++) {
+      var s = document.createElement("i");
+      s.className = "star" + (big ? " big" : "");
+      var ang = (Math.PI * 2 * i) / n + Math.random() * .6;
+      var d = 46 + Math.random() * 26;
+      s.style.setProperty("--dx", Math.round(Math.cos(ang) * d) + "px");
+      s.style.setProperty("--dy", Math.round(Math.sin(ang) * d - 14) + "px");
+      s.style.left = "calc(50% - 5px)"; s.style.top = "40%";
+      container.appendChild(s);
+      (function (el) { setTimeout(function () { el.remove(); }, RM() ? 0 : 420); })(s);
+    }
+  }
+  document.getElementById("catchBtn").addEventListener("click", function () { skipFlag = false; catchScene(); });
+  document.getElementById("replayBtn").addEventListener("click", function () { skipFlag = false; catchScene(); });
+  document.getElementById("skipBtn").addEventListener("click", function () { skipFlag = true; });
+  stage.addEventListener("pointerdown", function () { skipFlag = true; }, true);
+
+  // ---- 生命感调度器
+  var sched = null;
+  var schedBtn = document.getElementById("schedBtn");
+  function scheduleNext() {
+    if (!sched) return;
+    var working = sprite.dataset.st === "st-working" || sprite.dataset.st === "st-anxious";
+    var wait = (working ? 7000 : 4000) + Math.random() * 5000;
+    sched = setTimeout(function () {
+      var pool = working ? ["ma-blink"] : ["ma-blink", "ma-blink", "ma-look", "ma-flip", "ma-yawn"];
+      var cls = pool[Math.floor(Math.random() * pool.length)];
+      var dur = { "ma-blink": 240, "ma-look": 1000, "ma-flip": 1200, "ma-yawn": 900 }[cls] || 400;
+      if (!busy && !schedOn) { /* 已关 */ }
+      if (busy) { scheduleNext(); return; }
+      micro(cls, dur);
+      scheduleNext();
+    }, wait);
+  }
+  var schedOn = false;
+  schedBtn.addEventListener("click", function () {
+    schedOn = !schedOn;
+    schedBtn.classList.toggle("on", schedOn);
+    schedBtn.textContent = schedOn ? "■ 停止调度器" : "▶ 启动调度器";
+    if (schedOn) { sched = true; scheduleNext(); }
+    else { clearTimeout(sched); sched = null; }
+  });
+
+  // ---- 色环演示（缓慢流逝）
+  var pct = 0.75, ringTimer = setInterval(function () {
+    if (ring.style.display === "none") return;
+    pct -= 0.004; if (pct <= 0.12) pct = 1;
+    ringFg.style.strokeDashoffset = String(327 * (1 - pct));
+    ringFg.style.stroke = pct > .5 ? "#5be36b" : pct > .25 ? "#f5a623" : "#e3350d";
+  }, 100);
+
+  // ---- 减弱动效开关
+  document.getElementById("rmToggle").addEventListener("change", function () {
+    document.documentElement.classList.toggle("reduce-motion", this.checked);
+  });
+
+  // ---- 缓动卡
+  document.querySelectorAll(".ease-card").forEach(function (card) {
+    card.addEventListener("click", function () {
+      card.classList.remove("go"); void card.offsetWidth; card.classList.add("go");
+    });
+  });
+})();
+</script>
+</body>
+</html>

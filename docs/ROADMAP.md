@@ -78,12 +78,12 @@
 - **相对截止时间（时间盲友好）**：任务卡截止显示为距现在的距离（X 分钟后 / 明天 15:00 / 周五 / 已逾期 X），按临近程度五档变色，悬停见绝对时间，设置可关
 - **自然语言快速捕捉**：输入框解析「明天 5pm 交周报 #工作」——高亮预览、单击取消、设置可全局关闭；只认高置信模式（明确时间词 / #已有分类与标签），认不出的留在标题里不猜
 - **收音机**：飞书消息全量展示与查询、60 天自动清理、强制创建（先判重）、◎ 捕捉 / ✕ 逃走人工裁决；AI 判定三动作——新待办 / 更新建议（确认后打补丁到目标待办）/ 跟进（自动并入并显示「已并入待办 No.x」）；待处理消息批量分诊（全选批量捕捉 / 逃走，单条失败不影响其余）；每条建议附**判定理由 + 置信档位（高/中/低）**，逃走可选原因码，反馈连同建议与模型落本地库（chat_feedback）
-- **诊断中心**（设置 → 诊断）：集成健康面板（飞书 / AI / Todoist 三档状态、上次成功、下次轮询、失败计数、待确认积压、一键重试，后台实时刷新）+ 应用内日志查看器（级别 / 来源过滤）+ 脱敏支持报告（版本 + 健康快照 + 最近日志，敏感键与 Bearer 凭证自动遮蔽）
+- **诊断中心**（设置 → 诊断）：集成健康面板（飞书 / AI 三档状态、上次成功、下次轮询、失败计数、待确认积压、一键重试，后台实时刷新）+ 应用内日志查看器（级别 / 来源过滤）+ 脱敏支持报告（版本 + 健康快照 + 最近日志，敏感键与 Bearer 凭证自动遮蔽）
 - **AI**：agent CLI 多配置（Claude Code / OpenCode / Kiro CLI + 自定义）、`pk` CLI 供 agent 调用（task / note / log / category / tag / context，全 JSON 输出）、会话历史快捷入口
 - **Agent SSH 远程执行**：agent 配置可指定 SSH 目标（host/端口/私钥），无头调用与历史入口均经 `ssh --` 以登录 shell（`$SHELL -lc`）转发——非交互会话也能找到 brew/nvm 安装的 CLI；提示词走 stdin 免遭远端 shell 重解析，BatchMode 免交互、连接超时 10 秒；远端找不到命令（退出码 127）时附 PATH 修复指引
 - **会话回链与成本记录**：agent_sessions 表按次落库（session_id / 命令 / 退出码 / 成本 / 时长 / token），分类调用自动记录，`pk session log` 关联任务；任务详情抽屉展示并可回放转录
 - **配套 skill 分发**：`pk skill install claude-code|opencode [--dir]` 一键装 SKILL.md（含 pk 命令速查与 agent 建议流程），`pk skill show` 输出原文
-- **Agent 工具调用模式（pk suggest）**：分类结果回收双模式——text（解析 agent 输出 JSON，默认）或 tools（agent 先 `pk context` 拿判重上下文、`pk suggest batch` 一次性把整批判定写回数据库，应用直接回读不再解析输出文本）；`pk suggest todo|update|follow-up|none|batch` 全套提交命令（todo/update 写建议列保留人工确认、follow-up 自动挂跟进，整批校验一损俱损、同消息幂等覆盖），建议落库收敛为 conn 层单一实现；技能改为渐进披露多文件（SKILL.md + references/ 参数表与批处理工作流，带版本标记、跨版本重装提示更新）；连接测试在 tools 模式改为工具探针（真跑一次 pk context，验证白名单/PATH/数据库整条链路）
+- **Agent 工具调用模式（pk suggest，现为唯一回收方式）**：agent 先 `pk context` 拿判重上下文、`pk suggest batch` 一次性把整批判定写回数据库，应用直接回读、不解析 agent 输出文本（早期的 text 文本解析模式已下线）；`pk suggest todo|update|follow-up|none|batch` 全套提交命令（todo/update 写建议列保留人工确认、follow-up 自动挂跟进，整批校验一损俱损、同消息幂等覆盖），建议落库收敛为 conn 层单一实现；技能改为渐进披露多文件（SKILL.md + references/ 参数表与批处理工作流，带版本标记、跨版本重装提示更新）；连接测试为工具探针（真跑一次 pk context，验证白名单/PATH/数据库整条链路）
 - **远程 agent 用 pk（反向隧道 + 一键配置）**：`pk remote shim --host <本机> [--port] [--key] [--write]` 生成远程透传脚本，pk 命令经 ssh 回本机执行、数据始终留在本机；agent 的 SSH 配置填反向隧道端口（`-R` 把远程侧 127.0.0.1:端口 转回本机 sshd），本机零入站。设置页「一键配置远程 pk」按钮全自动完成部署——密钥生成/公钥装配/私钥推送/主机指纹预信任/shim 安装与 PATH 保障/端口写回/真实隧道端到端验证，全程幂等逐步报告（用户前置仅需开启本机 sshd）
 - **pk 的 agent 友好性四件套**：`pk doctor` 环境自检（数据库存在性/schema 版本/quick_check 完整性/WAL 并发/context 读链路/技能安装版本，每项带 fix 修复建议，有 fail 退出码 1；`--ssh <host>` 端到端验证远程 shim 链路）；`task create/update/delete --dry-run` 只校验回显不落库；`task list --limit`（默认 50，truncated 时提示用 search 收窄——token 瘦身）；`pk help --json` 机器可读命令目录
 - **飞书**：用户身份 OAuth 增量拉取私聊/群聊（无需拉机器人进会话）、富文本渲染、按聊天语境过滤 + 同会话 30 分钟上下文、断网退避重试
@@ -96,12 +96,11 @@
 - **环境化倒计时**：桌宠随剩余时间渐变的色环（绿→琥珀→红）+ 尾段精灵焦急加速；长番茄钟（≥45 分钟）中点与剩 5 分钟轻提示音（可关）
 - **「先试 5 分钟」启动模式**：桌宠 🍦 按钮开一场「不成也没关系」的超短专注；到期不接休息，继续/收工都被肯定（零挫败入场与退出门票）
 - **每周复盘（训练家复盘）**：图鉴页四步向导——总览统计/路线逐站就地处置（保留·完成·归草丛·逃走）/草丛批量放生/收尾记录；设置可选提醒日、到点系统通知每周一次（OmniFocus 式回顾 + 提醒的差异化组合）
-- **集成**：Todoist 双向同步
-- **数据安全**：秘钥（飞书 App Secret / OAuth token / Todoist Token）迁 OS 钥匙串（Keychain / Credential Manager / Secret Service），启动自动迁移存量明文，无钥匙串环境回落本地库；后端不再回传明文
+- **数据安全**：秘钥（飞书 App Secret / OAuth token 等，后随引擎下线）迁 OS 钥匙串（Keychain / Credential Manager / Secret Service），启动自动迁移存量明文，无钥匙串环境回落本地库；后端不回传明文；已下线集成的遗留键（builtin 飞书引擎 / Todoist Token）启动时自动清理
 - **自动版本化备份**：`VACUUM INTO` 每日快照（滚动保留可配，默认 7 份）+ 设置页手动备份/列表/在线恢复（SQLite backup API 灌回，免重启）
 - **导出/导入三件套**：全量 JSON（可回导、秘钥不出文件）、任务 CSV（BOM + RFC4180 转义）、日报 Markdown（已完成/路线上/今日跟进，勾选框语法可并入知识库）
 - **常驻应用标配**：单实例、系统托盘、全局快捷键快速捕捉（`Ctrl/Cmd+Shift+K`）与显隐桌宠、窗口位置记忆、minisign 签名自动更新
-- **工程基建**：SQLite 迁移机制（`PRAGMA user_version`）、统一错误处理、wiremock 覆盖三条外部链路、三引擎 E2E + Rust 契约测试、CI（clippy / fmt / eslint / lefthook / release-please / Renovate）、社区文件（issue / PR 模板、CONTRIBUTING、SECURITY）、VS Code 一键调试（lldb-dap：桌面应用 + 前端组合启动）、pk sidecar 三平台打包链路（Windows `.exe` 命名、macOS universal 双架构 lipo）
+- **工程基建**：SQLite 迁移机制（`PRAGMA user_version`）、统一错误处理、假 CLI/wiremock（后者随 HTTP 集成下线移除）覆盖外部链路、三引擎 E2E + Rust 契约测试、CI（clippy / fmt / eslint / lefthook / release-please / Renovate）、社区文件（issue / PR 模板、CONTRIBUTING、SECURITY）、VS Code 一键调试（lldb-dap：桌面应用 + 前端组合启动）、pk sidecar 三平台打包链路（Windows `.exe` 命名、macOS universal 双架构 lipo）
 
 ---
 

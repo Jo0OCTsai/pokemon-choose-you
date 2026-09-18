@@ -598,15 +598,15 @@ mod tests {
         )
         .unwrap();
         conn.execute(
-            "INSERT INTO settings (key, value) VALUES ('todoist_token', 'real-secret'), ('language', 'en')",
+            "INSERT INTO settings (key, value) VALUES ('language', 'en'), ('feishu_poll_interval', '120')",
             [],
         )
         .unwrap();
     }
 
-    /// 全量 JSON 往返：导出→新库导入，行数与字段一致；秘钥不进文件也不被导入覆盖
+    /// 全量 JSON 往返：导出→新库导入，行数与字段一致，设置整体替换
     #[test]
-    fn json_roundtrip_restores_data_and_keeps_secrets_out() {
+    fn json_roundtrip_restores_data() {
         let dir = tmp_dir("roundtrip");
         let conn = test_conn();
         seed(&conn);
@@ -616,22 +616,17 @@ mod tests {
         let parsed: serde_json::Value = serde_json::from_str(&content).unwrap();
         assert_eq!(parsed["app"], APP_SLUG);
         assert_eq!(parsed["data"]["tasks"].as_array().unwrap().len(), 2);
-        assert!(
-            !content.contains("real-secret"),
-            "秘钥绝不落导出文件: {}",
-            &content[content.len().min(200)..]
-        );
         assert_eq!(
             parsed["data"]["settings"].as_array().unwrap().len(),
-            1,
-            "只有非秘钥设置"
+            2,
+            "设置行随导出带出"
         );
 
-        // 新库导入：数据齐了，原有秘钥未被触碰
+        // 新库导入：数据齐了，库里原有设置被整体替换
         let mut fresh = test_conn();
         fresh
             .execute(
-                "INSERT INTO settings (key, value) VALUES ('todoist_token', 'my-old-secret')",
+                "INSERT INTO settings (key, value) VALUES ('language', 'fr')",
                 [],
             )
             .unwrap();
@@ -645,20 +640,12 @@ mod tests {
             .query_row("SELECT title FROM tasks WHERE id=2", [], |r| r.get(0))
             .unwrap();
         assert_eq!(title, "交报告, 第二版 \"最终\"");
-        let secret: String = fresh
-            .query_row(
-                "SELECT value FROM settings WHERE key='todoist_token'",
-                [],
-                |r| r.get(0),
-            )
-            .unwrap();
-        assert_eq!(secret, "my-old-secret", "导入不覆盖秘钥");
         let lang: String = fresh
             .query_row("SELECT value FROM settings WHERE key='language'", [], |r| {
                 r.get(0)
             })
             .unwrap();
-        assert_eq!(lang, "en");
+        assert_eq!(lang, "en", "导入整体替换原设置");
         // 联表关系保留
         let tag: String = fresh
             .query_row(

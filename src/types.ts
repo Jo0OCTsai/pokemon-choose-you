@@ -18,8 +18,15 @@ export interface Task {
   /** 逃走（取消）时间 */
   cancelledAt?: string | null;
   focusSeconds: number;
-  /** 标签名列表（后端聚合返回） */
-  tags: string[];
+  /** 标签引用列表（后端聚合返回，按维度序：项目在前） */
+  tags: TagRef[];
+}
+
+/** 任务上挂的标签引用：名字 + 归属维度 key */
+export interface TagRef {
+  name: string;
+  /** project / context / person / topic / 自定义维度 key；老数据缺省归 topic */
+  dimension: string;
 }
 
 export interface Category {
@@ -35,6 +42,37 @@ export interface Tag {
   id: number;
   name: string;
   description: string;
+  /** 归属维度 key（project/context/person/topic/自定义）；老数据缺省归 topic */
+  dimension: string;
+  /** manual / ai / nl / agent（谁建的，治理审计用） */
+  origin: string;
+  /** 挂在多少个任务上（设置页治理展示） */
+  usage: number;
+  /** 创建时间（RFC3339；僵尸标签的年龄判定用）；老数据可能为空 */
+  createdAt?: string;
+}
+
+/** 标签维度：一组正交的归类面（分面分类）。维度封闭少而稳，标签在维度内开放生长 */
+export interface TagDimension {
+  id: number;
+  /** 稳定标识（AI 协议与 TagRef.dimension 用），内置 project/context/person/topic */
+  key: string;
+  /** 展示名（项目/场景/人物/主题…） */
+  name: string;
+  /** single（任务上至多 1 个）/ multi */
+  cardinality: "single" | "multi" | string;
+  /** 标签数上限（防碎片化） */
+  maxTags: number;
+  sort: number;
+  /** 停用后不进新建/编辑与 AI 选项，已有标签不受影响 */
+  enabled: boolean;
+}
+
+/** AI 建议的标签：名字 + 归属维度 + 是否词表外新建（isNew 时接受建议才落库） */
+export interface ProposedTag {
+  name: string;
+  dimension: string;
+  isNew: boolean;
 }
 
 export interface TaskNote {
@@ -54,7 +92,7 @@ export interface TaskLog {
   field: string;
   oldValue?: string | null;
   newValue?: string | null;
-  /** 变更来源：main / pet / radio / todoist / migration */
+  /** 变更来源：main / pet / radio / migration（历史数据可能还有已下线集成的 todoist） */
   origin: string;
   createdAt: string;
 }
@@ -80,7 +118,7 @@ export interface ChatMessage {
   suggestedDue?: string | null;
   suggestedPriority?: string | null;
   suggestedNote?: string | null;
-  suggestedTags: string[];
+  suggestedTags: ProposedTag[];
   /** AI 判定理由（为什么是待办 / 为什么不算） */
   suggestedReason?: string | null;
   /** 置信档位 high / medium / low */
@@ -163,8 +201,6 @@ export interface AgentConfig {
   /** 单次调用超时（秒） */
   timeoutSecs: number;
   enabled: boolean;
-  /** 分类结果回收方式：text=解析输出 JSON（缺省）；tools=agent 经 pk 工具落库、应用回读 */
-  mode?: string;
   /** SSH 远程执行（null/缺省 = 本地执行） */
   remote?: AgentRemote | null;
 }
@@ -184,9 +220,9 @@ export interface RemotePkReport {
   version?: string | null;
 }
 
-/** 集成链路健康（诊断页展示）：飞书 / AI / Todoist */
+/** 集成链路健康（诊断页展示）：飞书 / AI */
 export interface IntegrationHealth {
-  provider: "feishu" | "ai" | "todoist";
+  provider: "feishu" | "ai";
   configured: boolean;
   /** 飞书的后台轮询开关；其余链路配置即启用 */
   enabled: boolean;
@@ -217,4 +253,24 @@ export interface LogEntry {
 export interface BatchReviewResult {
   ok: number;
   failed: { id: number; error: string }[];
+}
+
+/** 标签体检（复盘向导）：相似度预筛 + 僵尸标签 + LLM 复核与新维度建议 */
+export interface TagCheckupReport {
+  merges: {
+    fromId: number;
+    fromName: string;
+    intoId: number;
+    intoName: string;
+    dimension: string;
+    /** 本地预筛相似度 0~1 */
+    similarity: number;
+    /** LLM 是否已复核（false = 仅相似度预筛，未配置 agent 或判定失败） */
+    judged: boolean;
+    reason?: string | null;
+  }[];
+  zombies: { id: number; name: string; dimension: string; origin: string; createdAt: string }[];
+  newDimensions: { name: string; tags: string[]; reason?: string | null }[];
+  /** LLM 是否参与了本次判定 */
+  judged: boolean;
 }

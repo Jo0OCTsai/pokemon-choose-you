@@ -33,14 +33,14 @@ src-tauri/src/
   events.rs             事件名集中定义 + 契约测试
   db.rs                 SQLite + PRAGMA user_version 迁移（改表加新迁移条目，勿改旧条目）
   tray.rs / shortcuts.rs 托盘菜单 / 全局快捷键
-  ai.rs / feishu.rs / todoist.rs / scheduler.rs
+  ai.rs / feishu.rs / scheduler.rs
 ```
 
 几条不成文约定：
 
 - **契约靠测试锁死**：Rust serde ↔ TS 接口（`models.rs`/`types.ts`）、事件名（`events.rs`/`events.ts`）、i18n 三语键位，各有一对测试防漂移，改动时两侧同步。
 - **schema 变更走迁移**：在 `db.rs` 的 `MIGRATIONS` 追加新条目（只追加不修改），`user_version` 会自动前滚。
-- **HTTP 分支必须 mock 覆盖**：ai/todoist 的 reqwest 路径用 wiremock 写集成测试（此前缺覆盖导致 Todoist 同步两个 bug 长期未被发现）；feishu 走 lark-cli 子进程，用假 CLI 脚本按 API 路由返回数据来测全链路。
+- **外部进程链路必须脚本覆盖**：ai 走 agent CLI 子进程、feishu 走 lark-cli 子进程，用假 CLI 脚本按调用路由返回数据来测全链路（此前 HTTP 分支缺 mock 覆盖曾让同步 bug 长期未被发现，教训记入）。
 - **写数据的命令必须广播对应事件**：主面板与桌宠靠 `events.rs` 里的变更事件保持两窗口一致，忘了广播就是"另一窗口不刷新"的 bug。
 
 ## 版权红线 ⚠️

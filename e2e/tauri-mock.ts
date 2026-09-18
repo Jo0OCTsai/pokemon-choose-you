@@ -22,7 +22,7 @@ export interface MockTask {
   startedAt?: string | null;
   cancelledAt?: string | null;
   focusSeconds: number;
-  tags: string[];
+  tags: { name: string; dimension: string }[];
 }
 
 export interface MockCategory {
@@ -285,6 +285,23 @@ export async function installTauriMock(page: Page, state: Partial<MockState> = {
             return db.nextId++;
           case "list_tags":
             return [];
+          case "tag_checkup":
+            return { merges: [], zombies: [], newDimensions: [], judged: false };
+          case "merge_tag":
+            broadcast("tags-changed");
+            broadcast("tasks-changed");
+            return null;
+          case "move_tags_to_dimension":
+            broadcast("tags-changed");
+            broadcast("tasks-changed");
+            return null;
+          case "list_tag_dimensions":
+            return [
+              { id: 1, key: "project", name: "项目", cardinality: "single", maxTags: 20, sort: 1, enabled: true },
+              { id: 2, key: "context", name: "场景", cardinality: "multi", maxTags: 10, sort: 2, enabled: true },
+              { id: 3, key: "person", name: "人物", cardinality: "multi", maxTags: 30, sort: 3, enabled: true },
+              { id: 4, key: "topic", name: "主题", cardinality: "multi", maxTags: 30, sort: 4, enabled: true },
+            ];
           case "search_tasks":
             return db.tasks.filter((t: any) => (t.title ?? "").includes(args.q)).map((t: any) => ({ ...t }));
           case "list_agent_sessions":
@@ -343,19 +360,6 @@ export async function installTauriMock(page: Page, state: Partial<MockState> = {
                 pendingCount: 0,
                 primaryAgent: "Claude Code",
               },
-              {
-                provider: "todoist",
-                configured: false,
-                enabled: true,
-                status: "off",
-                lastSuccessAt: null,
-                lastError: null,
-                lastErrorAt: null,
-                consecutiveFailures: 0,
-                nextPollAt: null,
-                pendingCount: 0,
-                primaryAgent: "",
-              },
             ];
           case "list_log_entries":
             return [
@@ -372,8 +376,6 @@ export async function installTauriMock(page: Page, state: Partial<MockState> = {
             return "授权成功：测试用户（E2E mock）";
           case "feishu_oauth_status":
             return { authorized: true, userName: "测试用户" };
-          case "sync_todoist":
-            return "同步完成（E2E mock）";
           // ---- 插件 ----
           case "plugin:autostart|isEnabled":
             return false;

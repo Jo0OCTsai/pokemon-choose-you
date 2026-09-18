@@ -49,4 +49,4 @@
 - `src/i18n/{zh-Hans,zh-Hant,en}.ts` 三文件 key 结构必须一致；新增 key 三语同步（反例：`review.overdue` 曾三语齐缺，线上渲染出 key 本身）。
 - 后端硬编码文案（scheduler 三语通知、导出日报、支持报告、pk CLI 帮助）与前端 i18n **同批修改**，否则通知与界面口吻脱节。
 - e2e mock（`e2e/tauri-mock.ts`）与测试断言（scheduler / pk / App.spec）随文案一起改。
-- 集成与诊断类设置（AI Agent / 飞书 / Todoist / SSH）保持工具语气，**不做世界观化**——那里用户要的是精确信息。
+- 集成与诊断类设置（AI Agent / 飞书 / SSH）保持工具语气，**不做世界观化**——那里用户要的是精确信息。

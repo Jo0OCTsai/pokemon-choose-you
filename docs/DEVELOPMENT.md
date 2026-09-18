@@ -28,14 +28,14 @@ npm run tauri build   # 打包 (macOS: dmg / Windows: NSIS / Linux: deb·rpm·Ap
 | `npm run lint` / `npm run lint:fix` | ESLint（Vue + TS flat config） |
 | `npm run format` / `npm run format:check` | Prettier |
 | `npm run test:unit` | Vitest 单元测试（`src/__tests__/`） |
-| `npm run test:rust` | cargo test（单元 + serde↔TS 契约 + wiremock HTTP 集成） |
+| `npm run test:rust` | cargo test（单元 + serde↔TS 契约） |
 | `npm run test:e2e` | Playwright 三引擎（chromium / firefox / webkit） |
 | `npm run clippy` | cargo clippy `-D warnings` |
 | `npm run test` | 单元 + Rust 全套 |
 
 ## 测试
 
-- **单元测试**：前端覆盖设置存储/日期格式化、图鉴风组件、主面板与桌宠的状态机；Rust 侧用 Tauri mock 运行时 + 内存 SQLite 驱动真实命令函数（任务 CRUD、专注模式唯一 active、分类管理、提醒调度、AI/飞书/Todoist 纯逻辑）。
+- **单元测试**：前端覆盖设置存储/日期格式化、图鉴风组件、主面板与桌宠的状态机；Rust 侧用 Tauri mock 运行时 + 内存 SQLite 驱动真实命令函数（任务 CRUD、专注模式唯一 active、分类管理、提醒调度、AI/飞书纯逻辑）。
 - **E2E**：Playwright 对 Vite dev server 跑两窗口核心流程，通过注入 `window.__TAURI_INTERNALS__` 模拟 Tauri IPC（`e2e/tauri-mock.ts`），不依赖打包后的桌面应用。
 - **兼容性测试**：三语语言包键位/插值占位符对齐、精灵素材完整性、Rust serde ↔ TS 接口的 IPC 契约（字段增删会直接挂测试）、同一套 E2E 跑三大浏览器引擎。
 - Linux 本地跑 webkit 引擎需先安装系统库：`sudo npx playwright install-deps webkit`；CI（`.github/workflows/ci.yml`）在 push/PR 时自动跑全部测试。
@@ -65,8 +65,7 @@ src-tauri/src/
   bin/pk.rs             pk 命令行：供 AI agent 与终端读写待办（JSON 输出）
   scheduler.rs          提醒调度（提前量、通知开关、多语言通知）
   feishu.rs             用户身份增量轮询（lark-cli 聚合翻页 + 语境规则）+ 富文本渲染
-  ai.rs                 AI agent CLI 无头调用（多 Agent 配置 / 超时 / 输出解析）
-  todoist.rs            Todoist 双向同步
+  ai.rs                 AI agent CLI 无头调用（多 Agent 配置 / 超时 / 判定经 pk 落库后回读）
   health.rs             集成链路健康状态（诊断中心）
                         （各文件内 #[cfg(test)] 为 Rust 单元测试与契约测试）
 public/pokemon/         内置宝可梦素材 (PokeAPI sprites；全量名录的其余精灵图运行时从 CDN 加载)

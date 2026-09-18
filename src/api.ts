@@ -9,6 +9,8 @@ import type {
   LogEntry,
   RemotePkReport,
   Tag,
+  TagCheckupReport,
+  TagDimension,
   Task,
   TaskLog,
   TaskNote,
@@ -100,9 +102,29 @@ export const api = {
   deleteTaskNote: (id: number) => call<void>("delete_task_note", { id }),
   listTaskLogs: (taskId: number) => call<TaskLog[]>("list_task_logs", { taskId }),
   listTags: () => call<Tag[]>("list_tags"),
-  createTag: (name: string, description: string) => call<Tag>("create_tag", { name, description }),
-  updateTag: (id: number, name: string, description: string) => call<void>("update_tag", { id, name, description }),
+  /** dimension 缺省 topic；同名同维度幂等复用 */
+  createTag: (name: string, description: string, dimension?: string) =>
+    call<Tag>("create_tag", { name, description, dimension: dimension ?? null }),
+  updateTag: (id: number, name: string, description: string, dimension?: string) =>
+    call<void>("update_tag", { id, name, description, dimension: dimension ?? null }),
   deleteTag: (id: number) => call<void>("delete_tag", { id }),
+  listTagDimensions: () => call<TagDimension[]>("list_tag_dimensions"),
+  createTagDimension: (key: string, name: string, cardinality?: string, maxTags?: number) =>
+    call<TagDimension>("create_tag_dimension", {
+      key,
+      name,
+      cardinality: cardinality ?? null,
+      maxTags: maxTags ?? null,
+    }),
+  updateTagDimension: (id: number, name: string, maxTags?: number, enabled?: boolean) =>
+    call<void>("update_tag_dimension", { id, name, maxTags: maxTags ?? null, enabled: enabled ?? null }),
+  /** 标签体检：本地相似度/僵尸预筛，配置了 agent 时走 LLM 复核与新维度建议 */
+  tagCheckup: () => call<TagCheckupReport>("tag_checkup"),
+  /** 合并标签：from 的任务关联全部改挂 into，随后删除 from */
+  mergeTag: (fromId: number, intoId: number) => call<void>("merge_tag", { fromId, intoId }),
+  /** 采纳新维度建议：建维度（已存在则复用）并把标签迁过去 */
+  moveTagsToDimension: (tagIds: number[], key: string, name: string) =>
+    call<void>("move_tags_to_dimension", { tagIds, key, name }),
   listCategories: () => call<Category[]>("list_categories"),
   setCategoryPokemon: (id: number, pokemon: string, sprite: string) =>
     call<void>("set_category_pokemon", { id, pokemon, sprite }),
@@ -163,8 +185,7 @@ export const api = {
   feishuOauthLogin: () => call<string>("feishu_oauth_login"),
   /** 飞书授权状态（lark-cli 登录态：是否已登录 + 用户名） */
   feishuOauthStatus: () => call<FeishuOauthStatus>("feishu_oauth_status"),
-  syncTodoist: () => call<string>("sync_todoist"),
-  /** 集成健康汇总（飞书 / AI / Todoist） */
+  /** 集成健康汇总（飞书 / AI） */
   getIntegrationHealth: () => call<IntegrationHealth[]>("integration_health"),
   /** 读取运行日志尾部（可按最低级别过滤） */
   listLogEntries: (tail?: number, minLevel?: string) =>

@@ -13,7 +13,6 @@ pub mod models;
 mod scheduler;
 mod secrets;
 mod shortcuts;
-mod todoist;
 mod tray;
 mod which;
 
@@ -122,6 +121,12 @@ pub fn run() {
             commands::create_tag,
             commands::update_tag,
             commands::delete_tag,
+            commands::list_tag_dimensions,
+            commands::create_tag_dimension,
+            commands::update_tag_dimension,
+            commands::tag_checkup,
+            commands::merge_tag,
+            commands::move_tags_to_dimension,
             commands::list_categories,
             commands::set_category_pokemon,
             commands::set_category_enabled,
@@ -145,7 +150,6 @@ pub fn run() {
             commands::trigger_feishu_poll,
             commands::feishu_oauth_login,
             commands::feishu_oauth_status,
-            commands::sync_todoist,
             commands::integration_health,
             commands::list_log_entries,
             commands::build_support_report,

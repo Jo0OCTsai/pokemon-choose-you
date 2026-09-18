@@ -13,18 +13,22 @@ use std::sync::OnceLock;
 /// 钥匙串里的服务名（同一服务下按 key 区分条目）
 const SERVICE: &str = "pokemon-choose-you";
 
-/// 走秘钥链路的设置键（其余设置仍存 settings 表）
-pub const SECRET_KEYS: &[&str] = &["todoist_token"];
+/// 走秘钥链路的设置键（其余设置仍存 settings 表）。
+/// 当前无活跃秘钥键（Todoist 集成下线后为空）；下线集成的遗留键由
+/// purge_retired_keys 清理，未来集成需要凭证时在此登记即可启用整套链路。
+pub const SECRET_KEYS: &[&str] = &[];
 
-/// 已下线的 builtin 飞书引擎遗留键：settings 行 + 钥匙串条目都清掉。
-/// 秘钥类三个走 secret_delete（两边都清，无残留不算失败），其余普通行 SQL 删除。
-pub fn purge_legacy_feishu_keys(conn: &Connection) {
-    const LEGACY_SECRET_KEYS: &[&str] = &[
+/// 已下线集成（builtin 飞书引擎 / Todoist 同步）的遗留键：settings 行 +
+/// 钥匙串条目都清掉。秘钥类三个走 secret_delete（两边都清，无残留不算失败），
+/// 其余普通行 SQL 删除。
+pub fn purge_retired_keys(conn: &Connection) {
+    const RETIRED_SECRET_KEYS: &[&str] = &[
         "feishu_app_secret",
         "feishu_user_token",
         "feishu_refresh_token",
+        "todoist_token",
     ];
-    const LEGACY_SETTINGS_KEYS: &[&str] = &[
+    const RETIRED_SETTINGS_KEYS: &[&str] = &[
         "feishu_engine",
         "feishu_app_id",
         "feishu_token_expires_at",
@@ -32,18 +36,18 @@ pub fn purge_legacy_feishu_keys(conn: &Connection) {
         "feishu_user_name",
     ];
     let mut purged = 0;
-    for key in LEGACY_SECRET_KEYS {
+    for key in RETIRED_SECRET_KEYS {
         if secret_delete(conn, key).is_err() {
             log::warn!("secrets: 清理遗留秘钥 {key} 失败");
         }
     }
-    for key in LEGACY_SETTINGS_KEYS {
+    for key in RETIRED_SETTINGS_KEYS {
         if let Ok(n) = conn.execute("DELETE FROM settings WHERE key=?1", params![key]) {
             purged += n;
         }
     }
     if purged > 0 {
-        log::info!("secrets: 已清理 builtin 飞书引擎遗留设置 {purged} 项");
+        log::info!("secrets: 已清理下线集成遗留设置 {purged} 项");
     }
 }
 
@@ -155,7 +159,7 @@ pub fn secret_delete(conn: &Connection, key: &str) -> AppResult<()> {
 /// 启动迁移：把 settings 表里的存量秘钥搬进钥匙串（不可用则原样保留，回落逻辑兜底）。
 /// 返回迁移条数。
 pub fn migrate_settings_secrets(conn: &Connection) -> usize {
-    if !keyring_available() {
+    if SECRET_KEYS.is_empty() || !keyring_available() {
         return 0;
     }
     let mut moved = 0;
@@ -195,27 +199,28 @@ mod tests {
         .ok()
     }
 
-    /// 回落路径（测试进程恒无钥匙串）：写进 settings 表、读回一致、空值删除两边都清
+    /// 回落路径（测试进程恒无钥匙串）：写进 settings 表、读回一致、空值删除两边都清。
+    /// 当前无活跃秘钥键，用任意键验证存取基建仍可用
     #[test]
     fn secret_roundtrip_via_settings_fallback() {
         let conn = test_conn();
-        secret_set(&conn, "todoist_token", "tok-1").unwrap();
-        assert_eq!(secret_get(&conn, "todoist_token").as_deref(), Some("tok-1"));
-        assert_eq!(setting(&conn, "todoist_token").as_deref(), Some("tok-1"));
+        secret_set(&conn, "sample_token", "tok-1").unwrap();
+        assert_eq!(secret_get(&conn, "sample_token").as_deref(), Some("tok-1"));
+        assert_eq!(setting(&conn, "sample_token").as_deref(), Some("tok-1"));
 
         // 覆写生效
-        secret_set(&conn, "todoist_token", "tok-2").unwrap();
-        assert_eq!(secret_get(&conn, "todoist_token").as_deref(), Some("tok-2"));
+        secret_set(&conn, "sample_token", "tok-2").unwrap();
+        assert_eq!(secret_get(&conn, "sample_token").as_deref(), Some("tok-2"));
 
         // 空值视为删除
-        secret_set(&conn, "todoist_token", "").unwrap();
-        assert_eq!(secret_get(&conn, "todoist_token"), None);
-        assert_eq!(setting(&conn, "todoist_token"), None);
+        secret_set(&conn, "sample_token", "").unwrap();
+        assert_eq!(secret_get(&conn, "sample_token"), None);
+        assert_eq!(setting(&conn, "sample_token"), None);
 
         // 显式删除同效
-        secret_set(&conn, "todoist_token", "x").unwrap();
-        secret_delete(&conn, "todoist_token").unwrap();
-        assert_eq!(secret_get(&conn, "todoist_token"), None);
+        secret_set(&conn, "sample_token", "x").unwrap();
+        secret_delete(&conn, "sample_token").unwrap();
+        assert_eq!(secret_get(&conn, "sample_token"), None);
     }
 
     /// 无钥匙串环境：迁移保持 no-op，存量明文原样保留（回落逻辑继续可读）
@@ -223,32 +228,33 @@ mod tests {
     fn migrate_is_noop_without_keyring() {
         let conn = test_conn();
         conn.execute(
-            "INSERT INTO settings (key, value) VALUES ('todoist_token', 'legacy-plain')",
+            "INSERT INTO settings (key, value) VALUES ('sample_token', 'legacy-plain')",
             [],
         )
         .unwrap();
         assert_eq!(migrate_settings_secrets(&conn), 0);
         assert_eq!(
-            secret_get(&conn, "todoist_token").as_deref(),
+            secret_get(&conn, "sample_token").as_deref(),
             Some("legacy-plain")
         );
         // 空值/缺行的库迁移同样安全
-        secret_set(&conn, "todoist_token", "").unwrap();
+        secret_set(&conn, "sample_token", "").unwrap();
         assert_eq!(migrate_settings_secrets(&conn), 0);
     }
 
+    /// 当前无活跃秘钥键：任何键都按普通设置处理（明文进出，不进钥匙串链路）
     #[test]
     fn is_secret_key_matches_known_keys() {
-        assert!(is_secret_key("todoist_token"));
-        assert!(!is_secret_key("feishu_user_token"));
-        assert!(!is_secret_key("feishu_app_secret"));
+        assert!(SECRET_KEYS.is_empty(), "Todoist 下线后应无活跃秘钥键");
+        assert!(!is_secret_key("todoist_token"));
         assert!(!is_secret_key("language"));
         assert!(!is_secret_key("ai_agents"));
     }
 
-    /// builtin 飞书引擎下线后的遗留清理：settings 行与秘钥回落数据都删干净，幂等
+    /// 下线集成（builtin 飞书引擎 / Todoist）的遗留清理：settings 行与秘钥回落数据
+    /// 都删干净，幂等
     #[test]
-    fn purge_legacy_feishu_keys_removes_all_traces() {
+    fn purge_retired_keys_removes_all_traces() {
         let conn = test_conn();
         for (k, v) in [
             ("feishu_engine", "builtin"),
@@ -259,7 +265,8 @@ mod tests {
             ("feishu_token_expires_at", "99"),
             ("feishu_user_open_id", "ou"),
             ("feishu_user_name", "我"),
-            ("todoist_token", "keep"),
+            ("todoist_token", "legacy-tok"),
+            ("language", "en"),
         ] {
             conn.execute(
                 "INSERT INTO settings (key, value) VALUES (?1, ?2)",
@@ -267,7 +274,7 @@ mod tests {
             )
             .unwrap();
         }
-        purge_legacy_feishu_keys(&conn);
+        purge_retired_keys(&conn);
         for key in [
             "feishu_engine",
             "feishu_app_id",
@@ -277,16 +284,17 @@ mod tests {
             "feishu_token_expires_at",
             "feishu_user_open_id",
             "feishu_user_name",
+            "todoist_token",
         ] {
             assert_eq!(setting(&conn, key), None, "{key} 应被清理");
         }
         assert_eq!(
-            secret_get(&conn, "todoist_token").as_deref(),
-            Some("keep"),
-            "无关秘键不受影响"
+            setting(&conn, "language").as_deref(),
+            Some("en"),
+            "无关设置不受影响"
         );
         // 幂等：重复清理无副作用
-        purge_legacy_feishu_keys(&conn);
+        purge_retired_keys(&conn);
         assert_eq!(setting(&conn, "feishu_app_id"), None);
     }
 }

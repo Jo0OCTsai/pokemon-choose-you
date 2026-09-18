@@ -24,9 +24,11 @@ export interface NlCaptureResult {
   /** 命中的分类 id（#分类名） */
   categoryId: number | null;
   categoryName: string | null;
-  /** 命中的标签（#标签名，只认已有标签） */
+  /** 命中的已有标签（#标签名，只认已有标签） */
   tagIds: number[];
   tagNames: string[];
+  /** 词表外的 #新名字：提交时按 topic 维度新建（预览会标注「将新建」） */
+  newTagNames: string[];
   /** 被抽走的原文片段（预览高亮用） */
   matchedTexts: string[];
 }
@@ -193,11 +195,13 @@ export function parseNlCapture(input: string, ctx: NlCaptureContext): NlCaptureR
     matchedTexts.push(date.source);
   }
 
-  // 3) #分类名 / #标签名（只认启用分类与已有标签，未知名的 # 留在标题里）
+  // 3) #分类名 / #标签名（启用分类与已有标签直接命中；词表外的 #名字收集为「将新建」，
+  //    # 是用户显式的标签语法，算高置信——预览可见、单击可取消）
   let categoryId: number | null = null;
   let categoryName: string | null = null;
   const tagIds: number[] = [];
   const tagNames: string[] = [];
+  const newTagNames: string[] = [];
   for (const hm of rest.matchAll(/#([^\s#，。,、!！?？:：;；]+)/g)) {
     const name = hm[1];
     const cat = ctx.categories.find((c) => c.enabled && c.name === name);
@@ -212,12 +216,14 @@ export function parseNlCapture(input: string, ctx: NlCaptureContext): NlCaptureR
     if (tag) {
       tagIds.push(tag.id);
       tagNames.push(tag.name);
-      rest = rest.replace(hm[0], " ");
-      matchedTexts.push(hm[0]);
+    } else {
+      newTagNames.push(name);
     }
+    rest = rest.replace(hm[0], " ");
+    matchedTexts.push(hm[0]);
   }
 
-  if (!time && !date && categoryId === null && tagIds.length === 0) return null;
+  if (!time && !date && categoryId === null && tagIds.length === 0 && newTagNames.length === 0) return null;
 
   // 4) 标题 = 剩余文本；被抽空就整体不识别（宁可少猜，不猜错）
   const title = rest.replace(/\s+/g, " ").trim();
@@ -237,5 +243,5 @@ export function parseNlCapture(input: string, ctx: NlCaptureContext): NlCaptureR
     dueAt = fmtLocal(due);
   }
 
-  return { title, dueAt, categoryId, categoryName, tagIds, tagNames, matchedTexts };
+  return { title, dueAt, categoryId, categoryName, tagIds, tagNames, newTagNames, matchedTexts };
 }

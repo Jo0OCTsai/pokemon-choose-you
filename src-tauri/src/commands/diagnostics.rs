@@ -10,7 +10,7 @@ use tauri::{Manager, State};
 #[derive(Debug, Clone, serde::Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct IntegrationHealthInfo {
-    /// feishu / ai / todoist
+    /// feishu / ai
     pub provider: String,
     pub configured: bool,
     /// 飞书的后台轮询开关；其余链路配置即启用
@@ -70,11 +70,6 @@ fn collect_health<R: tauri::Runtime>(
     for (provider, configured, enabled) in [
         (health::FEISHU, feishu_configured(lark_bin), feishu_enabled),
         (health::AI, primary_agent.is_some(), true),
-        (
-            health::TODOIST,
-            get("todoist_token").is_some_and(|t| !t.trim().is_empty()),
-            true,
-        ),
     ] {
         let h: ProviderHealth = state.snapshot(provider);
         let ran = h.last_success_at.is_some() || h.last_error_at.is_some();
@@ -448,13 +443,11 @@ mod tests {
         {
             let db = app.state::<Db>();
             let conn = db.0.lock().unwrap();
-            for (k, v) in [("feishu_enabled", "true"), ("todoist_token", "tok")] {
-                conn.execute(
-                    "INSERT INTO settings (key, value) VALUES (?1, ?2)",
-                    params![k, v],
-                )
-                .unwrap();
-            }
+            conn.execute(
+                "INSERT INTO settings (key, value) VALUES ('feishu_enabled', 'true')",
+                [],
+            )
+            .unwrap();
         }
         // 制造飞书失败 + AI 成功
         let state = app.state::<HealthState>();
@@ -473,7 +466,6 @@ mod tests {
         assert!(by[health::FEISHU].configured && by[health::FEISHU].enabled);
         assert_eq!(by[health::AI].status, "ok");
         assert_eq!(by[health::AI].primary_agent, "Claude Code");
-        assert!(by[health::TODOIST].configured);
         // 收音机积压计入
         {
             let db = app.state::<Db>();
@@ -510,7 +502,7 @@ mod tests {
             collect_health(app.handle(), &conn, "/nonexistent/pk-lark-cli").unwrap()
         };
         assert!(infos.iter().all(|h| h.status == "off"), "{infos:?}");
-        assert_eq!(infos.len(), 3);
+        assert_eq!(infos.len(), 2);
     }
 
     #[test]

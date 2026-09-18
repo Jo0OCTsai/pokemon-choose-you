@@ -15,7 +15,7 @@
    ```bash
    pk suggest batch --agent <prompt 中给出的 agent id> <<'EOF'
    {"results":[
-     {"messageId":"om_x1","action":"todo","title":"交周报","category":"工作","priority":"high","due":"2026-09-14T18:00","tags":["重要"],"reason":"对方明确要求周五前交付","confidence":"high"},
+     {"messageId":"om_x1","action":"todo","title":"交周报","category":"工作","priority":"high","due":"2026-09-14T18:00","tags":[{"name":"重要","dimension":"topic","isNew":false},{"name":"周报系统","dimension":"project","isNew":true}],"reason":"对方明确要求周五前交付","confidence":"high"},
      {"messageId":"om_x2","action":"followUp","followUpTaskId":3,"reason":"进展确认","confidence":"medium"},
      {"messageId":"om_x3","action":"none","reason":"纯信息分享无需行动","confidence":"high"}
    ]}
@@ -29,7 +29,8 @@
 ## 规则
 
 - 所有 id 必须来自 prompt 的消息列表或 `pk context` 的 openTasks，不要猜测或编造
-- 分类/标签必须存在于 context；title 用不超过 20 字的祈使句中文
+- 分类必须存在于 context；title 用不超过 20 字的祈使句中文
+- tags 按维度选 0~3 个：词表内标签用对象 `{"name","dimension","isNew":false}`；某维度没有贴切选项且消息有明确依据（出现的项目名/人名/群名）时可提议新标签（`isNew:true`），模糊语境复用现有标签或留空；`pk context` 的 dimensions 里 remaining<=0 的维度禁止新建
 - 需要变更标签时给出完整的新数组；不变的字段留空/省略
 - 整批一损俱损：任何一条不合法全部不落库，修完再重提
 - 远程部署时 `pk` 可能是经 SSH 透传的 shim，单次调用有网络往返——**务必用 batch 一次提交**，不要逐条 `pk suggest`

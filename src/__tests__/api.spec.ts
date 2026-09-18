@@ -21,7 +21,7 @@ describe("api 错误分层（Rust AppError → ApiError）", () => {
 
   it("网络类错误标记可重试", async () => {
     invoke.mockRejectedValue({ kind: "network", message: "网络错误: 连接超时", retryable: true });
-    const err = await api.syncTodoist().catch((e) => e);
+    const err = await api.testFeishuConfig().catch((e) => e);
     expect(err.retryable).toBe(true);
   });
 

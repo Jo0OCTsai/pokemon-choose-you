@@ -43,7 +43,8 @@ impl Default for AgentRemote {
 }
 
 /// 一个 AI agent CLI 工具的调用配置（Claude Code / OpenCode / Kiro CLI 等），
-/// 无头调用本地 agent 进程完成分类，替代旧的 OpenAI 兼容 HTTP 接口。
+/// 无头调用本地 agent 进程完成分类。判定结果统一由 agent 经 pk CLI 写回数据库，
+/// 应用从库回读，不解析 agent 的文本输出。
 /// remote 配置后改为经 SSH 在远程机器执行。
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", default)]
@@ -63,20 +64,9 @@ pub struct AgentConfig {
     /// 单次调用超时（秒）
     pub timeout_secs: u64,
     pub enabled: bool,
-    /// 分类结果的回收方式：text = 解析 agent 输出的 JSON 文本（旧）；
-    /// tools = agent 通过 pk CLI 把判定写回数据库，应用从库回读（新，无文本解析）
-    #[serde(default)]
-    pub mode: String,
     /// SSH 远程执行（None = 本地执行）
     #[serde(default)]
     pub remote: Option<AgentRemote>,
-}
-
-impl AgentConfig {
-    /// tools 模式：agent 经 pk 工具提交判定，应用侧不解析其文本输出
-    pub fn uses_tools(&self) -> bool {
-        self.mode == "tools"
-    }
 }
 
 impl Default for AgentConfig {
@@ -90,7 +80,6 @@ impl Default for AgentConfig {
             workdir: String::new(),
             timeout_secs: 120,
             enabled: true,
-            mode: "text".into(),
             remote: None,
         }
     }
@@ -322,15 +311,62 @@ pub fn agent_by_id(get: &dyn Fn(&str) -> Option<String>, id: &str) -> Option<Age
     load_agents(get).into_iter().find(|a| a.id == id)
 }
 
-/// 分类时的判重上下文：现有未完成待办 + 可用分类/标签，
-/// 由调用方从库里加载后拼进 prompt，AI 借此判重并为新待办决定全部属性
-#[derive(Debug, Clone, Default)]
-pub struct ClassifyContext {
-    /// (task_id, title)
-    pub open_tasks: Vec<(i64, String)>,
-    pub categories: Vec<String>,
-    /// (name, description)
-    pub tags: Vec<(String, String)>,
+/// AI 建议的标签：名字 + 归属维度 + 是否词表外新建。
+/// 反序列化兼容旧协议的纯字符串（按 topic 维度、非新建解析），
+/// 保证存量 chat_messages.suggested_tags 与旧 agent 输出仍可读
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Default)]
+pub struct ProposedTag {
+    pub name: String,
+    #[serde(default)]
+    pub dimension: String,
+    #[serde(rename = "isNew", default)]
+    pub is_new: bool,
+}
+
+impl<'de> Deserialize<'de> for ProposedTag {
+    fn deserialize<D>(d: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        use serde::de::Error;
+        let v = serde_json::Value::deserialize(d)?;
+        match v {
+            serde_json::Value::String(s) => Ok(ProposedTag {
+                name: s,
+                dimension: "topic".into(),
+                is_new: false,
+            }),
+            serde_json::Value::Object(m) => {
+                let dimension = m
+                    .get("dimension")
+                    .and_then(|x| x.as_str())
+                    .unwrap_or("topic")
+                    .trim()
+                    .to_string();
+                Ok(ProposedTag {
+                    name: m
+                        .get("name")
+                        .and_then(|x| x.as_str())
+                        .unwrap_or_default()
+                        .trim()
+                        .to_string(),
+                    dimension: if dimension.is_empty() {
+                        "topic".into()
+                    } else {
+                        dimension
+                    },
+                    is_new: m
+                        .get("isNew")
+                        .or_else(|| m.get("is_new"))
+                        .and_then(|x| x.as_bool())
+                        .unwrap_or(false),
+                })
+            }
+            other => Err(D::Error::custom(format!(
+                "标签条目应为字符串或 {{name,dimension,isNew}} 对象: {other}"
+            ))),
+        }
+    }
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
@@ -353,7 +389,7 @@ pub struct AiSuggestion {
     #[serde(default)]
     pub due: Option<String>,
     #[serde(default)]
-    pub tags: Vec<String>,
+    pub tags: Vec<ProposedTag>,
     /// action=followUp 时指向现有待办 id
     #[serde(default, rename = "followUpTaskId")]
     pub follow_up_task_id: Option<i64>,
@@ -408,62 +444,7 @@ impl AiMessage {
     }
 }
 
-const SYSTEM_PROMPT: &str = r#"你是待办事项提取助手。给你一组 IM 消息（含来源、发送者、内容与同会话上下文）、用户当前未完成的待办清单、可用分类和标签，找出其中隐含的、需要用户本人行动的待办事项、承诺、或对方希望你完成/参加的事情。
-规则：
-- 每条消息带「来源」标签：单聊是对方直接对你说的，语气常更直接；「与机器人的私聊」是用户发给助手 bot 的，是用户给自己记的备忘/指令，同样要提取。上下文里标注为「我」的是用户自己说的话，只用于理解指代与时间，不是待办来源。
-- 群聊必须先判断任务归属，只提取明确指派给用户的：内容 @我、点名让用户做、或回复/接着用户的话头向用户提出请求。消息把任务指派给别人的（@他人、点名让他人做、说某事由某人负责/跟进）是别人的任务，内容再像待办也判 none（reason 注明是 @谁/谁 的任务）；不点名且从上下文判断不出是安排给用户的，同样判 none。宁漏勿滥：判 none 的消息用户在收音机里仍能看到、可手动捕捉，误报则会污染待办清单。
-- 同会话上下文仅供参考：帮你理解对话背景（前因后果、时间指代），最终判断只针对消息本身。
-- 只提取"需要用户行动"的内容（任务、承诺、会议、deadline、请求）。闲聊、通知、纯信息分享不算。
-- 判重（两步）：① 对照「现有待办清单」，已有本质相同的未完成待办时绝不再生成新待办，改按下面 update / followUp / none 的规则处理；② 本批消息互相判重——多条消息指向同一件事时，只对信息最明确最完整的一条生成 todo，其余判 none（reason 注明「与消息 [那条id] 同一件事」）。
-- action 只能是 "todo"、"update"、"followUp"、"none" 之一：
-  - todo：新的待办事项。
-  - update：消息明确修改现有待办的属性（改期/改时间、调整优先级、更换标题、变更交付要求）。填 updateTaskId，且只填需要变更的字段（title/note/priority/due/tags），不变的字段留空、tags 用 [] 表示不变；需要变更标签时给出完整的新标签数组。
-  - followUp：消息是现有待办的补充信息、进展汇报或确认，不改变任务本身属性。填 followUpTaskId。
-  - none：只是重复提及、没有新信息，或任务不属于用户。
-- title 用简短的祈使句中文概括要做的事（不超过 20 字）。
-- note 一句话补充上下文（谁提出的、在哪里、要什么），没有就留空。
-- category 从「可用分类」里选最贴切的一个。
-- priority 从 low/normal/high/urgent 里选：对方明确催促或当天到期用 urgent/high，默认 normal。
-- due: 消息里有明确时间就用 YYYY-MM-DDTHH:MM 格式（参考「当前时间」换算年份），否则留空。
-- tags: 从「可用标签」里选 0~3 个最贴切的标签名组成数组，没有合适的返回 []。
-- followUpTaskId 只在 action="followUp" 时填写，updateTaskId 只在 action="update" 时填写，取值都必须是「现有待办清单」里出现的 id。
-- reason: 一句话中文说明判定理由（如「对方明确要求周五前交付」/「与待办 No.3 本质相同」/「纯信息分享无需行动」），不超过 30 字。
-- confidence: 从 high/medium/low 里选：消息直白明确用 high；依赖语境推断（指代、隐含的时间或对象）用 medium；拿不准、像又不像的用 low。
-你的最终回复必须只包含一个 JSON 对象（不要解释、不要 Markdown 代码块），格式：{"results":[{"messageId":"m1","action":"todo","title":"...","note":"...","category":"...","priority":"normal","due":"...","tags":[],"followUpTaskId":null,"updateTaskId":null,"reason":"...","confidence":"high"}]}"#;
-
-/// 组装分类请求的正文：判重上下文 + 消息列表（含来源与同会话上下文）
-fn build_user_content(batch: &[AiMessage], ctx: &ClassifyContext) -> String {
-    let mut s = String::new();
-    s.push_str(&format!(
-        "当前时间：{}\n",
-        chrono::Local::now().format("%Y-%m-%d %H:%M（%A）")
-    ));
-    if ctx.open_tasks.is_empty() {
-        s.push_str("现有待办清单：（无）\n");
-    } else {
-        s.push_str("现有待办清单（id. 标题）：\n");
-        for (id, title) in &ctx.open_tasks {
-            s.push_str(&format!("[{id}] {title}\n"));
-        }
-    }
-    s.push_str(&format!("可用分类：{}\n", ctx.categories.join("/")));
-    if ctx.tags.is_empty() {
-        s.push_str("可用标签：无\n");
-    } else {
-        s.push_str("可用标签（名称：描述）：\n");
-        for (name, desc) in &ctx.tags {
-            if desc.is_empty() {
-                s.push_str(&format!("{name}\n"));
-            } else {
-                s.push_str(&format!("{name}：{desc}\n"));
-            }
-        }
-    }
-    s.push_str(&render_messages(batch));
-    s
-}
-
-/// 消息列表渲染（两种模式的正文共用）：[id] + 来源 + 发送者 + 内容 + 同会话上下文
+/// 消息列表渲染（分类提示词的正文）：[id] + 来源 + 发送者 + 内容 + 同会话上下文
 fn render_messages(batch: &[AiMessage]) -> String {
     let mut s = String::from("消息：\n");
     for m in batch {
@@ -478,11 +459,6 @@ fn render_messages(batch: &[AiMessage]) -> String {
         }
     }
     s
-}
-
-/// agent CLI 接收单段提示词：规则 + 判重上下文 + 消息
-fn build_prompt(batch: &[AiMessage], ctx: &ClassifyContext) -> String {
-    format!("{SYSTEM_PROMPT}\n\n{}", build_user_content(batch, ctx))
 }
 
 /// tools 模式系统提示词：判定规则与 SYSTEM_PROMPT 一致，但结果经 pk 工具写回数据库。
@@ -505,7 +481,9 @@ const TOOLS_SYSTEM_PROMPT: &str = r#"你是待办事项提取助手，通过 pk 
 - category 从 pk context 的 categories 里选最贴切的一个，不要发明不存在的名字。
 - priority 从 low/normal/high/urgent 里选：对方明确催促或当天到期用 urgent/high，默认 normal。
 - due: 消息里有明确时间就用 YYYY-MM-DDTHH:MM 格式（对照 pk context 的 now 换算年份），否则留空。
-- tags: 从 pk context 的 tags 里选 0~3 个最贴切的标签名组成数组，没有合适的用 []。
+- tags: 按维度选 0~3 个最贴切的标签，格式 [{"name":"标签名","dimension":"维度key","isNew":false}]，没有合适的用 []。「项目」维度至多 1 个；优先复用 pk context 的 tags（含 dimension）里已有的。
+- 新标签：仅当某维度确实没有贴切选项、且消息里有明确依据（明确出现的项目名/人名/群名）时才提议新标签（isNew=true 并归入该维度，名字用原文里的称呼）；模糊语境一律复用现有标签或留空，禁止为凑数造词。pk context 的 dimensions 里 remaining<=0 的维度禁止新建。归属「项目」维度时优先参考消息来源（群聊名常含项目名）。
+- pk context 的 tagFeedback 列出用户多次移除过的标签：没有新的明确依据不要再建议。
 - followUpTaskId 只在 action="followUp" 时填写，updateTaskId 只在 action="update" 时填写，取值都必须是 pk context 的 openTasks 里出现的 id。
 - reason: 一句话中文说明判定理由（如「对方明确要求周五前交付」/「与待办 No.3 本质相同」/「纯信息分享无需行动」），不超过 30 字。
 - confidence: 从 high/medium/low 里选：消息直白明确用 high；依赖语境推断（指代、隐含的时间或对象）用 medium；拿不准、像又不像的用 low。
@@ -528,59 +506,24 @@ fn build_tools_prompt(agent: &AgentConfig, batch: &[AiMessage]) -> String {
 pub async fn classify(
     agent: &AgentConfig,
     batch: &[AiMessage],
-    ctx: &ClassifyContext,
     db: &crate::db::Db,
 ) -> AppResult<Vec<AiSuggestion>> {
-    classify_with_session(agent, batch, ctx, db)
+    classify_with_session(agent, batch, db)
         .await
         .map(|(s, _)| s)
 }
 
-/// 分类一批消息并带回会话元信息（session_id）：按 agent 的 mode 分派——
-/// text = 无头调用后解析 stdout JSON；tools = agent 经 pk 落库、应用回读
+/// 分类一批消息并带回会话元信息（session_id）：agent 经 pk CLI 把判定写回数据库，
+/// 应用不解析其文本输出，跑完后从库回读该批消息的判定结果；
+/// stdout 仅提取 session_id 供遥测回链
 pub async fn classify_with_session(
-    agent: &AgentConfig,
-    batch: &[AiMessage],
-    ctx: &ClassifyContext,
-    db: &crate::db::Db,
-) -> AppResult<(Vec<AiSuggestion>, Option<String>)> {
-    if agent.uses_tools() {
-        classify_tools_with_session(agent, batch, db).await
-    } else {
-        classify_text_with_session(agent, batch, ctx).await
-    }
-}
-
-/// text 模式：无头调用 agent CLI，解析其输出中的 JSON 建议
-async fn classify_text_with_session(
-    agent: &AgentConfig,
-    batch: &[AiMessage],
-    ctx: &ClassifyContext,
-) -> AppResult<(Vec<AiSuggestion>, Option<String>)> {
-    let prompt = build_prompt(batch, ctx);
-    log::debug!(
-        "ai: 经 agent「{}」分类 {} 条消息，prompt: {}",
-        agent.name,
-        batch.len(),
-        trunc(&prompt, 500)
-    );
-    let out = run_agent(agent, &prompt).await?;
-    log::debug!("ai: agent 原始输出: {}", trunc(&out, 800));
-    let (mut suggestions, session_id) = parse_suggestions_with_session(&out)?;
-    dedup_batch_todos(&mut suggestions);
-    Ok((suggestions, session_id))
-}
-
-/// tools 模式：agent 通过 pk 工具把判定写回数据库，应用不解析其文本输出，
-/// 跑完后从库回读该批消息的判定结果；stdout 仅提取 session_id 供遥测回链
-async fn classify_tools_with_session(
     agent: &AgentConfig,
     batch: &[AiMessage],
     db: &crate::db::Db,
 ) -> AppResult<(Vec<AiSuggestion>, Option<String>)> {
     let prompt = build_tools_prompt(agent, batch);
     log::debug!(
-        "ai: 经 agent「{}」（tools 模式）分类 {} 条消息，prompt: {}",
+        "ai: 经 agent「{}」分类 {} 条消息，prompt: {}",
         agent.name,
         batch.len(),
         trunc(&prompt, 500)
@@ -813,8 +756,6 @@ fn spawn_error(program: &str, e: std::io::Error) -> AppError {
     }
 }
 
-/// pk 目录前插到当前 PATH 前面（保留原有条目）；当前进程没有 PATH 或拼接失败时返回
-/// None，保持子进程环境原样
 /// agent 的输出风格各异：`claude --output-format json` 会把回答再包一层 {"result":"..."}，
 /// 先解出内层文本再走常规解析
 fn extract_payload(content: &str) -> (String, Option<String>) {
@@ -831,75 +772,14 @@ fn extract_payload(content: &str) -> (String, Option<String>) {
     (trimmed.to_string(), None)
 }
 
-/// 解析 agent 输出：剥 ```json 包裹；前后有闲聊文字时截取首尾花括号之间的 JSON；要求 results 数组
-#[cfg(test)]
-fn parse_suggestions(content: &str) -> AppResult<Vec<AiSuggestion>> {
-    parse_suggestions_with_session(content).map(|(s, _)| s)
-}
-
-/// 解析 agent 输出并带回会话 id（claude 信封里的 session_id，供会话回链落库）
-fn parse_suggestions_with_session(content: &str) -> AppResult<(Vec<AiSuggestion>, Option<String>)> {
-    let (content, session_id) = extract_payload(content);
-    let content = content
-        .trim()
-        .trim_start_matches("```json")
-        .trim_start_matches("```")
-        .trim_end_matches("```")
-        .trim();
-    let parsed: serde_json::Value = serde_json::from_str(content)
-        .or_else(|_| {
-            // agent 前后爱加解释文字：截取首个 { 到最后一个 } 之间再试一次
-            let slice = match (content.find('{'), content.rfind('}')) {
-                (Some(s), Some(e)) if s < e => &content[s..=e],
-                _ => "",
-            };
-            serde_json::from_str(slice)
-        })
-        .map_err(|e| AppError::External(format!("AI 输出不是合法 JSON: {e}")))?;
-    let results = parsed["results"].as_array().cloned().or_else(|| {
-        // 兼容旧字段名 suggestions
-        parsed["suggestions"].as_array().cloned()
-    });
-    let results = results.ok_or_else(|| AppError::External("AI 输出缺少 results 数组".into()))?;
-    let suggestions = serde_json::from_value(serde_json::Value::Array(results))
-        .map_err(|e| AppError::External(format!("解析建议失败: {e}")))?;
-    Ok((suggestions, session_id))
-}
-
 /// 日志截断：按字符数截断（中文安全），避免长消息刷爆 512KB 轮转日志
 fn trunc(s: &str, n: usize) -> String {
     s.chars().take(n).collect()
 }
 
-/// 连接测试：text 模式让 agent 处理一条内置测试消息并验证能识别出待办；
-/// tools 模式改为工具探针（跑 pk context），一次验证命令可用 + shell 白名单 + PATH + 数据库可达
+/// 连接测试：工具探针——让 agent 执行 pk context 并原样返回输出，
+/// 一次验证命令可用 + shell 白名单 + PATH + 数据库可达
 pub async fn test(agent: &AgentConfig) -> AppResult<String> {
-    if agent.uses_tools() {
-        return test_tools(agent).await;
-    }
-    let ctx = ClassifyContext {
-        categories: vec!["工作".into()],
-        ..Default::default()
-    };
-    let res = classify_text_with_session(
-        agent,
-        &[AiMessage::simple("test", "系统", "明天上午10点开周会")],
-        &ctx,
-    )
-    .await
-    .map(|(r, _)| r);
-    match res {
-        Ok(r) if r.first().is_some_and(|s| s.is_todo()) => Ok(format!(
-            "Agent 调用成功，并正确识别出测试待办「{}」",
-            r[0].title.clone().unwrap_or_default()
-        )),
-        Ok(_) => Ok("Agent 调用成功，但未识别出测试待办，建议检查 agent 配置或更换模型".into()),
-        Err(e) => Err(e),
-    }
-}
-
-/// tools 模式连接测试：让 agent 执行 pk context 并原样返回输出
-async fn test_tools(agent: &AgentConfig) -> AppResult<String> {
     let out = run_agent(
         agent,
         "执行命令 pk context，并把它的标准输出原样返回，不要添加任何解释。",
@@ -1003,20 +883,20 @@ mod tests {
     // ---- tools 模式：配置兼容性与提示词 ----
 
     #[test]
-    fn tools_mode_config_and_prompt() {
-        // 旧配置（无 mode 字段）按 text 解析；显式 tools 生效
+    fn tools_prompt_carries_batch_submit_rules() {
+        // 旧配置里残留的 mode 字段（对接方式已下线）被忽略，其余字段照常解析
         let legacy: AgentConfig = serde_json::from_str(
-            r#"{"id":"ag1","name":"Claude","command":"claude","args":"","history_args":"","timeout_secs":60,"enabled":true}"#,
+            r#"{"id":"ag1","name":"Claude","command":"claude","args":"","historyArgs":"","timeoutSecs":60,"enabled":true,"mode":"text"}"#,
         )
         .unwrap();
-        assert!(!legacy.uses_tools(), "旧配置缺省 text 模式");
-        let tools: AgentConfig =
-            serde_json::from_str(r#"{"id":"ag2","name":"C","command":"claude","mode":"tools"}"#)
-                .unwrap();
-        assert!(tools.uses_tools());
+        assert_eq!(legacy.timeout_secs, 60, "旧配置字段照常读取");
 
+        let agent = AgentConfig {
+            id: "ag2".into(),
+            ..Default::default()
+        };
         let prompt = build_tools_prompt(
-            &tools,
+            &agent,
             &[AiMessage::simple("om_9", "老板", "明天 10 点开周会")],
         );
         assert!(prompt.contains("pk suggest batch"), "指示批量提交");
@@ -1024,11 +904,11 @@ mod tests {
         assert!(prompt.contains("[om_9]"), "消息 id 在正文");
         assert!(
             !prompt.contains("现有待办清单（id. 标题）"),
-            "判重上下文改由 agent 用 pk context 获取，不再内嵌正文"
+            "判重上下文由 agent 用 pk context 获取，不内嵌正文"
         );
         assert!(
             !prompt.contains("最终回复必须只包含一个 JSON 对象"),
-            "tools 模式不再要求输出 JSON 文本"
+            "不要求输出 JSON 文本"
         );
     }
 
@@ -1329,103 +1209,54 @@ mod tests {
         assert!(load_agents(&get3)[0].remote.is_none());
     }
 
-    // ---- build_prompt：判重上下文与消息语境必须进提示词 ----
+    // ---- extract_payload：claude JSON 信封解包（tools 模式仅提取 session_id） ----
 
+    /// claude 信封（--output-format json）解出内层 result；session_id 随信封带回（遥测回链用）
     #[test]
-    fn prompt_carries_rules_dedup_context_and_chat_meta() {
-        let ctx = ClassifyContext {
-            open_tasks: vec![(3, "写周报".into()), (5, "修登录 bug".into())],
-            categories: vec!["工作".into(), "学习".into()],
-            tags: vec![
-                ("重要".into(), "核心目标相关".into()),
-                ("杂".into(), String::new()),
-            ],
-        };
-        let msg = AiMessage {
-            message_id: "m1".into(),
-            sender: "张三".into(),
-            chat_label: "飞书·群聊「项目群」".into(),
-            content: "开会".into(),
-            context: vec!["09:58 张三: 明天要过进度".into()],
-        };
-        let s = build_prompt(&[msg], &ctx);
-        assert!(s.contains("待办事项提取助手"), "规则进 prompt");
-        assert!(s.contains("[3] 写周报"), "待办清单进 prompt");
-        assert!(s.contains("可用分类：工作/学习"));
-        assert!(s.contains("重要：核心目标相关"));
-        assert!(s.contains("来源：飞书·群聊「项目群」"), "来源标签进 prompt");
-        assert!(s.contains("发送者：张三"));
-        assert!(s.contains("内容：开会"));
-        assert!(
-            s.contains("同会话上下文（仅供参考）") && s.contains("09:58 张三"),
-            "上下文行进 prompt"
-        );
-        assert!(s.contains("当前时间："));
-        assert!(s.contains("updateTaskId"), "update 动作在规则中说明");
-        assert!(
-            s.contains("reason") && s.contains("confidence"),
-            "判定理由与置信档位在规则中说明"
-        );
-    }
-
-    #[test]
-    fn prompt_empty_context_degrades_gracefully() {
-        let s = build_prompt(&[], &ClassifyContext::default());
-        assert!(s.contains("（无）"));
-        assert!(s.contains("可用标签：无"));
-        // 规则文案里也提到同会话上下文，这里断言的是消息区不渲染上下文段（带全角括号标题）
-        assert!(
-            !s.contains("同会话上下文（仅供参考）："),
-            "无上下文不渲染该段"
-        );
-    }
-
-    // ---- parse_suggestions：宽容解析各种 agent 输出 ----
-
-    #[test]
-    fn parse_unwraps_claude_json_envelope() {
-        let inner = r#"{"results":[{"messageId":"m1","action":"todo","title":"参加周会"}]}"#;
-        let wrapped = serde_json::json!({ "type": "result", "result": inner }).to_string();
-        let out = parse_suggestions(&wrapped).unwrap();
-        assert!(out[0].is_todo());
-    }
-
-    /// claude 信封里的 session_id 随解析带回（会话回链落库用）
-    #[test]
-    fn parse_extracts_session_id_from_envelope() {
+    fn extract_payload_unwraps_envelope_and_session_id() {
         let inner = r#"{"results":[{"messageId":"m1","action":"todo"}]}"#;
         let wrapped = serde_json::json!({ "result": inner, "session_id": "sess-abc" }).to_string();
-        let (out, session) = parse_suggestions_with_session(&wrapped).unwrap();
-        assert_eq!(out.len(), 1);
+        let (content, session) = extract_payload(&wrapped);
+        assert_eq!(content, inner);
         assert_eq!(session.as_deref(), Some("sess-abc"));
-        // 无信封的普通输出没有会话 id
-        let (_, none) = parse_suggestions_with_session(inner).unwrap();
+        // 无信封的普通输出原样返回、无会话 id
+        let (plain, none) = extract_payload(inner);
+        assert_eq!(plain, inner);
         assert!(none.is_none());
     }
 
+    /// 维度化标签协议：对象形式带 dimension/isNew；dimension 缺省归 topic；
+    /// 纯字符串为旧协议（库里的存量建议仍可读）
     #[test]
-    fn parse_strips_code_fence_and_chatter() {
-        let results = r#"{"results":[{"messageId":"m1","action":"none"}]}"#;
-        let chatty = format!("好的，以下是我的分析：\n```json\n{results}\n```\n希望有帮助！");
-        let out = parse_suggestions(&chatty).unwrap();
-        assert_eq!(out.len(), 1);
-        assert_eq!(out[0].action, "none");
-    }
-
-    #[test]
-    fn parse_errors_on_non_json() {
-        let err = parse_suggestions("我觉得这不是待办").unwrap_err();
-        assert!(
-            err.to_string().contains("JSON"),
-            "错误信息说明不是合法 JSON"
+    fn proposed_tag_deserializes_object_and_string_forms() {
+        let tags: Vec<ProposedTag> = serde_json::from_str(
+            r#"[
+                {"name":"PokemonApp","dimension":"project","isNew":true},
+                {"name":"重要"},
+                "杂"
+            ]"#,
+        )
+        .unwrap();
+        assert_eq!(
+            tags,
+            vec![
+                ProposedTag {
+                    name: "PokemonApp".into(),
+                    dimension: "project".into(),
+                    is_new: true
+                },
+                ProposedTag {
+                    name: "重要".into(),
+                    dimension: "topic".into(),
+                    is_new: false
+                },
+                ProposedTag {
+                    name: "杂".into(),
+                    dimension: "topic".into(),
+                    is_new: false
+                },
+            ]
         );
-    }
-
-    #[test]
-    fn parse_accepts_legacy_suggestions_key() {
-        let out =
-            parse_suggestions(r#"{"suggestions":[{"messageId":"m1","action":"todo"}]}"#).unwrap();
-        assert!(out[0].is_todo());
     }
 
     // ---- dedup_batch_todos：批内判重兜底 ----
@@ -1490,22 +1321,15 @@ mod tests {
         assert!(list.iter().all(|s| s.is_todo()));
     }
 
-    // ---- 两种模式的规则同步 ----
+    // ---- 提示词规则完整性 ----
 
     #[test]
-    fn prompts_carry_group_ownership_and_batch_dedup_rules() {
-        for (name, p) in [("text", SYSTEM_PROMPT), ("tools", TOOLS_SYSTEM_PROMPT)] {
-            assert!(
-                p.contains("群聊必须先判断任务归属"),
-                "{name} 模式缺群聊归属规则"
-            );
-            assert!(
-                p.contains("是别人的任务"),
-                "{name} 模式缺指派他人判 none 规则"
-            );
-            assert!(p.contains("宁漏勿滥"), "{name} 模式缺收窄倾向说明");
-            assert!(p.contains("本批消息互相判重"), "{name} 模式缺批内判重规则");
-        }
+    fn tools_prompt_carries_group_ownership_and_batch_dedup_rules() {
+        let p = TOOLS_SYSTEM_PROMPT;
+        assert!(p.contains("群聊必须先判断任务归属"), "缺群聊归属规则");
+        assert!(p.contains("是别人的任务"), "缺指派他人判 none 规则");
+        assert!(p.contains("宁漏勿滥"), "缺收窄倾向说明");
+        assert!(p.contains("本批消息互相判重"), "缺批内判重规则");
     }
 
     // ---- 进程调用链（unix 下用 /bin/sh 脚本模拟 agent） ----
@@ -1535,90 +1359,13 @@ mod tests {
             }
         }
 
-        fn ctx() -> ClassifyContext {
-            ClassifyContext {
-                open_tasks: vec![(3, "写周报".into())],
-                categories: vec!["工作".into()],
-                tags: vec![("重要".into(), String::new())],
-            }
-        }
-
-        fn run(agent: &AgentConfig) -> AppResult<Vec<AiSuggestion>> {
-            // text 模式不触库，回读句柄仅为满足 classify 的签名
-            let db = crate::db::Db(std::sync::Mutex::new(
-                rusqlite::Connection::open_in_memory().unwrap(),
-            ));
-            tauri::async_runtime::block_on(classify(
+        /// 用分类提示词跑一次 agent（验证提示词经 stdin/argv 送达）
+        fn run_classify_prompt(agent: &AgentConfig) {
+            let prompt = build_tools_prompt(
                 agent,
                 &[AiMessage::simple("m1", "张三", "明天上午10点开周会")],
-                &ctx(),
-                &db,
-            ))
-        }
-
-        #[test]
-        fn classify_parses_todo_with_full_attributes() {
-            let agent = fake_agent(
-                "ok",
-                "",
-                r#"{"results":[{"messageId":"m1","action":"todo","title":"参加周会","note":"张三在项目群安排","category":"工作","priority":"high","due":"2026-09-13T10:00","tags":["重要"],"followUpTaskId":null,"reason":"张三明确安排了会议时间","confidence":"high"}]}"#,
             );
-            let out = run(&agent).unwrap();
-            assert_eq!(out.len(), 1);
-            assert!(out[0].is_todo());
-            assert_eq!(out[0].title.as_deref(), Some("参加周会"));
-            assert_eq!(out[0].note.as_deref(), Some("张三在项目群安排"));
-            assert_eq!(out[0].priority.as_deref(), Some("high"));
-            assert_eq!(out[0].tags, vec!["重要".to_string()]);
-            assert_eq!(out[0].due.as_deref(), Some("2026-09-13T10:00"));
-            assert_eq!(
-                out[0].reason.as_deref(),
-                Some("张三明确安排了会议时间"),
-                "判定理由随建议透传"
-            );
-            assert_eq!(out[0].confidence.as_deref(), Some("high"));
-        }
-
-        /// reason / confidence 缺省不报错（旧模型 / 简化输出）
-        #[test]
-        fn classify_tolerates_missing_reason_and_confidence() {
-            let agent = fake_agent(
-                "bare",
-                "",
-                r#"{"results":[{"messageId":"m1","action":"todo","title":"参加周会"}]}"#,
-            );
-            let out = run(&agent).unwrap();
-            assert!(out[0].reason.is_none());
-            assert!(out[0].confidence.is_none());
-        }
-
-        #[test]
-        fn classify_parses_follow_up_action() {
-            let agent = fake_agent(
-                "follow",
-                "",
-                r#"{"results":[{"messageId":"m1","action":"followUp","followUpTaskId":3,"title":"周会改期"}]}"#,
-            );
-            let out = run(&agent).unwrap();
-            assert!(out[0].is_follow_up());
-            assert!(!out[0].is_todo());
-            assert_eq!(out[0].follow_up_task_id, Some(3));
-        }
-
-        /// update 动作（AI 动作扩展）：解析出 updateTaskId 与部分变更字段
-        #[test]
-        fn classify_parses_update_action() {
-            let agent = fake_agent(
-                "update",
-                "",
-                r#"{"results":[{"messageId":"m1","action":"update","updateTaskId":3,"due":"2026-09-15T10:00","tags":["重要"]}]}"#,
-            );
-            let out = run(&agent).unwrap();
-            assert!(out[0].is_update());
-            assert!(!out[0].is_todo() && !out[0].is_follow_up());
-            assert_eq!(out[0].update_task_id, Some(3));
-            assert_eq!(out[0].due.as_deref(), Some("2026-09-15T10:00"));
-            assert_eq!(out[0].tags, vec!["重要".to_string()]);
+            let _ = tauri::async_runtime::block_on(run_agent(agent, &prompt));
         }
 
         /// SSH 远程执行：经假 ssh 程序（PK_SSH_BIN 注入）组装 BatchMode/--、提示词走 stdin、
@@ -1652,7 +1399,6 @@ mod tests {
                 history_args: String::new(),
                 timeout_secs: 30,
                 enabled: true,
-                mode: "text".into(),
                 workdir: String::new(),
                 remote: Some(AgentRemote {
                     host: "dev@box".into(),
@@ -1688,10 +1434,10 @@ mod tests {
             let marker = dir.join("stdin.txt");
             let script = format!("cat > {}", marker.to_string_lossy());
             let agent = fake_agent("stdin", &script, "{}");
-            let _ = run(&agent);
+            run_classify_prompt(&agent);
             let stdin = std::fs::read_to_string(&marker).unwrap();
             assert!(
-                stdin.contains("现有待办清单") && stdin.contains("发送者：张三"),
+                stdin.contains("待办事项提取助手") && stdin.contains("发送者：张三"),
                 "完整提示词经 stdin 传给 agent: {stdin}"
             );
         }
@@ -1704,7 +1450,7 @@ mod tests {
             let script = format!("printf '%s' \"$1\" > {}", marker.to_string_lossy());
             let mut agent = fake_agent("argv", &script, "{}");
             agent.args = "{prompt}".into();
-            let _ = run(&agent);
+            run_classify_prompt(&agent);
             let argv = std::fs::read_to_string(&marker).unwrap();
             assert!(
                 argv.contains("待办事项提取助手"),
@@ -1713,9 +1459,9 @@ mod tests {
         }
 
         #[test]
-        fn classify_maps_nonzero_exit_to_external_error() {
+        fn run_agent_maps_nonzero_exit_to_external_error() {
             let agent = fake_agent("boom", "echo 'model exploded' >&2; exit 3", "{}");
-            let err = run(&agent).unwrap_err();
+            let err = tauri::async_runtime::block_on(run_agent(&agent, "hi")).unwrap_err();
             assert!(
                 matches!(err, AppError::External(_)),
                 "非零退出码归 external: {err}"
@@ -1727,7 +1473,7 @@ mod tests {
         }
 
         #[test]
-        fn classify_times_out_slow_agent() {
+        fn run_process_times_out_slow_agent() {
             // 直接测 run_process 的超时（run_agent 有 10 秒下限，单测等不起）
             let agent = fake_agent("slow", "sleep 10", "{}");
             let started = std::time::Instant::now();
@@ -1761,24 +1507,20 @@ mod tests {
             assert!(err.to_string().contains("安装"));
         }
 
-        /// 测试命令：能识别出待办的 agent 返回成功文案，识别不出的给出建议
+        /// 连接测试（工具探针）：agent 能跑 pk context 并带回输出即连通；
+        /// 自说自话不带 openTasks 的报可操作错误
         #[test]
-        fn test_reports_recognized_todo() {
-            let good = fake_agent(
-                "test_good",
-                "",
-                r#"{"results":[{"messageId":"test","action":"todo","title":"参加周会"}]}"#,
-            );
-            let msg = tauri::async_runtime::block_on(test(&good)).unwrap();
-            assert!(msg.contains("参加周会"), "成功文案带识别出的标题: {msg}");
+        fn test_probe_verifies_pk_toolchain() {
+            let ok = fake_agent("test_ok", "", r#"{"openTasks":[]}"#);
+            let msg = tauri::async_runtime::block_on(test(&ok)).unwrap();
+            assert!(msg.contains("pk 工具链已连通"), "{msg}");
 
-            let blind = fake_agent(
-                "test_blind",
-                "",
-                r#"{"results":[{"messageId":"test","action":"none"}]}"#,
+            let blind = fake_agent("test_blind", "", "我不方便执行命令");
+            let err = tauri::async_runtime::block_on(test(&blind)).unwrap_err();
+            assert!(
+                err.to_string().contains("pk context"),
+                "错误指向 agent 权限/工具链: {err}"
             );
-            let msg = tauri::async_runtime::block_on(test(&blind)).unwrap();
-            assert!(msg.contains("未识别"), "未识别时给出建议: {msg}");
         }
 
         /// 本地调用注入 pk 目录：agent 子进程里裸名 pk 可解析（GUI 进程 PATH 缺失的回归）

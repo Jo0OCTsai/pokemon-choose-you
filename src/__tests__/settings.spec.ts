@@ -109,19 +109,19 @@ describe("日期时间格式化", () => {
 });
 
 describe("save：秘钥占位值跳过", () => {
-  it("占位值原样保存时跳过该键，普通值与改动过的秘钥正常提交", async () => {
+  it("占位值原样保存时跳过该键，普通值与改动过的值正常提交", async () => {
     const settings = useSettingsStore();
     settings.values.language = "en";
-    settings.values.todoist_token = SECRET_STORED; // 已保存、未改动 → 跳过
-    await settings.save(["language", "todoist_token"]);
+    settings.values.ai_agent_id = SECRET_STORED; // 已保存、未改动 → 跳过
+    await settings.save(["language", "ai_agent_id"]);
     expect(api.setSetting).toHaveBeenCalledTimes(1);
     expect(api.setSetting).toHaveBeenCalledWith("language", "en");
-    expect(api.setSetting).not.toHaveBeenCalledWith("todoist_token", SECRET_STORED);
+    expect(api.setSetting).not.toHaveBeenCalledWith("ai_agent_id", SECRET_STORED);
 
-    // 用户输入了新值 → 正常提交
-    settings.values.todoist_token = "new-token";
-    await settings.save(["todoist_token"]);
-    expect(api.setSetting).toHaveBeenCalledWith("todoist_token", "new-token");
+    // 用户改动了新值 → 正常提交
+    settings.values.ai_agent_id = "ag-1";
+    await settings.save(["ai_agent_id"]);
+    expect(api.setSetting).toHaveBeenCalledWith("ai_agent_id", "ag-1");
   });
 });
 

@@ -271,6 +271,12 @@ const aiStatusKey = (m: ChatMessage) => `im.status.${m.aiStatus}`;
 const chatTypeLabel = (m: ChatMessage) => (m.chatType ? t(`im.type.${m.chatType}`) : "");
 const taskTitle = (id: number) => tasksStore.open.find((tk) => tk.id === id)?.title ?? "";
 const snippet = (m: ChatMessage) => m.content.split("\n")[0] ?? "";
+
+/** 内置维度的展示名（自定义维度回落 key）；建议卡 chip 的 title 提示用 */
+const dimLabel = (key: string) => (["project", "context", "person", "topic"].includes(key) ? t(`dim.${key}`) : key);
+/** 建议标签 chip 的悬浮说明：拟新建的标签标明「接受时才会创建」 */
+const chipTitle = (tag: { name: string; dimension: string; isNew: boolean }) =>
+  tag.isNew ? t("im.tagNew", { dim: dimLabel(tag.dimension) }) : dimLabel(tag.dimension);
 </script>
 
 <template>
@@ -561,7 +567,14 @@ const snippet = (m: ChatMessage) => m.content.split("\n")[0] ?? "";
           <span v-if="selected.suggestedConfidence" class="sug-conf" :class="'c-' + selected.suggestedConfidence">
             {{ t(`im.confidence.${selected.suggestedConfidence}`) }}
           </span>
-          <span v-for="tag in selected.suggestedTags" :key="tag" class="sug-tag"># {{ tag }}</span>
+          <span
+            v-for="tag in selected.suggestedTags"
+            :key="tag.dimension + ':' + tag.name"
+            class="sug-tag"
+            :class="{ 'sug-new': tag.isNew, ['sug-dim-' + tag.dimension]: true }"
+            :title="chipTitle(tag)"
+            >{{ tag.isNew ? "＋" : "#" }} {{ tag.name }}</span
+          >
           <span v-if="selected.suggestedReason" class="sug-reason">💡 {{ selected.suggestedReason }}</span>
         </div>
 
@@ -580,7 +593,14 @@ const snippet = (m: ChatMessage) => m.content.split("\n")[0] ?? "";
           <span v-if="selected.suggestedConfidence" class="sug-conf" :class="'c-' + selected.suggestedConfidence">
             {{ t(`im.confidence.${selected.suggestedConfidence}`) }}
           </span>
-          <span v-for="tag in selected.suggestedTags" :key="tag" class="sug-tag"># {{ tag }}</span>
+          <span
+            v-for="tag in selected.suggestedTags"
+            :key="tag.dimension + ':' + tag.name"
+            class="sug-tag"
+            :class="{ 'sug-new': tag.isNew, ['sug-dim-' + tag.dimension]: true }"
+            :title="chipTitle(tag)"
+            >{{ tag.isNew ? "＋" : "#" }} {{ tag.name }}</span
+          >
           <span v-if="selected.suggestedReason" class="sug-reason">💡 {{ selected.suggestedReason }}</span>
         </div>
 
@@ -1079,6 +1099,15 @@ const snippet = (m: ChatMessage) => m.content.split("\n")[0] ?? "";
   border: 2px solid var(--dex-navy);
   border-radius: 999px;
   padding: 0 7px;
+}
+/* 项目维度是主位信息：黄色；拟新建的标签用虚线描边 + 前缀 ＋ */
+.sug-tag.sug-dim-project {
+  background: var(--poke-yellow);
+  color: var(--dex-navy);
+}
+.sug-tag.sug-new {
+  border-style: dashed;
+  font-weight: 800;
 }
 /* 置信档位：高=绿 / 中=琥珀 / 低=灰 */
 .sug-conf {

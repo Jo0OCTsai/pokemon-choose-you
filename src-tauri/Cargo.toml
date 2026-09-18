@@ -35,7 +35,6 @@ serde_json = "1"
 rusqlite = { version = "0.32", features = ["bundled", "backup"] }
 chrono = { version = "0.4", features = ["serde"] }
 tokio = { version = "1", features = ["time", "macros", "process", "io-util"] }
-reqwest = { version = "0.12", features = ["json"] }
 # pk CLI 定位应用数据库文件（与 tauri 的 app_data_dir 同一规则：config_dir/<identifier>）
 dirs = "5"
 log = "0.4"
@@ -47,8 +46,6 @@ keyring = "4"
 [dev-dependencies]
 # 仅测试构建启用 mock 运行时，不影响正常编译与发布产物
 tauri = { version = "2", features = ["test"] }
-# HTTP 集成测试：ai / feishu / todoist 的 reqwest 分支用 mock 服务器覆盖
-wiremock = "0.6"
 
 [profile.release]
 codegen-units = 1

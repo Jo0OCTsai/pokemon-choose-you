@@ -1,0 +1,550 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>就决定是你了 · 设计焕新方案演示（Design Refresh Demo）</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=Noto+Sans+SC:wght@400;500;700;900&display=swap" rel="stylesheet" />
+<link href="https://cdn.jsdelivr.net/npm/@vp-tw/cjk-web-fonts-fusion-pixel-font@0.0.1/dist/12px/proportional/zh_hans/Fusion-Pixel-12px-Proportional-Simplified-Chinese.css" rel="stylesheet" />
+<style>
+/* ============================================================
+   《就决定是你了》图鉴复古风 · 焕新令牌 v2 —— 定稿区
+   有异议直接改这里，全页即时生效；确认后抄回 src/dex.css
+   ============================================================ */
+:root {
+  /* ── 机身色（沿用初版，仅红微调）── */
+  --dex-red: #EE1515;        /* 纯装饰红：机脊、大灯 */
+  --dex-red-dark: #B01010;
+  --danger: #E00F0F;         /* 承载白字的行动红（白字 5.0:1） */
+  --dex-body: #F5F0DC;
+  --dex-navy: #1A1B25;
+  --poke-yellow: #FFCB05;
+
+  /* ── LCD 绿屏 ── */
+  --lcd: #C4CFA1;
+  --lcd-text: #3A4A32;
+  --lcd-dark: #9CAA86;
+
+  /* ── 墨色三档（收编 8 种散灰）── */
+  --ink: #1A1B25;            /* 正文标题 */
+  --ink-soft: #6B6657;       /* 唯一辅助文字灰：米白 5.0 / 白 5.7 */
+  --ink-faint: #9A937F;      /* 仅装饰：虚线、非信息编号 */
+
+  /* ── 状态色（三源归一）── */
+  --ok: #2E9E5B;   --ok-soft: #DFF3E4;  --ok-ink: #1D6B3C;
+  --warn: #C98A06; --warn-soft: #FFF3CD; --warn-ink: #8A5E06;
+  --hover: #FFF3C4;          /* 唯一悬停/选中黄 */
+  --tag-pill: #8A97B8;
+  --rest-blue: #3C5AA6;
+  --log-error: #D64545;
+  --log-warn: #B8860B;
+
+  /* ── 分类 = 属性徽章（浅底统一 navy 深字）── */
+  --type-work: #F8D030;  --type-study: #6890F0;  --type-life: #78C850;
+  --type-health: #A8A878; --type-interest: #EE99AC;
+  --type-social: #F08030; --type-urgent: #7038F8;  /* 存量 */
+  --badge-ink: #1A1B25;
+
+  /* ── 优先级 ── */
+  --p-urgent: #EE1515; --p-high: #F08030; --p-normal: #78C850; --p-low: #A8A878;
+
+  /* ── 置信三档（收音机）── */
+  --conf-high: #5BE36B; --conf-mid: #FFCB05; --conf-low: #C9C3AE;
+  --conf-high-soft: #DFF3E4; --conf-mid-soft: #FFF3D6; --conf-low-soft: #ECEADA;
+
+  /* ── 分档尺寸 ── */
+  --bd-shell: 4px; --bd-card: 3px; --bd-ctl: 3px; --bd-chip: 2px;
+  --sh-card: 4px 4px 0 var(--dex-navy);
+  --sh-ctl: 3px 3px 0 var(--dex-navy);
+  --sh-float: 6px 6px 0 var(--dex-navy);
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  background: #2E3140 repeating-linear-gradient(45deg, #2E3140 0 12px, #2B2E3B 12px 24px);
+  font-family: "Noto Sans SC", "Noto Sans CJK SC", "PingFang SC", "Microsoft YaHei", sans-serif;
+  color: var(--ink);
+  padding: 36px 20px 80px;
+  display: flex; flex-direction: column; align-items: center; gap: 28px;
+}
+.px { font-family: "Press Start 2P", monospace; }
+.px-cn {
+  font-family: "Fusion Pixel 12px Proportional Simplified Chinese", "Noto Sans SC", sans-serif;
+  font-weight: 400;
+}
+body.px-cn-off .px-cn { font-family: "Noto Sans SC", sans-serif; font-weight: 900; }
+
+/* 全局焦点样式（焕新增补 · 方案 §3.5） */
+:focus-visible {
+  outline: 3px solid var(--poke-yellow);
+  outline-offset: 2px;
+}
+
+/* ============ 页头 ============ */
+.page-head {
+  width: min(1160px, 100%);
+  background: var(--dex-body);
+  border: var(--bd-shell) solid var(--dex-navy);
+  border-radius: 16px;
+  box-shadow: 8px 8px 0 rgba(0,0,0,.4);
+  padding: 22px 26px 18px;
+  position: relative;
+}
+.page-head .kicker { font-size: 8px; color: var(--ink-faint); letter-spacing: 1px; }
+.page-head h1 { font-size: 24px; margin: 10px 0 4px; line-height: 1.3; }
+.page-head h1 .sub { font-size: 12px; color: var(--ink-soft); font-family: "Noto Sans SC", sans-serif; font-weight: 500; }
+.page-head p { font-size: 13px; color: var(--ink-soft); line-height: 1.8; max-width: 72ch; }
+.page-head .stamp {
+  position: absolute; top: 18px; right: 20px;
+  transform: rotate(4deg);
+  border: var(--bd-chip) solid var(--dex-navy); border-radius: 4px;
+  background: var(--poke-yellow); padding: 6px 10px;
+  font-size: 8px; line-height: 1.7; text-align: center;
+}
+.page-head .howto {
+  margin-top: 12px; border-top: 2px dashed var(--ink-faint); padding-top: 10px;
+  font-size: 12px; color: var(--ink-soft);
+}
+.page-head .howto b { color: var(--ink); }
+kbd {
+  font-family: "Press Start 2P", monospace; font-size: 8px;
+  border: var(--bd-chip) solid var(--dex-navy); border-bottom-width: 3px; border-radius: 4px;
+  background: #fff; padding: 3px 5px; margin: 0 1px; display: inline-block;
+}
+
+/* ============ 分区 ============ */
+section {
+  width: min(1160px, 100%);
+  background: var(--dex-body);
+  border: var(--bd-shell) solid var(--dex-navy);
+  border-radius: 16px;
+  box-shadow: 8px 8px 0 rgba(0,0,0,.4);
+  padding: 20px 26px 26px;
+}
+.sec-head { display: flex; align-items: baseline; gap: 14px; flex-wrap: wrap; margin-bottom: 6px; }
+.sec-head .no { font-size: 16px; }
+.sec-head h2 { font-size: 16px; font-weight: 700; }
+.sec-head .pri {
+  font-size: 11px; font-weight: 700; letter-spacing: 1px;
+  border: var(--bd-chip) solid var(--dex-navy); border-radius: 4px;
+  padding: 2px 8px; background: #fff;
+}
+.sec-desc { font-size: 13px; color: var(--ink-soft); line-height: 1.8; margin-bottom: 16px; max-width: 90ch; }
+
+/* ============ A 色彩令牌 ============ */
+.swatch-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(158px, 1fr)); gap: 12px; }
+.swatch { border: var(--bd-card) solid var(--dex-navy); border-radius: 12px; background: #fff; box-shadow: var(--sh-card); overflow: hidden; }
+.swatch .chip { height: 46px; border-bottom: var(--bd-card) solid var(--dex-navy); display: flex; align-items: center; justify-content: center; }
+.swatch .chip span { font-size: 12px; font-weight: 700; padding: 1px 6px; }
+.swatch .meta { padding: 8px 10px; font-size: 11px; line-height: 1.7; }
+.swatch .meta code { font-family: ui-monospace, Menlo, monospace; font-size: 10.5px; color: var(--ink-soft); display: block; }
+.swatch .meta .use { color: var(--ink-soft); }
+.swatch .meta .ratio { display: inline-block; margin-top: 2px; font-size: 10px; font-weight: 700; border-radius: 4px; padding: 0 5px; border: 1.5px solid var(--dex-navy); }
+.ratio.pass { background: var(--ok-soft); color: var(--ok-ink); }
+.ratio.deco { background: #ECEADA; color: var(--ink-soft); }
+.group-title { margin: 20px 0 10px; font-size: 12px; font-weight: 700; color: var(--ink-soft); letter-spacing: 2px; }
+.group-title:first-of-type { margin-top: 0; }
+
+/* ============ B 字体三级 ============ */
+.type-rows { display: flex; flex-direction: column; gap: 14px; }
+.type-row {
+  display: grid; grid-template-columns: 190px 1fr; gap: 16px; align-items: center;
+  border: var(--bd-card) solid var(--dex-navy); border-radius: 12px; background: #fff;
+  box-shadow: var(--sh-card); padding: 14px 18px;
+}
+.type-row .label { font-size: 11px; line-height: 1.8; color: var(--ink-soft); }
+.type-row .label b { font-size: 13px; color: var(--ink); display: block; }
+.type-row .sample { font-size: 14px; }
+.type-row .sample .s8 { font-size: 8px; display: block; margin-bottom: 8px; }
+.type-row .sample .s16 { font-size: 16px; display: block; margin-bottom: 8px; letter-spacing: 1px; }
+.type-row .sample .s24 { font-size: 24px; display: block; letter-spacing: 1px; }
+.cn-toggle { margin: 14px 0 0; font-size: 13px; display: flex; align-items: center; gap: 10px; }
+.cn-toggle input { width: 18px; height: 18px; accent-color: var(--dex-red); }
+
+/* ============ C 组件画廊 ============ */
+.gallery { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 14px; }
+.cell {
+  border: var(--bd-card) solid var(--dex-navy); border-radius: 12px; background: #fff;
+  box-shadow: var(--sh-card); padding: 14px 16px;
+}
+.cell h3 { font-size: 12px; letter-spacing: 1px; color: var(--ink-soft); font-weight: 700; margin-bottom: 12px; }
+.cell .row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.cell .note { font-size: 11.5px; color: var(--ink-soft); margin-top: 10px; line-height: 1.7; }
+
+.btn {
+  border: var(--bd-ctl) solid var(--dex-navy); border-radius: 8px;
+  background: var(--poke-yellow); color: var(--ink);
+  font-size: 14px; font-weight: 700; padding: 8px 14px; cursor: pointer;
+  box-shadow: var(--sh-ctl); transition: transform .08s, box-shadow .08s;
+  min-height: 40px; font-family: inherit;
+}
+.btn:active { transform: translate(2px,2px); box-shadow: 2px 2px 0 var(--dex-navy); }
+.btn.ghost { background: #fff; }
+.btn.red { background: var(--danger); color: #fff; }
+.btn.small { min-height: 30px; padding: 4px 10px; font-size: 12px; }
+.btn.is-pressed { transform: translate(2px,2px); box-shadow: 2px 2px 0 var(--dex-navy); }
+
+.badge {
+  display: inline-flex; align-items: center; justify-content: center;
+  border: var(--bd-chip) solid var(--dex-navy); border-radius: 4px;
+  font-size: 11px; font-weight: 700; padding: 2px 9px; letter-spacing: 2px;
+  background: var(--t, #fff); color: var(--c, var(--badge-ink));
+}
+.b-work { --t: var(--type-work); } .b-study { --t: var(--type-study); }
+.b-life { --t: var(--type-life); } .b-health { --t: var(--type-health); }
+.b-interest { --t: var(--type-interest); } .b-social { --t: var(--type-social); --c: #fff; }
+.b-urgent { --t: var(--type-urgent); --c: #fff; }
+
+.led { width: 10px; height: 10px; border-radius: 50%; border: var(--bd-chip) solid var(--dex-navy); display: inline-block; }
+.led.on { background: #5BE36B; animation: breathe 2s infinite; }
+.led.alert { background: var(--dex-red); animation: blink .6s infinite; }
+@keyframes breathe { 0%,100% { opacity: .45; } 50% { opacity: 1; } }
+@keyframes blink { 0%,49% { opacity: 1; } 50%,100% { opacity: .25; } }
+@keyframes hop { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-7px); } }
+@media (prefers-reduced-motion: reduce) {
+  * { animation-duration: .01ms !important; animation-iteration-count: 1 !important; }
+}
+
+.prio { width: 10px; height: 10px; border-radius: 50%; border: var(--bd-chip) solid var(--dex-navy); display: inline-block; }
+.prio.urgent { background: var(--p-urgent); animation: blink .8s infinite; }
+.prio.high { background: var(--p-high); } .prio.normal { background: var(--p-normal); } .prio.low { background: var(--p-low); }
+
+.conf-line { display: flex; align-items: center; gap: 8px; font-size: 12px; margin-top: 6px; }
+.conf-dot { width: 10px; height: 10px; border-radius: 50%; border: var(--bd-chip) solid var(--dex-navy); }
+.conf-chip { border: var(--bd-chip) solid var(--dex-navy); border-radius: 4px; padding: 2px 8px; font-weight: 700; font-size: 11px; }
+
+.lcd {
+  background: var(--lcd); border: var(--bd-card) solid var(--dex-navy); border-radius: 4px;
+  box-shadow: inset 3px 3px 0 var(--lcd-dark), var(--sh-card);
+  color: var(--lcd-text); position: relative; overflow: hidden;
+  padding: 10px 12px; font-size: 12px; line-height: 1.9;
+}
+.lcd::after {
+  content: ""; position: absolute; inset: 0; pointer-events: none;
+  background: repeating-linear-gradient(0deg, rgba(0,0,0,.05) 0 2px, transparent 2px 4px);
+}
+.lcd .log-e { color: var(--log-error); font-weight: 700; }
+.lcd .log-w { color: var(--log-warn); font-weight: 700; }
+.lcd .px { font-size: 8px; }
+
+/* ============ D 任务卡四态 ============ */
+.cards { display: flex; flex-direction: column; gap: 12px; }
+.task {
+  display: grid; grid-template-columns: 64px 1fr auto; gap: 14px; align-items: center;
+  background: #fff; border: var(--bd-card) solid var(--dex-navy); border-radius: 12px;
+  box-shadow: var(--sh-card); padding: 12px 14px; position: relative;
+}
+.task img { width: 52px; height: 52px; image-rendering: pixelated; justify-self: center; }
+.task .no { font-size: 8px; color: var(--ink-faint); letter-spacing: 1px; }
+.task .title { font-size: 16px; font-weight: 800; margin: 3px 0 2px; }
+.task .meta { font-size: 12.5px; color: var(--ink-soft); }
+.task .acts { display: flex; gap: 8px; }
+.task.active { outline: var(--bd-card) solid var(--poke-yellow); outline-offset: 2px; }
+.task.active img { animation: hop 1.6s infinite; }
+.task.active .tag {
+  position: absolute; top: -12px; right: 14px;
+  background: var(--poke-yellow); border: var(--bd-chip) solid var(--dex-navy); border-radius: 4px;
+  font-size: 11px; font-weight: 700; padding: 2px 8px;
+}
+.task.done { background: var(--lcd); box-shadow: inset 3px 3px 0 var(--lcd-dark), 0 0 0 transparent; }
+.task.done .title { text-decoration: line-through; color: var(--lcd-text); }
+.task.done .meta, .task.done .no { color: var(--lcd-text); opacity: .8; }
+.task.done img { filter: grayscale(1) contrast(.85); }
+.task.escaped { background: #F3EFE6; box-shadow: 3px 3px 0 #B9B09A; }
+.task.escaped .title { color: var(--ink-soft); }
+.task.escaped img { filter: grayscale(1); opacity: .55; }
+.state-label { font-size: 11px; font-weight: 700; letter-spacing: 1px; color: var(--ink-soft); }
+
+/* ============ E 收音机详情栏 ============ */
+.radio-wrap { display: grid; grid-template-columns: 430px 1fr; gap: 16px; align-items: start; }
+@media (max-width: 900px) { .radio-wrap { grid-template-columns: 1fr; } }
+.radio-col { border: var(--bd-card) solid var(--dex-navy); border-radius: 12px; background: var(--dex-body); box-shadow: var(--sh-card); padding: 12px; display: flex; flex-direction: column; gap: 10px; }
+.radio-meta { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; font-size: 12px; color: var(--ink-soft); }
+.ai-chip { border: var(--bd-chip) solid var(--dex-navy); border-radius: 4px; background: var(--ok-soft); color: var(--ok-ink); font-size: 10.5px; font-weight: 700; padding: 1px 7px; }
+.suggest { border: var(--bd-card) solid var(--dex-navy); border-radius: 8px; background: #fff; box-shadow: var(--sh-ctl); padding: 10px 12px; font-size: 13px; }
+.suggest .h { font-size: 11px; font-weight: 700; letter-spacing: 1px; color: var(--ok-ink); background: var(--ok-soft); display: inline-block; padding: 1px 7px; border-radius: 4px; border: var(--bd-chip) solid var(--dex-navy); margin-bottom: 6px; }
+.suggest .pill { display: inline-flex; align-items: center; border: var(--bd-chip) solid var(--dex-navy); border-radius: 999px; background: #fff; font-size: 11px; padding: 2px 9px; margin: 3px 4px 0 0; }
+.suggest .pill b { color: var(--ink); }
+.radio-acts { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+.radio-acts .spacer { flex: 1; }
+.undo {
+  align-self: flex-end; border: var(--bd-card) solid var(--dex-navy); border-radius: 8px;
+  background: var(--dex-navy); color: #fff; font-size: 12px; padding: 8px 12px;
+  box-shadow: var(--sh-ctl); display: flex; gap: 10px; align-items: center;
+}
+.undo button { background: var(--poke-yellow); border: var(--bd-chip) solid #fff; color: var(--dex-navy); font-weight: 700; font-size: 11px; border-radius: 4px; padding: 2px 8px; cursor: pointer; font-family: inherit; }
+.radio-notes { font-size: 13px; color: var(--ink-soft); line-height: 2; }
+.radio-notes b { color: var(--ink); }
+.radio-notes ul { padding-left: 18px; }
+
+/* ============ F 焦点体验 ============ */
+.focus-zone { display: flex; flex-direction: column; gap: 12px; }
+.focus-zone .row { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+.focus-zone input[type="text"] {
+  border: var(--bd-ctl) solid var(--dex-navy); border-radius: 8px; background: #fff;
+  box-shadow: var(--sh-ctl); padding: 8px 12px; font-size: 14px; min-height: 38px; font-family: inherit; width: 260px;
+}
+.tty {
+  background: var(--lcd); border: var(--bd-card) solid var(--dex-navy); border-radius: 4px;
+  box-shadow: inset 3px 3px 0 var(--lcd-dark), var(--sh-card); color: var(--lcd-text);
+  font-size: 8px; padding: 10px 12px; line-height: 2.4; letter-spacing: .5px;
+}
+
+footer { width: min(1160px, 100%); font-size: 12px; color: #9aa0b5; line-height: 2; text-align: center; }
+footer code { font-family: ui-monospace, Menlo, monospace; color: #c6cbdd; }
+</style>
+</head>
+<body>
+
+<header class="page-head">
+  <div class="kicker px">DESIGN REFRESH DEMO · 2026-09</div>
+  <h1 class="px-cn">图鉴复古风 · 焕新方案演示<span class="sub">（配套文档：DESIGN_REFRESH_PROPOSAL.md）</span></h1>
+  <p>本页把焕新方案的令牌与组件全部实做一遍：语义墨色收编、状态色三源归一、徽章 navy 深字、字体三级体系、分档描边阴影、全局焦点样式。风格骨架（粗描边 + 硬阴影 + LCD 绿屏 + 低密度大目标）不变，变的是纪律。</p>
+  <div class="stamp px">FOR<br>REVIEW</div>
+  <div class="howto">
+    <b>定稿方式：</b>对色值 / 尺寸有异议，直接改源码顶部 <b>:root 令牌区</b>，全页即时生效；确认后抄回 <code>src/dex.css</code>。
+    <b>焦点样式：</b>按 <kbd>Tab</kbd> 从任意元素走一遍（见 Section F）。<b>中文像素字：</b>Section B 有开关可对比开 / 关效果；CDN 不可达时自动降级 Noto Sans 900，布局不塌。
+  </div>
+</header>
+
+<!-- ================= A 色彩令牌 ================= -->
+<section id="a">
+  <div class="sec-head"><span class="no px">A</span><h2 class="px-cn">色彩令牌总表</h2><span class="pri">P1 收编</span></div>
+  <p class="sec-desc">左上为令牌名与色值，右侧为用途。带对比度徽章的是本次实测达标依据（WCAG 2.1，正文 ≥4.5:1；「仅装饰」= 不承载信息或 ≥16px 大号场景）。</p>
+
+  <div class="group-title">▍机身色（结构，沿用初版）</div>
+  <div class="swatch-grid">
+    <div class="swatch"><div class="chip" style="background:var(--dex-red)"><span style="color:#fff">红</span></div><div class="meta"><b>--dex-red</b><code>#EE1515</code><span class="use">纯装饰红：机脊、大灯、紧急点</span></div></div>
+    <div class="swatch"><div class="chip" style="background:var(--danger)"><span style="color:#fff">行动红</span></div><div class="meta"><b>--danger ★新</b><code>#E00F0F</code><span class="use">承载白字的按钮红</span><br><span class="ratio pass">白字 5.0:1</span></div></div>
+    <div class="swatch"><div class="chip" style="background:var(--dex-body)"><span>米白</span></div><div class="meta"><b>--dex-body</b><code>#F5F0DC</code><span class="use">机身底色</span></div></div>
+    <div class="swatch"><div class="chip" style="background:var(--dex-navy)"><span style="color:#fff">藏青</span></div><div class="meta"><b>--dex-navy</b><code>#1A1B25</code><span class="use">描边 / 正文标题（= --ink）</span></div></div>
+    <div class="swatch"><div class="chip" style="background:var(--poke-yellow)"><span>黄</span></div><div class="meta"><b>--poke-yellow</b><code>#FFCB05</code><span class="use">主按钮 / 选中 / 焦点 outline</span></div></div>
+  </div>
+
+  <div class="group-title">▍墨色三档（收编现存 8 种散灰）</div>
+  <div class="swatch-grid">
+    <div class="swatch"><div class="chip" style="background:var(--ink)"><span style="color:#fff">正文</span></div><div class="meta"><b>--ink</b><code>#1A1B25</code><span class="use">正文、标题、强调</span></div></div>
+    <div class="swatch"><div class="chip" style="background:#fff"><span style="color:var(--ink-soft)">辅助</span></div><div class="meta"><b>--ink-soft ★新</b><code>#6B6657</code><span class="use">唯一辅助文字灰</span><br><span class="ratio pass">白底 5.7 · 米白 5.0</span></div></div>
+    <div class="swatch"><div class="chip" style="background:#fff"><span style="color:var(--ink-faint)">装饰</span></div><div class="meta"><b>--ink-faint ★新</b><code>#9A937F</code><span class="use">仅装饰：虚线、非信息编号</span><br><span class="ratio deco">2.7 · 不用于小字</span></div></div>
+  </div>
+
+  <div class="group-title">▍状态色（三源归一：成功绿×3 / 琥珀×3 → 一套）</div>
+  <div class="swatch-grid">
+    <div class="swatch"><div class="chip" style="background:var(--ok)"><span style="color:#fff">OK</span></div><div class="meta"><b>--ok / -soft / -ink</b><code>#2E9E5B · #DFF3E4 · #1D6B3C</code><span class="use">健康点 / 成功横幅 / 已处理</span></div></div>
+    <div class="swatch"><div class="chip" style="background:var(--warn)"><span style="color:#fff">WARN</span></div><div class="meta"><b>--warn / -soft / -ink</b><code>#C98A06 · #FFF3CD · #8A5E06</code><span class="use">降级 / 逾期温和提示</span></div></div>
+    <div class="swatch"><div class="chip" style="background:var(--hover)"><span>悬停黄</span></div><div class="meta"><b>--hover ★新</b><code>#FFF3C4</code><span class="use">唯一悬停 / 选中黄（归并 4 种）</span></div></div>
+    <div class="swatch"><div class="chip" style="background:var(--tag-pill)"><span style="color:#fff">标签</span></div><div class="meta"><b>--tag-pill</b><code>#8A97B8</code><span class="use">标签胶囊底（收编重复硬编码）</span></div></div>
+  </div>
+
+  <div class="group-title">▍分类 = 属性徽章（浅底一律 navy 深字，见 Section C 对比）</div>
+  <div class="swatch-grid">
+    <div class="swatch"><div class="chip" style="background:var(--type-work)"><span>电</span></div><div class="meta"><b>--type-work</b><code>#F8D030</code><span class="use">工作 · 皮卡丘</span><br><span class="ratio pass">navy 字 11.4</span></div></div>
+    <div class="swatch"><div class="chip" style="background:var(--type-study)"><span>学</span></div><div class="meta"><b>--type-study</b><code>#6890F0</code><span class="use">学习 · 可达鸭</span><br><span class="ratio pass">navy 字 5.6</span></div></div>
+    <div class="swatch"><div class="chip" style="background:var(--type-life)"><span>草</span></div><div class="meta"><b>--type-life</b><code>#78C850</code><span class="use">生活 · 妙蛙种子</span><br><span class="ratio pass">navy 字 8.3</span></div></div>
+    <div class="swatch"><div class="chip" style="background:var(--type-health)"><span>般</span></div><div class="meta"><b>--type-health</b><code>#A8A878</code><span class="use">健康 · 吉利蛋</span><br><span class="ratio pass">navy 字 7.0</span></div></div>
+    <div class="swatch"><div class="chip" style="background:var(--type-interest)"><span>趣</span></div><div class="meta"><b>--type-interest</b><code>#EE99AC</code><span class="use">兴趣（初版文档缺失）</span><br><span class="ratio pass">navy 字 8.2</span></div></div>
+    <div class="swatch"><div class="chip" style="background:var(--type-social)"><span style="color:#fff">存量</span></div><div class="meta"><b>--type-social</b><code>#F08030</code><span class="use">已退阵容 · 存量数据</span></div></div>
+  </div>
+
+  <div class="group-title">▍优先级圆点（彩色不达 3:1 时靠 navy 描边兜底——已是现状，成文即可）</div>
+  <div class="swatch-grid">
+    <div class="swatch"><div class="chip" style="background:#fff"><span class="prio urgent"></span></div><div class="meta"><b>--p-urgent</b><code>#EE1515</code><span class="use">紧急 · ≤3Hz 闪烁</span></div></div>
+    <div class="swatch"><div class="chip" style="background:#fff"><span class="prio high"></span></div><div class="meta"><b>--p-high</b><code>#F08030</code><span class="use">高</span></div></div>
+    <div class="swatch"><div class="chip" style="background:#fff"><span class="prio normal"></span></div><div class="meta"><b>--p-normal</b><code>#78C850</code><span class="use">普通</span></div></div>
+    <div class="swatch"><div class="chip" style="background:#fff"><span class="prio low"></span></div><div class="meta"><b>--p-low</b><code>#A8A878</code><span class="use">低</span></div></div>
+  </div>
+</section>
+
+<!-- ================= B 字体三级 ================= -->
+<section id="b">
+  <div class="sec-head"><span class="no px">B</span><h2 class="px-cn">字体三级体系</h2><span class="pri">P1 字体本地化</span></div>
+  <p class="sec-desc">行业共识：像素字管「展示」，清晰字管「阅读」。三级各司其职，尺寸遵守点阵倍数纪律——Press Start 2P 只用 8 的倍数（现状 9px 归 8px），Fusion Pixel 只用 12 的倍数。正式落地走 fontsource 本地打包（npm 双包），移除 Google Fonts 网络依赖。</p>
+  <div class="type-rows">
+    <div class="type-row">
+      <div class="label"><b>① 像素英文 .px</b>Press Start 2P<br>编号 / 时间 / LCD 英文 / Logo<br>仅 8 / 16 / 24px</div>
+      <div class="sample px"><span class="s8">No.025</span><span class="s16">ADVENTURE</span><span class="s24">CAUGHT 3/8</span></div>
+    </div>
+    <div class="type-row">
+      <div class="label"><b>② 中文展示 .px-cn</b>Fusion Pixel 12px 比例版（SIL OFL）<br>页面标题 / 分区标题 / 徽章中文<br>仅 12 / 24px</div>
+      <div class="sample px-cn" style="font-size:12px">冒险 · 路线 · 草丛 · 图鉴 · 收音机<div style="font-size:24px; margin-top:8px">就决定是你了！</div></div>
+    </div>
+    <div class="type-row">
+      <div class="label"><b>③ 正文中日韩</b>Noto Sans CJK（系统栈，保持现状）<br>所有正文 / 备注 / 消息全文<br>12 / 13 / 14 / 16 / 18px</div>
+      <div class="sample" style="font-size:14px; line-height:1.9">野生宝可梦出没在草丛里——还没决定的待办先待在那里，想清楚再派出你的宝可梦。已捕捉的条目会登录图鉴，成为今天的进度。<div style="font-size:12px; color:var(--ink-soft); margin-top:6px">辅助文字用 --ink-soft，不再各写各的灰。</div></div>
+    </div>
+  </div>
+  <label class="cn-toggle"><input type="checkbox" id="cnToggle" checked /> 中文像素展示层（②）开 / 关 —— 关闭后降级 Noto Sans 900，用于定夺是否引入 Fusion Pixel</label>
+</section>
+
+<!-- ================= C 组件画廊 ================= -->
+<section id="c">
+  <div class="sec-head"><span class="no px">C</span><h2 class="px-cn">组件画廊</h2><span class="pri">P0 规范成文</span></div>
+  <p class="sec-desc">描边 / 阴影四档：机壳 4px·8px / 卡片 3px·4px / 控件 3px·3px / 小件 2px·2px；按下态 = 位移取阴影一半。徽章对比是本次最重要的可访问性修正。</p>
+  <div class="gallery">
+    <div class="cell">
+      <h3>BUTTON · 按钮三态（用鼠标按下试试）</h3>
+      <div class="row">
+        <button class="btn">▶ 开始捕捉</button>
+        <button class="btn red">✔ 完成</button>
+        <button class="btn ghost">⏰ 推迟</button>
+        <button class="btn small">✎</button>
+        <button class="btn small is-pressed">按压态</button>
+      </div>
+      <div class="note">主操作 ≥40px；次级图标钮视觉 30px、命中区扩到 ≥38px（padding 补偿）。红按钮换 --danger #E00F0F，白字 4.4→5.0 达标，视觉无感差异。</div>
+    </div>
+    <div class="cell">
+      <h3>BADGE · 徽章：旧白字 vs 新深字</h3>
+      <div class="row" style="margin-bottom:8px">
+        <span style="font-size:11px; color:var(--ink-soft); width:52px">旧·白字</span>
+        <span class="badge b-work" style="color:#fff">电</span><span class="badge b-study" style="color:#fff">水</span><span class="badge b-life" style="color:#fff">草</span><span class="badge b-health" style="color:#fff">般</span><span class="badge b-interest" style="color:#fff">趣</span>
+        <span style="font-size:10px; color:var(--danger); font-weight:700">✕ 2.1~3.1</span>
+      </div>
+      <div class="row">
+        <span style="font-size:11px; color:var(--ink-soft); width:52px">新·深字</span>
+        <span class="badge b-work">电</span><span class="badge b-study">水</span><span class="badge b-life">草</span><span class="badge b-health">般</span><span class="badge b-interest">趣</span>
+        <span style="font-size:10px; color:var(--ok-ink); font-weight:700">✓ 5.6~11.4</span>
+      </div>
+      <div class="note">浅底徽章一律 navy 深字（navy 本就是描边色，视觉自洽）；红 / 紫深底保留白字。字母间距 2px 不变。</div>
+    </div>
+    <div class="cell">
+      <h3>LED &amp; PRIO · 被动信号</h3>
+      <div class="row">
+        <span class="led on"></span> 一切正常
+        <span class="led alert" style="margin-left:12px"></span> 紧急待处理
+        <span style="margin-left:12px" class="prio urgent"></span><span class="prio high"></span><span class="prio normal"></span><span class="prio low"></span>
+      </div>
+      <div class="note">闪烁 ≤3Hz、同屏 ≤1 个闪烁元素、系统「减弱动态效果」即时静止（本页已生效）——注意力友好原则成文进规范。</div>
+    </div>
+    <div class="cell">
+      <h3>KBD · 快捷键 chip（收音机键盘流）</h3>
+      <div class="row" style="gap:6px">
+        <kbd>↑</kbd><kbd>↓</kbd><kbd>J</kbd><kbd>K</kbd> 移动 · <kbd>C</kbd> 捕捉 · <kbd>X</kbd> 逃走 · <kbd>F</kbd> 强制 · <kbd>ESC</kbd> 关闭
+      </div>
+      <div class="note">8px 像素字 + 2px 描边（底边 3px 键帽感）。键盘流与 5 秒撤销是收音机改版核心，规范需成文。</div>
+    </div>
+    <div class="cell">
+      <h3>CONFIDENCE · AI 置信三档</h3>
+      <div class="conf-line"><span class="conf-dot" style="background:var(--conf-high)"></span><span class="conf-chip" style="background:var(--conf-high-soft); color:var(--ok-ink)">高 · 直接批量</span></div>
+      <div class="conf-line"><span class="conf-dot" style="background:var(--conf-mid)"></span><span class="conf-chip" style="background:var(--conf-mid-soft); color:#8A5E06">中 · 建议过目</span></div>
+      <div class="conf-line"><span class="conf-dot" style="background:var(--conf-low)"></span><span class="conf-chip" style="background:var(--conf-low-soft); color:var(--ink-soft)">低 · 逐条确认</span></div>
+      <div class="note">三档各自成对（点色 + 底色 + 文字色）收编为令牌，「只选高置信」批量操作的视觉依据。</div>
+    </div>
+    <div class="cell">
+      <h3>LCD · 绿屏（扫描线 + 日志着色）</h3>
+      <div class="lcd">
+        <div><span class="px">LOG · TAIL -20</span></div>
+        <div>14:32 radio 拉取 12 条，AI 分类完成</div>
+        <div class="log-w">14:35 todoist 同步降级，自动重试 #1</div>
+        <div>14:36 提醒调度就绪（3 条待触发）</div>
+        <div class="log-e">14:40 lark-cli 凭证过期，等待重新授权</div>
+      </div>
+      <div class="note">日志级别色换 --log-error / --log-warn（LCD 底上 ≥4.5），收编 #ff6b6b / #ffd166。</div>
+    </div>
+  </div>
+</section>
+
+<!-- ================= D 任务卡四态 ================= -->
+<section id="d">
+  <div class="sec-head"><span class="no px">D</span><h2 class="px-cn">图鉴条目 · 任务卡四态</h2><span class="pri">P0 规范成文</span></div>
+  <p class="sec-desc">单列低密度不变。四态的视觉语言：普通白卡 / 进行中黄 outline + ♪ + 精灵跳跃 / 已捕捉 LCD 化 + 删除线 + 灰度精灵 / 已逃走米灰淡出。卡片操作钮 36→38px 归一（P2）。</p>
+  <div class="cards">
+    <div class="task">
+      <img src="../public/pokemon/pikachu.gif" alt="皮卡丘" />
+      <div><div class="no px">No.012</div><div class="title">给老板发周报 <span class="badge b-work">电</span></div><div class="meta">截止 今天 18:00 · ★ 专注 42 分 · #汇报</div></div>
+      <div class="acts"><button class="btn">▶ 开始</button><button class="btn ghost">✔</button></div>
+    </div>
+    <div class="task active">
+      <span class="tag">♪ 捕获中</span>
+      <img src="../public/pokemon/psyduck.gif" alt="可达鸭" />
+      <div><div class="no px">No.013</div><div class="title">复盘向导原型走查 <span class="badge b-study">水</span></div><div class="meta">进行中 · 专注 12 分 · 🍅 25:00</div></div>
+      <div class="acts"><button class="btn ghost">⏸</button><button class="btn red">✔</button></div>
+    </div>
+    <div class="task done">
+      <img src="../public/pokemon/bulbasaur.gif" alt="妙蛙种子" />
+      <div><div class="no px">No.008</div><div class="title">晨间散步 <span class="badge b-life">草</span></div><div class="meta">已捕捉 09-12 08:30 · ★ 30 分</div></div>
+      <div class="acts"><span class="state-label">LCD 化 · 删除线 · 灰度精灵</span></div>
+    </div>
+    <div class="task escaped">
+      <img src="../public/pokemon/chansey.png" alt="吉利蛋" />
+      <div><div class="no px">No.004</div><div class="title">回复闲置群消息 <span class="badge b-health">般</span></div><div class="meta">已逃走 · 非行动项（可从图鉴筛选回看）</div></div>
+      <div class="acts"><span class="state-label">米灰淡出 · 不催清零</span></div>
+    </div>
+  </div>
+</section>
+
+<!-- ================= E 收音机详情栏 ================= -->
+<section id="e">
+  <div class="sec-head"><span class="no px">E</span><h2 class="px-cn">收音机 · 详情栏（新界面入册）</h2><span class="pri">P2 文档化</span></div>
+  <p class="sec-desc">收音机两栏分诊是初版设计文档完全没有覆盖的最大新界面。左为详情栏纵向切片（左栏列表与批量条见 radio-triage.html 原型），右侧列出需要成文的规范点。</p>
+  <div class="radio-wrap">
+    <div class="radio-col">
+      <div class="radio-meta">
+        <span class="badge b-work">电</span>
+        <span>飞书 · 产品小分队 / 阿隆 · 14:32</span>
+        <span class="ai-chip">AI 已分类</span>
+      </div>
+      <div class="lcd">
+        <div><span class="px">SIGNAL #231</span></div>
+        <div style="margin-top:4px">@我 周三前把新版设计稿发给老板过目，记得带上像素风演示页，另外把上次说的对比度问题一起说了。</div>
+      </div>
+      <div class="suggest">
+        <span class="h">◎ 新待办</span>
+        <div>周三前把新版设计稿发给老板过目</div>
+        <div>
+          <span class="pill">截止 <b>周三 18:00</b></span>
+          <span class="pill">分类 <b>工作</b></span>
+          <span class="pill">标签 <b>#设计评审</b></span>
+        </div>
+      </div>
+      <div class="radio-acts">
+        <button class="btn">◎ 捕捉 <kbd>C</kbd></button>
+        <button class="btn ghost">✕ 逃走 <kbd>X</kbd></button>
+        <span class="spacer"></span>
+        <button class="btn ghost">逃走原因 ▾</button>
+        <button class="btn ghost">强制 <kbd>F</kbd></button>
+      </div>
+      <div class="undo">已逃走 · 5 秒内可反悔 <button>撤销</button></div>
+    </div>
+    <div class="radio-notes">
+      <b>需写入设计系统的规范点：</b>
+      <ul>
+        <li><b>两栏结构</b>：列表栏固定 320px + 详情栏自适应；列表栏承载信号 / 噪音 / 已处理三区分组与频道聚合模式。</li>
+        <li><b>AI 建议盒三态</b>：新待办（白底）/ 更新（--hover 暖底）/ 无信号（米灰），语义色全部走本次新令牌。</li>
+        <li><b>键盘流</b>：↑↓/J/K 移动、C 捕捉、X 逃走、F 强制、Esc 关闭——kbd chip 全局同款。</li>
+        <li><b>乐观 UI + 撤销</b>：处理即时生效，右下角 5 秒撤销 toast（不弹窗、不抢焦点——注意力友好原则 2/3）。</li>
+        <li><b>批量条</b>：全选 / 只选高置信（下划线文字钮）/ 批量捕捉 / 批量逃走；置信三档令牌见 Section C。</li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<!-- ================= F 焦点体验 ================= -->
+<section id="f">
+  <div class="sec-head"><span class="no px">F</span><h2 class="px-cn">焦点样式体验区</h2><span class="pri">P1 可访问性</span></div>
+  <p class="sec-desc">现状几乎全靠浏览器默认 outline。焕新后全局 <code>:focus-visible</code> = 3px 黄 outline + 2px offset，与「进行中任务卡」同一视觉语言——键盘用户第一次拥有风格内的一致指引。点击下方区域后按 <kbd>Tab</kbd> / <kbd>Shift</kbd>+<kbd>Tab</kbd> 走一遍。</p>
+  <div class="focus-zone">
+    <div class="row">
+      <button class="btn">▶ 开始捕捉</button>
+      <button class="btn ghost">✎ 编辑</button>
+      <button class="btn red">✔ 完成</button>
+      <input type="text" placeholder="搜索图鉴…" />
+      <a href="#" class="btn ghost" style="text-decoration:none">文字链按钮</a>
+    </div>
+    <div class="tty px">TAB THROUGH ME -&gt; YELLOW OUTLINE = YOU ARE HERE. NAVY BORDER = STRUCTURE. NO BLUR, EVER.</div>
+  </div>
+</section>
+
+<footer>
+  字体来源（仅本演示页）：Press Start 2P + Noto Sans SC → Google Fonts · Fusion Pixel 12px Proportional（SIL OFL 1.1）→ jsdelivr <code>@vp-tw/cjk-web-fonts-fusion-pixel-font</code>（78 个 unicode-range 子集，浏览器按需下载）<br>
+  正式落地改为 npm 本地打包（方案 §3.3），移除网络依赖。配套文档：<code>design/DESIGN_REFRESH_PROPOSAL.md</code> · 历史版设计稿：<code>design/mockup.html</code>
+</footer>
+
+<script>
+document.getElementById('cnToggle').addEventListener('change', function () {
+  document.body.classList.toggle('px-cn-off', !this.checked);
+});
+</script>
+</body>
+</html>

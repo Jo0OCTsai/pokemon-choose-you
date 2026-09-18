@@ -17,7 +17,7 @@ pub const SHOW_SETTINGS: &str = "show-settings";
 pub const UPDATE_AVAILABLE: &str = "update-available";
 /// 更新包下载进度（后端 → 主窗口），payload: { downloaded, total }（字节）
 pub const UPDATE_PROGRESS: &str = "update-progress";
-/// 集成健康状态变化（飞书/AI/Todoist 链路的成功/失败记录），诊断页跟随刷新
+/// 集成健康状态变化（飞书/AI 链路的成功/失败记录），诊断页跟随刷新
 pub const INTEGRATION_HEALTH_CHANGED: &str = "integration-health-changed";
 
 /// 事件名全集（契约测试与前端 fixture 对齐用）
