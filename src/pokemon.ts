@@ -5,7 +5,8 @@
  * 精灵图策略（本地优先）：
  * - 内置 6 只（BUNDLED_POKEMON）随应用打包 /pokemon/{key}.gif|png，断网可用；
  * - 其余宝可梦按编号从 PokeAPI 素材库 CDN 加载（gen-5 动图 ≤#649，其余静态图），
- *   jsdelivr 与 raw.githubusercontent 互为备份，加载过的图走 WebView 缓存。
+ *   jsdelivr（cdn/fastly 双入口，fastly 对大陆网络更友好）与 raw.githubusercontent 三源互备，
+ *   加载过的图走 WebView 缓存。
  */
 import catalogJson from "./pokemon/catalog.json";
 import { i18n } from "./i18n";
@@ -48,26 +49,24 @@ export const POKEMON_CATALOG: PokemonEntry[] = rows.map(([id, key, hans, hant, e
 export const POKEMON_BY_KEY: Map<string, PokemonEntry> = new Map(POKEMON_CATALOG.map((p) => [p.key, p]));
 
 const SPRITE_CDN = "https://cdn.jsdelivr.net/gh/PokeAPI/sprites@master/sprites/pokemon";
+const SPRITE_FASTLY = "https://fastly.jsdelivr.net/gh/PokeAPI/sprites@master/sprites/pokemon";
 const SPRITE_RAW = "https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon";
 /** gen-5 黑白动图只覆盖到 #649（合众图鉴收尾），之后世代只有静态图 */
 const ANIMATED_MAX_ID = 649;
 
 /**
  * 精灵图候选链（按序尝试，onerror 逐级回退）：
- * 内置 → 本地 gif/png；名录内 → CDN 动图 → raw 动图 → CDN png → raw png；未知 key → 本地素材（兼容旧数据）。
+ * 内置 → 本地 gif/png；名录内 → CDN 动图 → fastly 动图 → raw 动图 → 三源 png；未知 key → 本地素材（兼容旧数据）。
  */
 export function spriteCandidates(key: string): string[] {
   if (BUNDLED_KEYS.has(key) || !POKEMON_BY_KEY.has(key)) {
     return [`/pokemon/${key}.gif`, `/pokemon/${key}.png`];
   }
   const { id } = POKEMON_BY_KEY.get(key)!;
-  const pngs = [`${SPRITE_CDN}/${id}.png`, `${SPRITE_RAW}/${id}.png`];
+  const hosts = [SPRITE_CDN, SPRITE_FASTLY, SPRITE_RAW];
+  const pngs = hosts.map((h) => `${h}/${id}.png`);
   return id <= ANIMATED_MAX_ID
-    ? [
-        `${SPRITE_CDN}/versions/generation-v/black-white/animated/${id}.gif`,
-        `${SPRITE_RAW}/versions/generation-v/black-white/animated/${id}.gif`,
-        ...pngs,
-      ]
+    ? [...hosts.map((h) => `${h}/versions/generation-v/black-white/animated/${id}.gif`), ...pngs]
     : pngs;
 }
 

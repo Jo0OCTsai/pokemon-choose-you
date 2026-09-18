@@ -67,10 +67,10 @@ describe("精灵图候选链（本地优先，联网回退 CDN）", () => {
     expect(chespin[0]).toContain("/650.png");
   });
 
-  it("CDN 与 raw 双源互备，断一处还有一处", () => {
+  it("CDN / fastly / raw 三源互备，断一处还有一处", () => {
     const cand = spriteCandidates("gible");
-    const hosts = cand.map((s) => new URL(s).host);
-    expect(new Set(hosts).size).toBe(2);
+    const hosts = new Set(cand.map((s) => new URL(s).host));
+    expect(hosts).toEqual(new Set(["cdn.jsdelivr.net", "fastly.jsdelivr.net", "raw.githubusercontent.com"]));
   });
 
   it("未知 key 回退本地素材路径（兼容旧数据）", () => {
