@@ -1,0 +1,3 @@
+/* macOS 本地化應用名稱：繁體中文系統下的選單列 / Finder / Dock 顯示（其餘語言回落 productName） */
+"CFBundleDisplayName" = "就決定是你了";
+"CFBundleName" = "就決定是你了";

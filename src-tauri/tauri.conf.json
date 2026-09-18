@@ -1,6 +1,6 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "pokemon-choose-you",
+  "productName": "POKéMON Choose You",
   "version": "1.0.0",
   "identifier": "com.jotsai.pokemonchooseyou",
   "build": {
@@ -59,7 +59,11 @@
     ],
     "externalBin": [
       "binaries/pk"
-    ]
+    ],
+    "resources": {
+      "resources/zh-Hans.lproj/InfoPlist.strings": "zh-Hans.lproj/InfoPlist.strings",
+      "resources/zh-Hant.lproj/InfoPlist.strings": "zh-Hant.lproj/InfoPlist.strings"
+    }
   },
   "plugins": {
     "updater": {

@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<!-- 与 tauri.conf.json 同目录时自动并入生成的 Info.plist：
+	     Dock / Finder 优先读 CFBundleDisplayName，中文系统的显示名由 resources/*.lproj/InfoPlist.strings 本地化 -->
+	<key>CFBundleDisplayName</key>
+	<string>POKéMON Choose You</string>
+</dict>
+</plist>
