@@ -198,11 +198,14 @@ pub(crate) fn create_task_from_message(conn: &Connection, msg: &ChatMessage) -> 
         .unwrap_or_else(|| msg.content.chars().take(40).collect());
     let category_id = resolve_category(conn, msg.suggested_category.as_deref())?;
     let priority = valid_priority(msg.suggested_priority.as_deref());
-    let status = if msg.suggested_due.is_some() {
-        "scheduled"
-    } else {
-        "inbox"
-    };
+    // 模型把 due「留空」常输出成空串：与 update_patch_from_message 同口径，trim 后
+    // 非空才算有截止，且落库存 NULL 而非 ''——空串会绕过草丛不变量的 IS NULL 判定
+    let due = msg
+        .suggested_due
+        .as_deref()
+        .map(str::trim)
+        .filter(|s| !s.is_empty());
+    let status = if due.is_some() { "scheduled" } else { "inbox" };
     conn.execute(
         "INSERT INTO tasks (title, note, category_id, status, priority, due_at, source, created_at)
          VALUES (?1,?2,?3,?4,?5,?6,'feishu',?7)",
@@ -212,7 +215,7 @@ pub(crate) fn create_task_from_message(conn: &Connection, msg: &ChatMessage) -> 
             category_id,
             status,
             priority,
-            msg.suggested_due,
+            due,
             now()
         ],
     )?;
@@ -393,6 +396,9 @@ pub fn apply_suggestion_conn(
     s: &ai::AiSuggestion,
     agent_id: &str,
 ) -> AppResult<()> {
+    // 模型把 due「留空」输出成空串时归一成 NULL：suggested_due 的所有读取方
+    // （捕捉建任务 / 更新补丁 / 前端展示）都以 NULL 表示无截止
+    let due = s.due.as_deref().map(str::trim).filter(|v| !v.is_empty());
     if s.is_todo() {
         conn.execute(
             "UPDATE chat_messages SET suggested_title=?2, suggested_category=?3, suggested_due=?4,
@@ -403,7 +409,7 @@ pub fn apply_suggestion_conn(
                 s.message_id,
                 s.title,
                 s.category,
-                s.due,
+                due,
                 s.priority,
                 s.note,
                 serde_json::to_string(&s.tags).unwrap_or_else(|_| "[]".into()),
@@ -422,7 +428,7 @@ pub fn apply_suggestion_conn(
                 s.message_id,
                 s.title,
                 s.category,
-                s.due,
+                due,
                 s.priority,
                 s.note,
                 serde_json::to_string(&s.tags).unwrap_or_else(|_| "[]".into()),
@@ -1141,6 +1147,34 @@ mod tests {
         assert_eq!(task.title.chars().count(), 40);
         assert_eq!(task.status, "inbox", "无截止时间进草丛");
         assert_eq!(task.category_id, 1, "未知分类回落默认");
+    }
+
+    /// 模型把 due「留空」输出成空串：捕捉时按无截止处理进草丛，due_at 落库 NULL
+    #[test]
+    fn accept_with_blank_due_goes_inbox() {
+        let app = setup();
+        let mid = {
+            let db = app.state::<Db>();
+            let conn = db.0.lock().unwrap();
+            conn.execute(
+                "INSERT INTO chat_messages (message_id, chat_name, sender, content, suggested_title, suggested_due,
+                                            ai_status, review_status, created_at)
+                 VALUES ('om_b', '项目群', '张三', '记得交周报', '交周报', '', 'todo', 'pending', '2026-09-11T00:00:00Z')",
+                [],
+            )
+            .unwrap();
+            conn.last_insert_rowid()
+        };
+        let task_id = {
+            let db = app.state::<Db>();
+            accept_chat_message(app.handle().clone(), db, mid).unwrap()
+        };
+        let task = {
+            let db = app.state::<Db>();
+            get_task(db, task_id).unwrap()
+        };
+        assert_eq!(task.status, "inbox", "空串截止按无截止处理进草丛");
+        assert!(task.due_at.is_none(), "due_at 落库 NULL 而非空串");
     }
 
     #[test]
@@ -2110,5 +2144,32 @@ mod tests {
             )
             .unwrap();
         assert_eq!(status, "followup");
+    }
+
+    /// 模型把 due「留空」输出成空串/纯空格：落库归一成 NULL，后续捕捉/更新按无截止判定
+    #[test]
+    fn apply_suggestion_normalizes_blank_due_to_null() {
+        let conn = crate::db::tests::test_conn();
+        conn.execute(
+            "INSERT INTO chat_messages (message_id, content, created_at) VALUES ('om_d', '记得交周报', 'x')",
+            [],
+        )
+        .unwrap();
+        let s = ai::AiSuggestion {
+            message_id: "om_d".into(),
+            action: "todo".into(),
+            title: Some("交周报".into()),
+            due: Some("  ".into()),
+            ..Default::default()
+        };
+        apply_suggestion_conn(&conn, &s, "ag1").unwrap();
+        let due: Option<String> = conn
+            .query_row(
+                "SELECT suggested_due FROM chat_messages WHERE message_id='om_d'",
+                [],
+                |r| r.get(0),
+            )
+            .unwrap();
+        assert!(due.is_none(), "空串/纯空格 due 落库为 NULL");
     }
 }

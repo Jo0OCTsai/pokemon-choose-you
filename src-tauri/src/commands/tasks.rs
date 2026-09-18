@@ -139,12 +139,13 @@ fn log_task_diff(conn: &Connection, before: &Task, after: &Task, origin: &str) -
     Ok(())
 }
 
-/// 状态不变量：无截止时间且从未开始 → inbox（done/cancelled 天然不满足条件，不受影响）。
+/// 状态不变量：无截止时间（NULL 或空串）且从未开始 → inbox（done/cancelled 天然不满足条件，不受影响）。
+/// 空串也兜住：历史数据 / 绕过归一化的写入曾把 '' 存进 due_at，IS NULL 单判会漏。
 /// 任何写路径改完 status/due_at 后调用，保证草丛语义成立。
 fn enforce_inbox_invariant(conn: &Connection, id: i64) -> AppResult<()> {
     conn.execute(
         "UPDATE tasks SET status='inbox'
-         WHERE id=?1 AND status='scheduled' AND due_at IS NULL AND started_at IS NULL",
+         WHERE id=?1 AND status='scheduled' AND (due_at IS NULL OR trim(due_at)='') AND started_at IS NULL",
         params![id],
     )?;
     Ok(())
@@ -1335,6 +1336,24 @@ mod tests {
             got.status, "inbox",
             "清空截止时间且从未开始：不变量归入草丛"
         );
+    }
+
+    /// 历史脏数据兜底：due_at 存了空串的 scheduled 任务，任意写路径触发不变量后归草丛
+    #[test]
+    fn update_task_demotes_blank_due_to_inbox() {
+        let app = setup();
+        let t = {
+            let db = app.state::<Db>();
+            let conn = db.0.lock().unwrap();
+            conn.execute(
+                "INSERT INTO tasks (title, status, due_at, created_at) VALUES ('空串脏数据', 'scheduled', '', '2026-09-01T00:00:00Z')",
+                [],
+            )
+            .unwrap();
+            conn.last_insert_rowid()
+        };
+        let got = patch_json(&app, serde_json::json!({ "id": t, "priority": "high" }));
+        assert_eq!(got.status, "inbox", "空串 due 与 NULL 同判：不变量归入草丛");
     }
 
     // ---- 状态机 v4：取消 / started_at / 操作日志 ----
