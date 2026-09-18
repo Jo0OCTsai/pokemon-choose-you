@@ -158,6 +158,8 @@ export interface AgentConfig {
   args: string;
   /** 打开历史记录界面的参数，如 claude 的 --resume；空则直接启动 */
   historyArgs: string;
+  /** 工作目录：agent 及其工具的相对路径基准，支持 ~ 前缀；空 = 应用数据目录（远程模式为远程机器上的路径，留空时落在远端登录目录） */
+  workdir?: string;
   /** 单次调用超时（秒） */
   timeoutSecs: number;
   enabled: boolean;

@@ -57,9 +57,39 @@ async fn open_agent_in_terminal(
             args.push(sess.to_string());
         }
     }
+    // 本地配置了工作目录时先 cd 再启动（远程已由 history_invocation 在远端命令行里前缀 cd），
+    // 让交互会话与无头调用的相对路径基准一致
+    let local = agent
+        .remote
+        .as_ref()
+        .is_none_or(|r| r.host.trim().is_empty());
+    if local && !agent.workdir.trim().is_empty() {
+        let mut line = format!("cd {} && ", cd_prefix_target(agent.workdir.trim()));
+        line.push_str(&shell_quote(&program));
+        for a in &args {
+            line.push(' ');
+            line.push_str(&shell_quote(a));
+        }
+        return spawn_line_in_terminal(&line)
+            .await
+            .map(|term| format!("已在 {term} 中启动「{}」", agent.name));
+    }
     spawn_in_terminal(&program, &args)
         .await
         .map(|term| format!("已在 {term} 中启动「{}」", agent.name))
+}
+
+/// 终端命令行里 cd 目标的跨平台引用：unix 交给 ai::quote_cd_target（保留 ~ 展开），
+/// Windows 的 cmd /K 不认单引号，用双引号包路径
+fn cd_prefix_target(dir: &str) -> String {
+    #[cfg(windows)]
+    {
+        format!("\"{}\"", dir.replace('"', ""))
+    }
+    #[cfg(not(windows))]
+    {
+        crate::ai::quote_cd_target(dir)
+    }
 }
 
 /// 在一个新的终端窗口里运行命令（各系统终端差异大，尽力而为）。

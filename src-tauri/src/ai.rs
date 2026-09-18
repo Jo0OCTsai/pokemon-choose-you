@@ -1,5 +1,6 @@
 use crate::error::{AppError, AppResult};
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 use std::path::PathBuf;
 use std::time::Duration;
 use tokio::io::AsyncWriteExt;
@@ -56,6 +57,9 @@ pub struct AgentConfig {
     pub args: String,
     /// 打开历史记录界面用的参数（按空白切分），如 claude 的 --resume；空则直接启动
     pub history_args: String,
+    /// 工作目录（空 = 应用数据目录 data_dir/<identifier>，支持 ~ 前缀）：
+    /// agent 及其工具的相对路径基准；远程模式下是远程机器上的路径
+    pub workdir: String,
     /// 单次调用超时（秒）
     pub timeout_secs: u64,
     pub enabled: bool,
@@ -83,6 +87,7 @@ impl Default for AgentConfig {
             command: String::new(),
             args: String::new(),
             history_args: String::new(),
+            workdir: String::new(),
             timeout_secs: 120,
             enabled: true,
             mode: "text".into(),
@@ -103,6 +108,8 @@ struct Invocation {
     stdin: Option<String>,
     /// 出错时附加上下文（远程主机）
     remote_host: Option<String>,
+    /// 本地执行的工作目录（远程分支无意义：cd 已内嵌进远端命令行）
+    cwd: Option<PathBuf>,
 }
 
 /// 组装实际执行的命令行（纯函数，独立测试）。
@@ -125,6 +132,7 @@ fn build_invocation(agent: &AgentConfig, prompt: &str) -> Invocation {
                 argv,
                 stdin: via_stdin.then(|| prompt.to_string()),
                 remote_host: None,
+                cwd: agent_workdir(agent),
             }
         }
         Some(r) => {
@@ -159,12 +167,20 @@ fn build_invocation(agent: &AgentConfig, prompt: &str) -> Invocation {
             argv.push("exec".to_string());
             argv.push("\"$SHELL\"".to_string());
             argv.push("-lc".to_string());
-            let remote_line = std::iter::once(agent.command.as_str())
+            let mut remote_line = std::iter::once(agent.command.as_str())
                 .chain(args.iter().map(String::as_str))
                 .filter(|a| !a.contains("{prompt}"))
                 .map(posix_quote)
                 .collect::<Vec<_>>()
                 .join(" ");
+            // 工作目录是远程机器上的路径：cd 前缀进远端命令行（本地 cwd 管不到远端）
+            if !agent.workdir.trim().is_empty() {
+                remote_line = format!(
+                    "cd {} && {}",
+                    quote_cd_target(agent.workdir.trim()),
+                    remote_line
+                );
+            }
             // 整行再整体引用：ssh 会把 argv 用空格拼接后交远端 shell 重解析，
             // 不整体引用时 -lc 只吞到第一个词（如 `claude`），其余参数全被降级成位置参数丢失
             // ——单命令侥幸无感（claude 管道 stdin 等价 -p），带 --allowedTools 等参数时必错
@@ -174,8 +190,43 @@ fn build_invocation(agent: &AgentConfig, prompt: &str) -> Invocation {
                 argv,
                 stdin: Some(prompt.to_string()),
                 remote_host: Some(r.host.clone()),
+                cwd: None,
             }
         }
+    }
+}
+
+/// agent 进程的工作目录：显式配置优先（~ 前缀展开为主目录），缺省用带应用标识的数据目录。
+/// GUI 进程的 cwd 不可控——Dock/Finder 启动时是 /，开发态是 src-tauri——
+/// 必须显式指定，agent 的相对路径操作（读写文件、git 等）才不会落在随机位置
+fn agent_workdir(agent: &AgentConfig) -> Option<PathBuf> {
+    let configured = agent.workdir.trim();
+    if configured.is_empty() {
+        // 缺省 = data_dir/<identifier>（与 pk 的数据库同目录），agent 的产物不散落用户目录；
+        // 尽力确保存在——目录缺失说明数据库也还没建，等于应用从没跑过，属极端场景
+        let dir = dirs::data_dir().map(|d| d.join(crate::db::APP_IDENTIFIER));
+        if let Some(d) = &dir {
+            std::fs::create_dir_all(d).ok();
+        }
+        return dir;
+    }
+    if let Some(rest) = configured.strip_prefix("~/") {
+        if let Some(home) = dirs::home_dir() {
+            return Some(home.join(rest));
+        }
+    }
+    Some(PathBuf::from(configured))
+}
+
+/// cd 目标的 shell 引用：保留前导 ~ 不加引号（要留给 shell 展开），其余走 posix_quote。
+/// 单独的 ~ 也保持裸写——posix_quote 会把它包进引号，变成字面量后 cd 失效。
+pub(crate) fn quote_cd_target(dir: &str) -> String {
+    if dir == "~" {
+        "~".to_string()
+    } else if let Some(rest) = dir.strip_prefix("~/") {
+        format!("~/{}", posix_quote(rest))
+    } else {
+        posix_quote(dir)
     }
 }
 
@@ -225,11 +276,19 @@ pub fn history_invocation(agent: &AgentConfig) -> (String, Vec<String>) {
             argv.push("exec".to_string());
             argv.push("\"$SHELL\"".to_string());
             argv.push("-lc".to_string());
-            let remote_line = std::iter::once(agent.command.as_str())
+            let mut remote_line = std::iter::once(agent.command.as_str())
                 .chain(args.iter().map(String::as_str))
                 .map(posix_quote)
                 .collect::<Vec<_>>()
                 .join(" ");
+            // 同 build_invocation：远端命令行前缀 cd 切到配置的工作目录
+            if !agent.workdir.trim().is_empty() {
+                remote_line = format!(
+                    "cd {} && {}",
+                    quote_cd_target(agent.workdir.trim()),
+                    remote_line
+                );
+            }
             // 同 build_invocation：整行整体引用，防 -lc 只吞第一个词（如 `claude --resume` 丢成裸 `claude`）
             argv.push(posix_quote(&remote_line));
             (ssh_bin(), argv)
@@ -347,17 +406,18 @@ impl AiMessage {
     }
 }
 
-const SYSTEM_PROMPT: &str = r#"你是待办事项提取助手。给你一组 IM 消息（含来源、发送者、内容与同会话上下文）、用户当前未完成的待办清单、可用分类和标签，找出其中隐含的待办事项、承诺、或对方希望你完成/参加的事情。
+const SYSTEM_PROMPT: &str = r#"你是待办事项提取助手。给你一组 IM 消息（含来源、发送者、内容与同会话上下文）、用户当前未完成的待办清单、可用分类和标签，找出其中隐含的、需要用户本人行动的待办事项、承诺、或对方希望你完成/参加的事情。
 规则：
-- 每条消息带「来源」标签：单聊是对方直接对你说的，语气常更直接；群聊可能是@你或不点名安排；「与机器人的私聊」是用户发给助手 bot 的，是用户给自己记的备忘/指令，同样要提取。上下文里标注为「我」的是用户自己说的话，只用于理解指代与时间，不是待办来源。
+- 每条消息带「来源」标签：单聊是对方直接对你说的，语气常更直接；「与机器人的私聊」是用户发给助手 bot 的，是用户给自己记的备忘/指令，同样要提取。上下文里标注为「我」的是用户自己说的话，只用于理解指代与时间，不是待办来源。
+- 群聊必须先判断任务归属，只提取明确指派给用户的：内容 @我、点名让用户做、或回复/接着用户的话头向用户提出请求。消息把任务指派给别人的（@他人、点名让他人做、说某事由某人负责/跟进）是别人的任务，内容再像待办也判 none（reason 注明是 @谁/谁 的任务）；不点名且从上下文判断不出是安排给用户的，同样判 none。宁漏勿滥：判 none 的消息用户在收音机里仍能看到、可手动捕捉，误报则会污染待办清单。
 - 同会话上下文仅供参考：帮你理解对话背景（前因后果、时间指代），最终判断只针对消息本身。
 - 只提取"需要用户行动"的内容（任务、承诺、会议、deadline、请求）。闲聊、通知、纯信息分享不算。
-- 判重：判定待办前先对照「现有待办清单」。如果已有本质相同的未完成待办，绝不再生成新待办，改按下面 update / followUp / none 的规则处理。
+- 判重（两步）：① 对照「现有待办清单」，已有本质相同的未完成待办时绝不再生成新待办，改按下面 update / followUp / none 的规则处理；② 本批消息互相判重——多条消息指向同一件事时，只对信息最明确最完整的一条生成 todo，其余判 none（reason 注明「与消息 [那条id] 同一件事」）。
 - action 只能是 "todo"、"update"、"followUp"、"none" 之一：
   - todo：新的待办事项。
   - update：消息明确修改现有待办的属性（改期/改时间、调整优先级、更换标题、变更交付要求）。填 updateTaskId，且只填需要变更的字段（title/note/priority/due/tags），不变的字段留空、tags 用 [] 表示不变；需要变更标签时给出完整的新标签数组。
   - followUp：消息是现有待办的补充信息、进展汇报或确认，不改变任务本身属性。填 followUpTaskId。
-  - none：只是重复提及、没有新信息。
+  - none：只是重复提及、没有新信息，或任务不属于用户。
 - title 用简短的祈使句中文概括要做的事（不超过 20 字）。
 - note 一句话补充上下文（谁提出的、在哪里、要什么），没有就留空。
 - category 从「可用分类」里选最贴切的一个。
@@ -426,17 +486,18 @@ fn build_prompt(batch: &[AiMessage], ctx: &ClassifyContext) -> String {
 /// tools 模式系统提示词：判定规则与 SYSTEM_PROMPT 一致，但结果经 pk 工具写回数据库。
 /// 判重上下文（待办清单/分类/标签）由 agent 自行 `pk context` 获取；
 /// <AGENT_ID> 占位符替换为该 agent 的 id（pk 侧记录建议来源）。
-const TOOLS_SYSTEM_PROMPT: &str = r#"你是待办事项提取助手，通过 pk 命令行工具工作。给你一组 IM 消息（含来源、发送者、内容与同会话上下文），找出其中隐含的待办事项、承诺、或对方希望你完成/参加的事情，并把判定结果用 pk 工具写回数据库。
+const TOOLS_SYSTEM_PROMPT: &str = r#"你是待办事项提取助手，通过 pk 命令行工具工作。给你一组 IM 消息（含来源、发送者、内容与同会话上下文），找出其中隐含的、需要用户本人行动的待办事项、承诺、或对方希望你完成/参加的事情，并把判定结果用 pk 工具写回数据库。
 规则：
-- 每条消息带「来源」标签：单聊是对方直接对你说的，语气常更直接；群聊可能是@你或不点名安排；「与机器人的私聊」是用户发给助手 bot 的，是用户给自己记的备忘/指令，同样要提取。上下文里标注为「我」的是用户自己说的话，只用于理解指代与时间，不是待办来源。
+- 每条消息带「来源」标签：单聊是对方直接对你说的，语气常更直接；「与机器人的私聊」是用户发给助手 bot 的，是用户给自己记的备忘/指令，同样要提取。上下文里标注为「我」的是用户自己说的话，只用于理解指代与时间，不是待办来源。
+- 群聊必须先判断任务归属，只提取明确指派给用户的：内容 @我、点名让用户做、或回复/接着用户的话头向用户提出请求。消息把任务指派给别人的（@他人、点名让他人做、说某事由某人负责/跟进）是别人的任务，内容再像待办也判 none（reason 注明是 @谁/谁 的任务）；不点名且从上下文判断不出是安排给用户的，同样判 none。宁漏勿滥：判 none 的消息用户在收音机里仍能看到、可手动捕捉，误报则会污染待办清单。
 - 同会话上下文仅供参考：帮你理解对话背景（前因后果、时间指代），最终判断只针对消息本身。
 - 只提取"需要用户行动"的内容（任务、承诺、会议、deadline、请求）。闲聊、通知、纯信息分享不算。
-- 判重：先执行 `pk context` 拿现有待办清单；已有本质相同的未完成待办时绝不再新建，改按 update / followUp / none 处理。
+- 判重（两步）：① 先执行 `pk context` 拿现有待办清单，已有本质相同的未完成待办时绝不再新建，改按 update / followUp / none 处理；② 本批消息互相判重——多条消息指向同一件事时，只对信息最明确最完整的一条生成 todo，其余判 none（reason 注明「与消息 [那条id] 同一件事」）。
 - action 只能是 "todo"、"update"、"followUp"、"none" 之一：
   - todo：新的待办事项。
   - update：消息明确修改现有待办的属性（改期/改时间、调整优先级、更换标题、变更交付要求）。填 updateTaskId，且只填需要变更的字段（title/note/priority/due/tags），不变的字段留空、tags 用 [] 表示不变；需要变更标签时给出完整的新标签数组。
   - followUp：消息是现有待办的补充信息、进展汇报或确认，不改变任务本身属性。填 followUpTaskId。
-  - none：只是重复提及、没有新信息。
+  - none：只是重复提及、没有新信息，或任务不属于用户。
 - title 用简短的祈使句中文概括要做的事（不超过 20 字）。
 - note 一句话补充上下文（谁提出的、在哪里、要什么），没有就留空。
 - category 从 pk context 的 categories 里选最贴切的一个，不要发明不存在的名字。
@@ -503,7 +564,9 @@ async fn classify_text_with_session(
     );
     let out = run_agent(agent, &prompt).await?;
     log::debug!("ai: agent 原始输出: {}", trunc(&out, 800));
-    parse_suggestions_with_session(&out)
+    let (mut suggestions, session_id) = parse_suggestions_with_session(&out)?;
+    dedup_batch_todos(&mut suggestions);
+    Ok((suggestions, session_id))
 }
 
 /// tools 模式：agent 通过 pk 工具把判定写回数据库，应用不解析其文本输出，
@@ -527,7 +590,23 @@ async fn classify_tools_with_session(
     // agent 进程已结束才拿锁，回读期间不跨 await 持锁
     let suggestions = {
         let conn = db.0.lock().unwrap();
-        crate::commands::radio::load_suggestions_conn(&conn, &ids)?
+        let mut loaded = crate::commands::radio::load_suggestions_conn(&conn, &ids)?;
+        let demoted = dedup_batch_todos(&mut loaded);
+        for s in loaded.iter().filter(|s| demoted.contains(&s.message_id)) {
+            // agent 已把重复 todo 写进建议列：清掉建议载荷并置 none，
+            // 收音机里不再出现第二张建议卡
+            let _ = conn.execute(
+                "UPDATE chat_messages SET ai_status='none', suggested_title=NULL, suggested_note=NULL,
+                        suggested_category=NULL, suggested_due=NULL, suggested_priority=NULL,
+                        suggested_tags='[]', suggested_reason=?2
+                 WHERE message_id=?1",
+                rusqlite::params![s.message_id, s.reason],
+            );
+        }
+        if !demoted.is_empty() {
+            log::info!("ai: 批内判重兜底，降级 {} 条重复待办", demoted.len());
+        }
+        loaded
     };
     // agent 退出 0 但一条都没落库（pk 不在 PATH / 工具白名单没放行等）→ 判失败，
     // 让调用方按错误路径标记，避免整批被静默标 none；部分遗漏由调用方按 none 兜底
@@ -539,6 +618,49 @@ async fn classify_tools_with_session(
         )));
     }
     Ok((suggestions, session_id))
+}
+
+/// 批内判重兜底：prompt 已要求模型对同一批消息互相判重，这里防漏判——
+/// 规范化标题（trim/折叠空白/小写）相同的多个 todo 只留最先出现的一条，
+/// 其余降级 none 并让 reason 指向保留的那条消息。返回被降级的消息 id。
+fn dedup_batch_todos(suggestions: &mut [AiSuggestion]) -> Vec<String> {
+    let mut first_seen: HashMap<String, String> = HashMap::new();
+    let mut demoted = vec![];
+    for s in suggestions.iter_mut() {
+        if !s.is_todo() {
+            continue;
+        }
+        let key: String = s
+            .title
+            .as_deref()
+            .unwrap_or_default()
+            .split_whitespace()
+            .collect::<Vec<_>>()
+            .join(" ")
+            .to_lowercase();
+        if key.is_empty() {
+            continue;
+        }
+        match first_seen.get(&key) {
+            Some(kept_id) => {
+                s.action = "none".into();
+                s.title = None;
+                s.category = None;
+                s.due = None;
+                s.priority = None;
+                s.note = None;
+                s.tags.clear();
+                s.follow_up_task_id = None;
+                s.update_task_id = None;
+                s.reason = Some(format!("与消息 {kept_id} 的待办重复"));
+                demoted.push(s.message_id.clone());
+            }
+            None => {
+                first_seen.insert(key, s.message_id.clone());
+            }
+        }
+    }
+    demoted
 }
 
 /// 无头调用 agent：本地执行或 SSH 远程执行（见 build_invocation 的组装规则）
@@ -557,6 +679,7 @@ pub async fn run_agent(agent: &AgentConfig, prompt: &str) -> AppResult<String> {
         &inv.program,
         &inv.argv,
         inv.stdin.as_deref(),
+        inv.cwd.as_deref(),
         pk_dir.as_deref(),
         timeout,
     )
@@ -577,21 +700,22 @@ pub async fn run_agent(agent: &AgentConfig, prompt: &str) -> AppResult<String> {
 
 /// 启动外部进程并等待结束，返回 stdout。进程未找到给出可操作的提示；
 /// Windows 上 npm 全局命令多为 .cmd 垫片，直接 spawn 会失败，回退 cmd /C 再试一次。
-/// pk_dir 非空时前插进子进程 PATH（见 run_agent）。
+/// pk_dir 非空时前插进子进程 PATH（见 run_agent）；cwd 非空时作为子进程工作目录。
 async fn run_process(
     program: &str,
     argv: &[String],
     stdin: Option<&str>,
+    cwd: Option<&std::path::Path>,
     pk_dir: Option<&std::path::Path>,
     timeout: Duration,
 ) -> AppResult<String> {
-    match spawn_and_wait(program, argv, stdin, pk_dir, timeout).await {
+    match spawn_and_wait(program, argv, stdin, cwd, pk_dir, timeout).await {
         Ok(out) => Ok(out),
         #[cfg(windows)]
         Err(AppError::Invalid(_)) => {
             let mut cmd_argv = vec!["/C".to_string(), program.to_string()];
             cmd_argv.extend(argv.iter().cloned());
-            spawn_and_wait("cmd", &cmd_argv, stdin, pk_dir, timeout).await
+            spawn_and_wait("cmd", &cmd_argv, stdin, cwd, pk_dir, timeout).await
         }
         Err(e) => Err(e),
     }
@@ -601,10 +725,22 @@ async fn spawn_and_wait(
     program: &str,
     argv: &[String],
     stdin: Option<&str>,
+    cwd: Option<&std::path::Path>,
     pk_dir: Option<&std::path::Path>,
     timeout: Duration,
 ) -> AppResult<String> {
     let mut cmd = tokio::process::Command::new(program);
+    // 固定工作目录（不继承 GUI 进程的 cwd，见 agent_workdir）；目录配错给出可操作报错，
+    // 免得落到 spawn 的 NotFound 上被误报成「命令找不到」
+    if let Some(dir) = cwd {
+        if !dir.is_dir() {
+            return Err(AppError::Invalid(format!(
+                "Agent 工作目录不存在: {}（请在设置中改正，留空则用应用数据目录）",
+                dir.display()
+            )));
+        }
+        cmd.current_dir(dir);
+    }
     // PATH 补齐（见 which 模块）：node 脚本 agent（claude 等）的 shebang 依赖
     // env node，GUI 精简 PATH 下会 127；pk_dir 前插让 agent 的 Bash 工具里裸名 pk 可解析
     let mut extra_dirs = pk_dir
@@ -1059,6 +1195,118 @@ mod tests {
         assert!(argv.contains(&"--".to_string()) && argv.contains(&"box".to_string()));
     }
 
+    // ---- 工作目录：显式配置优先，缺省固定为主目录，远程 cd 前缀 ----
+
+    #[test]
+    fn invocation_local_workdir() {
+        // 显式配置 → cwd 用配置值；~ 前缀展开为本机主目录
+        let a = AgentConfig {
+            workdir: "/tmp/lab".into(),
+            ..Default::default()
+        };
+        assert_eq!(
+            build_invocation(&a, "x").cwd.as_deref(),
+            Some(std::path::Path::new("/tmp/lab"))
+        );
+
+        let home = dirs::home_dir().expect("测试环境应有主目录");
+        let a = AgentConfig {
+            workdir: "~/proj".into(),
+            ..Default::default()
+        };
+        assert_eq!(build_invocation(&a, "x").cwd, Some(home.join("proj")));
+
+        // 未配置 → 应用数据目录（带标识、与 pk 数据库同目录），不继承 GUI 进程的 cwd
+        let app_dir = dirs::data_dir()
+            .expect("测试环境应有数据目录")
+            .join(crate::db::APP_IDENTIFIER);
+        assert_eq!(
+            build_invocation(&AgentConfig::default(), "x").cwd,
+            Some(app_dir)
+        );
+    }
+
+    #[test]
+    fn invocation_remote_workdir_prefixes_cd() {
+        let a = AgentConfig {
+            command: "claude".into(),
+            args: "-p {prompt}".into(),
+            workdir: "~/lab".into(),
+            remote: Some(AgentRemote {
+                host: "box".into(),
+                ..Default::default()
+            }),
+            ..Default::default()
+        };
+        let inv = build_invocation(&a, "x");
+        let line = inv.argv.last().unwrap();
+        assert!(
+            line.contains("cd ~/lab && claude -p"),
+            "远端命令行先 cd 到配置目录（~ 保留给远端 shell 展开），got {line}"
+        );
+        assert!(inv.cwd.is_none(), "远程分支不设本地 cwd");
+
+        // 历史入口同样带 cd 前缀
+        let (_, argv) = history_invocation(&a);
+        assert!(
+            argv.last().unwrap().contains("cd ~/lab && claude"),
+            "历史会话也在配置目录里打开"
+        );
+
+        // cd 目标的引用规则：含空格/单引号的部分安全引用，前导 ~ 裸放
+        assert_eq!(quote_cd_target("~"), "~");
+        assert_eq!(quote_cd_target("~/a b"), "~/'a b'");
+        assert_eq!(quote_cd_target("/it's"), "'/it'\\''s'");
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn spawn_respects_and_validates_workdir() {
+        use std::os::unix::fs::PermissionsExt;
+
+        let dir = std::env::temp_dir().join(format!("pk-cwd-test-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        // macOS 的 /var 是 /private/var 的符号链接，pwd 输出真实路径，统一 canonicalize 再比
+        let dir = dir.canonicalize().unwrap();
+        let script = dir.join("pwd-agent.sh");
+        std::fs::write(&script, "#!/bin/sh\npwd\n").unwrap();
+        std::fs::set_permissions(&script, std::fs::Permissions::from_mode(0o755)).unwrap();
+
+        // 子进程确实运行在指定 cwd
+        let out = tauri::async_runtime::block_on(run_process(
+            script.to_string_lossy().as_ref(),
+            &[],
+            None,
+            Some(dir.as_path()),
+            None,
+            Duration::from_secs(10),
+        ))
+        .unwrap();
+        assert_eq!(
+            std::path::Path::new(out.trim()),
+            dir.as_path(),
+            "agent 应运行在配置的工作目录"
+        );
+
+        // 目录不存在给出可操作报错，而不是误报命令找不到
+        let missing = dir.join("no-such-subdir");
+        let err = tauri::async_runtime::block_on(run_process(
+            script.to_string_lossy().as_ref(),
+            &[],
+            None,
+            Some(missing.as_path()),
+            None,
+            Duration::from_secs(10),
+        ))
+        .unwrap_err();
+        assert!(
+            err.to_string().contains("工作目录不存在"),
+            "目录配错时报工作目录: {err}"
+        );
+
+        std::fs::remove_dir_all(&dir).ok();
+    }
+
     /// ai_agents JSON 带 remote（camelCase）往返；缺省无 remote 也兼容
     #[test]
     fn load_agents_parses_remote_config() {
@@ -1179,6 +1427,86 @@ mod tests {
         let out =
             parse_suggestions(r#"{"suggestions":[{"messageId":"m1","action":"todo"}]}"#).unwrap();
         assert!(out[0].is_todo());
+    }
+
+    // ---- dedup_batch_todos：批内判重兜底 ----
+
+    fn todo_suggestion(id: &str, title: &str) -> AiSuggestion {
+        AiSuggestion {
+            message_id: id.into(),
+            action: "todo".into(),
+            title: Some(title.into()),
+            ..Default::default()
+        }
+    }
+
+    #[test]
+    fn dedup_batch_todos_demotes_same_title_and_keeps_first() {
+        let mut list = vec![
+            todo_suggestion("m1", "发周报"),
+            todo_suggestion("m2", " 发周报 "), // 仅空白差异：重复
+            todo_suggestion("m3", "发周报给老板"), // 标题不同：保留
+            AiSuggestion {
+                message_id: "m4".into(),
+                action: "none".into(),
+                ..Default::default()
+            },
+        ];
+        let demoted = dedup_batch_todos(&mut list);
+        assert_eq!(demoted, vec!["m2".to_string()], "只降级重复的那条");
+        assert!(list[0].is_todo(), "最先出现的保留");
+        assert_eq!(list[1].action, "none", "重复条降级 none");
+        assert_eq!(list[1].title, None, "降级后清掉建议载荷");
+        assert!(
+            list[1].reason.as_deref().unwrap().contains("m1"),
+            "reason 指向保留的消息: {:?}",
+            list[1].reason
+        );
+        assert!(list[2].is_todo(), "标题不同的不受影响");
+    }
+
+    #[test]
+    fn dedup_batch_todos_normalizes_case_and_whitespace() {
+        let mut list = vec![
+            todo_suggestion("a1", "Send Report"),
+            todo_suggestion("a2", "send   report"),
+        ];
+        let demoted = dedup_batch_todos(&mut list);
+        assert_eq!(demoted.len(), 1, "大小写与空白折叠后视为同一待办");
+        assert_eq!(list[1].action, "none");
+    }
+
+    #[test]
+    fn dedup_batch_todos_keeps_empty_titles() {
+        // 无标题的 todo（异常输出）不动，交给后续流程兜底
+        let mut list = vec![
+            AiSuggestion {
+                message_id: "e1".into(),
+                action: "todo".into(),
+                ..Default::default()
+            },
+            todo_suggestion("e2", "发周报"),
+        ];
+        assert!(dedup_batch_todos(&mut list).is_empty());
+        assert!(list.iter().all(|s| s.is_todo()));
+    }
+
+    // ---- 两种模式的规则同步 ----
+
+    #[test]
+    fn prompts_carry_group_ownership_and_batch_dedup_rules() {
+        for (name, p) in [("text", SYSTEM_PROMPT), ("tools", TOOLS_SYSTEM_PROMPT)] {
+            assert!(
+                p.contains("群聊必须先判断任务归属"),
+                "{name} 模式缺群聊归属规则"
+            );
+            assert!(
+                p.contains("是别人的任务"),
+                "{name} 模式缺指派他人判 none 规则"
+            );
+            assert!(p.contains("宁漏勿滥"), "{name} 模式缺收窄倾向说明");
+            assert!(p.contains("本批消息互相判重"), "{name} 模式缺批内判重规则");
+        }
     }
 
     // ---- 进程调用链（unix 下用 /bin/sh 脚本模拟 agent） ----
@@ -1326,6 +1654,7 @@ mod tests {
                 timeout_secs: 30,
                 enabled: true,
                 mode: "text".into(),
+                workdir: String::new(),
                 remote: Some(AgentRemote {
                     host: "dev@box".into(),
                     ..Default::default()
@@ -1408,6 +1737,7 @@ mod tests {
                 &[],
                 None,
                 None,
+                None,
                 Duration::from_secs(1),
             ))
             .unwrap_err();
@@ -1474,6 +1804,7 @@ mod tests {
             let out = tauri::async_runtime::block_on(run_process(
                 agent.to_string_lossy().as_ref(),
                 &[],
+                None,
                 None,
                 Some(&pk_dir),
                 Duration::from_secs(10),

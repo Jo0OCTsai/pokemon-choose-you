@@ -271,6 +271,7 @@ AI 判定时会带上**同会话 30 分钟内的近期上下文**与消息来源
 要点：
 
 - **{prompt} 占位符**：附加参数中的 `{prompt}` 会被替换为完整提示词；不写占位符则提示词经标准输入传入（适合长提示词）。
+- **工作目录**：agent 及其工具（读写文件、git 等）的相对路径基准，支持 `~` 前缀；留空为**应用数据目录**（带应用标识、与 pk 的数据库同目录：macOS 为 `~/Library/Application Support/com.jotsai.pokemonchooseyou`，Linux 为 `~/.local/share/com.jotsai.pokemonchooseyou`，Windows 为 `%APPDATA%\com.jotsai.pokemonchooseyou`）。应用启动方式不同、GUI 进程的默认目录不可控（Dock/Finder 启动时是 `/`），所以总会显式指定，不会「随机」落盘。SSH 远程模式下填的是**远程机器上的路径**，调用与「历史记录」终端会话都会先切到该目录；远程留空则落在远端登录目录（远端 `$HOME`）。
 - **超时**：agent 启动 + 推理比直连 API 慢，默认 120 秒，可按需调大。
 - Windows 下 npm 全局命令（`claude.cmd` 等）会自动经 `cmd /C` 回退启动，无需绝对路径。
 

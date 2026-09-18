@@ -487,9 +487,9 @@ function newId(): string {
 function loadAgents() {
   try {
     const parsed = JSON.parse(settings.sget("ai_agents") || "[]");
-    // 旧配置无 mode 字段：归一成 text，下拉框才有选中项
+    // 旧配置无 mode/workdir 字段：归一成 text/空串，下拉框才有选中项、输入框受控
     agents.value = Array.isArray(parsed)
-      ? parsed.map((a: AgentConfig): AgentRow => ({ ...a, mode: a.mode ?? "text" }))
+      ? parsed.map((a: AgentConfig): AgentRow => ({ ...a, mode: a.mode ?? "text", workdir: a.workdir ?? "" }))
       : [];
   } catch {
     agents.value = [];
@@ -514,7 +514,7 @@ function toggleRemote(ag: AgentConfig, on: boolean) {
 
 function addAgent() {
   const preset = AGENT_PRESETS[agentPreset.value] ?? AGENT_PRESETS.custom;
-  agents.value.push({ id: newId(), timeoutSecs: 120, enabled: true, ...preset });
+  agents.value.push({ id: newId(), timeoutSecs: 120, enabled: true, workdir: "", ...preset });
 }
 
 function removeAgent(id: string) {
@@ -919,6 +919,10 @@ onUnmounted(() => unlisteners.forEach((u) => u()));
             <label>
               {{ t("ai.args") }}
               <input v-model="ag.args" :placeholder="t('ai.argsPh')" />
+            </label>
+            <label>
+              {{ t("ai.workdir") }}
+              <input v-model="ag.workdir" :placeholder="t('ai.workdirPh')" />
             </label>
             <label>
               {{ t("ai.mode") }}

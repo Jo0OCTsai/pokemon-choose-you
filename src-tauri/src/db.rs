@@ -4,6 +4,10 @@ use tauri::Manager;
 
 pub struct Db(pub Mutex<Connection>);
 
+/// 应用标识（tauri.conf.json 的 identifier）：数据目录名。
+/// pk CLI 定位数据库与 agent 缺省工作目录共用，改动须与 tauri.conf.json 同步
+pub const APP_IDENTIFIER: &str = "com.jotsai.pokemonchooseyou";
+
 /// 数据库文件名（应用数据目录内）
 pub const DB_FILE: &str = "pokemon-choose-you.db";
 
