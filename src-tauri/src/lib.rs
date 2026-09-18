@@ -137,6 +137,7 @@ pub fn run() {
             commands::batch_review_chat_messages,
             commands::force_create_todo,
             commands::apply_chat_message_update,
+            commands::undo_chat_review,
             commands::test_ai_config,
             commands::open_agent_history,
             commands::setup_remote_pk,

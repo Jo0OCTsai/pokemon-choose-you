@@ -208,8 +208,8 @@ fn format_log_line(now: chrono::DateTime<chrono::Utc>, level: &str, msg: &str) -
 fn default_db_path() -> Result<std::path::PathBuf, String> {
     let dir = dirs::data_dir().ok_or_else(|| "无法定位用户数据目录".to_string())?;
     Ok(dir
-        .join("com.jotsai.pokemonchooseyou")
-        .join("pokemon-choose-you.db"))
+        .join(pokemon_choose_you_lib::db::APP_IDENTIFIER)
+        .join(pokemon_choose_you_lib::db::DB_FILE))
 }
 
 /// 打开应用数据库：平时不做迁移（应用可能比 CLI 旧，抢跑迁移会让应用拒绝启动）；

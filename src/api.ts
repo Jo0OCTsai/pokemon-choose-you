@@ -119,6 +119,8 @@ export const api = {
   forceCreateTodo: (id: number) => call<number>("force_create_todo", { id }),
   /** 应用 AI 的更新建议：把建议字段打补丁到目标待办 */
   applyChatMessageUpdate: (id: number) => call<number>("apply_chat_message_update", { id }),
+  /** 撤销最近一次分诊（5 秒撤销窗口）：逃走回 pending；捕捉删除刚建的待办 */
+  undoChatReview: (id: number) => call<void>("undo_chat_review", { id }),
   /** 批量分诊：accept = 捕捉/应用更新，dismiss = 批量逃走（可带原因码）；单条失败不影响其余 */
   batchReviewChatMessages: (ids: number[], action: "accept" | "dismiss", reasonCode?: string) =>
     call<BatchReviewResult>("batch_review_chat_messages", {

@@ -167,10 +167,13 @@ fn is_media_only(msg_type: &str) -> bool {
 /// 把消息 body.content 渲染成可读文本。
 /// text/post/卡片保留语义结构（@人名、链接），媒体类给占位符，无法理解的返回 None 跳过。
 /// mentions：消息级 @ 映射（key "@_user_1" → name/open_id），text 占位符与 post 的 user_key 都靠它还原人名。
+/// my_open_id：授权用户自己的 open_id——@到我 的提及渲染成「@我」而非真名，
+/// 让 AI 能把「给我的任务」和「@别人的任务」区分开。
 fn render_content(
     msg_type: &str,
     content: &str,
     mentions: &serde_json::Value,
+    my_open_id: &str,
     resolve_name: &dyn Fn(&str) -> Option<String>,
 ) -> Option<String> {
     let v: serde_json::Value = serde_json::from_str(content).ok()?;
@@ -180,6 +183,9 @@ fn render_content(
             .iter()
             .find(|m| m["key"].as_str() == Some(key))
             .and_then(|m| {
+                if m["id"]["open_id"].as_str() == Some(my_open_id) && !my_open_id.is_empty() {
+                    return Some("我".into());
+                }
                 let named = m["name"].as_str().map(String::from);
                 named.or_else(|| m["id"]["open_id"].as_str().and_then(resolve_name))
             })
@@ -190,11 +196,17 @@ fn render_content(
             if let Some(arr) = mentions.as_array() {
                 for m in arr {
                     if let Some(key) = m["key"].as_str() {
-                        let name = m["name"]
-                            .as_str()
-                            .map(String::from)
-                            .or_else(|| m["id"]["open_id"].as_str().and_then(resolve_name))
-                            .unwrap_or_else(|| "成员".into());
+                        let name = if m["id"]["open_id"].as_str() == Some(my_open_id)
+                            && !my_open_id.is_empty()
+                        {
+                            "我".to_string()
+                        } else {
+                            m["name"]
+                                .as_str()
+                                .map(String::from)
+                                .or_else(|| m["id"]["open_id"].as_str().and_then(resolve_name))
+                                .unwrap_or_else(|| "成员".into())
+                        };
                         text = text.replace(key, &format!("@{name}"));
                     }
                 }
@@ -413,7 +425,8 @@ async fn pull_new_messages(
                 let mentions = &m["mentions"];
                 let names_ref = &names;
                 let resolve = move |oid: &str| names_ref.get(oid).cloned();
-                let Some(text) = render_content(msg_type, content, mentions, &resolve) else {
+                let Some(text) = render_content(msg_type, content, mentions, &my_open_id, &resolve)
+                else {
                     continue;
                 };
                 if text.trim().is_empty() {
@@ -837,12 +850,20 @@ mod tests {
             {"key": "@_user_1", "name": "张三", "id": {"open_id": "ou_z"}}
         ]);
         assert_eq!(
-            render_content("text", content, &mentions, &|_| None).as_deref(),
+            render_content("text", content, &mentions, "", &|_| None).as_deref(),
             Some("@张三 看一下这个")
+        );
+        // @到我 的提及渲染成「@我」（即使 name 字段是真名），AI 才能区分任务归属
+        let to_me = serde_json::json!([
+            {"key": "@_user_1", "name": "本大爷", "id": {"open_id": "ou_me"}}
+        ]);
+        assert_eq!(
+            render_content("text", content, &to_me, "ou_me", &|_| None).as_deref(),
+            Some("@我 看一下这个")
         );
         // 无 mentions 映射时保留原文
         assert_eq!(
-            render_content("text", content, &serde_json::Value::Null, &|_| None).as_deref(),
+            render_content("text", content, &serde_json::Value::Null, "", &|_| None).as_deref(),
             Some("@_user_1 看一下这个")
         );
     }
@@ -855,7 +876,7 @@ mod tests {
             {"tag":"a","text":"需求文档","href":"https://doc.example/x"},
             {"tag":"img","image_key":"k"}
         ]]}"#;
-        let out = render_content("post", content, &serde_json::Value::Null, &|id| {
+        let out = render_content("post", content, &serde_json::Value::Null, "", &|id| {
             (id == "ou_z").then(|| "张三".to_string())
         })
         .unwrap();
@@ -874,7 +895,7 @@ mod tests {
         // 语言包形态：取 zh_cn
         let content = r#"{"title":"外层","zh_cn":{"title":"中文标题","content":[[{"tag":"text","text":"你好"}]]}}"#;
         assert_eq!(
-            render_content("post", content, &serde_json::Value::Null, &|_| None).as_deref(),
+            render_content("post", content, &serde_json::Value::Null, "", &|_| None).as_deref(),
             Some("中文标题\n你好")
         );
         assert_eq!(
@@ -882,6 +903,7 @@ mod tests {
                 "image",
                 r#"{"image_key":"k"}"#,
                 &serde_json::Value::Null,
+                "",
                 &|_| None
             )
             .as_deref(),
@@ -892,13 +914,14 @@ mod tests {
                 "file",
                 r#"{"file_name":"合同.pdf"}"#,
                 &serde_json::Value::Null,
+                "",
                 &|_| None
             )
             .as_deref(),
             Some("[文件:合同.pdf]")
         );
         assert_eq!(
-            render_content("audio", "{}", &serde_json::Value::Null, &|_| None).as_deref(),
+            render_content("audio", "{}", &serde_json::Value::Null, "", &|_| None).as_deref(),
             Some("[语音]")
         );
     }
@@ -906,8 +929,14 @@ mod tests {
     #[test]
     fn render_interactive_card_collects_text() {
         let content = r#"{"header":{"title":{"content":"审批提醒"}},"elements":[{"tag":"div","text":{"text":"张三提交了请假申请"}}]}"#;
-        let out =
-            render_content("interactive", content, &serde_json::Value::Null, &|_| None).unwrap();
+        let out = render_content(
+            "interactive",
+            content,
+            &serde_json::Value::Null,
+            "",
+            &|_| None,
+        )
+        .unwrap();
         assert!(out.starts_with("[卡片]"));
         assert!(
             out.contains("审批提醒") && out.contains("请假申请"),
@@ -918,12 +947,12 @@ mod tests {
     #[test]
     fn render_unknown_and_invalid_returns_none() {
         assert_eq!(
-            render_content("system", "{}", &serde_json::Value::Null, &|_| None),
+            render_content("system", "{}", &serde_json::Value::Null, "", &|_| None),
             None,
             "系统消息跳过"
         );
         assert_eq!(
-            render_content("text", "not-json", &serde_json::Value::Null, &|_| None),
+            render_content("text", "not-json", &serde_json::Value::Null, "", &|_| None),
             None,
             "非法 JSON 跳过"
         );
@@ -994,16 +1023,17 @@ case "$3" in
           ],"has_more":false}}' ;;
       *'"container_id":"oc_group"'*)
         printf '%s' '{"ok":true,"data":{"items":[
-            {"message_id":"om_g1","msg_type":"text","create_time":"1789200000000","sender":{"id":"ou_z","sender_type":"user"},"body":{"content":"{\"text\":\"@_user_1 周会改到周四10点\"}"},"mentions":[{"key":"@_user_1","name":"我","id":{"open_id":"ou_me"}}]},
+            {"message_id":"om_g1","msg_type":"text","create_time":"1789200000000","sender":{"id":"ou_z","sender_type":"user"},"body":{"content":"{\"text\":\"@_user_1 周会改到周四10点\"}"},"mentions":[{"key":"@_user_1","name":"乔老板","id":{"open_id":"ou_me"}}]},
             {"message_id":"om_g2","msg_type":"text","create_time":"1789200001000","sender":{"id":"ou_me","sender_type":"user"},"body":{"content":"{\"text\":\"收到\"}"}},
             {"message_id":"om_g3","msg_type":"text","create_time":"1789200002000","sender":{"id":"ou_bot","sender_type":"app"},"body":{"content":"{\"text\":\"每日站会提醒\"}"}},
-            {"message_id":"om_g4","msg_type":"image","create_time":"1789200003000","sender":{"id":"ou_z","sender_type":"user"},"body":{"content":"{\"image_key\":\"k\"}"}}
+            {"message_id":"om_g4","msg_type":"image","create_time":"1789200003000","sender":{"id":"ou_z","sender_type":"user"},"body":{"content":"{\"image_key\":\"k\"}"}},
+            {"message_id":"om_g5","msg_type":"text","create_time":"1789200004000","sender":{"id":"ou_z","sender_type":"user"},"body":{"content":"{\"text\":\"@_user_2 你来写周报\"}"},"mentions":[{"key":"@_user_2","name":"王五","id":{"open_id":"ou_wang"}}]}
           ],"has_more":false}}' ;;
       *)
         echo 'unexpected chat' >&2; exit 1 ;;
     esac ;;
   /open-apis/im/v1/chats/oc_group/members)
-    printf '%s' '{"ok":true,"data":{"items":[{"member_id":"ou_z","name":"张三"}],"has_more":false}}' ;;
+    printf '%s' '{"ok":true,"data":{"items":[{"member_id":"ou_z","name":"张三"},{"member_id":"ou_wang","name":"王五"}],"has_more":false}}' ;;
   *)
     echo "unexpected path $3" >&2; exit 1 ;;
 esac
@@ -1069,6 +1099,14 @@ esac
             let g4 = find("om_g4");
             assert!(!g4.needs_ai, "图片消息只作上下文");
             assert_eq!(g4.content, "[图片]");
+            // @别人派活的消息：提及保留真名，AI 才能判定这是别人的任务
+            let g5 = find("om_g5");
+            assert!(g5.needs_ai);
+            assert!(
+                g5.content.contains("@王五"),
+                "他人的提及保留真名: {}",
+                g5.content
+            );
             // 名字缓存已落库
             let cached: String = {
                 let conn = db.0.lock().unwrap();
