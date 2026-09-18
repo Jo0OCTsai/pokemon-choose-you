@@ -40,7 +40,7 @@
 
 - 消息 id 必须来自待判定消息列表；已人工确认过的消息不能再提交
 - 待办 id 必须来自 `pk context` 的 openTasks
-- 分类/标签必须已存在（`pk category list` / `pk tag list` / `pk context`）
+- 分类必须已存在（`pk category list`）；标签按维度管理：词表内标签（`pk tag list` 的 tags，含 dimension）直接用名字，词表外新标签在 batch 协议里用对象形式 `{"name":"...","dimension":"project","isNew":true}`（维度取 `pk context` 的 dimensions.key，remaining<=0 的维度禁止新建）
 - priority ∈ low/normal/high/urgent；confidence ∈ high/medium/low
 - 重复提交同一消息为覆盖写（幂等）；同批重复 messageId 拒绝
 
@@ -55,8 +55,10 @@
 
 | 命令 | 说明 |
 |---|---|
-| `pk category list` / `pk tag list` | 分类/标签列表 |
-| `pk context` | 当前时间 + 未完成待办（id+标题）+ 启用分类 + 标签；判定与建任务的判重上下文 |
+| `pk category list` | 分类列表 |
+| `pk tag list` | 标签列表：`tags`（含 dimension/origin/usage）+ `dimensions`（维度 key/单多选/上限） |
+| `pk tag create <名字> [--dimension <维度key>] [--description <描述>]` | 新建标签（缺省 topic 维度；agent 自助扩词表用） |
+| `pk context` | 当前时间 + 未完成待办（id+标题）+ 启用分类 + 标签（含 dimension）+ 维度（含 remaining 剩余可新建名额）；判定与建任务的判重上下文 |
 
 ## 诊断与发现（doctor / help）
 

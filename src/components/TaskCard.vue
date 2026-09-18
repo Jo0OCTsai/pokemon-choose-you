@@ -99,7 +99,13 @@ function onContextMenu(e: MouseEvent) {
           {{ t("entry.from", { src: task.source === "feishu" ? t("entry.feishu") : task.source }) }}
         </span>
         <span v-if="task.tags.length" class="tag-list">
-          <i v-for="name in task.tags" :key="name" class="tag-chip"># {{ name }}</i>
+          <i
+            v-for="r in task.tags"
+            :key="r.dimension + ':' + r.name"
+            class="tag-chip"
+            :class="{ 'chip-project': r.dimension === 'project' }"
+            >{{ r.dimension === "project" ? "⛳ " : "# " }}{{ r.name }}</i
+          >
         </span>
       </div>
     </div>
@@ -226,6 +232,11 @@ function onContextMenu(e: MouseEvent) {
   border-radius: 999px;
   padding: 0 7px;
   line-height: 17px;
+}
+/* 项目维度是主位信息：黄色高亮区别于普通标签 */
+.tag-chip.chip-project {
+  background: var(--poke-yellow);
+  color: var(--dex-navy);
 }
 .ops {
   display: flex;

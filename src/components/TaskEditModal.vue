@@ -4,7 +4,7 @@ import { useI18n } from "vue-i18n";
 import { api, errorMessage } from "../api";
 import { useCategoriesStore } from "../stores/categories";
 import { useTagsStore } from "../stores/tags";
-import type { Task } from "../types";
+import type { Tag, Task } from "../types";
 import DexSelect from "./DexSelect.vue";
 import DexDateTime from "./DexDateTime.vue";
 
@@ -16,6 +16,9 @@ const { t } = useI18n();
 const categories = useCategoriesStore();
 const tagsStore = useTagsStore();
 
+/** 每条待办标签总数上限（防碎片化，与 AI 打标规则同口径） */
+const MAX_TAGS = 3;
+
 // ---- 可编辑字段（全部；状态不提供手动修改） ----
 const title = ref(props.task.title);
 const note = ref(props.task.note ?? "");
@@ -23,18 +26,20 @@ const categoryStr = ref(String(props.task.categoryId));
 const priority = ref(props.task.priority);
 const dueAt = ref(props.task.dueAt ?? "");
 const remindAt = ref(props.task.remindAt ?? "");
-const selectedTagIds = ref<number[]>(
-  props.task.tags.map((name) => tagsStore.list.find((g) => g.name === name)?.id).filter((v): v is number => v != null),
-);
+const selectedTagIds = ref<number[]>([]);
 const saving = ref(false);
 const error = ref("");
+
+function syncSelectedFromTask() {
+  selectedTagIds.value = props.task.tags
+    .map((r) => tagsStore.refToId(r.name, r.dimension))
+    .filter((v): v is number => v != null);
+}
 
 // 打开期间标签/分类可能在别的窗口被更新，拉一次保证 name → id 映射完整
 onMounted(async () => {
   await tagsStore.load().catch(() => {});
-  selectedTagIds.value = props.task.tags
-    .map((name) => tagsStore.list.find((g) => g.name === name)?.id)
-    .filter((v): v is number => v != null);
+  syncSelectedFromTask();
 });
 
 // 分类选项：只列启用中的分类；任务自身所属分类若已停用则保留（否则下拉显示不出名字）
@@ -46,10 +51,29 @@ const priorityOptions = computed(() =>
   (["low", "normal", "high", "urgent"] as const).map((p) => ({ value: p, label: t(`priority.${p}`) })),
 );
 
-function toggleTag(id: number) {
-  const i = selectedTagIds.value.indexOf(id);
-  if (i >= 0) selectedTagIds.value.splice(i, 1);
-  else selectedTagIds.value.push(id);
+/** 标签选择器分组：按启用维度（项目在前），单选维度的 chips 互斥 */
+const tagGroups = computed(() =>
+  tagsStore.enabledDimensions.map((d) => ({
+    key: d.key,
+    name: d.name,
+    single: d.cardinality === "single",
+    tags: tagsStore.tagsByDimension.get(d.key) ?? [],
+  })),
+);
+
+function toggleTag(g: Tag, single: boolean) {
+  const i = selectedTagIds.value.indexOf(g.id);
+  if (i >= 0) {
+    selectedTagIds.value.splice(i, 1);
+    return;
+  }
+  if (single) {
+    // 单选维度（项目）：先清掉同维度的其它标签
+    const sameDim = new Set(tagsStore.list.filter((x) => x.dimension === g.dimension).map((x) => x.id));
+    selectedTagIds.value = selectedTagIds.value.filter((x) => !sameDim.has(x));
+  }
+  if (selectedTagIds.value.length >= MAX_TAGS) return;
+  selectedTagIds.value.push(g.id);
 }
 
 async function save() {
@@ -114,18 +138,25 @@ async function save() {
         <div class="row">
           <span class="lbl">{{ t("edit.tags") }}</span>
           <div class="tag-pick">
-            <button
-              v-for="g in tagsStore.list"
-              :key="g.id"
-              type="button"
-              class="tag-chip"
-              :class="{ on: selectedTagIds.includes(g.id) }"
-              :title="g.description"
-              @click="toggleTag(g.id)"
-            >
-              {{ g.name }}
-            </button>
-            <span v-if="!tagsStore.list.length" class="no-tags">{{ t("edit.noTags") }}</span>
+            <div v-for="group in tagGroups" :key="group.key" class="tag-dim">
+              <span class="dim-name">{{ group.name }}</span>
+              <template v-if="group.tags.length">
+                <button
+                  v-for="g in group.tags"
+                  :key="g.id"
+                  type="button"
+                  class="tag-chip"
+                  :class="{ on: selectedTagIds.includes(g.id), dim: group.key !== 'project' }"
+                  :title="g.description || group.name"
+                  @click="toggleTag(g, group.single)"
+                >
+                  {{ g.name }}
+                </button>
+              </template>
+              <span v-else class="no-tags">—</span>
+            </div>
+            <span v-if="!tagGroups.length" class="no-tags">{{ t("edit.noTags") }}</span>
+            <span class="tag-count">{{ selectedTagIds.length }}/{{ MAX_TAGS }}</span>
           </div>
         </div>
       </div>
@@ -201,7 +232,19 @@ async function save() {
 .tag-pick {
   display: flex;
   flex-wrap: wrap;
+  gap: 6px 10px;
+}
+.tag-dim {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
   gap: 6px;
+}
+.dim-name {
+  font-size: 11px;
+  font-weight: 800;
+  color: #9a937f;
+  margin-right: 2px;
 }
 .tag-chip {
   border: 2px solid var(--dex-navy);
@@ -218,9 +261,19 @@ async function save() {
   background: var(--poke-yellow);
   box-shadow: 2px 2px 0 var(--dex-navy);
 }
+.tag-chip.dim.on {
+  /* 非项目维度的选中态用浅绿区分（项目是主位信息，保持黄色高亮） */
+  background: #bfe3c0;
+}
 .no-tags {
   font-size: 12px;
   color: #9a937f;
+}
+.tag-count {
+  font-size: 11px;
+  color: #9a937f;
+  margin-left: auto;
+  align-self: flex-end;
 }
 .err {
   margin: 0;

@@ -29,6 +29,14 @@ vi.mock("../api", () => ({
     undoChatReview: vi.fn(),
     batchReviewChatMessages: vi.fn(),
     listTags: vi.fn(),
+    listTagDimensions: vi.fn(async () => [
+      { id: 1, key: "project", name: "项目", cardinality: "single", maxTags: 20, sort: 1, enabled: true },
+      { id: 2, key: "context", name: "场景", cardinality: "multi", maxTags: 10, sort: 2, enabled: true },
+      { id: 3, key: "person", name: "人物", cardinality: "multi", maxTags: 30, sort: 3, enabled: true },
+      { id: 4, key: "topic", name: "主题", cardinality: "multi", maxTags: 30, sort: 4, enabled: true },
+    ]),
+    createTagDimension: vi.fn(),
+    updateTagDimension: vi.fn(),
     searchTasks: vi.fn(),
     listTaskNotes: vi.fn(),
     addTaskNote: vi.fn(),
@@ -342,7 +350,9 @@ describe("App 图鉴机主面板", () => {
   });
 
   it("编辑弹窗：全字段编辑并保存", async () => {
-    vi.mocked(api.listTags).mockResolvedValue([{ id: 3, name: "重要", description: "核心目标" }]);
+    vi.mocked(api.listTags).mockResolvedValue([
+      { id: 3, name: "重要", description: "核心目标", dimension: "topic", origin: "manual", usage: 0 },
+    ]);
     tasks = seed([{ title: "写周报", status: "scheduled", dueAt: dueToday() }]);
     const w = await mountApp();
     const editBtn = w.findAll(".entry .ops .btn").find((b) => b.text() === "✎")!;
@@ -371,7 +381,7 @@ describe("App 图鉴机主面板", () => {
         suggestedDue: "2026-09-13T10:00",
         suggestedPriority: "high",
         suggestedNote: null,
-        suggestedTags: ["重要"],
+        suggestedTags: [{ name: "重要", dimension: "topic", isNew: false }],
         aiStatus: "todo",
         reviewStatus: "pending",
         taskId: null,

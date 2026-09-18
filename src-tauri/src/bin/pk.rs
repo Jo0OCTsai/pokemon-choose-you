@@ -21,7 +21,7 @@ const SKILL_REFS: &[(&str, &str)] = &[
 /// 当前技能版本（与 SKILL.md frontmatter 的 version 保持一致，用于安装时的版本对比）
 const SKILL_VERSION: &str = "2";
 
-use pokemon_choose_you_lib::ai::AiSuggestion;
+use pokemon_choose_you_lib::ai::{AiSuggestion, ProposedTag};
 use pokemon_choose_you_lib::commands::radio::apply_suggestion_conn;
 use pokemon_choose_you_lib::commands::sessions::{
     list_agent_sessions_conn, log_session_conn, NewAgentSession,
@@ -69,8 +69,10 @@ const HELP: &str = r#"pk — 就决定是你了命令行（供 AI agent 与终�
   remote shim --host <本机地址> [--port <n>] [--key <私钥>] [--write <路径>]
                                       生成远程主机上的 pk 透传脚本（agent 在远程、数据在本机时，命令经 ssh 回本机执行）
   category list                      分类列表
-  tag list                           标签列表
-  context                            AI 处理上下文（当前时间/未完成待办/分类/标签）
+  tag list                           标签列表（含维度 dimensions 与标签归属维度）
+  tag create <名字> [--dimension <维度key>] [--description <描述>]
+                                      新建标签（缺省 topic 维度；维度 key 见 tag list）
+  context                            AI 处理上下文（当前时间/未完成待办/分类/标签与维度）
   doctor [--ssh <user@host>]         环境自检：数据库/schema/完整性/技能安装（每项带修复建议）；
                                       --ssh 加测远程 pk 可达性（agent 在远程时排查 shim 部署）
   init-db                            初始化 PK_DB 指定的空库（应用主库通常无需执行）
@@ -311,7 +313,8 @@ fn validate_choice(value: &str, allowed: &[&str], what: &str) -> Result<(), CliE
     }
 }
 
-/// 标签名 → id 列表；未知标签报错（agent 可先 `pk tag list` 查看可用标签）
+/// 标签名 → id 列表（--tags a,b 按名解析；同名跨维度时报错提示归一）。
+/// 未知标签报错（agent 可先 `pk tag list` 查看，或 `pk tag create` 新建）
 fn resolve_tag_ids(conn: &Connection, spec: &str) -> Result<Vec<i64>, CliError> {
     let names: Vec<String> = spec
         .split([',', '，'])
@@ -326,14 +329,29 @@ fn resolve_tag_ids(conn: &Connection, spec: &str) -> Result<Vec<i64>, CliError> 
     let mut ids = vec![];
     let mut unknown = vec![];
     for name in &names {
-        match all.iter().find(|t| &t.name == name) {
-            Some(t) => ids.push(t.id),
-            None => unknown.push(name.clone()),
+        let hits: Vec<&pokemon_choose_you_lib::models::Tag> =
+            all.iter().filter(|t| &t.name == name).collect();
+        match hits.as_slice() {
+            [only] => ids.push(only.id),
+            [] => unknown.push(name.clone()),
+            many => {
+                let dims: Vec<&str> = many.iter().map(|t| t.dimension.as_str()).collect();
+                return Err(CliError(
+                    format!(
+                        "标签名「{name}」同时存在于维度 {}，请用 pk tag list 确认后在应用里归一",
+                        dims.join("/")
+                    ),
+                    1,
+                ));
+            }
         }
     }
     if !unknown.is_empty() {
         return Err(CliError(
-            format!("未知标签：{}。可用标签见 pk tag list", unknown.join("、")),
+            format!(
+                "未知标签：{}。可用标签见 pk tag list，或用 pk tag create 新建",
+                unknown.join("、")
+            ),
             1,
         ));
     }
@@ -366,6 +384,29 @@ fn time_value(v: &str) -> serde_json::Value {
     }
 }
 
+/// tag 子命令：list（含维度）/ create（agent 自助扩词表，origin=agent）
+fn run_tag(conn: &Connection, rest: &[String]) -> Result<serde_json::Value, CliError> {
+    let sub = rest.first().map(String::as_str).unwrap_or("list");
+    match sub {
+        "list" => Ok(json!({
+            "dimensions": tags::list_tag_dimensions_conn(conn).map_err(db_err)?,
+            "tags": tags::list_tags_conn(conn).map_err(db_err)?,
+        })),
+        "create" => {
+            let p = parse_args(&rest[1..]);
+            let name = p.positional(0, "标签名")?;
+            let description = p.flag("description").unwrap_or("").to_string();
+            let dimension = p.flag("dimension").unwrap_or("topic").to_string();
+            let t = tags::create_tag_conn(conn, &name, &description, &dimension, "agent")
+                .map_err(db_err)?;
+            Ok(json!({ "created": t }))
+        }
+        other => Err(usage_err(&format!(
+            "未知 tag 子命令「{other}」，可用：list / create"
+        ))),
+    }
+}
+
 /// 入口分发：返回将打印到 stdout 的 JSON（&mut 供 start 的事务使用）
 fn run(conn: &mut Connection, args: &[String]) -> Result<serde_json::Value, CliError> {
     let cmd = args[0].as_str();
@@ -388,12 +429,7 @@ fn run(conn: &mut Connection, args: &[String]) -> Result<serde_json::Value, CliE
             }
             Ok(json!({ "categories": categories::list_categories_conn(conn).map_err(db_err)? }))
         }
-        "tag" | "tags" => {
-            if rest.first().map(String::as_str) != Some("list") && !rest.is_empty() {
-                return Err(usage_err("tag 子命令目前只支持 list"));
-            }
-            Ok(json!({ "tags": tags::list_tags_conn(conn).map_err(db_err)? }))
-        }
+        "tag" | "tags" => run_tag(conn, rest),
         "session" => run_session(conn, rest),
         "suggest" => run_suggest(conn, rest),
         "skill" => run_skill(rest),
@@ -885,12 +921,17 @@ fn run_suggest_single(
         _ => None,
     };
     let non_empty = |k: &str| p.flag(k).filter(|v| !v.is_empty()).map(String::from);
+    // --tags 只有名字：按 topic 维度、词表内解析（校验与落库均有按名兜底）
     let tags = match p.flag("tags") {
         Some(t) if !t.is_empty() => t
             .split([',', '，'])
             .map(str::trim)
             .filter(|s| !s.is_empty())
-            .map(String::from)
+            .map(|name| ProposedTag {
+                name: name.to_string(),
+                dimension: "topic".into(),
+                is_new: false,
+            })
             .collect(),
         _ => vec![],
     };
@@ -1072,7 +1113,36 @@ fn validate_suggestion(conn: &Connection, s: &AiSuggestion, idx: usize) -> Resul
         resolve_category(conn, cat)?;
     }
     if !s.tags.is_empty() {
-        resolve_tag_ids(conn, &s.tags.join(","))?;
+        let all = tags::list_tags_conn(conn).map_err(db_err)?;
+        for t in &s.tags {
+            if t.is_new {
+                // 新标签：维度必须存在且未满（提前报错让 agent 自纠，改选现有标签或换维度）
+                let dim_id = tags::dimension_id_by_key(conn, &t.dimension).map_err(db_err)?;
+                if tags::dimension_remaining(conn, dim_id).map_err(db_err)? <= 0 {
+                    return Err(CliError(
+                        format!(
+                            "{at}:维度「{}」标签已满，不能新建「{}」",
+                            t.dimension, t.name
+                        ),
+                        1,
+                    ));
+                }
+            } else {
+                let hit = all
+                    .iter()
+                    .find(|x| x.name == t.name && x.dimension == t.dimension)
+                    .or_else(|| all.iter().find(|x| x.name == t.name));
+                if hit.is_none() {
+                    return Err(CliError(
+                        format!(
+                            "{at}:未知标签「{}」。词表内标签见 pk tag list；新标签须 isNew=true 并带 dimension",
+                            t.name
+                        ),
+                        1,
+                    ));
+                }
+            }
+        }
     }
     Ok(())
 }
@@ -1518,10 +1588,11 @@ const COMMAND_INDEX: &[(&str, &str)] = &[
     ("skill show", "打印技能全文"),
     ("remote shim", "生成远程 pk 透传脚本（--host 必填）"),
     ("category list", "分类列表"),
-    ("tag list", "标签列表"),
+    ("tag list", "标签列表（含维度）"),
+    ("tag create", "新建标签（--dimension 指定维度，缺省 topic）"),
     (
         "context",
-        "当前时间 + 未完成待办 + 分类 + 标签（判定与建任务的判重上下文）",
+        "当前时间 + 未完成待办 + 分类 + 标签与维度（判定与建任务的判重上下文）",
     ),
     (
         "doctor",
@@ -1570,7 +1641,21 @@ fn run_context(conn: &Connection) -> Result<serde_json::Value, CliError> {
     let tag_list = tags::list_tags_conn(conn)
         .map_err(db_err)?
         .into_iter()
-        .map(|t| json!({ "id": t.id, "name": t.name, "description": t.description }))
+        .map(|t| {
+            json!({ "id": t.id, "name": t.name, "description": t.description, "dimension": t.dimension })
+        })
+        .collect::<Vec<_>>();
+    // 维度元信息（AI 提议新标签前对照剩余名额；remaining<=0 禁止新建）
+    let dimensions = tags::list_tag_dimensions_conn(conn)
+        .map_err(db_err)?
+        .into_iter()
+        .map(|d| {
+            let remaining = tags::dimension_remaining(conn, d.id).unwrap_or(0);
+            json!({
+                "key": d.key, "name": d.name, "cardinality": d.cardinality,
+                "maxTags": d.max_tags, "remaining": remaining,
+            })
+        })
         .collect::<Vec<_>>();
     let open: Vec<serde_json::Value> = open_tasks
         .into_iter()
@@ -1581,6 +1666,7 @@ fn run_context(conn: &Connection) -> Result<serde_json::Value, CliError> {
         "openTasks": open,
         "categories": cats,
         "tags": tag_list,
+        "dimensions": dimensions,
     }))
 }
 
@@ -1678,6 +1764,72 @@ mod tests {
         assert!(bad_due.0.contains("时间"), "时间格式校验: {}", bad_due.0);
     }
 
+    /// tag create：agent 自助扩词表（带维度与 origin=agent）；list 带维度信息
+    #[test]
+    fn tag_create_and_list_carry_dimension() {
+        let mut conn = test_db();
+        let out = run_ok(
+            &mut conn,
+            &["tag", "create", "PokemonApp", "--dimension", "project"],
+        );
+        assert_eq!(out["created"]["dimension"], json!("project"));
+        assert_eq!(out["created"]["origin"], json!("agent"));
+        // 未知维度报业务错误
+        let err = run_err(&mut conn, &["tag", "create", "x", "--dimension", "nope"]);
+        assert_eq!(err.1, 1, "{}", err.0);
+        let list = run_ok(&mut conn, &["tag", "list"]);
+        assert_eq!(list["tags"][0]["dimension"], json!("project"));
+        assert_eq!(list["dimensions"][0]["key"], json!("project"));
+        // context 带维度剩余名额
+        let ctx = run_ok(&mut conn, &["context"]);
+        assert_eq!(ctx["dimensions"][0]["remaining"], json!(19));
+        assert_eq!(ctx["tags"][0]["dimension"], json!("project"));
+    }
+
+    /// suggest 的维度化标签校验：词表内未标 isNew 报错；isNew 需维度存在且未满
+    #[test]
+    fn suggest_validates_proposed_tags() {
+        let mut conn = test_db();
+        conn.execute(
+            "INSERT INTO chat_messages (message_id, content, created_at) VALUES ('om_t', 'x', 'x')",
+            [],
+        )
+        .unwrap();
+        // 词表外未标 isNew → 业务错误（提示协议）
+        let err = run_err(
+            &mut conn,
+            &[
+                "suggest",
+                "todo",
+                "--message",
+                "om_t",
+                "--title",
+                "t",
+                "--tags",
+                "幻觉",
+            ],
+        );
+        assert!(err.0.contains("isNew"), "{}", err.0);
+        // 批量协议：isNew=true 且维度合法 → 通过（标签在接受建议时才真正创建）
+        conn.execute(
+            "INSERT INTO chat_messages (message_id, content, created_at) VALUES ('om_t2', 'x', 'x')",
+            [],
+        )
+        .unwrap();
+        let ok_body = r#"{"results":[{"messageId":"om_t2","action":"todo","title":"t2","tags":[{"name":"新项目","dimension":"project","isNew":true}]}]}"#;
+        let v = suggest_batch_from_str(&mut conn, ok_body, Some("ag")).unwrap();
+        assert_eq!(v["submitted"], json!(1));
+        // isNew 但维度未知 → 拒绝（维度满的分支在 lib 侧 create_tag_conn 测试覆盖）
+        conn.execute(
+            "INSERT INTO chat_messages (message_id, content, created_at) VALUES ('om_t3', 'x', 'x')",
+            [],
+        )
+        .unwrap();
+        let full = r#"{"results":[{"messageId":"om_t3","action":"todo","title":"t3","tags":[{"name":"挤不进","dimension":"nope","isNew":true}]}]}"#;
+        let err = suggest_batch_from_str(&mut conn, full, None).unwrap_err();
+        assert!(err.0.contains("维度"), "{}", err.0);
+    }
+
     #[test]
     fn update_supports_clear_due_and_tags() {
         let mut conn = test_db();
@@ -1704,7 +1856,10 @@ mod tests {
         // --due 只改时间不自动升级状态（与应用 update 语义一致），进路线需显式 --status
         assert_eq!(out["updated"]["status"], "inbox");
         assert_eq!(out["updated"]["dueAt"], "2026-09-13T10:00");
-        assert_eq!(out["updated"]["tags"], json!(["重要"]));
+        assert_eq!(
+            out["updated"]["tags"],
+            json!([{ "name": "重要", "dimension": "topic" }])
+        );
 
         let out = run_ok(
             &mut conn,
@@ -1722,7 +1877,7 @@ mod tests {
         assert_eq!(out["updated"]["status"], "inbox");
         assert_eq!(
             out["updated"]["tags"],
-            json!(["重要"]),
+            json!([{ "name": "重要", "dimension": "topic" }]),
             "未传 --tags 不动标签"
         );
 

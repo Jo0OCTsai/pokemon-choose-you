@@ -18,8 +18,15 @@ export interface Task {
   /** 逃走（取消）时间 */
   cancelledAt?: string | null;
   focusSeconds: number;
-  /** 标签名列表（后端聚合返回） */
-  tags: string[];
+  /** 标签引用列表（后端聚合返回，按维度序：项目在前） */
+  tags: TagRef[];
+}
+
+/** 任务上挂的标签引用：名字 + 归属维度 key */
+export interface TagRef {
+  name: string;
+  /** project / context / person / topic / 自定义维度 key；老数据缺省归 topic */
+  dimension: string;
 }
 
 export interface Category {
@@ -35,6 +42,35 @@ export interface Tag {
   id: number;
   name: string;
   description: string;
+  /** 归属维度 key（project/context/person/topic/自定义）；老数据缺省归 topic */
+  dimension: string;
+  /** manual / ai / nl / agent（谁建的，治理审计用） */
+  origin: string;
+  /** 挂在多少个任务上（设置页治理展示） */
+  usage: number;
+}
+
+/** 标签维度：一组正交的归类面（分面分类）。维度封闭少而稳，标签在维度内开放生长 */
+export interface TagDimension {
+  id: number;
+  /** 稳定标识（AI 协议与 TagRef.dimension 用），内置 project/context/person/topic */
+  key: string;
+  /** 展示名（项目/场景/人物/主题…） */
+  name: string;
+  /** single（任务上至多 1 个）/ multi */
+  cardinality: "single" | "multi" | string;
+  /** 标签数上限（防碎片化） */
+  maxTags: number;
+  sort: number;
+  /** 停用后不进新建/编辑与 AI 选项，已有标签不受影响 */
+  enabled: boolean;
+}
+
+/** AI 建议的标签：名字 + 归属维度 + 是否词表外新建（isNew 时接受建议才落库） */
+export interface ProposedTag {
+  name: string;
+  dimension: string;
+  isNew: boolean;
 }
 
 export interface TaskNote {
@@ -80,7 +116,7 @@ export interface ChatMessage {
   suggestedDue?: string | null;
   suggestedPriority?: string | null;
   suggestedNote?: string | null;
-  suggestedTags: string[];
+  suggestedTags: ProposedTag[];
   /** AI 判定理由（为什么是待办 / 为什么不算） */
   suggestedReason?: string | null;
   /** 置信档位 high / medium / low */

@@ -44,6 +44,7 @@ export default {
     /** 选中分类后：野生「宝可梦」换成该分类关联的宝可梦名 */
     placeholderNamed: "要捕捉哪只野生{p}？（回车添加）",
     nlCancel: "取消识别",
+    nlNewTag: "词表外的标签，保存时新建",
     nlHint: "支持自然语言：直接写「明天 5pm 交周报 #工作」自动识别时间、分类与标签，识别结果有预览、可取消",
   },
   priority: { low: "低", normal: "普通", high: "高", urgent: "紧急" },
@@ -98,6 +99,7 @@ export default {
     empty1: "收音机里很安静，暂无电波。",
     empty2: "配置飞书与 AI 后，飞书消息会像电波一样传来，AI 会帮你挑出待办信号。",
     found: "💡 发现待办信号：",
+    tagNew: "拟新建标签（接受建议时创建）· {dim}",
     catch: "◎ 捕捉",
     release: "✕ 逃走",
     search: "🔍 搜索电波（消息 / 会话 / 发送者）",
@@ -252,10 +254,26 @@ export default {
     save: "保存",
     release: "删除",
     new: "＋ 新标签",
-    hint: "标签用于给待办归类（一个待办可挂多个）；AI 从聊天消息生成待办时，也会从这些标签里挑选合适的打上。",
+    hint: "标签按维度分组（项目/场景/人物/主题…），维度内开放生长。AI 从消息生成待办时会挑选合适的标签；某维度没有贴切选项且消息有明确依据时，也会提议新标签（建议卡上标 ＋，接受时才创建）。",
     namePh: "标签名",
     descPh: "描述（给 AI 和自己看的说明）",
     newName: "新标签",
+    dimCount: "{used}/{max}",
+    single: "单选",
+    dimHint:
+      "同一维度内名字唯一；每条待办最多挂 3 个标签，项目维度至多 1 个。词表外的 #新名字 在快速捕捉里保存时也会新建。",
+    dimTitle: "🗂 标签维度",
+    dimNamePh: "新维度名称",
+    dimNew: "＋ 新维度",
+    maxTags: "标签数上限",
+    dimManageHint:
+      "维度少而稳（AI 协议里的稳定标识）：改名/上限/停用可改，key 与单多选建后不可改；停用后不进新建与 AI 选项。",
+  },
+  dim: {
+    project: "项目",
+    context: "场景",
+    person: "人物",
+    topic: "主题",
   },
   display: {
     title: "👀 显示",

@@ -58,11 +58,28 @@ CREATE TABLE IF NOT EXISTS sync_state (
     PRIMARY KEY (provider)
 );
 
+CREATE TABLE IF NOT EXISTS tag_dimensions (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    key TEXT NOT NULL UNIQUE,
+    name TEXT NOT NULL,
+    -- single（任务上至多 1 个该维度标签）/ multi
+    cardinality TEXT NOT NULL DEFAULT 'multi',
+    -- 该维度标签数上限（防碎片化；AI 新建标签前对照剩余名额）
+    max_tags INTEGER NOT NULL DEFAULT 20,
+    sort INTEGER NOT NULL DEFAULT 0,
+    enabled INTEGER NOT NULL DEFAULT 1
+);
+
 CREATE TABLE IF NOT EXISTS tags (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
-    name TEXT NOT NULL UNIQUE,
+    name TEXT NOT NULL,
     description TEXT NOT NULL DEFAULT '',
-    created_at TEXT NOT NULL DEFAULT ''
+    -- 归属维度（tag_dimensions.id）；DEFAULT 4 = topic：存量行与未指明维度的 INSERT 归主题
+    dimension_id INTEGER NOT NULL DEFAULT 4,
+    -- manual / ai / nl / agent（谁建的，治理审计用）
+    origin TEXT NOT NULL DEFAULT 'manual',
+    created_at TEXT NOT NULL DEFAULT '',
+    UNIQUE (dimension_id, name)
 );
 
 CREATE TABLE IF NOT EXISTS task_tags (
@@ -206,6 +223,15 @@ const DEFAULT_CATEGORIES: &[(&str, &str, &str)] = &[
     ("兴趣", "伊布", "eevee"),
 ];
 
+/// 内置标签维度（固定 id 1~4）：项目单选，其余多选；
+/// topic 收纳无明确归属的标签（tags.dimension_id 的 DEFAULT 4 也指向它）
+const DEFAULT_TAG_DIMENSIONS: &[(&str, &str, &str, i64)] = &[
+    ("project", "项目", "single", 20),
+    ("context", "场景", "multi", 10),
+    ("person", "人物", "multi", 30),
+    ("topic", "主题", "multi", 30),
+];
+
 pub fn init(app: &tauri::AppHandle) -> Result<(), Box<dyn std::error::Error>> {
     let dir = app.path().app_data_dir()?;
     std::fs::create_dir_all(&dir)?;
@@ -234,6 +260,15 @@ pub fn init_conn(conn: &Connection) -> Result<(), MigrateError> {
              SELECT ?1, ?2, ?3, ?4
              WHERE NOT EXISTS (SELECT 1 FROM categories WHERE id=?1 OR name=?2)",
             rusqlite::params![i as i64 + 1, name, pokemon, sprite],
+        )?;
+    }
+    // 维度种子同策略：id 或 key 已存在都跳过，改名不影响
+    for (i, (key, name, cardinality, max_tags)) in DEFAULT_TAG_DIMENSIONS.iter().enumerate() {
+        conn.execute(
+            "INSERT INTO tag_dimensions (id, key, name, cardinality, max_tags, sort)
+             SELECT ?1, ?2, ?3, ?4, ?5, ?1
+             WHERE NOT EXISTS (SELECT 1 FROM tag_dimensions WHERE id=?1 OR key=?2)",
+            rusqlite::params![i as i64 + 1, key, name, cardinality, max_tags],
         )?;
     }
     Ok(())
@@ -299,6 +334,74 @@ pub(crate) mod tests {
                 .unwrap()
         };
         assert_eq!(names, vec!["工作", "学习", "生活", "健康", "兴趣"]);
+    }
+
+    /// 维度种子：固定 id 1~4、项目单选；重复 init 不重复插入；
+    /// tags.dimension_id 的 DEFAULT 4 指向 topic
+    #[test]
+    fn baseline_seeds_tag_dimensions_with_fixed_ids() {
+        let conn = test_conn();
+        let rows: Vec<(i64, String, String, String)> = {
+            let mut stmt = conn
+                .prepare("SELECT id, key, name, cardinality FROM tag_dimensions ORDER BY id")
+                .unwrap();
+            stmt.query_map([], |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?, r.get(3)?)))
+                .unwrap()
+                .collect::<Result<Vec<_>, _>>()
+                .unwrap()
+        };
+        assert_eq!(
+            rows,
+            vec![
+                (1, "project".into(), "项目".into(), "single".into()),
+                (2, "context".into(), "场景".into(), "multi".into()),
+                (3, "person".into(), "人物".into(), "multi".into()),
+                (4, "topic".into(), "主题".into(), "multi".into()),
+            ]
+        );
+        // 幂等
+        init_conn(&conn).unwrap();
+        let n: i64 = conn
+            .query_row("SELECT COUNT(*) FROM tag_dimensions", [], |r| r.get(0))
+            .unwrap();
+        assert_eq!(n, 4);
+        // 未指明维度的标签 INSERT 归 topic（存量/测试路径兜底）
+        conn.execute(
+            "INSERT INTO tags (name, description, created_at) VALUES ('老标签', '', 'x')",
+            [],
+        )
+        .unwrap();
+        let dim: String = conn
+            .query_row(
+                "SELECT d.key FROM tags t JOIN tag_dimensions d ON d.id = t.dimension_id WHERE t.name='老标签'",
+                [],
+                |r| r.get(0),
+            )
+            .unwrap();
+        assert_eq!(dim, "topic");
+    }
+
+    /// 维度内名唯一：同名可存在于不同维度，同维度重名被拒
+    #[test]
+    fn tag_names_unique_within_dimension_only() {
+        let conn = test_conn();
+        conn.execute(
+            "INSERT INTO tags (name, dimension_id, created_at) VALUES ('张三', 3, 'x')",
+            [],
+        )
+        .unwrap();
+        // 人物维度重名 → 唯一约束拒绝
+        let dup = conn.execute(
+            "INSERT INTO tags (name, dimension_id, created_at) VALUES ('张三', 3, 'x')",
+            [],
+        );
+        assert!(dup.is_err(), "维度内唯一");
+        // 项目维度同名 → 允许
+        conn.execute(
+            "INSERT INTO tags (name, dimension_id, created_at) VALUES ('张三', 1, 'x')",
+            [],
+        )
+        .unwrap();
     }
 
     #[test]

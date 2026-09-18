@@ -27,15 +27,22 @@ fn row_to_task(row: &rusqlite::Row) -> rusqlite::Result<Task> {
     })
 }
 
-/// 给任务列表批量挂标签（task_tags JOIN tags，逐任务小查询在本地库量级下足够）
+/// 给任务列表批量挂标签（task_tags JOIN tags/tag_dimensions，逐任务小查询在本地库量级下足够）
 fn attach_tags(conn: &Connection, tasks: &mut [Task]) -> AppResult<()> {
     let mut stmt = conn.prepare(
-        "SELECT t.name FROM task_tags tt JOIN tags t ON t.id = tt.tag_id
-         WHERE tt.task_id = ?1 ORDER BY t.id",
+        "SELECT t.name, d.key FROM task_tags tt
+         JOIN tags t ON t.id = tt.tag_id
+         JOIN tag_dimensions d ON d.id = t.dimension_id
+         WHERE tt.task_id = ?1 ORDER BY d.sort, t.id",
     )?;
     for t in tasks.iter_mut() {
         let names = stmt
-            .query_map(params![t.id], |r| r.get::<_, String>(0))?
+            .query_map(params![t.id], |r| {
+                Ok(crate::models::TagRef {
+                    name: r.get(0)?,
+                    dimension: r.get(1)?,
+                })
+            })?
             .collect::<Result<Vec<_>, _>>()?;
         t.tags = names;
     }
@@ -126,13 +133,19 @@ fn log_task_diff(conn: &Connection, before: &Task, after: &Task, origin: &str) -
         }
     }
     if before.tags != after.tags {
+        let names = |tags: &[crate::models::TagRef]| {
+            tags.iter()
+                .map(|t| t.name.clone())
+                .collect::<Vec<_>>()
+                .join(",")
+        };
         log_change(
             conn,
             after.id,
             "update",
             "tags",
-            Some(&before.tags.join(",")),
-            Some(&after.tags.join(",")),
+            Some(&names(&before.tags)),
+            Some(&names(&after.tags)),
             origin,
         )?;
     }
@@ -1122,14 +1135,30 @@ mod tests {
     // ---- 标签 / 跟进记录 / 搜索 ----
 
     fn seed_tag(app: &tauri::App<tauri::test::MockRuntime>, name: &str) -> i64 {
+        seed_tag_dim(app, name, 4)
+    }
+
+    /// 直接落库建标签（dimension_id：1=项目 4=主题），绕过命令层的配额/幂等逻辑
+    fn seed_tag_dim(
+        app: &tauri::App<tauri::test::MockRuntime>,
+        name: &str,
+        dimension_id: i64,
+    ) -> i64 {
         let db = app.state::<Db>();
         let conn = db.0.lock().unwrap();
         conn.execute(
-            "INSERT INTO tags (name, description, created_at) VALUES (?1, '', '2026-09-01T00:00:00Z')",
-            params![name],
+            "INSERT INTO tags (name, description, dimension_id, created_at) VALUES (?1, '', ?2, '2026-09-01T00:00:00Z')",
+            params![name, dimension_id],
         )
         .unwrap();
         conn.last_insert_rowid()
+    }
+
+    fn tag_ref(name: &str, dimension: &str) -> crate::models::TagRef {
+        crate::models::TagRef {
+            name: name.into(),
+            dimension: dimension.into(),
+        }
     }
 
     #[test]
@@ -1150,7 +1179,10 @@ mod tests {
             )
             .unwrap()
         };
-        assert_eq!(t.tags, vec!["重要".to_string(), "需汇报".to_string()]);
+        assert_eq!(
+            t.tags,
+            vec![tag_ref("重要", "topic"), tag_ref("需汇报", "topic")]
+        );
         // patch 全量替换为单个标签
         let updated = {
             let db = app.state::<Db>();
@@ -1159,7 +1191,7 @@ mod tests {
                     .unwrap();
             update_task(app.handle().clone(), db, patch, None).unwrap()
         };
-        assert_eq!(updated.tags, vec!["需汇报".to_string()]);
+        assert_eq!(updated.tags, vec![tag_ref("需汇报", "topic")]);
         // 空数组清空
         let cleared = {
             let db = app.state::<Db>();
@@ -1168,6 +1200,36 @@ mod tests {
             update_task(app.handle().clone(), db, patch, None).unwrap()
         };
         assert!(cleared.tags.is_empty());
+    }
+
+    /// 标签聚合按维度序排列：项目标签排在主题标签前（前端把项目作为主位信息渲染）
+    #[test]
+    fn task_tags_ordered_by_dimension_sort() {
+        let app = setup();
+        let topic_tag = seed_tag(&app, "重要");
+        let project_tag = seed_tag_dim(&app, "PokemonApp", 1);
+        let person_tag = seed_tag_dim(&app, "张三", 3);
+        let t = {
+            let db = app.state::<Db>();
+            create_task(
+                app.handle().clone(),
+                db,
+                NewTask {
+                    tag_ids: Some(vec![topic_tag, project_tag, person_tag]),
+                    ..new_task("多维标签", false)
+                },
+                None,
+            )
+            .unwrap()
+        };
+        assert_eq!(
+            t.tags,
+            vec![
+                tag_ref("PokemonApp", "project"),
+                tag_ref("张三", "person"),
+                tag_ref("重要", "topic"),
+            ]
+        );
     }
 
     #[test]
@@ -1252,7 +1314,7 @@ mod tests {
         };
         assert_eq!(hit_tag.len(), 1);
         assert_eq!(hit_tag[0].id, t2.id);
-        assert_eq!(hit_tag[0].tags, vec!["需汇报".to_string()]);
+        assert_eq!(hit_tag[0].tags, vec![tag_ref("需汇报", "topic")]);
         // 空关键词返回空，不做全表扫描
         let empty = {
             let db = app.state::<Db>();

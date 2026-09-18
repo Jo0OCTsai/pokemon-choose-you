@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, ref, watch } from "vue";
 import { useI18n } from "vue-i18n";
-import type { NewTaskInput } from "../api";
+import { api, type NewTaskInput } from "../api";
 import { fmtDateTime, useSettingsStore } from "../stores/settings";
 import { useCategoriesStore } from "../stores/categories";
 import { useTagsStore } from "../stores/tags";
@@ -77,13 +77,20 @@ const nlPreview = computed(() => {
   return parseNlCapture(raw, { categories: categories.list, tags: tagsStore.list });
 });
 
-function submit() {
+async function submit() {
   const raw = newTitle.value.trim();
   if (!raw) return;
   const p = nlPreview.value;
   // 识别出的字段直接生效（预览里看得见）；手动选的时间（newDue）优先于识别。
   // 手动加时间（加入路线）仅在草丛页提供；非草丛页识别出的时间仍生效，避免丢信息
   const dueAt = (props.allowSchedule ? newDue.value : "") || p?.dueAt || "";
+  // 词表外的 #新名字：先按 topic 维度建标签（幂等），再一并挂上
+  let tagIds = p?.tagIds.length ? [...p.tagIds] : undefined;
+  if (p?.newTagNames.length) {
+    const created = await Promise.all(p.newTagNames.map((name) => api.createTag(name, "", "topic").catch(() => null)));
+    const ids = created.flatMap((x) => (x ? [x.id] : []));
+    tagIds = [...(tagIds ?? []), ...ids];
+  }
   emit("submit", {
     title: p?.title || raw,
     categoryId: p?.categoryId ?? newCategory.value,
@@ -91,7 +98,7 @@ function submit() {
     dueAt: dueAt || undefined,
     // 去向由是否设置时间决定：有时间进路线，没时间进草丛
     scheduled: dueAt !== "",
-    tagIds: p?.tagIds.length ? p.tagIds : undefined,
+    tagIds: tagIds?.length ? tagIds : undefined,
   });
   newTitle.value = "";
   newDue.value = "";
@@ -120,6 +127,9 @@ defineExpose({ focus });
       <span v-if="nlPreview.dueAt" class="nl-chip nl-time">🕒 {{ fmtDateTime(nlPreview.dueAt) }}</span>
       <span v-if="nlPreview.categoryName" class="nl-chip nl-cat">🗂 {{ nlPreview.categoryName }}</span>
       <span v-for="n in nlPreview.tagNames" :key="n" class="nl-chip nl-tag"># {{ n }}</span>
+      <span v-for="n in nlPreview.newTagNames" :key="'new-' + n" class="nl-chip nl-tag" :title="t('add.nlNewTag')">
+        ＋ {{ n }}
+      </span>
       <button type="button" class="nl-cancel" @click="nlDismissed = true">✕ {{ t("add.nlCancel") }}</button>
     </div>
   </form>

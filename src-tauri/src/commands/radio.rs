@@ -1,4 +1,5 @@
-use crate::ai::{self, AgentConfig, AiMessage, ClassifyContext};
+use crate::ai::{self, AgentConfig, AiMessage, ClassifyContext, DimCtx, ProposedTag, TagCtx};
+use crate::commands::tags as tag_cmds;
 use crate::commands::tasks::{update_task, TaskPatch};
 use crate::db::{now, Db};
 use crate::error::{AppError, AppResult};
@@ -91,13 +92,41 @@ fn get_message(conn: &Connection, id: i64) -> AppResult<ChatMessage> {
     })
 }
 
-/// 标签名 → 标签 id（只认已配置的标签，未知名静默丢弃）
-fn resolve_tag_ids(conn: &Connection, names: &[String]) -> AppResult<Vec<i64>> {
+/// AI 建议标签 → 标签 id 列表（捕捉建任务 / 应用更新共用）：
+/// - 词表内：按「维度 + 名」精确命中；未中再按名全局兜底一次（AI 归错维度时不丢标签）
+/// - isNew 的词表外名字：直接创建（origin=ai，配额满/维度停用时跳过并告警）
+/// - 未标 isNew 的词表外名字：告警跳过（AI 违反协议的观测点，不再静默丢弃）
+fn resolve_proposed_tags(conn: &Connection, proposed: &[ProposedTag]) -> AppResult<Vec<i64>> {
     let mut ids = vec![];
-    let mut stmt = conn.prepare("SELECT id FROM tags WHERE name=?1")?;
-    for name in names {
-        if let Ok(id) = stmt.query_row(params![name], |r| r.get::<_, i64>(0)) {
-            ids.push(id);
+    for p in proposed {
+        let name = p.name.trim();
+        if name.is_empty() {
+            continue;
+        }
+        let exact = match tag_cmds::dimension_id_by_key(conn, &p.dimension) {
+            Ok(dim_id) => conn
+                .query_row(
+                    "SELECT id FROM tags WHERE name=?1 AND dimension_id=?2",
+                    params![name, dim_id],
+                    |r| r.get::<_, i64>(0),
+                )
+                .ok(),
+            Err(_) => None, // 维度 key 非法：走全局按名兜底
+        };
+        let hit = exact.or_else(|| {
+            conn.query_row("SELECT id FROM tags WHERE name=?1", params![name], |r| {
+                r.get::<_, i64>(0)
+            })
+            .ok()
+        });
+        match hit {
+            Some(id) => ids.push(id),
+            None if p.is_new => match tag_cmds::create_tag_conn(conn, name, "", &p.dimension, "ai")
+            {
+                Ok(t) => ids.push(t.id),
+                Err(e) => log::warn!("radio: 新建标签「{name}」失败，跳过: {e}"),
+            },
+            None => log::warn!("radio: AI 建议了词表外标签「{name}」但未标 isNew，跳过"),
         }
     }
     Ok(ids)
@@ -220,7 +249,7 @@ pub(crate) fn create_task_from_message(conn: &Connection, msg: &ChatMessage) -> 
         ],
     )?;
     let task_id = conn.last_insert_rowid();
-    let tag_ids = resolve_tag_ids(conn, &msg.suggested_tags)?;
+    let tag_ids = resolve_proposed_tags(conn, &msg.suggested_tags)?;
     if !tag_ids.is_empty() {
         let mut stmt =
             conn.prepare("INSERT OR IGNORE INTO task_tags (task_id, tag_id) VALUES (?1, ?2)")?;
@@ -602,7 +631,7 @@ fn update_patch_from_message(conn: &Connection, msg: &ChatMessage) -> AppResult<
     }
     // AI 给了新标签数组（非空）才全量替换
     if !msg.suggested_tags.is_empty() {
-        patch.tag_ids = Some(resolve_tag_ids(conn, &msg.suggested_tags)?);
+        patch.tag_ids = Some(resolve_proposed_tags(conn, &msg.suggested_tags)?);
     }
     if patch.title.is_none()
         && patch.note.is_none()
@@ -804,7 +833,7 @@ enum Prepared {
     ApplyUpdate(Box<TaskPatch>),
 }
 
-/// 组装判重上下文：现有未完成待办 + 分类 + 标签
+/// 组装判重上下文：现有未完成待办 + 分类 + 标签（按维度，含剩余可新建名额）
 pub(crate) fn classify_context(conn: &Connection) -> AppResult<ClassifyContext> {
     let open_tasks: Vec<(i64, String)> = {
         let mut stmt = conn.prepare(
@@ -822,10 +851,39 @@ pub(crate) fn classify_context(conn: &Connection) -> AppResult<ClassifyContext> 
             .collect::<Result<Vec<_>, _>>()?;
         rows
     };
-    let tags: Vec<(String, String)> = {
-        let mut stmt = conn.prepare("SELECT name, description FROM tags ORDER BY id")?;
+    let dimensions: Vec<DimCtx> = {
+        let mut stmt = conn.prepare(
+            "SELECT d.key, d.name, d.cardinality,
+                    d.max_tags - (SELECT COUNT(*) FROM tags t WHERE t.dimension_id = d.id)
+             FROM tag_dimensions d WHERE d.enabled=1 ORDER BY d.sort, d.id",
+        )?;
         let rows = stmt
-            .query_map([], |r| Ok((r.get(0)?, r.get(1)?)))?
+            .query_map([], |r| {
+                Ok(DimCtx {
+                    key: r.get(0)?,
+                    name: r.get(1)?,
+                    single: r.get::<_, String>(2)? == "single",
+                    remaining: r.get(3)?,
+                })
+            })?
+            .collect::<Result<Vec<_>, _>>()?;
+        rows
+    };
+    // 停用维度下的标签不进词表（与停用分类同策略）
+    let tags: Vec<TagCtx> = {
+        let mut stmt = conn.prepare(
+            "SELECT d.key, t.name, t.description FROM tags t
+             JOIN tag_dimensions d ON d.id = t.dimension_id
+             WHERE d.enabled=1 ORDER BY d.sort, t.id",
+        )?;
+        let rows = stmt
+            .query_map([], |r| {
+                Ok(TagCtx {
+                    dimension: r.get(0)?,
+                    name: r.get(1)?,
+                    description: r.get(2)?,
+                })
+            })?
             .collect::<Result<Vec<_>, _>>()?;
         rows
     };
@@ -833,6 +891,7 @@ pub(crate) fn classify_context(conn: &Connection) -> AppResult<ClassifyContext> 
         open_tasks,
         categories,
         tags,
+        dimensions,
     })
 }
 
@@ -1112,7 +1171,14 @@ mod tests {
         assert_eq!(task.due_at.as_deref(), Some("2026-09-13T10:00"));
         assert_eq!(task.status, "scheduled", "有截止时间直接进路线");
         assert_eq!(task.source, "feishu");
-        assert_eq!(task.tags, vec!["重要".to_string()], "AI 建议标签挂上");
+        assert_eq!(
+            task.tags,
+            vec![crate::models::TagRef {
+                name: "重要".into(),
+                dimension: "topic".into()
+            }],
+            "AI 建议标签挂上（旧字符串协议归 topic）"
+        );
         // 二次接受被拒绝
         let err = {
             let db = app.state::<Db>();
@@ -1204,7 +1270,14 @@ mod tests {
         };
         assert_eq!(hit.len(), 1);
         assert_eq!(hit[0].suggested_title.as_deref(), Some("参加周会"));
-        assert_eq!(hit[0].suggested_tags, vec!["重要".to_string()]);
+        assert_eq!(
+            hit[0].suggested_tags,
+            vec![ProposedTag {
+                name: "重要".into(),
+                dimension: "topic".into(),
+                is_new: false
+            }]
+        );
 
         let by_chat = {
             let db = app.state::<Db>();
@@ -1520,7 +1593,23 @@ mod tests {
             "done 不进判重清单"
         );
         assert!(ctx.categories.contains(&"工作".to_string()));
-        assert_eq!(ctx.tags, vec![("重要".to_string(), String::new())]);
+        assert_eq!(
+            ctx.tags,
+            vec![TagCtx {
+                dimension: "topic".into(),
+                name: "重要".to_string(),
+                description: String::new()
+            }]
+        );
+        assert_eq!(
+            ctx.dimensions.len(),
+            4,
+            "内置四维度进词表: {:?}",
+            ctx.dimensions
+        );
+        assert_eq!(ctx.dimensions[0].key, "project");
+        assert!(ctx.dimensions[0].single, "项目维度单选");
+        assert_eq!(ctx.dimensions[0].remaining, 20, "空词表时剩余名额 = 上限");
     }
 
     /// 停用的分类不进 AI 分类选项
@@ -1629,7 +1718,93 @@ mod tests {
         };
         assert_eq!(task.priority, "normal", "非法优先级回落 normal");
         assert_eq!(task.category_id, 1, "未知分类回落 1");
-        assert_eq!(task.tags, vec!["重要".to_string()], "未知标签丢弃");
+        assert_eq!(
+            task.tags,
+            vec![crate::models::TagRef {
+                name: "重要".into(),
+                dimension: "topic".into()
+            }],
+            "未知标签丢弃"
+        );
+    }
+
+    /// isNew 标签：接受建议时词表外标签直接创建（带维度与 origin=ai）并挂上任务
+    #[test]
+    fn accept_creates_new_tag_marked_is_new() {
+        let app = setup();
+        seed_tag(&app, "重要");
+        let mid = {
+            let db = app.state::<Db>();
+            let conn = db.0.lock().unwrap();
+            conn.execute(
+                "INSERT INTO chat_messages (message_id, chat_name, sender, content, suggested_title, suggested_tags, ai_status, review_status, created_at)
+                 VALUES ('om_new', 'PokemonApp 群', '张三', '记得发版', '发版', ?1, 'todo', 'pending', '2026-09-12T00:00:00Z')",
+                params![serde_json::to_string(&vec![
+                    ProposedTag { name: "PokemonApp".into(), dimension: "project".into(), is_new: true },
+                    ProposedTag { name: "重要".into(), dimension: "topic".into(), is_new: false },
+                ]).unwrap()],
+            )
+            .unwrap();
+            conn.last_insert_rowid()
+        };
+        let task_id = {
+            let db = app.state::<Db>();
+            accept_chat_message(app.handle().clone(), db, mid).unwrap()
+        };
+        let task = {
+            let db = app.state::<Db>();
+            get_task(db, task_id).unwrap()
+        };
+        assert_eq!(
+            task.tags,
+            vec![
+                crate::models::TagRef {
+                    name: "PokemonApp".into(),
+                    dimension: "project".into()
+                },
+                crate::models::TagRef {
+                    name: "重要".into(),
+                    dimension: "topic".into()
+                },
+            ],
+            "新建的项目标签排序在前"
+        );
+        let (origin, dim): (String, String) = {
+            let db = app.state::<Db>();
+            let conn = db.0.lock().unwrap();
+            conn.query_row(
+                "SELECT t.origin, d.key FROM tags t JOIN tag_dimensions d ON d.id=t.dimension_id WHERE t.name='PokemonApp'",
+                [],
+                |r| Ok((r.get(0)?, r.get(1)?)),
+            )
+            .unwrap()
+        };
+        assert_eq!(
+            (origin.as_str(), dim.as_str()),
+            ("ai", "project"),
+            "新建标签记 origin 与维度"
+        );
+        // 词表外但未标 isNew：不创建（旧协议兼容路径的安全侧）
+        let mid2 = {
+            let db = app.state::<Db>();
+            let conn = db.0.lock().unwrap();
+            conn.execute(
+                "INSERT INTO chat_messages (message_id, content, suggested_title, suggested_tags, ai_status, review_status, created_at)
+                 VALUES ('om_old', 'x', 'y', '[\"幻觉标签\"]', 'todo', 'pending', '2026-09-12T00:00:00Z')",
+                [],
+            )
+            .unwrap();
+            conn.last_insert_rowid()
+        };
+        let task_id2 = {
+            let db = app.state::<Db>();
+            accept_chat_message(app.handle().clone(), db, mid2).unwrap()
+        };
+        let task2 = {
+            let db = app.state::<Db>();
+            get_task(db, task_id2).unwrap()
+        };
+        assert!(task2.tags.is_empty(), "未标 isNew 的词表外标签不落库");
     }
 
     /// 回归：accept 后任务出现在 open 列表（避免 INSERT 字段错位静默失败）
@@ -1790,7 +1965,14 @@ mod tests {
         assert_eq!(task.title, "周会（改期）");
         assert_eq!(task.due_at.as_deref(), Some("2026-09-14T10:00"));
         assert_eq!(task.priority, "high");
-        assert_eq!(task.tags, vec!["重要".to_string()], "标签全量替换");
+        assert_eq!(
+            task.tags,
+            vec![crate::models::TagRef {
+                name: "重要".into(),
+                dimension: "topic".into()
+            }],
+            "标签全量替换"
+        );
         assert_eq!(task.status, "scheduled");
         // 字段级日志（origin=radio）
         let logs: Vec<(String, String)> = {

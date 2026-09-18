@@ -44,6 +44,7 @@ export default {
     /** With a category selected: "wild Pokemon" becomes that category's Pokemon */
     placeholderNamed: "Which wild {p} will you catch? (Enter to add)",
     nlCancel: "Undo parse",
+    nlNewTag: "Not in vocabulary; created on save",
     nlHint:
       'Natural language supported: type "tomorrow 5pm weekly report #work" to auto-detect time, category and tags, with a cancellable preview',
   },
@@ -99,6 +100,7 @@ export default {
     empty1: "The radio is quiet, no waves yet.",
     empty2: "After setting up Feishu & AI, every message arrives like a radio wave—AI picks out todo signals for you.",
     found: "💡 Todo signal found: ",
+    tagNew: "New tag (created on accept) · {dim}",
     catch: "◎ Catch",
     release: "✕ Release",
     search: "🔍 Search waves (message / chat / sender)",
@@ -256,10 +258,26 @@ export default {
     save: "Save",
     release: "Delete",
     new: "+ New tag",
-    hint: "Tags group todos (a todo can have several). When AI creates todos from chat messages, it also picks from these tags.",
+    hint: "Tags are grouped by dimension (project/context/person/topic…). AI picks fitting tags when creating todos; when a dimension has no fitting option and the message gives clear grounds, it may also propose a new tag (marked ＋ on the card, created only on accept).",
     namePh: "Tag name",
     descPh: "Description (for AI and yourself)",
     newName: "New tag",
+    dimCount: "{used}/{max}",
+    single: "single",
+    dimHint:
+      "Names are unique within a dimension; each todo carries at most 3 tags, project at most 1. Unknown #names in quick capture are created on save.",
+    dimTitle: "🗂 Tag dimensions",
+    dimNamePh: "New dimension name",
+    dimNew: "+ New dimension",
+    maxTags: "Tag limit",
+    dimManageHint:
+      "Keep dimensions few and stable (stable keys in the AI protocol): rename/limit/disable are editable; key and cardinality are fixed after creation. Disabled ones leave new-tag and AI options.",
+  },
+  dim: {
+    project: "Project",
+    context: "Context",
+    person: "Person",
+    topic: "Topic",
   },
   display: {
     title: "👀 Display",

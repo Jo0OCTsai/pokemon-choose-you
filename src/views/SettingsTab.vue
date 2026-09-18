@@ -394,14 +394,34 @@ async function saveQuotes() {
   setTimeout(() => (testMsg.value = ""), 2000);
 }
 
-// ---- 标签管理 ----
-const editingTags = ref<{ id: number; name: string; description: string }[]>([]);
-function startEditTags() {
-  editingTags.value = tagsStore.list.map((g) => ({ id: g.id, name: g.name, description: g.description }));
+// ---- 标签管理（按维度分组；维度少而稳，标签在维度内开放生长） ----
+interface EditingTag {
+  id: number;
+  name: string;
+  description: string;
+  dimension: string;
 }
-async function saveTag(row: { id: number; name: string; description: string }) {
+const editingTags = ref<EditingTag[]>([]);
+function startEditTags() {
+  editingTags.value = tagsStore.list.map((g) => ({
+    id: g.id,
+    name: g.name,
+    description: g.description,
+    dimension: g.dimension || "topic",
+  }));
+}
+/** 编辑行按维度分组渲染（维度序 = tagsStore.dimensions 的 sort） */
+const editingGroups = computed(() =>
+  tagsStore.dimensions.map((d) => ({
+    dim: d,
+    rows: editingTags.value.filter((r) => r.dimension === (d.key || "topic")),
+  })),
+);
+/** 行内维度迁移下拉的选项（停用维度不进选项） */
+const dimOptions = computed(() => tagsStore.enabledDimensions.map((d) => ({ value: d.key, label: d.name })));
+async function saveTag(row: EditingTag) {
   try {
-    await api.updateTag(row.id, row.name, row.description);
+    await api.updateTag(row.id, row.name, row.description, row.dimension);
     await tagsStore.load();
     startEditTags();
     testMsg.value = t("tagSaved");
@@ -419,10 +439,54 @@ async function removeTag(id: number) {
     testMsg.value = `❌ ${errorMessage(e)}`;
   }
 }
-async function addTag() {
+async function addTag(dimKey: string) {
   try {
-    await api.createTag(t("tags.newName"), "");
+    await api.createTag(t("tags.newName"), "", dimKey);
     await tagsStore.load();
+    startEditTags();
+  } catch (e) {
+    testMsg.value = `❌ ${errorMessage(e)}`;
+  }
+}
+
+// ---- 维度管理（改名 / 上限 / 停用；key 与单多选建后不可改） ----
+const editingDims = ref<{ id: number; key: string; name: string; maxTags: number; enabled: boolean }[]>([]);
+function startEditDims() {
+  editingDims.value = tagsStore.dimensions.map((d) => ({
+    id: d.id,
+    key: d.key,
+    name: d.name,
+    maxTags: d.maxTags,
+    enabled: d.enabled,
+  }));
+}
+async function saveDim(row: { id: number; name: string; maxTags: number; enabled: boolean }) {
+  try {
+    await api.updateTagDimension(row.id, row.name, row.maxTags, row.enabled);
+    await tagsStore.load();
+    startEditDims();
+    startEditTags();
+    testMsg.value = t("tagSaved");
+    setTimeout(() => (testMsg.value = ""), 2000);
+  } catch (e) {
+    testMsg.value = `❌ ${errorMessage(e)}`;
+  }
+}
+const newDimName = ref("");
+/** 新维度 key：名称转小写 ascii slug，非 ascii 回落 dim-N */
+async function addDim() {
+  const name = newDimName.value.trim();
+  if (!name) return;
+  const slug = name
+    .toLowerCase()
+    .replace(/[^a-z0-9_-]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+  const key = slug || `dim-${Date.now().toString(36)}`;
+  try {
+    await api.createTagDimension(key, name);
+    newDimName.value = "";
+    await tagsStore.load();
+    startEditDims();
     startEditTags();
   } catch (e) {
     testMsg.value = `❌ ${errorMessage(e)}`;
@@ -582,7 +646,10 @@ watch(settingsTab, (tab) => {
     startEditCats();
     loadQuoteText();
   }
-  if (tab === "tags" && !editingTags.value.length) startEditTags();
+  if (tab === "tags") {
+    if (!editingTags.value.length) startEditTags();
+    if (!editingDims.value.length) startEditDims();
+  }
   if (tab === "integrations" && !agents.value.length) loadAgents();
   if (tab === "diag") loadDiagnostics();
 });
@@ -859,16 +926,55 @@ onUnmounted(() => unlisteners.forEach((u) => u()));
       <template v-if="settingsTab === 'tags'">
         <section class="set-card">
           <h3>{{ t("tags.title") }}</h3>
-          <div v-for="row in editingTags" :key="row.id" class="tag-row">
-            <input v-model="row.name" class="tag-name" :placeholder="t('tags.namePh')" />
-            <input v-model="row.description" class="tag-desc" :placeholder="t('tags.descPh')" />
-            <button class="btn ghost" @click="saveTag(row)">{{ t("tags.save") }}</button>
-            <button class="btn ghost del" @click="removeTag(row.id)">{{ t("tags.release") }}</button>
-          </div>
-          <div class="btn-row">
-            <button class="btn ghost" @click="addTag">{{ t("tags.new") }}</button>
+          <div v-for="group in editingGroups" :key="group.dim.key" class="tag-dim-group">
+            <div class="tag-dim-head">
+              <b>{{ group.dim.name }}</b>
+              <span class="tag-dim-meta">
+                {{ t("tags.dimCount", { used: group.rows.length, max: group.dim.maxTags }) }}
+                <template v-if="group.dim.cardinality === 'single'"> · {{ t("tags.single") }}</template>
+              </span>
+              <button
+                class="btn ghost mini"
+                :disabled="group.rows.length >= group.dim.maxTags"
+                @click="addTag(group.dim.key)"
+              >
+                ＋
+              </button>
+            </div>
+            <div v-for="row in group.rows" :key="row.id" class="tag-row">
+              <input v-model="row.name" class="tag-name" :placeholder="t('tags.namePh')" />
+              <input v-model="row.description" class="tag-desc" :placeholder="t('tags.descPh')" />
+              <DexSelect v-model="row.dimension" :options="dimOptions" class="tag-dim-select" />
+              <button class="btn ghost" @click="saveTag(row)">{{ t("tags.save") }}</button>
+              <button class="btn ghost del" @click="removeTag(row.id)">{{ t("tags.release") }}</button>
+            </div>
           </div>
           <p class="hint">{{ t("tags.hint") }}</p>
+          <p class="hint">{{ t("tags.dimHint") }}</p>
+        </section>
+
+        <section class="set-card">
+          <h3>{{ t("tags.dimTitle") }}</h3>
+          <div v-for="row in editingDims" :key="row.id" class="tag-row dim-row">
+            <span class="dim-key" :title="row.key">{{ row.key }}</span>
+            <input v-model="row.name" class="tag-name" />
+            <input
+              v-model.number="row.maxTags"
+              class="dim-max"
+              type="number"
+              min="1"
+              max="200"
+              :title="t('tags.maxTags')"
+              :aria-label="t('tags.maxTags')"
+            />
+            <DexToggle v-model="row.enabled" :title="t('cats.toggle')" />
+            <button class="btn ghost" @click="saveDim(row)">{{ t("tags.save") }}</button>
+          </div>
+          <div class="btn-row">
+            <input v-model="newDimName" class="tag-name" :placeholder="t('tags.dimNamePh')" />
+            <button class="btn ghost" @click="addDim">{{ t("tags.dimNew") }}</button>
+          </div>
+          <p class="hint">{{ t("tags.dimManageHint") }}</p>
         </section>
       </template>
 
@@ -1399,6 +1505,43 @@ onUnmounted(() => unlisteners.forEach((u) => u()));
   padding: 7px 10px;
   min-height: 34px;
   font-size: 12px;
+}
+/* 维度分组管理 */
+.tag-dim-group {
+  margin-bottom: 14px;
+}
+.tag-dim-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 6px;
+  font-size: 13px;
+}
+.tag-dim-meta {
+  font-size: 11px;
+  color: #9a937f;
+}
+.tag-dim-head .mini {
+  padding: 2px 9px;
+  min-height: 26px;
+  font-size: 13px;
+}
+.tag-dim-select {
+  width: 92px;
+  flex: none;
+}
+.dim-row .dim-key {
+  flex: none;
+  width: 84px;
+  font-size: 11px;
+  font-weight: 800;
+  color: #9a937f;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.dim-max {
+  width: 64px;
+  flex: none;
 }
 .set-card .btn.del {
   color: var(--dex-red);

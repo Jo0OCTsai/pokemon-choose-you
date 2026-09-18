@@ -322,15 +322,92 @@ pub fn agent_by_id(get: &dyn Fn(&str) -> Option<String>, id: &str) -> Option<Age
     load_agents(get).into_iter().find(|a| a.id == id)
 }
 
-/// 分类时的判重上下文：现有未完成待办 + 可用分类/标签，
+/// 分类时的判重上下文：现有未完成待办 + 可用分类/标签（按维度），
 /// 由调用方从库里加载后拼进 prompt，AI 借此判重并为新待办决定全部属性
 #[derive(Debug, Clone, Default)]
 pub struct ClassifyContext {
     /// (task_id, title)
     pub open_tasks: Vec<(i64, String)>,
     pub categories: Vec<String>,
-    /// (name, description)
-    pub tags: Vec<(String, String)>,
+    /// 可用标签（带维度）
+    pub tags: Vec<TagCtx>,
+    /// 维度元信息（含剩余可新建名额，拼 prompt 用）
+    pub dimensions: Vec<DimCtx>,
+}
+
+/// 可用标签条目：名字 + 归属维度 key + 描述
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct TagCtx {
+    pub dimension: String,
+    pub name: String,
+    pub description: String,
+}
+
+/// 标签维度元信息：key/展示名/是否单选/剩余可新建名额
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct DimCtx {
+    pub key: String,
+    pub name: String,
+    pub single: bool,
+    pub remaining: i64,
+}
+
+/// AI 建议的标签：名字 + 归属维度 + 是否词表外新建。
+/// 反序列化兼容旧协议的纯字符串（按 topic 维度、非新建解析），
+/// 保证存量 chat_messages.suggested_tags 与旧 agent 输出仍可读
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Default)]
+pub struct ProposedTag {
+    pub name: String,
+    #[serde(default)]
+    pub dimension: String,
+    #[serde(rename = "isNew", default)]
+    pub is_new: bool,
+}
+
+impl<'de> Deserialize<'de> for ProposedTag {
+    fn deserialize<D>(d: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        use serde::de::Error;
+        let v = serde_json::Value::deserialize(d)?;
+        match v {
+            serde_json::Value::String(s) => Ok(ProposedTag {
+                name: s,
+                dimension: "topic".into(),
+                is_new: false,
+            }),
+            serde_json::Value::Object(m) => {
+                let dimension = m
+                    .get("dimension")
+                    .and_then(|x| x.as_str())
+                    .unwrap_or("topic")
+                    .trim()
+                    .to_string();
+                Ok(ProposedTag {
+                    name: m
+                        .get("name")
+                        .and_then(|x| x.as_str())
+                        .unwrap_or_default()
+                        .trim()
+                        .to_string(),
+                    dimension: if dimension.is_empty() {
+                        "topic".into()
+                    } else {
+                        dimension
+                    },
+                    is_new: m
+                        .get("isNew")
+                        .or_else(|| m.get("is_new"))
+                        .and_then(|x| x.as_bool())
+                        .unwrap_or(false),
+                })
+            }
+            other => Err(D::Error::custom(format!(
+                "标签条目应为字符串或 {{name,dimension,isNew}} 对象: {other}"
+            ))),
+        }
+    }
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
@@ -353,7 +430,7 @@ pub struct AiSuggestion {
     #[serde(default)]
     pub due: Option<String>,
     #[serde(default)]
-    pub tags: Vec<String>,
+    pub tags: Vec<ProposedTag>,
     /// action=followUp 时指向现有待办 id
     #[serde(default, rename = "followUpTaskId")]
     pub follow_up_task_id: Option<i64>,
@@ -425,7 +502,8 @@ const SYSTEM_PROMPT: &str = r#"你是待办事项提取助手。给你一组 IM 
 - category 从「可用分类」里选最贴切的一个。
 - priority 从 low/normal/high/urgent 里选：对方明确催促或当天到期用 urgent/high，默认 normal。
 - due: 消息里有明确时间就用 YYYY-MM-DDTHH:MM 格式（参考「当前时间」换算年份），否则留空。
-- tags: 从「可用标签」里选 0~3 个最贴切的标签名组成数组，没有合适的返回 []。
+- tags: 按维度选 0~3 个最贴切的标签，格式 [{"name":"标签名","dimension":"维度key","isNew":false}]，没有合适的用 []。「项目」维度至多 1 个；优先复用「可用标签」里已有的，不要改变已选标签的名字。
+- 新标签：仅当某维度确实没有贴切选项、且消息里有明确依据（明确出现的项目名/人名/群名）时才提议新标签（isNew=true 并归入该维度，名字用原文里的称呼）；模糊语境一律复用现有标签或留空，禁止为凑数造词。标注「已满」的维度禁止新建。归属「项目」维度时优先参考消息来源（群聊名常含项目名）。
 - followUpTaskId 只在 action="followUp" 时填写，updateTaskId 只在 action="update" 时填写，取值都必须是「现有待办清单」里出现的 id。
 - reason: 一句话中文说明判定理由（如「对方明确要求周五前交付」/「与待办 No.3 本质相同」/「纯信息分享无需行动」），不超过 30 字。
 - confidence: 从 high/medium/low 里选：消息直白明确用 high；依赖语境推断（指代、隐含的时间或对象）用 medium；拿不准、像又不像的用 low。
@@ -447,19 +525,56 @@ fn build_user_content(batch: &[AiMessage], ctx: &ClassifyContext) -> String {
         }
     }
     s.push_str(&format!("可用分类：{}\n", ctx.categories.join("/")));
-    if ctx.tags.is_empty() {
-        s.push_str("可用标签：无\n");
-    } else {
-        s.push_str("可用标签（名称：描述）：\n");
-        for (name, desc) in &ctx.tags {
-            if desc.is_empty() {
-                s.push_str(&format!("{name}\n"));
+    s.push_str(&render_tag_vocabulary(ctx));
+    s.push_str(&render_messages(batch));
+    s
+}
+
+/// 可用标签渲染：按维度分组（维度名[key]（单选/多选）：标签：描述；…），
+/// 维度标注剩余可新建名额（已满的禁止新建）；无维度信息时退化为平铺清单
+fn render_tag_vocabulary(ctx: &ClassifyContext) -> String {
+    if ctx.tags.is_empty() && ctx.dimensions.is_empty() {
+        return "可用标签：无\n".into();
+    }
+    if ctx.dimensions.is_empty() {
+        let mut s = String::from("可用标签（名称：描述）：\n");
+        for t in &ctx.tags {
+            if t.description.is_empty() {
+                s.push_str(&format!("{}\n", t.name));
             } else {
-                s.push_str(&format!("{name}：{desc}\n"));
+                s.push_str(&format!("{}：{}\n", t.name, t.description));
             }
         }
+        return s;
     }
-    s.push_str(&render_messages(batch));
+    let mut s = String::from("可用标签（按维度分组，可从中选择或按规则提议新标签）：\n");
+    for dim in &ctx.dimensions {
+        let tags: Vec<&TagCtx> = ctx.tags.iter().filter(|t| t.dimension == dim.key).collect();
+        let card = if dim.single { "单选" } else { "多选" };
+        let quota = if dim.remaining > 0 {
+            format!("，还可新建 {} 个", dim.remaining)
+        } else {
+            "，已满禁止新建".to_string()
+        };
+        let list = if tags.is_empty() {
+            "（暂无标签）".to_string()
+        } else {
+            tags.iter()
+                .map(|t| {
+                    if t.description.is_empty() {
+                        t.name.clone()
+                    } else {
+                        format!("{}：{}", t.name, t.description)
+                    }
+                })
+                .collect::<Vec<_>>()
+                .join("；")
+        };
+        s.push_str(&format!(
+            "- {}[{}]（{card}{quota}）：{list}\n",
+            dim.name, dim.key
+        ));
+    }
     s
 }
 
@@ -505,7 +620,8 @@ const TOOLS_SYSTEM_PROMPT: &str = r#"你是待办事项提取助手，通过 pk 
 - category 从 pk context 的 categories 里选最贴切的一个，不要发明不存在的名字。
 - priority 从 low/normal/high/urgent 里选：对方明确催促或当天到期用 urgent/high，默认 normal。
 - due: 消息里有明确时间就用 YYYY-MM-DDTHH:MM 格式（对照 pk context 的 now 换算年份），否则留空。
-- tags: 从 pk context 的 tags 里选 0~3 个最贴切的标签名组成数组，没有合适的用 []。
+- tags: 按维度选 0~3 个最贴切的标签，格式 [{"name":"标签名","dimension":"维度key","isNew":false}]，没有合适的用 []。「项目」维度至多 1 个；优先复用 pk context 的 tags（含 dimension）里已有的。
+- 新标签：仅当某维度确实没有贴切选项、且消息里有明确依据（明确出现的项目名/人名/群名）时才提议新标签（isNew=true 并归入该维度，名字用原文里的称呼）；模糊语境一律复用现有标签或留空，禁止为凑数造词。pk context 的 dimensions 里 remaining<=0 的维度禁止新建。归属「项目」维度时优先参考消息来源（群聊名常含项目名）。
 - followUpTaskId 只在 action="followUp" 时填写，updateTaskId 只在 action="update" 时填写，取值都必须是 pk context 的 openTasks 里出现的 id。
 - reason: 一句话中文说明判定理由（如「对方明确要求周五前交付」/「与待办 No.3 本质相同」/「纯信息分享无需行动」），不超过 30 字。
 - confidence: 从 high/medium/low 里选：消息直白明确用 high；依赖语境推断（指代、隐含的时间或对象）用 medium；拿不准、像又不像的用 low。
@@ -1337,8 +1453,35 @@ mod tests {
             open_tasks: vec![(3, "写周报".into()), (5, "修登录 bug".into())],
             categories: vec!["工作".into(), "学习".into()],
             tags: vec![
-                ("重要".into(), "核心目标相关".into()),
-                ("杂".into(), String::new()),
+                TagCtx {
+                    dimension: "project".into(),
+                    name: "PokemonApp".into(),
+                    description: String::new(),
+                },
+                TagCtx {
+                    dimension: "topic".into(),
+                    name: "重要".into(),
+                    description: "核心目标相关".into(),
+                },
+                TagCtx {
+                    dimension: "topic".into(),
+                    name: "杂".into(),
+                    description: String::new(),
+                },
+            ],
+            dimensions: vec![
+                DimCtx {
+                    key: "project".into(),
+                    name: "项目".into(),
+                    single: true,
+                    remaining: 19,
+                },
+                DimCtx {
+                    key: "topic".into(),
+                    name: "主题".into(),
+                    single: false,
+                    remaining: 28,
+                },
             ],
         };
         let msg = AiMessage {
@@ -1366,6 +1509,10 @@ mod tests {
             s.contains("reason") && s.contains("confidence"),
             "判定理由与置信档位在规则中说明"
         );
+        // 维度化词表：分组渲染 + 剩余名额 + 新标签规则
+        assert!(s.contains("项目[project]（单选，还可新建 19 个）"), "{s}");
+        assert!(s.contains("主题[topic]（多选"), "{s}");
+        assert!(s.contains("isNew"), "新标签提议规则在 prompt 中");
     }
 
     #[test]
@@ -1426,6 +1573,39 @@ mod tests {
         let out =
             parse_suggestions(r#"{"suggestions":[{"messageId":"m1","action":"todo"}]}"#).unwrap();
         assert!(out[0].is_todo());
+    }
+
+    /// 维度化标签协议：对象形式带 dimension/isNew；dimension 缺省归 topic
+    #[test]
+    fn parse_proposed_tags_object_and_string_forms() {
+        let out = parse_suggestions(
+            r#"{"results":[{"messageId":"m1","action":"todo","title":"t","tags":[
+                {"name":"PokemonApp","dimension":"project","isNew":true},
+                {"name":"重要"},
+                "杂"
+            ]}]}"#,
+        )
+        .unwrap();
+        assert_eq!(
+            out[0].tags,
+            vec![
+                ProposedTag {
+                    name: "PokemonApp".into(),
+                    dimension: "project".into(),
+                    is_new: true
+                },
+                ProposedTag {
+                    name: "重要".into(),
+                    dimension: "topic".into(),
+                    is_new: false
+                },
+                ProposedTag {
+                    name: "杂".into(),
+                    dimension: "topic".into(),
+                    is_new: false
+                },
+            ]
+        );
     }
 
     // ---- dedup_batch_todos：批内判重兜底 ----
@@ -1539,7 +1719,17 @@ mod tests {
             ClassifyContext {
                 open_tasks: vec![(3, "写周报".into())],
                 categories: vec!["工作".into()],
-                tags: vec![("重要".into(), String::new())],
+                dimensions: vec![DimCtx {
+                    key: "topic".into(),
+                    name: "主题".into(),
+                    single: false,
+                    remaining: 30,
+                }],
+                tags: vec![TagCtx {
+                    dimension: "topic".into(),
+                    name: "重要".into(),
+                    description: String::new(),
+                }],
             }
         }
 
@@ -1569,7 +1759,15 @@ mod tests {
             assert_eq!(out[0].title.as_deref(), Some("参加周会"));
             assert_eq!(out[0].note.as_deref(), Some("张三在项目群安排"));
             assert_eq!(out[0].priority.as_deref(), Some("high"));
-            assert_eq!(out[0].tags, vec!["重要".to_string()]);
+            assert_eq!(
+                out[0].tags,
+                vec![ProposedTag {
+                    name: "重要".into(),
+                    dimension: "topic".into(),
+                    is_new: false
+                }],
+                "旧协议纯字符串按 topic 维度解析"
+            );
             assert_eq!(out[0].due.as_deref(), Some("2026-09-13T10:00"));
             assert_eq!(
                 out[0].reason.as_deref(),
@@ -1618,7 +1816,15 @@ mod tests {
             assert!(!out[0].is_todo() && !out[0].is_follow_up());
             assert_eq!(out[0].update_task_id, Some(3));
             assert_eq!(out[0].due.as_deref(), Some("2026-09-15T10:00"));
-            assert_eq!(out[0].tags, vec!["重要".to_string()]);
+            assert_eq!(
+                out[0].tags,
+                vec![ProposedTag {
+                    name: "重要".into(),
+                    dimension: "topic".into(),
+                    is_new: false
+                }],
+                "旧协议纯字符串按 topic 维度解析"
+            );
         }
 
         /// SSH 远程执行：经假 ssh 程序（PK_SSH_BIN 注入）组装 BatchMode/--、提示词走 stdin、

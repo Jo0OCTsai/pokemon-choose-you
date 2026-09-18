@@ -9,6 +9,7 @@ import type {
   LogEntry,
   RemotePkReport,
   Tag,
+  TagDimension,
   Task,
   TaskLog,
   TaskNote,
@@ -100,9 +101,22 @@ export const api = {
   deleteTaskNote: (id: number) => call<void>("delete_task_note", { id }),
   listTaskLogs: (taskId: number) => call<TaskLog[]>("list_task_logs", { taskId }),
   listTags: () => call<Tag[]>("list_tags"),
-  createTag: (name: string, description: string) => call<Tag>("create_tag", { name, description }),
-  updateTag: (id: number, name: string, description: string) => call<void>("update_tag", { id, name, description }),
+  /** dimension 缺省 topic；同名同维度幂等复用 */
+  createTag: (name: string, description: string, dimension?: string) =>
+    call<Tag>("create_tag", { name, description, dimension: dimension ?? null }),
+  updateTag: (id: number, name: string, description: string, dimension?: string) =>
+    call<void>("update_tag", { id, name, description, dimension: dimension ?? null }),
   deleteTag: (id: number) => call<void>("delete_tag", { id }),
+  listTagDimensions: () => call<TagDimension[]>("list_tag_dimensions"),
+  createTagDimension: (key: string, name: string, cardinality?: string, maxTags?: number) =>
+    call<TagDimension>("create_tag_dimension", {
+      key,
+      name,
+      cardinality: cardinality ?? null,
+      maxTags: maxTags ?? null,
+    }),
+  updateTagDimension: (id: number, name: string, maxTags?: number, enabled?: boolean) =>
+    call<void>("update_tag_dimension", { id, name, maxTags: maxTags ?? null, enabled: enabled ?? null }),
   listCategories: () => call<Category[]>("list_categories"),
   setCategoryPokemon: (id: number, pokemon: string, sprite: string) =>
     call<void>("set_category_pokemon", { id, pokemon, sprite }),
