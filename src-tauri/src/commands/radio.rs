@@ -285,6 +285,83 @@ pub fn dismiss_chat_message<R: tauri::Runtime>(
     Ok(())
 }
 
+/// 删掉该消息最近一条反馈：误操作的 accepted/dismissed 不该留在反馈库里污染判重分析
+fn delete_last_feedback(conn: &Connection, chat_message_id: i64) -> AppResult<()> {
+    conn.execute(
+        "DELETE FROM chat_feedback WHERE id = (
+            SELECT id FROM chat_feedback WHERE chat_message_id=?1 ORDER BY id DESC LIMIT 1
+        )",
+        params![chat_message_id],
+    )?;
+    Ok(())
+}
+
+/// 撤销最近一次分诊（收音机操作后的短撤销窗口，由前端 toast 触发）：
+/// - 逃走 → review_status 回 pending，并清掉这条误操作落下的反馈
+/// - 捕捉（todo 建待办）→ 删除刚建的待办并回 pending（仅限仍是原样 feishu 来源的任务）
+/// 应用更新 / 跟进并入改的是既有待办内容，无法安全回滚，前端对这两类不提供撤销入口。
+#[tauri::command]
+pub fn undo_chat_review<R: tauri::Runtime>(
+    app: tauri::AppHandle<R>,
+    db: State<Db>,
+    id: i64,
+) -> AppResult<()> {
+    {
+        let conn = db.0.lock().unwrap();
+        let msg = get_message(&conn, id)?;
+        match msg.review_status.as_str() {
+            "dismissed" => {
+                conn.execute(
+                    "UPDATE chat_messages SET review_status='pending' WHERE id=?1",
+                    params![id],
+                )?;
+                delete_last_feedback(&conn, id)?;
+            }
+            "accepted" => {
+                let task_id = msg.task_id.ok_or_else(|| {
+                    AppError::Invalid("该消息没有可撤销的待办（应用更新/跟进不支持撤销）".into())
+                })?;
+                // 只回滚仍是「收音机原样」的任务：待办不存在（已被手动删）就只回状态不报错，
+                // 来源不是 feishu 说明 id 已被复用，拒绝删除保安全
+                let source: Option<String> = conn
+                    .query_row(
+                        "SELECT source FROM tasks WHERE id=?1",
+                        params![task_id],
+                        |r| r.get(0),
+                    )
+                    .ok();
+                match source.as_deref() {
+                    Some("feishu") => {
+                        conn.execute("DELETE FROM task_tags WHERE task_id=?1", params![task_id])?;
+                        conn.execute("DELETE FROM task_logs WHERE task_id=?1", params![task_id])?;
+                        conn.execute("DELETE FROM task_notes WHERE task_id=?1", params![task_id])?;
+                        conn.execute("DELETE FROM tasks WHERE id=?1", params![task_id])?;
+                    }
+                    None => { /* 任务已被手动删除：只恢复消息状态 */ }
+                    Some(_) => {
+                        return Err(AppError::Invalid(
+                            "目标待办来源异常，为安全起见不撤销删除".into(),
+                        ));
+                    }
+                }
+                conn.execute(
+                    "UPDATE chat_messages SET review_status='pending', task_id=NULL WHERE id=?1",
+                    params![id],
+                )?;
+                delete_last_feedback(&conn, id)?;
+            }
+            other => {
+                return Err(AppError::Invalid(format!(
+                    "该消息当前是「{other}」状态，没有可撤销的分诊"
+                )));
+            }
+        }
+    }
+    events::broadcast(&app, events::TASKS_CHANGED);
+    events::broadcast(&app, events::CHAT_MESSAGES_CHANGED);
+    Ok(())
+}
+
 /// 把消息记为某待办的跟进：插入跟进记录并把消息标记为已并入（followup）。
 /// 后台轮询与强制捕捉的判重分支共用；调用方需先确认目标待办存在。
 pub(crate) fn attach_followup(
@@ -1209,6 +1286,100 @@ mod tests {
             .unwrap()
         };
         assert_eq!((action.as_str(), reason.as_str()), ("dismissed", ""));
+    }
+
+    /// 撤销逃走：消息回 pending，误操作落下的反馈被清掉
+    #[test]
+    fn undo_dismiss_restores_pending_and_clears_feedback() {
+        let app = setup();
+        let mid = seed_message(&app, "om_1");
+        {
+            let db = app.state::<Db>();
+            dismiss_chat_message(app.handle().clone(), db.clone(), mid, Some("noise".into()))
+                .unwrap();
+            undo_chat_review(app.handle().clone(), db, mid).unwrap();
+        }
+        let msgs = {
+            let db = app.state::<Db>();
+            list_chat_messages(db, None).unwrap()
+        };
+        assert_eq!(msgs[0].review_status, "pending");
+        let feedback: i64 = {
+            let db = app.state::<Db>();
+            let conn = db.0.lock().unwrap();
+            conn.query_row(
+                "SELECT COUNT(*) FROM chat_feedback WHERE chat_message_id=?1",
+                params![mid],
+                |r| r.get(0),
+            )
+            .unwrap()
+        };
+        assert_eq!(feedback, 0, "误操作的反馈不该留在库里");
+    }
+
+    /// 撤销捕捉：删除刚建的待办（连带标签/日志）并恢复消息为 pending
+    #[test]
+    fn undo_accept_deletes_created_task_and_restores() {
+        let app = setup();
+        seed_tag(&app, "重要");
+        let mid = seed_message(&app, "om_1");
+        let task_id = {
+            let db = app.state::<Db>();
+            accept_chat_message(app.handle().clone(), db, mid).unwrap()
+        };
+        {
+            let db = app.state::<Db>();
+            undo_chat_review(app.handle().clone(), db, mid).unwrap();
+        }
+        let msgs = {
+            let db = app.state::<Db>();
+            list_chat_messages(db, None).unwrap()
+        };
+        assert_eq!(msgs[0].review_status, "pending");
+        assert!(msgs[0].task_id.is_none());
+        let (tasks, tags, logs): (i64, i64, i64) = {
+            let db = app.state::<Db>();
+            let conn = db.0.lock().unwrap();
+            conn.query_row(
+                "SELECT (SELECT COUNT(*) FROM tasks WHERE id=?1),
+                        (SELECT COUNT(*) FROM task_tags WHERE task_id=?1),
+                        (SELECT COUNT(*) FROM task_logs WHERE task_id=?1)",
+                params![task_id],
+                |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?)),
+            )
+            .unwrap()
+        };
+        assert_eq!((tasks, tags, logs), (0, 0, 0), "任务与关联记录一并清理");
+    }
+
+    /// 撤销的边界：pending 状态没得撤；待办已被手动删除时只恢复消息状态
+    #[test]
+    fn undo_rejects_pending_and_tolerates_missing_task() {
+        let app = setup();
+        let mid = seed_message(&app, "om_1");
+        let err = {
+            let db = app.state::<Db>();
+            undo_chat_review(app.handle().clone(), db, mid).unwrap_err()
+        };
+        assert!(matches!(err, AppError::Invalid(_)));
+        // 捕捉后手动删掉待办：撤销不报错，消息照常回 pending
+        let _task_id = {
+            let db = app.state::<Db>();
+            accept_chat_message(app.handle().clone(), db, mid).unwrap()
+        };
+        {
+            let db = app.state::<Db>();
+            {
+                let conn = db.0.lock().unwrap();
+                conn.execute("DELETE FROM tasks", []).unwrap();
+            }
+            undo_chat_review(app.handle().clone(), db, mid).unwrap();
+        }
+        let msgs = {
+            let db = app.state::<Db>();
+            list_chat_messages(db, None).unwrap()
+        };
+        assert_eq!(msgs[0].review_status, "pending");
     }
 
     /// 捕捉与应用更新也落 accepted 反馈

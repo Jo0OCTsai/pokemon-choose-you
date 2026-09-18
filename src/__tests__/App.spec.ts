@@ -26,6 +26,7 @@ vi.mock("../api", () => ({
     dismissChatMessage: vi.fn(),
     forceCreateTodo: vi.fn(),
     applyChatMessageUpdate: vi.fn(),
+    undoChatReview: vi.fn(),
     batchReviewChatMessages: vi.fn(),
     listTags: vi.fn(),
     searchTasks: vi.fn(),
@@ -356,7 +357,7 @@ describe("App 图鉴机主面板", () => {
     expect(api.updateTask).toHaveBeenCalledWith(expect.not.objectContaining({ status: expect.anything() }));
   });
 
-  it("收音机页显示全部电波（含无待办消息）并可捕捉", async () => {
+  it("收音机两栏分诊：待办信号与无信号分区展示，默认选中信号可捕捉", async () => {
     tasks = seed([]);
     vi.mocked(api.listChatMessages).mockResolvedValue([
       {
@@ -396,13 +397,13 @@ describe("App 图鉴机主面板", () => {
     ]);
     const w = await mountApp();
     await w.findAll(".menu-btn")[4].trigger("click");
-    const cards = w.findAll(".im-card");
-    expect(cards).toHaveLength(2); // 未识别为待办的消息也展示
+    // 未识别为待办的消息也展示，但收进「无信号」分区；信号区单行 + 右栏详情
+    expect(w.findAll(".rrow")).toHaveLength(2);
+    expect(w.find('[data-group="noise"]').exists()).toBe(true);
     expect(w.get(".im-content").text()).toContain("明天上午10点开周会");
     expect(w.text()).toContain("参加周会");
-    expect(w.text()).toContain("无待办"); // AI 状态徽章可见
-    // 第一张卡（倒序在前的 m2 无建议）没有捕捉按钮，捕捉按钮在 m1 卡上
-    const catchBtn = w.findAll(".im-actions .btn").find((b) => b.text() === "◎ 捕捉")!;
+    expect(w.get(".ai-status").text()).toBe("有待办信号");
+    const catchBtn = w.findAll(".im-actions .btn").find((b) => b.text().startsWith("◎"))!;
     await catchBtn.trigger("click");
     expect(api.acceptChatMessage).toHaveBeenCalledWith(7);
   });
@@ -435,12 +436,117 @@ describe("App 图鉴机主面板", () => {
     vi.mocked(api.dismissChatMessage).mockResolvedValue(undefined);
     await w
       .findAll(".im-actions .btn")
-      .find((b) => b.text() === "✕ 逃走")!
+      .find((b) => b.text().startsWith("✕"))!
       .trigger("click");
     await new Promise((r) => setTimeout(r));
     expect(api.dismissChatMessage).toHaveBeenCalledWith(9, undefined);
 
     // ▾ 展开原因选择，选「已有类似待办」带原因码逃走
+    await w
+      .findAll(".im-actions .er-toggle")
+      .find((b) => b.text() === "▾")!
+      .trigger("click");
+    expect(w.find(".escape-pop").exists()).toBe(true);
+    await w
+      .findAll(".er-chip")
+      .find((b) => b.text() === "已有类似待办")!
+      .trigger("click");
+    await new Promise((r) => setTimeout(r));
+    expect(api.dismissChatMessage).toHaveBeenCalledWith(9, "duplicate");
+  });
+
+  it("键盘流：C 捕捉选中信号并自动前进，X 逃走无信号", async () => {
+    tasks = seed([]);
+    vi.mocked(api.listChatMessages).mockResolvedValue([
+      {
+        id: 7,
+        messageId: "m1",
+        chatName: "项目群",
+        sender: "张三",
+        content: "明天上午10点开周会",
+        suggestedTitle: "参加周会",
+        suggestedTags: [],
+        aiStatus: "todo",
+        reviewStatus: "pending",
+        taskId: null,
+        createdAt: "2026-09-11T00:00:00Z",
+      },
+      {
+        id: 8,
+        messageId: "m2",
+        chatName: "项目群",
+        sender: "李四",
+        content: "哈哈哈",
+        suggestedTags: [],
+        aiStatus: "none",
+        reviewStatus: "pending",
+        taskId: null,
+        createdAt: "2026-09-11T00:01:00Z",
+      },
+    ]);
+    const w = await mountApp();
+    await w.findAll(".menu-btn")[4].trigger("click");
+    // 默认选中第一条信号，C = 捕捉
+    window.dispatchEvent(new KeyboardEvent("keydown", { key: "c", bubbles: true }));
+    await new Promise((r) => setTimeout(r));
+    expect(api.acceptChatMessage).toHaveBeenCalledWith(7);
+    // 处理完自动前进到无信号那条，X = 逃走
+    vi.mocked(api.dismissChatMessage).mockResolvedValue(undefined);
+    window.dispatchEvent(new KeyboardEvent("keydown", { key: "x", bubbles: true }));
+    await new Promise((r) => setTimeout(r));
+    expect(api.dismissChatMessage).toHaveBeenCalledWith(8, undefined);
+  });
+
+  it("一键清空无信号：整组批量逃走并落噪音原因", async () => {
+    tasks = seed([]);
+    vi.mocked(api.listChatMessages).mockResolvedValue([
+      {
+        id: 7,
+        messageId: "m1",
+        chatName: "项目群",
+        sender: "张三",
+        content: "明天上午10点开周会",
+        suggestedTitle: "参加周会",
+        suggestedTags: [],
+        aiStatus: "todo",
+        reviewStatus: "pending",
+        taskId: null,
+        createdAt: "2026-09-11T00:00:00Z",
+      },
+      {
+        id: 8,
+        messageId: "m2",
+        chatName: "项目群",
+        sender: "李四",
+        content: "哈哈哈",
+        suggestedTags: [],
+        aiStatus: "none",
+        reviewStatus: "pending",
+        taskId: null,
+        createdAt: "2026-09-11T00:01:00Z",
+      },
+      {
+        id: 10,
+        messageId: "m3",
+        chatName: "闲聊群",
+        sender: "王五",
+        content: "中午吃什么",
+        suggestedTags: [],
+        aiStatus: "none",
+        reviewStatus: "pending",
+        taskId: null,
+        createdAt: "2026-09-11T00:02:00Z",
+      },
+    ]);
+    const w = await mountApp();
+    await w.findAll(".menu-btn")[4].trigger("click");
+    await w.get(".clear-noise").trigger("click");
+    await new Promise((r) => setTimeout(r));
+    expect(api.batchReviewChatMessages).toHaveBeenCalledWith([8, 10], "dismiss", "noise");
+  });
+
+  it("逃走后 5 秒撤销窗口：toast 撤销调 undoChatReview 恢复消息", async () => {
+    tasks = seed([]);
     vi.mocked(api.listChatMessages).mockResolvedValue([
       {
         id: 9,
@@ -450,25 +556,25 @@ describe("App 图鉴机主面板", () => {
         content: "明天上午10点开周会",
         suggestedTitle: "参加周会",
         suggestedTags: [],
-        suggestedReason: "张三明确安排了会议时间",
-        suggestedConfidence: "high",
         aiStatus: "todo",
         reviewStatus: "pending",
         taskId: null,
         createdAt: "2026-09-11T00:00:00Z",
       },
     ]);
+    vi.mocked(api.dismissChatMessage).mockResolvedValue(undefined);
+    vi.mocked(api.undoChatReview).mockResolvedValue(undefined);
+    const w = await mountApp();
+    await w.findAll(".menu-btn")[4].trigger("click");
     await w
       .findAll(".im-actions .btn")
-      .find((b) => b.text() === "▾")!
-      .trigger("click");
-    expect(w.find(".escape-reasons").exists()).toBe(true);
-    await w
-      .findAll(".er-chip")
-      .find((b) => b.text() === "已有类似待办")!
+      .find((b) => b.text().startsWith("✕"))!
       .trigger("click");
     await new Promise((r) => setTimeout(r));
-    expect(api.dismissChatMessage).toHaveBeenCalledWith(9, "duplicate");
+    expect(w.get(".toast").text()).toContain("已逃走");
+    await w.get(".toast button").trigger("click");
+    await new Promise((r) => setTimeout(r));
+    expect(api.undoChatReview).toHaveBeenCalledWith(9);
   });
 
   it("自然语言快速捕捉：预览识别结果，提交带解析字段，单击取消后按原文提交", async () => {
