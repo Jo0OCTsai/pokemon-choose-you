@@ -1657,6 +1657,12 @@ fn run_context(conn: &Connection) -> Result<serde_json::Value, CliError> {
             })
         })
         .collect::<Vec<_>>();
+    // 负反馈：用户多次移除的标签，agent 无明确依据不应再建议
+    let tag_feedback = tags::removal_feedback(conn, 30, 2, 3)
+        .map_err(db_err)?
+        .into_iter()
+        .map(|(name, removed)| json!({ "name": name, "removed": removed }))
+        .collect::<Vec<_>>();
     let open: Vec<serde_json::Value> = open_tasks
         .into_iter()
         .map(|(id, title)| json!({ "id": id, "title": title }))
@@ -1667,6 +1673,7 @@ fn run_context(conn: &Connection) -> Result<serde_json::Value, CliError> {
         "categories": cats,
         "tags": tag_list,
         "dimensions": dimensions,
+        "tagFeedback": tag_feedback,
     }))
 }
 

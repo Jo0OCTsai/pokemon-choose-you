@@ -12,10 +12,19 @@ vi.mock("../api", () => ({
   api: {
     updateTask: vi.fn(async (patch: { id: number }) => ({ id: patch.id })),
     deleteTask: vi.fn(async () => {}),
+    deleteTag: vi.fn(async () => {}),
     setSetting: vi.fn(async () => {}),
     // reload 用：测试里按需改写返回值（默认空）
     listTasks: vi.fn(async () => []),
     listChatMessages: vi.fn(async () => []),
+    listTags: vi.fn(async () => []),
+    listTagDimensions: vi.fn(async () => [
+      { id: 1, key: "project", name: "项目", cardinality: "single", maxTags: 20, sort: 1, enabled: true },
+      { id: 4, key: "topic", name: "主题", cardinality: "multi", maxTags: 30, sort: 4, enabled: true },
+    ]),
+    tagCheckup: vi.fn(async () => ({ merges: [], zombies: [], newDimensions: [], judged: false })),
+    mergeTag: vi.fn(async () => {}),
+    moveTagsToDimension: vi.fn(async () => {}),
   },
   errorMessage: vi.fn((e: unknown) => String(e)),
 }));
@@ -147,7 +156,7 @@ describe("ReviewWizard 训练家复盘", () => {
 
   it("收尾标记本周已复盘", async () => {
     const w = await mountWizard();
-    for (let i = 0; i < 3; i++) {
+    for (let i = 0; i < 4; i++) {
       await w
         .findAll(".btn")
         .find((b) => b.text() === "下一步")!
@@ -160,5 +169,54 @@ describe("ReviewWizard 训练家复盘", () => {
       .trigger("click");
     await new Promise((r) => setTimeout(r));
     expect(api.setSetting).toHaveBeenCalledWith("review_last_done", expect.stringMatching(/^\d{4}-\d{2}-\d{2}$/));
+  });
+
+  it("标签体检：合并建议与僵尸标签逐条处置", async () => {
+    vi.mocked(api.tagCheckup).mockResolvedValue({
+      merges: [
+        {
+          fromId: 11,
+          fromName: "工作周报",
+          intoId: 10,
+          intoName: "周报",
+          dimension: "topic",
+          similarity: 0.86,
+          judged: true,
+          reason: "同一含义",
+        },
+      ],
+      zombies: [{ id: 12, name: "幻觉标签", dimension: "topic", origin: "ai", createdAt: "2026-01-01T00:00:00Z" }],
+      newDimensions: [],
+      judged: true,
+    });
+    const w = await mountWizard();
+    for (let i = 0; i < 3; i++) {
+      await w
+        .findAll(".btn")
+        .find((b) => b.text() === "下一步")!
+        .trigger("click");
+      await new Promise((r) => setTimeout(r));
+    }
+    expect(w.text()).toContain("「工作周报」→「周报」");
+    expect(w.text()).toContain("幻觉标签");
+    expect(w.text()).toContain("AI 已复核");
+
+    // 合并：调 mergeTag，行消失
+    await w
+      .findAll(".btn")
+      .find((b) => b.text() === "合并")!
+      .trigger("click");
+    await new Promise((r) => setTimeout(r));
+    expect(api.mergeTag).toHaveBeenCalledWith(11, 10);
+    expect(w.text()).not.toContain("「工作周报」→「周报」");
+
+    // 放生僵尸：调 deleteTag，行消失
+    await w
+      .findAll(".btn")
+      .find((b) => b.text().includes("放生"))!
+      .trigger("click");
+    await new Promise((r) => setTimeout(r));
+    expect(api.deleteTag).toHaveBeenCalledWith(12);
+    expect(w.text()).toContain("词表很健康");
   });
 });

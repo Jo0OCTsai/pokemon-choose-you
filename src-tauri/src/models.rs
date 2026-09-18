@@ -79,6 +79,9 @@ pub struct Tag {
     /// 挂在多少个任务上（设置页治理展示）
     #[serde(default)]
     pub usage: i64,
+    /// 创建时间（RFC3339；僵尸标签的年龄判定用）
+    #[serde(default)]
+    pub created_at: String,
 }
 
 /// 标签维度：一组正交的归类面（分面分类）。维度封闭少而稳，标签在维度内开放生长
@@ -322,10 +325,11 @@ mod tests {
             dimension: "topic".into(),
             origin: "manual".into(),
             usage: 3,
+            created_at: "2026-09-01T00:00:00Z".into(),
         };
         assert_eq!(
             keys_of(serde_json::to_value(&g).unwrap()),
-            vec!["description", "dimension", "id", "name", "origin", "usage"]
+            vec!["createdAt", "description", "dimension", "id", "name", "origin", "usage"]
         );
         // dimension/origin/usage 缺失时容忍（老载荷）
         let old: Tag = serde_json::from_value(serde_json::json!({

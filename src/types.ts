@@ -48,6 +48,8 @@ export interface Tag {
   origin: string;
   /** 挂在多少个任务上（设置页治理展示） */
   usage: number;
+  /** 创建时间（RFC3339；僵尸标签的年龄判定用）；老数据可能为空 */
+  createdAt?: string;
 }
 
 /** 标签维度：一组正交的归类面（分面分类）。维度封闭少而稳，标签在维度内开放生长 */
@@ -90,7 +92,7 @@ export interface TaskLog {
   field: string;
   oldValue?: string | null;
   newValue?: string | null;
-  /** 变更来源：main / pet / radio / todoist / migration */
+  /** 变更来源：main / pet / radio / migration（历史数据可能还有已下线集成的 todoist） */
   origin: string;
   createdAt: string;
 }
@@ -199,8 +201,6 @@ export interface AgentConfig {
   /** 单次调用超时（秒） */
   timeoutSecs: number;
   enabled: boolean;
-  /** 分类结果回收方式：text=解析输出 JSON（缺省）；tools=agent 经 pk 工具落库、应用回读 */
-  mode?: string;
   /** SSH 远程执行（null/缺省 = 本地执行） */
   remote?: AgentRemote | null;
 }
@@ -220,9 +220,9 @@ export interface RemotePkReport {
   version?: string | null;
 }
 
-/** 集成链路健康（诊断页展示）：飞书 / AI / Todoist */
+/** 集成链路健康（诊断页展示）：飞书 / AI */
 export interface IntegrationHealth {
-  provider: "feishu" | "ai" | "todoist";
+  provider: "feishu" | "ai";
   configured: boolean;
   /** 飞书的后台轮询开关；其余链路配置即启用 */
   enabled: boolean;
@@ -253,4 +253,24 @@ export interface LogEntry {
 export interface BatchReviewResult {
   ok: number;
   failed: { id: number; error: string }[];
+}
+
+/** 标签体检（复盘向导）：相似度预筛 + 僵尸标签 + LLM 复核与新维度建议 */
+export interface TagCheckupReport {
+  merges: {
+    fromId: number;
+    fromName: string;
+    intoId: number;
+    intoName: string;
+    dimension: string;
+    /** 本地预筛相似度 0~1 */
+    similarity: number;
+    /** LLM 是否已复核（false = 仅相似度预筛，未配置 agent 或判定失败） */
+    judged: boolean;
+    reason?: string | null;
+  }[];
+  zombies: { id: number; name: string; dimension: string; origin: string; createdAt: string }[];
+  newDimensions: { name: string; tags: string[]; reason?: string | null }[];
+  /** LLM 是否参与了本次判定 */
+  judged: boolean;
 }

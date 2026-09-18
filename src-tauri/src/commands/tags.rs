@@ -17,7 +17,7 @@ pub fn list_tags(db: State<Db>) -> AppResult<Vec<Tag>> {
 /// conn 版标签列表（pk CLI 复用）：带维度/来源/使用数，按维度序 + id 序
 pub fn list_tags_conn(conn: &rusqlite::Connection) -> AppResult<Vec<Tag>> {
     let mut stmt = conn.prepare(
-        "SELECT t.id, t.name, t.description, d.key, t.origin,
+        "SELECT t.id, t.name, t.description, d.key, t.origin, t.created_at,
                 (SELECT COUNT(*) FROM task_tags tt WHERE tt.tag_id = t.id)
          FROM tags t JOIN tag_dimensions d ON d.id = t.dimension_id
          ORDER BY d.sort, t.id",
@@ -30,7 +30,8 @@ pub fn list_tags_conn(conn: &rusqlite::Connection) -> AppResult<Vec<Tag>> {
                 description: r.get(2)?,
                 dimension: r.get(3)?,
                 origin: r.get(4)?,
-                usage: r.get(5)?,
+                created_at: r.get(5)?,
+                usage: r.get(6)?,
             })
         })?
         .collect::<Result<Vec<_>, _>>()?;
@@ -91,6 +92,50 @@ pub fn dimension_remaining(conn: &Connection, dim_id: i64) -> AppResult<i64> {
         |r| Ok((r.get(0)?, r.get(1)?)),
     )?;
     Ok(max - used)
+}
+
+/// 近 N 天用户从待办上移除的标签聚合（task_logs 的 tags diff：old 有而 new 无的名字）。
+/// 出现 >= min_count 次的名字作为分类 prompt 的负反馈——「无明确依据不要再建议」，
+/// 防错误反馈固化：只统计窗口期内、只取高频（>= 2 次）、条数封顶
+pub fn removal_feedback(
+    conn: &Connection,
+    days: i64,
+    min_count: i64,
+    cap: usize,
+) -> AppResult<Vec<(String, i64)>> {
+    let cutoff = (chrono::Utc::now() - chrono::Duration::days(days)).to_rfc3339();
+    let mut stmt = conn.prepare(
+        "SELECT old_value, new_value FROM task_logs
+         WHERE action='update' AND field='tags' AND created_at >= ?1
+         ORDER BY id DESC LIMIT 500",
+    )?;
+    let rows: Vec<(Option<String>, Option<String>)> = stmt
+        .query_map(params![cutoff], |r| Ok((r.get(0)?, r.get(1)?)))?
+        .collect::<Result<Vec<_>, _>>()?;
+    let mut counts: std::collections::HashMap<String, i64> = std::collections::HashMap::new();
+    for (old, new) in rows {
+        let Some(old) = old.filter(|s| !s.is_empty()) else {
+            continue;
+        };
+        let new = new.unwrap_or_default();
+        let kept: std::collections::HashSet<&str> = new
+            .split(',')
+            .map(str::trim)
+            .filter(|s| !s.is_empty())
+            .collect();
+        for name in old.split(',').map(str::trim).filter(|s| !s.is_empty()) {
+            if !kept.contains(name) {
+                *counts.entry(name.to_string()).or_default() += 1;
+            }
+        }
+    }
+    let mut list: Vec<(String, i64)> = counts
+        .into_iter()
+        .filter(|(_, n)| *n >= min_count)
+        .collect();
+    list.sort_by(|a, b| b.1.cmp(&a.1).then(a.0.cmp(&b.0)));
+    list.truncate(cap);
+    Ok(list)
 }
 
 #[tauri::command]
@@ -245,7 +290,7 @@ pub fn create_tag_conn(
 
 fn tag_by_id(conn: &Connection, id: i64) -> AppResult<Tag> {
     conn.query_row(
-        "SELECT t.id, t.name, t.description, d.key, t.origin,
+        "SELECT t.id, t.name, t.description, d.key, t.origin, t.created_at,
                 (SELECT COUNT(*) FROM task_tags tt WHERE tt.tag_id = t.id)
          FROM tags t JOIN tag_dimensions d ON d.id = t.dimension_id WHERE t.id=?1",
         params![id],
@@ -256,7 +301,8 @@ fn tag_by_id(conn: &Connection, id: i64) -> AppResult<Tag> {
                 description: r.get(2)?,
                 dimension: r.get(3)?,
                 origin: r.get(4)?,
-                usage: r.get(5)?,
+                created_at: r.get(5)?,
+                usage: r.get(6)?,
             })
         },
     )
@@ -566,5 +612,39 @@ mod tests {
             .unwrap_err()
         };
         assert!(matches!(err, AppError::Db(_)), "key 唯一: {err}");
+    }
+
+    /// 移除反馈：old 有而 new 无的名字按次聚合；阈值过滤、条数封顶、窗口期外不计
+    #[test]
+    fn removal_feedback_counts_dropped_names() {
+        let conn = test_conn();
+        let log = |old: &str, new: &str, days_ago: i64| {
+            conn.execute(
+                "INSERT INTO task_logs (task_id, action, field, old_value, new_value, origin, created_at)
+                 VALUES (1, 'update', 'tags', ?1, ?2, 'main', ?3)",
+                params![
+                    old,
+                    new,
+                    (chrono::Utc::now() - chrono::Duration::days(days_ago)).to_rfc3339()
+                ],
+            )
+            .unwrap();
+        };
+        log("重要,需汇报", "需汇报", 1); // 重要 -1
+        log("重要", "", 2); // 重要 -1（清空）
+        log("重要,杂", "重要,杂", 3); // 无移除
+        log("杂", "", 40); // 窗口期外
+        log("低频", "", 5); // 只有 1 次，低于阈值
+        let fb = removal_feedback(&conn, 30, 2, 3).unwrap();
+        assert_eq!(fb, vec![("重要".to_string(), 2)], "只留窗口内 >=2 次的名字");
+        // 封顶：三个名字各移除 2 次以上，cap=2 只取频次最高的
+        log("甲", "", 1);
+        log("甲", "", 1);
+        log("乙", "", 1);
+        log("乙", "", 1);
+        let capped = removal_feedback(&conn, 30, 2, 2).unwrap();
+        assert_eq!(capped.len(), 2);
+        assert_eq!(capped[0].0, "乙", "同频次按名字稳定排序（乙 < 甲 < 重要）");
+        assert_eq!(capped[1].0, "甲");
     }
 }

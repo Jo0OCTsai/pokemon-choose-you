@@ -29,6 +29,9 @@ vi.mock("../api", () => ({
     undoChatReview: vi.fn(),
     batchReviewChatMessages: vi.fn(),
     listTags: vi.fn(),
+    tagCheckup: vi.fn(async () => ({ merges: [], zombies: [], newDimensions: [], judged: false })),
+    mergeTag: vi.fn(async () => {}),
+    moveTagsToDimension: vi.fn(async () => {}),
     listTagDimensions: vi.fn(async () => [
       { id: 1, key: "project", name: "项目", cardinality: "single", maxTags: 20, sort: 1, enabled: true },
       { id: 2, key: "context", name: "场景", cardinality: "multi", maxTags: 10, sort: 2, enabled: true },

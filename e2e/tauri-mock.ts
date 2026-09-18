@@ -285,6 +285,16 @@ export async function installTauriMock(page: Page, state: Partial<MockState> = {
             return db.nextId++;
           case "list_tags":
             return [];
+          case "tag_checkup":
+            return { merges: [], zombies: [], newDimensions: [], judged: false };
+          case "merge_tag":
+            broadcast("tags-changed");
+            broadcast("tasks-changed");
+            return null;
+          case "move_tags_to_dimension":
+            broadcast("tags-changed");
+            broadcast("tasks-changed");
+            return null;
           case "list_tag_dimensions":
             return [
               { id: 1, key: "project", name: "项目", cardinality: "single", maxTags: 20, sort: 1, enabled: true },
