@@ -5,7 +5,7 @@ import App from "../App.vue";
 import { api } from "../api";
 import { i18n } from "../i18n";
 import { useSettingsStore } from "../stores/settings";
-import type { Task } from "../types";
+import type { ChatMessage, Task } from "../types";
 
 vi.mock("../api", () => ({
   api: {
@@ -422,7 +422,7 @@ describe("App 图鉴机主面板", () => {
 
   it("按频道分组可折叠：点组头收起该频道，再点展开", async () => {
     tasks = seed([]);
-    const im = (id: number, chatId: string, chatName: string, content: string, aiStatus: string) => ({
+    const im = (id: number, chatId: string, chatName: string, content: string, aiStatus: string): ChatMessage => ({
       id,
       messageId: `m${id}`,
       chatId,
