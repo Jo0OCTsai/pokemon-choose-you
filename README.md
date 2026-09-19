@@ -60,10 +60,8 @@
 
 - **[操作说明](docs/USER_GUIDE.md)**——安装、快速上手、飞书/AI 对接教程、常见问题
 - **[开发指南](docs/DEVELOPMENT.md)**——环境搭建、测试矩阵、目录结构、发布流程
-- **[飞书消息分析策略](docs/FEISHU_MESSAGE_ANALYSIS.md)**——收音机链路全景：拉取/语境过滤/AI 判定/人工分诊的架构图解与策略 review
 - **[设计系统](design/DESIGN_SYSTEM.md)**——图鉴复古风的设计规范（色彩/字体/组件/动效）
 - **[文案准则](design/COPYWRITING.md)**——三视角文案体系（训练家/宝可梦/图鉴机）与世界观词汇表
-- **[图鉴机设计稿](design/dex-demo.html)** · **[桌宠设计稿](design/pet-interaction-demo.html)**——令牌/组件与桌宠动画的可交互演示页（本地打开）
 
 ## 版权说明
 

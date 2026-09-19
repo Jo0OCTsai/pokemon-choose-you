@@ -173,11 +173,14 @@ pub fn export_json_to(data_dir: &Path, conn: &Connection, dest: Option<&str>) ->
     for table in DUMP_TABLES {
         let mut rows = dump_table(conn, table)?;
         if *table == "settings" {
-            // 秘钥不出文件（在系统钥匙串）；导入端同样跳过
+            // 秘钥不出文件（在系统钥匙串）；内部标记位（迁移完成标记）也不随库走；
+            // 导入端同样跳过
             rows.retain(|r| {
                 r.get("key")
                     .and_then(|v| v.as_str())
-                    .map(|k| !crate::secrets::is_secret_key(k))
+                    .map(|k| {
+                        !crate::secrets::is_secret_key(k) && !crate::db::is_internal_setting_key(k)
+                    })
                     .unwrap_or(true)
             });
         }
@@ -244,7 +247,10 @@ pub fn import_json_from(content: &str, conn: &mut Connection) -> AppResult<usize
                 .filter(|r| {
                     r.get("key")
                         .and_then(|v| v.as_str())
-                        .map(|k| !crate::secrets::is_secret_key(k))
+                        .map(|k| {
+                            !crate::secrets::is_secret_key(k)
+                                && !crate::db::is_internal_setting_key(k)
+                        })
                         .unwrap_or(true)
                 })
                 .collect()

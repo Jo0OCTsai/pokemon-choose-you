@@ -49,13 +49,10 @@ async fn open_agent_in_terminal(
     agent: &AgentConfig,
     resume_session: Option<&str>,
 ) -> AppResult<String> {
-    let (program, mut args) = crate::ai::history_invocation(agent);
-    if let (Some(sess), Some(first)) = (resume_session, args.first()) {
-        // claude 语法：--resume <session_id>；其余 agent 同样把 id 追加到首个历史参数后
-        if first == "--resume" || first == "resume" {
-            args.push(sess.to_string());
-        }
-    }
+    // 会话 id 的注入（--resume <id> / --resume-id <id>）在 history_invocation 内按
+    // agent 级历史参数适配，本地远程同一套规则（回归：旧实现看 ssh argv 首参，
+    // 远程分支永远是 -o，id 从未被注入）
+    let (program, args) = crate::ai::history_invocation(agent, resume_session);
     // 本地 agent 总是先 cd 到工作目录再启动：与无头调用同一套解析（留空 = ~/.choose-you，
     // 自动创建），交互会话不能落在终端默认目录；SSH 远程的 cd 由 history_invocation
     // 前缀在远端命令行里（留空 = 远端登录目录）；目录解析失败（无主目录）退回不 cd 直启
@@ -113,32 +110,58 @@ async fn spawn_in_terminal(program: &str, args: &[String]) -> AppResult<&'static
     spawn_line_in_terminal(&line).await
 }
 
+/// AppleScript 字符串字面量转义：`\` 与 `"` 必须转义。SSH 远程的历史命令行带
+/// `"$SHELL"`（双引号），不转义会打断 `do script "..."` 的语法，Terminal 打不开
+/// 且 osascript 报 -2740（回归：远程 agent 的历史记录在 macOS 上唤不起终端）。
+/// 仅 macOS 编译：唯一调用方在 cfg 门内，Linux 下无调用方会触发 dead_code。
+#[cfg(target_os = "macos")]
+fn applescript_escape(s: &str) -> String {
+    s.replace('\\', "\\\\").replace('"', "\\\"")
+}
+
 /// spawn_in_terminal 的整行版本：line 原样交给目标 shell 执行，不再逐参转义
-/// （用于含 && 等 shell 语法的复合命令）。
+/// （用于含 && 等 shell 语法的复合命令）。等进程结束并检查退出码——
+/// 只看 spawn 成功会把 osascript 的运行时语法错误静默吞掉（窗口没开却报成功）。
 async fn spawn_line_in_terminal(line: &str) -> AppResult<&'static str> {
     #[cfg(target_os = "macos")]
     {
         // Terminal.app 不接受命令参数，用 osascript 让它执行一条 shell 命令
-        let script = format!("tell application \"Terminal\" to do script \"{line}\"");
-        if tokio::process::Command::new("osascript")
+        let script = format!(
+            "tell application \"Terminal\" to do script \"{}\"",
+            applescript_escape(line)
+        );
+        let out = tokio::process::Command::new("osascript")
             .arg("-e")
             .arg(&script)
-            .spawn()
-            .is_ok()
-        {
+            .output()
+            .await
+            .map_err(|e| AppError::External(format!("无法打开 macOS 终端: {e}")))?;
+        if out.status.success() {
             return Ok("Terminal");
         }
-        Err(AppError::External("无法打开 macOS 终端".into()))
+        let stderr = String::from_utf8_lossy(&out.stderr);
+        Err(AppError::External(format!(
+            "macOS 终端命令执行失败：{}（命令行：{line}）",
+            stderr.trim()
+        )))
     }
 
     #[cfg(target_os = "windows")]
     {
         let title = "pokemon-choose-you agent";
-        tokio::process::Command::new("cmd")
+        let out = tokio::process::Command::new("cmd")
             .args(["/C", "start", title, "cmd", "/K", line])
-            .spawn()
+            .output()
+            .await
             .map_err(|e| AppError::External(format!("打开终端失败: {e}")))?;
-        return Ok("cmd");
+        if out.status.success() {
+            return Ok("cmd");
+        }
+        let stderr = String::from_utf8_lossy(&out.stderr);
+        Err(AppError::External(format!(
+            "打开终端失败：{}（命令行：{line}）",
+            stderr.trim()
+        )))
     }
 
     #[cfg(all(unix, not(target_os = "macos")))]
@@ -155,22 +178,33 @@ async fn spawn_line_in_terminal(line: &str) -> AppResult<&'static str> {
             ("foot", ""),
             ("x-terminal-emulator", "-e"),
         ];
+        let mut last_err: Option<String> = None;
         for (term, flag) in candidates {
             let mut cmd = tokio::process::Command::new(term);
             if !flag.is_empty() {
                 cmd.args(flag.split_whitespace());
             }
             cmd.args(["bash", "-lc", line]);
-            match cmd.spawn() {
-                Ok(_) => return Ok(term),
+            match cmd.output().await {
+                Ok(o) if o.status.success() => return Ok(term),
+                Ok(o) => {
+                    // 终端程序存在但启动失败（如 DISPLAY 缺失）：换下一个前记下报错
+                    last_err = Some(format!(
+                        "{term}: {}",
+                        String::from_utf8_lossy(&o.stderr).trim()
+                    ));
+                }
                 Err(e) if e.kind() == std::io::ErrorKind::NotFound => continue,
                 Err(e) => {
                     return Err(AppError::External(format!("启动 {term} 失败: {e}")));
                 }
             }
         }
+        let detail = last_err
+            .map(|e| format!("（{e}）"))
+            .unwrap_or_else(|| "（gnome-terminal / konsole / kitty …）".into());
         Err(AppError::External(format!(
-            "未找到可用的终端模拟器（gnome-terminal / konsole / kitty …），请手动打开终端运行：{line}"
+            "未找到可用的终端模拟器{detail}，请手动打开终端运行：{line}"
         )))
     }
 
@@ -356,6 +390,38 @@ mod tests {
         );
         assert_eq!(shell_quote("it's"), r#"'it'\''s'"#);
         assert_eq!(shell_quote(""), "''");
+    }
+
+    /// 回归：SSH 远程历史命令行含 "$SHELL"（双引号），不转义会打断 AppleScript
+    /// 字符串字面量，osascript 报 -2740、Terminal 打不开且旧实现静默吞错
+    #[test]
+    #[cfg(target_os = "macos")]
+    fn applescript_escape_shields_quotes_and_backslashes() {
+        // 无特殊字符：原样
+        assert_eq!(applescript_escape("claude --resume"), "claude --resume");
+        // 远程历史行的典型形态：exec "$SHELL" 的双引号被转义
+        let escaped = applescript_escape("ssh box -- exec \"$SHELL\" -lc 'claude --resume'");
+        assert!(
+            escaped.contains("\\\"$SHELL\\\""),
+            "双引号转义为 \\\": {escaped}"
+        );
+        assert!(!escaped.contains("\"$SHELL\""), "不再有裸双引号: {escaped}");
+        // 反斜杠翻倍（AppleScript 的转义符本身先要转义）
+        assert_eq!(applescript_escape("a\\b"), "a\\\\b");
+        // 转义后整段能作为 AppleScript 字符串编译（语法层面合法）
+        let script = format!("tell application \"Terminal\" to do script \"{escaped}\"");
+        let compile = std::process::Command::new("osacompile")
+            .arg("-o")
+            .arg("/dev/null")
+            .arg("-e")
+            .arg(&script)
+            .output()
+            .expect("osacompile 应可用");
+        assert!(
+            compile.status.success(),
+            "转义后的 AppleScript 应编译通过: {}",
+            String::from_utf8_lossy(&compile.stderr)
+        );
     }
 
     #[test]

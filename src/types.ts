@@ -220,6 +220,34 @@ export interface RemotePkReport {
   version?: string | null;
 }
 
+/** agent 技能检查结果（本地直读；远程经 ssh 读远端目录） */
+export interface AgentSkillStatus {
+  agentId: string;
+  /** 技能目标类型（claude-code / opencode / kiro） */
+  kind: string;
+  /** 技能目录（本地绝对路径；远程为 $HOME 相对路径） */
+  dir: string;
+  /** 远程机器（null = 本机） */
+  remoteHost: string | null;
+  installed: boolean;
+  installedVersion: string | null;
+  /** 应用内置的技能版本 */
+  bundledVersion: string;
+  upToDate: boolean;
+}
+
+/** agent 技能安装/同步结果 */
+export interface AgentSkillInstallResult {
+  agentId: string;
+  kind: string;
+  dir: string;
+  remoteHost: string | null;
+  /** 安装前的旧版本（null = 首次安装） */
+  previousVersion: string | null;
+  version: string;
+  updated: boolean;
+}
+
 /** 集成链路健康（诊断页展示）：飞书 / AI */
 export interface IntegrationHealth {
   provider: "feishu" | "ai";

@@ -242,10 +242,15 @@ AI 判定时会带上**同会话 30 分钟内的近期上下文**与消息来源
 
 | Agent | 命令 | 无头调用（应用预设） | 历史记录参数 |
 |---|---|---|---|
-| Claude Code | `claude` | `-p {prompt} --allowedTools Bash(pk:*)` | `--resume` |
+| Claude Code | `claude` | `-p {prompt} --allowedTools Bash(pk:*) --output-format json`（JSON 信封带回 session_id / 成本，会话回链自动落库） | `--resume` |
 | OpenCode | `opencode` | `run {prompt}` | （TUI 自带会话列表） |
-| Kiro CLI | `kiro-cli` | `chat --no-interactive --trust-all-tools`（无 `{prompt}`，提示词经标准输入传入） | `--resume` |
+| Kiro CLI | `kiro-cli` | `chat --no-interactive --trust-all-tools --agent-engine v2`（无 `{prompt}`，提示词经标准输入传入；`--agent-engine v2` 使无头会话落盘，classic 引擎不保存） | `chat --resume-picker` |
 | 其他 | 任意 | 自定义 | 自定义 |
+
+> 会话历史说明：claude 的无头（`-p`）会话**不出现在交互选择器里**，只能按会话 id 恢复——
+> 应用已自动记录每次无头调用的 session_id，任务详情抽屉「Agent 执行」区的回放入口
+> （`claude --resume <id>`）即走此路径。Kiro CLI 无头多轮恢复目前不可靠
+> （kiro 官方 issue #11069），多轮场景建议用交互模式（`chat --resume` / `--resume-picker`）。
 
 **SSH 远程执行**：agent CLI 不在本机时，在 agent 配置里勾选「SSH 远程执行」并填目标（`user@host`，可指定端口与私钥路径）。实际执行的命令是 `ssh -o BatchMode=yes -o ConnectTimeout=10 [-i 密钥] [-p 端口] user@host -- <command> <args...>`：
 
@@ -263,10 +268,17 @@ AI 判定时会带上**同会话 30 分钟内的近期上下文**与消息来源
 
 设置 → 集成 → AI Agent CLI：
 
-1. 选预设 → 点「＋ 添加 Agent」（也可自定义命令与参数）；
-2. 可配置多个：用单选「用于收音机分类」指定当前生效的 agent，其余作为备用；
+1. 选预设 → 点「＋ 添加 Agent」（也可自定义命令与参数）；**同类型可加多个**（如本地一个
+   Claude Code、远程一个），重名自动加序号后缀（Claude Code 2），每个 agent 的名字行
+   可自由改名；
+2. 可配置多个：用单选「用于收音机分类」指定当前生效的 agent（选项带 · SSH 徽标区分
+   本地/远程），其余作为备用；
 3. 点「测试」会真跑一次工具探针（`pk context`），一次验证命令可用、工具白名单、PATH 与数据库整条链路；
-4. 点「历史记录 ↗」会在新终端中打开该 agent 的会话历史（历史由 agent 工具自己保存）。
+4. 点「历史记录 ↗」会在新终端中打开该 agent 的会话历史（历史由 agent 工具自己保存；
+   远程 agent 经 ssh 转发，交互界面照常可用）；
+5. 「pk 技能」行的**检查 / 安装同步**：一键把 pk 使用技能装进该 agent 的技能目录并
+   对比版本（本地直写；远程 agent 经 ssh 写**远端机器**的目录——技能是给 agent 读的，
+   必须装在 agent 实际运行的那台机器上）。
 
 要点：
 
@@ -305,7 +317,7 @@ pk help --json                       # 机器可读的命令目录（供 agent �
 pk help                              # 完整命令说明
 ```
 
-- **技能一键分发**：`pk skill install claude-code` 把 pk 使用技能装进 agent 的技能目录（claude-code → `~/.claude/skills/`，opencode → `~/.config/opencode/skill/`），含主文件 SKILL.md 与 references/ 引用文件（完整参数表、无头分类工作流），带版本标记、跨版本重装会提示更新；其他 agent 用 `--dir <目录>` 指定落点，或 `pk skill show` 打印全部内容自行粘贴
+- **技能一键分发**：`pk skill install claude-code` 把 pk 使用技能装进 agent 的技能目录（claude-code → `~/.claude/skills/`，opencode → `~/.config/opencode/skill/`，kiro → `~/.kiro/skills/`），含主文件 SKILL.md 与 references/ 引用文件（完整参数表、无头分类工作流），带版本标记、跨版本重装会提示更新；其他 agent 用 `--dir <目录>` 指定落点，或 `pk skill show` 打印全部内容自行粘贴。设置页 agent 配置里的「pk 技能 · 检查 / 安装同步」按钮走同一套逻辑，且远程 agent 会经 ssh 装到远端机器的对应目录
 - **agent 友好性**：`--dry-run`（task create/update/delete 只校验回显不落库）、`task list --limit`（默认 50 条，`truncated` 提示用 search 收窄）、`help --json`（机器可读命令目录）、`doctor` 环境自检——检查数据库存在性、schema 版本、完整性、WAL 并发、context 读链路与技能安装版本，每项 ok/warn/fail 并附 `fix` 修复建议（有 fail 退出码 1）；远程部署排障加 `pk doctor --ssh <user@host>`，端到端验证 ssh 免密 → shim 在 PATH → 回连本机整条链
 - **会话回链与成本记录**：agent 代办后 `pk session log --task 3 --agent claude-code --session <id> --cost 0.12 --duration-ms 61000` 落一条会话；任务编辑弹窗的「Agent 执行」区展示每次的时长 / 成本 / 退出码（含收音机分类调用），有会话 id 的可一键在终端回放转录（`claude --resume <id>`）
 - 与桌面应用共用同一个 SQLite 库（WAL 并发安全），操作同样写入审计日志；

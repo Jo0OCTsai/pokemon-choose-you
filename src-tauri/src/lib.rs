@@ -13,6 +13,7 @@ pub mod models;
 mod scheduler;
 mod secrets;
 mod shortcuts;
+pub mod skills;
 mod tray;
 mod which;
 
@@ -146,6 +147,8 @@ pub fn run() {
             commands::test_ai_config,
             commands::open_agent_history,
             commands::setup_remote_pk,
+            commands::agent_skill_status,
+            commands::agent_skill_install,
             commands::test_feishu_config,
             commands::trigger_feishu_poll,
             commands::feishu_oauth_login,
