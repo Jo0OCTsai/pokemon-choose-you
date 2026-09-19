@@ -222,7 +222,8 @@ pub(crate) fn quote_cd_target(dir: &str) -> String {
 }
 
 /// POSIX 单引号引用：ssh 把 argv 拼接后交远端 shell 重解析，含特殊字符的参数须整体引用
-fn posix_quote(s: &str) -> String {
+/// （commands/skills 的远程技能检查/安装同用）
+pub(crate) fn posix_quote(s: &str) -> String {
     let safe = !s.is_empty()
         && s.bytes()
             .all(|b| b.is_ascii_alphanumeric() || b"-_./=@:%+".contains(&b));
@@ -233,19 +234,44 @@ fn posix_quote(s: &str) -> String {
     }
 }
 
-/// 打开历史记录界面的实际命令行（本地直启 / 远程 ssh 转发）
-pub fn history_invocation(agent: &AgentConfig) -> (String, Vec<String>) {
-    let args: Vec<String> = agent
+/// 把会话 id 适配进历史参数（agent 级参数，本地远程共用）：
+/// - `--resume` / `resume`（claude 语法）：id 插到该参数后 —— `claude --resume <id>`
+/// - `--resume-picker`（kiro 语法）：换成按 id 恢复 —— `kiro-cli chat --resume-id <id>`
+/// - 无可识别的恢复参数：不注入（如 opencode 历史参数为空，直接启动）
+fn adapt_history_args(args: &mut Vec<String>, session: &str) {
+    if let Some(i) = args.iter().position(|a| a == "--resume" || a == "resume") {
+        // 紧跟其后插入而非追加到末尾：用户在历史参数后还配了别的开关时，
+        // id 混进末尾会被当成无名参数丢掉
+        args.insert(i + 1, session.to_string());
+        return;
+    }
+    if let Some(i) = args.iter().position(|a| a == "--resume-picker") {
+        args[i] = "--resume-id".into();
+        args.insert(i + 1, session.to_string());
+    }
+}
+
+/// 打开历史记录界面的实际命令行（本地直启 / 远程 ssh 转发）。
+/// resume_session 存在时注入到历史参数里（见 adapt_history_args），直接回放该会话转录。
+pub fn history_invocation(
+    agent: &AgentConfig,
+    resume_session: Option<&str>,
+) -> (String, Vec<String>) {
+    let mut args: Vec<String> = agent
         .history_args
         .split_whitespace()
         .map(String::from)
         .collect();
+    if let Some(sess) = resume_session.filter(|s| !s.trim().is_empty()) {
+        adapt_history_args(&mut args, sess.trim());
+    }
     match agent.remote.as_ref().filter(|r| !r.host.trim().is_empty()) {
         None => (agent.command.clone(), args),
         Some(r) => {
+            // 交互式历史会话：不设 BatchMode（密钥未就绪时允许在终端里输密码，
+            // 而不是无提示地瞬间失败）；-tt 强制分配远端伪终端，agent 的 TUI 才能交互
             let mut argv = vec![
-                "-o".to_string(),
-                "BatchMode=yes".to_string(),
+                "-tt".to_string(),
                 "-o".to_string(),
                 "ConnectTimeout=10".to_string(),
             ];
@@ -1072,9 +1098,16 @@ mod tests {
             ]
         );
         // 历史入口也走 ssh
-        let (prog, argv) = history_invocation(&b);
+        let (prog, argv) = history_invocation(&b, None);
         assert_eq!(prog, "ssh");
         assert!(argv.contains(&"--".to_string()) && argv.contains(&"box".to_string()));
+        // 交互式历史不设 BatchMode（允许终端里输密码），但保留连接超时
+        assert!(!argv.contains(&"BatchMode=yes".to_string()));
+        assert!(argv.contains(&"ConnectTimeout=10".to_string()));
+        assert!(
+            argv.contains(&"-tt".to_string()),
+            "强制分配远端伪终端: {argv:?}"
+        );
     }
 
     // ---- 工作目录：显式配置优先，缺省固定为主目录，远程 cd 前缀 ----
@@ -1126,7 +1159,7 @@ mod tests {
         assert!(inv.cwd.is_none(), "远程分支不设本地 cwd");
 
         // 历史入口同样带 cd 前缀
-        let (_, argv) = history_invocation(&a);
+        let (_, argv) = history_invocation(&a, None);
         assert!(
             argv.last().unwrap().contains("cd ~/lab && claude"),
             "历史会话也在配置目录里打开"
@@ -1136,6 +1169,78 @@ mod tests {
         assert_eq!(quote_cd_target("~"), "~");
         assert_eq!(quote_cd_target("~/a b"), "~/'a b'");
         assert_eq!(quote_cd_target("/it's"), "'/it'\\''s'");
+    }
+
+    /// 会话 id 注入历史参数：claude 的 --resume 后插 id；kiro 的 --resume-picker
+    /// 换成 --resume-id；无恢复参数的历史不注入；本地远程行为一致
+    #[test]
+    fn history_invocation_injects_session_for_resume_flags() {
+        // claude：--resume <id>，本地直接拼 args
+        let claude = AgentConfig {
+            command: "claude".into(),
+            history_args: "--resume".into(),
+            ..Default::default()
+        };
+        let (_, args) = history_invocation(&claude, Some("sess-9"));
+        assert_eq!(args, vec!["--resume".to_string(), "sess-9".to_string()]);
+
+        // kiro：--resume-picker 换成 --resume-id <id>（chat 子命令保留在前）
+        let kiro = AgentConfig {
+            command: "kiro-cli".into(),
+            history_args: "chat --resume-picker".into(),
+            ..Default::default()
+        };
+        let (_, args) = history_invocation(&kiro, Some("sess-9"));
+        assert_eq!(
+            args,
+            vec![
+                "chat".to_string(),
+                "--resume-id".to_string(),
+                "sess-9".to_string()
+            ]
+        );
+
+        // 无恢复参数（opencode 等空历史）：不注入
+        let plain = AgentConfig {
+            command: "opencode".into(),
+            history_args: String::new(),
+            ..Default::default()
+        };
+        let (_, args) = history_invocation(&plain, Some("sess-9"));
+        assert!(args.is_empty());
+
+        // 远程：id 进远端命令行而不是 ssh 的选项区（回归：旧实现误判 ssh argv 首参）
+        let remote = AgentConfig {
+            command: "claude".into(),
+            history_args: "--resume".into(),
+            workdir: "~/lab".into(),
+            remote: Some(AgentRemote {
+                host: "box".into(),
+                ..Default::default()
+            }),
+            ..Default::default()
+        };
+        let (_, argv) = history_invocation(&remote, Some("sess-9"));
+        let line = argv.last().unwrap();
+        assert!(
+            line.contains("claude --resume sess-9"),
+            "id 紧跟 --resume 进远端命令行: {line}"
+        );
+
+        // id 插在恢复参数后、而不是参数串末尾（历史参数还带别的开关时）
+        let mut mixed = vec![
+            "--resume".to_string(),
+            "--model".to_string(),
+            "opus".to_string(),
+        ];
+        adapt_history_args(&mut mixed, "s1");
+        assert_eq!(
+            mixed,
+            vec!["--resume", "s1", "--model", "opus"]
+                .into_iter()
+                .map(String::from)
+                .collect::<Vec<_>>()
+        );
     }
 
     #[cfg(unix)]

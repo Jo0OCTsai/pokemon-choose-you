@@ -5,28 +5,15 @@
 //! - 与桌面应用共用同一套数据逻辑（conn 层函数），保证状态机不变量与操作日志一致；
 //! - 通过 WAL 与运行中的应用并发读写，PK_DB 环境变量可覆盖数据库路径。
 
-/// 随包分发的 agent 技能模板（教 agent 用 pk 管待办）
-const SKILL_MD: &str = include_str!("../../skills/pokemon-choose-you.md");
-/// 技能引用文件（渐进披露）：主文件保持精简，参数细节与批处理协议按需再读
-const SKILL_REFS: &[(&str, &str)] = &[
-    (
-        "references/commands.md",
-        include_str!("../../skills/references/commands.md"),
-    ),
-    (
-        "references/suggest-workflow.md",
-        include_str!("../../skills/references/suggest-workflow.md"),
-    ),
-];
-/// 当前技能版本（与 SKILL.md frontmatter 的 version 保持一致，用于安装时的版本对比）
-const SKILL_VERSION: &str = "2";
-
 use pokemon_choose_you_lib::ai::{AiSuggestion, ProposedTag};
 use pokemon_choose_you_lib::commands::radio::apply_suggestion_conn;
 use pokemon_choose_you_lib::commands::sessions::{
     list_agent_sessions_conn, log_session_conn, NewAgentSession,
 };
 use pokemon_choose_you_lib::commands::{categories, tags, tasks};
+use pokemon_choose_you_lib::skills::{
+    frontmatter_version, local_install, skill_dir_for, SKILL_MD, SKILL_REFS, SKILL_VERSION,
+};
 use rusqlite::{params, Connection};
 use serde_json::json;
 
@@ -63,7 +50,7 @@ const HELP: &str = r#"pk — 就决定是你了命令行（供 AI agent 与终�
                                       提交一条 AI 判定建议（todo/update 写建议列待用户确认；follow-up 直接挂跟进）
   suggest batch [--agent <agent-id>]
                                       批量提交建议：stdin 传 {"results":[...]}（与应用文本协议同构），整批校验失败则全部不落库
-  skill install <claude-code|opencode> [--dir <目录>]
+  skill install <claude-code|opencode|kiro> [--dir <目录>]
                                       一键安装 pk 使用技能到 agent 的技能目录（对标 td skill install）
   skill show                         打印技能内容（Markdown 原文，可重定向给任意 agent）
   remote shim --host <本机地址> [--port <n>] [--key <私钥>] [--write <路径>]
@@ -729,29 +716,9 @@ fn run_note(conn: &Connection, rest: &[String]) -> Result<serde_json::Value, Cli
     }
 }
 
-/// AI 处理上下文：当前时间 + 未完成待办 + 分类 + 标签（判重与属性建议的依据）
-/// agent 技能目录：claude-code → ~/.claude/skills；opencode → ~/.config/opencode/skill；
-/// 其他 agent 用 --dir 显式指定。返回技能文件所在目录。
-fn skill_dir_for(agent: &str, dir_flag: Option<&str>) -> Result<std::path::PathBuf, CliError> {
-    if let Some(d) = dir_flag.filter(|d| !d.is_empty()) {
-        return Ok(std::path::PathBuf::from(d));
-    }
-    let home = dirs::home_dir().ok_or_else(|| CliError("无法定位用户主目录".into(), 1))?;
-    match agent {
-        "claude-code" | "claude" => Ok(home.join(".claude").join("skills").join("pokemon-choose-you")),
-        "opencode" => Ok(home
-            .join(".config")
-            .join("opencode")
-            .join("skill")
-            .join("pokemon-choose-you")),
-        other => Err(usage_err(&format!(
-            "暂不认识 agent「{other}」的技能目录：支持 claude-code / opencode，其他 agent 用 --dir <目录> 指定，或 pk skill show 自行粘贴"
-        ))),
-    }
-}
-
 /// 安装/展示 agent 技能。install 写入主文件 + references/ 引用文件；
-/// show 拼接全部内容直接打印（不走 JSON，重定向给任意 agent 即完整技能）
+/// show 拼接全部内容直接打印（不走 JSON，重定向给任意 agent 即完整技能）。
+/// 目录规则与写盘逻辑在 lib 的 skills 模块（与桌面应用「安装/检查技能」共用）
 fn run_skill(rest: &[String]) -> Result<serde_json::Value, CliError> {
     let sub = rest.first().map(String::as_str).unwrap_or("");
     let p = parse_args(&rest[1.min(rest.len())..]);
@@ -765,55 +732,20 @@ fn run_skill(rest: &[String]) -> Result<serde_json::Value, CliError> {
             std::process::exit(0);
         }
         "install" => {
-            let agent = p.positional(0, "agent 名（claude-code / opencode）")?;
-            let dir = skill_dir_for(&agent, dir_flag.as_deref())?;
-            // 已装版本检测：同版本重装幂等，跨版本才提示更新（防旧技能残留误导 agent）
-            let previous = std::fs::read_to_string(dir.join("SKILL.md"))
-                .ok()
-                .and_then(|md| frontmatter_version(&md));
-            for (rel, content) in
-                std::iter::once(("SKILL.md", SKILL_MD)).chain(SKILL_REFS.iter().copied())
-            {
-                let path = dir.join(rel);
-                if let Some(parent) = path.parent() {
-                    std::fs::create_dir_all(parent)
-                        .map_err(|e| CliError(format!("创建技能目录失败: {e}"), 1))?;
-                }
-                std::fs::write(&path, content)
-                    .map_err(|e| CliError(format!("写入 {rel} 失败: {e}"), 1))?;
-            }
+            let agent = p.positional(0, "agent 名（claude-code / opencode / kiro）")?;
+            let dir = skill_dir_for(&agent, dir_flag.as_deref()).map_err(|m| CliError(m, 2))?;
+            let (previous, path) = local_install(&dir).map_err(|m| CliError(m, 1))?;
             Ok(json!({
                 "installed": true,
                 "version": SKILL_VERSION,
                 "previousVersion": previous,
                 "updated": previous.as_deref().is_some_and(|v| v != SKILL_VERSION),
                 "agent": agent,
-                "path": dir.join("SKILL.md").to_string_lossy(),
+                "path": path,
             }))
         }
         _ => Err(usage_err("skill 子命令支持 install / show，用法见 pk help")),
     }
-}
-
-/// 读 SKILL.md frontmatter 的 version 行（无 frontmatter 或无该行则 None）
-fn frontmatter_version(md: &str) -> Option<String> {
-    let mut in_fm = false;
-    for line in md.lines() {
-        let t = line.trim();
-        if t == "---" {
-            if in_fm {
-                break;
-            }
-            in_fm = true;
-            continue;
-        }
-        if in_fm {
-            if let Some(v) = t.strip_prefix("version:") {
-                return Some(v.trim().trim_matches('"').to_string());
-            }
-        }
-    }
-    None
 }
 
 fn run_session(conn: &Connection, rest: &[String]) -> Result<serde_json::Value, CliError> {
@@ -1461,7 +1393,7 @@ fn context_check(conn: &Connection) -> serde_json::Value {
 /// 技能安装状态：未安装提示可选安装（warn），旧版本提示更新
 fn skill_doctor_checks() -> Vec<serde_json::Value> {
     let mut out = vec![];
-    for agent in ["claude-code", "opencode"] {
+    for agent in ["claude-code", "opencode", "kiro"] {
         let entry = match skill_dir_for(agent, None) {
             Ok(dir) => dir.join("SKILL.md"),
             Err(_) => {
@@ -1583,7 +1515,7 @@ const COMMAND_INDEX: &[(&str, &str)] = &[
     ("session list", "会话列表（--task 查任务时间线）"),
     (
         "skill install <agent>",
-        "安装技能（claude-code|opencode，或 --dir 指定）",
+        "安装技能（claude-code|opencode|kiro，或 --dir 指定）",
     ),
     ("skill show", "打印技能全文"),
     ("remote shim", "生成远程 pk 透传脚本（--host 必填）"),
@@ -2060,19 +1992,34 @@ mod tests {
         assert_eq!(out["updated"], true, "跨版本提示更新");
         assert_eq!(out["previousVersion"], "1");
 
-        // 未知 agent 给出 --dir 出路
-        let err = run_err(&mut conn, &["skill", "install", "kiro"]);
+        // 未知 agent 给出 --dir 出路（kiro 已是内置目标，用未知名验证）
+        let err = run_err(&mut conn, &["skill", "install", "cursor"]);
         assert_eq!(err.1, 2);
         assert!(err.0.contains("--dir"), "{}", err.0);
 
+        // kiro 现为内置目标：--dir 下可正常安装（不写默认目录）
+        let kiro_dir = dir.join("kiro");
+        let out = run_ok(
+            &mut conn,
+            &[
+                "skill",
+                "install",
+                "kiro",
+                "--dir",
+                &kiro_dir.to_string_lossy(),
+            ],
+        );
+        assert_eq!(out["installed"], true);
+        assert!(kiro_dir.join("SKILL.md").is_file());
+
         // 目录规则：claude-code / opencode 的落点结构正确（不实际写）
-        let claude = skill_dir_for("claude-code", None).unwrap_or_else(|e| panic!("{}", e.0));
+        let claude = skill_dir_for("claude-code", None).unwrap_or_else(|e| panic!("{e}"));
         assert!(
             claude.ends_with(".claude/skills/pokemon-choose-you")
                 || claude.to_string_lossy().contains(".claude"),
             "{claude:?}"
         );
-        let opencode = skill_dir_for("opencode", None).unwrap_or_else(|e| panic!("{}", e.0));
+        let opencode = skill_dir_for("opencode", None).unwrap_or_else(|e| panic!("{e}"));
         assert!(
             opencode.to_string_lossy().contains("opencode"),
             "{opencode:?}"

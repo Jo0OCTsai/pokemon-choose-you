@@ -9,7 +9,15 @@ import { fmtDateTime, SETTING_KEYS, useSettingsStore } from "../stores/settings"
 import { useCategoriesStore } from "../stores/categories";
 import { useTagsStore } from "../stores/tags";
 import { useTasksStore } from "../stores/tasks";
-import type { AgentConfig, BackupInfo, FeishuOauthStatus, IntegrationHealth, LogEntry, RemotePkReport } from "../types";
+import type {
+  AgentConfig,
+  AgentSkillStatus,
+  BackupInfo,
+  FeishuOauthStatus,
+  IntegrationHealth,
+  LogEntry,
+  RemotePkReport,
+} from "../types";
 import { SUPPORTED_LOCALES } from "../i18n";
 import { BUNDLED_POKEMON, POKEMON_BY_KEY, mergePokemonQuotes, pokemonQuotesFor } from "../pokemon";
 import { clipWrite, openContextMenu } from "../contextMenu";
@@ -508,20 +516,25 @@ async function feishuLogin() {
 }
 
 // ---- AI agent CLI 管理 ----
-/** 无头调用约定的预设：{prompt} 占位符由应用替换为提示词；没有占位符时提示词经标准输入传入（kiro-cli 即此方式） */
+/**
+ * 无头调用约定的预设：{prompt} 占位符由应用替换为提示词；没有占位符时提示词经标准输入传入（kiro-cli 即此方式）。
+ * claude 带 --output-format json：stdout 变 JSON 信封（含 session_id/成本），应用解信封后
+ * 会话回链自动落库；kiro 带 --agent-engine v2：--no-interactive 默认回落 classic 引擎、
+ * 会话不落盘，显式 v2 才持久化；kiro 历史参数需带 chat 子命令（--resume-picker 打开选择器）
+ */
 const AGENT_PRESETS: Record<string, Omit<AgentConfig, "id" | "timeoutSecs" | "enabled">> = {
   claude: {
     name: "Claude Code",
     command: "claude",
-    args: "-p {prompt} --allowedTools Bash(pk:*)",
+    args: "-p {prompt} --allowedTools Bash(pk:*) --output-format json",
     historyArgs: "--resume",
   },
   opencode: { name: "OpenCode", command: "opencode", args: "run {prompt}", historyArgs: "" },
   kiro: {
     name: "Kiro CLI",
     command: "kiro-cli",
-    args: "chat --no-interactive --trust-all-tools",
-    historyArgs: "--resume",
+    args: "chat --no-interactive --trust-all-tools --agent-engine v2",
+    historyArgs: "chat --resume-picker",
   },
   custom: { name: "", command: "", args: "{prompt}", historyArgs: "" },
 };
@@ -533,10 +546,16 @@ const presetOptions = [
 ];
 const agentPreset = ref("claude");
 const agents = ref<AgentConfig[]>([]);
-/** 用于收音机分类的 agent（分区级单选，与其他表单行同一套下拉控件）；空 = 不指定 */
+/** 用于收音机分类的 agent（分区级单选，与其他表单行同一套下拉控件）；空 = 不指定。
+ * 标签带本机/SSH 徽标：同类型多 agent（本地 + 远程各一）时单选可辨 */
 const primaryAgentOptions = computed(() => [
   { value: "", label: t("ai.primaryNone") },
-  ...agents.value.filter((a) => a.enabled).map((a) => ({ value: a.id, label: a.name || a.command })),
+  ...agents.value
+    .filter((a) => a.enabled)
+    .map((a) => ({
+      value: a.id,
+      label: `${a.name || a.command}${a.remote?.host?.trim() ? " · SSH" : ""}`,
+    })),
 ]);
 
 function newId(): string {
@@ -573,9 +592,24 @@ function toggleRemote(ag: AgentConfig, on: boolean) {
   ag.remote = on ? { host: "", port: 22, keyPath: "" } : null;
 }
 
+/** 预设名已被占用时加序号后缀（如 Claude Code 2）：同类型配多个（本地 + 远程）时列表仍可辨 */
+function dedupeAgentName(base: string): string {
+  if (!base || !agents.value.some((a) => a.name === base)) return base;
+  let n = 2;
+  while (agents.value.some((a) => a.name === `${base} ${n}`)) n++;
+  return `${base} ${n}`;
+}
+
 function addAgent() {
   const preset = AGENT_PRESETS[agentPreset.value] ?? AGENT_PRESETS.custom;
-  agents.value.push({ id: newId(), timeoutSecs: 120, enabled: true, workdir: "", ...preset });
+  agents.value.push({
+    id: newId(),
+    timeoutSecs: 120,
+    enabled: true,
+    workdir: "",
+    ...preset,
+    name: dedupeAgentName(preset.name),
+  });
 }
 
 function removeAgent(id: string) {
@@ -608,6 +642,56 @@ async function openHistory(ag: AgentConfig) {
   } finally {
     testing.value = false;
   }
+}
+
+// ---- agent 的 pk 技能：检查 / 安装同步（本地与远程同一组入口，远程写远端机器目录） ----
+const skillStatus = ref<Record<string, AgentSkillStatus>>({});
+const skillBusy = ref(false);
+
+async function checkSkill(ag: AgentConfig) {
+  skillBusy.value = true;
+  try {
+    await saveAgents();
+    skillStatus.value[ag.id] = await api.agentSkillStatus(ag.id);
+  } catch (e) {
+    testMsg.value = `❌ ${errorMessage(e)}`;
+  } finally {
+    skillBusy.value = false;
+  }
+}
+
+async function installSkill(ag: AgentConfig) {
+  skillBusy.value = true;
+  testMsg.value = t("ai.skillInstalling");
+  try {
+    await saveAgents();
+    const r = await api.agentSkillInstall(ag.id);
+    const where = r.remoteHost ? r.remoteHost : t("ai.local");
+    testMsg.value = r.updated
+      ? t("ai.skillUpdated", { v: r.version, prev: r.previousVersion || "?", where })
+      : t("ai.skillInstalled", { v: r.version, where });
+    skillStatus.value[ag.id] = await api.agentSkillStatus(ag.id).catch(() => skillStatus.value[ag.id]);
+  } catch (e) {
+    testMsg.value = `❌ ${errorMessage(e)}`;
+  } finally {
+    skillBusy.value = false;
+  }
+}
+
+/** 技能状态一行字（未检查 / 未安装 / 已装 vN / 可更新） */
+function skillText(ag: AgentConfig): string {
+  const s = skillStatus.value[ag.id];
+  if (!s) return t("ai.skillUnknown");
+  if (!s.installed) return t("ai.skillNotInstalled");
+  return s.upToDate
+    ? t("ai.skillUpToDate", { v: s.installedVersion || "?" })
+    : t("ai.skillOutdated", { v: s.installedVersion || "?", b: s.bundledVersion });
+}
+
+/** agent 位置徽标：远程显示 SSH 目标，本地显示「本机」 */
+function agentPlace(ag: AgentConfig): string {
+  const host = ag.remote?.host?.trim();
+  return host ? `SSH · ${host}` : t("ai.local");
 }
 
 /** 一键配置远程 pk：后端读的是已保存配置，先把表单落库再触发；成功后刷新设置与表单 */
@@ -891,17 +975,6 @@ onUnmounted(() => unlisteners.forEach((u) => u()));
         </section>
 
         <section class="set-card">
-          <h3>{{ t("cats.quotesTitle") }}</h3>
-          <p class="set-sub">{{ t("cats.quotesHint") }}</p>
-          <div class="quotes-controls">
-            <PokemonPicker :model-value="quotePokemon" @update:model-value="onQuotePokemonChange" />
-            <span class="quotes-count">{{ t("cats.quotesCount", { n: quoteCount }) }}</span>
-            <button class="btn ghost" @click="saveQuotes">{{ t("cats.quotesSave") }}</button>
-          </div>
-          <textarea v-model="quoteText" class="quotes-editor" rows="4" :placeholder="t('cats.quotesPh')" />
-        </section>
-
-        <section class="set-card">
           <h3>{{ t("cats.title") }}</h3>
           <div v-for="row in editingCats" :key="row.id" class="cat-row" :class="{ off: !row.enabled }">
             <input v-model="row.name" class="cat-name" />
@@ -919,6 +992,17 @@ onUnmounted(() => unlisteners.forEach((u) => u()));
           </div>
           <p class="set-foot">{{ t("cats.hint") }}</p>
           <p class="set-foot">{{ t("cats.disableHint") }}</p>
+        </section>
+
+        <section class="set-card">
+          <h3>{{ t("cats.quotesTitle") }}</h3>
+          <p class="set-sub">{{ t("cats.quotesHint") }}</p>
+          <div class="quotes-controls">
+            <PokemonPicker :model-value="quotePokemon" @update:model-value="onQuotePokemonChange" />
+            <span class="quotes-count">{{ t("cats.quotesCount", { n: quoteCount }) }}</span>
+            <button class="btn ghost" @click="saveQuotes">{{ t("cats.quotesSave") }}</button>
+          </div>
+          <textarea v-model="quoteText" class="quotes-editor" rows="4" :placeholder="t('cats.quotesPh')" />
         </section>
       </template>
 
@@ -1020,6 +1104,11 @@ onUnmounted(() => unlisteners.forEach((u) => u()));
             <div class="agent-row">
               <input v-model="ag.name" class="agent-name" :placeholder="t('ai.namePh')" />
               <input v-model="ag.command" class="agent-cmd" :placeholder="t('ai.cmdPh')" />
+              <!-- 徽标放命令框之后：命令框左缘固定在 120px 名字 + 8px 间隙 = 128px，
+                   与下方 SettingRow(label-width 128) 的输入列对齐（徽标宽度不定，放中间会顶歪） -->
+              <span class="badge agent-place" :class="{ ssh: !!ag.remote?.host?.trim() }" :title="agentPlace(ag)">{{
+                agentPlace(ag)
+              }}</span>
               <DexToggle v-model="ag.enabled" :title="t('ai.enabled')" />
               <button class="btn ghost del" @click="removeAgent(ag.id)">{{ t("ai.remove") }}</button>
             </div>
@@ -1031,6 +1120,26 @@ onUnmounted(() => unlisteners.forEach((u) => u()));
             </SettingRow>
             <SettingRow :label="t('ai.historyArgs')" wide :label-width="128">
               <input v-model="ag.historyArgs" placeholder="--resume" />
+            </SettingRow>
+            <SettingRow :label="t('ai.skill')" wide :label-width="128">
+              <div class="skill-line">
+                <span
+                  class="skill-state"
+                  :class="{
+                    ok: skillStatus[ag.id]?.upToDate,
+                    stale: skillStatus[ag.id] && !skillStatus[ag.id].upToDate,
+                  }"
+                  :title="skillStatus[ag.id]?.dir"
+                >
+                  {{ skillText(ag) }}
+                </span>
+                <button class="btn ghost" :disabled="skillBusy || testing" @click="checkSkill(ag)">
+                  {{ t("ai.skillCheck") }}
+                </button>
+                <button class="btn ghost" :disabled="skillBusy || testing" @click="installSkill(ag)">
+                  {{ t("ai.skillInstall") }}
+                </button>
+              </div>
             </SettingRow>
             <SettingRow :label="t('ai.timeout')">
               <input v-model.number="ag.timeoutSecs" type="number" min="10" step="10" />
@@ -1055,11 +1164,6 @@ onUnmounted(() => unlisteners.forEach((u) => u()));
               <SettingRow :label="t('ai.sshTunnel')" :label-width="128">
                 <input v-model.number="ag.remote.tunnel" type="number" min="1" max="65535" placeholder="10022" />
               </SettingRow>
-              <div class="btn-row">
-                <button class="btn ghost" :disabled="testing" @click="setupRemotePkFor(ag)">
-                  {{ t("ai.setupRemote") }}
-                </button>
-              </div>
             </template>
             <div class="btn-row">
               <button class="btn ghost" @click="saveAgents">{{ t("ai.save") }}</button>
@@ -1068,6 +1172,9 @@ onUnmounted(() => unlisteners.forEach((u) => u()));
               </button>
               <button class="btn ghost" :disabled="testing" @click="openHistory(ag)">
                 {{ t("ai.history") }}
+              </button>
+              <button v-if="ag.remote" class="btn ghost" :disabled="testing" @click="setupRemotePkFor(ag)">
+                {{ t("ai.setupRemote") }}
               </button>
             </div>
           </div>
@@ -1552,9 +1659,46 @@ onUnmounted(() => unlisteners.forEach((u) => u()));
   width: 120px;
   flex: none;
 }
+/* 位置徽标：复用小件级 badge 控件；SSH 变体用图鉴蓝底白字。主机名是信息文本，
+ * 不拉字距不加粗，超长省略 */
+.agent-place {
+  flex: none;
+  max-width: 140px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  letter-spacing: 0;
+  font-weight: 400;
+}
+.agent-place.ssh {
+  background: var(--rest-blue);
+  color: #fff;
+}
 .agent-cmd {
   flex: 1;
   min-width: 0;
+}
+/* pk 技能状态行：状态字 + 检查/安装按钮 */
+.skill-line {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  flex: 1;
+}
+.skill-state {
+  flex: 1; /* 撑满剩余宽度，把检查/安装按钮推到行右缘（与其他行控件贴右一致） */
+  font-size: 12px;
+  color: var(--ink-soft);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.skill-state.ok {
+  color: var(--ok-ink);
+}
+.skill-state.stale {
+  color: var(--warn-ink);
 }
 .agent-row .btn {
   padding: 7px 10px;
@@ -1598,12 +1742,15 @@ onUnmounted(() => unlisteners.forEach((u) => u()));
   display: flex;
   gap: 10px;
 }
-/* 飞书授权状态行：状态文字 + 授权按钮同行 */
+/* 飞书授权状态行：状态文字居左、授权按钮贴右（与其他设置行的控件方位一致） */
 .auth-line {
   display: flex;
   align-items: center;
+  justify-content: space-between;
   gap: 10px;
-  margin: 8px 0 4px;
+  /* 底部间距与 SettingRow 的行距节奏一致（set-row margin-bottom 10px），
+   * 4px 时授权按钮与下一行的开关/按钮几乎贴住 */
+  margin: 8px 0 10px;
 }
 .auth-state {
   font-size: 12px;
@@ -1794,6 +1941,10 @@ onUnmounted(() => unlisteners.forEach((u) => u()));
   gap: 10px;
   flex-wrap: wrap;
 }
+/* 导出/导入的多行按钮组：行与行之间留出呼吸空隙 */
+.backup-controls + .backup-controls {
+  margin-top: 12px;
+}
 .inline-label {
   font-size: 13px;
   color: var(--dex-navy);
@@ -1801,7 +1952,7 @@ onUnmounted(() => unlisteners.forEach((u) => u()));
 }
 .backup-list {
   list-style: none;
-  margin: 0;
+  margin: 10px 0 0;
   padding: 0;
   display: flex;
   flex-direction: column;
