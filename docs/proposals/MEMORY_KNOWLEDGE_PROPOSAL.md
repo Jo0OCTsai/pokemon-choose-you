@@ -392,4 +392,4 @@ CREATE VIRTUAL TABLE knowledge_index USING fts5(
 - Anthropic memory tool 与 context editing（组合提升 ~39%）：<https://platform.claude.com/docs/en/build-with-claude/memory-tool>
 - Claude Code 记忆体系（CLAUDE.md 分层 + auto memory，「是上下文不是配置」）：<https://code.claude.com/docs/en/memory>；AGENTS.md 约定 <https://agents.md>
 - LangChain/LangMem 记忆分类法与热/冷路径形成：<https://www.langchain.com/blog/memory-for-agents>、<https://www.langchain.com/blog/langmem-sdk-launch>
-- 姊妹篇：本仓 `docs/TAG_SYSTEM_PROPOSAL.md`（确认门/治理模式复用来源）、`docs/FEISHU_MESSAGE_ANALYSIS.md`（反馈库与回归集构想来源）
+- 姊妹篇：本仓 `docs/proposals/TAG_SYSTEM_PROPOSAL.md`（确认门/治理模式复用来源）、`docs/proposals/FEISHU_MESSAGE_ANALYSIS.md`（反馈库与回归集构想来源）

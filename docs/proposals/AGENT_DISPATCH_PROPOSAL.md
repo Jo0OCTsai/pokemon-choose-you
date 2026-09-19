@@ -1,7 +1,7 @@
 # 待办驱动的 Agent 调度设计方案（标签 → Agent / 机器 / 工作目录）
 
 > 状态：设计提案（未实施）。前置调研结论见文末「附录：调研摘要」。
-> 目标读者：本项目维护者；实施前建议先读 [USER_GUIDE.md](USER_GUIDE.md) 的「配置 AI Agent CLI」一节。
+> 目标读者：本项目维护者；实施前建议先读 [USER_GUIDE.md](../USER_GUIDE.md) 的「配置 AI Agent CLI」一节。
 
 ## 1. 背景与目标
 
