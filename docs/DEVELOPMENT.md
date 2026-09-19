@@ -60,8 +60,9 @@ scripts/
   gen-pokemon-catalog.mjs  从 PokeAPI 重新生成 src/pokemon/catalog.json（新世代发售/译名调整后重跑）
 src-tauri/src/
   db.rs                 SQLite 初始化 + 版本迁移 + 默认分类
-  commands/             IPC 命令按域拆分：tasks / categories / tags / settings /
-                        integrations / radio / diagnostics / windows（conn 层供 pk CLI 复用）
+  commands/             IPC 命令按域拆分：tasks / categories / tags / tag_health（标签体检）/
+                        settings / integrations / radio / sessions / skills / dispatch（待办派发）/
+                        remote_pk / backup / export / diagnostics / windows（conn 层供 pk CLI 复用）
   bin/pk.rs             pk 命令行：供 AI agent 与终端读写待办（JSON 输出）
   scheduler.rs          提醒调度（提前量、通知开关、多语言通知）
   feishu.rs             用户身份增量轮询（lark-cli 聚合翻页 + 语境规则）+ 富文本渲染
