@@ -60,8 +60,8 @@
 
 - **[操作说明](docs/USER_GUIDE.md)**——安装、快速上手、飞书/AI 对接教程、常见问题
 - **[开发指南](docs/DEVELOPMENT.md)**——环境搭建、测试矩阵、目录结构、发布流程
-- **[设计系统](design/DESIGN_SYSTEM.md)**——图鉴复古风的设计规范（色彩/字体/组件/动效）
-- **[文案准则](design/COPYWRITING.md)**——三视角文案体系（训练家/宝可梦/图鉴机）与世界观词汇表
+- **[设计系统](docs/design/DESIGN_SYSTEM.md)**——图鉴复古风的设计规范（色彩/字体/组件/动效）
+- **[文案准则](docs/design/COPYWRITING.md)**——三视角文案体系（训练家/宝可梦/图鉴机）与世界观词汇表
 
 ## 版权说明
 

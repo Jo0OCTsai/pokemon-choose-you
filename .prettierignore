@@ -9,7 +9,6 @@ src-tauri/gen
 src-tauri/capabilities
 src-tauri/tauri.conf.json
 public
-design
 docs
 *.md
 src-tauri/Cargo.lock
