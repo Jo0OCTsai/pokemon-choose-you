@@ -862,7 +862,7 @@ describe("App 图鉴机主面板", () => {
     expect(w.html()).toContain("-p {prompt}"); // 附加参数预设（i18n 字面量转义后渲染）
 
     // 分区级「用于收音机分类」下拉选为该 agent（第 1 项=不指定，第 2 项=第一个启用的 agent），点测试先落库再调后端
-    const primaryLabel = w.findAll("label").find((l) => l.text().includes("用于收音机分类"))!;
+    const primaryLabel = w.findAll(".set-row").find((l) => l.text().includes("用于收音机分类"))!;
     await primaryLabel.find(".ds-btn").trigger("click");
     await primaryLabel.findAll(".ds-list li")[1].trigger("click");
     await w
@@ -893,7 +893,7 @@ describe("App 图鉴机主面板", () => {
       .trigger("click");
     const block = w.findAll(".agent-block")[0];
     // 开启 SSH（布尔统一走 DexToggle）：出现 host/port/key 输入
-    const sshLabel = block.findAll("label").find((l) => l.text().includes("SSH 远程执行"))!;
+    const sshLabel = block.findAll(".set-row").find((l) => l.text().includes("SSH 远程执行"))!;
     await sshLabel.find(".dex-toggle").trigger("click");
     expect(block.find(".ssh-row").exists()).toBe(true);
     const [host, , key] = block.findAll(".ssh-row input");

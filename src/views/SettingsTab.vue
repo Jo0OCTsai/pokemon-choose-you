@@ -15,6 +15,7 @@ import { BUNDLED_POKEMON, POKEMON_BY_KEY, mergePokemonQuotes, pokemonQuotesFor }
 import { clipWrite, openContextMenu } from "../contextMenu";
 import DexSelect from "../components/DexSelect.vue";
 import DexToggle from "../components/DexToggle.vue";
+import SettingRow from "../components/SettingRow.vue";
 import PokemonPicker from "../components/PokemonPicker.vue";
 
 /** App 壳监听到 update-available 后传入的版本号（空串 = 无新版本） */
@@ -507,11 +508,21 @@ async function feishuLogin() {
 }
 
 // ---- AI agent CLI 管理 ----
-/** 无头调用约定的预设：{prompt} 占位符由应用替换为提示词 */
+/** 无头调用约定的预设：{prompt} 占位符由应用替换为提示词；没有占位符时提示词经标准输入传入（kiro-cli 即此方式） */
 const AGENT_PRESETS: Record<string, Omit<AgentConfig, "id" | "timeoutSecs" | "enabled">> = {
-  claude: { name: "Claude Code", command: "claude", args: "-p {prompt}", historyArgs: "--resume" },
+  claude: {
+    name: "Claude Code",
+    command: "claude",
+    args: "-p {prompt} --allowedTools Bash(pk:*)",
+    historyArgs: "--resume",
+  },
   opencode: { name: "OpenCode", command: "opencode", args: "run {prompt}", historyArgs: "" },
-  kiro: { name: "Kiro CLI", command: "kiro", args: "-p {prompt}", historyArgs: "--resume" },
+  kiro: {
+    name: "Kiro CLI",
+    command: "kiro-cli",
+    args: "chat --no-interactive --trust-all-tools",
+    historyArgs: "--resume",
+  },
   custom: { name: "", command: "", args: "{prompt}", historyArgs: "" },
 };
 const presetOptions = [
@@ -778,6 +789,8 @@ async function installUpdate() {
 }
 
 const today = new Date();
+/** 平台限定的说明只在对应平台渲染（DESIGN_SYSTEM.md §4.4 说明文字四层归属） */
+const isLinux = /linux/i.test(navigator.userAgent);
 
 const unlisteners: UnlistenFn[] = [];
 onMounted(async () => {
@@ -827,63 +840,65 @@ onUnmounted(() => unlisteners.forEach((u) => u()));
       <template v-if="settingsTab === 'focus'">
         <section class="set-card">
           <h3>{{ t("focus.title") }}</h3>
-          <label>{{ t("focus.enable") }}<DexToggle v-model="pomoOn" /></label>
-          <label>
-            {{ t("focus.duration") }}
+          <SettingRow :label="t('focus.enable')" :desc="t('focus.enableDesc')">
+            <DexToggle v-model="pomoOn" />
+          </SettingRow>
+          <SettingRow :label="t('focus.duration')">
             <DexSelect v-model="settings.values.pomodoro_minutes" :options="pomoMinutesOptions" />
-          </label>
-          <label>
-            {{ t("focus.break") }}
+          </SettingRow>
+          <SettingRow :label="t('focus.break')">
             <DexSelect v-model="settings.values.break_minutes" :options="breakOptions" />
-          </label>
-          <label>{{ t("focus.notify") }}<DexToggle v-model="pomoNotify" /></label>
-          <label>{{ t("focus.chime") }}<DexToggle v-model="chimeOn" /></label>
+          </SettingRow>
+          <SettingRow :label="t('focus.notify')">
+            <DexToggle v-model="pomoNotify" />
+          </SettingRow>
+          <SettingRow :label="t('focus.chime')" :desc="t('focus.chimeDesc')">
+            <DexToggle v-model="chimeOn" />
+          </SettingRow>
         </section>
 
         <section class="set-card">
           <h3>{{ t("remind.title") }}</h3>
-          <label>{{ t("remind.enable") }}<DexToggle v-model="notifyOn" /></label>
-          <label>
-            {{ t("remind.ahead") }}
+          <SettingRow :label="t('remind.enable')" :desc="t('remind.enableDesc')">
+            <DexToggle v-model="notifyOn" />
+          </SettingRow>
+          <SettingRow :label="t('remind.ahead')">
             <DexSelect v-model="settings.values.remind_ahead_minutes" :options="remindAheadOptions" />
-          </label>
-          <label>{{ t("remind.quiet") }}<DexToggle v-model="quietOn" /></label>
-          <label>
-            {{ t("remind.quietStart") }}
+          </SettingRow>
+          <SettingRow :label="t('remind.quiet')" :desc="t('remind.quietDesc')">
+            <DexToggle v-model="quietOn" />
+          </SettingRow>
+          <SettingRow :label="t('remind.quietStart')">
             <DexSelect v-model="settings.values.quiet_start" :options="quietTimeOptions" />
-          </label>
-          <label>
-            {{ t("remind.quietEnd") }}
+          </SettingRow>
+          <SettingRow :label="t('remind.quietEnd')">
             <DexSelect v-model="settings.values.quiet_end" :options="quietTimeOptions" />
-          </label>
-          <p class="hint">{{ t("remind.quietHint") }}</p>
+          </SettingRow>
         </section>
       </template>
 
       <template v-if="settingsTab === 'cats'">
         <section class="set-card">
           <h3>{{ t("cats.mainTitle") }}</h3>
-          <label class="main-pokemon-line">
-            {{ t("cats.mainLabel") }}
+          <SettingRow :label="t('cats.mainLabel')" :desc="t('cats.mainDesc')">
             <PokemonPicker
               :model-value="settings.values.main_pokemon"
               :allow-empty-label="t('cats.mainFollow')"
               @update:model-value="saveMainPokemon"
             />
-          </label>
-          <p class="hint">{{ t("cats.mainHint") }}</p>
-          <p class="hint">{{ t("cats.spriteHint") }}</p>
+          </SettingRow>
+          <p class="set-foot">{{ t("cats.spriteHint") }}</p>
         </section>
 
         <section class="set-card">
           <h3>{{ t("cats.quotesTitle") }}</h3>
+          <p class="set-sub">{{ t("cats.quotesHint") }}</p>
           <div class="quotes-controls">
             <PokemonPicker :model-value="quotePokemon" @update:model-value="onQuotePokemonChange" />
-            <span class="hint quotes-count">{{ t("cats.quotesCount", { n: quoteCount }) }}</span>
+            <span class="quotes-count">{{ t("cats.quotesCount", { n: quoteCount }) }}</span>
             <button class="btn ghost" @click="saveQuotes">{{ t("cats.quotesSave") }}</button>
           </div>
           <textarea v-model="quoteText" class="quotes-editor" rows="4" :placeholder="t('cats.quotesPh')" />
-          <p class="hint">{{ t("cats.quotesHint") }}</p>
         </section>
 
         <section class="set-card">
@@ -902,14 +917,15 @@ onUnmounted(() => unlisteners.forEach((u) => u()));
           <div class="btn-row">
             <button class="btn ghost" @click="addCat">{{ t("cats.new") }}</button>
           </div>
-          <p class="hint">{{ t("cats.hint") }}</p>
-          <p class="hint">{{ t("cats.disableHint") }}</p>
+          <p class="set-foot">{{ t("cats.hint") }}</p>
+          <p class="set-foot">{{ t("cats.disableHint") }}</p>
         </section>
       </template>
 
       <template v-if="settingsTab === 'tags'">
         <section class="set-card">
           <h3>{{ t("tags.title") }}</h3>
+          <p class="set-sub">{{ t("tags.hint") }}</p>
           <div v-for="group in editingGroups" :key="group.dim.key" class="tag-dim-group">
             <div class="tag-dim-head">
               <b>{{ group.dim.name }}</b>
@@ -933,8 +949,7 @@ onUnmounted(() => unlisteners.forEach((u) => u()));
               <button class="btn ghost del" @click="removeTag(row.id)">{{ t("tags.release") }}</button>
             </div>
           </div>
-          <p class="hint">{{ t("tags.hint") }}</p>
-          <p class="hint">{{ t("tags.dimHint") }}</p>
+          <p class="set-foot">{{ t("tags.dimHint") }}</p>
         </section>
 
         <section class="set-card">
@@ -958,51 +973,49 @@ onUnmounted(() => unlisteners.forEach((u) => u()));
             <input v-model="newDimName" class="tag-name" :placeholder="t('tags.dimNamePh')" />
             <button class="btn ghost" @click="addDim">{{ t("tags.dimNew") }}</button>
           </div>
-          <p class="hint">{{ t("tags.dimManageHint") }}</p>
+          <p class="set-foot">{{ t("tags.dimManageHint") }}</p>
         </section>
       </template>
 
       <template v-if="settingsTab === 'display'">
         <section class="set-card">
           <h3>{{ t("display.title") }}</h3>
-          <label>
-            {{ t("display.date") }}
+          <SettingRow :label="t('display.date')">
             <DexSelect v-model="settings.values.date_format" :options="dateFormatOptions" />
-          </label>
-          <label>
-            {{ t("display.time") }}
+          </SettingRow>
+          <SettingRow :label="t('display.time')">
             <DexSelect v-model="settings.values.time_format" :options="timeFormatOptions" />
-          </label>
-          <label>{{ t("display.dueRelative") }}<DexToggle v-model="dueRelativeOn" /></label>
-          <label>{{ t("display.reduceMotion") }}<DexToggle v-model="reduceMotionOn" /></label>
-          <label>
-            {{ t("display.overdueMode") }}
+          </SettingRow>
+          <SettingRow :label="t('display.dueRelative')" :desc="t('display.dueRelativeDesc')">
+            <DexToggle v-model="dueRelativeOn" />
+          </SettingRow>
+          <SettingRow :label="t('display.reduceMotion')" :desc="t('display.reduceMotionDesc')">
+            <DexToggle v-model="reduceMotionOn" />
+          </SettingRow>
+          <SettingRow :label="t('display.overdueMode')">
             <DexSelect v-model="settings.values.overdue_mode" :options="overdueModeOptions" />
-          </label>
-          <label>
-            {{ t("display.language") }}
+          </SettingRow>
+          <SettingRow :label="t('display.language')">
             <DexSelect v-model="settings.values.language" :options="languageOptions" />
-          </label>
-          <p class="hint">{{ t("display.preview", { v: fmtDateTime(today.toISOString()) }) }}</p>
+          </SettingRow>
+          <p class="set-foot">{{ t("display.preview", { v: fmtDateTime(today.toISOString()) }) }}</p>
         </section>
 
         <section class="set-card">
           <h3>{{ t("defaults.title") }}</h3>
-          <label>
-            {{ t("defaults.priority") }}
+          <SettingRow :label="t('defaults.priority')">
             <DexSelect v-model="settings.values.default_priority" :options="priorityOptions" />
-          </label>
+          </SettingRow>
         </section>
       </template>
 
       <template v-if="settingsTab === 'integrations'">
         <section class="set-card">
           <h3>{{ t("ai.title") }}</h3>
-          <p class="hint">{{ t("ai.hint") }}</p>
-          <label>
-            {{ t("ai.primary") }}
+          <p class="set-sub">{{ t("ai.hint") }}</p>
+          <SettingRow :label="t('ai.primary')">
             <DexSelect v-model="settings.values.ai_agent_id" :options="primaryAgentOptions" />
-          </label>
+          </SettingRow>
           <div v-for="ag in agents" :key="ag.id" class="agent-block" :class="{ off: !ag.enabled }">
             <div class="agent-row">
               <input v-model="ag.name" class="agent-name" :placeholder="t('ai.namePh')" />
@@ -1010,27 +1023,21 @@ onUnmounted(() => unlisteners.forEach((u) => u()));
               <DexToggle v-model="ag.enabled" :title="t('ai.enabled')" />
               <button class="btn ghost del" @click="removeAgent(ag.id)">{{ t("ai.remove") }}</button>
             </div>
-            <label>
-              {{ t("ai.args") }}
+            <SettingRow :label="t('ai.args')" wide :label-width="128">
               <input v-model="ag.args" :placeholder="t('ai.argsPh')" />
-            </label>
-            <label>
-              {{ t("ai.workdir") }}
+            </SettingRow>
+            <SettingRow :label="t('ai.workdir')" wide :label-width="128">
               <input v-model="ag.workdir" :placeholder="t('ai.workdirPh')" />
-            </label>
-            <p class="hint">{{ t("ai.toolsHint") }}</p>
-            <label>
-              {{ t("ai.historyArgs") }}
+            </SettingRow>
+            <SettingRow :label="t('ai.historyArgs')" wide :label-width="128">
               <input v-model="ag.historyArgs" placeholder="--resume" />
-            </label>
-            <label>
-              {{ t("ai.timeout") }}
+            </SettingRow>
+            <SettingRow :label="t('ai.timeout')">
               <input v-model.number="ag.timeoutSecs" type="number" min="10" step="10" />
-            </label>
-            <label>
-              {{ t("ai.sshOn") }}
+            </SettingRow>
+            <SettingRow :label="t('ai.sshOn')">
               <DexToggle :model-value="!!ag.remote" @update:model-value="(v) => toggleRemote(ag, Boolean(v))" />
-            </label>
+            </SettingRow>
             <template v-if="ag.remote">
               <div class="agent-row ssh-row">
                 <input v-model="ag.remote.host" class="agent-cmd" :placeholder="t('ai.sshHostPh')" />
@@ -1045,16 +1052,14 @@ onUnmounted(() => unlisteners.forEach((u) => u()));
                 />
                 <input v-model="ag.remote.keyPath" class="agent-cmd" :placeholder="t('ai.sshKeyPh')" />
               </div>
-              <label>
-                {{ t("ai.sshTunnel") }}
+              <SettingRow :label="t('ai.sshTunnel')" :label-width="128">
                 <input v-model.number="ag.remote.tunnel" type="number" min="1" max="65535" placeholder="10022" />
-              </label>
+              </SettingRow>
               <div class="btn-row">
                 <button class="btn ghost" :disabled="testing" @click="setupRemotePkFor(ag)">
                   {{ t("ai.setupRemote") }}
                 </button>
               </div>
-              <p class="hint">{{ t("ai.sshHint") }}</p>
             </template>
             <div class="btn-row">
               <button class="btn ghost" @click="saveAgents">{{ t("ai.save") }}</button>
@@ -1070,12 +1075,12 @@ onUnmounted(() => unlisteners.forEach((u) => u()));
             <DexSelect v-model="agentPreset" :options="presetOptions" />
             <button class="btn ghost" @click="addAgent">{{ t("ai.add") }}</button>
           </div>
-          <p class="hint">{{ t("ai.cliHint") }}</p>
+          <p class="set-foot">{{ t("ai.cliHint") }}</p>
         </section>
 
         <section class="set-card">
           <h3>💬 {{ t("tabs.im") === "Radio" ? "Feishu" : "飞书" }}</h3>
-          <p class="hint">{{ t("feishu.hint") }}</p>
+          <p class="set-sub">{{ t("feishu.hint") }}</p>
           <div class="auth-line">
             <span class="auth-state">
               {{
@@ -1088,11 +1093,12 @@ onUnmounted(() => unlisteners.forEach((u) => u()));
               {{ oauthBusy ? t("feishu.authing") : feishuAuth?.authorized ? t("feishu.reauth") : t("feishu.auth") }}
             </button>
           </div>
-          <label>{{ t("feishu.enable") }}<DexToggle v-model="feishuOn" /></label>
-          <label>
-            {{ t("feishu.interval") }}
+          <SettingRow :label="t('feishu.enable')">
+            <DexToggle v-model="feishuOn" />
+          </SettingRow>
+          <SettingRow :label="t('feishu.interval')">
             <DexSelect v-model="settings.values.feishu_poll_interval" :options="pollIntervalOptions" />
-          </label>
+          </SettingRow>
           <div class="btn-row">
             <button class="btn ghost" :disabled="testing" @click="runTest(api.testFeishuConfig)">
               {{ t("feishu.test") }}
@@ -1111,7 +1117,7 @@ onUnmounted(() => unlisteners.forEach((u) => u()));
       <template v-if="settingsTab === 'diag'">
         <section class="set-card">
           <h3>{{ t("diag.healthTitle") }}</h3>
-          <p class="hint">{{ t("diag.healthHint") }}</p>
+          <p class="set-sub">{{ t("diag.healthHint") }}</p>
           <div v-for="h in health" :key="h.provider" class="health-item">
             <div class="health-row">
               <span class="health-dot" :class="'h-' + h.status">●</span>
@@ -1179,18 +1185,23 @@ onUnmounted(() => unlisteners.forEach((u) => u()));
       <template v-if="settingsTab === 'general'">
         <section class="set-card">
           <h3>⚙️ {{ t("stabs.general") }}</h3>
-          <label
-            >{{ t("general.autostart") }}<DexToggle :model-value="autostart" @update:model-value="onAutostart"
-          /></label>
-          <label>{{ t("general.closeToTray") }}<DexToggle v-model="closeToTrayOn" /></label>
-          <label>{{ t("general.nlCapture") }}<DexToggle v-model="nlCaptureOn" /></label>
-          <p class="hint">{{ t("add.nlHint") }}</p>
-          <p class="hint">{{ t("general.shortcuts") }}</p>
+          <SettingRow :label="t('general.autostart')" :desc="t('general.autostartDesc')">
+            <DexToggle :model-value="autostart" @update:model-value="onAutostart" />
+          </SettingRow>
+          <SettingRow :label="t('general.closeToTray')" :desc="t('general.closeToTrayDesc')">
+            <DexToggle v-model="closeToTrayOn" />
+          </SettingRow>
+          <SettingRow :label="t('general.nlCapture')" :desc="t('general.nlCaptureDesc')">
+            <DexToggle v-model="nlCaptureOn" />
+          </SettingRow>
+          <p class="set-foot">{{ t("general.shortcuts") }}</p>
         </section>
 
         <section class="set-card">
           <h3>💾 {{ t("backup.title") }}</h3>
-          <label>{{ t("backup.enable") }}<DexToggle v-model="backupOn" /></label>
+          <SettingRow :label="t('backup.enable')" :desc="t('backup.enableDesc')">
+            <DexToggle v-model="backupOn" />
+          </SettingRow>
           <div class="backup-controls">
             <span class="inline-label">{{ t("backup.keep") }}</span>
             <DexSelect v-model="settings.values.backup_keep" :options="backupKeepOptions" />
@@ -1198,7 +1209,6 @@ onUnmounted(() => unlisteners.forEach((u) => u()));
               {{ backingUp ? t("backup.working") : t("backup.now") }}
             </button>
           </div>
-          <p class="hint">{{ t("backup.hint") }}</p>
           <p v-if="backupMsg" class="hint">{{ backupMsg }}</p>
           <ul v-if="backups.length" class="backup-list">
             <li v-for="b in backups" :key="b.file" class="backup-row">
@@ -1214,16 +1224,17 @@ onUnmounted(() => unlisteners.forEach((u) => u()));
             </li>
           </ul>
           <p v-else-if="backupsLoaded" class="hint">{{ t("backup.empty") }}</p>
+          <p class="set-foot">{{ t("backup.hint") }}</p>
         </section>
 
         <section class="set-card">
           <h3>{{ t("reviewCfg.title") }}</h3>
-          <label>{{ t("reviewCfg.enable") }}<DexToggle v-model="reviewOn" /></label>
-          <label>
-            {{ t("reviewCfg.dow") }}
+          <SettingRow :label="t('reviewCfg.enable')" :desc="t('reviewCfg.enableDesc')">
+            <DexToggle v-model="reviewOn" />
+          </SettingRow>
+          <SettingRow :label="t('reviewCfg.dow')">
             <DexSelect v-model="settings.values.review_dow" :options="reviewDowOptions" />
-          </label>
-          <p class="hint">{{ t("review.finishTip") }}</p>
+          </SettingRow>
         </section>
 
         <section class="set-card">
@@ -1251,7 +1262,6 @@ onUnmounted(() => unlisteners.forEach((u) => u()));
               {{ t("export.saveMd") }}
             </button>
           </div>
-          <p class="hint">{{ t("export.hint") }}</p>
           <div class="backup-controls">
             <label class="btn ghost import-label">
               {{ importPending ? t("export.chosen", { v: importPending.name }) : t("export.pick") }}
@@ -1270,12 +1280,13 @@ onUnmounted(() => unlisteners.forEach((u) => u()));
             </button>
           </div>
           <p v-if="exportMsg" class="hint">{{ exportMsg }}</p>
+          <p class="set-foot">{{ t("export.hint") }}</p>
         </section>
 
         <section class="set-card">
           <h3>⬆️ {{ t("update.title") }}</h3>
-          <p v-if="appVersion" class="hint">{{ t("update.current", { v: appVersion }) }}</p>
-          <p v-if="latestVersion" class="hint">{{ t("update.found", { v: latestVersion }) }}</p>
+          <p v-if="appVersion" class="set-sub">{{ t("update.current", { v: appVersion }) }}</p>
+          <p v-if="latestVersion" class="set-sub">{{ t("update.found", { v: latestVersion }) }}</p>
           <p v-if="updateMsg" class="hint">{{ updateMsg }}</p>
           <div class="btn-row">
             <button class="btn ghost" :disabled="updating" @click="checkUpdate">
@@ -1285,7 +1296,7 @@ onUnmounted(() => unlisteners.forEach((u) => u()));
               {{ t("update.install") }}
             </button>
           </div>
-          <p class="hint">{{ t("update.linuxHint") }}</p>
+          <p v-if="isLinux" class="set-foot">{{ t("update.linuxHint") }}</p>
         </section>
       </template>
     </div>
@@ -1384,10 +1395,6 @@ onUnmounted(() => unlisteners.forEach((u) => u()));
   margin: 0 0 12px;
   font-size: 16px;
 }
-/* 主宝可梦行 */
-.main-pokemon-line {
-  align-items: center;
-}
 /* 台词编辑器 */
 .quotes-controls {
   display: flex;
@@ -1397,7 +1404,8 @@ onUnmounted(() => unlisteners.forEach((u) => u()));
   margin-bottom: 8px;
 }
 .quotes-count {
-  margin: 0;
+  font-size: 12px;
+  color: var(--ink-soft);
 }
 .quotes-editor {
   width: 100%;
@@ -1497,6 +1505,16 @@ onUnmounted(() => unlisteners.forEach((u) => u()));
   overflow: hidden;
   text-overflow: ellipsis;
 }
+/* 维度新增行：新维度名称输入框不在 .tag-row 内，单独补齐与 tag-row 同款控件质感 */
+.btn-row .tag-name {
+  padding: 7px 9px;
+  border: 3px solid var(--dex-navy);
+  border-radius: 8px;
+  font-size: 13px;
+  font-family: inherit;
+  min-height: 38px;
+  box-shadow: 3px 3px 0 var(--dex-navy);
+}
 .dim-max {
   width: 64px;
   flex: none;
@@ -1549,35 +1567,31 @@ onUnmounted(() => unlisteners.forEach((u) => u()));
 .add-agent {
   align-items: center;
 }
-/* 初代选项屏的严格两栏：132px 标签列 + 控件列统一左对齐（布尔走 DexToggle，单选走 DexSelect） */
-.set-card label {
-  display: grid;
-  grid-template-columns: 132px minmax(0, 1fr);
-  align-items: center;
-  gap: 10px;
-  margin-bottom: 10px;
-  font-size: 13px;
+/* 说明文字四层归属的页面两层（行内 desc 在 SettingRow 组件内）：区块副标题 + 卡片脚注 */
+.set-sub {
+  margin: -6px 0 12px;
+  font-size: 12px;
   color: var(--ink-soft);
+  line-height: 1.7;
 }
-.set-card label .dex-select {
-  justify-self: start;
+.set-foot {
+  margin: 12px 0 0;
+  padding-top: 10px;
+  border-top: 2px dashed var(--ink-faint);
+  font-size: 12px;
+  color: var(--ink-soft);
+  line-height: 1.7;
 }
-.set-card label .dex-toggle {
-  justify-self: start;
+.set-foot + .set-foot {
+  margin-top: 6px;
+  padding-top: 0;
+  border-top: none;
 }
-.set-card label input {
-  padding: 8px 10px;
-  border: 3px solid var(--dex-navy);
-  border-radius: 8px;
-  font-size: 13px;
-  font-family: inherit;
-  min-height: 38px;
-  box-shadow: 3px 3px 0 var(--dex-navy);
-}
+/* 瞬时反馈信息（保存结果 / 错误 / 空态），不是常驻说明 */
 .hint {
   font-size: 12px;
   color: var(--ink-soft);
-  margin: 4px 0 12px;
+  margin: 8px 0 0;
   line-height: 1.7;
 }
 .btn-row {
@@ -1831,7 +1845,10 @@ onUnmounted(() => unlisteners.forEach((u) => u()));
   cursor: pointer;
 }
 
-/* SSH 远程执行配置行 */
+/* SSH 远程执行配置行：与上方命令输入框左缘对齐（agent-name 120px + 行间距 8px = 128px） */
+.agent-block .ssh-row {
+  padding-left: 128px;
+}
 .ssh-row .ssh-port {
   width: 84px;
   flex: none;

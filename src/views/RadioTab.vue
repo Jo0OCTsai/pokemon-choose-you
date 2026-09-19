@@ -710,7 +710,7 @@ const chipTitle = (tag: { name: string; dimension: string; isNew: boolean }) =>
 </template>
 
 <style scoped>
-/* 收音机两栏：左列表右详情 */
+/* 收音机两栏：左列表右详情，约 3:2 分栏（左列最小 360px） */
 .im-split {
   flex: 1;
   min-height: 0;
@@ -719,8 +719,8 @@ const chipTitle = (tag: { name: string; dimension: string; isNew: boolean }) =>
   padding: 4px 20px 20px;
 }
 .im-left {
-  width: 320px;
-  flex: none;
+  flex: 3 1 0;
+  min-width: 360px;
   display: flex;
   flex-direction: column;
   gap: 10px;
@@ -1006,7 +1006,7 @@ const chipTitle = (tag: { name: string; dimension: string; isNew: boolean }) =>
 
 /* 右栏详情 */
 .im-right {
-  flex: 1;
+  flex: 2 1 0;
   min-width: 0;
   display: flex;
   flex-direction: column;
