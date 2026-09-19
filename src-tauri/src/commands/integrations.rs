@@ -112,7 +112,9 @@ async fn spawn_in_terminal(program: &str, args: &[String]) -> AppResult<&'static
 
 /// AppleScript 字符串字面量转义：`\` 与 `"` 必须转义。SSH 远程的历史命令行带
 /// `"$SHELL"`（双引号），不转义会打断 `do script "..."` 的语法，Terminal 打不开
-/// 且 osascript 报 -2740（回归：远程 agent 的历史记录在 macOS 上唤不起终端）
+/// 且 osascript 报 -2740（回归：远程 agent 的历史记录在 macOS 上唤不起终端）。
+/// 仅 macOS 编译：唯一调用方在 cfg 门内，Linux 下无调用方会触发 dead_code。
+#[cfg(target_os = "macos")]
 fn applescript_escape(s: &str) -> String {
     s.replace('\\', "\\\\").replace('"', "\\\"")
 }
