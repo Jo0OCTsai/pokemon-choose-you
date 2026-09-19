@@ -3,18 +3,18 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>就决定是你了 · 设计焕新方案演示（Design Refresh Demo）</title>
+<title>就决定是你了 · 图鉴机设计稿（令牌与组件）</title>
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=Noto+Sans+SC:wght@400;500;700;900&display=swap" rel="stylesheet" />
 <link href="https://cdn.jsdelivr.net/npm/@vp-tw/cjk-web-fonts-fusion-pixel-font@0.0.1/dist/12px/proportional/zh_hans/Fusion-Pixel-12px-Proportional-Simplified-Chinese.css" rel="stylesheet" />
 <style>
 /* ============================================================
-   《就决定是你了》图鉴复古风 · 焕新令牌 v2 —— 定稿区
-   有异议直接改这里，全页即时生效；确认后抄回 src/dex.css
+   《就决定是你了》图鉴复古风 · 设计令牌（与 src/dex.css 同源）
+   改一处全页即时生效，与实现保持同步
    ============================================================ */
 :root {
-  /* ── 机身色（沿用初版，仅红微调）── */
+  /* ── 机身色 ── */
   --dex-red: #EE1515;        /* 纯装饰红：机脊、大灯 */
   --dex-red-dark: #B01010;
   --danger: #E00F0F;         /* 承载白字的行动红（白字 5.0:1） */
@@ -27,7 +27,7 @@
   --lcd-text: #3A4A32;
   --lcd-dark: #9CAA86;
 
-  /* ── 墨色三档（收编 8 种散灰）── */
+  /* ── 墨色三档 ── */
   --ink: #1A1B25;            /* 正文标题 */
   --ink-soft: #6B6657;       /* 唯一辅助文字灰：米白 5.0 / 白 5.7 */
   --ink-faint: #9A937F;      /* 仅装饰：虚线、非信息编号 */
@@ -76,7 +76,7 @@ body {
 }
 body.px-cn-off .px-cn { font-family: "Noto Sans SC", sans-serif; font-weight: 900; }
 
-/* 全局焦点样式（焕新增补 · 方案 §3.5） */
+/* 全局焦点样式 */
 :focus-visible {
   outline: 3px solid var(--poke-yellow);
   outline-offset: 2px;
@@ -299,43 +299,42 @@ footer code { font-family: ui-monospace, Menlo, monospace; color: #c6cbdd; }
 <body>
 
 <header class="page-head">
-  <div class="kicker px">DESIGN REFRESH DEMO · 2026-09</div>
-  <h1 class="px-cn">图鉴复古风 · 焕新方案演示<span class="sub">（配套文档：DESIGN_REFRESH_PROPOSAL.md）</span></h1>
-  <p>本页把焕新方案的令牌与组件全部实做一遍：语义墨色收编、状态色三源归一、徽章 navy 深字、字体三级体系、分档描边阴影、全局焦点样式。风格骨架（粗描边 + 硬阴影 + LCD 绿屏 + 低密度大目标）不变，变的是纪律。</p>
-  <div class="stamp px">FOR<br>REVIEW</div>
+  <div class="kicker px">DEX DESIGN DEMO</div>
+  <h1 class="px-cn">图鉴复古风 · 图鉴机设计稿<span class="sub">（配套文档：DESIGN_SYSTEM.md）</span></h1>
+  <p>本页实做设计系统的全部令牌与组件：语义墨色三档、状态色三源归一、徽章 navy 深字、字体三级体系、分档描边阴影、全局焦点样式。风格骨架（粗描边 + 硬阴影 + LCD 绿屏 + 低密度大目标）+ 分档纪律。</p>
   <div class="howto">
-    <b>定稿方式：</b>对色值 / 尺寸有异议，直接改源码顶部 <b>:root 令牌区</b>，全页即时生效；确认后抄回 <code>src/dex.css</code>。
+    <b>令牌区：</b>源码顶部 <b>:root</b> 与 <code>src/dex.css</code> 同源，改一处全页即时生效。
     <b>焦点样式：</b>按 <kbd>Tab</kbd> 从任意元素走一遍（见 Section F）。<b>中文像素字：</b>Section B 有开关可对比开 / 关效果；CDN 不可达时自动降级 Noto Sans 900，布局不塌。
   </div>
 </header>
 
 <!-- ================= A 色彩令牌 ================= -->
 <section id="a">
-  <div class="sec-head"><span class="no px">A</span><h2 class="px-cn">色彩令牌总表</h2><span class="pri">P1 收编</span></div>
-  <p class="sec-desc">左上为令牌名与色值，右侧为用途。带对比度徽章的是本次实测达标依据（WCAG 2.1，正文 ≥4.5:1；「仅装饰」= 不承载信息或 ≥16px 大号场景）。</p>
+  <div class="sec-head"><span class="no px">A</span><h2 class="px-cn">色彩令牌总表</h2></div>
+  <p class="sec-desc">左上为令牌名与色值，右侧为用途。带对比度徽章的是实测达标依据（WCAG 2.1，正文 ≥4.5:1；「仅装饰」= 不承载信息或 ≥16px 大号场景）。</p>
 
-  <div class="group-title">▍机身色（结构，沿用初版）</div>
+  <div class="group-title">▍机身色（结构）</div>
   <div class="swatch-grid">
     <div class="swatch"><div class="chip" style="background:var(--dex-red)"><span style="color:#fff">红</span></div><div class="meta"><b>--dex-red</b><code>#EE1515</code><span class="use">纯装饰红：机脊、大灯、紧急点</span></div></div>
-    <div class="swatch"><div class="chip" style="background:var(--danger)"><span style="color:#fff">行动红</span></div><div class="meta"><b>--danger ★新</b><code>#E00F0F</code><span class="use">承载白字的按钮红</span><br><span class="ratio pass">白字 5.0:1</span></div></div>
+    <div class="swatch"><div class="chip" style="background:var(--danger)"><span style="color:#fff">行动红</span></div><div class="meta"><b>--danger</b><code>#E00F0F</code><span class="use">承载白字的按钮红</span><br><span class="ratio pass">白字 5.0:1</span></div></div>
     <div class="swatch"><div class="chip" style="background:var(--dex-body)"><span>米白</span></div><div class="meta"><b>--dex-body</b><code>#F5F0DC</code><span class="use">机身底色</span></div></div>
     <div class="swatch"><div class="chip" style="background:var(--dex-navy)"><span style="color:#fff">藏青</span></div><div class="meta"><b>--dex-navy</b><code>#1A1B25</code><span class="use">描边 / 正文标题（= --ink）</span></div></div>
     <div class="swatch"><div class="chip" style="background:var(--poke-yellow)"><span>黄</span></div><div class="meta"><b>--poke-yellow</b><code>#FFCB05</code><span class="use">主按钮 / 选中 / 焦点 outline</span></div></div>
   </div>
 
-  <div class="group-title">▍墨色三档（收编现存 8 种散灰）</div>
+  <div class="group-title">▍墨色三档</div>
   <div class="swatch-grid">
     <div class="swatch"><div class="chip" style="background:var(--ink)"><span style="color:#fff">正文</span></div><div class="meta"><b>--ink</b><code>#1A1B25</code><span class="use">正文、标题、强调</span></div></div>
-    <div class="swatch"><div class="chip" style="background:#fff"><span style="color:var(--ink-soft)">辅助</span></div><div class="meta"><b>--ink-soft ★新</b><code>#6B6657</code><span class="use">唯一辅助文字灰</span><br><span class="ratio pass">白底 5.7 · 米白 5.0</span></div></div>
-    <div class="swatch"><div class="chip" style="background:#fff"><span style="color:var(--ink-faint)">装饰</span></div><div class="meta"><b>--ink-faint ★新</b><code>#9A937F</code><span class="use">仅装饰：虚线、非信息编号</span><br><span class="ratio deco">2.7 · 不用于小字</span></div></div>
+    <div class="swatch"><div class="chip" style="background:#fff"><span style="color:var(--ink-soft)">辅助</span></div><div class="meta"><b>--ink-soft</b><code>#6B6657</code><span class="use">唯一辅助文字灰</span><br><span class="ratio pass">白底 5.7 · 米白 5.0</span></div></div>
+    <div class="swatch"><div class="chip" style="background:#fff"><span style="color:var(--ink-faint)">装饰</span></div><div class="meta"><b>--ink-faint</b><code>#9A937F</code><span class="use">仅装饰：虚线、非信息编号</span><br><span class="ratio deco">2.7 · 不用于小字</span></div></div>
   </div>
 
   <div class="group-title">▍状态色（三源归一：成功绿×3 / 琥珀×3 → 一套）</div>
   <div class="swatch-grid">
     <div class="swatch"><div class="chip" style="background:var(--ok)"><span style="color:#fff">OK</span></div><div class="meta"><b>--ok / -soft / -ink</b><code>#2E9E5B · #DFF3E4 · #1D6B3C</code><span class="use">健康点 / 成功横幅 / 已处理</span></div></div>
     <div class="swatch"><div class="chip" style="background:var(--warn)"><span style="color:#fff">WARN</span></div><div class="meta"><b>--warn / -soft / -ink</b><code>#C98A06 · #FFF3CD · #8A5E06</code><span class="use">降级 / 逾期温和提示</span></div></div>
-    <div class="swatch"><div class="chip" style="background:var(--hover)"><span>悬停黄</span></div><div class="meta"><b>--hover ★新</b><code>#FFF3C4</code><span class="use">唯一悬停 / 选中黄（归并 4 种）</span></div></div>
-    <div class="swatch"><div class="chip" style="background:var(--tag-pill)"><span style="color:#fff">标签</span></div><div class="meta"><b>--tag-pill</b><code>#8A97B8</code><span class="use">标签胶囊底（收编重复硬编码）</span></div></div>
+    <div class="swatch"><div class="chip" style="background:var(--hover)"><span>悬停黄</span></div><div class="meta"><b>--hover</b><code>#FFF3C4</code><span class="use">唯一悬停 / 选中黄</span></div></div>
+    <div class="swatch"><div class="chip" style="background:var(--tag-pill)"><span style="color:#fff">标签</span></div><div class="meta"><b>--tag-pill</b><code>#8A97B8</code><span class="use">标签胶囊底</span></div></div>
   </div>
 
   <div class="group-title">▍分类 = 属性徽章（浅底一律 navy 深字，见 Section C 对比）</div>
@@ -344,11 +343,11 @@ footer code { font-family: ui-monospace, Menlo, monospace; color: #c6cbdd; }
     <div class="swatch"><div class="chip" style="background:var(--type-study)"><span>学</span></div><div class="meta"><b>--type-study</b><code>#6890F0</code><span class="use">学习 · 可达鸭</span><br><span class="ratio pass">navy 字 5.6</span></div></div>
     <div class="swatch"><div class="chip" style="background:var(--type-life)"><span>草</span></div><div class="meta"><b>--type-life</b><code>#78C850</code><span class="use">生活 · 妙蛙种子</span><br><span class="ratio pass">navy 字 8.3</span></div></div>
     <div class="swatch"><div class="chip" style="background:var(--type-health)"><span>般</span></div><div class="meta"><b>--type-health</b><code>#A8A878</code><span class="use">健康 · 吉利蛋</span><br><span class="ratio pass">navy 字 7.0</span></div></div>
-    <div class="swatch"><div class="chip" style="background:var(--type-interest)"><span>趣</span></div><div class="meta"><b>--type-interest</b><code>#EE99AC</code><span class="use">兴趣（初版文档缺失）</span><br><span class="ratio pass">navy 字 8.2</span></div></div>
+    <div class="swatch"><div class="chip" style="background:var(--type-interest)"><span>趣</span></div><div class="meta"><b>--type-interest</b><code>#EE99AC</code><span class="use">兴趣</span><br><span class="ratio pass">navy 字 8.2</span></div></div>
     <div class="swatch"><div class="chip" style="background:var(--type-social)"><span style="color:#fff">存量</span></div><div class="meta"><b>--type-social</b><code>#F08030</code><span class="use">已退阵容 · 存量数据</span></div></div>
   </div>
 
-  <div class="group-title">▍优先级圆点（彩色不达 3:1 时靠 navy 描边兜底——已是现状，成文即可）</div>
+  <div class="group-title">▍优先级圆点（彩色不达 3:1 时靠 navy 描边兜底）</div>
   <div class="swatch-grid">
     <div class="swatch"><div class="chip" style="background:#fff"><span class="prio urgent"></span></div><div class="meta"><b>--p-urgent</b><code>#EE1515</code><span class="use">紧急 · ≤3Hz 闪烁</span></div></div>
     <div class="swatch"><div class="chip" style="background:#fff"><span class="prio high"></span></div><div class="meta"><b>--p-high</b><code>#F08030</code><span class="use">高</span></div></div>
@@ -359,8 +358,8 @@ footer code { font-family: ui-monospace, Menlo, monospace; color: #c6cbdd; }
 
 <!-- ================= B 字体三级 ================= -->
 <section id="b">
-  <div class="sec-head"><span class="no px">B</span><h2 class="px-cn">字体三级体系</h2><span class="pri">P1 字体本地化</span></div>
-  <p class="sec-desc">行业共识：像素字管「展示」，清晰字管「阅读」。三级各司其职，尺寸遵守点阵倍数纪律——Press Start 2P 只用 8 的倍数（现状 9px 归 8px），Fusion Pixel 只用 12 的倍数。正式落地走 fontsource 本地打包（npm 双包），移除 Google Fonts 网络依赖。</p>
+  <div class="sec-head"><span class="no px">B</span><h2 class="px-cn">字体三级体系</h2></div>
+  <p class="sec-desc">行业共识：像素字管「展示」，清晰字管「阅读」。三级各司其职，尺寸遵守点阵倍数纪律——Press Start 2P 只用 8 的倍数，Fusion Pixel 只用 12 的倍数。正式实现为 fontsource 本地打包（npm 双包），无网络依赖。</p>
   <div class="type-rows">
     <div class="type-row">
       <div class="label"><b>① 像素英文 .px</b>Press Start 2P<br>编号 / 时间 / LCD 英文 / Logo<br>仅 8 / 16 / 24px</div>
@@ -371,7 +370,7 @@ footer code { font-family: ui-monospace, Menlo, monospace; color: #c6cbdd; }
       <div class="sample px-cn" style="font-size:12px">冒险 · 路线 · 草丛 · 图鉴 · 收音机<div style="font-size:24px; margin-top:8px">就决定是你了！</div></div>
     </div>
     <div class="type-row">
-      <div class="label"><b>③ 正文中日韩</b>Noto Sans CJK（系统栈，保持现状）<br>所有正文 / 备注 / 消息全文<br>12 / 13 / 14 / 16 / 18px</div>
+      <div class="label"><b>③ 正文中日韩</b>Noto Sans CJK（系统栈）<br>所有正文 / 备注 / 消息全文<br>12 / 13 / 14 / 16 / 18px</div>
       <div class="sample" style="font-size:14px; line-height:1.9">野生宝可梦出没在草丛里——还没决定的待办先待在那里，想清楚再派出你的宝可梦。已捕捉的条目会登录图鉴，成为今天的进度。<div style="font-size:12px; color:var(--ink-soft); margin-top:6px">辅助文字用 --ink-soft，不再各写各的灰。</div></div>
     </div>
   </div>
@@ -380,8 +379,8 @@ footer code { font-family: ui-monospace, Menlo, monospace; color: #c6cbdd; }
 
 <!-- ================= C 组件画廊 ================= -->
 <section id="c">
-  <div class="sec-head"><span class="no px">C</span><h2 class="px-cn">组件画廊</h2><span class="pri">P0 规范成文</span></div>
-  <p class="sec-desc">描边 / 阴影四档：机壳 4px·8px / 卡片 3px·4px / 控件 3px·3px / 小件 2px·2px；按下态 = 位移取阴影一半。徽章对比是本次最重要的可访问性修正。</p>
+  <div class="sec-head"><span class="no px">C</span><h2 class="px-cn">组件画廊</h2></div>
+  <p class="sec-desc">描边 / 阴影四档：机壳 4px·8px / 卡片 3px·4px / 控件 3px·3px / 小件 2px·2px；按下态 = 位移取阴影一半。徽章一律浅底 navy 深字，是可访问性硬规则。</p>
   <div class="gallery">
     <div class="cell">
       <h3>BUTTON · 按钮三态（用鼠标按下试试）</h3>
@@ -429,7 +428,7 @@ footer code { font-family: ui-monospace, Menlo, monospace; color: #c6cbdd; }
       <div class="conf-line"><span class="conf-dot" style="background:var(--conf-high)"></span><span class="conf-chip" style="background:var(--conf-high-soft); color:var(--ok-ink)">高 · 直接批量</span></div>
       <div class="conf-line"><span class="conf-dot" style="background:var(--conf-mid)"></span><span class="conf-chip" style="background:var(--conf-mid-soft); color:#8A5E06">中 · 建议过目</span></div>
       <div class="conf-line"><span class="conf-dot" style="background:var(--conf-low)"></span><span class="conf-chip" style="background:var(--conf-low-soft); color:var(--ink-soft)">低 · 逐条确认</span></div>
-      <div class="note">三档各自成对（点色 + 底色 + 文字色）收编为令牌，「只选高置信」批量操作的视觉依据。</div>
+      <div class="note">三档各自成对（点色 + 底色 + 文字色），「只选高置信」批量操作的视觉依据。</div>
     </div>
     <div class="cell">
       <h3>LCD · 绿屏（扫描线 + 日志着色）</h3>
@@ -440,14 +439,14 @@ footer code { font-family: ui-monospace, Menlo, monospace; color: #c6cbdd; }
         <div>14:36 提醒调度就绪（3 条待触发）</div>
         <div class="log-e">14:40 lark-cli 凭证过期，等待重新授权</div>
       </div>
-      <div class="note">日志级别色换 --log-error / --log-warn（LCD 底上 ≥4.5），收编 #ff6b6b / #ffd166。</div>
+      <div class="note">日志级别色 --log-error / --log-warn（LCD 底上 ≥4.5）。</div>
     </div>
   </div>
 </section>
 
 <!-- ================= D 任务卡四态 ================= -->
 <section id="d">
-  <div class="sec-head"><span class="no px">D</span><h2 class="px-cn">图鉴条目 · 任务卡四态</h2><span class="pri">P0 规范成文</span></div>
+  <div class="sec-head"><span class="no px">D</span><h2 class="px-cn">图鉴条目 · 任务卡四态</h2></div>
   <p class="sec-desc">单列低密度不变。四态的视觉语言：普通白卡 / 进行中黄 outline + ♪ + 精灵跳跃 / 已捕捉 LCD 化 + 删除线 + 灰度精灵 / 已逃走米灰淡出。卡片操作钮 36→38px 归一（P2）。</p>
   <div class="cards">
     <div class="task">
@@ -476,8 +475,8 @@ footer code { font-family: ui-monospace, Menlo, monospace; color: #c6cbdd; }
 
 <!-- ================= E 收音机详情栏 ================= -->
 <section id="e">
-  <div class="sec-head"><span class="no px">E</span><h2 class="px-cn">收音机 · 详情栏（新界面入册）</h2><span class="pri">P2 文档化</span></div>
-  <p class="sec-desc">收音机两栏分诊是初版设计文档完全没有覆盖的最大新界面。左为详情栏纵向切片（左栏列表与批量条见 radio-triage.html 原型），右侧列出需要成文的规范点。</p>
+  <div class="sec-head"><span class="no px">E</span><h2 class="px-cn">收音机 · 两栏分诊（详情栏）</h2></div>
+  <p class="sec-desc">收音机采用两栏分诊：左栏列表与批量条 + 详情栏自适应。左为详情栏纵向切片，右侧为规范点。</p>
   <div class="radio-wrap">
     <div class="radio-col">
       <div class="radio-meta">
@@ -511,7 +510,7 @@ footer code { font-family: ui-monospace, Menlo, monospace; color: #c6cbdd; }
       <b>需写入设计系统的规范点：</b>
       <ul>
         <li><b>两栏结构</b>：列表栏固定 320px + 详情栏自适应；列表栏承载信号 / 噪音 / 已处理三区分组与频道聚合模式。</li>
-        <li><b>AI 建议盒三态</b>：新待办（白底）/ 更新（--hover 暖底）/ 无信号（米灰），语义色全部走本次新令牌。</li>
+        <li><b>AI 建议盒三态</b>：新待办（白底）/ 更新（--hover 暖底）/ 无信号（米灰），语义色全部走状态色令牌。</li>
         <li><b>键盘流</b>：↑↓/J/K 移动、C 捕捉、X 逃走、F 强制、Esc 关闭——kbd chip 全局同款。</li>
         <li><b>乐观 UI + 撤销</b>：处理即时生效，右下角 5 秒撤销 toast（不弹窗、不抢焦点——注意力友好原则 2/3）。</li>
         <li><b>批量条</b>：全选 / 只选高置信（下划线文字钮）/ 批量捕捉 / 批量逃走；置信三档令牌见 Section C。</li>
@@ -522,8 +521,8 @@ footer code { font-family: ui-monospace, Menlo, monospace; color: #c6cbdd; }
 
 <!-- ================= F 焦点体验 ================= -->
 <section id="f">
-  <div class="sec-head"><span class="no px">F</span><h2 class="px-cn">焦点样式体验区</h2><span class="pri">P1 可访问性</span></div>
-  <p class="sec-desc">现状几乎全靠浏览器默认 outline。焕新后全局 <code>:focus-visible</code> = 3px 黄 outline + 2px offset，与「进行中任务卡」同一视觉语言——键盘用户第一次拥有风格内的一致指引。点击下方区域后按 <kbd>Tab</kbd> / <kbd>Shift</kbd>+<kbd>Tab</kbd> 走一遍。</p>
+  <div class="sec-head"><span class="no px">F</span><h2 class="px-cn">焦点样式体验区</h2></div>
+  <p class="sec-desc">全局 <code>:focus-visible</code> = 3px 黄 outline + 2px offset，与「进行中任务卡」同一视觉语言——键盘用户拥有风格内的一致指引。点击下方区域后按 <kbd>Tab</kbd> / <kbd>Shift</kbd>+<kbd>Tab</kbd> 走一遍。</p>
   <div class="focus-zone">
     <div class="row">
       <button class="btn">▶ 开始捕捉</button>
@@ -538,7 +537,7 @@ footer code { font-family: ui-monospace, Menlo, monospace; color: #c6cbdd; }
 
 <footer>
   字体来源（仅本演示页）：Press Start 2P + Noto Sans SC → Google Fonts · Fusion Pixel 12px Proportional（SIL OFL 1.1）→ jsdelivr <code>@vp-tw/cjk-web-fonts-fusion-pixel-font</code>（78 个 unicode-range 子集，浏览器按需下载）<br>
-  正式落地改为 npm 本地打包（方案 §3.3），移除网络依赖。配套文档：<code>design/DESIGN_REFRESH_PROPOSAL.md</code> · 历史版设计稿：<code>design/mockup.html</code>
+  正式实现为 npm 本地打包，无网络依赖（见 <code>DESIGN_SYSTEM.md</code> §2 字体三级）。配套文档：<code>design/DESIGN_SYSTEM.md</code>
 </footer>
 
 <script>

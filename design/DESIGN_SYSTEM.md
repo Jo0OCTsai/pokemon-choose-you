@@ -1,9 +1,8 @@
-# 《就决定是你了》设计系统 — 图鉴复古风 v2
+# 《就决定是你了》设计系统 — 图鉴复古风
 
 > 关键词：宝可梦图鉴 / 初代游戏机 / 粗描边漫画 / LCD 绿屏 / 硬阴影 / 低密度大目标
 > 原则：像一台「任务图鉴机」——每条待办是一条图鉴条目，抓到（完成）一条就点亮一条。
-> v2（2026-09）：吸收 `DESIGN_REFRESH_PROPOSAL.md`（令牌收编/字体三级/可访问性）与 `PET_INTERACTION_DESIGN.md`（桌宠情绪交互），
-> 与 `src/dex.css` 当前实现一一对应。演示页：`design-refresh-demo.html`（令牌与组件）· `pet-interaction-demo.html`（桌宠动画，可交互）。
+> 与 `src/dex.css` 当前实现一一对应。配套设计稿：`dex-demo.html`（图鉴机·令牌与组件）· `pet-interaction-demo.html`（桌宠动画，可交互）。
 
 ## 0. 设计原则（七条）
 
@@ -98,7 +97,7 @@
 - 内容区标题 `.px-cn` 24px；冒险页附日期（.px）与 `CAUGHT x/y` 进度条。
 - z-index 层级：下拉 60 / 右键菜单 95 / 抽屉 70 / 弹窗 80 / 向导 90 / toast 100；遮罩 `rgba(28,34,68,.42)`。
 
-### 4.3 收音机 = 两栏分诊（原型 `design/radio-triage.html`）
+### 4.3 收音机 = 两栏分诊
 - 列表栏与详情栏约 **3:2 分栏**（列表栏最小 360px，随窗口伸缩）+ 频道聚合 + 批量条 + 详情栏（LCD 全文 + AI 建议盒三态 + 操作条）。
 - 键盘流 ↑↓/J/K/C/X/F/Esc；kbd chip = .px 8px + 2px 描边（底边 3px 键帽感）。
 - 乐观 UI + 右下角 5 秒撤销 toast（不弹窗不抢焦点）。
@@ -106,7 +105,7 @@
 ### 4.4 设置中心与诊断
 - 七分区「初代菜单」stab（▶ 光标 + 黄底 active）+ 920px 限宽 + 底部状态栏。
 - **设置行 = `SettingRow` 组件**：左侧「标题 + 说明」两行堆叠，右侧控件贴卡片右缘垂直居中（Windows 11 / macOS 系统设置模式）。
-- **说明文字四层归属**（2026-09 定，替代旧「标签括号注释 + 悬空 hint 段落」）：
+- **说明文字四层归属**：
   1. **标签只写名字**——一行以内（中文 ≤10 字），解释一律移出标签，禁止括号长注释。
   2. **行内说明 desc**——放在它解释的那行的标题正下方：12px `--ink-soft`、一句话（至多两行）；与控件同框，永不悬空夹在行与行之间。
   3. **区块副标题 sub**——交代整张卡的功能背景（这是干嘛的、上手前置条件），放卡片标题正下方。
@@ -160,10 +159,7 @@ DexSelect / DexToggle / DexDateTime / PokemonPicker / DexContextMenu（role=menu
 
 | 文档 | 内容 |
 |---|---|
-| `DESIGN_REFRESH_PROPOSAL.md` | v2 焕新方案全文（漂移清单/调研/落地路线） |
-| `PET_INTERACTION_DESIGN.md` | 桌宠情绪交互方案全文（立场/调研/演出编排） |
-| `design-refresh-demo.html` | 令牌与组件演示（定稿用） |
-| `pet-interaction-demo.html` | 桌宠动画可交互演示（定稿用） |
-| `radio-triage.html` | 收音机两栏原型 |
-| `mockup.html` | **历史版**（初版设计稿，导航与结构已过期，仅存档） |
+| `PET_INTERACTION_DESIGN.md` | 桌宠动画与交互设计（原则/情绪总纲/演出编排/信息极简） |
+| `dex-demo.html` | 图鉴机设计稿：令牌与组件演示 |
+| `pet-interaction-demo.html` | 桌宠设计稿：动画可交互演示 |
 | `COPYWRITING.md` | 三视角文案体系与世界观词汇表 |

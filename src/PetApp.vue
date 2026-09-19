@@ -23,7 +23,7 @@ const categories = useCategoriesStore();
 
 const petWindow = getCurrentWindow();
 
-// ---- 桌宠状态机：idle / working / paused / urgent / asleep（PET_INTERACTION_DESIGN §4.2） ----
+// ---- 桌宠状态机：idle / working / paused / urgent / asleep（PET_INTERACTION_DESIGN §3.2） ----
 const current = ref<Task | null>(null);
 const petState = ref<"idle" | "working" | "paused" | "urgent" | "asleep">("idle");
 
@@ -318,7 +318,7 @@ function onStagePointerDownCapture() {
   if (sceneBusy.value) skipScene = true;
 }
 
-// ---- 生命感调度器：idle 低频微动作（PET_INTERACTION_DESIGN §4.4） ----
+// ---- 生命感调度器：idle 低频微动作（PET_INTERACTION_DESIGN §3.4） ----
 const microCls = ref<string | null>(null);
 let microTimer: ReturnType<typeof setTimeout> | null = null;
 const MICRO_DUR: Record<string, number> = { blink: 240, look: 1000, flip: 1200, yawn: 900, wake: 650, hop: 550 };
