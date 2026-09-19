@@ -313,6 +313,16 @@ AI 判定时会带上**同会话 30 分钟内的近期上下文**与消息来源
 
 要求与提示：远程交互派发依赖**免密登录**（与无头分类同一前提）；同一任务重复派发会在同一个 tmux 会话里注入新命令——若上个 agent 的 TUI 还开着，请先退出再派发，否则命令会被敲进 TUI 的输入框。
 
+**无头通道（跑完自动回传）**：抽屉的通道下拉切到「无头」再派发，agent 在后台无头执行，跑完按退出码自动判定（claude 还会解析 JSON 信封取会话 id 与成本；重派时自动 `--resume` 上一轮会话续接上下文）。适合短任务与批量；长任务建议交互通道。派发用的参数会自动剔除分类预设的只读白名单（`--allowedTools Bash(pk:*)`）——派发要读写仓库。
+
+**派发状态机与回传**：每次派发把任务置为「执行中」，结束回传后变「已回传 / 失败」（抽屉里带状态徽章；列表卡片有 ⚡ 小标）。回传途径：
+
+- 无头：退出码 + 信封自动判定，无需 agent 做任何事
+- 交互/其他 agent：agent 处理完后执行 `pk dispatch done --task <id> --note 摘要`（无法完成用 `dispatch fail`；pk 技能里有完整说明，claude 还可配 Stop hook 自动回传）
+- agent 没回传时，抽屉里的「标记完成 / 标记失败 / 重置」可手动收口（重置救卡死的执行中）
+
+**自动派发（默认关闭）**：设置 → 集成 → 「待办派发」开启「自动派发」后，**到期未开始**且**项目标签明确指定了 agent** 的待办每 60 秒扫一次、排队无头执行（完成/失败发系统通知）；「每机器并发上限」对本机与每台 SSH 主机分别生效；「worktree 隔离」开启后每次派发在 `../<仓库>-pk-<任务id>` 工作树（分支 `pk-<任务id>`）里执行，多个待办派到同一仓库互不踩踏，完成后人工合并。已完成/失败的派发不会自动重派，避免失败循环。
+
 ## pk 命令行（供 AI agent 与终端使用）
 
 应用随包分发 `pk` CLI，全部输出 JSON，可直接给 AI agent 工具（claude code / opencode / kiro…）当工具用，也可自己在终端操作：
@@ -331,6 +341,7 @@ pk context                           # 当前时间 + 未完成待办 + 分类 +
 pk task create --title 交周报 --dry-run     # 只校验回显不落库（task update/delete 同）
 pk suggest todo --message <消息id> --title 交周报 --due 2026-09-13T18:00  # 提交 AI 判定建议（写建议列待用户确认）
 pk suggest batch --agent claude-code < suggestions.json                  # 批量提交（stdin 传 {"results":[...]}，整批校验）
+pk dispatch done --task 3 --note 修复完成并补回归                        # 派发状态回传（无法完成用 dispatch fail；--task 缺省读 PK_DISPATCH_TASK）
 pk remote shim --host <本机用户名>@127.0.0.1 --port 10022 > pk    # 手工生成远程透传脚本（应用内有「一键配置远程 pk」）
 pk doctor                            # 环境自检：数据库/schema/技能安装，每项带修复建议（--ssh <host> 加测远程 pk）
 pk help --json                       # 机器可读的命令目录（供 agent 编程化发现）

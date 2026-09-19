@@ -368,10 +368,13 @@ export async function installTauriMock(page: Page, state: Partial<MockState> = {
               agents: enabled.map((a: any) => ({ id: a.id, name: a.name, sshHost: a.remote?.host ?? null })),
             };
           }
-          case "dispatch_task":
+          case "dispatch_task": {
+            const headless = args.channel === "headless";
             return {
-              terminal: "Terminal",
+              channel: headless ? "headless" : "interactive",
+              terminal: headless ? null : "Terminal",
               note: null,
+              state: headless ? "done" : "running",
               session: {
                 id: db.nextId++,
                 taskId: args.taskId,
@@ -379,15 +382,19 @@ export async function installTauriMock(page: Page, state: Partial<MockState> = {
                 agentName: "Mock Agent",
                 sessionId: `pk-${args.taskId}`,
                 command: "claude '处理这条待办…'（E2E mock）",
-                exitCode: null,
+                exitCode: headless ? 0 : null,
                 status: "ok",
-                durationMs: null,
-                costUsd: null,
+                durationMs: headless ? 12_000 : null,
+                costUsd: headless ? 0.05 : null,
                 inputTokens: null,
                 outputTokens: null,
                 createdAt: nowIso(),
               },
             };
+          }
+          case "mark_dispatch":
+            broadcast("tasks-changed");
+            return null;
           case "set_tag_meta": {
             const tag = db.tags.find((t: any) => t.id === args.id);
             if (tag) tag.meta = args.meta ?? null;

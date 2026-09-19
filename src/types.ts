@@ -20,6 +20,10 @@ export interface Task {
   focusSeconds: number;
   /** 标签引用列表（后端聚合返回，按维度序：项目在前） */
   tags: TagRef[];
+  /** 派发状态机（null=从未派发 / queued / running / done / failed） */
+  dispatchState?: "queued" | "running" | "done" | "failed" | null;
+  /** 最近一次派发的 agent 会话 id（claude --session-id/--resume 续接用） */
+  dispatchedSession?: string | null;
 }
 
 /** 任务上挂的标签引用：名字 + 归属维度 key */
@@ -320,11 +324,14 @@ export interface TaskDispatchTarget {
   agents: DispatchAgentOption[];
 }
 
-/** 派发结果：terminal 是唤起的终端程序名；note 为降级/部分失败说明 */
+/** 派发结果：channel=interactive/headless；terminal 为唤起的终端程序名（无头为 null）；
+ * state 为派发后的状态（running=已启动待回传 / done / failed） */
 export interface DispatchResult {
-  terminal: string;
+  channel: string;
+  terminal: string | null;
   note: string | null;
   session: AgentSession;
+  state: string;
 }
 
 /** 标签体检（复盘向导）：相似度预筛 + 僵尸标签 + LLM 复核与新维度建议 */

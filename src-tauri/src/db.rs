@@ -32,7 +32,11 @@ CREATE TABLE IF NOT EXISTS tasks (
     completed_at TEXT,
     focus_seconds INTEGER NOT NULL DEFAULT 0,
     started_at TEXT,
-    cancelled_at TEXT
+    cancelled_at TEXT,
+    -- 派发状态机（AGENT_DISPATCH_PROPOSAL §8）：NULL=从未派发 / queued / running / done / failed
+    dispatch_state TEXT,
+    -- 最近一次派发的 agent 会话 id（claude --session-id/--resume 续接用）
+    dispatched_session TEXT
 );
 CREATE INDEX IF NOT EXISTS idx_tasks_status ON tasks(status);
 CREATE INDEX IF NOT EXISTS idx_tasks_remind ON tasks(remind_at) WHERE remind_at IS NOT NULL AND reminded = 0;

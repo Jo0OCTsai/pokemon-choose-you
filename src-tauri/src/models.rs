@@ -29,6 +29,12 @@ pub struct Task {
     /// 标签引用列表（task_tags JOIN tags/tag_dimensions 聚合，非独立列）
     #[serde(default)]
     pub tags: Vec<TagRef>,
+    /// 派发状态机（null=从未派发 / queued / running / done / failed），非独立业务列
+    #[serde(default)]
+    pub dispatch_state: Option<String>,
+    /// 最近一次派发的 agent 会话 id（claude --session-id/--resume 续接用）
+    #[serde(default)]
+    pub dispatched_session: Option<String>,
 }
 
 /// 任务上挂的标签引用：名字 + 归属维度 key（展示分组与项目单选渲染用）
@@ -275,6 +281,8 @@ mod tests {
                 name: "重要".into(),
                 dimension: "topic".into(),
             }],
+            dispatch_state: None,
+            dispatched_session: None,
         };
         assert_eq!(
             keys_of(serde_json::to_value(&t).unwrap()),
@@ -283,6 +291,8 @@ mod tests {
                 "categoryId",
                 "completedAt",
                 "createdAt",
+                "dispatchState",
+                "dispatchedSession",
                 "dueAt",
                 "externalId",
                 "focusSeconds",

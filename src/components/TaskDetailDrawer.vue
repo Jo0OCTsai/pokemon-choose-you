@@ -63,14 +63,23 @@ function openTranscript(x: AgentSession) {
   Promise.resolve(api.openAgentHistory(x.agentId, x.sessionId ?? undefined)).catch(() => {});
 }
 
-// ---- Agent 派发（M1 交互通道）：project 标签路由 → 新终端唤起 agent ----
+// ---- Agent 派发（交互/无头双通道）：project 标签路由 → 终端唤起 / 无头执行回传 ----
 const hasProjectTag = computed(() => props.task.tags.some((r) => r.dimension === "project"));
 const dispatchTarget = ref<TaskDispatchTarget | null>(null);
 /** 确认行的改选值（加载时预填解析结果） */
 const dispatchAgent = ref("");
+/** 通道（interactive = 新终端人可观察；headless = 无头跑完自动回传状态） */
+const dispatchChannel = ref("interactive");
 const dispatchBusy = ref(false);
 const dispatchMsg = ref("");
 const dispatchErr = ref("");
+/** 派发状态徽章（本地态：初始取任务行，派发/标记后即时更新；自动派发靠重开抽屉同步） */
+const dispatchState = ref(props.task.dispatchState ?? null);
+
+const channelOptions = computed(() => [
+  { value: "interactive", label: t("dispatch.chInteractive") },
+  { value: "headless", label: t("dispatch.chHeadless") },
+]);
 
 async function loadDispatch() {
   try {
@@ -103,18 +112,53 @@ const chosenAgent = computed(() => {
 });
 const workdirText = computed(() => dispatchTarget.value?.workdir || t("dispatch.dirDefault"));
 
+const stateBadge = computed(() => {
+  switch (dispatchState.value) {
+    case "queued":
+      return { cls: "queued", text: t("dispatch.stQueued") };
+    case "running":
+      return { cls: "running", text: t("dispatch.stRunning") };
+    case "done":
+      return { cls: "done", text: t("dispatch.stDone") };
+    case "failed":
+      return { cls: "failed", text: t("dispatch.stFailed") };
+    default:
+      return null;
+  }
+});
+
 async function dispatchNow() {
   dispatchBusy.value = true;
   dispatchErr.value = "";
   dispatchMsg.value = "";
   try {
-    const r = await api.dispatchTask(props.task.id, dispatchAgent.value || undefined);
-    dispatchMsg.value = r.note ?? t("dispatch.launched", { term: r.terminal, agent: r.session.agentName });
+    const r = await api.dispatchTask(props.task.id, dispatchAgent.value || undefined, dispatchChannel.value);
+    dispatchState.value = (r.state as typeof dispatchState.value) ?? null;
+    dispatchMsg.value =
+      r.note ??
+      (r.channel === "headless"
+        ? r.state === "failed"
+          ? t("dispatch.headlessFailed", { agent: r.session.agentName })
+          : t("dispatch.headlessDone", { agent: r.session.agentName })
+        : t("dispatch.launched", { term: r.terminal ?? "?", agent: r.session.agentName }));
     sessions.value = await api.listAgentSessions(props.task.id).catch(() => sessions.value);
   } catch (e) {
     dispatchErr.value = errorMessage(e);
   } finally {
     dispatchBusy.value = false;
+  }
+}
+
+/** 手动标记（交互会话 agent 未回传时的救援）：完成 / 失败 / 重置 */
+async function markDispatch(state: "done" | "failed" | "idle") {
+  dispatchErr.value = "";
+  try {
+    await api.markDispatch(props.task.id, state);
+    dispatchState.value = state === "idle" ? null : state;
+    dispatchMsg.value = t("dispatch.marked");
+    setTimeout(() => (dispatchMsg.value = ""), 2000);
+  } catch (e) {
+    dispatchErr.value = errorMessage(e);
   }
 }
 
@@ -212,14 +256,24 @@ onMounted(async () => {
         </form>
       </div>
 
-      <!-- Agent 派发：project 标签路由 → 新终端唤起 agent -->
+      <!-- Agent 派发：project 标签路由 → 交互终端 / 无头执行 + 状态回传 -->
       <div class="notes">
-        <div class="notes-head">{{ t("dispatch.title") }}</div>
+        <div class="notes-head">
+          {{ t("dispatch.title") }}
+          <span v-if="stateBadge" class="badge dsp-state" :class="stateBadge.cls">{{ stateBadge.text }}</span>
+        </div>
+        <!-- 状态徽章行：queued/running 可手动收口（agent 未回传时的救援） -->
+        <div v-if="stateBadge && ['queued', 'running'].includes(stateBadge.cls)" class="dsp-mark">
+          <button class="btn ghost mini" @click="markDispatch('done')">{{ t("dispatch.markDone") }}</button>
+          <button class="btn ghost mini" @click="markDispatch('failed')">{{ t("dispatch.markFailed") }}</button>
+          <button class="btn ghost mini del" @click="markDispatch('idle')">{{ t("dispatch.markReset") }}</button>
+        </div>
         <p v-if="!hasProjectTag" class="d-hint">{{ t("dispatch.needTag") }}</p>
         <template v-else-if="dispatchTarget">
           <p v-if="!dispatchTarget.agentId" class="d-hint">{{ t("dispatch.noAgent") }}</p>
           <template v-else>
             <div class="dsp-row">
+              <DexSelect v-model="dispatchChannel" :options="channelOptions" class="dsp-channel" />
               <DexSelect
                 v-if="dispatchAgentOptions.length > 1"
                 v-model="dispatchAgent"
@@ -230,16 +284,23 @@ onMounted(async () => {
                 {{ chosenAgent.name }} · {{ chosenAgent.host ? `SSH ${chosenAgent.host}` : t("ai.local") }}
               </span>
               <span class="dsp-dir" :title="t('dispatch.dir')">📂 {{ workdirText }}</span>
-              <button class="btn" :disabled="dispatchBusy" @click="dispatchNow()">
+              <button
+                class="btn"
+                :disabled="dispatchBusy || dispatchState === 'running' || dispatchState === 'queued'"
+                :title="dispatchState === 'running' ? t('dispatch.busyHint') : ''"
+                @click="dispatchNow()"
+              >
                 {{ dispatchBusy ? t("dispatch.working") : `⚡ ${t("dispatch.go")}` }}
               </button>
             </div>
             <p class="d-hint">
               {{
-                t("dispatch.hint", {
-                  tag: dispatchTarget.projectTag ?? "",
-                  src: dispatchTarget.source === "tag" ? t("dispatch.srcTag") : t("dispatch.srcDefault"),
-                })
+                dispatchChannel === "headless"
+                  ? t("dispatch.headlessHint")
+                  : t("dispatch.hint", {
+                      tag: dispatchTarget.projectTag ?? "",
+                      src: dispatchTarget.source === "tag" ? t("dispatch.srcTag") : t("dispatch.srcDefault"),
+                    })
               }}
             </p>
           </template>
@@ -518,6 +579,46 @@ onMounted(async () => {
   min-width: 130px;
   padding: 6px 9px;
   font-size: 12px;
+}
+.dsp-channel :deep(.ds-btn) {
+  min-width: 96px;
+  padding: 6px 9px;
+  font-size: 12px;
+}
+/* 派发状态徽章：queued 琥珀 / running 蓝 / done 绿 / failed 红 */
+.dsp-state {
+  margin-left: 6px;
+  font-size: 11px;
+}
+.dsp-state.queued {
+  background: var(--warn-soft);
+  color: var(--warn-ink);
+}
+.dsp-state.running {
+  background: var(--rest-blue);
+  color: #fff;
+}
+.dsp-state.done {
+  background: var(--ok-soft);
+  color: var(--ok-ink);
+}
+.dsp-state.failed {
+  background: var(--dex-red);
+  color: #fff;
+}
+/* 手动标记行（救援）：mini 档按钮 */
+.dsp-mark {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.dsp-mark .btn {
+  padding: 4px 10px;
+  min-height: 30px;
+  font-size: 12px;
+}
+.dsp-mark .btn.del {
+  color: var(--danger);
 }
 .dsp-agent-badge.ssh {
   background: var(--rest-blue);

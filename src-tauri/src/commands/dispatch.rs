@@ -13,7 +13,7 @@ use crate::error::{AppError, AppResult};
 use crate::models::{AgentSession, TagMeta, Task};
 use rusqlite::{params, Connection};
 use std::path::PathBuf;
-use tauri::State;
+use tauri::{Manager, State};
 
 // ---- project 标签的派发元数据（tags.meta） ----
 
@@ -403,83 +403,458 @@ fn local_dispatch_dir(agent: &AgentConfig, override_dir: &str) -> Option<PathBuf
     Some(PathBuf::from(configured))
 }
 
+// ---- 派发状态机（§8）：回传信号驱动迁移，任务行本身即队列（不引入队列表） ----
+// 状态列里的 NULL（从未派发）在 Option 语义下表达；迁移目标用 None 表示重置为未派发
+
+pub const DS_QUEUED: &str = "queued";
+pub const DS_RUNNING: &str = "running";
+pub const DS_DONE: &str = "done";
+pub const DS_FAILED: &str = "failed";
+
+/// 状态机允许的迁移（§8 stateDiagram-v2）：
+/// NULL → running（手动派发）/ queued（定时排队，M3）；
+/// queued → running（领取）/ 重置；running → done（信封成功 / Stop hook）/ failed（非零退出、超时）/ 重置；
+/// done / failed → running（重派 --resume 续接 / 重试）
+pub(crate) fn transition_allowed(from: Option<&str>, to: Option<&str>) -> bool {
+    match from {
+        None => matches!(to, Some(DS_RUNNING) | Some(DS_QUEUED)),
+        Some(DS_QUEUED) => matches!(to, Some(DS_RUNNING) | None),
+        Some(DS_RUNNING) => matches!(to, Some(DS_DONE) | Some(DS_FAILED) | None),
+        Some(DS_DONE) | Some(DS_FAILED) => to == Some(DS_RUNNING),
+        _ => false,
+    }
+}
+
+/// 原子 claim（§7，amux 的 compare-and-swap 防抢占）：当前状态在允许集合内才置 running。
+/// 返回 false = 没抢到（重复派发 / 状态不满足）。（pk dispatch start 也复用同一语义）
+pub fn claim_dispatch(
+    conn: &Connection,
+    task_id: i64,
+    allow_null: bool,
+    states: &[&str],
+) -> AppResult<bool> {
+    let mut cond: Vec<String> = states
+        .iter()
+        .map(|s| format!("dispatch_state='{s}'"))
+        .collect();
+    if allow_null {
+        cond.push("dispatch_state IS NULL".into());
+    }
+    let n = conn.execute(
+        &format!(
+            "UPDATE tasks SET dispatch_state='running' WHERE id=?1 AND ({})",
+            cond.join(" OR ")
+        ),
+        params![task_id],
+    )?;
+    Ok(n > 0)
+}
+
+/// 按状态机迁移派发状态并写审计日志（应用命令与 pk dispatch 子命令共用）。
+/// to=None 重置为未派发（救援卡死的 running）；不满足迁移给可操作报错
+pub fn dispatch_transition_conn(
+    conn: &Connection,
+    task_id: i64,
+    to: Option<&str>,
+    note: Option<&str>,
+    origin: &str,
+) -> AppResult<()> {
+    let from: Option<String> = conn
+        .query_row(
+            "SELECT dispatch_state FROM tasks WHERE id=?1",
+            params![task_id],
+            |r| r.get(0),
+        )
+        .map_err(|e| match e {
+            rusqlite::Error::QueryReturnedNoRows => {
+                AppError::NotFound(format!("待办 No.{task_id} 不存在"))
+            }
+            other => AppError::Db(other),
+        })?;
+    if !transition_allowed(from.as_deref(), to) {
+        let from_text = from.as_deref().unwrap_or("未派发");
+        let to_text = to.unwrap_or("未派发（重置）");
+        return Err(AppError::Invalid(format!(
+            "待办 No.{task_id} 派发状态为「{from_text}」，不能迁移到「{to_text}」；先派发领取 running，或在应用抽屉里重置"
+        )));
+    }
+    conn.execute(
+        "UPDATE tasks SET dispatch_state=?2 WHERE id=?1",
+        params![task_id, to],
+    )?;
+    let new_value = match (to, note.map(str::trim).filter(|n| !n.is_empty())) {
+        (Some(t), Some(n)) => format!("{t}：{n}"),
+        (Some(t), None) => t.to_string(),
+        (None, Some(n)) => format!("重置：{n}"),
+        (None, None) => "重置".into(),
+    };
+    conn.execute(
+        "INSERT INTO task_logs (task_id, action, field, old_value, new_value, origin, created_at)
+         VALUES (?1,'update','dispatch_state',?2,?3,?4,?5)",
+        params![
+            task_id,
+            from.unwrap_or_default(),
+            new_value,
+            origin,
+            crate::db::now()
+        ],
+    )?;
+    Ok(())
+}
+
+/// 迁移到 to，但目标态已达成时按成功处理（agent 中途 `pk dispatch done` 回传后，
+/// 应用按退出码再迁移会撞已迁移的状态——回传信号优先，幂等收口）
+fn transition_or_already(db: &Db, task_id: i64, to: &str, origin: &str) -> AppResult<()> {
+    let conn = db.0.lock().unwrap();
+    let cur: Option<String> = conn
+        .query_row(
+            "SELECT dispatch_state FROM tasks WHERE id=?1",
+            params![task_id],
+            |r| r.get(0),
+        )
+        .unwrap_or(None);
+    if cur.as_deref() == Some(to) {
+        return Ok(());
+    }
+    dispatch_transition_conn(&conn, task_id, Some(to), None, origin)
+}
+
+/// 手动标记派发状态（交互会话 agent 未回传时的救援入口）：done/failed 走状态机校验；
+/// idle 从任意状态重置为未派发（卡死的 running 也救得回）
+#[tauri::command]
+pub fn mark_dispatch<R: tauri::Runtime>(
+    app: tauri::AppHandle<R>,
+    db: State<Db>,
+    task_id: i64,
+    state: String,
+) -> AppResult<()> {
+    {
+        let conn = db.0.lock().unwrap();
+        match state.as_str() {
+            "done" | "failed" => {
+                dispatch_transition_conn(&conn, task_id, Some(&state), None, "manual")?;
+            }
+            "idle" => {
+                let n = conn.execute(
+                    "UPDATE tasks SET dispatch_state=NULL WHERE id=?1",
+                    params![task_id],
+                )?;
+                if n == 0 {
+                    return Err(AppError::NotFound(format!("待办 No.{task_id} 不存在")));
+                }
+                conn.execute(
+                    "INSERT INTO task_logs (task_id, action, field, old_value, new_value, origin, created_at)
+                     VALUES (?1,'update','dispatch_state','running',NULL,'manual',?2)",
+                    params![task_id, crate::db::now()],
+                )?;
+            }
+            _ => {
+                return Err(AppError::Invalid(
+                    "state 只支持 done / failed / idle（重置）".into(),
+                ))
+            }
+        }
+    }
+    crate::events::broadcast(&app, crate::events::TASKS_CHANGED);
+    Ok(())
+}
+
+// ---- 无头通道（§5.3）：per-call workdir、会话续接、JSON 信封回传 ----
+
+/// 无头派发超时下限（秒）：任务处理远慢于分类（§5.3）
+const DISPATCH_MIN_TIMEOUT_SECS: u64 = 600;
+
+/// 派发用无头参数：剔除应用分类预设塞的 `--allowedTools Bash(pk:*)`（派发要读写仓库，
+/// §6 白名单只约束分类）。值列表里的预设项一并剔除；用户自定义的其他 --allowedTools 值保留
+pub(crate) fn dispatch_args(args: &str) -> String {
+    const PRESET_WHITELIST: &str = "Bash(pk:*)";
+    let toks: Vec<&str> = args.split_whitespace().collect();
+    toks.iter()
+        .enumerate()
+        .filter(|(i, t)| {
+            // 预设白名单值（单值或值列表成员）一律剔除
+            if **t == PRESET_WHITELIST {
+                return false;
+            }
+            // 只带预设值的旗标一并剔除（值是别的工具时旗标保留）
+            if **t == "--allowedTools" && toks.get(i + 1) == Some(&PRESET_WHITELIST) {
+                return false;
+            }
+            true
+        })
+        .map(|(_, t)| *t)
+        .collect::<Vec<_>>()
+        .join(" ")
+}
+
+/// 会话续接参数（claude 专属，§5.3）：上一轮有会话 id → `--resume` 续接上下文；
+/// 否则预生成 `--session-id <uuid v4>`（应用侧落 dispatched_session，真实 id 由信封回填）。
+/// 其他 agent 无可靠续接（kiro #11069），每轮新会话
+pub(crate) fn session_flags(
+    kind: Option<&str>,
+    prev_session: Option<&str>,
+) -> (String, Option<String>) {
+    if kind != Some("claude-code") {
+        return (String::new(), None);
+    }
+    match prev_session.map(str::trim).filter(|s| !s.is_empty()) {
+        Some(id) => (format!("--resume {id}"), None),
+        None => {
+            let id = uuid::Uuid::new_v4().to_string();
+            (format!("--session-id {id}"), Some(id))
+        }
+    }
+}
+
+/// claude `--output-format json` 信封的回传字段（§8 无头完成信号）；非 JSON 输出全空
+#[derive(Debug, Default)]
+struct HeadlessEnvelope {
+    session_id: Option<String>,
+    cost_usd: Option<f64>,
+    input_tokens: Option<i64>,
+    output_tokens: Option<i64>,
+    is_error: bool,
+}
+
+fn parse_headless_envelope(stdout: &str) -> HeadlessEnvelope {
+    let Ok(v) = serde_json::from_str::<serde_json::Value>(stdout.trim()) else {
+        return HeadlessEnvelope::default();
+    };
+    HeadlessEnvelope {
+        session_id: v
+            .get("session_id")
+            .and_then(|x| x.as_str())
+            .map(String::from),
+        cost_usd: v.get("total_cost_usd").and_then(|x| x.as_f64()),
+        input_tokens: v
+            .get("usage")
+            .and_then(|u| u.get("input_tokens"))
+            .and_then(|x| x.as_i64()),
+        output_tokens: v
+            .get("usage")
+            .and_then(|u| u.get("output_tokens"))
+            .and_then(|x| x.as_i64()),
+        is_error: v.get("is_error").and_then(|x| x.as_bool()).unwrap_or(false),
+    }
+}
+
+// ---- worktree 隔离（§7 同仓库并行，M3）：../<repo>-pk-<任务id>，完成后人工合并 ----
+
+/// 为一次派发准备 git worktree（幂等）：仓库旁建兄弟目录与分支 pk-<任务id>，已存在则复用。
+/// 返回 (生效目录, 说明)；目录 None = 降级用原目录（说明给用户）。本地经 sh、远程经 ssh，
+/// 与远端同一脚本形态（定位仓库根 → 兄弟目录建/复用）
+async fn ensure_worktree(
+    remote: Option<&AgentRemote>,
+    workdir: &str,
+    task_id: i64,
+) -> (Option<String>, Option<String>) {
+    const SENTINEL: &str = "PK_WT ";
+    let dir = posix_quote(workdir.trim());
+    let script = format!(
+        "cd {dir} || exit 1; \
+         top=$(git rev-parse --show-toplevel 2>/dev/null) || exit 1; \
+         wt=\"$(dirname \"$top\")/$(basename \"$top\")-pk-{task_id}\"; \
+         if [ ! -d \"$wt\" ]; then \
+           git -C \"$top\" worktree add -b pk-{task_id} \"$wt\" 2>/dev/null \
+             || git -C \"$top\" worktree add \"$wt\" pk-{task_id} 2>/dev/null \
+             || exit 1; \
+         fi; \
+         echo \"{SENTINEL}$wt\""
+    );
+    let note_ok = format!("worktree 隔离：分支 pk-{task_id}，完成后人工合并");
+    let result = match remote {
+        None => run_shell(&script).await,
+        Some(r) => ssh_run(
+            r,
+            &format!("exec \"$SHELL\" -lc {}", posix_quote(&script)),
+            None,
+        )
+        .await
+        .map_err(|e| e.to_string()),
+    };
+    match result {
+        Ok(out) => match out.lines().find(|l| l.starts_with(SENTINEL)) {
+            Some(l) => (Some(l[SENTINEL.len()..].to_string()), Some(note_ok)),
+            None => (None, Some("worktree 输出异常，改用原工作目录".into())),
+        },
+        Err(e) => (
+            None,
+            Some(format!(
+                "worktree 建立失败（{}），改用原工作目录",
+                e.chars().take(120).collect::<String>()
+            )),
+        ),
+    }
+}
+
+/// 本地跑一段 sh（worktree 预备用；出错返回带退出码的可读信息）
+async fn run_shell(script: &str) -> Result<String, String> {
+    let out = tokio::process::Command::new("sh")
+        .arg("-c")
+        .arg(script)
+        .output()
+        .await
+        .map_err(|e| format!("无法启动 sh: {e}"))?;
+    if out.status.success() {
+        Ok(String::from_utf8_lossy(&out.stdout).into_owned())
+    } else {
+        Err(format!(
+            "退出码 {}：{}",
+            out.status.code().unwrap_or(-1),
+            String::from_utf8_lossy(&out.stderr).trim()
+        ))
+    }
+}
+
 // ---- 派发执行 ----
 
-/// 派发结果：terminal 是实际唤起的终端程序名；note 为降级/部分失败说明
+/// 派发结果：channel=interactive/headless；terminal 为唤起的终端程序名（无头为 None）；
+/// note 为降级/部分失败说明；state 为派发后的状态（running=已启动待回传 / done / failed）
 #[derive(Debug, serde::Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct DispatchResult {
-    pub terminal: String,
+    pub channel: String,
+    pub terminal: Option<String>,
     pub note: Option<String>,
     pub session: AgentSession,
+    pub state: String,
 }
 
-/// 派发一条待办给 agent（M1 交互通道）：project 标签路由（agent_id 可改选覆盖），
-/// 在新终端里启动 agent 并把任务 prompt 作为首条输入注入（远程经 tmux 持久化会话）。
-/// 无论成败路径如何，成功唤起即落一条 agent_sessions（§5.4）。
+/// 派发前的统一取数（两条通道共用）：任务 + project 校验 + 路由 + 最新跟进 + 上一轮会话 id
+struct DispatchPrep {
+    task: Task,
+    notes: Vec<String>,
+    agent: AgentConfig,
+    workdir: String,
+    context: Option<String>,
+    /// tasks.dispatched_session（claude 续接用）
+    prev_session: Option<String>,
+}
+
+fn prepare_dispatch(db: &Db, task_id: i64, agent_id: Option<&str>) -> AppResult<DispatchPrep> {
+    let conn = db.0.lock().unwrap();
+    let task = get_task_conn(&conn, task_id)?;
+    if !task.tags.iter().any(|t| t.dimension == "project") {
+        return Err(AppError::Invalid(
+            "先给待办挂上「项目」维度的标签再派发（图鉴机以项目标签路由 agent 与工作目录）".into(),
+        ));
+    }
+    let route = resolve_route(&conn, &task, agent_id);
+    let agent = route.agent.clone().ok_or_else(|| {
+        AppError::Invalid("没有可用的 Agent：请先在 设置 → 集成 添加并启用".into())
+    })?;
+    let mut stmt =
+        conn.prepare("SELECT content FROM task_notes WHERE task_id=?1 ORDER BY id DESC LIMIT 3")?;
+    let mut notes: Vec<String> = stmt
+        .query_map(params![task_id], |r| r.get::<_, String>(0))?
+        .collect::<Result<_, _>>()?;
+    notes.reverse();
+    Ok(DispatchPrep {
+        prev_session: task
+            .dispatched_session
+            .clone()
+            .filter(|s| !s.trim().is_empty()),
+        task,
+        notes,
+        agent,
+        workdir: route.workdir,
+        context: route.context,
+    })
+}
+
+fn setting_of(db: &Db, key: &str) -> Option<String> {
+    let conn = db.0.lock().unwrap();
+    conn.query_row(
+        "SELECT value FROM settings WHERE key=?1",
+        params![key],
+        |r| r.get::<_, String>(0),
+    )
+    .ok()
+}
+
+/// 派发一条待办给 agent（§5）：project 标签路由（agent_id 可改选覆盖），channel 缺省交互。
+/// - interactive：新终端唤起 agent（本地 cd 直启 / 远程 tmux attach-or-create + 注入），状态 running，
+///   完成靠 agent `pk dispatch done` / Stop hook / 手动标记；
+/// - headless：无头跑完按退出码与信封自动迁移 done/failed（§5.3）。
+/// 原子 claim（§7）防重复派发；成功唤起/执行即落一条 agent_sessions（§5.4）
 #[tauri::command]
-pub async fn dispatch_task(
+pub async fn dispatch_task<R: tauri::Runtime>(
+    app: tauri::AppHandle<R>,
     db: State<'_, Db>,
     task_id: i64,
     agent_id: Option<String>,
+    channel: Option<String>,
 ) -> AppResult<DispatchResult> {
-    // ---- 锁内完成全部查询；唤起终端/ssh 期间不持锁 ----
-    let (task, notes, agent, workdir, context) = {
+    let headless = channel.as_deref() == Some("headless");
+    let prep = prepare_dispatch(&db, task_id, agent_id.as_deref())?;
+    // 本地目录先验（交互 cd / 无头 cwd 都会失败，提前给可操作报错；远程交给 ssh/git 报错）
+    let remote = prep
+        .agent
+        .remote
+        .as_ref()
+        .filter(|r| !r.host.trim().is_empty());
+    if remote.is_none() {
+        if let Some(d) = local_dispatch_dir(&prep.agent, &prep.workdir) {
+            if !d.is_dir() {
+                return Err(AppError::Invalid(format!(
+                    "派发工作目录不存在: {}（在标签的派发设置里改正；留空则用 agent 工作目录）",
+                    d.display()
+                )));
+            }
+        }
+    }
+    {
         let conn = db.0.lock().unwrap();
-        let task = get_task_conn(&conn, task_id)?;
-        if !task.tags.iter().any(|t| t.dimension == "project") {
+        if !claim_dispatch(&conn, task_id, true, &[DS_DONE, DS_FAILED, DS_QUEUED])? {
             return Err(AppError::Invalid(
-                "先给待办挂上「项目」维度的标签再派发（图鉴机以项目标签路由 agent 与工作目录）"
+                "该待办已在派发执行中（running）；等 agent 回传结束，或在抽屉里重置状态后重派"
                     .into(),
             ));
         }
-        let route = resolve_route(&conn, &task, agent_id.as_deref());
-        let agent = route.agent.clone().ok_or_else(|| {
-            AppError::Invalid("没有可用的 Agent：请先在 设置 → 集成 添加并启用".into())
-        })?;
-        // 最新 3 条跟进记录（id 倒序取，翻回时间正序后由 prompt 标注「最新在前」语义）
-        let mut stmt = conn
-            .prepare("SELECT content FROM task_notes WHERE task_id=?1 ORDER BY id DESC LIMIT 3")?;
-        let mut notes: Vec<String> = stmt
-            .query_map(params![task_id], |r| r.get::<_, String>(0))?
-            .collect::<Result<_, _>>()?;
-        notes.reverse();
-        (task, notes, agent, route.workdir, route.context)
-    };
+    }
+    let use_worktree = setting_of(&db, "dispatch_worktree").as_deref() == Some("true");
 
+    if headless {
+        let out = run_headless_dispatch(&db, &prep, use_worktree).await;
+        crate::events::broadcast(&app, crate::events::TASKS_CHANGED);
+        return Ok(DispatchResult {
+            channel: "headless".into(),
+            terminal: None,
+            note: out.note,
+            session: out.session,
+            state: out.state,
+        });
+    }
+
+    // ---- 交互通道（M1 行为 + claim/状态机 + worktree） ----
     let prompt = dispatch_prompt(
-        task.id,
-        &task.title,
-        task.note.as_deref(),
-        &notes,
-        context.as_deref(),
+        prep.task.id,
+        &prep.task.title,
+        prep.task.note.as_deref(),
+        &prep.notes,
+        prep.context.as_deref(),
     );
-    let args = interactive_args(&agent.history_args);
-    let line = agent_line(&agent.command, &args, &prompt);
-    let summary = summarize_line(&agent.command, &args, &prompt);
+    let args = interactive_args(&prep.agent.history_args);
+    let line = agent_line(&prep.agent.command, &args, &prompt);
+    let summary = summarize_line(&prep.agent.command, &args, &prompt);
 
-    let remote = agent.remote.as_ref().filter(|r| !r.host.trim().is_empty());
-    match remote {
+    // worktree 覆盖（opt-in）：本地/远程都换成工作树目录
+    let (dir_override, wt_note) = if use_worktree && !prep.workdir.trim().is_empty() {
+        ensure_worktree(remote, &prep.workdir, task_id).await
+    } else {
+        (None, None)
+    };
+    let workdir = dir_override.unwrap_or_else(|| prep.workdir.clone());
+
+    let launched: AppResult<(String, Option<String>, Option<String>)> = match remote {
         None => {
             // 本地：cd 进派发目录后启动 agent，prompt 作为首条输入
-            let dir = local_dispatch_dir(&agent, &workdir);
-            let full_line = match dir {
-                Some(d) if !d.is_dir() => {
-                    return Err(AppError::Invalid(format!(
-                        "派发工作目录不存在: {}（在标签的派发设置里改正；留空则用 agent 工作目录）",
-                        d.display()
-                    )));
-                }
+            let full_line = match local_dispatch_dir(&prep.agent, &workdir) {
                 Some(d) => format!("cd {} && {}", cd_prefix_target(&d.to_string_lossy()), line),
                 None => line,
             };
             let term = spawn_line_in_terminal(&full_line).await?;
-            let session = log_dispatch(&db, task_id, &agent, None, &summary)?;
-            Ok(DispatchResult {
-                terminal: term.into(),
-                note: None,
-                session,
-            })
+            Ok((term.into(), None, None))
         }
         Some(remote) => {
             // 远程：先探远端 tmux（主机不可达/免密未通在这里就报出来，不开白屏终端）。
@@ -498,41 +873,222 @@ pub async fn dispatch_task(
                 // 降级：无 tmux，直接 ssh -tt 启动（断开即结束）
                 let argv = direct_ssh_argv(remote, &workdir, &line);
                 let term = spawn_in_terminal(&ai::ssh_bin(), &argv).await?;
-                let session = log_dispatch(&db, task_id, &agent, None, &summary)?;
-                return Ok(DispatchResult {
-                    terminal: term.into(),
-                    note: Some(
-                        "远端没有安装 tmux：已直接启动（会话不持久，断开即结束）——建议在远端安装 tmux 获得可重连的派发会话".into(),
+                Ok((
+                    term.into(),
+                    Some(
+                        "远端没有安装 tmux：已直接启动（会话不持久，断开即结束）——建议在远端安装 tmux 获得可重连的派发会话"
+                            .into(),
                     ),
-                    session,
-                });
+                    None,
+                ))
+            } else {
+                // tmux 路径：终端里 attach-or-create，应用另起 ssh 注入任务命令
+                let session_name = tmux_session_name(task_id);
+                let argv = tmux_attach_argv(remote, &session_name, &workdir);
+                let term = spawn_in_terminal(&ai::ssh_bin(), &argv).await?;
+                let inject = format!(
+                    "exec \"$SHELL\" -lc {}",
+                    posix_quote(&tmux_inject_line(&session_name, &line))
+                );
+                let note = match ssh_run(remote, &inject, None).await {
+                    Ok(_) => None,
+                    Err(e) => Some(format!(
+                        "终端与 tmux 会话已就绪，但任务命令自动注入失败（{e}）；可在 tmux 里手动粘贴执行：{summary}"
+                    )),
+                };
+                Ok((term.into(), note, Some(session_name)))
             }
-            // tmux 路径：终端里 attach-or-create，应用另起 ssh 注入任务命令
-            let session_name = tmux_session_name(task_id);
-            let argv = tmux_attach_argv(remote, &session_name, &workdir);
-            let term = spawn_in_terminal(&ai::ssh_bin(), &argv).await?;
-            let inject = format!(
-                "exec \"$SHELL\" -lc {}",
-                posix_quote(&tmux_inject_line(&session_name, &line))
-            );
-            let note = match ssh_run(remote, &inject, None).await {
-                Ok(_) => None,
-                Err(e) => Some(format!(
-                    "终端与 tmux 会话已就绪，但任务命令自动注入失败（{e}）；可在 tmux 里手动粘贴执行：{summary}"
-                )),
-            };
-            let session = log_dispatch(&db, task_id, &agent, Some(session_name), &summary)?;
+        }
+    };
+
+    match launched {
+        Ok((terminal, launch_note, session_id)) => {
+            let session = log_dispatch(&db, task_id, &prep.agent, session_id, &summary)?;
+            let note = [wt_note, launch_note]
+                .into_iter()
+                .flatten()
+                .collect::<Vec<_>>()
+                .join("；");
             Ok(DispatchResult {
-                terminal: term.into(),
-                note,
+                channel: "interactive".into(),
+                terminal: Some(terminal),
+                note: (!note.is_empty()).then_some(note),
                 session,
+                state: DS_RUNNING.into(),
             })
+        }
+        Err(e) => {
+            // claim 成功但唤起失败：迁移 failed（原因入审计日志），错误原样上抛
+            let reason: String = e.to_string().chars().take(200).collect();
+            let _ = {
+                let conn = db.0.lock().unwrap();
+                dispatch_transition_conn(
+                    &conn,
+                    task_id,
+                    Some(DS_FAILED),
+                    Some(&reason),
+                    "dispatch-interactive",
+                )
+            };
+            Err(e)
         }
     }
 }
 
+/// 无头执行结果（不再向上抛执行错误：失败也落会话记录并迁移 failed，调用方按 state 呈现）
+struct HeadlessOutcome {
+    state: String,
+    note: Option<String>,
+    session: AgentSession,
+}
+
+/// 无头派发核心（手动与自动派发共用；调用方已完成 claim，状态为 running）：
+/// worktree 预备 → 参数适配（剔除分类白名单 + 会话续接）→ run_agent（PK_DISPATCH_TASK
+/// 注入子进程环境，本地 Stop hook / pk dispatch 可回传）→ 退出码 + 信封判定状态（§8）
+async fn run_headless_dispatch(
+    db: &Db,
+    prep: &DispatchPrep,
+    use_worktree: bool,
+) -> HeadlessOutcome {
+    let agent = &prep.agent;
+    let remote = agent.remote.as_ref().filter(|r| !r.host.trim().is_empty());
+    let (effective_dir, wt_note) = if use_worktree && !prep.workdir.trim().is_empty() {
+        ensure_worktree(remote, &prep.workdir, prep.task.id).await
+    } else {
+        (None, None)
+    };
+    let kind = crate::skills::kind_for_command(&agent.command);
+    let mut a = agent.clone();
+    a.args = dispatch_args(&agent.args);
+    let (flags, pre_session) = session_flags(kind, prep.prev_session.as_deref());
+    if !flags.is_empty() {
+        a.args.push(' ');
+        a.args.push_str(&flags);
+    }
+    a.workdir = effective_dir.unwrap_or_else(|| prep.workdir.clone());
+    a.timeout_secs = agent.timeout_secs.max(DISPATCH_MIN_TIMEOUT_SECS);
+    // 预生成会话 id 先落库（claude 首轮）：进程被杀也留续接线索
+    if let Some(id) = &pre_session {
+        let _ = db.0.lock().unwrap().execute(
+            "UPDATE tasks SET dispatched_session=?2 WHERE id=?1",
+            params![prep.task.id, id],
+        );
+    }
+    let prompt = dispatch_prompt(
+        prep.task.id,
+        &prep.task.title,
+        prep.task.note.as_deref(),
+        &prep.notes,
+        prep.context.as_deref(),
+    );
+    let summary = format!(
+        "无头派发 · {}",
+        summarize_line(&agent.command, &[], &prompt)
+    );
+
+    let started = std::time::Instant::now();
+    let task_id_str = prep.task.id.to_string();
+    let envs = [("PK_DISPATCH_TASK", task_id_str.as_str())];
+    let run = ai::run_agent_env(&a, &prompt, &envs).await;
+    let duration_ms = started.elapsed().as_millis() as i64;
+
+    let mut note = wt_note;
+    let state: &str;
+    let session = match run {
+        Ok(stdout) => {
+            let envelope = parse_headless_envelope(&stdout);
+            let session_id = envelope
+                .session_id
+                .clone()
+                .or(pre_session)
+                .or(prep.prev_session.clone());
+            if let Some(sid) = &session_id {
+                let _ = db.0.lock().unwrap().execute(
+                    "UPDATE tasks SET dispatched_session=?2 WHERE id=?1",
+                    params![prep.task.id, sid],
+                );
+            }
+            state = if envelope.is_error {
+                DS_FAILED
+            } else {
+                DS_DONE
+            };
+            if envelope.is_error {
+                note = Some("agent 信封标记 is_error（处理失败）".into()).or(note);
+            }
+            log_session_conn(
+                &db.0.lock().unwrap(),
+                &NewAgentSession {
+                    task_id: Some(prep.task.id),
+                    agent_id: agent.id.clone(),
+                    session_id,
+                    command: Some(summary.clone()),
+                    exit_code: Some(0),
+                    status: if envelope.is_error { "error" } else { "ok" }.into(),
+                    duration_ms: Some(duration_ms),
+                    cost_usd: envelope.cost_usd,
+                    input_tokens: envelope.input_tokens,
+                    output_tokens: envelope.output_tokens,
+                },
+            )
+            .unwrap_or_else(|e| {
+                log::warn!("dispatch: 会话记录落库失败: {e}");
+                fallback_session(prep, &summary)
+            })
+        }
+        Err(e) => {
+            state = DS_FAILED;
+            let reason: String = e.to_string().chars().take(200).collect();
+            note = Some(reason).or(note);
+            log_session_conn(
+                &db.0.lock().unwrap(),
+                &NewAgentSession {
+                    task_id: Some(prep.task.id),
+                    agent_id: agent.id.clone(),
+                    session_id: prep.prev_session.clone(),
+                    command: Some(summary.clone()),
+                    exit_code: None,
+                    status: "error".into(),
+                    duration_ms: Some(duration_ms),
+                    cost_usd: None,
+                    input_tokens: None,
+                    output_tokens: None,
+                },
+            )
+            .unwrap_or_else(|_| fallback_session(prep, &summary))
+        }
+    };
+    if let Err(e) = transition_or_already(db, prep.task.id, state, "dispatch-headless") {
+        log::warn!("dispatch: 状态迁移失败（{e}）");
+    }
+    HeadlessOutcome {
+        state: state.into(),
+        note,
+        session,
+    }
+}
+
+/// 会话落库失败时的兜底记录（时间线不因落库故障缺整行）
+fn fallback_session(prep: &DispatchPrep, summary: &str) -> AgentSession {
+    AgentSession {
+        id: 0,
+        task_id: Some(prep.task.id),
+        agent_id: prep.agent.id.clone(),
+        agent_name: prep.agent.name.clone(),
+        session_id: prep.prev_session.clone(),
+        command: Some(summary.to_string()),
+        exit_code: None,
+        status: "ok".into(),
+        duration_ms: None,
+        cost_usd: None,
+        input_tokens: None,
+        output_tokens: None,
+        created_at: crate::db::now(),
+    }
+}
+
 /// 落一条派发会话记录（§5.4）：command 记命令行摘要（prompt 截断），
-/// session_id 记 tmux 会话名（远程），任务抽屉时间线自然可见
+/// session_id 记 tmux 会话名（远程交互），任务抽屉时间线自然可见
 fn log_dispatch(
     db: &Db,
     task_id: i64,
@@ -556,6 +1112,289 @@ fn log_dispatch(
             output_tokens: None,
         },
     )
+}
+
+// ---- 自动派发（M3，§10）：到期未开始的 project 待办排队 → 按每机器并发上限领取 → 无头执行 ----
+
+/// 每台机器（本机 / 每个 SSH 目标）在途无头派发数：并发上限闸门（内存态；
+/// 应用重启后清零——库里的 running 状态不受影响，可手动重置救援）
+fn inflight() -> &'static std::sync::Mutex<std::collections::HashMap<String, usize>> {
+    static F: std::sync::OnceLock<std::sync::Mutex<std::collections::HashMap<String, usize>>> =
+        std::sync::OnceLock::new();
+    F.get_or_init(|| std::sync::Mutex::new(std::collections::HashMap::new()))
+}
+
+fn host_key(agent: &AgentConfig) -> String {
+    agent
+        .remote
+        .as_ref()
+        .filter(|r| !r.host.trim().is_empty())
+        .map(|r| format!("ssh:{}", r.host.trim()))
+        .unwrap_or_else(|| "local".into())
+}
+
+/// 自动派发循环：每 60 秒排队到期任务、领取可执行者（无头执行可能数分钟，异步发车）
+pub fn spawn_dispatch_loop<R: tauri::Runtime>(app: tauri::AppHandle<R>) {
+    tauri::async_runtime::spawn(async move {
+        loop {
+            if let Err(e) = dispatch_tick(&app).await {
+                log::warn!("dispatch: 自动派发轮询失败: {e}");
+            }
+            tokio::time::sleep(std::time::Duration::from_secs(60)).await;
+        }
+    });
+}
+
+async fn dispatch_tick<R: tauri::Runtime>(app: &tauri::AppHandle<R>) -> AppResult<()> {
+    let db = app.state::<Db>();
+    let (auto_on, max_concurrent, use_worktree, lang, notify_on) = {
+        let conn = db.0.lock().unwrap();
+        let get = |k: &str| -> Option<String> {
+            conn.query_row("SELECT value FROM settings WHERE key=?1", params![k], |r| {
+                r.get::<_, String>(0)
+            })
+            .ok()
+        };
+        (
+            get("dispatch_auto_enabled").as_deref() == Some("true"),
+            get("dispatch_max_concurrent")
+                .and_then(|v| v.parse::<usize>().ok())
+                .filter(|n| *n > 0)
+                .unwrap_or(1),
+            get("dispatch_worktree").as_deref() == Some("true"),
+            get("language").unwrap_or_else(|| "zh-Hans".into()),
+            get("notifications_enabled")
+                .map(|v| v != "false")
+                .unwrap_or(true),
+        )
+    };
+    if !auto_on {
+        return Ok(());
+    }
+    // 排队：到期未开始 + project 标签 meta 显式指定了可用 agent（只自动派发用户明确配置过的）
+    {
+        let conn = db.0.lock().unwrap();
+        let n = queue_due_tasks(&conn)?;
+        if n > 0 {
+            log::info!("dispatch: {n} 条到期待办已排队自动派发");
+        }
+    }
+    // 领取：按到期先后，受每机器并发上限约束
+    let queued: Vec<(i64, String)> = {
+        let conn = db.0.lock().unwrap();
+        pick_queued(&conn)?
+    };
+    for (task_id, agent_id) in queued {
+        let agent = {
+            let conn = db.0.lock().unwrap();
+            let get = |k: &str| crate::secrets::secret_get(&conn, k);
+            ai::agent_by_id(&get, &agent_id).filter(|a| a.enabled)
+        };
+        let Some(agent) = agent else {
+            // meta 指定的 agent 已不可用：撤销排队，下次满足条件再排（不留在 queued 卡死）
+            let _ = {
+                let conn = db.0.lock().unwrap();
+                dispatch_transition_conn(
+                    &conn,
+                    task_id,
+                    None,
+                    Some("排队后 agent 不可用，自动撤销"),
+                    "dispatch-auto",
+                )
+            };
+            continue;
+        };
+        let hk = host_key(&agent);
+        let slots = {
+            let m = inflight().lock().unwrap();
+            max_concurrent.saturating_sub(*m.get(&hk).unwrap_or(&0))
+        };
+        if slots == 0 {
+            continue;
+        }
+        {
+            let conn = db.0.lock().unwrap();
+            if !claim_dispatch(&conn, task_id, false, &[DS_QUEUED])? {
+                continue;
+            }
+        }
+        {
+            let mut m = inflight().lock().unwrap();
+            *m.entry(hk.clone()).or_insert(0) += 1;
+        }
+        let app = app.clone();
+        let lang = lang.clone();
+        tauri::async_runtime::spawn(async move {
+            let db = app.state::<Db>();
+            let prep = match prepare_dispatch(&db, task_id, Some(&agent_id)) {
+                Ok(p) => p,
+                Err(e) => {
+                    log::warn!("dispatch: 自动派发准备失败（No.{task_id}）: {e}");
+                    let _ = {
+                        let conn = db.0.lock().unwrap();
+                        dispatch_transition_conn(
+                            &conn,
+                            task_id,
+                            Some(DS_FAILED),
+                            Some(&e.to_string()),
+                            "dispatch-auto",
+                        )
+                    };
+                    dec_inflight(&hk);
+                    return;
+                }
+            };
+            let title = prep.task.title.clone();
+            let agent_name = prep.agent.name.clone();
+            let out = run_headless_dispatch(&db, &prep, use_worktree).await;
+            dec_inflight(&hk);
+            crate::events::broadcast(&app, crate::events::TASKS_CHANGED);
+            if notify_on {
+                use tauri_plugin_notification::NotificationExt;
+                let (t, b) = dispatch_notification_text(
+                    &lang,
+                    out.state == DS_DONE,
+                    &title,
+                    &agent_name,
+                    out.note.as_deref(),
+                );
+                let _ = app.notification().builder().title(t).body(b).show();
+            }
+        });
+    }
+    Ok(())
+}
+
+fn dec_inflight(host: &str) {
+    let mut m = inflight().lock().unwrap();
+    if let Some(n) = m.get_mut(host) {
+        *n = n.saturating_sub(1);
+    }
+}
+
+/// 排队到期任务（SQL 粗筛 + parse_time 精判，窗口放宽一天——与提醒循环同一套时间字符串
+/// 混排问题）；只动 dispatch_state IS NULL 的行（done/failed 不自动重派，避免失败循环）
+fn queue_due_tasks(conn: &Connection) -> AppResult<usize> {
+    let window = (chrono::Utc::now() + chrono::Duration::days(1)).to_rfc3339();
+    let rows: Vec<(i64, String, Option<String>)> = {
+        let mut stmt = conn.prepare(
+            "SELECT t.id, t.due_at, g.meta FROM tasks t
+             JOIN task_tags tt ON tt.task_id = t.id
+             JOIN tags g ON g.id = tt.tag_id
+             JOIN tag_dimensions d ON d.id = g.dimension_id AND d.key='project'
+             WHERE t.status IN ('inbox','scheduled') AND t.dispatch_state IS NULL
+               AND t.due_at IS NOT NULL AND trim(t.due_at) != '' AND t.due_at <= ?1",
+        )?;
+        let rows = stmt
+            .query_map(params![window], |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?)))?
+            .collect::<Result<Vec<_>, _>>()?;
+        rows
+    };
+    let now = chrono::Utc::now();
+    let mut queued = 0;
+    for (id, due_at, meta_raw) in rows {
+        let Some(due) = crate::scheduler::parse_time(&due_at) else {
+            continue;
+        };
+        if due > now {
+            continue;
+        }
+        let Some(agent_id) = crate::commands::tags::parse_tag_meta(meta_raw)
+            .and_then(|m| m.agent_id)
+            .filter(|a| !a.trim().is_empty())
+        else {
+            continue; // 未显式指定 agent 的标签不自动派发
+        };
+        let get = |k: &str| crate::secrets::secret_get(conn, k);
+        let agent_ok = ai::agent_by_id(&get, &agent_id).is_some_and(|a| a.enabled);
+        if !agent_ok {
+            continue;
+        }
+        let n = conn.execute(
+            "UPDATE tasks SET dispatch_state='queued' WHERE id=?1 AND dispatch_state IS NULL",
+            params![id],
+        )?;
+        queued += n;
+    }
+    Ok(queued)
+}
+
+/// 待领取的排队任务（到期先后）：(task_id, meta.agentId)
+fn pick_queued(conn: &Connection) -> AppResult<Vec<(i64, String)>> {
+    let mut stmt = conn.prepare(
+        "SELECT t.id, g.meta FROM tasks t
+         JOIN task_tags tt ON tt.task_id = t.id
+         JOIN tags g ON g.id = tt.tag_id
+         JOIN tag_dimensions d ON d.id = g.dimension_id AND d.key='project'
+         WHERE t.dispatch_state='queued'
+         ORDER BY t.due_at IS NULL, t.due_at, t.id
+         LIMIT 10",
+    )?;
+    let rows = stmt
+        .query_map([], |r| {
+            Ok((r.get::<_, i64>(0)?, r.get::<_, Option<String>>(1)?))
+        })?
+        .collect::<Result<Vec<_>, _>>()?;
+    Ok(rows
+        .into_iter()
+        .filter_map(|(id, meta)| {
+            crate::commands::tags::parse_tag_meta(meta).and_then(|m| m.agent_id.map(|a| (id, a)))
+        })
+        .collect())
+}
+
+/// 自动派发结果通知（三语；失败带原因摘要）
+fn dispatch_notification_text(
+    lang: &str,
+    ok: bool,
+    title: &str,
+    agent: &str,
+    reason: Option<&str>,
+) -> (String, String) {
+    let reason: String = reason
+        .map(|r| r.chars().take(80).collect::<String>())
+        .unwrap_or_default();
+    match lang {
+        "zh-Hant" => {
+            if ok {
+                (
+                    "⚡ 派發完成".into(),
+                    format!("「{title}」已由 {agent} 處理完——摘要見任務抽屜"),
+                )
+            } else {
+                (
+                    "⚡ 派發失敗".into(),
+                    format!("「{title}」處理失敗：{reason}（詳情見任務抽屜）"),
+                )
+            }
+        }
+        "en" => {
+            if ok {
+                (
+                    "⚡ Dispatch done".into(),
+                    format!("\"{title}\" finished by {agent} — see the task drawer"),
+                )
+            } else {
+                (
+                    "⚡ Dispatch failed".into(),
+                    format!("\"{title}\" failed: {reason} (details in the task drawer)"),
+                )
+            }
+        }
+        _ => {
+            if ok {
+                (
+                    "⚡ 派发完成".into(),
+                    format!("「{title}」已由 {agent} 处理完——摘要见任务抽屉"),
+                )
+            } else {
+                (
+                    "⚡ 派发失败".into(),
+                    format!("「{title}」处理失败：{reason}（详情见任务抽屉）"),
+                )
+            }
+        }
+    }
 }
 
 #[cfg(test)]
@@ -796,8 +1635,14 @@ mod tests {
         assert_eq!(target.workdir, "");
 
         // 无 project 标签的任务派发被拒（派发前置校验，不进终端唤起）
-        let err =
-            tauri::async_runtime::block_on(dispatch_task(app.state::<Db>(), 1, None)).unwrap_err();
+        let err = tauri::async_runtime::block_on(dispatch_task(
+            app.handle().clone(),
+            app.state::<Db>(),
+            1,
+            None,
+            None,
+        ))
+        .unwrap_err();
         assert!(err.to_string().contains("项目"), "{err}");
 
         let err = resolve_task_dispatch(app.state::<Db>(), 999).unwrap_err();
@@ -953,5 +1798,302 @@ mod tests {
             local_dispatch_dir(&agent, "/abs/path"),
             Some(PathBuf::from("/abs/path"))
         );
+    }
+
+    // ---- M2：状态机 / 原子 claim / 迁移审计 ----
+
+    /// §8 状态机允许的迁移矩阵（非法迁移在 claim 与回传路径上都会被拦）
+    #[test]
+    fn transition_matrix_follows_state_diagram() {
+        use super::{DS_DONE, DS_FAILED, DS_QUEUED, DS_RUNNING};
+        // NULL → running / queued
+        assert!(transition_allowed(None, Some(DS_RUNNING)));
+        assert!(transition_allowed(None, Some(DS_QUEUED)));
+        assert!(!transition_allowed(None, Some(DS_DONE)));
+        // queued → running / 重置
+        assert!(transition_allowed(Some(DS_QUEUED), Some(DS_RUNNING)));
+        assert!(transition_allowed(Some(DS_QUEUED), None));
+        assert!(!transition_allowed(Some(DS_QUEUED), Some(DS_DONE)));
+        // running → done / failed / 重置
+        assert!(transition_allowed(Some(DS_RUNNING), Some(DS_DONE)));
+        assert!(transition_allowed(Some(DS_RUNNING), Some(DS_FAILED)));
+        assert!(transition_allowed(Some(DS_RUNNING), None));
+        assert!(!transition_allowed(Some(DS_RUNNING), Some(DS_QUEUED)));
+        // done/failed → running（重派/重试）
+        assert!(transition_allowed(Some(DS_DONE), Some(DS_RUNNING)));
+        assert!(transition_allowed(Some(DS_FAILED), Some(DS_RUNNING)));
+        assert!(!transition_allowed(Some(DS_DONE), Some(DS_DONE)));
+        // 未知状态拒绝一切
+        assert!(!transition_allowed(Some("weird"), Some(DS_RUNNING)));
+    }
+
+    #[test]
+    fn claim_dispatch_is_atomic_per_state() {
+        let conn = test_conn();
+        conn.execute(
+            "INSERT INTO tasks (title, status, created_at) VALUES ('t', 'inbox', '2026-09-13T00:00:00Z')",
+            [],
+        )
+        .unwrap();
+        // NULL（手动派发口径）→ 抢到；running 重复抢 → 失败
+        assert!(claim_dispatch(&conn, 1, true, &[DS_DONE, DS_FAILED, DS_QUEUED]).unwrap());
+        assert!(
+            !claim_dispatch(&conn, 1, true, &[DS_DONE, DS_FAILED, DS_QUEUED]).unwrap(),
+            "running 中不允许重复 claim（防重复派发）"
+        );
+        // 不允许 NULL 的口径（自动派发领取 queued）抢不到 NULL 行
+        conn.execute("UPDATE tasks SET dispatch_state=NULL", [])
+            .unwrap();
+        assert!(!claim_dispatch(&conn, 1, false, &[DS_QUEUED]).unwrap());
+        // queued → 抢到
+        conn.execute("UPDATE tasks SET dispatch_state='queued'", [])
+            .unwrap();
+        assert!(claim_dispatch(&conn, 1, false, &[DS_QUEUED]).unwrap());
+    }
+
+    #[test]
+    fn transitions_write_audit_log_and_reject_illegal() {
+        let conn = test_conn();
+        conn.execute(
+            "INSERT INTO tasks (title, status, created_at) VALUES ('t', 'inbox', '2026-09-13T00:00:00Z')",
+            [],
+        )
+        .unwrap();
+        // NULL → done 非法
+        let err = dispatch_transition_conn(&conn, 1, Some(DS_DONE), None, "t").unwrap_err();
+        assert!(matches!(err, AppError::Invalid(_)), "{err}");
+        // running → done 带备注；日志落 dispatch_state 字段并带备注
+        conn.execute("UPDATE tasks SET dispatch_state='running'", [])
+            .unwrap();
+        dispatch_transition_conn(&conn, 1, Some(DS_DONE), Some("修复完成，含回归"), "pk").unwrap();
+        let (state, log_new): (Option<String>, String) = conn
+            .query_row(
+                "SELECT dispatch_state, (SELECT new_value FROM task_logs WHERE task_id=1 AND field='dispatch_state' ORDER BY id DESC LIMIT 1) FROM tasks WHERE id=1",
+                [],
+                |r| Ok((r.get(0)?, r.get(1)?)),
+            )
+            .unwrap();
+        assert_eq!(state.as_deref(), Some(DS_DONE));
+        assert!(
+            log_new.contains("done：修复完成"),
+            "备注并入日志: {log_new}"
+        );
+        // 不存在的任务
+        let err = dispatch_transition_conn(&conn, 99, Some(DS_DONE), None, "t").unwrap_err();
+        assert!(matches!(err, AppError::NotFound(_)), "{err}");
+    }
+
+    /// 手动标记：done/failed 走状态机；idle 从任意态（含卡死 running）重置
+    #[test]
+    fn mark_dispatch_manual_rescue_paths() {
+        let app = setup();
+        {
+            let db = app.state::<Db>();
+            let conn = db.0.lock().unwrap();
+            conn.execute(
+                "INSERT INTO tasks (title, status, created_at) VALUES ('t', 'inbox', '2026-09-13T00:00:00Z')",
+                [],
+            )
+            .unwrap();
+        }
+        let err =
+            mark_dispatch(app.handle().clone(), app.state::<Db>(), 1, "done".into()).unwrap_err();
+        assert!(
+            matches!(err, AppError::Invalid(_)),
+            "NULL → done 被状态机拒绝"
+        );
+        {
+            let db = app.state::<Db>();
+            db.0.lock()
+                .unwrap()
+                .execute("UPDATE tasks SET dispatch_state='running'", [])
+                .unwrap();
+        }
+        mark_dispatch(app.handle().clone(), app.state::<Db>(), 1, "done".into()).unwrap();
+        // done 状态也能直接重置（救援语义）
+        mark_dispatch(app.handle().clone(), app.state::<Db>(), 1, "idle".into()).unwrap();
+        let state: Option<String> = {
+            let db = app.state::<Db>();
+            let conn = db.0.lock().unwrap();
+            conn.query_row("SELECT dispatch_state FROM tasks WHERE id=1", [], |r| {
+                r.get(0)
+            })
+            .unwrap()
+        };
+        assert!(state.is_none(), "idle 重置为未派发");
+        let err =
+            mark_dispatch(app.handle().clone(), app.state::<Db>(), 1, "weird".into()).unwrap_err();
+        assert!(matches!(err, AppError::Invalid(_)));
+    }
+
+    // ---- M2：无头参数适配与会话续接 ----
+
+    #[test]
+    fn dispatch_args_strips_only_preset_whitelist() {
+        assert_eq!(
+            dispatch_args("-p {prompt} --allowedTools Bash(pk:*) --output-format json"),
+            "-p {prompt} --output-format json",
+            "剔除应用分类预设的只读白名单（派发要读写仓库）"
+        );
+        assert_eq!(
+            dispatch_args("-p {prompt} --allowedTools Bash(git:*) Bash(pk:*)"),
+            "-p {prompt} --allowedTools Bash(git:*)",
+            "用户自定义白名单保留、预设剔除"
+        );
+        assert_eq!(dispatch_args("-p {prompt}"), "-p {prompt}");
+        assert_eq!(dispatch_args(""), "");
+    }
+
+    #[test]
+    fn session_flags_resume_or_pregenerated_uuid() {
+        // claude 首轮：预生成 --session-id（uuid v4 形态）
+        let (flags, pre) = session_flags(Some("claude-code"), None);
+        assert!(flags.starts_with("--session-id "), "{flags}");
+        let id = pre.expect("预生成 id 返回给调用方落库");
+        assert_eq!(flags.trim_end_matches(&format!(" {id}")), "--session-id");
+        assert_eq!(id.len(), 36, "uuid v4 形态（8-4-4-4-12）: {id}");
+        assert_eq!(id.matches('-').count(), 4);
+        // claude 续接：--resume 上一轮会话
+        let (flags, pre) = session_flags(Some("claude-code"), Some(" sess-9 "));
+        assert_eq!(flags, "--resume sess-9");
+        assert!(pre.is_none());
+        // 其他 agent：无续接（kiro #11069），每轮新会话
+        let (flags, pre) = session_flags(Some("kiro"), Some("sess-9"));
+        assert_eq!(flags, "");
+        assert!(pre.is_none());
+        let (flags, _) = session_flags(None, Some("sess-9"));
+        assert_eq!(flags, "");
+    }
+
+    #[test]
+    fn headless_envelope_extracts_return_signals() {
+        let env = parse_headless_envelope(
+            r#"{"type":"result","subtype":"success","session_id":"abc-1","total_cost_usd":0.42,"usage":{"input_tokens":1000,"output_tokens":2000},"is_error":false,"result":"done"}"#,
+        );
+        assert_eq!(env.session_id.as_deref(), Some("abc-1"));
+        assert!((env.cost_usd.unwrap() - 0.42).abs() < 1e-9);
+        assert_eq!(env.input_tokens, Some(1000));
+        assert_eq!(env.output_tokens, Some(2000));
+        assert!(!env.is_error);
+        // is_error = true 视为失败
+        let env = parse_headless_envelope(r#"{"is_error":true,"session_id":"abc-2"}"#);
+        assert!(env.is_error);
+        // 非 JSON 输出（其他 agent 的纯文本）全空
+        let env = parse_headless_envelope("处理完成，变更见 git log");
+        assert!(env.session_id.is_none() && env.cost_usd.is_none() && !env.is_error);
+    }
+
+    // ---- M3：自动排队与领取 ----
+
+    /// 建到期任务并挂项目标签；meta 写在共享的标签行上——每例设置后紧跟断言，
+    /// 用例收尾把任务置 done 排除出后续轮次（避免共享 meta 串扰）
+    fn due_task(conn: &Connection, title: &str, due: &str, meta: Option<&str>) {
+        conn.execute(
+            "INSERT INTO tasks (title, status, due_at, created_at) VALUES (?1, 'scheduled', ?2, '2026-09-01T00:00:00Z')",
+            params![title, due],
+        )
+        .unwrap();
+        conn.execute(
+            "INSERT INTO task_tags (task_id, tag_id) VALUES (last_insert_rowid(), (SELECT id FROM tags WHERE name='PokemonApp'))",
+            [],
+        )
+        .unwrap();
+        if let Some(m) = meta {
+            conn.execute(
+                "UPDATE tags SET meta=?1 WHERE name='PokemonApp'",
+                params![m],
+            )
+            .unwrap();
+        }
+    }
+
+    /// 到期未开始 + 标签 meta 指定可用 agent 才排队；done/failed/queued/无 agent 的不动
+    #[test]
+    fn queue_due_tasks_filters_and_claims_once() {
+        let conn = test_conn();
+        seed_agents(&conn, &[agent_json("ag-1", "Claude", "claude", true, "")]);
+        create_tag_conn(&conn, "PokemonApp", "", "project", "manual").unwrap();
+        let past = (chrono::Utc::now() - chrono::Duration::hours(2)).to_rfc3339();
+        let meta = r#"{"agentId":"ag-1","workdir":"~/app"}"#;
+
+        // 到期 + 配了 agent → 排队；重复轮次不重复排
+        due_task(&conn, "到期该排", &past, Some(meta));
+        assert_eq!(queue_due_tasks(&conn).unwrap(), 1);
+        let state: String = conn
+            .query_row(
+                "SELECT dispatch_state FROM tasks WHERE title='到期该排'",
+                [],
+                |r| r.get(0),
+            )
+            .unwrap();
+        assert_eq!(state, DS_QUEUED);
+        assert_eq!(
+            queue_due_tasks(&conn).unwrap(),
+            0,
+            "queued 非 NULL 不重复排"
+        );
+        let queued = pick_queued(&conn).unwrap();
+        assert_eq!(
+            queued,
+            vec![(1, "ag-1".to_string())],
+            "领取列表返回 meta 的 agentId"
+        );
+        conn.execute(
+            "UPDATE tasks SET dispatch_state='done' WHERE title='到期该排'",
+            [],
+        )
+        .unwrap();
+
+        // meta 无 agentId（未显式指定 agent 的标签不自动派发）
+        due_task(&conn, "无 agent 配置", &past, Some(r#"{"workdir":"~/x"}"#));
+        assert_eq!(queue_due_tasks(&conn).unwrap(), 0);
+        conn.execute(
+            "UPDATE tasks SET dispatch_state='done' WHERE title='无 agent 配置'",
+            [],
+        )
+        .unwrap();
+
+        // meta 指向不存在/停用的 agent
+        due_task(&conn, "agent 不可用", &past, Some(r#"{"agentId":"ag-9"}"#));
+        assert_eq!(queue_due_tasks(&conn).unwrap(), 0);
+        conn.execute(
+            "UPDATE tasks SET dispatch_state='done' WHERE title='agent 不可用'",
+            [],
+        )
+        .unwrap();
+
+        // 未到期不排
+        due_task(
+            &conn,
+            "未到期",
+            &(chrono::Utc::now() + chrono::Duration::days(2)).to_rfc3339(),
+            Some(meta),
+        );
+        assert_eq!(queue_due_tasks(&conn).unwrap(), 0);
+        // done 状态不自动重派（失败循环防线）
+        conn.execute(
+            "UPDATE tags SET meta=?1 WHERE name='PokemonApp'",
+            params![meta],
+        )
+        .unwrap();
+        assert_eq!(queue_due_tasks(&conn).unwrap(), 0, "done 不自动重派");
+    }
+
+    #[test]
+    fn dispatch_notification_text_covers_languages_and_outcomes() {
+        let (t, b) = dispatch_notification_text("zh-Hans", true, "修登录", "Claude", None);
+        assert!(t.contains("派发完成") && b.contains("修登录") && b.contains("Claude"));
+        let (t, b) = dispatch_notification_text(
+            "zh-Hans",
+            false,
+            "修登录",
+            "Claude",
+            Some("退出码 1：boom"),
+        );
+        assert!(t.contains("派发失败") && b.contains("boom"));
+        let (t, _) = dispatch_notification_text("zh-Hant", true, "t", "a", None);
+        assert!(t.contains("派發完成"));
+        let (t, b) = dispatch_notification_text("en", false, "t", "a", Some("timeout"));
+        assert!(t.contains("failed") && b.contains("timeout"));
     }
 }

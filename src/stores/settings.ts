@@ -47,6 +47,12 @@ export const SETTING_DEFAULTS: Record<string, string> = {
   ai_agents: "[]",
   /** 收音机分类使用的 agent id（空则用第一个启用的） */
   ai_agent_id: "",
+  /** 自动派发（M3）：到期未开始且 project 标签 meta 指定 agent 的待办排队无头执行（默认关） */
+  dispatch_auto_enabled: "false",
+  /** 每机器并发上限（本机与每台 SSH 主机分别生效；自动派发领取闸门） */
+  dispatch_max_concurrent: "1",
+  /** worktree 隔离（opt-in）：派发在 ../<repo>-pk-<任务id> 工作树执行，完成后人工合并 */
+  dispatch_worktree: "false",
 };
 
 /**
@@ -86,6 +92,9 @@ export const SETTING_KEYS = [
   "feishu_poll_interval",
   "ai_agents",
   "ai_agent_id",
+  "dispatch_auto_enabled",
+  "dispatch_max_concurrent",
+  "dispatch_worktree",
   "feishu_enabled",
 ];
 

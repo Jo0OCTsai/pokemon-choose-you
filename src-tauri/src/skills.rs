@@ -19,7 +19,7 @@ pub const SKILL_REFS: &[(&str, &str)] = &[
     ),
 ];
 /// 当前技能版本（与 SKILL.md frontmatter 的 version 保持一致，用于安装时的版本对比）
-pub const SKILL_VERSION: &str = "2";
+pub const SKILL_VERSION: &str = "3";
 
 /// 技能在各 agent 技能目录下的文件夹名（Agent Skills 标准：与 frontmatter name 一致）
 const SKILL_DIR_NAME: &str = "pokemon-choose-you";
@@ -230,7 +230,7 @@ mod tests {
         assert!(
             install
                 .trim_end()
-                .ends_with("echo \"PK_SKILL_INSTALLED 2\""),
+                .ends_with(&format!("echo \"PK_SKILL_INSTALLED {SKILL_VERSION}\"")),
             "回显哨兵与版本: {install}"
         );
     }

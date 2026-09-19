@@ -202,6 +202,38 @@ export default {
     hint: 'Routed via project tag "{tag}" ({src}) · opens a new terminal you can watch or take over',
     srcTag: "tag-specified",
     srcDefault: "global default",
+    // M2: dual channel + state machine
+    chInteractive: "🖥 Interactive (terminal)",
+    chHeadless: "🤖 Headless (auto-report)",
+    headlessHint:
+      "Headless run: success/failure decided by exit code when it finishes (claude resumes its session); good for short tasks — prefer interactive for long ones.",
+    headlessDone: "Headless run finished ({agent}) — summary in the runs list below.",
+    headlessFailed: "Headless run failed ({agent}) — reason in the runs list below.",
+    stQueued: "queued",
+    stRunning: "running",
+    stDone: "reported",
+    stFailed: "failed",
+    markDone: "Mark done",
+    markFailed: "Mark failed",
+    markReset: "Reset",
+    marked: "Dispatch state updated",
+    busyHint: "This todo is being dispatched: wait for the agent to report, or close it out with the buttons above",
+    chipRunning: "agent running",
+    chipQueued: "dispatch queued",
+  },
+  dispatchCfg: {
+    title: "⚡ Todo dispatch",
+    hint: "Route todos to agents by project tag (entry in the task drawer); auto dispatch is off by default.",
+    auto: "Auto dispatch",
+    autoDesc:
+      "Due-but-unstarted todos whose project tag names an agent are queued for headless runs (checked every 60s)",
+    maxConcurrent: "Per-machine concurrency",
+    maxConcurrentDesc: "Applies to local and each SSH host separately; queued todos are claimed in due order",
+    mcN: "{n}",
+    worktree: "worktree isolation",
+    worktreeDesc:
+      "Dispatches run in ../<repo>-pk-<taskId> worktrees (branch pk-<taskId>) so they never stomp each other; merge manually when done",
+    foot: "Auto dispatch only covers todos whose project tag explicitly names an agent; manual dispatch ignores these switches.",
   },
   stabs: {
     focus: "Focus",

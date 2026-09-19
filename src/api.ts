@@ -192,9 +192,11 @@ export const api = {
   listAgentSessions: (taskId?: number) => call<AgentSession[]>("list_agent_sessions", { taskId: taskId ?? null }),
   /** 解析待办的派发目标（project 标签 meta → 全局默认 agent；弹窗展示用） */
   resolveTaskDispatch: (taskId: number) => call<TaskDispatchTarget>("resolve_task_dispatch", { taskId }),
-  /** 派发待发给 agent（M1 交互通道）：新终端唤起 + prompt 注入 + 落一条会话记录 */
-  dispatchTask: (taskId: number, agentId?: string) =>
-    call<DispatchResult>("dispatch_task", { taskId, agentId: agentId ?? null }),
+  /** 派发待发给 agent（channel 缺省交互；无头按退出码/信封自动回传状态） */
+  dispatchTask: (taskId: number, agentId?: string, channel?: string) =>
+    call<DispatchResult>("dispatch_task", { taskId, agentId: agentId ?? null, channel: channel ?? null }),
+  /** 手动标记派发状态（done/failed 走状态机；idle 从任意态重置——救援卡死的 running） */
+  markDispatch: (taskId: number, state: "done" | "failed" | "idle") => call<void>("mark_dispatch", { taskId, state }),
   testFeishuConfig: () => call<string>("test_feishu_config"),
   triggerFeishuPoll: () => call<number>("trigger_feishu_poll"),
   /** 发起飞书用户授权：在系统终端里跑 lark-cli 登录（凭证由 lark-cli 保管） */

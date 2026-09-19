@@ -54,6 +54,12 @@ const nlCaptureOn = boolSetting("nl_capture_enabled");
 const closeToTrayOn = boolSetting("close_to_tray");
 const dueRelativeOn = boolSetting("due_relative");
 const reduceMotionOn = boolSetting("reduce_motion");
+// 派发自动化（M3）：开关只写本地 values，随「保存设置」落库
+const dispatchAutoOn = boolSetting("dispatch_auto_enabled");
+const dispatchWorktreeOn = boolSetting("dispatch_worktree");
+const maxConcurrentOptions = computed(() =>
+  [1, 2, 3].map((n) => ({ value: String(n), label: t("dispatchCfg.mcN", { n }) })),
+);
 const quietOn = boolSetting("quiet_hours_enabled");
 const overdueModeOptions = computed(() => [
   { value: "collapse", label: t("overdue.modeCollapse") },
@@ -1241,6 +1247,22 @@ onUnmounted(() => unlisteners.forEach((u) => u()));
             <button class="btn ghost" @click="addAgent">{{ t("ai.add") }}</button>
           </div>
           <p class="set-foot">{{ t("ai.cliHint") }}</p>
+        </section>
+
+        <!-- 待办派发：M3 自动化与隔离（默认全关；手动派发不受这些开关影响） -->
+        <section class="set-card">
+          <h3>{{ t("dispatchCfg.title") }}</h3>
+          <p class="set-sub">{{ t("dispatchCfg.hint") }}</p>
+          <SettingRow :label="t('dispatchCfg.auto')" :desc="t('dispatchCfg.autoDesc')">
+            <DexToggle v-model="dispatchAutoOn" />
+          </SettingRow>
+          <SettingRow :label="t('dispatchCfg.maxConcurrent')" :desc="t('dispatchCfg.maxConcurrentDesc')">
+            <DexSelect v-model="settings.values.dispatch_max_concurrent" :options="maxConcurrentOptions" />
+          </SettingRow>
+          <SettingRow :label="t('dispatchCfg.worktree')" :desc="t('dispatchCfg.worktreeDesc')">
+            <DexToggle v-model="dispatchWorktreeOn" />
+          </SettingRow>
+          <p class="set-foot">{{ t("dispatchCfg.foot") }}</p>
         </section>
 
         <section class="set-card">

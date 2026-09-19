@@ -85,6 +85,9 @@ pub fn run() {
             ));
             app.manage(health::HealthState::default());
             scheduler::spawn_reminder_loop(app.handle().clone());
+            // 自动派发循环（M3）：到期未开始的 project 待办排队 → 无头执行（默认关闭，
+            // dispatch_auto_enabled 开启后生效）
+            commands::dispatch::spawn_dispatch_loop(app.handle().clone());
             backup::spawn_daily_loop(app.handle().clone());
             feishu::spawn_poll_loop(app.handle().clone());
             tray::setup(app.handle())?;
@@ -152,6 +155,7 @@ pub fn run() {
             commands::set_tag_meta,
             commands::resolve_task_dispatch,
             commands::dispatch_task,
+            commands::mark_dispatch,
             commands::test_feishu_config,
             commands::trigger_feishu_poll,
             commands::feishu_oauth_login,
