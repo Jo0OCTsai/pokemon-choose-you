@@ -82,6 +82,22 @@ pub struct Tag {
     /// 创建时间（RFC3339；僵尸标签的年龄判定用）
     #[serde(default)]
     pub created_at: String,
+    /// 派发元数据（仅 project 维度标签；老数据无此列语义时为 None）
+    #[serde(default)]
+    pub meta: Option<TagMeta>,
+}
+
+/// project 标签的派发元数据（tags.meta 列，JSON）：
+/// 标签 → 首选 agent / 派发工作目录 / 项目补充上下文（详见 AGENT_DISPATCH_PROPOSAL §4.1）
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", default)]
+pub struct TagMeta {
+    /// 派发工作目录（按 agent 位置解释：本地 = 本机路径，远程 = 远端路径；支持 ~ 前缀）
+    pub workdir: Option<String>,
+    /// 首选 agent（ai_agents 的 id；空 = 全局默认 agent）
+    pub agent_id: Option<String>,
+    /// 该项目的补充上下文（技术栈/注意事项），拼进派发 prompt
+    pub context: Option<String>,
 }
 
 /// 标签维度：一组正交的归类面（分面分类）。维度封闭少而稳，标签在维度内开放生长
@@ -326,6 +342,11 @@ mod tests {
             origin: "manual".into(),
             usage: 3,
             created_at: "2026-09-01T00:00:00Z".into(),
+            meta: Some(TagMeta {
+                workdir: Some("~/projects/app".into()),
+                agent_id: Some("ag-1".into()),
+                context: None,
+            }),
         };
         assert_eq!(
             keys_of(serde_json::to_value(&g).unwrap()),
@@ -334,12 +355,20 @@ mod tests {
                 "description",
                 "dimension",
                 "id",
+                "meta",
                 "name",
                 "origin",
                 "usage"
             ]
         );
-        // dimension/origin/usage 缺失时容忍（老载荷）
+        // meta 序列化为 camelCase 键（agentId）
+        assert_eq!(
+            g.meta.as_ref().unwrap().agent_id.as_deref(),
+            Some("ag-1"),
+            "占位断言（编译期已保证字段存在）"
+        );
+        assert!(serde_json::to_string(&g).unwrap().contains("\"agentId\""));
+        // dimension/origin/usage/meta 缺失时容忍（老载荷）
         let old: Tag = serde_json::from_value(serde_json::json!({
             "id": 1, "name": "重要", "description": "核心目标相关"
         }))
@@ -347,6 +376,10 @@ mod tests {
         assert_eq!(old.dimension, "topic");
         assert_eq!(old.origin, "");
         assert_eq!(old.usage, 0);
+        assert!(old.meta.is_none());
+        // meta JSON 三字段全可缺省
+        let bare: TagMeta = serde_json::from_str("{}").unwrap();
+        assert_eq!(bare, TagMeta::default());
     }
 
     #[test]

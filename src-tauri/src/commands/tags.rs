@@ -1,12 +1,27 @@
 use crate::db::{now, Db};
 use crate::error::{AppError, AppResult};
 use crate::events;
-use crate::models::{Tag, TagDimension};
+use crate::models::{Tag, TagDimension, TagMeta};
 use rusqlite::{params, Connection};
 use tauri::State;
 
 /// 兜底维度 key：未指明维度的创建/解析请求归主题
 pub const DEFAULT_DIMENSION: &str = "topic";
+
+/// tags.meta 列（JSON）解析：空/坏数据按无元数据处理，不让一条脏行拖垮整个列表
+pub(crate) fn parse_tag_meta(raw: Option<String>) -> Option<TagMeta> {
+    let raw = raw?.trim().to_string();
+    if raw.is_empty() {
+        return None;
+    }
+    match serde_json::from_str::<TagMeta>(&raw) {
+        Ok(m) => Some(m),
+        Err(e) => {
+            log::warn!("tags: meta 列 JSON 解析失败（按无元数据处理）: {e}");
+            None
+        }
+    }
+}
 
 #[tauri::command]
 pub fn list_tags(db: State<Db>) -> AppResult<Vec<Tag>> {
@@ -14,11 +29,11 @@ pub fn list_tags(db: State<Db>) -> AppResult<Vec<Tag>> {
     list_tags_conn(&conn)
 }
 
-/// conn 版标签列表（pk CLI 复用）：带维度/来源/使用数，按维度序 + id 序
+/// conn 版标签列表（pk CLI 复用）：带维度/来源/使用数/派发元数据，按维度序 + id 序
 pub fn list_tags_conn(conn: &rusqlite::Connection) -> AppResult<Vec<Tag>> {
     let mut stmt = conn.prepare(
         "SELECT t.id, t.name, t.description, d.key, t.origin, t.created_at,
-                (SELECT COUNT(*) FROM task_tags tt WHERE tt.tag_id = t.id)
+                (SELECT COUNT(*) FROM task_tags tt WHERE tt.tag_id = t.id), t.meta
          FROM tags t JOIN tag_dimensions d ON d.id = t.dimension_id
          ORDER BY d.sort, t.id",
     )?;
@@ -32,6 +47,7 @@ pub fn list_tags_conn(conn: &rusqlite::Connection) -> AppResult<Vec<Tag>> {
                 origin: r.get(4)?,
                 created_at: r.get(5)?,
                 usage: r.get(6)?,
+                meta: parse_tag_meta(r.get(7)?),
             })
         })?
         .collect::<Result<Vec<_>, _>>()?;
@@ -291,7 +307,7 @@ pub fn create_tag_conn(
 fn tag_by_id(conn: &Connection, id: i64) -> AppResult<Tag> {
     conn.query_row(
         "SELECT t.id, t.name, t.description, d.key, t.origin, t.created_at,
-                (SELECT COUNT(*) FROM task_tags tt WHERE tt.tag_id = t.id)
+                (SELECT COUNT(*) FROM task_tags tt WHERE tt.tag_id = t.id), t.meta
          FROM tags t JOIN tag_dimensions d ON d.id = t.dimension_id WHERE t.id=?1",
         params![id],
         |r| {
@@ -303,6 +319,7 @@ fn tag_by_id(conn: &Connection, id: i64) -> AppResult<Tag> {
                 origin: r.get(4)?,
                 created_at: r.get(5)?,
                 usage: r.get(6)?,
+                meta: parse_tag_meta(r.get(7)?),
             })
         },
     )

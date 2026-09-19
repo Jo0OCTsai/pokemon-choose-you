@@ -38,6 +38,16 @@ export interface Category {
   enabled: boolean;
 }
 
+/** project 标签的派发元数据（后端 tags.meta 列，JSON）：标签 → agent / 工作目录 / 项目上下文 */
+export interface TagMeta {
+  /** 派发工作目录（按 agent 位置解释：本地 = 本机路径，远程 = 远端路径；~ 前缀展开） */
+  workdir?: string | null;
+  /** 首选 agent（ai_agents 的 id；空 = 全局默认 agent） */
+  agentId?: string | null;
+  /** 项目的补充上下文（技术栈/注意事项），拼进派发 prompt */
+  context?: string | null;
+}
+
 export interface Tag {
   id: number;
   name: string;
@@ -50,6 +60,8 @@ export interface Tag {
   usage: number;
   /** 创建时间（RFC3339；僵尸标签的年龄判定用）；老数据可能为空 */
   createdAt?: string;
+  /** 派发元数据（仅 project 维度标签有值） */
+  meta?: TagMeta | null;
 }
 
 /** 标签维度：一组正交的归类面（分面分类）。维度封闭少而稳，标签在维度内开放生长 */
@@ -281,6 +293,38 @@ export interface LogEntry {
 export interface BatchReviewResult {
   ok: number;
   failed: { id: number; error: string }[];
+}
+
+/** 派发确认弹窗里的可改选 agent（启用的） */
+export interface DispatchAgentOption {
+  id: string;
+  name: string;
+  /** SSH 目标（null = 本机） */
+  sshHost: string | null;
+}
+
+/** 派发目标解析结果（任务抽屉展示：agent · 机器 · 目录 · 来源） */
+export interface TaskDispatchTarget {
+  taskId: number;
+  hasProjectTag: boolean;
+  projectTag: string | null;
+  /** pick（弹窗改选）/ tag（标签 meta 指定）/ default（全局默认） */
+  source: string;
+  agentId: string | null;
+  agentName: string | null;
+  sshHost: string | null;
+  /** 生效工作目录（空 = 本地 ~/.choose-you / 远端登录目录） */
+  workdir: string;
+  context: string | null;
+  /** 可改选的启用 agent 列表 */
+  agents: DispatchAgentOption[];
+}
+
+/** 派发结果：terminal 是唤起的终端程序名；note 为降级/部分失败说明 */
+export interface DispatchResult {
+  terminal: string;
+  note: string | null;
+  session: AgentSession;
 }
 
 /** 标签体检（复盘向导）：相似度预筛 + 僵尸标签 + LLM 复核与新维度建议 */

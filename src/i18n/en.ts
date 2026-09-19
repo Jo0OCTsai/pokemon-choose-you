@@ -189,6 +189,20 @@ export default {
     escaped: "Escaped",
     edit: "Edit",
   },
+  dispatch: {
+    title: "⚡ Dispatch to Agent",
+    needTag: "Add a Project-dimension tag first — dispatch routes by project tag (Settings → Tags).",
+    noAgent: "No agent available yet: add and enable one in Settings → Integrations first.",
+    go: "Dispatch",
+    working: "Dispatching…",
+    launched:
+      'Started "{agent}" in {term}; the task command is injected automatically. Use pk to write back when done.',
+    dir: "Dispatch working directory",
+    dirDefault: "agent default directory",
+    hint: 'Routed via project tag "{tag}" ({src}) · opens a new terminal you can watch or take over',
+    srcTag: "tag-specified",
+    srcDefault: "global default",
+  },
   stabs: {
     focus: "Focus",
     cats: "Categories",
@@ -267,6 +281,16 @@ export default {
     dimNew: "+ New dimension",
     maxTags: "Tag limit",
     dimManageHint: "Key and cardinality are fixed after creation; disabled dimensions leave new-tag and AI options.",
+    // ---- Dispatch settings on project tags (tag → agent / workdir / project context) ----
+    metaAgentNone: "Unspecified (global default)",
+    metaAgentOff: "disabled",
+    metaWorkdir: "Dispatch working directory (interpreted per agent location: local path, or remote path over SSH)",
+    metaWorkdirPh: "Dispatch workdir, e.g. ~/projects/my-repo",
+    metaContext: "Project context (stack/notes, joined into the dispatch prompt)",
+    metaContextPh: "Project context: stack, caveats…",
+    metaSave: "Save",
+    metaHint:
+      "Dispatch settings: todos with this tag route here (empty agent/dir falls back to the agent's own config / global default)",
   },
   dim: {
     project: "Project",

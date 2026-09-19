@@ -4,9 +4,10 @@ import { useI18n } from "vue-i18n";
 import { api, errorMessage } from "../api";
 import { fmtDateTime } from "../stores/settings";
 import { useCategoriesStore } from "../stores/categories";
-import type { AgentSession, Task, TaskLog, TaskNote } from "../types";
+import type { AgentSession, Task, TaskDispatchTarget, TaskLog, TaskNote } from "../types";
+import DexSelect from "./DexSelect.vue";
 
-/** 任务详情抽屉：点击任务卡片打开——属性总览 + 跟进记录 + Agent 执行 + 操作历史。
+/** 任务详情抽屉：点击任务卡片打开——属性总览 + 跟进记录 + Agent 派发与执行 + 操作历史。
  * 只读查看为主（跟进记录可直接补充），改字段走「编辑」进全字段弹窗。 */
 const props = defineProps<{ task: Task }>();
 const emit = defineEmits<{ close: []; edit: [task: Task] }>();
@@ -62,6 +63,61 @@ function openTranscript(x: AgentSession) {
   Promise.resolve(api.openAgentHistory(x.agentId, x.sessionId ?? undefined)).catch(() => {});
 }
 
+// ---- Agent 派发（M1 交互通道）：project 标签路由 → 新终端唤起 agent ----
+const hasProjectTag = computed(() => props.task.tags.some((r) => r.dimension === "project"));
+const dispatchTarget = ref<TaskDispatchTarget | null>(null);
+/** 确认行的改选值（加载时预填解析结果） */
+const dispatchAgent = ref("");
+const dispatchBusy = ref(false);
+const dispatchMsg = ref("");
+const dispatchErr = ref("");
+
+async function loadDispatch() {
+  try {
+    const target = await api.resolveTaskDispatch(props.task.id);
+    dispatchTarget.value = target;
+    dispatchAgent.value = target.agentId ?? "";
+  } catch {
+    dispatchTarget.value = null; // 非桌面环境（E2E mock）静默
+  }
+}
+
+/** 改选下拉：启用的 agent；解析结果不在列表里（被停用）时补一项，避免显示裸 id */
+const dispatchAgentOptions = computed(() => {
+  const target = dispatchTarget.value;
+  const opts = (target?.agents ?? []).map((a) => ({
+    value: a.id,
+    label: `${a.name}${a.sshHost ? " · SSH" : ""}`,
+  }));
+  if (target?.agentId && !opts.some((o) => o.value === target.agentId)) {
+    opts.unshift({ value: target.agentId, label: `${target.agentName ?? target.agentId} · ${t("tags.metaAgentOff")}` });
+  }
+  return opts;
+});
+
+const chosenAgent = computed(() => {
+  const target = dispatchTarget.value;
+  const id = dispatchAgent.value || target?.agentId;
+  const opt = target?.agents.find((a) => a.id === id);
+  return { name: opt?.name ?? target?.agentName ?? "—", host: opt?.sshHost ?? target?.sshHost ?? null };
+});
+const workdirText = computed(() => dispatchTarget.value?.workdir || t("dispatch.dirDefault"));
+
+async function dispatchNow() {
+  dispatchBusy.value = true;
+  dispatchErr.value = "";
+  dispatchMsg.value = "";
+  try {
+    const r = await api.dispatchTask(props.task.id, dispatchAgent.value || undefined);
+    dispatchMsg.value = r.note ?? t("dispatch.launched", { term: r.terminal, agent: r.session.agentName });
+    sessions.value = await api.listAgentSessions(props.task.id).catch(() => sessions.value);
+  } catch (e) {
+    dispatchErr.value = errorMessage(e);
+  } finally {
+    dispatchBusy.value = false;
+  }
+}
+
 // ---- 操作历史（只读，最新在前） ----
 const logs = ref<TaskLog[]>([]);
 function valueOf(field: string, v: string | null | undefined): string {
@@ -75,6 +131,7 @@ onMounted(async () => {
   });
   sessions.value = await api.listAgentSessions(props.task.id).catch(() => []);
   logs.value = await api.listTaskLogs(props.task.id).catch(() => []);
+  if (hasProjectTag.value) await loadDispatch();
 });
 </script>
 
@@ -153,6 +210,42 @@ onMounted(async () => {
             {{ t("edit.addFollowUp") }}
           </button>
         </form>
+      </div>
+
+      <!-- Agent 派发：project 标签路由 → 新终端唤起 agent -->
+      <div class="notes">
+        <div class="notes-head">{{ t("dispatch.title") }}</div>
+        <p v-if="!hasProjectTag" class="d-hint">{{ t("dispatch.needTag") }}</p>
+        <template v-else-if="dispatchTarget">
+          <p v-if="!dispatchTarget.agentId" class="d-hint">{{ t("dispatch.noAgent") }}</p>
+          <template v-else>
+            <div class="dsp-row">
+              <DexSelect
+                v-if="dispatchAgentOptions.length > 1"
+                v-model="dispatchAgent"
+                :options="dispatchAgentOptions"
+                class="dsp-agent"
+              />
+              <span class="badge dsp-agent-badge" :class="{ ssh: !!chosenAgent.host }">
+                {{ chosenAgent.name }} · {{ chosenAgent.host ? `SSH ${chosenAgent.host}` : t("ai.local") }}
+              </span>
+              <span class="dsp-dir" :title="t('dispatch.dir')">📂 {{ workdirText }}</span>
+              <button class="btn" :disabled="dispatchBusy" @click="dispatchNow()">
+                {{ dispatchBusy ? t("dispatch.working") : `⚡ ${t("dispatch.go")}` }}
+              </button>
+            </div>
+            <p class="d-hint">
+              {{
+                t("dispatch.hint", {
+                  tag: dispatchTarget.projectTag ?? "",
+                  src: dispatchTarget.source === "tag" ? t("dispatch.srcTag") : t("dispatch.srcDefault"),
+                })
+              }}
+            </p>
+          </template>
+        </template>
+        <p v-if="dispatchMsg" class="dsp-ok">✅ {{ dispatchMsg }}</p>
+        <p v-if="dispatchErr" class="err">❌ {{ dispatchErr }}</p>
       </div>
 
       <!-- Agent 执行：这个任务花了多少钱、跑了几次 -->
@@ -413,6 +506,47 @@ onMounted(async () => {
 .run-open {
   color: var(--dex-navy);
   font-weight: 800;
+}
+/* Agent 派发操作行 */
+.dsp-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.dsp-agent :deep(.ds-btn) {
+  min-width: 130px;
+  padding: 6px 9px;
+  font-size: 12px;
+}
+.dsp-agent-badge.ssh {
+  background: var(--rest-blue);
+  color: #fff;
+}
+.dsp-dir {
+  flex: 1;
+  min-width: 120px;
+  font-size: 12px;
+  color: var(--ink-soft);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.dsp-row .btn {
+  padding: 7px 12px;
+  font-size: 13px;
+  min-height: 36px;
+}
+.d-hint {
+  margin: 0;
+  font-size: 11.5px;
+  color: var(--ink-soft);
+}
+.dsp-ok {
+  margin: 0;
+  font-size: 12.5px;
+  font-weight: 700;
+  color: var(--ok-ink);
 }
 .err {
   margin: 0;
