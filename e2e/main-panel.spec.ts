@@ -65,8 +65,8 @@ test.describe("图鉴机主面板", () => {
     await page.goto("/");
     await page.locator(".menu-btn", { hasText: "设置" }).click();
     await page.locator(".stab", { hasText: "显示" }).click();
-    // 语言 DexSelect：默认简体中文
-    const langRow = page.locator(".set-card label", { hasText: "语言" });
+    // 语言 DexSelect：默认简体中文（SettingRow 渲染为 .set-row > .set-label）
+    const langRow = page.locator(".set-card .set-row", { hasText: "语言" });
     await langRow.locator(".ds-btn").click();
     await langRow.locator(".ds-list li", { hasText: "English" }).click();
     await expect(page.locator(".menu-btn").first()).toContainText("Adventure");
@@ -76,6 +76,6 @@ test.describe("图鉴机主面板", () => {
   test("收音机空态展示引导文案", async ({ page }) => {
     await page.goto("/");
     await page.locator(".menu-btn", { hasText: "收音机" }).click();
-    await expect(page.locator(".im-list .empty")).toContainText("收音机里很安静");
+    await expect(page.locator(".im-list-box .empty")).toContainText("收音机里很安静");
   });
 });
