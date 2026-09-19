@@ -4,6 +4,7 @@ import type {
   AgentSkillStatus,
   BackupInfo,
   BatchReviewResult,
+  CaptureOutcome,
   Category,
   ChatMessage,
   DispatchResult,
@@ -146,6 +147,8 @@ export const api = {
     call<void>("dismiss_chat_message", { id, reasonCode: reasonCode ?? null }),
   /** 强制用 AI 为消息创建待办（AI 先判重，重复则报错说明） */
   forceCreateTodo: (id: number) => call<number>("force_create_todo", { id }),
+  /** 收音机快速捕捉：自然语言落库成 local 消息交 AI 判定属性——todo 直接建待办，判重类留待确认 */
+  captureTodo: (input: string) => call<CaptureOutcome>("capture_todo", { input }),
   /** 应用 AI 的更新建议：把建议字段打补丁到目标待办 */
   applyChatMessageUpdate: (id: number) => call<number>("apply_chat_message_update", { id }),
   /** 撤销最近一次分诊（5 秒撤销窗口）：逃走回 pending；捕捉删除刚建的待办 */

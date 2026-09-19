@@ -49,7 +49,7 @@ watch(
 const isTaskTab = computed(() => ["today", "inbox", "scheduled", "done"].includes(tab.value));
 // 模板里 isTaskTab 的 v-if 收窄不了模板表达式的类型，这里集中收窄一次
 const activeTaskTab = computed<TaskTabKey>(() => (isTaskTab.value ? (tab.value as TaskTabKey) : "today"));
-const taskTab = ref<InstanceType<typeof TaskTab> | null>(null);
+const radioTab = ref<InstanceType<typeof RadioTab> | null>(null);
 const settingsTab = ref<InstanceType<typeof SettingsTab> | null>(null);
 
 // 后端发现新版本时广播，设置页展示安装入口
@@ -57,11 +57,11 @@ const latestVersion = ref("");
 
 const today = new Date();
 
-/** 全局快捷键"快速捕捉"：切到冒险页并聚焦新增输入框 */
+/** 全局快捷键"快速捕捉"：切到收音机并聚焦自然语言捕捉输入框（AI 判定属性） */
 async function quickCapture() {
-  tab.value = "today";
+  tab.value = "im";
   await nextTick();
-  taskTab.value?.focusAddForm();
+  radioTab.value?.focusCapture();
 }
 
 const unlisteners: UnlistenFn[] = [];
@@ -143,8 +143,8 @@ onUnmounted(() => {
         </button>
       </div>
 
-      <TaskTab v-if="isTaskTab" ref="taskTab" :tab="activeTaskTab" />
-      <RadioTab v-else-if="tab === 'im'" />
+      <TaskTab v-if="isTaskTab" :tab="activeTaskTab" />
+      <RadioTab v-else-if="tab === 'im'" ref="radioTab" />
       <SettingsTab v-else ref="settingsTab" :latest-version="latestVersion" />
     </main>
 

@@ -9,6 +9,42 @@ import type { ChatMessage } from "../types";
 const { t } = useI18n();
 const tasksStore = useTasksStore();
 
+// ---- 快速捕捉：一句话自然语言 → AI 判定属性 → todo 直接建待办（可撤销），判重类留待确认 ----
+const captureText = ref("");
+const capturing = ref(false);
+const captureInput = ref<HTMLInputElement | null>(null);
+
+async function submitCapture() {
+  const text = captureText.value.trim();
+  if (!text || capturing.value) return;
+  capturing.value = true;
+  try {
+    const r = await api.captureTodo(text);
+    captureText.value = "";
+    query.value = ""; // 清掉搜索过滤，让新电波看得见
+    await reload();
+    selectedId.value = r.message.id;
+    if (r.taskId) {
+      showToast(t("im.caughtTask", { id: r.taskId }), { undo: () => undoReview(r.message.id) });
+    } else {
+      // 判重命中现有待办（update / followUp / none）：建议已生成，等人工裁决
+      showToast(t("im.capturePending"));
+    }
+  } catch (e) {
+    showToast(`❌ ${errorMessage(e)}`, { error: true });
+    await reload(); // 判定失败的消息也进了列表（error 态，可强制捕捉/逃走）
+  } finally {
+    capturing.value = false;
+  }
+}
+
+/** 快捷键"快速捕捉"：切到收音机后聚焦捕捉输入框 */
+function focusCapture() {
+  captureInput.value?.focus();
+}
+
+defineExpose({ focusCapture });
+
 // ---- 搜索（后端 LIKE 过滤） ----
 const query = ref("");
 const searched = ref<ChatMessage[] | null>(null);
@@ -283,6 +319,21 @@ const chipTitle = (tag: { name: string; dimension: string; isNew: boolean }) =>
   <div class="im-split">
     <!-- 左栏：电波列表 -->
     <section class="im-left">
+      <!-- 快速捕捉：一句话发给 AI 判定属性（内容 / 分类 / 标签 / 截止时间） -->
+      <form class="capture-bar" @submit.prevent="submitCapture">
+        <span class="cap-icon" aria-hidden="true">⚡</span>
+        <input
+          ref="captureInput"
+          v-model="captureText"
+          class="cap-input"
+          :placeholder="t('im.capturePlaceholder')"
+          :disabled="capturing"
+        />
+        <button class="cap-send" type="submit" :disabled="!captureText.trim() || capturing">
+          {{ capturing ? t("im.capturing") : t("im.captureSend") }}
+        </button>
+      </form>
+
       <div class="im-toolbar">
         <input v-model="query" class="search-input" :placeholder="t('im.search')" />
         <div class="view-toggle" role="group" :aria-label="t('im.viewMode')">
@@ -734,6 +785,61 @@ const chipTitle = (tag: { name: string; dimension: string; isNew: boolean }) =>
 .im-toolbar {
   display: flex;
   gap: 8px;
+}
+/* 快速捕捉条：左栏首行，主入口用黄底强调 */
+.capture-bar {
+  flex: none;
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+.cap-icon {
+  flex: none;
+  font-size: 16px;
+}
+.cap-input {
+  flex: 1;
+  min-width: 0;
+  padding: 8px 10px;
+  border: 3px solid var(--dex-navy);
+  border-radius: 8px;
+  font-size: 14px;
+  background: #fff;
+  font-family: inherit;
+  box-shadow: 3px 3px 0 var(--dex-navy);
+  min-height: 38px;
+}
+.cap-input:disabled {
+  opacity: 0.6;
+}
+.cap-send {
+  flex: none;
+  border: 3px solid var(--dex-navy);
+  border-radius: 8px;
+  background: var(--poke-yellow);
+  color: var(--dex-navy);
+  font-size: 13px;
+  font-weight: 800;
+  font-family: inherit;
+  padding: 8px 14px;
+  min-height: 38px;
+  cursor: pointer;
+  box-shadow: 3px 3px 0 var(--dex-navy);
+  transition:
+    transform var(--t-tap),
+    box-shadow var(--t-tap),
+    background var(--t-tap);
+}
+.cap-send:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+.cap-send:not(:disabled):hover {
+  background: #ffdf60;
+}
+.cap-send:not(:disabled):active {
+  transform: translate(2px, 2px);
+  box-shadow: 1px 1px 0 var(--dex-navy);
 }
 .search-input {
   flex: 1;

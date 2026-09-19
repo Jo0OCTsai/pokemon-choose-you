@@ -145,6 +145,7 @@ pub fn run() {
             commands::dismiss_chat_message,
             commands::batch_review_chat_messages,
             commands::force_create_todo,
+            commands::capture_todo,
             commands::apply_chat_message_update,
             commands::undo_chat_review,
             commands::test_ai_config,
