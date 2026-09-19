@@ -5,7 +5,7 @@ import App from "../App.vue";
 import { api } from "../api";
 import { i18n } from "../i18n";
 import { useSettingsStore } from "../stores/settings";
-import type { Task } from "../types";
+import type { ChatMessage, Task } from "../types";
 
 vi.mock("../api", () => ({
   api: {
@@ -418,6 +418,37 @@ describe("App 图鉴机主面板", () => {
     const catchBtn = w.findAll(".im-actions .btn").find((b) => b.text().startsWith("◎"))!;
     await catchBtn.trigger("click");
     expect(api.acceptChatMessage).toHaveBeenCalledWith(7);
+  });
+
+  it("按频道分组可折叠：点组头收起该频道，再点展开", async () => {
+    tasks = seed([]);
+    const im = (id: number, chatId: string, chatName: string, content: string, aiStatus: string): ChatMessage => ({
+      id,
+      messageId: `m${id}`,
+      chatId,
+      chatName,
+      sender: "张三",
+      content,
+      suggestedTags: [],
+      aiStatus,
+      reviewStatus: "pending",
+      taskId: null,
+      createdAt: "2026-09-11T00:00:00Z",
+    });
+    vi.mocked(api.listChatMessages).mockResolvedValue([
+      im(11, "c1", "项目群", "明天上午10点开周会", "todo"),
+      im(12, "c1", "项目群", "哈哈哈", "none"),
+      im(13, "c2", "摸鱼群", "中午吃什么", "none"),
+    ]);
+    const w = await mountApp();
+    await w.findAll(".menu-btn")[4].trigger("click");
+    await w.findAll(".view-toggle button")[1].trigger("click"); // 📡 按频道
+    expect(w.findAll(".list-group")).toHaveLength(2);
+    const head = w.findAll(".lg-head")[0];
+    await head.trigger("click");
+    expect(w.findAll(".list-group")[0].classes()).toContain("collapsed");
+    await head.trigger("click");
+    expect(w.findAll(".list-group")[0].classes()).not.toContain("collapsed");
   });
 
   it("收音机建议显示置信档位与理由；逃走可选原因码落反馈", async () => {

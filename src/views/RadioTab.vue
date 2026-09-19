@@ -468,7 +468,12 @@ const chipTitle = (tag: { name: string; dimension: string; isNew: boolean }) =>
 
         <!-- 频道模式：按会话聚拢，组内信号在前 -->
         <template v-else>
-          <section v-for="g in channelGroups" :key="g.key" class="list-group">
+          <section
+            v-for="g in channelGroups"
+            :key="g.key"
+            class="list-group"
+            :class="{ collapsed: collapsed.has('ch:' + g.key) }"
+          >
             <button type="button" class="lg-head" @click="toggleGroup('ch:' + g.key)">
               <span class="lg-caret">{{ collapsed.has("ch:" + g.key) ? "▸" : "▾" }}</span>
               📡 {{ g.name }}
