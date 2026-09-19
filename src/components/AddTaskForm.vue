@@ -6,7 +6,6 @@ import { fmtDateTime, useSettingsStore } from "../stores/settings";
 import { useCategoriesStore } from "../stores/categories";
 import { useTagsStore } from "../stores/tags";
 import { parseNlCapture } from "../nlCapture";
-import { pokemonName } from "../pokemon";
 import DexSelect from "./DexSelect.vue";
 import DexDateTime from "./DexDateTime.vue";
 
@@ -53,12 +52,7 @@ watch(
   { immediate: true },
 );
 const categoryOptions = computed(() => enabledCategories.value.map((c) => ({ value: String(c.id), label: c.name })));
-/** 输入框占位符跟随选中分类：野生「宝可梦」换成该分类关联的宝可梦名 */
-const addPlaceholder = computed(() => {
-  const cat = categories.byId.get(newCategory.value);
-  const p = cat ? pokemonName(cat.sprite, cat.pokemon) : "";
-  return p ? t("add.placeholderNamed", { p }) : t("add.placeholder");
-});
+const addPlaceholder = computed(() => t("add.placeholder"));
 const priorityOptions = computed(() =>
   (["low", "normal", "high", "urgent"] as const).map((p) => ({ value: p, label: t(`priority.${p}`) })),
 );
@@ -156,10 +150,6 @@ defineExpose({ focus });
   box-shadow: 3px 3px 0 var(--dex-navy);
   min-height: 38px;
 }
-.add .btn {
-  min-height: 38px;
-  padding: 6px 14px;
-}
 /* 自然语言识别预览：紧跟标题输入的一行胶囊 */
 .nl-preview {
   flex: 1 1 100%;
@@ -193,7 +183,7 @@ defineExpose({ focus });
   margin-left: auto;
   flex: none;
   border: 2px dashed var(--dex-navy);
-  border-radius: 6px;
+  border-radius: 4px;
   background: transparent;
   color: var(--dex-navy);
   font-size: 12px;
@@ -201,8 +191,14 @@ defineExpose({ focus });
   font-family: inherit;
   padding: 2px 8px;
   cursor: pointer;
+  transition:
+    background var(--t-tap),
+    transform var(--t-tap);
 }
 .nl-cancel:hover {
   background: #fff;
+}
+.nl-cancel:active {
+  transform: translate(1px, 1px);
 }
 </style>

@@ -175,7 +175,7 @@ async function save() {
   position: fixed;
   inset: 0;
   z-index: 80;
-  background: rgba(28, 34, 68, 0.45);
+  background: rgba(28, 34, 68, 0.42);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -184,7 +184,7 @@ async function save() {
   background: #fff;
   border: 3px solid var(--dex-navy);
   border-radius: 12px;
-  box-shadow: 6px 6px 0 var(--dex-navy);
+  box-shadow: 4px 4px 0 var(--dex-navy);
   padding: 16px 18px;
   display: flex;
   flex-direction: column;
@@ -196,7 +196,7 @@ async function save() {
 }
 .card h3 {
   margin: 0;
-  font-size: 15px;
+  font-size: 16px;
 }
 .form {
   display: flex;
@@ -209,7 +209,7 @@ async function save() {
   align-items: center;
   gap: 10px;
   font-size: 13px;
-  color: #555;
+  color: var(--ink-soft);
 }
 .lbl {
   flex: none;
@@ -223,8 +223,9 @@ async function save() {
   border-radius: 8px;
   font-size: 13px;
   font-family: inherit;
-  min-height: 36px;
+  min-height: 38px;
   box-sizing: border-box;
+  box-shadow: 3px 3px 0 var(--dex-navy);
 }
 .row textarea {
   resize: vertical;
@@ -243,7 +244,7 @@ async function save() {
 .dim-name {
   font-size: 11px;
   font-weight: 800;
-  color: #9a937f;
+  color: var(--ink-soft);
   margin-right: 2px;
 }
 .tag-chip {
@@ -256,22 +257,29 @@ async function save() {
   padding: 4px 10px;
   cursor: pointer;
   font-family: inherit;
+  transition:
+    background var(--t-tap),
+    transform var(--t-tap),
+    box-shadow var(--t-tap);
 }
 .tag-chip.on {
   background: var(--poke-yellow);
   box-shadow: 2px 2px 0 var(--dex-navy);
 }
+.tag-chip:active {
+  transform: translate(1px, 1px);
+}
 .tag-chip.dim.on {
   /* 非项目维度的选中态用浅绿区分（项目是主位信息，保持黄色高亮） */
-  background: #bfe3c0;
+  background: var(--ok-soft);
 }
 .no-tags {
   font-size: 12px;
-  color: #9a937f;
+  color: var(--ink-soft);
 }
 .tag-count {
   font-size: 11px;
-  color: #9a937f;
+  color: var(--ink-soft);
   margin-left: auto;
   align-self: flex-end;
 }
@@ -279,7 +287,7 @@ async function save() {
   margin: 0;
   font-size: 12.5px;
   font-weight: 700;
-  color: var(--dex-red);
+  color: var(--danger);
 }
 .btn-row {
   display: flex;

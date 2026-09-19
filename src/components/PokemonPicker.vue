@@ -111,10 +111,16 @@ onBeforeUnmount(() => document.removeEventListener("mousedown", onDocClick));
   min-width: 150px;
   cursor: pointer;
   box-shadow: 3px 3px 0 var(--dex-navy);
+  transition:
+    transform var(--t-tap),
+    box-shadow var(--t-tap);
 }
 .pk-btn:active {
-  transform: translate(1px, 1px);
-  box-shadow: 2px 2px 0 var(--dex-navy);
+  transform: translate(2px, 2px);
+  box-shadow: 1px 1px 0 var(--dex-navy);
+}
+.pk-btn:hover:not(.open) {
+  background: var(--hover);
 }
 .pk-btn.open {
   background: var(--poke-yellow);
@@ -137,20 +143,20 @@ onBeforeUnmount(() => document.removeEventListener("mousedown", onDocClick));
   white-space: nowrap;
 }
 .pk-label.unknown {
-  color: #9a937f;
+  color: var(--ink-soft);
 }
 .pk-arrow {
-  font-size: 9px;
+  font-size: 10px;
 }
 .pk-panel {
   position: absolute;
   top: calc(100% + 4px);
   left: 0;
-  z-index: 70;
+  z-index: 60;
   width: min(320px, 78vw);
   background: #fff;
   border: 3px solid var(--dex-navy);
-  border-radius: 10px;
+  border-radius: 8px;
   box-shadow: 4px 4px 0 var(--dex-navy);
   padding: 8px;
 }
@@ -161,8 +167,9 @@ onBeforeUnmount(() => document.removeEventListener("mousedown", onDocClick));
   border-radius: 8px;
   font-size: 13px;
   font-family: inherit;
-  min-height: 36px;
+  min-height: 38px;
   margin-bottom: 6px;
+  box-shadow: 3px 3px 0 var(--dex-navy);
 }
 .pk-list {
   list-style: none;
@@ -179,12 +186,12 @@ onBeforeUnmount(() => document.removeEventListener("mousedown", onDocClick));
   font-weight: 700;
   color: var(--dex-navy);
   padding: 4px 6px;
-  border-radius: 6px;
+  border-radius: 4px;
   cursor: pointer;
   white-space: nowrap;
 }
 .pk-item:hover {
-  background: #fff3c4;
+  background: var(--hover);
 }
 .pk-item.sel {
   background: var(--poke-yellow);
@@ -192,7 +199,7 @@ onBeforeUnmount(() => document.removeEventListener("mousedown", onDocClick));
 .pk-cursor {
   width: 10px;
   flex: none;
-  font-size: 9px;
+  font-size: 10px;
   opacity: 0;
 }
 .pk-item.sel .pk-cursor {
@@ -209,13 +216,13 @@ onBeforeUnmount(() => document.removeEventListener("mousedown", onDocClick));
   white-space: normal;
 }
 .pk-id {
-  font-size: 9px;
+  font-size: 8px;
   opacity: 0.65;
   flex: none;
 }
 .pk-bundled {
   flex: none;
-  font-size: 9px;
+  font-size: 11px;
   border: 2px solid var(--dex-navy);
   border-radius: 4px;
   padding: 0 4px;
@@ -223,7 +230,7 @@ onBeforeUnmount(() => document.removeEventListener("mousedown", onDocClick));
 }
 .pk-none {
   font-size: 13px;
-  color: #9a937f;
+  color: var(--ink-soft);
   text-align: center;
   padding: 14px 0;
 }

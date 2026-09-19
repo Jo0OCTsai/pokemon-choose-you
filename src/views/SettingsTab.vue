@@ -522,6 +522,11 @@ const presetOptions = [
 ];
 const agentPreset = ref("claude");
 const agents = ref<AgentConfig[]>([]);
+/** 用于收音机分类的 agent（分区级单选，与其他表单行同一套下拉控件）；空 = 不指定 */
+const primaryAgentOptions = computed(() => [
+  { value: "", label: t("ai.primaryNone") },
+  ...agents.value.filter((a) => a.enabled).map((a) => ({ value: a.id, label: a.name || a.command })),
+]);
 
 function newId(): string {
   return typeof crypto !== "undefined" && "randomUUID" in crypto
@@ -994,6 +999,10 @@ onUnmounted(() => unlisteners.forEach((u) => u()));
         <section class="set-card">
           <h3>{{ t("ai.title") }}</h3>
           <p class="hint">{{ t("ai.hint") }}</p>
+          <label>
+            {{ t("ai.primary") }}
+            <DexSelect v-model="settings.values.ai_agent_id" :options="primaryAgentOptions" />
+          </label>
           <div v-for="ag in agents" :key="ag.id" class="agent-block" :class="{ off: !ag.enabled }">
             <div class="agent-row">
               <input v-model="ag.name" class="agent-name" :placeholder="t('ai.namePh')" />
@@ -1018,13 +1027,9 @@ onUnmounted(() => unlisteners.forEach((u) => u()));
               {{ t("ai.timeout") }}
               <input v-model.number="ag.timeoutSecs" type="number" min="10" step="10" />
             </label>
-            <label class="chk-line">
-              <input
-                type="checkbox"
-                :checked="!!ag.remote"
-                @change="toggleRemote(ag, ($event.target as HTMLInputElement).checked)"
-              />
+            <label>
               {{ t("ai.sshOn") }}
+              <DexToggle :model-value="!!ag.remote" @update:model-value="(v) => toggleRemote(ag, Boolean(v))" />
             </label>
             <template v-if="ag.remote">
               <div class="agent-row ssh-row">
@@ -1051,10 +1056,6 @@ onUnmounted(() => unlisteners.forEach((u) => u()));
               </div>
               <p class="hint">{{ t("ai.sshHint") }}</p>
             </template>
-            <label class="chk-line">
-              <input v-model="settings.values.ai_agent_id" type="radio" name="primary-agent" :value="ag.id" />
-              {{ t("ai.primary") }}
-            </label>
             <div class="btn-row">
               <button class="btn ghost" @click="saveAgents">{{ t("ai.save") }}</button>
               <button class="btn ghost" :disabled="testing" @click="testAgent(ag)">
@@ -1329,7 +1330,7 @@ onUnmounted(() => unlisteners.forEach((u) => u()));
   flex-wrap: wrap;
   background: #fff;
   border: 3px solid var(--dex-navy);
-  border-radius: 10px;
+  border-radius: 8px;
   box-shadow: 4px 4px 0 var(--dex-navy);
   padding: 10px;
 }
@@ -1343,16 +1344,23 @@ onUnmounted(() => unlisteners.forEach((u) => u()));
   font-size: 14px;
   font-weight: 700;
   padding: 8px 12px;
-  min-height: 40px;
+  min-height: 38px;
   cursor: pointer;
   font-family: inherit;
   box-shadow: 3px 3px 0 var(--dex-navy);
+  transition:
+    transform var(--t-tap),
+    box-shadow var(--t-tap),
+    background var(--t-tap);
 }
 .stab .cursor {
   width: 12px;
   flex: none;
   opacity: 0;
-  font-size: 11px;
+  font-size: 10px;
+}
+.stab:hover:not(.active) {
+  background: var(--hover);
 }
 .stab.active {
   background: var(--poke-yellow);
@@ -1361,8 +1369,8 @@ onUnmounted(() => unlisteners.forEach((u) => u()));
   opacity: 1;
 }
 .stab:active {
-  transform: translate(1px, 1px);
-  box-shadow: 2px 2px 0 var(--dex-navy);
+  transform: translate(2px, 2px);
+  box-shadow: 1px 1px 0 var(--dex-navy);
 }
 
 .set-card {
@@ -1374,7 +1382,7 @@ onUnmounted(() => unlisteners.forEach((u) => u()));
 }
 .set-card h3 {
   margin: 0 0 12px;
-  font-size: 15px;
+  font-size: 16px;
 }
 /* 主宝可梦行 */
 .main-pokemon-line {
@@ -1401,6 +1409,7 @@ onUnmounted(() => unlisteners.forEach((u) => u()));
   line-height: 1.7;
   resize: vertical;
   min-height: 96px;
+  box-shadow: 3px 3px 0 var(--dex-navy);
 }
 /* 分类编辑行 */
 .cat-row {
@@ -1419,14 +1428,16 @@ onUnmounted(() => unlisteners.forEach((u) => u()));
   border-radius: 8px;
   font-size: 13px;
   font-family: inherit;
+  min-height: 38px;
+  box-shadow: 3px 3px 0 var(--dex-navy);
 }
 .cat-row .btn {
   padding: 7px 10px;
-  min-height: 34px;
-  font-size: 12px;
+  min-height: 38px;
+  font-size: 13px;
 }
 .cat-row .btn.del {
-  color: var(--dex-red);
+  color: var(--danger);
 }
 /* 标签编辑行 */
 .tag-row {
@@ -1441,7 +1452,8 @@ onUnmounted(() => unlisteners.forEach((u) => u()));
   border-radius: 8px;
   font-size: 13px;
   font-family: inherit;
-  min-height: 34px;
+  min-height: 38px;
+  box-shadow: 3px 3px 0 var(--dex-navy);
 }
 .tag-name {
   width: 110px;
@@ -1453,8 +1465,8 @@ onUnmounted(() => unlisteners.forEach((u) => u()));
 }
 .tag-row .btn {
   padding: 7px 10px;
-  min-height: 34px;
-  font-size: 12px;
+  min-height: 38px;
+  font-size: 13px;
 }
 /* 维度分组管理 */
 .tag-dim-group {
@@ -1469,13 +1481,9 @@ onUnmounted(() => unlisteners.forEach((u) => u()));
 }
 .tag-dim-meta {
   font-size: 11px;
-  color: #9a937f;
+  color: var(--ink-soft);
 }
-.tag-dim-head .mini {
-  padding: 2px 9px;
-  min-height: 26px;
-  font-size: 13px;
-}
+/* mini 档统一走 dex.css 的 .btn.mini（32px） */
 .tag-dim-select {
   width: 92px;
   flex: none;
@@ -1485,7 +1493,7 @@ onUnmounted(() => unlisteners.forEach((u) => u()));
   width: 84px;
   font-size: 11px;
   font-weight: 800;
-  color: #9a937f;
+  color: var(--ink-soft);
   overflow: hidden;
   text-overflow: ellipsis;
 }
@@ -1494,12 +1502,12 @@ onUnmounted(() => unlisteners.forEach((u) => u()));
   flex: none;
 }
 .set-card .btn.del {
-  color: var(--dex-red);
+  color: var(--danger);
 }
 /* AI agent 配置块 */
 .agent-block {
   border: 3px solid var(--dex-navy);
-  border-radius: 10px;
+  border-radius: 8px;
   padding: 10px 12px;
   margin-bottom: 12px;
   background: #fff;
@@ -1519,7 +1527,8 @@ onUnmounted(() => unlisteners.forEach((u) => u()));
   border-radius: 8px;
   font-size: 13px;
   font-family: inherit;
-  min-height: 34px;
+  min-height: 38px;
+  box-shadow: 3px 3px 0 var(--dex-navy);
 }
 .agent-name {
   width: 120px;
@@ -1531,8 +1540,8 @@ onUnmounted(() => unlisteners.forEach((u) => u()));
 }
 .agent-row .btn {
   padding: 7px 10px;
-  min-height: 34px;
-  font-size: 12px;
+  min-height: 38px;
+  font-size: 13px;
 }
 .agent-block .btn-row {
   margin-top: 10px;
@@ -1540,39 +1549,34 @@ onUnmounted(() => unlisteners.forEach((u) => u()));
 .add-agent {
   align-items: center;
 }
+/* 初代选项屏的严格两栏：132px 标签列 + 控件列统一左对齐（布尔走 DexToggle，单选走 DexSelect） */
 .set-card label {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  margin-bottom: 10px;
-  font-size: 13px;
-  color: #555;
-}
-/* 初代选项屏的严格两栏：固定宽度标签列 + 控件统一左对齐（复选框行除外） */
-.set-card label:not(.chk-line) {
   display: grid;
   grid-template-columns: 132px minmax(0, 1fr);
   align-items: center;
   gap: 10px;
+  margin-bottom: 10px;
+  font-size: 13px;
+  color: var(--ink-soft);
 }
-.set-card label:not(.chk-line) .dex-select {
+.set-card label .dex-select {
   justify-self: start;
 }
-.set-card label:not(.chk-line) .dex-toggle {
+.set-card label .dex-toggle {
   justify-self: start;
 }
-.set-card label input:not([type="checkbox"]) {
-  flex: 1;
+.set-card label input {
   padding: 8px 10px;
   border: 3px solid var(--dex-navy);
   border-radius: 8px;
   font-size: 13px;
   font-family: inherit;
   min-height: 38px;
+  box-shadow: 3px 3px 0 var(--dex-navy);
 }
 .hint {
   font-size: 12px;
-  color: #9a937f;
+  color: var(--ink-soft);
   margin: 4px 0 12px;
   line-height: 1.7;
 }
@@ -1609,18 +1613,18 @@ onUnmounted(() => unlisteners.forEach((u) => u()));
 /* 三档状态：绿=正常/待运行，黄=降级/暂停，红=故障；灰=未配置 */
 .h-ok,
 .h-idle {
-  color: #2e9e5b;
+  color: var(--ok);
 }
 .h-degraded,
 .h-paused {
-  color: #c98a06;
+  color: var(--warn);
 }
 .h-down {
   color: var(--dex-red);
   animation: health-blink 1.2s steps(2) infinite;
 }
 .h-off {
-  color: #9a937f;
+  color: var(--ink-soft);
 }
 @keyframes health-blink {
   50% {
@@ -1636,26 +1640,26 @@ onUnmounted(() => unlisteners.forEach((u) => u()));
   font-size: 12px;
   font-weight: 700;
   border: 2px solid var(--dex-navy);
-  border-radius: 6px;
+  border-radius: 4px;
   padding: 1px 8px;
   background: #fff;
 }
 .hs-down {
-  background: var(--dex-red);
+  background: var(--danger);
   color: #fff;
 }
 .hs-degraded {
-  background: #fff3cd;
+  background: var(--warn-soft);
 }
 .health-meta {
   font-size: 12px;
-  color: #777;
+  color: var(--ink-soft);
   flex: 1;
   min-width: 200px;
 }
 .health-err {
   margin: 4px 0 0 24px;
-  color: var(--dex-red);
+  color: var(--danger);
 }
 /* 诊断：日志查看器 */
 .log-controls {
@@ -1671,7 +1675,7 @@ onUnmounted(() => unlisteners.forEach((u) => u()));
   gap: 8px;
   margin: 0;
   font-size: 13px;
-  color: #555;
+  color: var(--ink-soft);
 }
 .log-source {
   flex: 1;
@@ -1682,15 +1686,14 @@ onUnmounted(() => unlisteners.forEach((u) => u()));
   font-size: 13px;
   font-family: inherit;
   min-height: 38px;
+  box-shadow: 3px 3px 0 var(--dex-navy);
 }
 .log-view {
   max-height: 320px;
   overflow-y: auto;
   padding: 10px 12px;
-  border: 3px solid var(--dex-navy);
-  border-radius: 10px;
-  font-family: var(--font-mono, monospace);
-  font-size: 11.5px;
+  font-family: monospace;
+  font-size: 12px;
   line-height: 1.7;
 }
 .log-empty {
@@ -1749,10 +1752,10 @@ onUnmounted(() => unlisteners.forEach((u) => u()));
   word-break: break-word;
 }
 .lv-error .log-lv {
-  color: #ff6b6b;
+  color: var(--log-error);
 }
 .lv-warn .log-lv {
-  color: #ffd166;
+  color: var(--log-warn);
 }
 .lv-debug {
   opacity: 0.65;
@@ -1767,7 +1770,7 @@ onUnmounted(() => unlisteners.forEach((u) => u()));
 .test-msg {
   font-size: 13px;
   font-weight: 700;
-  color: var(--dex-red);
+  color: var(--danger);
 }
 
 /* 备份管理 */
@@ -1796,7 +1799,7 @@ onUnmounted(() => unlisteners.forEach((u) => u()));
   gap: 10px;
   flex-wrap: wrap;
   border: 2px solid var(--dex-navy);
-  border-radius: 8px;
+  border-radius: 4px;
   padding: 6px 10px;
   font-size: 12px;
 }
@@ -1806,12 +1809,12 @@ onUnmounted(() => unlisteners.forEach((u) => u()));
   font-family: monospace;
 }
 .b-meta {
-  color: #7b7460;
+  color: var(--ink-soft);
   margin-right: auto;
 }
 .btn.ghost.danger {
   color: #fff;
-  background: var(--dex-red);
+  background: var(--danger);
   border-color: var(--dex-navy);
 }
 
@@ -1837,6 +1840,7 @@ onUnmounted(() => unlisteners.forEach((u) => u()));
   border-radius: 8px;
   font-size: 13px;
   font-family: inherit;
-  min-height: 34px;
+  min-height: 38px;
+  box-shadow: 3px 3px 0 var(--dex-navy);
 }
 </style>

@@ -70,13 +70,13 @@ onUnmounted(() => {
 /* 图鉴风右键菜单：白底粗描边 + ▶ 光标 + 皮卡黄高亮，与侧栏按钮同一套控件语言 */
 .ctx-menu {
   position: fixed;
-  z-index: 300;
+  z-index: 95;
   margin: 0;
   padding: 4px;
   list-style: none;
   background: #fff;
   border: 3px solid var(--dex-navy);
-  border-radius: 10px;
+  border-radius: 8px;
   box-shadow: 4px 4px 0 var(--dex-navy);
   min-width: 168px;
   font-size: 13px;
@@ -89,7 +89,7 @@ onUnmounted(() => {
   align-items: center;
   gap: 8px;
   padding: 6px 12px;
-  border-radius: 6px;
+  border-radius: 4px;
   cursor: pointer;
   min-height: 32px;
 }
@@ -100,16 +100,16 @@ onUnmounted(() => {
   opacity: 0;
 }
 .ctx-menu li:hover:not(.disabled) {
-  background: var(--poke-yellow);
+  background: var(--hover);
 }
 .ctx-menu li:hover:not(.disabled) .cursor {
   opacity: 1;
 }
 .ctx-menu li.danger {
-  color: var(--dex-red);
+  color: var(--danger);
 }
 .ctx-menu li.disabled {
-  color: #b9b09a;
+  color: var(--ink-faint);
   cursor: default;
 }
 </style>

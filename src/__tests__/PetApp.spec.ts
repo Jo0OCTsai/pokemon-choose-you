@@ -21,6 +21,7 @@ vi.mock("../api", () => ({
     pauseCurrentTask: vi.fn(),
     getCurrentTask: vi.fn(),
     addFocusSeconds: vi.fn(),
+    dexStats: vi.fn(async () => ({ caught: 0, escaped: 0 })),
     listCategories: vi.fn(),
     setCategoryPokemon: vi.fn(),
     getSetting: vi.fn(),
@@ -184,19 +185,19 @@ describe("PetApp 桌宠", () => {
     current = task({ id: 3, title: "长任务" });
     const w = await mountPet();
     expect(w.get(".pomo-pill .px").text()).toContain("45:00");
-    // 色环出现，满比例 offset≈0
+    // 色环出现，满比例 offset≈0；颜色走令牌（style 绑定）
     expect(w.find(".pomo-ring").exists()).toBe(true);
     const fg = w.get(".pomo-ring .ring-fg");
-    expect(fg.attributes("stroke")).toBe("#5be36b");
+    expect(fg.attributes("style")).toContain("var(--ok-bright)");
     // 走 23 分钟（过中点）：一声轻提示、琥珀色
     await vi.advanceTimersByTimeAsync(23 * 60_000);
     expect(chime).toHaveBeenCalledTimes(1);
-    expect(w.get(".pomo-ring .ring-fg").attributes("stroke")).toBe("#f5a623");
+    expect(w.get(".pomo-ring .ring-fg").attributes("style")).toContain("var(--p-high)");
     // 走到剩 4 分钟：剩 5 分钟档触发一次 chime(2)（连响两声）、红色环、焦急动画类
     await vi.advanceTimersByTimeAsync(18 * 60_000);
     expect(chime).toHaveBeenCalledTimes(2);
     expect(chime).toHaveBeenLastCalledWith(2);
-    expect(w.get(".pomo-ring .ring-fg").attributes("stroke")).toBe("#e3350d");
+    expect(w.get(".pomo-ring .ring-fg").attributes("style")).toContain("var(--danger)");
     expect(w.get(".pet-sprite").classes()).toContain("anxious");
   });
 

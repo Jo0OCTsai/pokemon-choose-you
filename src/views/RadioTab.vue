@@ -740,7 +740,7 @@ const chipTitle = (tag: { name: string; dimension: string; isNew: boolean }) =>
   background: #fff;
   font-family: inherit;
   box-shadow: 3px 3px 0 var(--dex-navy);
-  min-height: 36px;
+  min-height: 38px;
 }
 /* ⏱时间 / 📡频道 切换 */
 .view-toggle {
@@ -761,7 +761,7 @@ const chipTitle = (tag: { name: string; dimension: string; isNew: boolean }) =>
   cursor: pointer;
   color: var(--dex-navy);
   font-family: inherit;
-  min-height: 36px;
+  min-height: 38px;
 }
 .view-toggle button.on {
   background: var(--poke-yellow);
@@ -802,7 +802,7 @@ const chipTitle = (tag: { name: string; dimension: string; isNew: boolean }) =>
   text-align: left;
 }
 .lg-head:hover {
-  background: var(--dex-body);
+  background: var(--hover);
 }
 .lg-caret {
   font-size: 10px;
@@ -810,19 +810,19 @@ const chipTitle = (tag: { name: string; dimension: string; isNew: boolean }) =>
   flex: none;
 }
 .lg-count {
-  font-size: 10px;
+  font-size: 11px;
   background: var(--dex-navy);
   color: #fff;
   border-radius: 4px;
   padding: 1px 5px;
 }
 .lg-count.hot {
-  background: var(--dex-red);
+  background: var(--danger);
 }
 .lg-state {
   margin-left: auto;
-  font-size: 10px;
-  color: #6b6657;
+  font-size: 11px;
+  color: var(--ink-soft);
   font-weight: 700;
 }
 /* 无信号组头的一键清空 */
@@ -830,13 +830,16 @@ const chipTitle = (tag: { name: string; dimension: string; isNew: boolean }) =>
   font-size: 11px;
   font-weight: 700;
   border: 2px solid var(--dex-navy);
-  border-radius: 6px;
+  border-radius: 4px;
   background: #fff;
   padding: 2px 8px;
   cursor: pointer;
+  transition:
+    background var(--t-tap),
+    transform var(--t-tap);
 }
 .clear-noise:hover {
-  background: var(--dex-body);
+  background: var(--hover);
 }
 .clear-noise:active {
   transform: translate(1px, 1px);
@@ -853,10 +856,10 @@ const chipTitle = (tag: { name: string; dimension: string; isNew: boolean }) =>
   border: 3px solid transparent;
 }
 .rrow:hover {
-  background: var(--dex-body);
+  background: var(--hover);
 }
 .rrow.sel {
-  background: #fff6c4;
+  background: var(--hover);
   border-color: var(--dex-navy);
   box-shadow: 2px 2px 0 var(--dex-navy);
 }
@@ -884,10 +887,10 @@ const chipTitle = (tag: { name: string; dimension: string; isNew: boolean }) =>
 }
 .chat-badge {
   flex: none;
-  font-size: 9px;
+  font-size: 11px;
   font-weight: 800;
-  color: #6b6657;
-  border: 1.5px solid #b9b29c;
+  color: var(--ink-soft);
+  border: 2px solid var(--ink-faint);
   border-radius: 4px;
   padding: 0 4px;
   max-width: 130px;
@@ -905,14 +908,14 @@ const chipTitle = (tag: { name: string; dimension: string; isNew: boolean }) =>
 .r-time {
   margin-left: auto;
   flex: none;
-  font-size: 10px;
-  color: #6b6657;
+  font-size: 11px;
+  color: var(--ink-soft);
   font-weight: 500;
 }
 .r-snippet {
   margin-top: 3px;
   font-size: 12px;
-  color: #43413a;
+  color: var(--ink-soft);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -920,14 +923,14 @@ const chipTitle = (tag: { name: string; dimension: string; isNew: boolean }) =>
 .r-mark {
   flex: none;
   margin-top: 2px;
-  font-size: 10px;
+  font-size: 11px;
   font-weight: 800;
 }
 .r-mark.ok {
   color: var(--dex-navy);
 }
 .r-mark.no {
-  color: #6b6657;
+  color: var(--ink-soft);
 }
 /* 置信色点（行内紧凑版） */
 .conf {
@@ -938,23 +941,23 @@ const chipTitle = (tag: { name: string; dimension: string; isNew: boolean }) =>
   flex: none;
 }
 .conf.high {
-  background: #5be36b;
+  background: var(--ok-bright);
 }
 .conf.medium {
   background: var(--poke-yellow);
 }
 .conf.low {
-  background: #d8d2bd;
+  background: var(--conf-low);
 }
 .pending-empty {
   padding: 18px 10px;
   text-align: center;
   font-size: 13px;
-  color: #6b6657;
+  color: var(--ink-soft);
   line-height: 2;
 }
 .empty {
-  color: #9a937f;
+  color: var(--ink-soft);
   text-align: center;
   padding: 48px 0;
   font-size: 14px;
@@ -977,7 +980,7 @@ const chipTitle = (tag: { name: string; dimension: string; isNew: boolean }) =>
 .batch-bar .btn {
   padding: 4px 8px;
   font-size: 12px;
-  min-height: 30px;
+  min-height: 38px;
 }
 .batch-check {
   display: flex;
@@ -993,7 +996,7 @@ const chipTitle = (tag: { name: string; dimension: string; isNew: boolean }) =>
   font-weight: 700;
   border: 0;
   background: transparent;
-  color: #a1660a;
+  color: var(--warn-ink);
   cursor: pointer;
   padding: 4px 2px;
   text-decoration: underline;
@@ -1014,7 +1017,7 @@ const chipTitle = (tag: { name: string; dimension: string; isNew: boolean }) =>
   display: flex;
   align-items: center;
   justify-content: center;
-  color: #6b6657;
+  color: var(--ink-soft);
   font-size: 14px;
   line-height: 2;
   text-align: center;
@@ -1032,7 +1035,7 @@ const chipTitle = (tag: { name: string; dimension: string; isNew: boolean }) =>
   gap: 8px;
   font-size: 12px;
   font-weight: 700;
-  color: #6b6657;
+  color: var(--ink-soft);
   flex-wrap: wrap;
 }
 .d-meta .type-badge {
@@ -1040,7 +1043,7 @@ const chipTitle = (tag: { name: string; dimension: string; isNew: boolean }) =>
   border: 2px solid var(--dex-navy);
   border-radius: 4px;
   padding: 1px 6px;
-  font-size: 10px;
+  font-size: 11px;
   background: #fff;
 }
 .d-content {
@@ -1055,7 +1058,7 @@ const chipTitle = (tag: { name: string; dimension: string; isNew: boolean }) =>
 }
 .ai-status {
   margin-left: auto;
-  font-size: 10px;
+  font-size: 11px;
   font-weight: 800;
   border: 2px solid var(--dex-navy);
   border-radius: 4px;
@@ -1079,11 +1082,11 @@ const chipTitle = (tag: { name: string; dimension: string; isNew: boolean }) =>
   flex-wrap: wrap;
 }
 .im-suggest.update {
-  background: #fff8e6;
+  background: var(--conf-mid-soft);
 }
 .im-suggest.none {
-  background: #f1eede;
-  color: #6b6657;
+  background: var(--conf-low-soft);
+  color: var(--ink-soft);
   font-weight: 600;
 }
 .sug-prio {
@@ -1094,8 +1097,8 @@ const chipTitle = (tag: { name: string; dimension: string; isNew: boolean }) =>
 }
 .sug-tag {
   font-size: 11px;
-  color: #fff;
-  background: #8a97b8;
+  color: var(--dex-navy);
+  background: var(--tag-pill);
   border: 2px solid var(--dex-navy);
   border-radius: 999px;
   padding: 0 7px;
@@ -1118,22 +1121,22 @@ const chipTitle = (tag: { name: string; dimension: string; isNew: boolean }) =>
   padding: 0 6px;
 }
 .sug-conf.c-high {
-  color: #1d6b3c;
-  background: #dff3e4;
+  color: var(--ok-ink);
+  background: var(--ok-soft);
 }
 .sug-conf.c-medium {
-  color: #a1660a;
-  background: #fff3d6;
+  color: var(--warn-ink);
+  background: var(--conf-mid-soft);
 }
 .sug-conf.c-low {
-  color: #6b6657;
-  background: #eceada;
+  color: var(--ink-soft);
+  background: var(--conf-low-soft);
 }
 .sug-reason {
   flex-basis: 100%;
   font-size: 12px;
   font-weight: 500;
-  color: #6b6657;
+  color: var(--ink-soft);
 }
 .done-banner {
   display: flex;
@@ -1142,7 +1145,7 @@ const chipTitle = (tag: { name: string; dimension: string; isNew: boolean }) =>
   font-size: 13px;
   font-weight: 800;
   color: var(--dex-navy);
-  background: #dff3e4;
+  background: var(--ok-soft);
   border: 3px solid var(--dex-navy);
   border-radius: 8px;
   box-shadow: 3px 3px 0 var(--dex-navy);
@@ -1150,12 +1153,12 @@ const chipTitle = (tag: { name: string; dimension: string; isNew: boolean }) =>
   flex-wrap: wrap;
 }
 .done-banner.dim-banner {
-  background: #f1eede;
-  color: #6b6657;
+  background: var(--conf-low-soft);
+  color: var(--ink-soft);
 }
 .caught-sub {
   font-size: 12px;
-  color: #9a937f;
+  color: var(--ink-soft);
 }
 
 /* 操作区（固定在详情底部，不随消息滚动） */
@@ -1199,7 +1202,7 @@ const chipTitle = (tag: { name: string; dimension: string; isNew: boolean }) =>
   position: absolute;
   top: calc(100% + 6px);
   right: 0;
-  z-index: 30;
+  z-index: 60;
   background: #fff;
   border: 3px solid var(--dex-navy);
   border-radius: 8px;
@@ -1211,35 +1214,42 @@ const chipTitle = (tag: { name: string; dimension: string; isNew: boolean }) =>
   min-width: 200px;
 }
 .escape-pop .er-label {
-  font-size: 10px;
+  font-size: 11px;
   font-weight: 800;
-  color: #6b6657;
+  color: var(--ink-soft);
   padding: 2px 6px 6px;
 }
 .er-chip {
   border: 2px solid var(--dex-navy);
   background: #fff;
-  border-radius: 6px;
+  border-radius: 4px;
   font-size: 12px;
   font-weight: 700;
   padding: 6px 10px;
+  min-height: 32px;
   cursor: pointer;
   text-align: left;
   font-family: inherit;
   color: var(--dex-navy);
+  transition:
+    background var(--t-tap),
+    transform var(--t-tap);
 }
 .er-chip:hover {
-  background: var(--dex-body);
+  background: var(--hover);
+}
+.er-chip:active {
+  transform: translate(1px, 1px);
 }
 .er-chip.just {
   border-style: dashed;
-  color: #6b6657;
+  color: var(--ink-soft);
 }
 /* 弹层背板：点外面收起 */
 .pop-mask {
   position: fixed;
   inset: 0;
-  z-index: 20;
+  z-index: 50;
 }
 
 /* 撤销 toast */
@@ -1247,7 +1257,7 @@ const chipTitle = (tag: { name: string; dimension: string; isNew: boolean }) =>
   position: fixed;
   right: 24px;
   bottom: 24px;
-  z-index: 70;
+  z-index: 100;
   display: flex;
   align-items: center;
   gap: 12px;
@@ -1261,11 +1271,11 @@ const chipTitle = (tag: { name: string; dimension: string; isNew: boolean }) =>
   max-width: 70%;
 }
 .toast.error {
-  color: var(--dex-red);
+  color: var(--danger);
 }
 .toast button {
   border: 2px solid var(--dex-navy);
-  border-radius: 6px;
+  border-radius: 4px;
   background: var(--poke-yellow);
   font-size: 12px;
   font-weight: 800;
@@ -1273,5 +1283,9 @@ const chipTitle = (tag: { name: string; dimension: string; isNew: boolean }) =>
   cursor: pointer;
   font-family: inherit;
   flex: none;
+  transition: transform var(--t-tap);
+}
+.toast button:active {
+  transform: translate(1px, 1px);
 }
 </style>

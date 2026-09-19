@@ -1,13 +1,35 @@
-/* 《就决定是你了》图鉴复古风 — 设计令牌与公共组件（两窗口共用） */
+/* 《就决定是你了》图鉴复古风 — 设计令牌与公共组件（两窗口共用）
+   规范来源：design/DESIGN_SYSTEM.md（v2）· design/DESIGN_REFRESH_PROPOSAL.md · design/PET_INTERACTION_DESIGN.md */
 :root {
-  --dex-red: #ee1515;
+  /* ── 机身色（结构）── */
+  --dex-red: #ee1515; /* 纯装饰红：机脊、大灯、紧急点 */
   --dex-red-dark: #b01010;
+  --danger: #e00f0f; /* 承载白字的行动红（白字 5.0:1；#ee1515 仅 4.4 边缘） */
   --dex-body: #f5f0dc;
   --dex-navy: #1a1b25;
   --poke-yellow: #ffcb05;
+  /* ── LCD 绿屏 ── */
   --lcd: #c4cfa1;
   --lcd-text: #3a4a32;
   --lcd-dark: #9caa86;
+  /* ── 墨色三档（信息文字只用前两档，faint 仅装饰）── */
+  --ink: #1a1b25;
+  --ink-soft: #6b6657; /* 唯一辅助文字灰：白底 5.7 / 米白 5.0 */
+  --ink-faint: #9a937f; /* 仅装饰：虚线、非信息编号（2.7，不用于小字） */
+  /* ── 状态色（ok 三源归一：#dff3e4/#2e9e5b/#5be36b → 一套）── */
+  --ok: #2e9e5b;
+  --ok-bright: #5be36b; /* LED/高置信点（发光感专用，不做文字） */
+  --ok-soft: #dff3e4;
+  --ok-ink: #1d6b3c;
+  --warn: #c98a06;
+  --warn-soft: #fff3cd;
+  --warn-ink: #8a5e06;
+  --hover: #fff3c4; /* 唯一悬停/选中黄 */
+  --tag-pill: #8a97b8;
+  --rest-blue: #3c5aa6;
+  --log-error: #d64545; /* LCD 屏内日志着色，对 LCD 底 ≥4.5 */
+  --log-warn: #b8860b;
+  /* ── 分类 = 属性徽章（浅底一律 navy 深字，5.6~11.4:1；紫深底白字 5.8）── */
   --type-work: #f8d030;
   --type-study: #6890f0;
   --type-life: #78c850;
@@ -16,10 +38,27 @@
   /* 社交/紧急已退出默认阵容（v2 迁移），配色保留给存量数据 */
   --type-social: #f08030;
   --type-urgent: #7038f8;
+  --badge-ink: #1a1b25;
+  /* ── 优先级 ── */
   --p-urgent: #ee1515;
   --p-high: #f08030;
   --p-normal: #78c850;
   --p-low: #a8a878;
+  /* ── AI 置信三档（收音机）── */
+  --conf-high-soft: #dff3e4;
+  --conf-mid: #ffcb05;
+  --conf-mid-soft: #fff3d6;
+  --conf-low: #c9c3ae;
+  --conf-low-soft: #eceada;
+  /* ── 动效令牌（PET_INTERACTION_DESIGN §4.1：可爱=过冲与挤压，禁用匀速）── */
+  --t-tap: 80ms; /* 按压反馈 */
+  --t-pop: 150ms; /* 微动作单程 */
+  --t-act: 300ms; /* 事件动作单段 */
+  --t-scene: 600ms; /* 演出单段 */
+  --e-pop: cubic-bezier(0.34, 1.56, 0.64, 1); /* 弹出过冲：撸宠/庆祝/回弹 */
+  --e-snap: cubic-bezier(0.2, 0.9, 0.3, 1.2); /* 快落轻过冲：落地/拖拽倾斜 */
+  --e-sway: cubic-bezier(0.45, 0, 0.55, 1); /* 摇摆往返：主循环/球摇/左右看 */
+  --e-sleep: cubic-bezier(0.4, 0, 0.6, 1); /* 呼吸：睡觉/待机 */
 }
 
 * {
@@ -28,10 +67,21 @@
 body {
   margin: 0;
   font-family: "Noto Sans CJK SC", "Noto Sans SC", "PingFang SC", "Microsoft YaHei", sans-serif;
-  color: var(--dex-navy);
+  color: var(--ink);
 }
 .px {
-  font-family: "Press Start 2P", monospace;
+  font-family: "Press Start 2P", monospace; /* 只用 8 的倍数字号：8/16/24 */
+}
+/* 中文像素展示层：页面标题等展示位；只用 12 的倍数（12/24）；正文永不用 */
+.px-cn {
+  font-family: "Fusion Pixel 12px Proportional Simplified Chinese", "Noto Sans SC", sans-serif;
+  font-weight: 400;
+}
+
+/* 全局焦点样式：黄 outline + 既有 navy 描边双保险（焕新方案 §3.5） */
+:focus-visible {
+  outline: 3px solid var(--poke-yellow);
+  outline-offset: 2px;
 }
 
 /* LCD 绿屏（扫描线由 ::after 叠加） */
@@ -54,22 +104,21 @@ body {
   background: repeating-linear-gradient(0deg, rgba(0, 0, 0, 0.05) 0 2px, transparent 2px 4px);
 }
 
-/* 属性徽章 */
+/* 属性徽章（小件级 2px 描边；浅底深字方案） */
 .badge {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  border: 2.5px solid var(--dex-navy);
+  border: 2px solid var(--dex-navy);
   border-radius: 4px;
   font-size: 11px;
   font-weight: 700;
   padding: 1px 8px;
   letter-spacing: 2px;
-  color: #fff;
+  color: var(--badge-ink);
 }
 .b-work {
   background: var(--type-work);
-  color: #a1871f;
 }
 .b-study {
   background: var(--type-study);
@@ -88,6 +137,7 @@ body {
 }
 .b-urgent {
   background: var(--type-urgent);
+  color: #fff;
 }
 
 /* 物理按键按钮 */
@@ -95,15 +145,15 @@ body {
   border: 3px solid var(--dex-navy);
   border-radius: 8px;
   background: var(--poke-yellow);
-  color: var(--dex-navy);
+  color: var(--ink);
   font-size: 14px;
   font-weight: 700;
   padding: 8px 14px;
   cursor: pointer;
   box-shadow: 4px 4px 0 var(--dex-navy);
   transition:
-    transform 0.08s,
-    box-shadow 0.08s;
+    transform var(--t-tap),
+    box-shadow var(--t-tap);
   min-height: 40px;
   font-family: inherit;
 }
@@ -115,8 +165,20 @@ body {
   background: #fff;
 }
 .btn.red {
-  background: var(--dex-red);
+  background: var(--danger);
   color: #fff;
+}
+/* mini 档：行内密集小动作（标签体检/维度加号），全站唯一小按钮档 32px */
+.btn.mini {
+  padding: 3px 10px;
+  min-height: 32px;
+  font-size: 12px;
+}
+
+/* 原生勾选控件（清单批量勾选/单选主 agent）跟随 navy 主题 */
+input[type="checkbox"],
+input[type="radio"] {
+  accent-color: var(--dex-navy);
 }
 
 /* LED */
@@ -128,7 +190,7 @@ body {
   display: inline-block;
 }
 .led.on {
-  background: #5be36b;
+  background: var(--ok-bright);
   animation: pk-breathe 2s infinite;
 }
 .led.alert {
@@ -136,7 +198,7 @@ body {
   animation: pk-blink 0.6s infinite;
 }
 
-/* 优先级圆点 */
+/* 优先级圆点（彩色不达 3:1 时由 navy 描边兜底，成文即可） */
 .prio {
   width: 10px;
   height: 10px;
@@ -190,13 +252,20 @@ body {
     opacity: 0.25;
   }
 }
+/* 主循环跳跃 v2：预备蹲 → 跳 → 落地挤压（可爱三律：落地必挤压、动作带预备帧） */
 @keyframes pk-hop {
   0%,
   100% {
-    transform: translateY(0);
+    transform: translateY(0) scale(1, 1);
   }
-  50% {
-    transform: translateY(-7px);
+  18% {
+    transform: translateY(1px) scale(1.04, 0.9);
+  }
+  55% {
+    transform: translateY(-7px) scale(0.97, 1.05);
+  }
+  88% {
+    transform: translateY(0) scale(1.05, 0.92);
   }
 }
 @keyframes pk-shake {
@@ -209,6 +278,180 @@ body {
   }
   75% {
     transform: translateX(4px);
+  }
+}
+/* 撸宠反馈 v2：先蹲（预备帧）再弹起过冲 */
+@keyframes pk-petted {
+  0% {
+    transform: scale(1, 1);
+  }
+  12% {
+    transform: scale(0.92, 0.9) translateY(2px);
+  }
+  40% {
+    transform: scale(1.16, 1.18) rotate(-4deg);
+  }
+  65% {
+    transform: scale(0.96, 0.95) rotate(3deg);
+  }
+  85% {
+    transform: scale(1.04, 1.04) rotate(-2deg);
+  }
+  100% {
+    transform: scale(1, 1);
+  }
+}
+/* 生命感微动作池（usePetIdle 调度；一次性事件，非循环动画） */
+@keyframes pk-blink-eye {
+  0%,
+  100% {
+    transform: scaleY(1);
+  }
+  50% {
+    transform: scaleY(0.12);
+  }
+}
+@keyframes pk-look {
+  0%,
+  100% {
+    transform: translateX(0) rotate(0);
+  }
+  25% {
+    transform: translateX(4px) rotate(2deg);
+  }
+  50% {
+    transform: translateX(-4px) rotate(-2deg);
+  }
+  75% {
+    transform: translateX(2px) rotate(1deg);
+  }
+}
+@keyframes pk-flip {
+  0%,
+  100% {
+    transform: scaleX(1);
+  }
+  50% {
+    transform: scaleX(-1);
+  }
+}
+@keyframes pk-yawn {
+  0%,
+  100% {
+    transform: scale(1, 1) translateY(0);
+  }
+  45% {
+    transform: scale(0.94, 1.12) translateY(2px);
+  }
+}
+/* 睡觉呼吸（±2% 幅度）与醒来伸展 */
+@keyframes pk-sleep-breathe {
+  0%,
+  100% {
+    transform: scale(1, 1);
+  }
+  50% {
+    transform: scale(1.015, 1.02);
+  }
+}
+@keyframes pk-wake {
+  0% {
+    transform: scale(1, 0.9);
+  }
+  50% {
+    transform: scale(1.1, 1.14) translateY(-6px);
+  }
+  100% {
+    transform: scale(1, 1);
+  }
+}
+/* 拖拽物理：悬挂倾斜 + 小碎步紧张 + 松手挤压回弹 */
+@keyframes pk-drag-tilt {
+  to {
+    transform: rotate(8deg) scale(1.02, 0.98);
+  }
+}
+@keyframes pk-drag-wiggle {
+  0%,
+  100% {
+    transform: rotate(0);
+  }
+  50% {
+    transform: rotate(3deg);
+  }
+}
+@keyframes pk-release-squash {
+  0% {
+    transform: rotate(8deg) scale(1.02, 0.98);
+  }
+  35% {
+    transform: rotate(0) scale(1.1, 0.84) translateY(3px);
+  }
+  70% {
+    transform: rotate(0) scale(0.97, 1.04) translateY(-3px);
+  }
+  100% {
+    transform: rotate(0) scale(1, 1);
+  }
+}
+/* 捕捉演出：精灵球抛物线（X 匀速 + Y 过冲的双层组合）、落地挤压、三摇 */
+@keyframes pk-ball-x {
+  from {
+    transform: translateX(0);
+  }
+  to {
+    transform: translateX(-6px);
+  }
+}
+@keyframes pk-ball-y {
+  from {
+    transform: translateY(118px) scale(0.8);
+  }
+  to {
+    transform: translateY(0) scale(1);
+  }
+}
+@keyframes pk-ball-land {
+  0% {
+    transform: scale(1, 1);
+  }
+  40% {
+    transform: scale(1.15, 0.8) translateY(4px);
+  }
+  100% {
+    transform: scale(1, 1) translateY(0);
+  }
+}
+@keyframes pk-ball-shake {
+  0%,
+  100% {
+    transform: rotate(0);
+  }
+  15% {
+    transform: rotate(-14deg);
+  }
+  32% {
+    transform: rotate(14deg);
+  }
+  50% {
+    transform: rotate(-12deg);
+  }
+  68% {
+    transform: rotate(12deg);
+  }
+  85% {
+    transform: rotate(-6deg);
+  }
+}
+/* 捕捉星星粒子（--dx/--dy 由 JS 随机注入） */
+@keyframes pk-star-fly {
+  0% {
+    transform: translate(0, 0) rotate(45deg) scale(1);
+    opacity: 1;
+  }
+  100% {
+    transform: translate(var(--dx), var(--dy)) rotate(225deg) scale(0.4);
+    opacity: 0;
   }
 }
 

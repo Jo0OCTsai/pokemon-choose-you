@@ -214,7 +214,7 @@ onMounted(async () => {
   position: fixed;
   inset: 0;
   z-index: 70;
-  background: rgba(28, 34, 68, 0.35);
+  background: rgba(28, 34, 68, 0.42);
 }
 .drawer {
   position: absolute;
@@ -225,13 +225,14 @@ onMounted(async () => {
   max-width: calc(100vw - 24px);
   background: #fff;
   border-left: 4px solid var(--dex-navy);
-  box-shadow: -6px 0 0 var(--dex-navy);
+  border-radius: 16px 0 0 16px;
+  box-shadow: -8px 0 0 var(--dex-navy);
   padding: 14px 16px;
   display: flex;
   flex-direction: column;
   gap: 12px;
   overflow-y: auto;
-  animation: slide-in 0.16s ease-out;
+  animation: slide-in var(--t-act) var(--e-snap);
 }
 @keyframes slide-in {
   from {
@@ -250,8 +251,8 @@ onMounted(async () => {
 }
 .d-no {
   flex: none;
-  font-size: 12px;
-  color: #7b7460;
+  font-size: 8px;
+  color: var(--ink-soft);
 }
 .d-title {
   flex: 1;
@@ -263,16 +264,22 @@ onMounted(async () => {
 .d-close {
   flex: none;
   border: 2px solid var(--dex-navy);
-  border-radius: 6px;
+  border-radius: 4px;
   background: #fff;
   color: var(--dex-navy);
   font-weight: 800;
   cursor: pointer;
   padding: 2px 8px;
   font-family: inherit;
+  transition:
+    background var(--t-tap),
+    transform var(--t-tap);
 }
 .d-close:hover {
-  background: var(--poke-yellow);
+  background: var(--hover);
+}
+.d-close:active {
+  transform: translate(1px, 1px);
 }
 .d-summary {
   display: grid;
@@ -280,7 +287,7 @@ onMounted(async () => {
   gap: 6px 14px;
   background: var(--lcd);
   border: 3px solid var(--dex-navy);
-  border-radius: 10px;
+  border-radius: 4px;
   padding: 10px 12px;
 }
 .kv {
@@ -302,7 +309,7 @@ onMounted(async () => {
 .d-note {
   margin: 0;
   font-size: 12.5px;
-  background: #fffbe8;
+  background: var(--dex-body);
   border: 2px dashed var(--dex-navy);
   border-radius: 8px;
   padding: 8px 10px;
@@ -310,7 +317,7 @@ onMounted(async () => {
 }
 /* 跟进记录 / Agent 执行 / 操作历史 */
 .notes {
-  border-top: 2px dashed #d8d2c0;
+  border-top: 2px dashed var(--ink-faint);
   padding-top: 10px;
   display: flex;
   flex-direction: column;
@@ -337,12 +344,12 @@ onMounted(async () => {
   gap: 8px;
   background: var(--lcd);
   border: 2px solid var(--dex-navy);
-  border-radius: 8px;
+  border-radius: 4px;
   padding: 6px 8px;
   font-size: 12.5px;
 }
 .note-src {
-  font-size: 9px;
+  font-size: 11px;
   font-weight: 800;
   color: #fff;
   background: var(--dex-navy);
@@ -354,8 +361,8 @@ onMounted(async () => {
   background: var(--dex-red);
 }
 .note-time {
-  font-size: 9px;
-  color: #7b7460;
+  font-size: 8px;
+  color: var(--lcd-text);
   flex: none;
 }
 .note-content {
@@ -366,7 +373,7 @@ onMounted(async () => {
 .note-del {
   border: none;
   background: none;
-  color: var(--dex-red);
+  color: var(--danger);
   cursor: pointer;
   font-size: 12px;
   padding: 0 2px;
@@ -374,7 +381,7 @@ onMounted(async () => {
 }
 .note-empty {
   font-size: 12px;
-  color: #9a937f;
+  color: var(--ink-soft);
   padding: 4px 2px;
 }
 .note-add {
@@ -389,17 +396,19 @@ onMounted(async () => {
   border-radius: 8px;
   font-size: 13px;
   font-family: inherit;
+  min-height: 38px;
+  box-shadow: 3px 3px 0 var(--dex-navy);
 }
 .note-add .btn {
   padding: 7px 10px;
-  min-height: 34px;
-  font-size: 12px;
+  min-height: 38px;
+  font-size: 13px;
 }
 .log-list .note-content {
   font-size: 12px;
 }
 .run-cost {
-  color: var(--dex-red);
+  color: var(--danger);
 }
 .run-open {
   color: var(--dex-navy);
@@ -409,7 +418,7 @@ onMounted(async () => {
   margin: 0;
   font-size: 12.5px;
   font-weight: 700;
-  color: var(--dex-red);
+  color: var(--danger);
 }
 .btn-row {
   display: flex;

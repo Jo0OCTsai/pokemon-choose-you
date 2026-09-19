@@ -167,10 +167,16 @@ onBeforeUnmount(() => document.removeEventListener("mousedown", onDocClick));
   min-width: 176px;
   cursor: pointer;
   box-shadow: 3px 3px 0 var(--dex-navy);
+  transition:
+    transform var(--t-tap),
+    box-shadow var(--t-tap);
 }
 .dt-btn:active {
-  transform: translate(1px, 1px);
-  box-shadow: 2px 2px 0 var(--dex-navy);
+  transform: translate(2px, 2px);
+  box-shadow: 1px 1px 0 var(--dex-navy);
+}
+.dt-btn:hover:not(.open) {
+  background: var(--hover);
 }
 .dt-btn.open {
   background: var(--poke-yellow);
@@ -181,10 +187,10 @@ onBeforeUnmount(() => document.removeEventListener("mousedown", onDocClick));
   text-align: left;
 }
 .dt-btn.none .dt-label {
-  color: #9a937f;
+  color: var(--ink-soft);
 }
 .ds-arrow {
-  font-size: 9px;
+  font-size: 10px;
 }
 
 .dt-pop {
@@ -194,7 +200,7 @@ onBeforeUnmount(() => document.removeEventListener("mousedown", onDocClick));
   z-index: 60;
   background: #fff;
   border: 3px solid var(--dex-navy);
-  border-radius: 10px;
+  border-radius: 8px;
   box-shadow: 4px 4px 0 var(--dex-navy);
   padding: 10px;
   width: 268px;
@@ -211,13 +217,14 @@ onBeforeUnmount(() => document.removeEventListener("mousedown", onDocClick));
 }
 .nav-btn {
   border: 3px solid var(--dex-navy);
-  border-radius: 6px;
+  border-radius: 4px;
   background: var(--dex-body);
   width: 26px;
   height: 26px;
   font-size: 10px;
   cursor: pointer;
   font-family: inherit;
+  transition: transform var(--t-tap);
 }
 .nav-btn:active {
   transform: translate(1px, 1px);
@@ -231,12 +238,12 @@ onBeforeUnmount(() => document.removeEventListener("mousedown", onDocClick));
   font-size: 10px;
   font-weight: 700;
   text-align: center;
-  color: #9a937f;
+  color: var(--ink-soft);
   padding: 2px 0;
 }
 .dt-day {
   border: 2px solid transparent;
-  border-radius: 6px;
+  border-radius: 4px;
   background: transparent;
   font-size: 12px;
   font-weight: 700;
@@ -250,7 +257,7 @@ onBeforeUnmount(() => document.removeEventListener("mousedown", onDocClick));
   pointer-events: none;
 }
 .dt-day:hover {
-  background: #fff3c4;
+  background: var(--hover);
 }
 .dt-day.today {
   border-color: var(--dex-navy);
@@ -280,13 +287,14 @@ onBeforeUnmount(() => document.removeEventListener("mousedown", onDocClick));
 .clear-btn {
   margin-left: auto;
   border: 3px solid var(--dex-navy);
-  border-radius: 6px;
+  border-radius: 4px;
   background: #fff;
-  color: var(--dex-red);
+  color: var(--danger);
   font-size: 12px;
   font-weight: 700;
   padding: 6px 8px;
   cursor: pointer;
   font-family: inherit;
+  transition: transform var(--t-tap);
 }
 </style>

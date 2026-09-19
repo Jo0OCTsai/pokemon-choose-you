@@ -304,12 +304,12 @@ onMounted(reload);
   background: #fff;
   font-family: inherit;
   box-shadow: 3px 3px 0 var(--dex-navy);
-  min-height: 36px;
+  min-height: 38px;
 }
 .search-hint {
   flex: none;
   font-size: 12px;
-  color: #9a937f;
+  color: var(--ink-soft);
   font-weight: 700;
 }
 /* 图鉴页统计页头：复用 .lcd 复古屏，配色走 LCD 令牌 */
@@ -345,9 +345,13 @@ onMounted(reload);
   font-weight: 700;
   font-family: inherit;
   padding: 6px 12px;
-  min-height: 36px;
+  min-height: 38px;
   cursor: pointer;
   box-shadow: 3px 3px 0 var(--dex-navy);
+  transition:
+    transform var(--t-tap),
+    box-shadow var(--t-tap),
+    background var(--t-tap);
 }
 .filter-btn .cursor {
   width: 10px;
@@ -365,9 +369,16 @@ onMounted(reload);
 .filter-btn.on .cursor {
   opacity: 1;
 }
+.filter-btn:hover {
+  background: var(--hover);
+}
+.filter-btn.on:hover,
+.filter-btn.review-btn:hover {
+  background: var(--poke-yellow);
+}
 .filter-btn:active {
-  transform: translate(1px, 1px);
-  box-shadow: 2px 2px 0 var(--dex-navy);
+  transform: translate(2px, 2px);
+  box-shadow: 1px 1px 0 var(--dex-navy);
 }
 .dex-list {
   flex: 1;
@@ -380,7 +391,7 @@ onMounted(reload);
   margin: 0;
 }
 .empty {
-  color: #9a937f;
+  color: var(--ink-soft);
   text-align: center;
   padding: 48px 0;
   font-size: 14px;
@@ -393,7 +404,7 @@ onMounted(reload);
   position: fixed;
   inset: 0;
   z-index: 80;
-  background: rgba(28, 34, 68, 0.45);
+  background: rgba(28, 34, 68, 0.42);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -402,7 +413,7 @@ onMounted(reload);
   background: #fff;
   border: 3px solid var(--dex-navy);
   border-radius: 12px;
-  box-shadow: 6px 6px 0 var(--dex-navy);
+  box-shadow: 4px 4px 0 var(--dex-navy);
   padding: 16px 18px;
   display: flex;
   flex-direction: column;
@@ -411,7 +422,7 @@ onMounted(reload);
 }
 .sched-card h3 {
   margin: 0;
-  font-size: 15px;
+  font-size: 16px;
 }
 .sched-card .btn-row {
   display: flex;
@@ -425,15 +436,15 @@ onMounted(reload);
   gap: 10px;
   margin: 0 20px 12px;
   padding: 8px 12px;
-  border: 2px dashed #9a937f;
-  border-radius: 8px;
-  background: #f6f3ea;
+  border: 2px dashed var(--ink-faint);
+  border-radius: 4px;
+  background: var(--dex-body);
   font-size: 13px;
 }
 .overdue-toggle {
   border: none;
   background: none;
-  color: #7b7460;
+  color: var(--ink-soft);
   font-weight: 700;
   font-family: inherit;
   cursor: pointer;
@@ -444,7 +455,7 @@ onMounted(reload);
 }
 .overdue-fresh {
   margin-left: auto;
-  min-height: 30px;
+  min-height: 32px;
   font-size: 12px;
 }
 </style>

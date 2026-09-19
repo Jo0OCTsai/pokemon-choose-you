@@ -392,7 +392,7 @@ function next() {
   position: fixed;
   inset: 0;
   z-index: 90;
-  background: rgba(28, 34, 68, 0.45);
+  background: rgba(28, 34, 68, 0.42);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -401,7 +401,7 @@ function next() {
   background: #fff;
   border: 3px solid var(--dex-navy);
   border-radius: 12px;
-  box-shadow: 6px 6px 0 var(--dex-navy);
+  box-shadow: 4px 4px 0 var(--dex-navy);
   padding: 16px 18px;
   display: flex;
   flex-direction: column;
@@ -413,7 +413,7 @@ function next() {
 }
 .card h3 {
   margin: 0;
-  font-size: 15px;
+  font-size: 16px;
 }
 .steps {
   display: flex;
@@ -433,7 +433,7 @@ function next() {
   background: var(--poke-yellow);
 }
 .step-dot.past {
-  background: #dff3e4;
+  background: var(--ok-soft);
 }
 .body {
   display: flex;
@@ -454,13 +454,13 @@ function next() {
   padding: 8px 4px;
 }
 .stat .num {
-  font-size: 22px;
+  font-size: 24px;
   font-weight: 800;
   color: var(--dex-navy);
 }
 .stat .lbl {
-  font-size: 10px;
-  color: #7b7460;
+  font-size: 11px;
+  color: var(--lcd-text);
 }
 .cat-bars {
   display: flex;
@@ -483,7 +483,7 @@ function next() {
   flex: 1;
   height: 12px;
   border: 2px solid var(--dex-navy);
-  border-radius: 6px;
+  border-radius: 4px;
   background: #fff;
   overflow: hidden;
 }
@@ -499,17 +499,16 @@ function next() {
 }
 .tip {
   font-size: 11px;
-  color: #9a937f;
+  color: var(--ink-soft);
   margin: 0;
 }
 .station {
   border: 3px solid var(--dex-navy);
-  border-radius: 8px;
   padding: 10px 12px;
   background: var(--lcd);
 }
 .st-no {
-  font-size: 9px;
+  font-size: 8px;
   letter-spacing: 1px;
 }
 .st-title {
@@ -523,15 +522,15 @@ function next() {
   gap: 10px;
   flex-wrap: wrap;
   font-size: 11px;
-  color: #555;
+  color: var(--lcd-text);
 }
 .st-meta .overdue {
-  color: var(--dex-red);
+  color: var(--log-error);
   font-weight: 800;
 }
 .st-note {
   font-size: 12px;
-  color: #666;
+  color: var(--lcd-text);
   margin: 6px 0 0;
 }
 .btn-row {
@@ -540,11 +539,11 @@ function next() {
   flex-wrap: wrap;
 }
 .btn-row.foot {
-  border-top: 2px dashed #d8d2c0;
+  border-top: 2px dashed var(--ink-faint);
   padding-top: 10px;
 }
 .empty {
-  color: #9a937f;
+  color: var(--ink-soft);
   text-align: center;
   padding: 40px 0;
   font-size: 13px;
@@ -580,7 +579,7 @@ function next() {
   align-items: center;
   gap: 8px;
   border: 2px solid var(--dex-navy);
-  border-radius: 8px;
+  border-radius: 4px;
   padding: 6px 10px;
   font-size: 13px;
 }
@@ -591,12 +590,12 @@ function next() {
 .g-cat {
   margin-left: auto;
   font-size: 11px;
-  color: #7b7460;
+  color: var(--ink-soft);
 }
 /* 标签体检 */
 .tg-title {
   margin: 0 0 6px;
-  font-size: 12px;
+  font-size: 13px;
   color: var(--dex-navy);
 }
 .tg-row {
@@ -605,7 +604,7 @@ function next() {
   gap: 8px;
   flex-wrap: wrap;
   border: 2px solid var(--dex-navy);
-  border-radius: 8px;
+  border-radius: 4px;
   padding: 6px 10px;
   font-size: 12.5px;
   margin-bottom: 6px;
@@ -616,23 +615,19 @@ function next() {
 }
 .tg-dim {
   font-style: normal;
-  font-size: 10.5px;
-  color: #9a937f;
+  font-size: 11px;
+  color: var(--ink-soft);
   margin-left: 4px;
 }
 .tg-reason {
   font-size: 11px;
-  color: #7b7460;
+  color: var(--ink-soft);
   flex: 1;
   min-width: 120px;
 }
-.btn.mini {
-  padding: 3px 10px;
-  min-height: 26px;
-  font-size: 11.5px;
-}
+/* mini 档统一走 dex.css 的 .btn.mini（32px） */
 .btn.mini.del {
-  color: var(--dex-red);
+  color: var(--danger);
 }
 .fin {
   text-align: center;
