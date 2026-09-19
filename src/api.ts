@@ -6,6 +6,7 @@ import type {
   BatchReviewResult,
   Category,
   ChatMessage,
+  DispatchResult,
   FeishuOauthStatus,
   IntegrationHealth,
   LogEntry,
@@ -13,7 +14,9 @@ import type {
   Tag,
   TagCheckupReport,
   TagDimension,
+  TagMeta,
   Task,
+  TaskDispatchTarget,
   TaskLog,
   TaskNote,
 } from "./types";
@@ -110,6 +113,8 @@ export const api = {
   updateTag: (id: number, name: string, description: string, dimension?: string) =>
     call<void>("update_tag", { id, name, description, dimension: dimension ?? null }),
   deleteTag: (id: number) => call<void>("delete_tag", { id }),
+  /** 设置 project 标签的派发元数据（meta 传 null 清除）；agentId 保存时校验存在 */
+  setTagMeta: (id: number, meta: TagMeta | null) => call<void>("set_tag_meta", { id, meta }),
   listTagDimensions: () => call<TagDimension[]>("list_tag_dimensions"),
   createTagDimension: (key: string, name: string, cardinality?: string, maxTags?: number) =>
     call<TagDimension>("create_tag_dimension", {
@@ -185,6 +190,13 @@ export const api = {
   agentSkillInstall: (agentId: string) => call<AgentSkillInstallResult>("agent_skill_install", { agentId }),
   /** Agent 会话：taskId 查该任务时间线，缺省全局最近 100 条（含收音机分类调用） */
   listAgentSessions: (taskId?: number) => call<AgentSession[]>("list_agent_sessions", { taskId: taskId ?? null }),
+  /** 解析待办的派发目标（project 标签 meta → 全局默认 agent；弹窗展示用） */
+  resolveTaskDispatch: (taskId: number) => call<TaskDispatchTarget>("resolve_task_dispatch", { taskId }),
+  /** 派发待发给 agent（channel 缺省交互；无头按退出码/信封自动回传状态） */
+  dispatchTask: (taskId: number, agentId?: string, channel?: string) =>
+    call<DispatchResult>("dispatch_task", { taskId, agentId: agentId ?? null, channel: channel ?? null }),
+  /** 手动标记派发状态（done/failed 走状态机；idle 从任意态重置——救援卡死的 running） */
+  markDispatch: (taskId: number, state: "done" | "failed" | "idle") => call<void>("mark_dispatch", { taskId, state }),
   testFeishuConfig: () => call<string>("test_feishu_config"),
   triggerFeishuPoll: () => call<number>("trigger_feishu_poll"),
   /** 发起飞书用户授权：在系统终端里跑 lark-cli 登录（凭证由 lark-cli 保管） */

@@ -252,7 +252,7 @@ footer { width: min(1160px, 100%); font-size: 12px; color: #9aa0b5; line-height:
             <circle class="bg" cx="52" cy="52" r="50"></circle>
             <circle class="fg" id="ringFg" cx="52" cy="52" r="50" stroke-dashoffset="82"></circle>
           </svg>
-          <img class="pet-sprite st-idle" id="sprite" src="../public/pokemon/pikachu.gif" alt="皮卡丘" draggable="false" />
+          <img class="pet-sprite st-idle" id="sprite" src="../../public/pokemon/pikachu.gif" alt="皮卡丘" draggable="false" />
           <div class="zzz" id="zzz" hidden><i>z</i><i>z</i><i>z</i></div>
         </div>
         <div class="dialog" id="dialog">
@@ -364,7 +364,7 @@ footer { width: min(1160px, 100%); font-size: 12px; color: #9aa0b5; line-height:
     <div class="cmp-col new">
       <h3>桌宠静景（4 元素 · 2 钮 + 上下文）</h3>
       <div class="cmp-win">
-        <img class="cmp-sprite" src="../public/pokemon/pikachu.gif" alt="" />
+        <img class="cmp-sprite" src="../../public/pokemon/pikachu.gif" alt="" />
         <div class="cmp-dialog">皮卡丘接下了「周报」！▼<span style="color:var(--ok-ink)">（开场说一次，之后精灵图即分类）</span></div>
         <div class="cmp-pill"><i>🍅</i><i>⏸</i><i>✔</i><i class="off" title="暂停态才出现">▶</i><i class="off" title="移入右键菜单">⇄</i></div>
       </div>
@@ -405,6 +405,7 @@ footer { width: min(1160px, 100%); font-size: 12px; color: #9aa0b5; line-height:
   var ring = document.getElementById("ring");
   var sprites = ["pikachu", "psyduck", "bulbasaur", "snorlax", "chansey", "eevee"];
   var names = { pikachu: "皮卡丘", psyduck: "可达鸭", bulbasaur: "妙蛙种子", snorlax: "卡比兽", chansey: "吉利蛋", eevee: "伊布" };
+  var exts = { chansey: "png" };   // 素材非 gif 的例外（public/pokemon/ 实际后缀）
   var spi = 0;
   var busy = false;          // 演出/微动作互斥
   var skipFlag = false;      // 演出跳过
@@ -539,7 +540,7 @@ footer { width: min(1160px, 100%); font-size: 12px; color: #9aa0b5; line-height:
     burstStars(hit, 6, false);
     ballWrap.remove();
     spi = (spi + 1) % sprites.length;
-    sprite.src = "../public/pokemon/" + sprites[spi] + ".gif";
+    sprite.src = "../../public/pokemon/" + sprites[spi] + "." + (exts[sprites[spi]] || "gif");
     sprite.style.opacity = "";
     busy = false;
     setState("st-idle");

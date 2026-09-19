@@ -636,6 +636,16 @@ fn dedup_batch_todos(suggestions: &mut [AiSuggestion]) -> Vec<String> {
 
 /// 无头调用 agent：本地执行或 SSH 远程执行（见 build_invocation 的组装规则）
 pub async fn run_agent(agent: &AgentConfig, prompt: &str) -> AppResult<String> {
+    run_agent_env(agent, prompt, &[]).await
+}
+
+/// run_agent 的带环境变量版：额外键值注入子进程（远程 ssh 模式下环境不透传，等价于无注入）。
+/// 派发场景用 PK_DISPATCH_TASK 标记任务 id，供 agent 的 Stop hook / pk dispatch 回传状态
+pub async fn run_agent_env(
+    agent: &AgentConfig,
+    prompt: &str,
+    envs: &[(&str, &str)],
+) -> AppResult<String> {
     let inv = build_invocation(agent, prompt);
     let timeout = Duration::from_secs(agent.timeout_secs.max(MIN_TIMEOUT_SECS));
     // 本地调用把随应用分发的 pk 所在目录前插进子进程 PATH：GUI 进程不继承登录 shell 的
@@ -646,47 +656,54 @@ pub async fn run_agent(agent: &AgentConfig, prompt: &str) -> AppResult<String> {
     } else {
         None
     };
+    let envs: Vec<(String, String)> = envs
+        .iter()
+        .map(|(k, v)| (k.to_string(), v.to_string()))
+        .collect();
     run_process(
         &inv.program,
         &inv.argv,
         inv.stdin.as_deref(),
         inv.cwd.as_deref(),
         pk_dir.as_deref(),
+        &envs,
         timeout,
     )
-        .await
-        .map_err(|e| match &inv.remote_host {
-            Some(host) => {
-                // 127 = 远端 shell 找不到命令：非交互会话 PATH 常缺 brew/nvm，给出可操作指引
-                let hint = if e.to_string().contains("退出码 127") {
-                    "（远端非交互 shell 的 PATH 里找不到该命令：把 brew/nvm 初始化写入远端 ~/.zshenv，或在设置中改用绝对路径）"
-                } else {
-                    ""
-                };
-                AppError::External(format!("SSH 远程执行（{host}）失败: {e}{hint}"))
-            }
-            None => e,
-        })
+    .await
+    .map_err(|e| match &inv.remote_host {
+        Some(host) => {
+            // 127 = 远端 shell 找不到命令：非交互会话 PATH 常缺 brew/nvm，给出可操作指引
+            let hint = if e.to_string().contains("退出码 127") {
+                "（远端非交互 shell 的 PATH 里找不到该命令：把 brew/nvm 初始化写入远端 ~/.zshenv，或在设置中改用绝对路径）"
+            } else {
+                ""
+            };
+            AppError::External(format!("SSH 远程执行（{host}）失败: {e}{hint}"))
+        }
+        None => e,
+    })
 }
 
 /// 启动外部进程并等待结束，返回 stdout。进程未找到给出可操作的提示；
 /// Windows 上 npm 全局命令多为 .cmd 垫片，直接 spawn 会失败，回退 cmd /C 再试一次。
-/// pk_dir 非空时前插进子进程 PATH（见 run_agent）；cwd 非空时作为子进程工作目录。
+/// pk_dir 非空时前插进子进程 PATH（见 run_agent）；cwd 非空时作为子进程工作目录；
+/// envs 逐对注入子进程环境（远程 ssh 模式不透传）。
 async fn run_process(
     program: &str,
     argv: &[String],
     stdin: Option<&str>,
     cwd: Option<&std::path::Path>,
     pk_dir: Option<&std::path::Path>,
+    envs: &[(String, String)],
     timeout: Duration,
 ) -> AppResult<String> {
-    match spawn_and_wait(program, argv, stdin, cwd, pk_dir, timeout).await {
+    match spawn_and_wait(program, argv, stdin, cwd, pk_dir, envs, timeout).await {
         Ok(out) => Ok(out),
         #[cfg(windows)]
         Err(AppError::Invalid(_)) => {
             let mut cmd_argv = vec!["/C".to_string(), program.to_string()];
             cmd_argv.extend(argv.iter().cloned());
-            spawn_and_wait("cmd", &cmd_argv, stdin, cwd, pk_dir, timeout).await
+            spawn_and_wait("cmd", &cmd_argv, stdin, cwd, pk_dir, envs, timeout).await
         }
         Err(e) => Err(e),
     }
@@ -698,6 +715,7 @@ async fn spawn_and_wait(
     stdin: Option<&str>,
     cwd: Option<&std::path::Path>,
     pk_dir: Option<&std::path::Path>,
+    envs: &[(String, String)],
     timeout: Duration,
 ) -> AppResult<String> {
     let mut cmd = tokio::process::Command::new(program);
@@ -726,6 +744,9 @@ async fn spawn_and_wait(
     // 写回应用日志（诊断页可见）；远程 ssh 模式下环境不透传，等价于无日志，无副作用
     if let Some(log_file) = crate::logshare::agent_log_file() {
         cmd.env("PK_LOG_FILE", log_file);
+    }
+    for (k, v) in envs {
+        cmd.env(k, v);
     }
     cmd.args(argv)
         .stdin(if stdin.is_some() {
@@ -1263,6 +1284,7 @@ mod tests {
             None,
             Some(dir.as_path()),
             None,
+            &[],
             Duration::from_secs(10),
         ))
         .unwrap();
@@ -1280,6 +1302,7 @@ mod tests {
             None,
             Some(missing.as_path()),
             None,
+            &[],
             Duration::from_secs(10),
         ))
         .unwrap_err();
@@ -1588,6 +1611,7 @@ mod tests {
                 None,
                 None,
                 None,
+                &[],
                 Duration::from_secs(1),
             ))
             .unwrap_err();
@@ -1653,6 +1677,7 @@ mod tests {
                 None,
                 None,
                 Some(&pk_dir),
+                &[],
                 Duration::from_secs(10),
             ))
             .unwrap();
@@ -1661,6 +1686,19 @@ mod tests {
                 "注入的 pk 目录应排在子进程 PATH 首位，裸名 pk 可执行: {out}"
             );
             std::fs::remove_dir_all(&dir).ok();
+        }
+
+        /// envs 逐对注入子进程环境（派发的 PK_DISPATCH_TASK 回传标记走这里）
+        #[test]
+        fn run_process_injects_env_pairs() {
+            let agent = fake_agent("env", "printf '%s' \"$PK_DISPATCH_TASK\"; exit 0", "unused");
+            let out = tauri::async_runtime::block_on(run_agent_env(
+                &agent,
+                "hi",
+                &[("PK_DISPATCH_TASK", "42")],
+            ))
+            .unwrap();
+            assert_eq!(out.trim(), "42", "环境变量注入子进程: {out}");
         }
     }
 }

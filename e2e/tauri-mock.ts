@@ -38,6 +38,8 @@ export interface MockState {
   tasks: MockTask[];
   categories: MockCategory[];
   settings: Record<string, string>;
+  /** 标签列表（缺省为空；project 标签可带 meta 供派发设置展示） */
+  tags?: Record<string, unknown>[];
 }
 
 export const DEFAULT_CATEGORIES: MockCategory[] = [
@@ -80,7 +82,11 @@ export async function installTauriMock(page: Page, state: Partial<MockState> = {
   };
   await page.addInitScript(
     (st) => {
-      const db = { ...st, nextId: st.tasks.reduce((m: number, t: { id: number }) => Math.max(m, t.id), 0) + 1 };
+      const db = {
+        ...st,
+        tags: st.tags ?? [],
+        nextId: st.tasks.reduce((m: number, t: { id: number }) => Math.max(m, t.id), 0) + 1,
+      };
       let cbId = 0;
 
       // 事件监听注册表：数据变更命令后模拟后端广播（与 Rust 侧 broadcast 对齐）
@@ -284,7 +290,22 @@ export async function installTauriMock(page: Page, state: Partial<MockState> = {
             broadcast("chat-messages-changed");
             return db.nextId++;
           case "list_tags":
-            return [];
+            return db.tags.map((t: any) => ({ ...t, meta: t.meta ? { ...t.meta } : null }));
+          case "create_tag": {
+            const tag = {
+              id: db.nextId++,
+              name: args.name,
+              description: args.description ?? "",
+              dimension: args.dimension ?? "topic",
+              origin: "manual",
+              usage: 0,
+              createdAt: nowIso(),
+              meta: null,
+            };
+            db.tags.push(tag);
+            broadcast("tags-changed");
+            return { ...tag };
+          }
           case "tag_checkup":
             return { merges: [], zombies: [], newDimensions: [], judged: false };
           case "merge_tag":
@@ -318,6 +339,68 @@ export async function installTauriMock(page: Page, state: Partial<MockState> = {
             return null;
           case "open_agent_history":
             return "已在 mock 终端中启动（E2E mock）";
+          // ---- Agent 派发（M1）：解析跟随 ai_agents 设置；派发返回固定成功载荷 ----
+          case "resolve_task_dispatch": {
+            const t = db.tasks.find((x: any) => x.id === args.taskId);
+            const project = (t?.tags ?? []).find((r: any) => r.dimension === "project");
+            // 标签 meta（db.tags 里同名 project 标签）：agentId 指定优先、workdir/context 透传
+            const meta = project
+              ? ((db.tags.find((g: any) => g.name === project.name && g.dimension === "project")?.meta ?? null) as any)
+              : null;
+            let enabled: any[] = [];
+            try {
+              enabled = JSON.parse(db.settings.ai_agents ?? "[]").filter((a: any) => a.enabled);
+            } catch {
+              enabled = [];
+            }
+            const metaAgent = meta?.agentId ? enabled.find((a: any) => a.id === meta.agentId) : null;
+            const agent = metaAgent ?? enabled.find((a: any) => a.id === db.settings.ai_agent_id) ?? enabled[0] ?? null;
+            return {
+              taskId: args.taskId,
+              hasProjectTag: !!project,
+              projectTag: project ? project.name : null,
+              source: metaAgent ? "tag" : agent ? "default" : "",
+              agentId: agent ? agent.id : null,
+              agentName: agent ? agent.name : null,
+              sshHost: agent?.remote?.host ?? null,
+              workdir: meta?.workdir ?? "",
+              context: meta?.context ?? null,
+              agents: enabled.map((a: any) => ({ id: a.id, name: a.name, sshHost: a.remote?.host ?? null })),
+            };
+          }
+          case "dispatch_task": {
+            const headless = args.channel === "headless";
+            return {
+              channel: headless ? "headless" : "interactive",
+              terminal: headless ? null : "Terminal",
+              note: null,
+              state: headless ? "done" : "running",
+              session: {
+                id: db.nextId++,
+                taskId: args.taskId,
+                agentId: args.agentId ?? "mock-agent",
+                agentName: "Mock Agent",
+                sessionId: `pk-${args.taskId}`,
+                command: "claude '处理这条待办…'（E2E mock）",
+                exitCode: headless ? 0 : null,
+                status: "ok",
+                durationMs: headless ? 12_000 : null,
+                costUsd: headless ? 0.05 : null,
+                inputTokens: null,
+                outputTokens: null,
+                createdAt: nowIso(),
+              },
+            };
+          }
+          case "mark_dispatch":
+            broadcast("tasks-changed");
+            return null;
+          case "set_tag_meta": {
+            const tag = db.tags.find((t: any) => t.id === args.id);
+            if (tag) tag.meta = args.meta ?? null;
+            broadcast("tags-changed");
+            return null;
+          }
           case "test_ai_config":
             return "Agent 调用成功（E2E mock）";
           case "test_feishu_config":

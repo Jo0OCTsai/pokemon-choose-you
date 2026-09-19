@@ -51,6 +51,20 @@
 | `pk session log [--task <id>] --agent <id> [--session <sid>] [--command <c>] [--exit-code <n>] [--status ok\|error] [--duration-ms <n>] [--cost <美元>] [--in-tokens <n>] [--out-tokens <n>]` | 记录一次 agent 会话（成本/时长/退出码，可关联任务） |
 | `pk session list [--task <id>]` | 会话列表；--task 查该任务的执行时间线 |
 
+## 派发状态回传（dispatch）
+
+被应用「派发」处理待办（prompt 形如「处理这条待办（No.X）」）时，结束时回传派发状态。派发状态机：未派发 → running（应用派发时领取）→ done / failed；`done`/`fail` 只允许从 running 迁移，其他状态会返回可操作错误。
+
+| 命令 | 说明 |
+|---|---|
+| `pk dispatch done --task <id> [--note <一句话摘要>]` | 回传处理完成（摘要进任务操作历史） |
+| `pk dispatch fail --task <id> [--note <原因>]` | 回传无法完成 |
+| `pk dispatch start --task <id>` | 领取开工（NULL/queued → running；已 running 幂等成功） |
+
+- `--task` 缺省读环境变量 `PK_DISPATCH_TASK`（应用无头派发时注入子进程）；两者皆空时**静默跳过**（返回 `{"skipped": ...}`，退出码 0）——挂了 Stop hook 的普通会话结束不会报错刷屏
+- 远程 agent 经 shim 回本机执行，行为一致；交互会话（tmux）里主动调用比 Stop hook 更精确（能带上下文摘要）
+- 派发状态 ≠ 任务状态：待办本身做完另用 `pk task done <id>`，两回事别混
+
 ## 基础数据（category / tag / context）
 
 | 命令 | 说明 |

@@ -6,6 +6,7 @@
 //! - 通过 WAL 与运行中的应用并发读写，PK_DB 环境变量可覆盖数据库路径。
 
 use pokemon_choose_you_lib::ai::{AiSuggestion, ProposedTag};
+use pokemon_choose_you_lib::commands::dispatch;
 use pokemon_choose_you_lib::commands::radio::apply_suggestion_conn;
 use pokemon_choose_you_lib::commands::sessions::{
     list_agent_sessions_conn, log_session_conn, NewAgentSession,
@@ -44,6 +45,10 @@ const HELP: &str = r#"pk — 就决定是你了命令行（供 AI agent 与终�
                 [--status ok|error] [--duration-ms <n>] [--cost <美元>] [--in-tokens <n>] [--out-tokens <n>]
                                       记录一次 agent 会话（成本/时长/退出码，可关联任务）
   session list [--task <id>]         会话列表（--task 查该任务的时间线）
+  dispatch start|done|fail --task <id> [--note <一句话>]
+                                      回传待办派发状态（done/fail 从 running 迁移；start 领取开工、幂等）；
+                                      --task 缺省读应用派发注入的 PK_DISPATCH_TASK 环境变量，
+                                      两者皆空时静默跳过（普通会话的 Stop hook 不产生噪音）
   suggest todo|update|follow-up|none --message <消息id> [--task <待办id>] [--title <t>] [--note <n>]
                 [--category <分类名>] [--priority low|normal|high|urgent] [--due <YYYY-MM-DDTHH:MM>]
                 [--tags <a,b>] [--reason <一句话>] [--confidence high|medium|low] [--agent <agent-id>]
@@ -73,6 +78,7 @@ const HELP: &str = r#"pk — 就决定是你了命令行（供 AI agent 与终�
   pk note add 3 对方确认周五交付 --source ai
   pk session log --task 3 --agent claude-code --session abc123 --cost 0.12 --duration-ms 61000
   pk session list --task 3
+  pk dispatch done --task 3 --note 修复完成并补了回归用例   # 被派发处理待办后回传状态
   pk suggest todo --message om_1 --title 交周报 --due 2026-09-13T18:00 --reason 对方明确要求
   echo '{"results":[{"messageId":"om_1","action":"todo","title":"交周报"}]}' | pk suggest batch --agent claude-code
   pk skill install claude-code
@@ -418,6 +424,7 @@ fn run(conn: &mut Connection, args: &[String]) -> Result<serde_json::Value, CliE
         }
         "tag" | "tags" => run_tag(conn, rest),
         "session" => run_session(conn, rest),
+        "dispatch" => run_dispatch(conn, rest),
         "suggest" => run_suggest(conn, rest),
         "skill" => run_skill(rest),
         "context" => run_context(conn),
@@ -807,6 +814,69 @@ fn run_session(conn: &Connection, rest: &[String]) -> Result<serde_json::Value, 
             Ok(json!({ "sessions": list }))
         }
         _ => Err(usage_err("session 子命令支持 log / list，用法见 pk help")),
+    }
+}
+
+/// 回传待办派发状态（状态机见 AGENT_DISPATCH_PROPOSAL §8）：被应用派发处理待办的 agent
+/// 完成后调 done（--note 带一句话摘要）、无法完成调 fail；start 领取开工（幂等）。
+/// 任务 id：--task 优先，缺省读应用无头派发注入的 PK_DISPATCH_TASK；两者皆空时
+/// 静默跳过——Stop hook 挂上后普通（非派发）会话结束不能每次都报错刷屏
+fn run_dispatch(conn: &mut Connection, rest: &[String]) -> Result<serde_json::Value, CliError> {
+    let sub = rest
+        .first()
+        .map(String::as_str)
+        .ok_or_else(|| usage_err("缺少 dispatch 子命令（start / done / fail），用法见 pk help"))?;
+    let p = parse_args(&rest[1.min(rest.len())..]);
+    let flag = |name: &str| p.flag(name.trim_start_matches('-')).map(str::to_string);
+    let task_raw = flag("--task").filter(|v| !v.is_empty()).or_else(|| {
+        std::env::var("PK_DISPATCH_TASK")
+            .ok()
+            .filter(|v| !v.is_empty())
+    });
+    let Some(task_raw) = task_raw else {
+        return Ok(
+            json!({"skipped": "未指定 --task 且无 PK_DISPATCH_TASK 派发上下文（普通会话，无需回传）"}),
+        );
+    };
+    let task_id: i64 = task_raw
+        .parse()
+        .map_err(|_| usage_err("--task 必须是任务 id 数字"))?;
+    let note = flag("--note").filter(|v| !v.is_empty());
+    match sub {
+        "start" => {
+            // 领取开工：已 running 幂等成功；NULL/queued 走状态机迁移（带审计日志）
+            let cur: Option<String> = conn
+                .query_row(
+                    "SELECT dispatch_state FROM tasks WHERE id=?1",
+                    params![task_id],
+                    |r| r.get(0),
+                )
+                .map_err(sq_err)?;
+            match cur.as_deref() {
+                Some(dispatch::DS_RUNNING) => Ok(json!({"task": task_id, "state": "running", "idempotent": true})),
+                None | Some(dispatch::DS_QUEUED) => {
+                    dispatch::dispatch_transition_conn(conn, task_id, Some("running"), None, "pk")
+                        .map_err(db_err)?;
+                    Ok(json!({"task": task_id, "state": "running"}))
+                }
+                other => Err(CliError(
+                    format!(
+                        "待办 No.{task_id} 派发状态为「{}」，不能开工；由应用派发领取 running 后再回传",
+                        other.unwrap_or("未派发")
+                    ),
+                    1,
+                )),
+            }
+        }
+        "done" | "fail" => {
+            let to = if sub == "done" { "done" } else { "failed" };
+            dispatch::dispatch_transition_conn(conn, task_id, Some(to), note.as_deref(), "pk")
+                .map_err(db_err)?;
+            Ok(json!({ "task": task_id, "state": to }))
+        }
+        _ => Err(usage_err(&format!(
+            "未知 dispatch 子命令「{sub}」（start / done / fail）"
+        ))),
     }
 }
 
@@ -1514,6 +1584,10 @@ const COMMAND_INDEX: &[(&str, &str)] = &[
     ),
     ("session list", "会话列表（--task 查任务时间线）"),
     (
+        "dispatch done",
+        "回传派发状态（done/fail 从 running 迁移，--note 带摘要；start 领取开工；--task 缺省读 PK_DISPATCH_TASK）",
+    ),
+    (
         "skill install <agent>",
         "安装技能（claude-code|opencode|kiro，或 --dir 指定）",
     ),
@@ -1946,7 +2020,10 @@ mod tests {
         );
         assert_eq!(out["installed"], true);
         assert_eq!(out["updated"], false, "首次安装");
-        assert_eq!(out["version"], "2");
+        assert_eq!(
+            out["version"],
+            pokemon_choose_you_lib::skills::SKILL_VERSION
+        );
         let md = std::fs::read_to_string(dir.join("SKILL.md")).unwrap();
         assert!(md.contains("pk task create"), "技能内容含命令速查");
         assert!(md.contains("name: pokemon-choose-you"), "带 frontmatter");
@@ -2079,6 +2156,67 @@ mod tests {
             &["session", "log", "--agent", "a", "--task", "999"],
         );
         assert!(err.0.contains("不存在"), "{}", err.0);
+    }
+
+    /// dispatch 回传：running → done（备注入审计日志）；无派发上下文静默跳过；
+    /// start 领取开工幂等；非法迁移报业务错误
+    #[test]
+    fn dispatch_report_transitions_and_skips_without_context() {
+        let mut conn = test_db();
+        let id = create(&mut conn, "修登录");
+
+        // 无 --task 且无 PK_DISPATCH_TASK：skipped（Stop hook 挂上后普通会话结束不刷错）
+        std::env::remove_var("PK_DISPATCH_TASK");
+        let out = run_ok(&mut conn, &["dispatch", "done"]);
+        assert!(out["skipped"].is_string(), "{out}");
+
+        // NULL → done 非法（先由应用派发领取 running）
+        let err = run_err(&mut conn, &["dispatch", "done", "--task", &id.to_string()]);
+        assert_eq!(err.1, 1, "状态机拦截是业务错误");
+        assert!(err.0.contains("不能迁移"), "{}", err.0);
+
+        // start 领取开工（NULL → running），重复 start 幂等
+        let out = run_ok(&mut conn, &["dispatch", "start", "--task", &id.to_string()]);
+        assert_eq!(out["state"], "running");
+        let out = run_ok(&mut conn, &["dispatch", "start", "--task", &id.to_string()]);
+        assert_eq!(out["idempotent"], true, "已 running 直接成功: {out}");
+
+        // done 带备注：状态迁移 + 审计日志带备注
+        let out = run_ok(
+            &mut conn,
+            &[
+                "dispatch",
+                "done",
+                "--task",
+                &id.to_string(),
+                "--note",
+                "修复完成",
+            ],
+        );
+        assert_eq!(out["state"], "done");
+        let (state, log): (Option<String>, String) = conn
+            .query_row(
+                "SELECT dispatch_state,
+                        (SELECT new_value FROM task_logs WHERE task_id=?1 AND field='dispatch_state'
+                         ORDER BY id DESC LIMIT 1)
+                 FROM tasks WHERE id=?1",
+                params![id],
+                |r| Ok((r.get(0)?, r.get(1)?)),
+            )
+            .unwrap();
+        assert_eq!(state.as_deref(), Some("done"));
+        assert!(log.contains("done：修复完成"), "{log}");
+
+        // PK_DISPATCH_TASK 环境变量兜底（应用无头派发注入的上下文）
+        conn.execute(
+            "UPDATE tasks SET dispatch_state='running' WHERE id=?1",
+            params![id],
+        )
+        .unwrap();
+        std::env::set_var("PK_DISPATCH_TASK", id.to_string());
+        let out = run_ok(&mut conn, &["dispatch", "fail", "--note", "退出码 1"]);
+        std::env::remove_var("PK_DISPATCH_TASK");
+        assert_eq!(out["state"], "failed");
     }
 
     #[test]

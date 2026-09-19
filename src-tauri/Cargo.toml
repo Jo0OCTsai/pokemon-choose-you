@@ -42,6 +42,8 @@ thiserror = "2"
 # 秘钥存 OS 钥匙串（macOS Keychain / Windows Credential Manager / Linux Secret Service）；
 # 默认特性 v1 的 linux 后端为纯 Rust zbus，无需 libdbus 系统依赖
 keyring = "4"
+# 派发会话续接：预生成 claude --session-id 用的 UUID v4
+uuid = { version = "1", features = ["v4"] }
 
 [dev-dependencies]
 # 仅测试构建启用 mock 运行时，不影响正常编译与发布产物

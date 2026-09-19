@@ -1,5 +1,5 @@
 /* 《就决定是你了》图鉴复古风 — 设计令牌与公共组件（两窗口共用）
-   规范来源：design/DESIGN_SYSTEM.md（v2）· design/DESIGN_REFRESH_PROPOSAL.md · design/PET_INTERACTION_DESIGN.md */
+   规范来源：docs/design/DESIGN_SYSTEM.md（v2）· docs/design/PET_INTERACTION_DESIGN.md */
 :root {
   /* ── 机身色（结构）── */
   --dex-red: #ee1515; /* 纯装饰红：机脊、大灯、紧急点 */

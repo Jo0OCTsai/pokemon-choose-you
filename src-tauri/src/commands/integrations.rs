@@ -88,7 +88,7 @@ fn local_history_line(dir: &str, program: &str, args: &[String]) -> String {
 
 /// 终端命令行里 cd 目标的跨平台引用：unix 交给 ai::quote_cd_target（保留 ~ 展开），
 /// Windows 的 cmd /K 不认单引号，用双引号包路径
-fn cd_prefix_target(dir: &str) -> String {
+pub(crate) fn cd_prefix_target(dir: &str) -> String {
     #[cfg(windows)]
     {
         format!("\"{}\"", dir.replace('"', ""))
@@ -100,8 +100,8 @@ fn cd_prefix_target(dir: &str) -> String {
 }
 
 /// 在一个新的终端窗口里运行命令（各系统终端差异大，尽力而为）。
-/// 成功返回实际使用的终端程序名。
-async fn spawn_in_terminal(program: &str, args: &[String]) -> AppResult<&'static str> {
+/// 成功返回实际使用的终端程序名。（派发交互通道经 ssh argv 复用）
+pub(crate) async fn spawn_in_terminal(program: &str, args: &[String]) -> AppResult<&'static str> {
     let mut line = shell_quote(program).to_string();
     for a in args {
         line.push(' ');
@@ -122,7 +122,7 @@ fn applescript_escape(s: &str) -> String {
 /// spawn_in_terminal 的整行版本：line 原样交给目标 shell 执行，不再逐参转义
 /// （用于含 && 等 shell 语法的复合命令）。等进程结束并检查退出码——
 /// 只看 spawn 成功会把 osascript 的运行时语法错误静默吞掉（窗口没开却报成功）。
-async fn spawn_line_in_terminal(line: &str) -> AppResult<&'static str> {
+pub(crate) async fn spawn_line_in_terminal(line: &str) -> AppResult<&'static str> {
     #[cfg(target_os = "macos")]
     {
         // Terminal.app 不接受命令参数，用 osascript 让它执行一条 shell 命令

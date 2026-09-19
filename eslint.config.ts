@@ -13,7 +13,7 @@ export default defineConfigWithVueTs(
       "src-tauri/target/**",
       "src-tauri/gen/**",
       "public/**",
-      "design/**",
+      "docs/design/**",
     ],
   },
   pluginVue.configs["flat/recommended"],

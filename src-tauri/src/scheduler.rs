@@ -19,7 +19,8 @@ pub fn spawn_reminder_loop(app: AppHandle) {
 }
 
 /// 解析 RFC3339（带时区）或本地无时区格式（datetime-local）的时间字符串
-fn parse_time(s: &str) -> Option<chrono::DateTime<chrono::Utc>> {
+///（提醒循环与自动派发排队共用的混排时间判定）
+pub(crate) fn parse_time(s: &str) -> Option<chrono::DateTime<chrono::Utc>> {
     if let Ok(d) = chrono::DateTime::parse_from_rfc3339(s) {
         return Some(d.with_timezone(&chrono::Utc));
     }

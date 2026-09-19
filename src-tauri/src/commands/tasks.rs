@@ -24,6 +24,8 @@ fn row_to_task(row: &rusqlite::Row) -> rusqlite::Result<Task> {
         cancelled_at: row.get(14)?,
         focus_seconds: row.get(15)?,
         tags: vec![],
+        dispatch_state: row.get(16)?,
+        dispatched_session: row.get(17)?,
     })
 }
 
@@ -49,7 +51,7 @@ fn attach_tags(conn: &Connection, tasks: &mut [Task]) -> AppResult<()> {
     Ok(())
 }
 
-const TASK_COLS: &str = "id, title, note, category_id, status, priority, due_at, remind_at, reminded, source, external_id, created_at, completed_at, started_at, cancelled_at, focus_seconds";
+const TASK_COLS: &str = "id, title, note, category_id, status, priority, due_at, remind_at, reminded, source, external_id, created_at, completed_at, started_at, cancelled_at, focus_seconds, dispatch_state, dispatched_session";
 
 // ---- 图鉴页统计（成就页头：累计捕捉/逃走，全量口径不受列表 LIMIT 200 截断） ----
 

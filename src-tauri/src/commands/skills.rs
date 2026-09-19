@@ -70,7 +70,7 @@ fn skill_kind(agent: &AgentConfig) -> AppResult<String> {
 
 /// ssh 到远端执行一行命令（BatchMode 免密前提与无头分类一致）；
 /// stdin 有内容则写入（安装脚本走这里，不经远端 shell 重解析）
-async fn ssh_run(
+pub(crate) async fn ssh_run(
     remote: &AgentRemote,
     remote_line: &str,
     stdin: Option<&str>,

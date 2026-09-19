@@ -54,6 +54,12 @@ const nlCaptureOn = boolSetting("nl_capture_enabled");
 const closeToTrayOn = boolSetting("close_to_tray");
 const dueRelativeOn = boolSetting("due_relative");
 const reduceMotionOn = boolSetting("reduce_motion");
+// 派发自动化（M3）：开关只写本地 values，随「保存设置」落库
+const dispatchAutoOn = boolSetting("dispatch_auto_enabled");
+const dispatchWorktreeOn = boolSetting("dispatch_worktree");
+const maxConcurrentOptions = computed(() =>
+  [1, 2, 3].map((n) => ({ value: String(n), label: t("dispatchCfg.mcN", { n }) })),
+);
 const quietOn = boolSetting("quiet_hours_enabled");
 const overdueModeOptions = computed(() => [
   { value: "collapse", label: t("overdue.modeCollapse") },
@@ -397,6 +403,10 @@ interface EditingTag {
   name: string;
   description: string;
   dimension: string;
+  /** 派发设置（仅 project 维度展示编辑）：meta 三字段的表单态，空串 = 未配置 */
+  metaWorkdir: string;
+  metaAgentId: string;
+  metaContext: string;
 }
 const editingTags = ref<EditingTag[]>([]);
 function startEditTags() {
@@ -405,6 +415,9 @@ function startEditTags() {
     name: g.name,
     description: g.description,
     dimension: g.dimension || "topic",
+    metaWorkdir: g.meta?.workdir ?? "",
+    metaAgentId: g.meta?.agentId ?? "",
+    metaContext: g.meta?.context ?? "",
   }));
 }
 /** 编辑行按维度分组渲染（维度序 = tagsStore.dimensions 的 sort） */
@@ -441,6 +454,36 @@ async function addTag(dimKey: string) {
     await api.createTag(t("tags.newName"), "", dimKey);
     await tagsStore.load();
     startEditTags();
+  } catch (e) {
+    testMsg.value = `❌ ${errorMessage(e)}`;
+  }
+}
+
+// ---- project 标签的派发设置（标签 → agent / 工作目录 / 项目上下文） ----
+/** 派发 agent 下拉：不指定（用全局默认）+ 启用的 agent（SSH 徽标）；
+ *  已保存但停用的保留选项，避免下拉退化成裸 id */
+function metaAgentOptions(row: EditingTag): { value: string; label: string }[] {
+  const opts = [{ value: "", label: t("tags.metaAgentNone") }];
+  for (const a of agents.value) {
+    if (!a.enabled && a.id !== row.metaAgentId) continue;
+    opts.push({
+      value: a.id,
+      label: `${a.name || a.command}${a.remote?.host?.trim() ? " · SSH" : ""}${a.enabled ? "" : ` · ${t("tags.metaAgentOff")}`}`,
+    });
+  }
+  return opts;
+}
+async function saveTagMeta(row: EditingTag) {
+  try {
+    await api.setTagMeta(row.id, {
+      workdir: row.metaWorkdir || null,
+      agentId: row.metaAgentId || null,
+      context: row.metaContext || null,
+    });
+    await tagsStore.load();
+    startEditTags();
+    testMsg.value = t("tagSaved");
+    setTimeout(() => (testMsg.value = ""), 2000);
   } catch (e) {
     testMsg.value = `❌ ${errorMessage(e)}`;
   }
@@ -730,6 +773,7 @@ watch(settingsTab, (tab) => {
   if (tab === "tags") {
     if (!editingTags.value.length) startEditTags();
     if (!editingDims.value.length) startEditDims();
+    if (!agents.value.length) loadAgents(); // 派发设置的 agent 下拉要用
   }
   if (tab === "integrations" && !agents.value.length) loadAgents();
   if (tab === "diag") loadDiagnostics();
@@ -1025,13 +1069,33 @@ onUnmounted(() => unlisteners.forEach((u) => u()));
                 ＋
               </button>
             </div>
-            <div v-for="row in group.rows" :key="row.id" class="tag-row">
-              <input v-model="row.name" class="tag-name" :placeholder="t('tags.namePh')" />
-              <input v-model="row.description" class="tag-desc" :placeholder="t('tags.descPh')" />
-              <DexSelect v-model="row.dimension" :options="dimOptions" class="tag-dim-select" />
-              <button class="btn ghost" @click="saveTag(row)">{{ t("tags.save") }}</button>
-              <button class="btn ghost del" @click="removeTag(row.id)">{{ t("tags.release") }}</button>
-            </div>
+            <template v-for="row in group.rows" :key="row.id">
+              <div class="tag-row">
+                <input v-model="row.name" class="tag-name" :placeholder="t('tags.namePh')" />
+                <input v-model="row.description" class="tag-desc" :placeholder="t('tags.descPh')" />
+                <DexSelect v-model="row.dimension" :options="dimOptions" class="tag-dim-select" />
+                <button class="btn ghost" @click="saveTag(row)">{{ t("tags.save") }}</button>
+                <button class="btn ghost del" @click="removeTag(row.id)">{{ t("tags.release") }}</button>
+              </div>
+              <!-- 派发设置：项目标签专属（路由锚点），一行配 agent / 工作目录 / 项目上下文 -->
+              <div v-if="row.dimension === 'project'" class="tag-dispatch">
+                <span class="td-mark" :title="t('tags.metaHint')">⚡</span>
+                <DexSelect v-model="row.metaAgentId" :options="metaAgentOptions(row)" class="td-agent" />
+                <input
+                  v-model="row.metaWorkdir"
+                  class="td-dir"
+                  :placeholder="t('tags.metaWorkdirPh')"
+                  :title="t('tags.metaWorkdir')"
+                />
+                <input
+                  v-model="row.metaContext"
+                  class="td-ctx"
+                  :placeholder="t('tags.metaContextPh')"
+                  :title="t('tags.metaContext')"
+                />
+                <button class="btn ghost" @click="saveTagMeta(row)">{{ t("tags.metaSave") }}</button>
+              </div>
+            </template>
           </div>
           <p class="set-foot">{{ t("tags.dimHint") }}</p>
         </section>
@@ -1183,6 +1247,22 @@ onUnmounted(() => unlisteners.forEach((u) => u()));
             <button class="btn ghost" @click="addAgent">{{ t("ai.add") }}</button>
           </div>
           <p class="set-foot">{{ t("ai.cliHint") }}</p>
+        </section>
+
+        <!-- 待办派发：M3 自动化与隔离（默认全关；手动派发不受这些开关影响） -->
+        <section class="set-card">
+          <h3>{{ t("dispatchCfg.title") }}</h3>
+          <p class="set-sub">{{ t("dispatchCfg.hint") }}</p>
+          <SettingRow :label="t('dispatchCfg.auto')" :desc="t('dispatchCfg.autoDesc')">
+            <DexToggle v-model="dispatchAutoOn" />
+          </SettingRow>
+          <SettingRow :label="t('dispatchCfg.maxConcurrent')" :desc="t('dispatchCfg.maxConcurrentDesc')">
+            <DexSelect v-model="settings.values.dispatch_max_concurrent" :options="maxConcurrentOptions" />
+          </SettingRow>
+          <SettingRow :label="t('dispatchCfg.worktree')" :desc="t('dispatchCfg.worktreeDesc')">
+            <DexToggle v-model="dispatchWorktreeOn" />
+          </SettingRow>
+          <p class="set-foot">{{ t("dispatchCfg.foot") }}</p>
         </section>
 
         <section class="set-card">
@@ -1582,6 +1662,53 @@ onUnmounted(() => unlisteners.forEach((u) => u()));
   padding: 7px 10px;
   min-height: 38px;
   font-size: 13px;
+}
+/* 派发设置行（紧跟项目标签行）：紧凑半档控件，虚线左缘区分主行 */
+.tag-row:has(+ .tag-dispatch) {
+  margin-bottom: 4px;
+}
+.tag-dispatch {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-bottom: 10px;
+  padding-left: 2px;
+}
+.td-mark {
+  flex: none;
+  font-size: 13px;
+}
+.tag-dispatch input {
+  min-width: 120px;
+  padding: 6px 9px;
+  border: 2px solid var(--dex-navy);
+  border-radius: 8px;
+  font-size: 12.5px;
+  font-family: inherit;
+  min-height: 34px;
+}
+.td-agent {
+  flex: none;
+}
+.td-agent :deep(.ds-btn) {
+  min-width: 120px;
+  min-height: 34px;
+  padding: 6px 9px;
+  font-size: 12.5px;
+  border-width: 2px;
+}
+.td-dir {
+  flex: 1.1;
+}
+.td-ctx {
+  flex: 1;
+}
+.tag-dispatch .btn {
+  flex: none;
+  padding: 6px 10px;
+  min-height: 34px;
+  font-size: 12.5px;
 }
 /* 维度分组管理 */
 .tag-dim-group {

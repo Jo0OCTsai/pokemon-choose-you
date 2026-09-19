@@ -1,8 +1,9 @@
-/// IPC 命令按业务域拆分：tasks / tags / tag_health / categories / radio / settings / integrations / skills / diagnostics / windows / backup。
+/// IPC 命令按业务域拆分：tasks / tags / tag_health / categories / radio / settings / integrations / skills / dispatch / diagnostics / windows / backup。
 /// lib.rs 的 generate_handler 通过 `commands::` 前缀引用，此处统一 re-export。
 pub mod backup;
 pub mod categories;
 pub mod diagnostics;
+pub mod dispatch;
 pub mod export;
 pub mod integrations;
 pub mod radio;
@@ -18,6 +19,7 @@ pub mod windows;
 pub use backup::*;
 pub use categories::*;
 pub use diagnostics::*;
+pub use dispatch::*;
 pub use export::*;
 pub use integrations::*;
 pub use radio::*;

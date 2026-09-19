@@ -85,6 +85,10 @@ function onContextMenu(e: MouseEvent) {
         </span>
       </div>
       <div class="row2">
+        <span v-if="task.dispatchState === 'running'" class="dsp-chip run">⚡ {{ t("dispatch.chipRunning") }}</span>
+        <span v-else-if="task.dispatchState === 'queued'" class="dsp-chip queue"
+          >⚡ {{ t("dispatch.chipQueued") }}</span
+        >
         <span
           v-if="task.dueAt"
           class="due"
@@ -237,6 +241,23 @@ function onContextMenu(e: MouseEvent) {
 .tag-chip.chip-project {
   background: var(--poke-yellow);
   color: var(--dex-navy);
+}
+/* 派发状态小标（queued/running）：自动派发在列表上的可见性 */
+.dsp-chip {
+  font-weight: 800;
+  font-size: 11px;
+  padding: 0 6px;
+  line-height: 17px;
+  border: 2px solid var(--dex-navy);
+  border-radius: 999px;
+}
+.dsp-chip.run {
+  color: #fff;
+  background: var(--rest-blue);
+}
+.dsp-chip.queue {
+  color: var(--warn-ink);
+  background: var(--warn-soft);
 }
 .ops {
   display: flex;

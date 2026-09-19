@@ -1,7 +1,11 @@
 # 待办驱动的 Agent 调度设计方案（标签 → Agent / 机器 / 工作目录）
 
-> 状态：设计提案（未实施）。前置调研结论见文末「附录：调研摘要」。
-> 目标读者：本项目维护者；实施前建议先读 [USER_GUIDE.md](../USER_GUIDE.md) 的「配置 AI Agent CLI」一节。
+> 状态：**M1 / M2 / M3 全部已实施**。
+> - M1 手动派发：标签 meta（方案 A）、路由解析、交互通道（本地终端 / ssh+tmux 注入与降级）、agent_sessions 记录、prompt 定界隔离
+> - M2 无头与回传：无头通道（per-call workdir、claude --session-id/--resume 续接、信封解析、≥600s 超时）、dispatch_state 状态机 + 原子 claim、`pk dispatch start/done/fail` 子命令（PK_DISPATCH_TASK 环境变量 + Stop hook 模板在技能 v3）、抽屉手动标记救援
+> - M3 自动化：到期未开始的 project 待办自动排队（默认关，仅标签 meta 显式指定 agent 者）、每机器并发上限、worktree 隔离（opt-in）、完成/失败系统通知
+> 使用说明见 [USER_GUIDE.md](../USER_GUIDE.md) 的「待办派发给 Agent」一节；规则引擎按计划永不做。
+> 前置调研结论见文末「附录：调研摘要」。
 
 ## 1. 背景与目标
 
@@ -32,26 +36,30 @@ pk CLI 与技能分发。用户希望再进一步：
 
 ## 3. 总体架构
 
-```
-待办（含 project 标签）
-        │
-        ▼
-┌─ 路由层 ─────────────────────────────┐
-│ project 标签元数据 → (agent, host, cwd) │   简单映射表，非规则引擎
-│ 无元数据 → 全局默认 agent               │
-└──────────────┬───────────────────────┘
-               ▼
-┌─ 执行层 ─────────────────────────────────────┐
-│ 交互通道                        无头通道        │
-│ 本地: 终端 cd <cwd> && agent     复用 run_agent │
-│ 远程: ssh -tt + tmux new -A      + per-call cwd │
-│       + send-keys 注入 prompt    + 会话 id 注入  │
-└──────────────┬────────────────────────────────┘
-               ▼
-┌─ 回传层 ──────────────────────────────────────┐
-│ agent_sessions（已有） + 任务状态机扩展          │
-│ 无头: JSON 信封/exit code；交互: Stop hook → pk  │
-└───────────────────────────────────────────────┘
+```mermaid
+flowchart TD
+    TODO["待办（含 project 标签）"] --> R{"路由层：<br/>标签 meta 配了 agentId / workdir？"}
+    R -- "有（标签优先）" --> M["meta.agentId + meta.workdir + meta.context"]
+    R -- "无" --> D["全局默认 agent<br/>（ai_agent_id → 首个启用）+ agent 自身 workdir"]
+    M & D --> C["派发确认：agent · 机器 · 目录 · 通道（可改选）"]
+
+    C -- "交互通道（长任务，人可观察）" --> I
+    C -- "无头通道（批量 / 短任务 / 定时）" --> H
+
+    subgraph I["执行层 · 交互通道"]
+        I1["本机：新终端<br/>cd &lt;workdir&gt; 后启动 agent"]
+        I2["远程：ssh -tt + tmux new -A -s pk-&lt;taskId&gt;<br/>send-keys -l 注入任务 prompt"]
+    end
+
+    subgraph H["执行层 · 无头通道"]
+        H1["复用 run_agent<br/>+ per-call workdir 覆盖"]
+        H2["claude --session-id &lt;uuid&gt;<br/>（重派时 --resume 续接）"]
+        H1 --> H2
+    end
+
+    I & H --> S[("回传层：agent_sessions<br/>会话 / 成本 / 退出码")]
+    S --> T["dispatch_state 状态机<br/>+ 任务抽屉时间线 / 系统通知"]
+    I2 -. "Stop hook → pk dispatch" .-> T
 ```
 
 三层各自独立演进：路由先做最小映射表；执行通道两条（交互/无头）按场景选择；
@@ -100,6 +108,32 @@ ALTER TABLE tasks ADD COLUMN dispatched_session TEXT; -- 最近一次派发的 a
 
 ## 5. 派发流程设计
 
+端到端业务流程（路由解析 → 确认 → claim → 双通道执行 → 回传）：
+
+```mermaid
+flowchart TD
+    A["入口：任务卡片 / 详情抽屉「⚡ 派发」"] --> B{"带 project 标签？"}
+    B -- "否" --> X1["置灰，提示先补标签"]
+    B -- "是" --> C{"标签 meta 配置了<br/>agentId / workdir？"}
+    C -- "是" --> D["目标 = 标签 meta"]
+    C -- "否" --> E["目标 = 全局默认 agent"]
+    D & E --> F{"agent 存在且启用？"}
+    F -- "否" --> X2["报错并引导去设置页"]
+    F -- "是" --> G["确认弹窗：agent · 机器 · 目录 · 通道<br/>（默认交互，可改无头）"]
+    G --> H{"原子 claim 成功？<br/>（dispatch_state → running）"}
+    H -- "否（已在执行）" --> X3["提示：该待办执行中"]
+    H -- "是" --> CH{"执行通道"}
+    CH -- "交互" --> J{"agent 位置"}
+    J -- "本机" --> K["新终端：cd workdir 后启动 agent"]
+    J -- "远程" --> L{"远端有 tmux？"}
+    L -- "有" --> MM["终端跑 ssh -tt：<br/>tmux new -A -s pk-&lt;taskId&gt; -c workdir"]
+    L -- "无" --> NN["降级：ssh -tt 直接启动<br/>（断连即死，提示装 tmux）"]
+    MM & NN --> O["应用另起 ssh：<br/>tmux send-keys -l 注入任务 prompt"]
+    CH -- "无头" --> P["run_agent：workdir 覆盖<br/>+ --session-id（续接用 --resume）"]
+    K & O & P --> Q["落一条 agent_sessions<br/>（command / session_id / 通道）"]
+    Q --> RR["完成信号（信封 / Stop hook）<br/>→ dispatch_state + 系统通知"]
+```
+
 ### 5.1 入口与路由解析
 
 - 入口：任务卡片/详情抽屉的「派发给 Agent」按钮（有 project 标签且解析到目标时可用）。
@@ -121,6 +155,30 @@ ALTER TABLE tasks ADD COLUMN dispatched_session TEXT; -- 最近一次派发的 a
 - tmux 缺失检测：远端 `command -v tmux` 失败时降级为直接 `ssh -tt ... '<agent 命令>'`
   （无持久会话，断即死，提示安装 tmux）。
 
+交互通道（远程 agent）时序：
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor U as 用户
+    participant APP as 应用（Tauri）
+    participant TERM as 本地终端窗口
+    participant SSH as 远程机器（ssh + tmux）
+    participant AG as agent CLI（交互 TUI）
+    participant DB as SQLite（本机）
+
+    U->>APP: 点「派发」（交互通道）
+    APP->>DB: 原子 claim：dispatch_state → running
+    APP->>TERM: 打开新终端，执行<br/>ssh -tt {host} -t "tmux new -A -s pk-{taskId} -c {workdir}"
+    TERM->>SSH: attach-or-create（幂等，断线重连不丢）
+    SSH->>AG: 在 workdir 启动 agent（TUI）
+    APP->>SSH: 另起 ssh：tmux send-keys -t pk-{taskId} -l '{任务 prompt}' Enter
+    Note over U,AG: 用户随时在终端里观察 / 介入审批；<br/>关掉终端窗口不影响远端会话
+    AG-->>DB: Stop hook → pk dispatch done --task {id}<br/>（远程经反向隧道 shim 回本机）
+    DB-->>APP: 状态变更
+    APP-->>U: 时间线刷新 + 系统通知
+```
+
 ### 5.3 无头通道（批量/短任务/定时）
 
 复用 `run_agent`（Invocation 组装已覆盖本地/远程），扩展三点：
@@ -132,6 +190,29 @@ ALTER TABLE tasks ADD COLUMN dispatched_session TEXT; -- 最近一次派发的 a
   （社区 issue #11069，open），kiro 无头派发标记实验性、每次新会话。
 
 派发超时独立于分类超时（任务处理更慢），默认 600 秒起。
+
+无头通道时序：
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor U as 用户
+    participant APP as 应用（Tauri）
+    participant PROC as run_agent 子进程<br/>（本地 spawn / ssh 远程）
+    participant AG as agent CLI（无头模式）
+    participant DB as SQLite
+
+    U->>APP: 点「派发」（无头通道）
+    APP->>DB: 原子 claim：dispatch_state → running
+    APP->>APP: 预生成会话 uuid → dispatched_session
+    APP->>PROC: build_invocation<br/>（workdir 覆盖 + claude --session-id {uuid}）
+    PROC->>AG: 在目标目录以无头模式执行
+    AG--)DB: 过程中经 pk 写回<br/>（pk session log / suggest / context）
+    AG-->>PROC: stdout JSON 信封<br/>（result / session_id / cost）
+    PROC-->>APP: 进程退出（exit code）
+    APP->>DB: agent_sessions 落库；<br/>按信封与退出码判定 dispatch_state
+    APP-->>U: 通知（完成 / 失败 + 成本摘要）
+```
 
 ### 5.4 执行记录
 
@@ -176,6 +257,22 @@ prompt 主体（无头/交互共用模板）：
 |---|---|---|
 | 无头 | 进程退出 | exit code +（claude）JSON 信封：result/session_id/cost → agent_sessions；任务状态由 result 判定或 agent 主动 `pk task update` |
 | 交互 | Stop hook | claude 配置 Stop hook 执行 `pk dispatch done --task <id> [--note 摘要]`（pk 已在 agent PATH，远程经 shim 回本机）；无 hook 的 agent 靠人工在应用里点完成 |
+
+`dispatch_state` 的状态机（回传信号驱动迁移）：
+
+```mermaid
+stateDiagram-v2
+    [*] --> idle : 从未派发（NULL）
+    idle --> running : 手动派发 · 原子 claim 成功（M1）
+    idle --> queued : 定时 / 批量排队（M3）
+    queued --> running : 领取（原子 claim）
+    running --> done : 无头信封成功 / Stop hook → pk dispatch done
+    running --> failed : 退出码非 0 / pk dispatch fail / 超时
+    done --> running : 重新派发（claude --resume 续接）
+    failed --> running : 重试派发
+    done --> [*]
+    failed --> [*]
+```
 
 `pk dispatch` 为新增子命令族（`pk dispatch start/done/fail --task`），只更新
 `dispatch_state` + 追加任务日志，避免 agent 直接改 status 绕过状态机。
