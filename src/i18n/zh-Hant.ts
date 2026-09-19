@@ -37,13 +37,6 @@ export default {
       "累了就休息——卡比獸也是這麼做的。",
     ],
   },
-  add: {
-    goGrass: "丟進草叢",
-    goRoute: "加入路線",
-    placeholder: "要捕捉哪隻野生寶可夢？（按 Enter 新增）",
-    nlCancel: "取消識別",
-    nlNewTag: "詞表外的標籤，儲存時新增",
-  },
   priority: { low: "低", normal: "普通", high: "高", urgent: "緊急" },
   status: {
     inbox: "草叢",
@@ -100,6 +93,11 @@ export default {
     catch: "◎ 捕捉",
     release: "✕ 逃走",
     search: "🔍 搜尋電波（訊息 / 會話 / 發送者）",
+    // 快速捕捉：一句話 → AI 判定屬性
+    capturePlaceholder: "用一句話記錄待辦，AI 自動判定內容 / 分類 / 標籤 / 截止時間…",
+    captureSend: "⚡ 發報",
+    capturing: "AI 判定中…",
+    capturePending: "AI 已生成建議（判重 / 變更），請在收音機確認",
     force: "⚡ 強制捕捉",
     forcing: "AI 判重中…",
     forceDone: "✔ 已建立待辦",
@@ -126,7 +124,7 @@ export default {
       outdated: "已過期",
       other: "其他",
     },
-    type: { bot: "機器人", p2p: "私聊", group: "群聊" },
+    type: { bot: "機器人", p2p: "私聊", group: "群聊", local: "手動輸入" },
     status: {
       pending: "AI 待判定",
       todo: "有待辦訊號",
@@ -337,10 +335,6 @@ export default {
     preview: "預覽：{v}",
     language: "語言",
   },
-  defaults: {
-    title: "📋 新任務預設值",
-    priority: "預設優先級",
-  },
   ai: {
     title: "🤖 AI Agent CLI",
     hint: "用本機 AI agent 命令列（Claude Code / OpenCode / Kiro CLI 等）處理收音機訊息分類與判重，可設定多個。",
@@ -429,8 +423,6 @@ export default {
     autostartDesc: "登入後桌寵自動出現",
     closeToTray: "關閉主視窗時收到系統匣",
     closeToTrayDesc: "應用繼續常駐，系統匣選單可結束",
-    nlCapture: "自然語言快速捕捉",
-    nlCaptureDesc: "輸入框自動識別時間 / 分類 / 標籤，可隨時取消",
     shortcuts: "全域快捷鍵：Ctrl+Shift+K 快速捕捉待辦 · Ctrl+Shift+D 顯示/隱藏桌寵（macOS 為 ⌘⇧K / ⌘⇧D）",
   },
   overdue: {
@@ -572,6 +564,7 @@ export default {
     focus: "★ 專注 {n} 分鐘",
     from: "來自{src}",
     feishu: "飛書",
+    capture: "快速捕捉",
     catching: "捕獲中",
     paused: "暫停",
     caught: "✔ 已捕捉",

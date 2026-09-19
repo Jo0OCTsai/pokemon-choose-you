@@ -21,11 +21,13 @@ test.describe("图鉴机主面板", () => {
     await expect(page.locator(".catch-progress .px")).toContainText("CAUGHT 0/0");
   });
 
-  test("添加任务出现在列表，编号与分类徽章正确", async ({ page }) => {
+  test("收音机快速捕捉：一句话经 AI 判定建待办，出现在草丛", async ({ page }) => {
     await page.goto("/");
-    await page.locator("form.add input").fill("端到端捕捉的任务");
-    await page.locator("form.add button[type=submit]").click();
-    // 未设截止时间 → 草丛（新建任务去向由是否设置时间决定）
+    await page.locator(".menu-btn", { hasText: "收音机" }).click();
+    await page.locator(".cap-input").fill("端到端捕捉的任务");
+    await page.locator(".capture-bar button[type=submit]").click();
+    await expect(page.locator(".toast")).toContainText("No.1");
+    // 未识别到截止时间 → 草丛
     await page.locator(".menu-btn", { hasText: "草丛" }).click();
     const entry = page.locator(".entry").first();
     await expect(entry).toContainText("端到端捕捉的任务");

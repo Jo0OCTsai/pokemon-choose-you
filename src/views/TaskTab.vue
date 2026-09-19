@@ -5,7 +5,6 @@ import { api } from "../api";
 import { useSettingsStore } from "../stores/settings";
 import { useTasksStore, type TaskTabKey } from "../stores/tasks";
 import TaskCard from "../components/TaskCard.vue";
-import AddTaskForm from "../components/AddTaskForm.vue";
 import DexDateTime from "../components/DexDateTime.vue";
 import TaskEditModal from "../components/TaskEditModal.vue";
 import TaskDetailDrawer from "../components/TaskDetailDrawer.vue";
@@ -17,7 +16,6 @@ const props = defineProps<{ tab: TaskTabKey }>();
 const { t } = useI18n();
 const tasksStore = useTasksStore();
 const settings = useSettingsStore();
-const addForm = ref<InstanceType<typeof AddTaskForm> | null>(null);
 
 const visible = computed(() => tasksStore.visibleFor(props.tab));
 
@@ -56,7 +54,6 @@ async function freshStartOverdue() {
     freshStarting.value = false;
   }
 }
-const showAddForm = computed(() => props.tab !== "done");
 const dexFilters = ["all", "done", "cancelled"] as const;
 
 // ---- 图鉴页统计页头：累计捕捉/逃走 + 里程碑贺词（全量口径，不随列表截断） ----
@@ -82,11 +79,6 @@ const dexMilestone = computed(() => {
 async function reload() {
   await tasksStore.reload();
   await loadDexStats();
-}
-
-async function addTask(input: Parameters<typeof api.createTask>[0]) {
-  await api.createTask(input);
-  await reload();
 }
 
 async function start(task: Task) {
@@ -176,19 +168,11 @@ watch(searchQuery, async (q) => {
   }
 });
 
-/** 快捷键"快速捕捉"：聚焦新增输入框（由 App 壳触发） */
-function focusAddForm() {
-  addForm.value?.focus();
-}
-
-defineExpose({ focusAddForm });
 onMounted(reload);
 </script>
 
 <template>
   <div class="task-tab">
-    <AddTaskForm v-if="showAddForm" ref="addForm" :allow-schedule="tab === 'inbox'" @submit="addTask" />
-
     <!-- 搜索栏 -->
     <div class="search-bar">
       <input v-model="searchQuery" class="search-input" :placeholder="t('search.placeholder')" />

@@ -153,6 +153,13 @@ export interface ChatMessage {
   createdAt: string;
 }
 
+/** 收音机快速捕捉的结果：AI 判定后的消息 + todo 时自动落成的待办 id */
+export interface CaptureOutcome {
+  message: ChatMessage;
+  /** action=todo 时已建的待办（撤销调 undoChatReview）；判重类结果为 null */
+  taskId: number | null;
+}
+
 /** Agent 会话记录：分类调用与 agent 代办按次落库（agent_sessions 表） */
 export interface AgentSession {
   id: number;

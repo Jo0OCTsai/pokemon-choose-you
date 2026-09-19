@@ -528,6 +528,43 @@ fn build_tools_prompt(agent: &AgentConfig, batch: &[AiMessage]) -> String {
     format!("{TOOLS_SYSTEM_PROMPT}\n\n{}", render_messages(batch)).replace("<AGENT_ID>", &agent.id)
 }
 
+/// 快速捕捉提示词：输入是用户在收音机手动敲的一条自然语言待办，判定结构化属性。
+/// 与 IM 分类共用字段协议与 pk 出口，但语义不同——用户自己记的待办不存在
+/// 「是不是给我的任务」的归属判断，默认 action=todo，重点在抽字段与判重。
+const CAPTURE_SYSTEM_PROMPT: &str = r#"你是待办事项录入助手，通过 pk 命令行工具工作。用户在应用里手动输入了一条自然语言快速捕捉（自己要做的待办），把它的结构化属性判定出来，并用 pk 工具写回数据库。
+规则：
+- 输入一定是用户要为自己创建的待办：默认 action="todo"，不要判断任务归属，不要因为内容像闲聊而判 none。
+- 判重：先执行 `pk context` 拿现有待办清单，openTasks 里已有本质相同的未完成待办时不再新建——输入是对它的属性变更（改期/改优先级等）用 update，是补充信息/进展用 followUp，纯重复提及用 none（reason 注明与哪个待办重复）。
+- title 用简短的祈使句中文概括要做的事（不超过 20 字），时间、分类等已被抽走的修饰不要保留。
+- note 一句话保留原文里有用的上下文（对象、地点、要求），没有就留空。
+- category 从 pk context 的 categories 里选最贴切的一个，不要发明不存在的名字。
+- priority 从 low/normal/high/urgent 里选：用户语气紧急或当天到期用 urgent/high，默认 normal。
+- due: 用户表达了时间就解析成 YYYY-MM-DDTHH:MM 格式（相对时间对照 pk context 的 now 换算：只说时间没说日期默认今天、已过则顺延明天；只说日期没说时间用 09:00），没表达就留空，禁止编造。
+- tags: 按维度选 0~3 个最贴切的标签，格式 [{"name":"标签名","dimension":"维度key","isNew":false}]，没有合适的用 []。「项目」维度至多 1 个；优先复用 pk context 的 tags（含 dimension）里已有的。
+- 新标签：仅当某维度确实没有贴切选项、且输入里有明确依据（明确出现的项目名/人名）时才提议新标签（isNew=true 并归入该维度，名字用原文里的称呼）；模糊语境一律复用现有标签或留空。pk context 的 dimensions 里 remaining<=0 的维度禁止新建。
+- pk context 的 tagFeedback 列出用户多次移除过的标签：没有新的明确依据不要再建议。
+- updateTaskId 只在 action="update" 时填写，followUpTaskId 只在 action="followUp" 时填写，取值都必须是 pk context 的 openTasks 里出现的 id。
+- reason: 一句话中文说明判定依据（如「用户输入，含明确截止时间」/「与待办 No.3 本质相同」），不超过 30 字。
+- confidence: 从 high/medium/low 里选：输入直白、无需推断用 high；需要解析相对时间或推断标签用 medium；输入含糊、靠猜的用 low。
+执行流程（务必遵守）：
+1. 先执行 `pk context` 获取当前时间、现有待办清单、可用分类与标签。
+2. 判定正文中的这条捕捉（方括号 [ ] 里是消息 id）。
+3. 把判定整理成 {"results":[...]}（字段 messageId/action/title/note/category/priority/due/tags/followUpTaskId/updateTaskId/reason/confidence），一次性提交：
+   pk suggest batch --agent <AGENT_ID> <<'JSON'
+   {"results":[ ... ]}
+   JSON
+4. 输出含 "submitted" 即成功，回复一行总结即可。校验失败会报明问题——修正后重试。
+禁止：不要用 pk task create 直接建任务（录入结果的出口是 pk suggest，用户确认后生效）；不要输出 JSON 建议文本；不要编造消息 id 或待办 id。"#;
+
+/// 快速捕捉提示词：规则 + 单条输入（sender 恒为用户本人，无同会话上下文）
+fn build_capture_prompt(agent: &AgentConfig, input: &AiMessage) -> String {
+    format!(
+        "{CAPTURE_SYSTEM_PROMPT}\n\n{}",
+        render_messages(std::slice::from_ref(input))
+    )
+    .replace("<AGENT_ID>", &agent.id)
+}
+
 /// 分类一批消息（便捷入口）
 pub async fn classify(
     agent: &AgentConfig,
@@ -554,14 +591,47 @@ pub async fn classify_with_session(
         batch.len(),
         trunc(&prompt, 500)
     );
-    let out = run_agent(agent, &prompt).await?;
+    let ids: Vec<String> = batch.iter().map(|m| m.message_id.clone()).collect();
+    run_and_collect(agent, &prompt, &ids, db).await
+}
+
+/// 手动快速捕捉：把用户在收音机输入的一条自然语言待办交给 agent 判定结构化属性。
+/// 与 IM 分类共用「pk 写回 → 库回读」链路，但提示词不同——输入本身就是用户要建的待办，
+/// 不做任务归属判断，重点在抽属性与判重。
+pub async fn capture_with_session(
+    agent: &AgentConfig,
+    input: &AiMessage,
+    db: &crate::db::Db,
+) -> AppResult<(AiSuggestion, Option<String>)> {
+    let prompt = build_capture_prompt(agent, input);
+    log::debug!(
+        "ai: 经 agent「{}」快速捕捉，prompt: {}",
+        agent.name,
+        trunc(&prompt, 500)
+    );
+    let (mut list, session_id) =
+        run_and_collect(agent, &prompt, std::slice::from_ref(&input.message_id), db).await?;
+    let s = list
+        .pop()
+        .ok_or_else(|| AppError::External("agent 未返回捕捉判定".into()))?;
+    Ok((s, session_id))
+}
+
+/// 无头跑一次 agent 并从库回读该批消息的判定（分类 / 快速捕捉共用）：
+/// 回读后做批内判重兜底，整批遗漏判失败（见各调用方的错误处理约定）
+async fn run_and_collect(
+    agent: &AgentConfig,
+    prompt: &str,
+    ids: &[String],
+    db: &crate::db::Db,
+) -> AppResult<(Vec<AiSuggestion>, Option<String>)> {
+    let out = run_agent(agent, prompt).await?;
     log::debug!("ai: agent 原始输出: {}", trunc(&out, 800));
     let (_, session_id) = extract_payload(&out);
-    let ids: Vec<String> = batch.iter().map(|m| m.message_id.clone()).collect();
     // agent 进程已结束才拿锁，回读期间不跨 await 持锁
     let suggestions = {
         let conn = db.0.lock().unwrap();
-        let mut loaded = crate::commands::radio::load_suggestions_conn(&conn, &ids)?;
+        let mut loaded = crate::commands::radio::load_suggestions_conn(&conn, ids)?;
         let demoted = dedup_batch_todos(&mut loaded);
         for s in loaded.iter().filter(|s| demoted.contains(&s.message_id)) {
             // agent 已把重复 todo 写进建议列：清掉建议载荷并置 none，
@@ -582,7 +652,7 @@ pub async fn classify_with_session(
     // agent 退出 0 但一条都没落库（pk 不在 PATH / 工具白名单没放行等）→ 判失败，
     // 让调用方按错误路径标记，避免整批被静默标 none；部分遗漏由调用方按 none 兜底
     let missed = suggestions.iter().filter(|s| s.action == "pending").count();
-    if missed == batch.len() {
+    if missed == ids.len() {
         return Err(AppError::External(format!(
             "agent「{}」执行完成但没有任何判定落库（{} 条全部遗漏）——请确认其无头模式允许执行 pk 命令（工具白名单，本机 pk 目录已随调用注入 PATH）；可用「测试」按钮跑一次工具探针",
             agent.name, missed

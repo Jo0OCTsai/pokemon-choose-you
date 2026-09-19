@@ -216,7 +216,8 @@ fn record_feedback(
 }
 
 /// 用消息上的 AI 建议创建待办（含标签/优先级/截止时间），并回写消息状态。
-/// accept_chat_message 与 force_create_todo 共用。
+/// accept_chat_message、force_create_todo 与 capture_todo 共用。
+/// 任务来源跟随消息类型：飞书消息 → feishu，手动输入 → capture（撤销时的安全域判断依赖它）。
 pub(crate) fn create_task_from_message(conn: &Connection, msg: &ChatMessage) -> AppResult<i64> {
     let title = msg
         .suggested_title
@@ -235,9 +236,14 @@ pub(crate) fn create_task_from_message(conn: &Connection, msg: &ChatMessage) -> 
         .map(str::trim)
         .filter(|s| !s.is_empty());
     let status = if due.is_some() { "scheduled" } else { "inbox" };
+    let source = if msg.chat_type == "local" {
+        "capture"
+    } else {
+        "feishu"
+    };
     conn.execute(
         "INSERT INTO tasks (title, note, category_id, status, priority, due_at, source, created_at)
-         VALUES (?1,?2,?3,?4,?5,?6,'feishu',?7)",
+         VALUES (?1,?2,?3,?4,?5,?6,?7,?8)",
         params![
             title,
             msg.suggested_note,
@@ -245,6 +251,7 @@ pub(crate) fn create_task_from_message(conn: &Connection, msg: &ChatMessage) -> 
             status,
             priority,
             due,
+            source,
             now()
         ],
     )?;
@@ -355,6 +362,8 @@ pub fn undo_chat_review<R: tauri::Runtime>(
                 })?;
                 // 只回滚仍是「收音机原样」的任务：待办不存在（已被手动删）就只回状态不报错，
                 // 来源不是 feishu 说明 id 已被复用，拒绝删除保安全
+                // 只回滚仍是「收音机原样」的任务：feishu=飞书建议捕捉、capture=手动快速捕捉；
+                // 其余来源说明 id 已被复用，拒绝删除保安全
                 let source: Option<String> = conn
                     .query_row(
                         "SELECT source FROM tasks WHERE id=?1",
@@ -363,7 +372,7 @@ pub fn undo_chat_review<R: tauri::Runtime>(
                     )
                     .ok();
                 match source.as_deref() {
-                    Some("feishu") => {
+                    Some("feishu" | "capture") => {
                         conn.execute("DELETE FROM task_tags WHERE task_id=?1", params![task_id])?;
                         conn.execute("DELETE FROM task_logs WHERE task_id=?1", params![task_id])?;
                         conn.execute("DELETE FROM task_notes WHERE task_id=?1", params![task_id])?;
@@ -839,6 +848,7 @@ pub(crate) fn chat_label(chat_type: &str, chat_name: &str) -> String {
         "bot" => "飞书·机器人私聊".into(),
         "p2p" => format!("飞书·私聊「{chat_name}」"),
         "group" => format!("飞书·群聊「{chat_name}」"),
+        "local" => "手动输入·快速捕捉".into(),
         _ => {
             if chat_name.is_empty() {
                 "飞书".into()
@@ -1045,6 +1055,157 @@ pub async fn force_create_todo<R: tauri::Runtime>(
     events::broadcast(&app, events::TASKS_CHANGED);
     events::broadcast(&app, events::CHAT_MESSAGES_CHANGED);
     Ok(task_id)
+}
+
+/// 快速捕捉的结果：判定后的消息（前端据此选中新条目）+ 自动捕捉已建的待办 id
+#[derive(Debug, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CaptureOutcome {
+    pub message: ChatMessage,
+    /// action=todo 时自动落成的待办 id（撤销走 undo_chat_review）；其余为 None
+    pub task_id: Option<i64>,
+}
+
+/// 收音机手动快速捕捉：把用户输入的一条自然语言落成 local 消息，交 AI 判定
+/// 结构化属性（标题/分类/标签/截止/优先级/备注），再按判定结果分流：
+/// - todo → 直接建待办（用户自己输入的，意图明确无需再确认；5 秒撤销窗口兜底）
+/// - update / followUp / none（判重命中现有待办）→ 留在收音机待人工确认
+/// - 判定失败 → 消息标 error 保留，可在收音机强制捕捉或逃走
+#[tauri::command]
+pub async fn capture_todo<R: tauri::Runtime>(
+    app: tauri::AppHandle<R>,
+    db: State<'_, Db>,
+    input: String,
+) -> AppResult<CaptureOutcome> {
+    const MAX_CAPTURE_CHARS: usize = 500;
+    let text = input.trim().to_string();
+    if text.is_empty() {
+        return Err(AppError::Invalid("请输入待办内容".into()));
+    }
+    if text.chars().count() > MAX_CAPTURE_CHARS {
+        return Err(AppError::Invalid(format!(
+            "捕捉内容太长（最多 {MAX_CAPTURE_CHARS} 字），拆成几条分别记吧"
+        )));
+    }
+
+    let agent = {
+        let conn = db.0.lock().unwrap();
+        let get = |k: &str| -> Option<String> {
+            conn.query_row("SELECT value FROM settings WHERE key=?1", params![k], |r| {
+                r.get::<_, String>(0)
+            })
+            .ok()
+        };
+        ai::primary_agent(&get)
+    }
+    .ok_or_else(|| AppError::Invalid("请先在设置中配置 AI Agent".into()))?;
+
+    // 落库成 local 消息：与飞书消息同一张表、同一套建议列与分诊流，AI 出口（pk suggest）无需区分
+    let message_id = format!("cap_{}", uuid::Uuid::new_v4());
+    let row_id = {
+        let conn = db.0.lock().unwrap();
+        conn.execute(
+            "INSERT INTO chat_messages (message_id, chat_id, chat_name, chat_type, sender, sender_id,
+                                        content, sent_at, is_self, ai_status, review_status, created_at)
+             VALUES (?1,'','', 'local', '我', '', ?2, ?3, 1, 'pending', 'pending', ?4)",
+            params![message_id, text, chrono::Utc::now().timestamp_millis(), now()],
+        )?;
+        conn.last_insert_rowid()
+    };
+
+    // 会话回链与健康记录与飞书轮询同口径：时长 / session_id / 成败
+    let started = std::time::Instant::now();
+    let judged = ai::capture_with_session(
+        &agent,
+        &AiMessage {
+            message_id: message_id.clone(),
+            sender: "我".into(),
+            chat_label: chat_label("local", ""),
+            content: text.clone(),
+            context: vec![],
+        },
+        &db,
+    )
+    .await;
+    let duration_ms = started.elapsed().as_millis() as i64;
+
+    let (suggestion, session_id) = match judged {
+        Ok(v) => v,
+        Err(e) => {
+            {
+                let conn = db.0.lock().unwrap();
+                let _ = conn.execute(
+                    "UPDATE chat_messages SET ai_status='error' WHERE id=?1",
+                    params![row_id],
+                );
+                let _ = crate::commands::sessions::log_session_conn(
+                    &conn,
+                    &crate::commands::sessions::NewAgentSession {
+                        task_id: None,
+                        agent_id: agent.id.clone(),
+                        session_id: None,
+                        command: None,
+                        exit_code: None,
+                        status: "error".into(),
+                        duration_ms: Some(duration_ms),
+                        cost_usd: None,
+                        input_tokens: None,
+                        output_tokens: None,
+                    },
+                );
+            }
+            app.state::<crate::health::HealthState>().record_failure(
+                &app,
+                crate::health::AI,
+                &e.to_string(),
+            );
+            events::broadcast(&app, events::CHAT_MESSAGES_CHANGED);
+            return Err(e);
+        }
+    };
+    app.state::<crate::health::HealthState>()
+        .record_success(&app, crate::health::AI);
+    {
+        let conn = db.0.lock().unwrap();
+        let _ = crate::commands::sessions::log_session_conn(
+            &conn,
+            &crate::commands::sessions::NewAgentSession {
+                task_id: None,
+                agent_id: agent.id.clone(),
+                session_id,
+                command: None,
+                exit_code: Some(0),
+                status: "ok".into(),
+                duration_ms: Some(duration_ms),
+                cost_usd: None,
+                input_tokens: None,
+                output_tokens: None,
+            },
+        );
+    }
+    log::info!(
+        "capture: 快速捕捉「{text}」判定为 {}（{}）",
+        suggestion.action,
+        suggestion.reason.as_deref().unwrap_or("")
+    );
+
+    // todo → 直接建待办（含记录 accepted 反馈）；判重类结果留待收音机确认
+    let task_id = if suggestion.is_todo() {
+        let conn = db.0.lock().unwrap();
+        let msg = get_message(&conn, row_id)?;
+        let task_id = create_task_from_message(&conn, &msg)?;
+        record_feedback(&conn, &msg, "accepted", "")?;
+        Some(task_id)
+    } else {
+        None
+    };
+    events::broadcast(&app, events::TASKS_CHANGED);
+    events::broadcast(&app, events::CHAT_MESSAGES_CHANGED);
+    let message = {
+        let conn = db.0.lock().unwrap();
+        get_message(&conn, row_id)?
+    };
+    Ok(CaptureOutcome { message, task_id })
 }
 
 #[cfg(test)]
@@ -2221,5 +2382,118 @@ mod tests {
             )
             .unwrap();
         assert!(due.is_none(), "空串/纯空格 due 落库为 NULL");
+    }
+
+    // ---- 收音机手动快速捕捉 ----
+
+    fn seed_agent(app: &tauri::App<tauri::test::MockRuntime>, command: &str) {
+        let db = app.state::<Db>();
+        let conn = db.0.lock().unwrap();
+        conn.execute(
+            "INSERT INTO settings (key, value) VALUES ('ai_agents', ?1)",
+            params![serde_json::to_string(&[crate::ai::AgentConfig {
+                id: "fake".into(),
+                name: "Fake".into(),
+                command: command.into(),
+                timeout_secs: 10,
+                ..Default::default()
+            }])
+            .unwrap()],
+        )
+        .unwrap();
+    }
+
+    /// 未配置 AI / 空输入 / 超长输入：可操作的报错，且不落消息
+    #[test]
+    fn capture_rejects_missing_agent_and_bad_input() {
+        let app = setup();
+        let text = "明天 10 点交周报".to_string();
+        let err = tauri::async_runtime::block_on(async {
+            let db = app.state::<Db>();
+            capture_todo(app.handle().clone(), db, text).await
+        })
+        .unwrap_err();
+        assert!(err.to_string().contains("AI"), "提示配置 AI: {err}");
+
+        seed_agent(&app, "/usr/bin/true");
+        for bad in ["  ".to_string(), "a".repeat(501)] {
+            let err = tauri::async_runtime::block_on(async {
+                let db = app.state::<Db>();
+                capture_todo(app.handle().clone(), db, bad).await
+            })
+            .unwrap_err();
+            assert!(matches!(err, AppError::Invalid(_)), "{err}");
+        }
+        let n: i64 = {
+            let db = app.state::<Db>();
+            let conn = db.0.lock().unwrap();
+            conn.query_row("SELECT COUNT(*) FROM chat_messages", [], |r| r.get(0))
+                .unwrap()
+        };
+        assert_eq!(n, 0, "校验失败不落消息");
+    }
+
+    /// agent 执行失败（非零退出）：消息保留并标 error，命令报错（前端 toast、可强制捕捉）
+    #[test]
+    fn capture_agent_failure_marks_error() {
+        let app = setup();
+        seed_agent(&app, "/usr/bin/false");
+        let err = tauri::async_runtime::block_on(async {
+            let db = app.state::<Db>();
+            capture_todo(app.handle().clone(), db, "明天 10 点交周报".into()).await
+        })
+        .unwrap_err();
+        assert!(!err.to_string().is_empty());
+        let msgs = {
+            let db = app.state::<Db>();
+            list_chat_messages(db, None).unwrap()
+        };
+        assert_eq!(msgs.len(), 1, "失败的消息仍保留在收音机");
+        assert_eq!(msgs[0].chat_type, "local");
+        assert_eq!(msgs[0].ai_status, "error");
+        assert_eq!(msgs[0].review_status, "pending");
+    }
+
+    /// local 消息捕捉建待办：source=capture，撤销窗口内可回滚（与 feishu 同一套安全域）
+    #[test]
+    fn accept_local_message_creates_capture_source_task_and_undo_deletes() {
+        let app = setup();
+        let mid = {
+            let db = app.state::<Db>();
+            let conn = db.0.lock().unwrap();
+            conn.execute(
+                "INSERT INTO chat_messages (message_id, chat_type, sender, content, suggested_title,
+                                            suggested_due, ai_status, review_status, created_at)
+                 VALUES ('cap_1', 'local', '我', '明天 10 点交周报', '交周报', '2026-09-21T10:00',
+                         'todo', 'pending', '2026-09-20T00:00:00Z')",
+                [],
+            )
+            .unwrap();
+            conn.last_insert_rowid()
+        };
+        let task_id = {
+            let db = app.state::<Db>();
+            accept_chat_message(app.handle().clone(), db, mid).unwrap()
+        };
+        let task = {
+            let db = app.state::<Db>();
+            get_task(db, task_id).unwrap()
+        };
+        assert_eq!(task.source, "capture", "手动捕捉的任务来源标记");
+        {
+            let db = app.state::<Db>();
+            undo_chat_review(app.handle().clone(), db.clone(), mid).unwrap();
+        }
+        let n: i64 = {
+            let db = app.state::<Db>();
+            let conn = db.0.lock().unwrap();
+            conn.query_row(
+                "SELECT COUNT(*) FROM tasks WHERE source='capture'",
+                [],
+                |r| r.get(0),
+            )
+            .unwrap()
+        };
+        assert_eq!(n, 0, "capture 来源在撤销安全域内，可删除回滚");
     }
 }

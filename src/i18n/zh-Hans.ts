@@ -37,13 +37,6 @@ export default {
       "累了就休息——卡比兽也是这么做的。",
     ],
   },
-  add: {
-    goGrass: "丢进草丛",
-    goRoute: "加入路线",
-    placeholder: "要捕捉哪只野生宝可梦？（回车添加）",
-    nlCancel: "取消识别",
-    nlNewTag: "词表外的标签，保存时新建",
-  },
   priority: { low: "低", normal: "普通", high: "高", urgent: "紧急" },
   status: {
     inbox: "草丛",
@@ -100,6 +93,11 @@ export default {
     catch: "◎ 捕捉",
     release: "✕ 逃走",
     search: "🔍 搜索电波（消息 / 会话 / 发送者）",
+    // 快速捕捉：一句话 → AI 判定属性
+    capturePlaceholder: "用一句话记录待办，AI 自动判定内容 / 分类 / 标签 / 截止时间…",
+    captureSend: "⚡ 发报",
+    capturing: "AI 判定中…",
+    capturePending: "AI 已生成建议（判重 / 变更），请在收音机确认",
     force: "⚡ 强制捕捉",
     forcing: "AI 判重中…",
     forceDone: "✔ 已创建待办",
@@ -126,7 +124,7 @@ export default {
       outdated: "已过期",
       other: "其他",
     },
-    type: { bot: "机器人", p2p: "私聊", group: "群聊" },
+    type: { bot: "机器人", p2p: "私聊", group: "群聊", local: "手动输入" },
     status: {
       pending: "AI 待判定",
       todo: "有待办信号",
@@ -337,10 +335,6 @@ export default {
     preview: "预览：{v}",
     language: "语言",
   },
-  defaults: {
-    title: "📋 新任务默认值",
-    priority: "默认优先级",
-  },
   ai: {
     title: "🤖 AI Agent CLI",
     hint: "用本地 AI agent 命令行（Claude Code / OpenCode / Kiro CLI 等）处理收音机消息分类与判重，可配置多个。",
@@ -429,8 +423,6 @@ export default {
     autostartDesc: "登录后桌宠自动出现",
     closeToTray: "关闭主窗口时收到托盘",
     closeToTrayDesc: "应用继续驻留，托盘菜单可退出",
-    nlCapture: "自然语言快速捕捉",
-    nlCaptureDesc: "输入框自动识别时间 / 分类 / 标签，可随时取消",
     shortcuts: "全局快捷键：Ctrl+Shift+K 快速捕捉待办 · Ctrl+Shift+D 显示/隐藏桌宠（macOS 为 ⌘⇧K / ⌘⇧D）",
   },
   overdue: {
@@ -572,6 +564,7 @@ export default {
     focus: "★ 专注 {n} 分钟",
     from: "来自{src}",
     feishu: "飞书",
+    capture: "快速捕捉",
     catching: "捕获中",
     paused: "暂停",
     caught: "✔ 已捕捉",

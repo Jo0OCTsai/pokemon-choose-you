@@ -219,7 +219,9 @@ onMounted(async () => {
         </div>
         <div class="kv">
           <span class="k">{{ t("detail.source") }}</span
-          ><span class="v">{{ task.source === "feishu" ? t("entry.feishu") : task.source }}</span>
+          ><span class="v">{{
+            task.source === "feishu" ? t("entry.feishu") : task.source === "capture" ? t("entry.capture") : task.source
+          }}</span>
         </div>
         <div class="kv">
           <span class="k">{{ t("detail.focus") }}</span

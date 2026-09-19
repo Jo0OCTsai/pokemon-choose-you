@@ -37,13 +37,6 @@ export default {
       "Tired? Rest—Snorlax does it too.",
     ],
   },
-  add: {
-    goGrass: "To grass",
-    goRoute: "To route",
-    placeholder: "Which wild Pokemon will you catch? (Enter to add)",
-    nlCancel: "Undo parse",
-    nlNewTag: "Not in vocabulary; created on save",
-  },
   priority: { low: "Low", normal: "Normal", high: "High", urgent: "Urgent" },
   status: {
     inbox: "Grass",
@@ -100,6 +93,11 @@ export default {
     catch: "◎ Catch",
     release: "✕ Release",
     search: "🔍 Search waves (message / chat / sender)",
+    // Quick capture: one sentence → AI fills in the attributes
+    capturePlaceholder: "Type a todo in one sentence—AI fills in title / category / tags / due…",
+    captureSend: "⚡ Transmit",
+    capturing: "AI working…",
+    capturePending: "AI generated a suggestion (duplicate / update)—confirm it in the radio",
     force: "⚡ Force catch",
     forcing: "AI deduping…",
     forceDone: "✔ Todo created",
@@ -126,7 +124,7 @@ export default {
       outdated: "Outdated",
       other: "Other",
     },
-    type: { bot: "Bot", p2p: "Direct", group: "Group" },
+    type: { bot: "Bot", p2p: "Direct", group: "Group", local: "Typed" },
     status: {
       pending: "AI pending",
       todo: "Todo signal",
@@ -344,10 +342,6 @@ export default {
     preview: "Preview: {v}",
     language: "Language",
   },
-  defaults: {
-    title: "📋 New Task Defaults",
-    priority: "Default priority",
-  },
   ai: {
     title: "🤖 AI Agent CLI",
     hint: "Classify and dedupe radio messages with local AI agent CLIs (Claude Code / OpenCode / Kiro CLI, …); one or more can be configured.",
@@ -439,8 +433,6 @@ export default {
     autostartDesc: "The pet appears automatically",
     closeToTray: "Close window to tray",
     closeToTrayDesc: "App keeps running; quit from the tray menu",
-    nlCapture: "Natural-language quick capture",
-    nlCaptureDesc: "Auto-detect time / category / tags in the input, always cancellable",
     shortcuts: "Global shortcuts: Ctrl+Shift+K quick capture · Ctrl+Shift+D show/hide pet (⌘⇧K / ⌘⇧D on macOS)",
   },
   overdue: {
@@ -583,6 +575,7 @@ export default {
     focus: "★ Focus {n} min",
     from: "From {src}",
     feishu: "Feishu",
+    capture: "Quick capture",
     catching: "Catching",
     paused: "Paused",
     caught: "✔ Caught",

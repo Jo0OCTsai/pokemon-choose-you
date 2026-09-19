@@ -8,6 +8,8 @@ import { useSettingsStore } from "../stores/settings";
 import type { ChatMessage, Task } from "../types";
 
 vi.mock("../api", () => ({
+  // RadioTab 错误分支用到 errorMessage：给个与真实实现同形的轻量版
+  errorMessage: (e: unknown) => `测试前缀${e instanceof Error ? e.message : String(e)}`,
   api: {
     listTasks: vi.fn(),
     createTask: vi.fn(),
@@ -25,6 +27,7 @@ vi.mock("../api", () => ({
     acceptChatMessage: vi.fn(),
     dismissChatMessage: vi.fn(),
     forceCreateTodo: vi.fn(),
+    captureTodo: vi.fn(),
     applyChatMessageUpdate: vi.fn(),
     undoChatReview: vi.fn(),
     batchReviewChatMessages: vi.fn(),
@@ -247,37 +250,17 @@ describe("App 图鉴机主面板", () => {
     expect(w.text()).toContain("CAUGHT 0/1");
   });
 
-  it("添加任务：默认进草丛（inbox），提交后清空输入并刷新", async () => {
+  it("任务页不再有创建表单：新增待办的唯一入口是收音机的 AI 快速捕捉", async () => {
     const w = await mountApp();
-    await w.get("form.add input").setValue("新捕捉目标");
-    await w.get("form.add").trigger("submit");
-    await new Promise((r) => setTimeout(r));
-    expect(api.createTask).toHaveBeenCalledWith(
-      expect.objectContaining({ title: "新捕捉目标", categoryId: 1, scheduled: false }),
-    );
-    expect((w.get("form.add input").element as HTMLInputElement).value).toBe("");
-    // 草丛任务（无时间）出现在草丛页而非冒险页
-    await w.findAll(".menu-btn")[2].trigger("click");
-    await new Promise((r) => setTimeout(r));
-    expect(w.findAll(".entry")).toHaveLength(1);
-  });
-
-  it("草丛页设置截止时间后按钮变「加入路线」，新建任务进路线（scheduled）", async () => {
-    const w = await mountApp();
-    // 冒险页（默认）：无时间选择器，按钮恒为「丢进草丛」
-    expect(w.get("form.add button[type='submit']").text()).toContain("丢进草丛");
-    expect(w.findComponent({ name: "DexDateTime" }).exists()).toBe(false);
-    // 切到草丛页：时间选择器出现，选好时间后按钮变「加入路线」
-    await w.findAll(".menu-btn")[2].trigger("click");
-    await new Promise((r) => setTimeout(r));
-    expect(w.get("form.add button[type='submit']").text()).toContain("丢进草丛");
-    await w.getComponent({ name: "DexDateTime" }).vm.$emit("update:modelValue", "2026-09-13T09:00");
-    expect(w.get("form.add button[type='submit']").text()).toContain("加入路线");
-    await w.get("form.add input").setValue("路线任务");
-    await w.get("form.add").trigger("submit");
-    expect(api.createTask).toHaveBeenCalledWith(
-      expect.objectContaining({ title: "路线任务", dueAt: "2026-09-13T09:00", scheduled: true }),
-    );
+    // 冒险 / 路线 / 草丛 / 图鉴四页都没有表单
+    for (let i = 0; i <= 3; i++) {
+      await w.findAll(".menu-btn")[i].trigger("click");
+      expect(w.find("form.add").exists()).toBe(false);
+      expect(w.find(".capture-bar").exists()).toBe(false);
+    }
+    // 收音机有捕捉输入框
+    await w.findAll(".menu-btn")[4].trigger("click");
+    expect(w.find(".capture-bar").exists()).toBe(true);
   });
 
   it("「加入路线」仅在草丛页出现：冒险/路线页卡片无 📅 按钮", async () => {
@@ -620,38 +603,66 @@ describe("App 图鉴机主面板", () => {
     expect(api.undoChatReview).toHaveBeenCalledWith(9);
   });
 
-  it("自然语言快速捕捉：预览识别结果，提交带解析字段，单击取消后按原文提交", async () => {
+  it("收音机快速捕捉：一句话交给 AI，todo 自动建待办并在撤销窗口内可回滚", async () => {
     tasks = seed([]);
     const w = await mountApp();
-    const input = w.get("form.add input");
-    await input.setValue("明天 17:00 交周报 #工作");
-    expect(w.find(".nl-preview").exists()).toBe(true);
-    expect(w.get(".nl-title").text()).toBe("「交周报」");
-    expect(w.text()).toContain("🗂 工作");
-
-    await w.get("form.add").trigger("submit");
+    await w.findAll(".menu-btn")[4].trigger("click"); // 收音机
+    const captured: ChatMessage = {
+      id: 9,
+      messageId: "cap_1",
+      chatName: "",
+      chatType: "local",
+      sender: "我",
+      content: "明天 10 点交周报",
+      suggestedTitle: "交周报",
+      suggestedDue: "2026-09-21T10:00",
+      suggestedTags: [],
+      aiStatus: "todo",
+      reviewStatus: "accepted",
+      taskId: 5,
+      createdAt: "2026-09-20T00:00:00Z",
+    };
+    vi.mocked(api.captureTodo).mockResolvedValue({ message: captured, taskId: 5 });
+    await w.get(".cap-input").setValue("明天 10 点交周报");
+    await w.get(".capture-bar").trigger("submit");
     await new Promise((r) => setTimeout(r));
-    expect(api.createTask).toHaveBeenCalledWith(
-      expect.objectContaining({
-        title: "交周报",
-        dueAt: expect.stringMatching(/^\d{4}-\d{2}-\d{2}T17:00$/),
-        scheduled: true,
-      }),
-    );
-    expect(api.createTask).toHaveBeenCalledWith(expect.objectContaining({ categoryId: 1 }));
-
-    // 单击「取消识别」后同文本按原文提交（不拆字段）
-    await input.setValue("后天下午3点半 复盘会 #学习");
-    await w.get(".nl-cancel").trigger("click");
-    expect(w.find(".nl-preview").exists()).toBe(false);
-    await w.get("form.add").trigger("submit");
+    expect(api.captureTodo).toHaveBeenCalledWith("明天 10 点交周报");
+    expect((w.get(".cap-input").element as HTMLInputElement).value).toBe("");
+    expect(w.get(".toast").text()).toContain("No.5");
+    // 撤销：删掉刚建的待办，消息回待处理
+    await w.get(".toast button").trigger("click");
     await new Promise((r) => setTimeout(r));
-    expect(api.createTask).toHaveBeenLastCalledWith(
-      expect.objectContaining({
-        title: "后天下午3点半 复盘会 #学习",
-        scheduled: false,
-      }),
-    );
+    expect(api.undoChatReview).toHaveBeenCalledWith(9);
+  });
+
+  it("收音机快速捕捉：判重类判定（更新建议）不自动建待办，留在收音机等确认", async () => {
+    tasks = seed([]);
+    const w = await mountApp();
+    await w.findAll(".menu-btn")[4].trigger("click"); // 收音机
+    const pending: ChatMessage = {
+      id: 10,
+      messageId: "cap_2",
+      chatName: "",
+      chatType: "local",
+      sender: "我",
+      content: "周报改到周五交",
+      suggestedTitle: "交周报",
+      suggestedTags: [],
+      aiStatus: "update",
+      reviewStatus: "pending",
+      updateTaskId: 3,
+      createdAt: "2026-09-20T00:00:00Z",
+    };
+    vi.mocked(api.captureTodo).mockResolvedValue({ message: pending, taskId: null });
+    vi.mocked(api.listChatMessages).mockResolvedValue([pending]);
+    await w.get(".cap-input").setValue("周报改到周五交");
+    await w.get(".capture-bar").trigger("submit");
+    await new Promise((r) => setTimeout(r));
+    expect(api.captureTodo).toHaveBeenCalledWith("周报改到周五交");
+    expect(w.get(".toast").text()).toContain("确认");
+    // 右栏展示 AI 更新建议卡，消息停在待处理
+    expect(w.text()).toContain("建议更新待办");
+    expect(w.find(".rrow.sel").exists()).toBe(true);
   });
 
   it("设置页通用区：数据备份卡片可立即备份并展示列表", async () => {
@@ -696,12 +707,16 @@ describe("App 图鉴机主面板", () => {
     expect(api.exportDailyMd).toHaveBeenCalledWith();
   });
 
-  it("自然语言快速捕捉：设置关闭后不出现预览", async () => {
+  it("收音机快速捕捉：AI 判定失败提示错误，输入保留可重试", async () => {
     tasks = seed([]);
-    vi.mocked(api.listAllSettings).mockResolvedValue({ nl_capture_enabled: "false" });
+    vi.mocked(api.captureTodo).mockRejectedValue(new Error("Agent「/usr/bin/false」退出码 1"));
     const w = await mountApp();
-    await w.get("form.add input").setValue("明天 5pm 交周报");
-    expect(w.find(".nl-preview").exists()).toBe(false);
+    await w.findAll(".menu-btn")[4].trigger("click"); // 收音机
+    await w.get(".cap-input").setValue("明天 5pm 交周报");
+    await w.get(".capture-bar").trigger("submit");
+    await new Promise((r) => setTimeout(r));
+    expect(w.get(".toast").text()).toContain("退出码 1");
+    expect((w.get(".cap-input").element as HTMLInputElement).value).toBe("明天 5pm 交周报");
   });
 
   it("点击任务卡片打开详情抽屉：展示 Agent 执行记录（时长/成本/退出码）并可跳转会话", async () => {

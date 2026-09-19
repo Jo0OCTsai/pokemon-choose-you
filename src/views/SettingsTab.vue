@@ -50,7 +50,6 @@ const pomoNotify = boolSetting("pomodoro_notify");
 const notifyOn = boolSetting("notifications_enabled");
 const chimeOn = boolSetting("pomodoro_chime");
 const feishuOn = boolSetting("feishu_enabled");
-const nlCaptureOn = boolSetting("nl_capture_enabled");
 const closeToTrayOn = boolSetting("close_to_tray");
 const dueRelativeOn = boolSetting("due_relative");
 const reduceMotionOn = boolSetting("reduce_motion");
@@ -277,9 +276,6 @@ const timeFormatOptions = computed(() => [
   { value: "12h", label: t("display.h12") },
 ]);
 const languageOptions = SUPPORTED_LOCALES.map((l) => ({ value: l.value, label: l.label }));
-const priorityOptions = computed(() =>
-  (["low", "normal", "high", "urgent"] as const).map((p) => ({ value: p, label: t(`priority.${p}`) })),
-);
 const pollIntervalOptions = computed(() =>
   [1, 2, 5, 15].map((n) => ({ value: String(n * 60), label: t("focus.minutes", { n }) })),
 );
@@ -1148,13 +1144,6 @@ onUnmounted(() => unlisteners.forEach((u) => u()));
           </SettingRow>
           <p class="set-foot">{{ t("display.preview", { v: fmtDateTime(today.toISOString()) }) }}</p>
         </section>
-
-        <section class="set-card">
-          <h3>{{ t("defaults.title") }}</h3>
-          <SettingRow :label="t('defaults.priority')">
-            <DexSelect v-model="settings.values.default_priority" :options="priorityOptions" />
-          </SettingRow>
-        </section>
       </template>
 
       <template v-if="settingsTab === 'integrations'">
@@ -1377,9 +1366,6 @@ onUnmounted(() => unlisteners.forEach((u) => u()));
           </SettingRow>
           <SettingRow :label="t('general.closeToTray')" :desc="t('general.closeToTrayDesc')">
             <DexToggle v-model="closeToTrayOn" />
-          </SettingRow>
-          <SettingRow :label="t('general.nlCapture')" :desc="t('general.nlCaptureDesc')">
-            <DexToggle v-model="nlCaptureOn" />
           </SettingRow>
           <p class="set-foot">{{ t("general.shortcuts") }}</p>
         </section>

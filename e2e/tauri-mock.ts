@@ -289,6 +289,47 @@ export async function installTauriMock(page: Page, state: Partial<MockState> = {
             broadcast("tasks-changed");
             broadcast("chat-messages-changed");
             return db.nextId++;
+          case "capture_todo": {
+            // 模拟 AI 判定为 todo 并自动建待办（真实判重/属性逻辑由 cargo test 覆盖）
+            const id = db.nextId++;
+            const t = {
+              id,
+              title: args.input,
+              note: null,
+              categoryId: 1,
+              status: "inbox",
+              priority: "normal",
+              dueAt: null,
+              remindAt: null,
+              reminded: false,
+              source: "capture",
+              externalId: null,
+              focusSeconds: 0,
+              completedAt: null,
+              createdAt: nowIso(),
+              tags: [],
+            };
+            db.tasks.push(t);
+            broadcast("tasks-changed");
+            broadcast("chat-messages-changed");
+            return {
+              message: {
+                id: 9001,
+                messageId: `cap_${id}`,
+                chatName: "",
+                chatType: "local",
+                sender: "我",
+                content: args.input,
+                suggestedTitle: args.input,
+                suggestedTags: [],
+                aiStatus: "todo",
+                reviewStatus: "accepted",
+                taskId: id,
+                createdAt: nowIso(),
+              },
+              taskId: id,
+            };
+          }
           case "list_tags":
             return db.tags.map((t: any) => ({ ...t, meta: t.meta ? { ...t.meta } : null }));
           case "create_tag": {

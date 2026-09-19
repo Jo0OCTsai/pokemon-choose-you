@@ -24,9 +24,6 @@ export const SETTING_DEFAULTS: Record<string, string> = {
   time_format: "24h",
   /** 相对截止时间（时间盲友好：显示为距现在的距离并按临近程度变色） */
   due_relative: "true",
-  default_priority: "normal",
-  /** 自然语言快速捕捉（输入框解析「明天 5pm 交周报 #工作」，带预览可取消） */
-  nl_capture_enabled: "true",
   /** 关闭主窗口隐藏到托盘（Rust 侧 CloseRequested 拦截；仅显式 "false" 才真关闭） */
   close_to_tray: "true",
   /** 每日自动备份（VACUUM INTO 快照，滚动保留） */
@@ -80,8 +77,6 @@ export const SETTING_KEYS = [
   "date_format",
   "time_format",
   "due_relative",
-  "default_priority",
-  "nl_capture_enabled",
   "close_to_tray",
   "backup_enabled",
   "backup_keep",
