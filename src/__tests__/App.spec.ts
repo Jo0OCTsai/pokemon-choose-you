@@ -861,8 +861,10 @@ describe("App 图鉴机主面板", () => {
     expect(cmd.value).toBe("claude");
     expect(w.html()).toContain("-p {prompt}"); // 附加参数预设（i18n 字面量转义后渲染）
 
-    // 选为主 agent 并点测试：先落库（setSetting 带 ai_agents JSON）再调后端测试
-    await blocks[0].find('input[name="primary-agent"]').setValue();
+    // 分区级「用于收音机分类」下拉选为该 agent（第 1 项=不指定，第 2 项=第一个启用的 agent），点测试先落库再调后端
+    const primaryLabel = w.findAll(".set-row").find((l) => l.text().includes("用于收音机分类"))!;
+    await primaryLabel.find(".ds-btn").trigger("click");
+    await primaryLabel.findAll(".ds-list li")[1].trigger("click");
     await w
       .findAll(".btn")
       .find((b) => b.text() === "测试")!
@@ -890,11 +892,9 @@ describe("App 图鉴机主面板", () => {
       .find((b) => b.text().includes("添加 Agent"))!
       .trigger("click");
     const block = w.findAll(".agent-block")[0];
-    // 开启 SSH：出现 host/port/key 输入
-    const sshToggle = block
-      .findAll('input[type="checkbox"]')
-      .find((c) => (c.element as HTMLInputElement).closest(".chk-line"))!;
-    await sshToggle.setValue(true);
+    // 开启 SSH（布尔统一走 DexToggle）：出现 host/port/key 输入
+    const sshLabel = block.findAll(".set-row").find((l) => l.text().includes("SSH 远程执行"))!;
+    await sshLabel.find(".dex-toggle").trigger("click");
     expect(block.find(".ssh-row").exists()).toBe(true);
     const [host, , key] = block.findAll(".ssh-row input");
     await host.setValue("dev@buildbox");
@@ -913,7 +913,7 @@ describe("App 图鉴机主面板", () => {
       keyPath: "~/.ssh/id_ed25519",
     });
     // 关闭 SSH：remote 清空
-    await sshToggle.setValue(false);
+    await sshLabel.find(".dex-toggle").trigger("click");
     expect(block.find(".ssh-row").exists()).toBe(false);
   });
 

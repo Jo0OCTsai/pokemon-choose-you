@@ -64,10 +64,16 @@ onBeforeUnmount(() => document.removeEventListener("mousedown", onDocClick));
   min-width: 150px;
   cursor: pointer;
   box-shadow: 3px 3px 0 var(--dex-navy);
+  transition:
+    transform var(--t-tap),
+    box-shadow var(--t-tap);
 }
 .ds-btn:active {
-  transform: translate(1px, 1px);
-  box-shadow: 2px 2px 0 var(--dex-navy);
+  transform: translate(2px, 2px);
+  box-shadow: 1px 1px 0 var(--dex-navy);
+}
+.ds-btn:hover:not(.open) {
+  background: var(--hover);
 }
 .ds-btn.open {
   background: var(--poke-yellow);
@@ -77,7 +83,7 @@ onBeforeUnmount(() => document.removeEventListener("mousedown", onDocClick));
   text-align: left;
 }
 .ds-arrow {
-  font-size: 9px;
+  font-size: 10px;
 }
 .ds-list {
   position: absolute;
@@ -103,12 +109,12 @@ onBeforeUnmount(() => document.removeEventListener("mousedown", onDocClick));
   font-weight: 700;
   color: var(--dex-navy);
   padding: 8px 8px;
-  border-radius: 6px;
+  border-radius: 4px;
   cursor: pointer;
   white-space: nowrap;
 }
 .ds-list li:hover {
-  background: #fff3c4;
+  background: var(--hover);
 }
 .ds-list li.sel {
   background: var(--poke-yellow);
@@ -116,7 +122,7 @@ onBeforeUnmount(() => document.removeEventListener("mousedown", onDocClick));
 .ds-cursor {
   width: 10px;
   flex: none;
-  font-size: 9px;
+  font-size: 10px;
   opacity: 0;
 }
 .ds-list li.sel .ds-cursor {

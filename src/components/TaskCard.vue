@@ -154,8 +154,8 @@ function onContextMenu(e: MouseEvent) {
   outline-offset: 2px;
 }
 .dex-no {
-  font-size: 9px;
-  color: #9a937f;
+  font-size: 8px;
+  color: var(--ink-soft);
   align-self: flex-start;
   margin-top: 3px;
   width: 50px;
@@ -169,7 +169,7 @@ function onContextMenu(e: MouseEvent) {
   object-fit: contain;
 }
 .entry.active .sprite {
-  animation: pk-hop 1.6s ease-in-out infinite;
+  animation: pk-hop 1.6s var(--e-sway) infinite;
 }
 .info {
   flex: 1;
@@ -199,15 +199,15 @@ function onContextMenu(e: MouseEvent) {
 .tag-paused {
   font-size: 11px;
   font-weight: 800;
-  color: #a1660a;
-  background: var(--type-work);
+  color: var(--warn-ink);
+  background: var(--warn-soft);
   border: 2px solid var(--dex-navy);
   border-radius: 4px;
   padding: 1px 6px;
 }
 .row2 {
   font-size: 12.5px;
-  color: #7b7460;
+  color: var(--ink-soft);
   margin-top: 4px;
   display: flex;
   gap: 10px;
@@ -226,8 +226,8 @@ function onContextMenu(e: MouseEvent) {
   font-style: normal;
   font-size: 11px;
   font-weight: 700;
-  color: #fff;
-  background: #8a97b8;
+  color: var(--dex-navy);
+  background: var(--tag-pill);
   border: 2px solid var(--dex-navy);
   border-radius: 999px;
   padding: 0 7px;
@@ -247,22 +247,24 @@ function onContextMenu(e: MouseEvent) {
 .ops .btn {
   padding: 8px 12px;
   font-size: 13px;
-  min-height: 36px;
+  min-height: 38px;
 }
 .ops .btn.icon {
   padding: 8px 10px;
 }
 .ops .btn.del {
-  color: var(--dex-red);
+  color: var(--danger);
 }
 .ops .btn.esc {
-  color: #a1660a;
+  color: var(--warn-ink);
 }
 
-/* 已捕捉 */
+/* 已捕捉：LCD 化（--lcd 底 + --lcd-dark 内外硬阴影） */
 .entry.caught {
   background: var(--lcd);
-  box-shadow: 4px 4px 0 var(--lcd-dark);
+  box-shadow:
+    inset 3px 3px 0 var(--lcd-dark),
+    4px 4px 0 var(--lcd-dark);
   border-color: var(--lcd-text);
 }
 .entry.caught .title {
@@ -287,31 +289,31 @@ function onContextMenu(e: MouseEvent) {
 .entry.escaped {
   background: #f3efe6;
   box-shadow: 4px 4px 0 #b9b09a;
-  border-color: #9a937f;
+  border-color: var(--ink-faint);
   opacity: 0.85;
 }
 .entry.escaped .title {
   text-decoration: line-through;
-  color: #7b7460;
+  color: var(--ink-soft);
 }
 .entry.escaped .sprite {
   filter: grayscale(1) brightness(1.1) opacity(0.6);
 }
 .escape-mark {
-  color: #a1660a;
+  color: var(--warn-ink);
 }
 
 /* 相对截止时间分档配色：逾期/紧急红 · 临近琥珀 · 常规默认 · 遥远灰 */
 .due.due-overdue,
 .due.due-urgent {
-  color: var(--dex-red);
+  color: var(--danger);
   font-weight: 800;
 }
 .due.due-hours {
-  color: #a1660a;
+  color: var(--warn-ink);
   font-weight: 700;
 }
 .due.due-far {
-  color: #9a937f;
+  color: var(--ink-soft);
 }
 </style>

@@ -49,7 +49,6 @@ async fn open_agent_in_terminal(
     agent: &AgentConfig,
     resume_session: Option<&str>,
 ) -> AppResult<String> {
-    // 本地直启；SSH 远程 agent 则在终端里经 ssh 转发（claude --resume 等交互界面照常可用）
     let (program, mut args) = crate::ai::history_invocation(agent);
     if let (Some(sess), Some(first)) = (resume_session, args.first()) {
         // claude 语法：--resume <session_id>；其余 agent 同样把 id 追加到首个历史参数后
@@ -57,26 +56,37 @@ async fn open_agent_in_terminal(
             args.push(sess.to_string());
         }
     }
-    // 本地配置了工作目录时先 cd 再启动（远程已由 history_invocation 在远端命令行里前缀 cd），
-    // 让交互会话与无头调用的相对路径基准一致
+    // 本地 agent 总是先 cd 到工作目录再启动：与无头调用同一套解析（留空 = ~/.choose-you，
+    // 自动创建），交互会话不能落在终端默认目录；SSH 远程的 cd 由 history_invocation
+    // 前缀在远端命令行里（留空 = 远端登录目录）；目录解析失败（无主目录）退回不 cd 直启
     let local = agent
         .remote
         .as_ref()
         .is_none_or(|r| r.host.trim().is_empty());
-    if local && !agent.workdir.trim().is_empty() {
-        let mut line = format!("cd {} && ", cd_prefix_target(agent.workdir.trim()));
-        line.push_str(&shell_quote(&program));
-        for a in &args {
-            line.push(' ');
-            line.push_str(&shell_quote(a));
-        }
-        return spawn_line_in_terminal(&line)
+    let line = local
+        .then(|| crate::ai::agent_workdir(agent))
+        .flatten()
+        .map(|dir| local_history_line(&dir.to_string_lossy(), &program, &args));
+    match line {
+        Some(line) => spawn_line_in_terminal(&line)
             .await
-            .map(|term| format!("已在 {term} 中启动「{}」", agent.name));
+            .map(|term| format!("已在 {term} 中启动「{}」", agent.name)),
+        None => spawn_in_terminal(&program, &args)
+            .await
+            .map(|term| format!("已在 {term} 中启动「{}」", agent.name)),
     }
-    spawn_in_terminal(&program, &args)
-        .await
-        .map(|term| format!("已在 {term} 中启动「{}」", agent.name))
+}
+
+/// 「cd 工作目录 && 命令」整行：目录是 agent_workdir 展开后的绝对路径，
+/// 经 cd_prefix_target 跨平台引用；命令与参数逐个 shell 引用
+fn local_history_line(dir: &str, program: &str, args: &[String]) -> String {
+    let mut line = format!("cd {} && ", cd_prefix_target(dir));
+    line.push_str(&shell_quote(program));
+    for a in args {
+        line.push(' ');
+        line.push_str(&shell_quote(a));
+    }
+    line
 }
 
 /// 终端命令行里 cd 目标的跨平台引用：unix 交给 ai::quote_cd_target（保留 ~ 展开），
@@ -346,5 +356,56 @@ mod tests {
         );
         assert_eq!(shell_quote("it's"), r#"'it'\''s'"#);
         assert_eq!(shell_quote(""), "''");
+    }
+
+    #[test]
+    fn history_line_cds_into_default_workdir() {
+        // 留空的工作目录 = ~/.choose-you：历史记录终端会话与无头调用同一基准
+        let agent = AgentConfig {
+            command: "claude".into(),
+            history_args: "--resume".into(),
+            ..Default::default()
+        };
+        let dir = crate::ai::agent_workdir(&agent)
+            .unwrap()
+            .to_string_lossy()
+            .into_owned();
+        let line = local_history_line(&dir, "claude", &["--resume".to_string()]);
+        assert!(
+            line.starts_with(&format!("cd {} && ", cd_prefix_target(&dir))),
+            "应先 cd 进默认工作目录: {line}"
+        );
+        assert!(
+            line.contains(".choose-you"),
+            "默认目录是 ~/.choose-you: {line}"
+        );
+        assert!(
+            line.ends_with("claude --resume"),
+            "命令与参数在 cd 之后: {line}"
+        );
+    }
+
+    #[test]
+    fn history_line_expands_tilde_workdir() {
+        let agent = AgentConfig {
+            workdir: "~/proj".into(),
+            ..Default::default()
+        };
+        let home = dirs::home_dir().unwrap();
+        let dir = crate::ai::agent_workdir(&agent).unwrap();
+        assert_eq!(dir, home.join("proj"), "~ 前缀展开为主目录下的路径");
+        let line = local_history_line(dir.to_string_lossy().as_ref(), "claude", &[]);
+        assert!(line.starts_with(&format!("cd {}", cd_prefix_target(&dir.to_string_lossy()))));
+    }
+
+    #[test]
+    #[cfg(unix)]
+    fn history_line_quotes_program_and_args() {
+        let dir = "/tmp/has space";
+        let line = local_history_line(dir, "/usr/local/bin/my agent", &["--resume".to_string()]);
+        assert!(
+            line.contains("cd '/tmp/has space' && '/usr/local/bin/my agent' --resume"),
+            "目录与命令分别引用: {line}"
+        );
     }
 }

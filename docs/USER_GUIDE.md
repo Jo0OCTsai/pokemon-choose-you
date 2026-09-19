@@ -240,11 +240,11 @@ AI 判定时会带上**同会话 30 分钟内的近期上下文**与消息来源
 
 用于飞书消息的待办识别与判重。改为调用本地 **AI agent 命令行工具**（无头模式），不再走 AI 接口：
 
-| Agent | 命令 | 无头调用 | 历史记录参数 |
+| Agent | 命令 | 无头调用（应用预设） | 历史记录参数 |
 |---|---|---|---|
-| Claude Code | `claude` | `-p {prompt}` | `--resume` |
+| Claude Code | `claude` | `-p {prompt} --allowedTools Bash(pk:*)` | `--resume` |
 | OpenCode | `opencode` | `run {prompt}` | （TUI 自带会话列表） |
-| Kiro CLI | `kiro` | `-p {prompt}` | `--resume` |
+| Kiro CLI | `kiro-cli` | `chat --no-interactive --trust-all-tools`（无 `{prompt}`，提示词经标准输入传入） | `--resume` |
 | 其他 | 任意 | 自定义 | 自定义 |
 
 **SSH 远程执行**：agent CLI 不在本机时，在 agent 配置里勾选「SSH 远程执行」并填目标（`user@host`，可指定端口与私钥路径）。实际执行的命令是 `ssh -o BatchMode=yes -o ConnectTimeout=10 [-i 密钥] [-p 端口] user@host -- <command> <args...>`：
@@ -277,8 +277,8 @@ AI 判定时会带上**同会话 30 分钟内的近期上下文**与消息来源
 
 **结果回收（经 pk 落库）**：判定结果统一由 agent 通过 pk 命令行写回数据库——先跑 `pk context` 拿判重上下文，再用 `pk suggest batch` 把整批判定一次性提交，应用直接回读，不解析模型输出的文本（判定结果带强校验）。本机调用时应用会把随附 `pk` 所在目录自动注入 agent 子进程的 PATH，无需手动配置；远程 agent 则用上文的「一键配置远程 pk」。要求 agent 无头模式下允许执行 pk 命令：
 
-- Claude Code：附加参数改为 `-p {prompt} --allowedTools Bash(pk:*)`（`:*` 为前缀匹配语法；参数按空白切分，**不要加引号**——引号会变成值的一部分）
-- OpenCode / Kiro：在其权限配置中允许执行 `pk` 命令
+- Claude Code：应用预设已带 `--allowedTools Bash(pk:*)`（`:*` 为前缀匹配语法；参数按空白切分，**不要加引号**——引号会变成值的一部分），自定义参数时记得保留
+- OpenCode：在其权限配置中允许执行 `pk` 命令；Kiro CLI 预设已带 `--trust-all-tools`
 - 工具循环比单轮输出慢，建议把超时调大到 300 秒左右
 
 ## pk 命令行（供 AI agent 与终端使用）

@@ -192,7 +192,7 @@ const DEFAULT_WORKDIR: &str = ".choose-you";
 /// agent 进程的工作目录：显式配置优先（~ 前缀展开为主目录），缺省用 ~/.choose-you。
 /// GUI 进程的 cwd 不可控——Dock/Finder 启动时是 /，开发态是 src-tauri——
 /// 必须显式指定，agent 的相对路径操作（读写文件、git 等）才不会落在随机位置
-fn agent_workdir(agent: &AgentConfig) -> Option<PathBuf> {
+pub(crate) fn agent_workdir(agent: &AgentConfig) -> Option<PathBuf> {
     let configured = agent.workdir.trim();
     if configured.is_empty() {
         let dir = dirs::home_dir().map(|h| h.join(DEFAULT_WORKDIR));

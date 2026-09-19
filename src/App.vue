@@ -110,6 +110,7 @@ onUnmounted(() => {
           :key="mi.key"
           class="menu-btn"
           :class="{ active: tab === mi.key }"
+          :aria-current="tab === mi.key ? 'page' : undefined"
           @click="tab = mi.key"
         >
           <span class="cursor">▶</span>{{ t(mi.labelKey) }}
@@ -125,7 +126,8 @@ onUnmounted(() => {
     <main class="dex-main">
       <div class="dex-main-head">
         <div>
-          <h1>{{ t(curTab.labelKey) }}</h1>
+          <!-- 中文像素展示层：页面标题走 .px-cn（12 的倍数），点阵倍数纪律 -->
+          <h1 class="px-cn">{{ t(curTab.labelKey) }}</h1>
           <div class="sub">{{ t(curTab.descKey) }}</div>
           <div v-if="tab === 'today'" class="sub px">
             {{ today.toISOString().slice(0, 10).split("-").join(".") }}
@@ -187,7 +189,7 @@ body {
   border-radius: 50%;
   background: radial-gradient(circle at 35% 30%, #ff9d9d, #d01111 60%, #8f0b0b);
   border: 3px solid var(--dex-navy);
-  animation: pk-breathe 2.5s infinite;
+  animation: pk-breathe 2s infinite;
 }
 /* 今日任务过多：常亮深红提示，不闪——任务最满的时候不该被红灯加码焦虑 */
 .dex-big-led.alert {
@@ -206,10 +208,10 @@ body {
   border: 2px solid var(--dex-navy);
 }
 .dex-sub-leds i:last-child {
-  background: #5be36b;
+  background: var(--ok-bright);
 }
 .dex-title {
-  font-size: 9px;
+  font-size: 8px;
   line-height: 1.8;
   margin: 10px 0 16px;
   color: #ffe9e9;
@@ -228,32 +230,37 @@ body {
   border: 3px solid transparent;
   border-radius: 8px;
   color: #fff;
-  font-size: 15px;
+  font-size: 16px;
   font-weight: 700;
   padding: 11px 12px;
   cursor: pointer;
   min-height: 44px;
   text-align: left;
   font-family: inherit;
+  transition: background var(--t-tap);
+}
+/* 机脊上的悬停用白色提亮（浅黄 hover 压深红底不可读，属机皮例外） */
+.menu-btn:hover:not(.active) {
+  background: rgba(255, 255, 255, 0.12);
 }
 .menu-btn .cursor {
   width: 12px;
   flex: none;
   opacity: 0;
-  font-size: 12px;
+  font-size: 10px;
 }
 .menu-btn.active {
   background: var(--poke-yellow);
   color: var(--dex-navy);
   border-color: var(--dex-navy);
-  box-shadow: 3px 3px 0 rgba(0, 0, 0, 0.35);
+  box-shadow: 3px 3px 0 var(--dex-navy);
 }
 .menu-btn.active .cursor {
   opacity: 1;
 }
 .menu-btn .count {
   margin-left: auto;
-  font-size: 10px;
+  font-size: 8px;
   background: var(--dex-navy);
   color: #fff;
   border-radius: 4px;
@@ -283,12 +290,12 @@ body {
   gap: 12px;
 }
 .dex-main-head h1 {
-  font-size: 16px;
+  font-size: 24px; /* .px-cn 点阵倍数（12×2） */
   letter-spacing: 1px;
 }
 .dex-main-head .sub {
-  font-size: 10px;
-  color: #7b7460;
+  font-size: 12px;
+  color: var(--ink-soft);
   margin-top: 5px;
 }
 .catch-progress {
@@ -302,14 +309,14 @@ body {
   margin-top: 4px;
 }
 .catch-progress .px {
-  font-size: 10px;
+  font-size: 8px;
 }
 .catch-bar {
   margin-top: 5px;
   width: 140px;
   height: 14px;
   border: 3px solid var(--dex-navy);
-  border-radius: 7px;
+  border-radius: 8px;
   background: #fff;
   overflow: hidden;
 }
@@ -318,6 +325,6 @@ body {
   height: 100%;
   background: var(--poke-yellow);
   border-right: 3px solid var(--dex-navy);
-  transition: width 0.3s;
+  transition: width var(--t-act);
 }
 </style>

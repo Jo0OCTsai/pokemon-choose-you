@@ -26,12 +26,15 @@ const { onLabel = "ON", offLabel = "OFF" } = defineProps<{ onLabel?: string; off
   box-shadow: 3px 3px 0 var(--dex-navy);
   font-family: inherit;
   transition:
-    transform 0.08s,
-    box-shadow 0.08s;
+    transform var(--t-tap),
+    box-shadow var(--t-tap);
 }
 .dex-toggle:active {
-  transform: translate(1px, 1px);
-  box-shadow: 2px 2px 0 var(--dex-navy);
+  transform: translate(2px, 2px);
+  box-shadow: 1px 1px 0 var(--dex-navy);
+}
+.dex-toggle:hover:not(.on) {
+  background: var(--hover);
 }
 .dex-toggle.on {
   background: var(--poke-yellow);
@@ -42,7 +45,7 @@ const { onLabel = "ON", offLabel = "OFF" } = defineProps<{ onLabel?: string; off
   border-radius: 50%;
   border: 3px solid var(--dex-navy);
   background: #fff;
-  transition: background 0.15s;
+  transition: background var(--t-pop);
 }
 .dex-toggle.on .knob {
   background: var(--dex-red);
