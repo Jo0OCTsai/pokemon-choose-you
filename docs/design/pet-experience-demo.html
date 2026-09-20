@@ -1,0 +1,810 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>就决定是你了 · 桌宠体验升级设计稿（Pet Experience Demo）</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=Noto+Sans+SC:wght@400;500;700;900&display=swap" rel="stylesheet" />
+<link href="https://cdn.jsdelivr.net/npm/@vp-tw/cjk-web-fonts-fusion-pixel-font@0.0.1/dist/12px/proportional/zh_hans/Fusion-Pixel-12px-Proportional-Simplified-Chinese.css" rel="stylesheet" />
+<style>
+/* ============ 令牌（与 DESIGN_SYSTEM / PET_INTERACTION_DESIGN 同源） ============ */
+:root {
+  --dex-red: #EE1515; --dex-red-dark: #B01010; --danger: #E00F0F;
+  --dex-body: #F5F0DC; --dex-navy: #1A1B25; --poke-yellow: #FFCB05;
+  --lcd: #C4CFA1; --lcd-text: #3A4A32; --lcd-dark: #9CAA86;
+  --ink: #1A1B25; --ink-soft: #6B6657; --ink-faint: #9A937F;
+  --ok: #2E9E5B; --ok-soft: #DFF3E4; --ok-ink: #1D6B3C;
+  --hover: #FFF3C4;
+  --t-tap: 80ms; --t-pop: 150ms; --t-act: 300ms; --t-scene: 600ms;
+  --e-pop: cubic-bezier(.34,1.56,.64,1);
+  --e-snap: cubic-bezier(.2,.9,.3,1.2);
+  --e-sway: cubic-bezier(.45,0,.55,1);
+  --e-sleep: cubic-bezier(.4,0,.6,1);
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  background: #2E3140 repeating-linear-gradient(45deg, #2E3140 0 12px, #2B2E3B 12px 24px);
+  font-family: "Noto Sans SC", "Noto Sans CJK SC", "PingFang SC", "Microsoft YaHei", sans-serif;
+  color: var(--ink);
+  padding: 36px 20px 80px;
+  display: flex; flex-direction: column; align-items: center; gap: 28px;
+}
+.px { font-family: "Press Start 2P", monospace; }
+.px-cn { font-family: "Fusion Pixel 12px Proportional Simplified Chinese", "Noto Sans SC", sans-serif; }
+:focus-visible { outline: 3px solid var(--poke-yellow); outline-offset: 2px; }
+html.reduce-motion *, html.reduce-motion *::before, html.reduce-motion *::after {
+  animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important;
+}
+
+section, header.page-head {
+  width: min(1160px, 100%);
+  background: var(--dex-body);
+  border: 4px solid var(--dex-navy);
+  border-radius: 16px;
+  box-shadow: 8px 8px 0 rgba(0,0,0,.4);
+  padding: 20px 26px 26px;
+}
+.sec-head { display: flex; align-items: baseline; gap: 14px; flex-wrap: wrap; margin-bottom: 6px; }
+.sec-head .no { font-size: 16px; }
+.sec-head h2 { font-size: 16px; font-weight: 700; }
+.sec-desc { font-size: 13px; color: var(--ink-soft); line-height: 1.8; margin-bottom: 16px; max-width: 92ch; }
+kbd {
+  font-family: "Press Start 2P", monospace; font-size: 8px;
+  border: 2px solid var(--dex-navy); border-bottom-width: 3px; border-radius: 4px;
+  background: #fff; padding: 3px 5px; margin: 0 1px; display: inline-block;
+}
+.btn {
+  border: 3px solid var(--dex-navy); border-radius: 8px;
+  background: var(--poke-yellow); color: var(--ink);
+  font-size: 13px; font-weight: 700; padding: 7px 12px; cursor: pointer;
+  box-shadow: 3px 3px 0 var(--dex-navy);
+  transition: transform var(--t-tap), box-shadow var(--t-tap);
+  min-height: 36px; font-family: inherit;
+}
+.btn:active { transform: translate(2px,2px); box-shadow: 1px 1px 0 var(--dex-navy); }
+.btn.ghost { background: #fff; }
+.btn.red { background: var(--danger); color: #fff; }
+.btn.on { background: var(--ok-soft); color: var(--ok-ink); }
+.btn:disabled { opacity: .45; cursor: not-allowed; }
+
+/* ============ 舞台 ============ */
+.stage-wrap { display: grid; grid-template-columns: minmax(300px, 420px) 1fr; gap: 16px; align-items: start; }
+@media (max-width: 940px) { .stage-wrap { grid-template-columns: 1fr; } }
+.stage {
+  border: 3px solid var(--dex-navy); border-radius: 12px; overflow: hidden;
+  background: #DDE8CE;
+  background-image:
+    linear-gradient(45deg, rgba(255,255,255,.35) 25%, transparent 25%, transparent 75%, rgba(255,255,255,.35) 75%),
+    linear-gradient(45deg, rgba(255,255,255,.35) 25%, transparent 25%, transparent 75%, rgba(255,255,255,.35) 75%);
+  background-size: 24px 24px; background-position: 0 0, 12px 12px;
+  box-shadow: inset 0 0 0 3px rgba(26,27,37,.08);
+  min-height: 430px;
+  display: flex; align-items: flex-start; justify-content: center;
+  position: relative;
+  user-select: none;
+  cursor: text; /* 提示：本页任意处敲键盘即输入源 */
+}
+/* 模拟任务栏 / Dock —— 栖息判定带 */
+.dock {
+  position: absolute; left: 0; right: 0; bottom: 0; height: 34px;
+  background: #3B3E4D; border-top: 3px solid var(--dex-navy);
+  display: flex; align-items: center; gap: 10px; padding: 0 12px; z-index: 3;
+}
+.dock i { font-style: normal; font-size: 13px; opacity: .9; }
+.dock .dock-label { font-size: 10px; color: #9aa0b5; margin-left: auto; }
+.petwin { width: 250px; padding: 14px 10px 44px; display: flex; flex-direction: column; align-items: center; position: relative; }
+.sprite-hit { position: relative; width: 104px; height: 104px; display: flex; align-items: flex-end; justify-content: center; cursor: grab; touch-action: none; }
+.sprite-hit:active { cursor: grabbing; }
+.pet-sprite {
+  width: 96px; height: 96px; image-rendering: pixelated;
+  transform-origin: 50% 100%;
+  will-change: transform;
+}
+/* —— 状态循环 —— */
+.pet-sprite.st-working { animation: hop 1.6s var(--e-sway) infinite; }
+.pet-sprite.st-idle { animation: breathe 3.4s var(--e-sleep) infinite; }
+.pet-sprite.st-paused { filter: grayscale(.7); animation: breathe 4.5s var(--e-sleep) infinite; }
+/* —— 栖息姿态（叠加修饰，动画幅度减半） —— */
+.sprite-hit.perch .pet-sprite.st-idle { animation: sitBreathe 4.2s var(--e-sleep) infinite; }
+.sprite-hit.perch .pet-sprite.st-paused { filter: grayscale(.7); animation: sitBreathe 5s var(--e-sleep) infinite; }
+.sprite-hit.perch .pet-sprite.st-working { animation: sitBounce 1.6s var(--e-sway) infinite; }
+.sprite-hit.perch .pet-sprite { translate: 0 4px; }
+@keyframes sitBreathe { 0%,100% { transform: scale(1,.92); } 50% { transform: scale(1.008,.935); } }
+@keyframes sitBounce { 0%,100% { transform: scale(1,.92) translateY(0); } 50% { transform: scale(1,.92) translateY(-3px); } }
+/* —— 微动作（一次性，JS 挂类） —— */
+.pet-sprite.ma-blink { animation: blinkEye 240ms linear; }
+.pet-sprite.ma-look { animation: look 1s var(--e-sway); }
+.pet-sprite.ma-yawn { animation: yawn 900ms var(--e-sleep); }
+.pet-sprite.ma-hop1 { animation: hopOne 550ms var(--e-pop); }
+.pet-sprite.ma-earwig { animation: earwig 120ms linear; }   /* 输入响应：微抖 ±2° */
+.pet-sprite.ma-sit { animation: sitDown 420ms var(--e-pop); }  /* 落座：挤压回弹一次 */
+.pet-sprite.ma-drag { animation: wiggle .3s var(--e-sway) infinite; }
+.pet-sprite.dragging { animation: tilt .2s var(--e-snap) forwards; }
+.pet-sprite.ma-release { animation: squash 400ms var(--e-pop); }
+.pet-sprite.listening { animation: none; transform: rotate(2deg); transition: transform var(--t-act) var(--e-sway); } /* 对话态：侧耳倾听 */
+@keyframes hop { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-7px); } }
+@keyframes hopOne { 0% { transform: translateY(0) scale(1,1); } 18% { transform: translateY(2px) scale(1.05,.88); } 55% { transform: translateY(-9px) scale(.96,1.06); } 85% { transform: translateY(1px) scale(1.04,.92); } 100% { transform: translateY(0) scale(1,1); } }
+@keyframes breathe { 0%,100% { transform: scale(1,1); } 50% { transform: scale(1.015,1.02); } }
+@keyframes blinkEye { 0%,100% { transform: scaleY(1); } 50% { transform: scaleY(.12); } }
+@keyframes look { 0%,100% { transform: translateX(0) rotate(0); } 25% { transform: translateX(4px) rotate(2deg); } 50% { transform: translateX(-4px) rotate(-2deg); } 75% { transform: translateX(2px) rotate(1deg); } }
+@keyframes yawn { 0%,100% { transform: scale(1,1) translateY(0); } 45% { transform: scale(.94,1.12) translateY(2px); } }
+@keyframes earwig { 0%,100% { transform: rotate(0); } 30% { transform: rotate(-2deg); } 60% { transform: rotate(2deg); } }
+@keyframes sitDown { 0% { transform: scale(1.06,.82) translateY(4px); } 45% { transform: scale(.95,1.0) translateY(-3px); } 100% { transform: scale(1,.92); } }
+@keyframes wiggle { 0%,100% { transform: rotate(0); } 50% { transform: rotate(3deg); } }
+@keyframes tilt { to { transform: rotate(8deg) scale(1.02,.98); } }
+@keyframes squash { 0% { transform: rotate(8deg) scale(1.02,.98); } 35% { transform: rotate(0) scale(1.1,.84) translateY(3px); } 70% { transform: rotate(0) scale(.97,1.04) translateY(-3px); } 100% { transform: rotate(0) scale(1,1); } }
+
+/* —— 陪跑精灵（影子实体：永不说话、不闪烁） —— */
+.mate {
+  position: absolute; width: 88px; height: 88px;
+  image-rendering: pixelated; transform-origin: 50% 100%;
+  opacity: 0; pointer-events: none; z-index: 2;
+  transition: left 600ms var(--e-snap), opacity 400ms linear;
+}
+.mate.arriving { animation: mateWalk 600ms var(--e-sway); }
+.mate.seated { animation: mateSitBreathe 4.2s var(--e-sleep) infinite; }
+.mate.waving { animation: mateWave 600ms var(--e-sway); }
+.mate.clickable { pointer-events: auto; cursor: pointer; }
+@keyframes mateWalk { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-5px); } }
+@keyframes mateSitBreathe { 0%,100% { transform: scale(1,.92); } 50% { transform: scale(1.008,.935); } }
+@keyframes mateWave { 0%,100% { transform: scaleX(1); } 50% { transform: scaleX(-1); } }
+
+/* —— 对话框（静景态 / 对话态共用外壳） —— */
+.dialog { width: 100%; background: #fff; border: 3px solid var(--dex-navy); border-radius: 6px; box-shadow: 3px 3px 0 var(--dex-navy); margin-top: 12px; position: relative; }
+.dialog-inner { border: 2px solid var(--dex-navy); border-radius: 3px; margin: 3px; padding: 8px 10px; min-height: 44px; display: flex; align-items: center; gap: 8px; }
+.dialog-text { flex: 1; font-size: 12.5px; font-weight: 700; line-height: 1.6; }
+.dialog-next { flex: none; align-self: flex-end; font-size: 11px; color: var(--dex-red); opacity: .9; }
+.dialog.is-new .dialog-next { animation: blink3 1.8s steps(1) forwards; }
+.dialog .chat-hint { position: absolute; top: -10px; right: 10px; font-size: 10px; background: var(--poke-yellow); border: 2px solid var(--dex-navy); border-radius: 6px; padding: 1px 7px; font-weight: 700; display: none; }
+.dialog.can-chat .chat-hint { display: block; }
+@keyframes blink3 { 0%,20% { opacity: 1; } 10%,30% { opacity: .15; } 40%,60% { opacity: 1; } 50%,70% { opacity: .15; } 100% { opacity: .9; } }
+
+/* —— 对话态：≤4 行（历史 3 条 + 输入行） —— */
+.chat-box { display: none; border: 2px solid var(--dex-navy); border-radius: 3px; margin: 3px; padding: 8px; }
+.dialog.chatting .dialog-inner { display: none; }
+.dialog.chatting .chat-box { display: block; }
+.chat-log { display: flex; flex-direction: column; gap: 6px; max-height: 118px; overflow: hidden; }
+.chat-msg { font-size: 12px; line-height: 1.6; padding: 5px 8px; border: 2px solid var(--dex-navy); border-radius: 8px; max-width: 92%; }
+.chat-msg.user { align-self: flex-end; background: var(--poke-yellow); font-weight: 700; }
+.chat-msg.bot { align-self: flex-start; background: #fff; }
+.chat-msg.thinking { align-self: flex-start; background: #F2F2EC; color: var(--ink-soft); display: inline-flex; gap: 4px; align-items: center; }
+.chat-msg.thinking i { width: 5px; height: 5px; border-radius: 50%; background: var(--ink-faint); animation: tdot 1s var(--e-sway) infinite; }
+.chat-msg.thinking i:nth-child(2) { animation-delay: .2s; }
+.chat-msg.thinking i:nth-child(3) { animation-delay: .4s; }
+@keyframes tdot { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-4px); } }
+.chat-chips { display: flex; gap: 6px; flex-wrap: wrap; margin: 8px 0 6px; }
+.chat-chip { font-size: 11px; border: 2px solid var(--dex-navy); border-radius: 6px; background: #fff; padding: 3px 8px; cursor: pointer; font-weight: 700; }
+.chat-chip:hover { background: var(--hover); }
+.chat-input-row { display: flex; gap: 6px; }
+.chat-input { flex: 1; border: 2px solid var(--dex-navy); border-radius: 6px; padding: 6px 8px; font-size: 12px; font-family: inherit; min-width: 0; }
+.chat-input:focus { outline: 2px solid var(--poke-yellow); }
+.chat-send, .chat-close { border: 2px solid var(--dex-navy); border-radius: 6px; background: var(--poke-yellow); font-size: 12px; font-weight: 700; padding: 6px 10px; cursor: pointer; }
+.chat-close { background: #fff; }
+
+/* —— 药丸（静景锚点，对话时不消失） —— */
+.pill { margin-top: 8px; display: flex; align-items: center; gap: 8px; background: #fff; border: 3px solid var(--dex-navy); border-radius: 8px; box-shadow: 3px 3px 0 var(--dex-navy); padding: 5px 10px; }
+.pill .px { font-size: 11px; color: var(--danger); }
+.pill-btn { width: 30px; height: 30px; border: 3px solid var(--dex-navy); border-radius: 6px; background: var(--poke-yellow); cursor: pointer; font-size: 13px; box-shadow: 2px 2px 0 var(--dex-navy); }
+
+/* —— 精灵球 / 星星 / 音符 —— */
+.ball { position: absolute; width: 34px; height: 34px; border-radius: 50%; border: 3px solid var(--dex-navy); overflow: hidden; background: linear-gradient(180deg, var(--dex-red) 0 48%, #fff 48% 100%); box-shadow: 2px 2px 0 rgba(26,27,37,.35); pointer-events: none; z-index: 5; }
+.ball::after { content: ""; position: absolute; left: 50%; top: 50%; width: 10px; height: 10px; transform: translate(-50%,-50%); background: #fff; border: 3px solid var(--dex-navy); border-radius: 50%; }
+.ball-land { animation: ballSquash 350ms var(--e-pop) forwards; }
+@keyframes ballSquash { 0% { transform: scale(1,1); } 40% { transform: scale(1.15,.8) translateY(4px); } 100% { transform: scale(1,1) translateY(0); } }
+.ball-shake { animation: ballShake 400ms var(--e-sway); }
+@keyframes ballShake { 0%,100% { transform: rotate(0); } 20% { transform: rotate(-14deg); } 45% { transform: rotate(14deg); } 70% { transform: rotate(-10deg); } 90% { transform: rotate(8deg); } }
+.star { position: absolute; width: 10px; height: 10px; background: var(--poke-yellow); border: 2px solid var(--dex-navy); transform: rotate(45deg); pointer-events: none; z-index: 6; animation: starFly var(--t-act) var(--e-pop) forwards; }
+.star.big { width: 14px; height: 14px; background: #fff; }
+@keyframes starFly { 0% { transform: translate(0,0) rotate(45deg) scale(1); opacity: 1; } 100% { transform: translate(var(--dx), var(--dy)) rotate(225deg) scale(.4); opacity: 0; } }
+.note { position: absolute; font-size: 14px; font-weight: 900; color: var(--dex-navy); pointer-events: none; z-index: 6; animation: noteUp 1s var(--e-sway) forwards; }
+@keyframes noteUp { 0% { transform: translate(0,0) rotate(-8deg); opacity: 0; } 25% { opacity: .9; } 100% { transform: translate(var(--dx), -46px) rotate(10deg); opacity: 0; } }
+
+/* —— 输入强度表 —— */
+.meter-wrap { display: flex; align-items: center; gap: 10px; }
+.meter { flex: 1; height: 18px; border: 3px solid var(--dex-navy); border-radius: 8px; background: #fff; overflow: hidden; position: relative; }
+.meter-fill { height: 100%; width: 0%; background: var(--ok); transition: width .3s linear; }
+.meter-fill.mid { background: var(--poke-yellow); }
+.meter-fill.high { background: var(--danger); }
+.meter-val { font-family: "Press Start 2P", monospace; font-size: 9px; min-width: 64px; }
+.band-chip { font-size: 11px; font-weight: 700; border: 2px solid var(--dex-navy); border-radius: 6px; padding: 2px 8px; background: #fff; min-width: 96px; text-align: center; }
+
+/* —— 控制面板 —— */
+.controls { display: flex; flex-direction: column; gap: 12px; }
+.ctl-group { border: 3px solid var(--dex-navy); border-radius: 12px; background: #fff; box-shadow: 4px 4px 0 var(--dex-navy); padding: 12px 14px; }
+.ctl-group h3 { font-size: 11px; letter-spacing: 1px; color: var(--ink-soft); font-weight: 700; margin-bottom: 10px; }
+.ctl-row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.ctl-note { font-size: 11.5px; color: var(--ink-soft); margin-top: 8px; line-height: 1.7; }
+.ctl-label { font-size: 12px; font-weight: 700; display: inline-flex; align-items: center; gap: 5px; cursor: pointer; }
+
+/* ============ 时序图 ============ */
+.timeline { display: flex; border: 3px solid var(--dex-navy); border-radius: 8px; overflow: hidden; box-shadow: 3px 3px 0 var(--dex-navy); height: 64px; position: relative; background: #fff; }
+.tl-seg { display: flex; flex-direction: column; justify-content: center; padding: 6px 10px; border-right: 2px solid var(--dex-navy); position: relative; min-width: 0; }
+.tl-seg:last-child { border-right: none; }
+.tl-seg b { font-size: 12px; }
+.tl-seg span { font-size: 10px; color: var(--ink-soft); }
+
+/* ============ 表格 / 卡片 ============ */
+.tbl { width: 100%; border-collapse: collapse; font-size: 12.5px; background: #fff; box-shadow: 3px 3px 0 var(--dex-navy); }
+.tbl th, .tbl td { border: 2px solid var(--dex-navy); padding: 8px 10px; text-align: left; vertical-align: top; line-height: 1.7; }
+.tbl th { background: var(--dex-navy); color: var(--dex-body); font-size: 11.5px; }
+.card-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 10px; font-size: 13px; }
+.info-card { border: 3px solid var(--dex-navy); border-radius: 10px; background: #fff; box-shadow: 3px 3px 0 var(--dex-navy); padding: 10px 14px; }
+.info-card b { display: block; margin-bottom: 4px; }
+.info-card span { color: var(--ink-soft); font-size: 12px; line-height: 1.7; }
+.info-card.privacy { background: var(--ok-soft); }
+.info-card.privacy b { color: var(--ok-ink); }
+
+/* 对话形态对比卡 */
+.cmp { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+@media (max-width: 760px) { .cmp { grid-template-columns: 1fr; } }
+.cmp-col { border: 3px solid var(--dex-navy); border-radius: 12px; background: #fff; box-shadow: 4px 4px 0 var(--dex-navy); padding: 12px; }
+.cmp-col h3 { font-size: 12px; margin-bottom: 8px; }
+.cmp-col.new h3 { color: var(--ok-ink); }
+.cmp-win { border: 2px solid var(--dex-navy); border-radius: 10px; background: #F2F7EA; padding: 10px; display: flex; flex-direction: column; align-items: center; gap: 6px; }
+.cmp-sprite { width: 48px; height: 48px; image-rendering: pixelated; }
+.cmp-dialog { width: 100%; background: #fff; border: 2px solid var(--dex-navy); border-radius: 4px; font-size: 9.5px; font-weight: 700; padding: 4px 6px; }
+.cmp-note { font-size: 11px; color: var(--ink-soft); line-height: 1.7; margin-top: 8px; }
+
+footer { width: min(1160px, 100%); font-size: 12px; color: #9aa0b5; line-height: 2; text-align: center; }
+</style>
+</head>
+<body>
+
+<header class="page-head">
+  <div class="px" style="font-size:8px;color:var(--ink-faint);letter-spacing:1px">PET EXPERIENCE DEMO</div>
+  <h1 class="px-cn" style="font-size:24px;margin:10px 0 4px">桌宠体验升级设计稿 · 输入响应 / 对话 / 时间与空间感知</h1>
+  <p style="font-size:13px;color:var(--ink-soft);line-height:1.8;max-width:82ch">配套 <b>docs/proposals/PET_EXPERIENCE_PROPOSAL.md</b>（F1~F7）。立场不变：桌宠是镜子不是闹钟——本次升级补的是<b>环境感知层</b>：感知打字（F1）、任务可对话（F2）、时刻台词（F3）、边缘栖息（F4）、语音（F5）、陪跑精灵（F6）、连胜演出（F7）。注意：演示页把「应用内默认关」的能力直接打开供体验，真实默认状态见 §5。</p>
+  <div style="margin-top:12px;border-top:2px dashed var(--ink-faint);padding-top:10px;font-size:12px;color:var(--ink-soft)">
+    <b>试这四件事：</b>① 在本页任意处<b>随便敲键盘</b>（或点「专注」后打字），看精灵微抖与蹦跳节奏；② 把精灵<b>拖到舞台底部任务栏附近松手</b>，看它坐下栖息；③ 点对话框或「💬 对话」，问它「今天还剩什么」；④ 点「★ 连胜演出」看双球交替。
+    <label style="margin-left:16px;cursor:pointer"><input type="checkbox" id="rmToggle" /> 模拟「减弱动效」（新能力全部联动关闭）</label>
+  </div>
+</header>
+
+<!-- ================= 1 升级舞台 ================= -->
+<section>
+  <div class="sec-head"><span class="no px">1</span><h2 class="px-cn">升级舞台（真实交互）</h2></div>
+  <p class="sec-desc">舞台即桌宠窗口：底部是模拟任务栏（<b>栖息判定带：距底缘 ≤72px</b>）；本页任意处的键盘输入模拟全局输入监听（真实实现为 Rust 侧 rdev 线程，事件只带每秒计数 {cps}，不带按键内容）。拖拽 / 按住 600ms 撸宠沿用基础稿。</p>
+  <div class="stage-wrap">
+    <div class="stage" id="stage">
+      <div class="petwin">
+        <div class="sprite-hit" id="spriteHit">
+          <img class="pet-sprite st-idle" id="sprite" src="../../public/pokemon/pikachu.gif" alt="皮卡丘" draggable="false" />
+        </div>
+        <div class="dialog can-chat" id="dialog">
+          <span class="chat-hint">💬 点我聊聊</span>
+          <div class="dialog-inner">
+            <span class="dialog-text" id="bubble">皮卡丘在等你出发！（点对话框可以问我任务的事）</span>
+            <span class="dialog-next">▼</span>
+          </div>
+          <div class="chat-box">
+            <div class="chat-log" id="chatLog"></div>
+            <div class="chat-chips" id="chatChips">
+              <button class="chat-chip" data-q="今天还剩什么？">今天还剩什么？</button>
+              <button class="chat-chip" data-q="这周捕捉了多少？">这周捕捉了多少？</button>
+            </div>
+            <div class="chat-input-row">
+              <input class="chat-input" id="chatInput" placeholder="问它任务 / 图鉴的事…（Enter 发送）" />
+              <button class="chat-send" id="chatSend">发送</button>
+              <button class="chat-close" id="chatClose" title="收起对话（Esc）">✕</button>
+            </div>
+          </div>
+        </div>
+        <div class="pill">
+          <span class="px">🍅 24:31</span>
+          <button class="pill-btn" id="pillPause" title="暂停">⏸</button>
+          <button class="pill-btn" id="pillDone" title="完成">✔</button>
+        </div>
+      </div>
+      <img class="mate" id="mate" src="../../public/pokemon/psyduck.gif" alt="陪跑精灵" hidden />
+      <div class="dock"><i>📓</i><i>📅</i><i>🗂</i><i>⚙️</i><span class="dock-label">任务栏 / Dock —— 栖息判定带</span></div>
+    </div>
+    <div class="controls">
+      <div class="ctl-group">
+        <h3>F1 输入响应（本页任意处敲键盘 · 默认开供演示）</h3>
+        <div class="meter-wrap">
+          <div class="meter"><div class="meter-fill" id="meterFill"></div></div>
+          <span class="meter-val" id="cpsVal">0 CPS</span>
+          <span class="band-chip" id="bandChip">静默</span>
+        </div>
+        <div class="ctl-row" style="margin-top:10px">
+          <label class="ctl-label"><input type="checkbox" id="irToggle" checked /> 输入响应（应用内默认关）</label>
+          <label class="ctl-label"><input type="checkbox" id="irWorkToggle" /> 专注时也响应（默认关）</label>
+        </div>
+        <div class="ctl-note">轻打字 = 微抖回应（±2°，120ms）；密集 = 认真看你；专注态开启子项后蹦跳节奏随打字轻耦合（≤+10%）。停顿 3s 后来一个哈欠。</div>
+      </div>
+      <div class="ctl-group">
+        <h3>F3 时刻台词（每类每天最多一次）</h3>
+        <div class="ctl-row">
+          <button class="btn ghost" data-time="morning">清晨问候</button>
+          <button class="btn ghost" data-time="hour">工作整点</button>
+          <button class="btn ghost" data-time="friday">周五晚</button>
+          <button class="btn ghost" data-time="night">深夜</button>
+          <button class="btn ghost" data-time="birthday">🐾 精灵生日</button>
+        </div>
+        <div class="ctl-note">深夜只提供「收工出口」绝不催睡（反羞耻）；生日 = 首次捕捉纪念日，配一跳演出。</div>
+      </div>
+      <div class="ctl-group">
+        <h3>F6 陪跑精灵 · body doubling（默认关，此处开）</h3>
+        <div class="ctl-row">
+          <button class="btn ghost" id="mateBtn">▶ 专注 25 分钟，请进一位客人</button>
+        </div>
+        <div class="ctl-note">客人从侧缘走入、在旁边<b>坐下</b>、全程零台词零闪烁；点它会挥手离开；收工时随主精灵一起庆祝。</div>
+      </div>
+      <div class="ctl-group">
+        <h3>F2 / F5 / F7 演出与对话</h3>
+        <div class="ctl-row">
+          <button class="btn" id="chatOpenBtn">💬 和精灵聊聊</button>
+          <button class="btn ghost" id="voiceBtn">🔔 语音播报一句</button>
+          <button class="btn red" id="streakBtn">★ 连胜演出</button>
+        </div>
+        <div class="ctl-row" style="margin-top:8px">
+          <label class="ctl-label"><input type="checkbox" id="voiceToggle" /> 桌宠语音（应用内默认静音）</label>
+        </div>
+        <div class="ctl-note">对话 = 右键菜单入口（配了 agent 才出现），对话框原位展开 ≤4 行；语音只覆盖里程碑 / 收工 / 生日 / 对话回答四类时刻。</div>
+      </div>
+      <div class="ctl-group">
+        <h3>状态（基础稿 · 耦合演示用）</h3>
+        <div class="ctl-row">
+          <button class="btn" data-st="st-idle">待机</button>
+          <button class="btn" data-st="st-working">专注</button>
+          <button class="btn" data-st="st-paused">暂停</button>
+          <button class="btn ghost" id="standBtn">站起（离开栖息）</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ================= 2 输入响应分级 ================= -->
+<section>
+  <div class="sec-head"><span class="no px">2</span><h2 class="px-cn">F1 输入响应 · 分级表与隐私边界</h2></div>
+  <p class="sec-desc">对输入的实时反应是生命感最强来源（Bongo Cat 仅凭此即病毒式传播），但它是「跟随」不是「演出」——幅度 ≤ --a-micro、无音效、无气泡、不占闪烁名额；working 态只做节奏耦合不加新动画。</p>
+  <table class="tbl">
+    <tr><th style="width:130px">输入强度</th><th style="width:120px">判定（键鼠/秒）</th><th>idle / paused</th><th>working</th></tr>
+    <tr><td><b>静默</b></td><td>&lt; 2</td><td>无反应</td><td>无反应</td></tr>
+    <tr><td><b>轻打字</b></td><td>2 ~ 5</td><td>微抖回应 ±2°/120ms，每 2~4s 至多一次</td><td rowspan="2">hop 主循环节奏轻耦合 +0~10%（打字越快蹦得越欢），微抖继续</td></tr>
+    <tr><td><b>密集</b></td><td>5 ~ 10</td><td>「认真看」：停一拍 + 左右看</td></tr>
+    <tr><td><b>停顿 &gt;3s</b></td><td>强度落回静默</td><td>一次哈欠或回头看你</td><td>无（不打断专注节奏）</td></tr>
+  </table>
+  <div class="card-grid" style="margin-top:12px">
+    <div class="info-card privacy"><b>感知不窥探（新原则）</b><span>Rust 侧 rdev 回调只递增计数器，每秒 emit <code>{cps}</code> 一个数字——不带按键内容、不带窗口标题、不带应用名；键盘鼠标合并计数，无法反推输入了什么。macOS 需辅助功能权限，拒绝则开关自动回落。</span></div>
+    <div class="info-card"><b>与调度器的关系</b><span>输入响应不是新状态：它是 usePetIdle 之外的第二信号源，受同一 busy 互斥让路；「减弱动效」下整体关闭（跟随双通道）。</span></div>
+  </div>
+</section>
+
+<!-- ================= 3 对话形态 ================= -->
+<section>
+  <div class="sec-head"><span class="no px">3</span><h2 class="px-cn">F2 AI 对话 · 一屏一义的扩展形态</h2></div>
+  <p class="sec-desc">入口在右键菜单（配了 agent 才出现，静景 ≤4 元素不破）；对话框<b>原位</b>展开为对话态——历史最多回看 3 条 + 思考点 + 输入行，总高 ≤4 行；Esc / 点外部收起，恢复状态文案。agent 是秒级延迟：发送后精灵歪头思考（≤5s 上限），回答到达闪 3 下。只答不执行——操作建议都带「去主面板确认」出口。</p>
+  <div class="cmp">
+    <div class="cmp-col">
+      <h3>静景态（现状 · 4 元素）</h3>
+      <div class="cmp-win">
+        <img class="cmp-sprite" src="../../public/pokemon/pikachu.gif" alt="" />
+        <div class="cmp-dialog">皮卡丘正在捕捉：给老板发周报 ▼</div>
+        <div class="cmp-dialog" style="text-align:center;font-size:9px">🍅 24:31 · ⏸ · ✔</div>
+      </div>
+      <div class="cmp-note">对话框 = 一句话状态；💬 入口收在右键菜单，不占常驻位。</div>
+    </div>
+    <div class="cmp-col new">
+      <h3>对话态（展开 · ≤4 行，可 Esc）</h3>
+      <div class="cmp-win">
+        <img class="cmp-sprite" src="../../public/pokemon/pikachu.gif" alt="" style="transform:rotate(2deg)" />
+        <div class="cmp-dialog" style="align-self:flex-end">今天还剩什么？</div>
+        <div class="cmp-dialog">剩 2 只：周报、给妈妈买礼物 🐾<br><span style="color:var(--ok-ink)">（≤2 句 · 回答带任务上下文）</span></div>
+        <div class="cmp-dialog" style="display:flex;gap:4px;align-items:center;color:var(--ink-faint)"><span>问点别的…</span><span style="margin-left:auto">发送 ✕</span></div>
+      </div>
+      <div class="cmp-note">精灵切「侧耳倾听」2°；人格注入走 pk context；对话不落库；超时 15s 优雅失败。</div>
+    </div>
+  </div>
+</section>
+
+<!-- ================= 4 陪跑精灵时序 ================= -->
+<section>
+  <div class="sec-head"><span class="no px">4</span><h2 class="px-cn">F6 陪跑精灵 · 会话时序</h2></div>
+  <p class="sec-desc">专注 ≥25 分钟触发，一次会话最多一位、只出现一次。客人是「临时的客人」不是新成员：零台词、零闪烁、零常驻元素、零数值；「减弱动效」下跳过走入动画直接就位。</p>
+  <div class="timeline">
+    <div class="tl-seg" style="flex:600"><b>走入</b><span>600ms · 侧缘小跳步入</span></div>
+    <div class="tl-seg" style="flex:150;background:var(--hover)"><b>坐下</b><span>150ms · 挤压落座</span></div>
+    <div class="tl-seg" style="flex:1200"><b>安静陪伴</b><span>栖息微呼吸 · body doubling</span></div>
+    <div class="tl-seg" style="flex:300"><b>随行庆祝</b><span>收工时双跳 · 然后离场</span></div>
+  </div>
+</section>
+
+<!-- ================= 5 默认开关矩阵 ================= -->
+<section>
+  <div class="sec-head"><span class="no px">5</span><h2 class="px-cn">默认开关矩阵 · 注意力纪律</h2></div>
+  <p class="sec-desc">社区教训（Shimeji / Desktop Goose 被大量卸载）：强打扰能力必须 opt-in。本页为了演示全开，真实默认如下——</p>
+  <table class="tbl">
+    <tr><th style="width:170px">能力</th><th style="width:110px">默认</th><th>开启方式与边界</th></tr>
+    <tr><td><b>F1 输入响应</b></td><td>⛔ 关</td><td>设置 → 桌宠；macOS 首开引导辅助功能权限，拒绝自动回落；子项「专注时也响应」独立默认关</td></tr>
+    <tr><td><b>F2 AI 对话</b></td><td>➖ 无开关</td><td>入口跟随 agent 配置自动出现于右键菜单；未配置则不出现</td></tr>
+    <tr><td><b>F3 时刻台词</b></td><td>✅ 跟随</td><td>无开关（每类每天最多一次；深夜永不催睡）</td></tr>
+    <tr><td><b>F4 边缘栖息</b></td><td>✅ 跟随</td><td>无开关（纯姿态，无打扰面）；攀爬 / 窗口交互不做</td></tr>
+    <tr><td><b>F5 语音</b></td><td>🔇 静音</td><td>设置 → 桌宠；默认本地系统 TTS；EdgeTTS 需显式选择并提示「文本将发往微软云」</td></tr>
+    <tr><td><b>F6 陪跑精灵</b></td><td>⛔ 关</td><td>设置 → 桌宠；一次会话一位一次</td></tr>
+  </table>
+</section>
+
+<!-- ================= 6 红线延续 ================= -->
+<section>
+  <div class="sec-head"><span class="no px">6</span><h2 class="px-cn">红线延续 · 新能力的边界</h2></div>
+  <p class="sec-desc" style="margin-bottom:10px">基础稿六条红线全部延续（同屏闪烁 ≤1 · 演出可跳过 · 永不主动索要注意力 · 只有正反馈 · 减弱动效全关 · 静景 ≤4 元素），针对环境感知新增三条：</p>
+  <div class="card-grid">
+    <div class="info-card privacy"><b>感知不窥探</b><span>全局输入只产生每秒计数 {cps}；无按键内容、无窗口信息出现在任何事件与日志。</span></div>
+    <div class="info-card"><b>新能力默认关</b><span>输入响应 / 语音 / 陪跑精灵全部 opt-in；AI 对话入口跟随既有配置，零新增负担。</span></div>
+    <div class="info-card"><b>演出零数值</b><span>连胜贺词由气泡文字承载一次；不加角标、不加进度条、不加常驻计数——图鉴机内看统计。</span></div>
+  </div>
+</section>
+
+<footer>
+  演示页字体与令牌同 pet-interaction-demo.html · 精灵图为本地内置素材（pikachu / psyduck 等 6 只）<br>
+  配套文档：<code>docs/proposals/PET_EXPERIENCE_PROPOSAL.md</code> · <code>docs/design/PET_INTERACTION_DESIGN.md</code> · <code>docs/design/pet-interaction-demo.html</code>（基础稿）
+</footer>
+
+<script>
+(function () {
+  "use strict";
+  var sprite = document.getElementById("sprite");
+  var hit = document.getElementById("spriteHit");
+  var stage = document.getElementById("stage");
+  var dock = stage.querySelector(".dock");
+  var bubble = document.getElementById("bubble");
+  var dialog = document.getElementById("dialog");
+  var mate = document.getElementById("mate");
+  var names = { pikachu: "皮卡丘", psyduck: "可达鸭", bulbasaur: "妙蛙种子", snorlax: "卡比兽", chansey: "吉利蛋", eevee: "伊布" };
+  var busy = false;          // 演出/微动作互斥
+  var chatOpen = false;
+  var lastStateText = "";
+  var RM = function () { return document.documentElement.classList.contains("reduce-motion"); };
+  var sleep = function (ms) { return new Promise(function (r) { setTimeout(r, RM() ? 0 : ms); }); };
+
+  function say(text, isNew) {
+    if (chatOpen) { lastStateText = text; return; }
+    bubble.textContent = text;
+    dialog.classList.remove("is-new");
+    if (isNew) { void dialog.offsetWidth; dialog.classList.add("is-new"); }
+  }
+  function name() { return names.pikachu; }
+
+  // ---- 微动作（一次性）：覆盖状态类，结束恢复
+  function micro(cls, dur) {
+    if (busy) return;
+    var st = sprite.dataset.st || "st-idle";
+    busy = true;
+    sprite.classList.remove("st-idle", "st-working", "st-paused");
+    sprite.classList.add(cls);
+    setTimeout(function () {
+      sprite.classList.remove(cls);
+      sprite.classList.add(st);
+      busy = false;
+    }, RM() ? 0 : dur);
+  }
+  var MA_DUR = { "ma-blink": 240, "ma-look": 1000, "ma-yawn": 900, "ma-hop1": 550, "ma-earwig": 120, "ma-sit": 420 };
+
+  function setState(st) {
+    if (busy) return;
+    sprite.dataset.st = st;
+    sprite.classList.remove("st-idle", "st-working", "st-paused");
+    sprite.classList.add(st);
+    lastStateText = {
+      "st-idle": "皮卡丘在等你出发！（点对话框可以问我任务的事）",
+      "st-working": "皮卡丘正在捕捉：给老板发周报 —— 试着敲敲键盘？",
+      "st-paused": "暂停中，休息一下～"
+    }[st];
+    say(lastStateText);
+  }
+  document.querySelectorAll("[data-st]").forEach(function (b) {
+    b.addEventListener("click", function () { setState(b.getAttribute("data-st")); });
+  });
+
+  // ================= F1 输入响应 =================
+  var irOn = document.getElementById("irToggle");
+  var irWork = document.getElementById("irWorkToggle");
+  var meterFill = document.getElementById("meterFill");
+  var cpsVal = document.getElementById("cpsVal");
+  var bandChip = document.getElementById("bandChip");
+  var keyTimes = [];
+  var lastWiggle = 0, lastDenseLook = 0, pauseFired = false, lastInputAt = 0;
+
+  function bandOf(cps) { return cps < 2 ? "silent" : cps < 5 ? "light" : "dense"; }
+  window.addEventListener("keydown", function (e) {
+    if (chatOpen && e.key === "Escape") { closeChat(); return; }
+    keyTimes.push(performance.now());
+    lastInputAt = performance.now();
+    pauseFired = false;
+  });
+  window.addEventListener("pointerdown", function (e) {
+    if (e.target.closest(".stage")) return;
+    keyTimes.push(performance.now());
+    lastInputAt = performance.now();
+    pauseFired = false;
+  });
+
+  setInterval(function () {
+    var now = performance.now();
+    keyTimes = keyTimes.filter(function (t) { return now - t < 1000; });
+    var cps = keyTimes.length;
+    // 强度表
+    meterFill.style.width = Math.min(100, cps * 10) + "%";
+    meterFill.className = "meter-fill" + (cps >= 5 ? " high" : cps >= 2 ? " mid" : "");
+    cpsVal.textContent = cps + " CPS";
+    var band = bandOf(cps);
+    bandChip.textContent = { silent: "静默", light: "轻打字", dense: "密集" }[band];
+    if (!irOn.checked) { sprite.style.animationDuration = ""; return; }
+
+    var working = sprite.dataset.st === "st-working";
+    // working 节奏耦合（≤+10%）
+    if (working && irWork.checked && band !== "silent") {
+      sprite.style.animationDuration = (1.6 / (1 + 0.1 * Math.min(cps, 10) / 10)).toFixed(3) + "s";
+    } else {
+      sprite.style.animationDuration = "";
+    }
+    if (chatOpen || busy) return; // 对话中=侧耳倾听；演出中让路
+    // 微抖回应（idle/paused 轻档；两档均可微抖）
+    if (band !== "silent" && !working && now - lastWiggle > (band === "light" ? 2600 : 1800)) {
+      lastWiggle = now; micro("ma-earwig", MA_DUR["ma-earwig"]);
+    }
+    // 密集档：偶尔「认真看」
+    if (band === "dense" && !working && now - lastDenseLook > 6000) {
+      lastDenseLook = now; micro("ma-look", MA_DUR["ma-look"]);
+    }
+    // 停顿 >3s：一次哈欠/看你
+    if (band === "silent" && lastInputAt && now - lastInputAt > 3000 && !pauseFired && !working) {
+      pauseFired = true;
+      micro(Math.random() < 0.5 ? "ma-yawn" : "ma-look", MA_DUR[Math.random() < 0.5 ? "ma-yawn" : "ma-look"]);
+    }
+  }, 300);
+
+  irOn.addEventListener("change", function () { if (!this.checked) sprite.style.animationDuration = ""; });
+
+  // ================= F4 拖拽 + 边缘栖息 =================
+  var drag = null, holdTimer = null;
+  hit.addEventListener("pointerdown", function (e) {
+    if (busy) return;
+    drag = { x0: e.clientX, y0: e.clientY, moved: false };
+    holdTimer = setTimeout(function () {
+      if (drag && !drag.moved) { micro("ma-earwig", 120); say("♪ 被摸得眯起了眼~", true); }
+    }, 600);
+  });
+  window.addEventListener("pointermove", function (e) {
+    if (!drag) return;
+    var dx = e.clientX - drag.x0, dy = e.clientY - drag.y0;
+    if (!drag.moved && Math.hypot(dx, dy) > 6) {
+      drag.moved = true; clearTimeout(holdTimer);
+      sprite.classList.add("dragging", "ma-drag");
+      hit.classList.remove("perch"); // 拎起来即离栖息
+      say("（被拎起来了！小碎步紧张中）");
+    }
+    if (drag.moved) {
+      var w = stage.getBoundingClientRect();
+      var maxTop = w.height - dock.offsetHeight - 100;
+      hit.style.position = "absolute";
+      hit.style.left = Math.max(4, Math.min(w.width - 108, e.clientX - w.left - 52)) + "px";
+      hit.style.top = Math.max(4, Math.min(maxTop, e.clientY - w.top - 60)) + "px";
+    }
+  });
+  window.addEventListener("pointerup", function () {
+    clearTimeout(holdTimer);
+    if (drag && drag.moved) {
+      sprite.classList.remove("dragging", "ma-drag");
+      busy = true;
+      sprite.classList.add("ma-release");
+      setTimeout(function () {
+        sprite.classList.remove("ma-release"); busy = false;
+        var st = sprite.dataset.st || "st-idle";
+        sprite.classList.remove("st-idle", "st-working", "st-paused");
+        sprite.classList.add(st);
+        // 栖息判定：精灵脚底距任务栏上沿 ≤72px
+        var gap = dock.getBoundingClientRect().top - hit.getBoundingClientRect().bottom;
+        if (gap <= 72) {
+          hit.classList.add("perch");
+          say("找到了舒服的位置，坐下啦～（栖息：动画幅度减半）", true);
+        } else {
+          say("咚！安全落地～（拖到任务栏附近试试栖息）");
+        }
+      }, RM() ? 0 : 420);
+    }
+    drag = null;
+  });
+  document.getElementById("standBtn").addEventListener("click", function () {
+    hit.classList.remove("perch");
+    say("站起来了～");
+  });
+
+  // ================= F3 时刻台词 =================
+  var timeLines = {
+    morning: ["🐾 早上好！今天也想一起去草丛看看吗", false],
+    hour: ["🐾 这个小时也要加油哦", false],
+    friday: ["🐾 路线上的宝可梦都说：周末快乐！", false],
+    night: ["这么晚了还在冒险……收工也是很强的选择哦", false],
+    birthday: ["今天是皮卡丘跟着训练家的第 365 天！", true]
+  };
+  document.querySelectorAll("[data-time]").forEach(function (b) {
+    b.addEventListener("click", function () {
+      var it = timeLines[b.getAttribute("data-time")];
+      say(it[0], true);
+      if (it[1]) { micro("ma-hop1", MA_DUR["ma-hop1"]); burstStars(hit, 3, false); playVoice(); }
+    });
+  });
+
+  // ================= F2 对话态 =================
+  var chatLog = document.getElementById("chatLog");
+  var chatInput = document.getElementById("chatInput");
+  function openChat() {
+    if (busy) return;
+    chatOpen = true;
+    dialog.classList.add("chatting");
+    dialog.classList.remove("can-chat", "is-new");
+    sprite.classList.add("listening");
+    if (!chatLog.children.length) pushMsg("bot", "🐾 在的在的！任务和图鉴的事都可以问我（下方快捷提问，Esc 收起）");
+    chatInput.focus();
+  }
+  function closeChat() {
+    chatOpen = false;
+    dialog.classList.remove("chatting");
+    dialog.classList.add("can-chat");
+    sprite.classList.remove("listening");
+    say(lastStateText || "皮卡丘在等你出发！");
+  }
+  function pushMsg(role, text) {
+    var div = document.createElement("div");
+    div.className = "chat-msg " + role;
+    if (role === "thinking") { div.innerHTML = "<i></i><i></i><i></i>"; }
+    else { div.textContent = text; }
+    chatLog.appendChild(div);
+    while (chatLog.children.length > 3) chatLog.removeChild(chatLog.firstChild);
+    return div;
+  }
+  var canned = [
+    { k: ["剩", "什么", "todo", "待办"], a: "今天路线上还剩 2 只：周报、给妈妈买礼物 🐾 去主面板确认一下？" },
+    { k: ["周", "捕捉", "多少", "图鉴"], a: "本周收服 6 只！图鉴 23/151。这周已经是连胜第 3 天啦～" },
+    { k: ["连胜", "streak"], a: "连胜是「周连胜 + 宽容日」：一周里完成过就算，不断裂也不惩罚 🐾" },
+    { k: ["5 分钟", "试"], a: "「先试 5 分钟」是不成也没关系的超短专注——🍦 按钮就是它！" }
+  ];
+  function send() {
+    var q = chatInput.value.trim();
+    if (!q) return;
+    chatInput.value = "";
+    pushMsg("user", q);
+    var t = pushMsg("thinking", "");
+    setTimeout(function () {
+      t.remove();
+      var hit2 = canned.find(function (c) { return c.k.some(function (k) { return q.indexOf(k) >= 0; }); });
+      pushMsg("bot", hit2 ? hit2.a : "（歪头）这个我还不熟，去主面板问问训练家本人吧～");
+      dialog.classList.add("is-new"); // 回答到达闪 3 下
+      playVoice();
+    }, RM() ? 0 : 900);
+  }
+  document.getElementById("chatSend").addEventListener("click", send);
+  chatInput.addEventListener("keydown", function (e) { if (e.key === "Enter") send(); });
+  document.getElementById("chatClose").addEventListener("click", closeChat);
+  document.getElementById("chatOpenBtn").addEventListener("click", openChat);
+  document.getElementById("chatChips").addEventListener("click", function (e) {
+    var chip = e.target.closest(".chat-chip");
+    if (chip) { chatInput.value = chip.getAttribute("data-q"); send(); }
+  });
+  dialog.querySelector(".dialog-inner").addEventListener("click", openChat);
+  document.addEventListener("pointerdown", function (e) {
+    if (chatOpen && !e.target.closest(".dialog")) closeChat();
+  });
+
+  // ================= F5 语音（视觉演示） =================
+  var voiceOn = document.getElementById("voiceToggle");
+  function playVoice() {
+    if (!voiceOn.checked || RM()) return;
+    for (var i = 0; i < 3; i++) {
+      var n = document.createElement("i");
+      n.className = "note";
+      n.textContent = ["♪", "♫", "♪"][i];
+      n.style.left = "calc(50% + " + (i * 14 - 14) + "px)";
+      n.style.top = "18%";
+      n.style.setProperty("--dx", (i * 12 - 12) + "px");
+      hit.appendChild(n);
+      (function (el) { setTimeout(function () { el.remove(); }, 1000); })(n);
+    }
+  }
+  document.getElementById("voiceBtn").addEventListener("click", function () {
+    if (!voiceOn.checked) { say("（语音默认静音——勾选上方「桌宠语音」再试）"); return; }
+    say("♪ 捕捉成功，记入图鉴！（此为视觉演示，实际为系统语音播报）", true);
+    playVoice();
+  });
+
+  // ================= F6 陪跑精灵 =================
+  var mateHere = false, mateBusy = false;
+  var mateBtn = document.getElementById("mateBtn");
+  function mateEnter() {
+    if (mateHere || mateBusy) return;
+    mateBusy = true;
+    mate.hidden = false;
+    mate.className = "mate arriving";
+    var w = stage.getBoundingClientRect(), h = hit.getBoundingClientRect();
+    var target = Math.max(6, h.left - w.left - 84);
+    mate.style.left = "-90px";
+    mate.style.top = (h.top - w.top + 8) + "px";
+    void mate.offsetWidth;
+    mate.style.left = target + "px";
+    setTimeout(function () {
+      mate.className = "mate seated clickable";
+      mateHere = true; mateBusy = false;
+      mateBtn.textContent = "■ 会话结束，送客";
+      say("（一位客人悄悄来陪你了——它不会说话，就是陪着）", true);
+    }, RM() ? 0 : 640);
+  }
+  function mateLeave(withCelebrate) {
+    if (!mateHere || mateBusy) return;
+    mateBusy = true;
+    mate.classList.add("waving");
+    if (withCelebrate) mate.classList.add("seated");
+    setTimeout(function () {
+      mate.style.left = "-90px";
+      setTimeout(function () { mate.hidden = true; mateHere = false; mateBusy = false; mateBtn.textContent = "▶ 专注 25 分钟，请进一位客人"; }, RM() ? 0 : 500);
+    }, RM() ? 0 : 600);
+  }
+  mateBtn.addEventListener("click", function () { mateHere ? mateLeave(false) : mateEnter(); });
+  mate.addEventListener("pointerdown", function () { mateLeave(false); });
+
+  // ================= F7 连胜演出（双球交替） =================
+  document.getElementById("streakBtn").addEventListener("click", streakScene);
+  async function streakScene() {
+    if (busy) return;
+    busy = true;
+    var st = sprite.dataset.st || "st-idle";
+    say("连胜达成——两枚精灵球！", true);
+    var b1 = makeBall("26%"), b2 = makeBall("62%");
+    sprite.style.opacity = "0";
+    b1.classList.add("ball-land"); await sleep(350);
+    b2.classList.add("ball-land"); await sleep(350);
+    // 交替三摇（各 400ms × 3 轮）
+    for (var i = 0; i < 3; i++) {
+      b1.classList.remove("ball-shake"); void b1.offsetWidth; b1.classList.add("ball-shake");
+      await sleep(400);
+      b2.classList.remove("ball-shake"); void b2.offsetWidth; b2.classList.add("ball-shake");
+      await sleep(400);
+    }
+    b1.remove(); b2.remove();
+    sprite.style.opacity = "";
+    burstStars(hit, 6, false); setTimeout(function () { burstStars(hit, 4, true); }, RM() ? 0 : 150);
+    micro("ma-hop1", MA_DUR["ma-hop1"]);
+    if (mateHere) { mate.classList.add("waving"); setTimeout(function () { mate.classList.remove("waving"); }, RM() ? 0 : 600); }
+    busy = false;
+    setState(st);
+    say("🐾 连胜 5 天！本周的草丛都被你踏平啦！（≤2s · 可跳过 · 无角标）", true);
+    playVoice();
+  }
+  function makeBall(leftPct) {
+    var b = document.createElement("div");
+    b.className = "ball";
+    b.style.cssText = "position:absolute;left:" + leftPct + ";top:38%;z-index:5";
+    hit.appendChild(b);
+    return b;
+  }
+  function burstStars(container, n, big) {
+    for (var i = 0; i < n; i++) {
+      var s = document.createElement("i");
+      s.className = "star" + (big ? " big" : "");
+      var ang = (Math.PI * 2 * i) / n + Math.random() * .6;
+      var d = 46 + Math.random() * 26;
+      s.style.setProperty("--dx", Math.round(Math.cos(ang) * d) + "px");
+      s.style.setProperty("--dy", Math.round(Math.sin(ang) * d - 14) + "px");
+      s.style.left = "calc(50% - 5px)"; s.style.top = "40%";
+      container.appendChild(s);
+      (function (el) { setTimeout(function () { el.remove(); }, RM() ? 0 : 420); })(s);
+    }
+  }
+  // stage 内的点击不额外做事（跳过演出的语义由演出自身点击处理）；输入计数已在 window 层排除舞台
+
+  // ================= 减弱动效 =================
+  document.getElementById("rmToggle").addEventListener("change", function () {
+    document.documentElement.classList.toggle("reduce-motion", this.checked);
+  });
+
+  // 药丸按钮演示
+  document.getElementById("pillPause").addEventListener("click", function () { setState("st-paused"); });
+  document.getElementById("pillDone").addEventListener("click", function () { streakScene(); });
+})();
+</script>
+</body>
+</html>

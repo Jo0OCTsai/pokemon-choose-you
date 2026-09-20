@@ -120,8 +120,44 @@ export async function installTauriMock(page: Page, state: Partial<MockState> = {
           case "dex_stats": {
             const caught = db.tasks.filter((t) => t.status === "done").length;
             const escaped = db.tasks.filter((t) => t.status === "cancelled").length;
-            return { caught, escaped };
+            const sprites = [
+              ...new Set(
+                db.tasks
+                  .filter((t) => t.status === "done")
+                  .map((t) => db.categories.find((c) => c.id === t.categoryId)?.sprite)
+                  .filter(Boolean),
+              ),
+            ];
+            return { caught, escaped, sprites };
           }
+          case "task_streak": {
+            // 简化口径：今天 + 连续往前数有 done 的天数（不做宽容日，e2e 只断言形态）
+            const day = (iso: string) => iso.slice(0, 10);
+            const done = new Set(
+              db.tasks.filter((t) => t.status === "done" && t.completedAt).map((t) => day(t.completedAt!)),
+            );
+            const today = day(nowIso());
+            let days = 0;
+            const cur = new Date(today + "T00:00:00");
+            for (let i = 0; i < 400; i++) {
+              const key = day(cur.toISOString());
+              if (done.has(key)) days++;
+              else if (i > 0) break;
+              cur.setDate(cur.getDate() - 1);
+            }
+            const todayCount = db.tasks.filter(
+              (t) => t.status === "done" && t.completedAt && day(t.completedAt) === today,
+            ).length;
+            return { days, todayCount };
+          }
+          case "pet_chat":
+            return "剩 2 只：周报、给妈妈买礼物 🐾";
+          case "pet_speak":
+            return null;
+          case "pet_input_set_enabled":
+            return "ok";
+          case "pet_input_permission":
+            return true;
           case "create_task": {
             const t = {
               id: db.nextId++,

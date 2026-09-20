@@ -38,6 +38,14 @@ export const SETTING_DEFAULTS: Record<string, string> = {
   main_pokemon: "",
   /** 每宝可梦自定义台词（JSON：{ [key]: 多行文本 }，撸宠时随机取用） */
   pokemon_quotes: "{}",
+  /** 桌宠输入响应（F1）：感知打字快慢做出小回应（默认关；只取活动强度不取内容） */
+  pet_input_response: "false",
+  /** 输入响应子项：专注态也响应（hop 节奏轻耦合 ≤+10%，默认关） */
+  pet_input_response_working: "false",
+  /** 桌宠语音（F5）：里程碑/收工/生日/对话回答时说一句（默认静音，系统语音） */
+  pet_voice: "false",
+  /** 陪跑精灵（F6）：专注满 25 分钟图鉴里的一只宝可梦来旁边陪坐（默认关） */
+  pet_mate: "false",
   feishu_poll_interval: "120",
   feishu_enabled: "false",
   /** AI agent CLI 列表（AgentConfig 的 JSON 数组字符串） */
@@ -84,6 +92,10 @@ export const SETTING_KEYS = [
   "review_dow",
   "main_pokemon",
   "pokemon_quotes",
+  "pet_input_response",
+  "pet_input_response_working",
+  "pet_voice",
+  "pet_mate",
   "feishu_poll_interval",
   "ai_agents",
   "ai_agent_id",

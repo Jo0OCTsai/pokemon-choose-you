@@ -94,7 +94,7 @@ export interface NewTaskInput {
 
 export const api = {
   listTasks: (filter: string) => call<Task[]>("list_tasks", { filter }),
-  dexStats: () => call<{ caught: number; escaped: number }>("dex_stats"),
+  dexStats: () => call<{ caught: number; escaped: number; sprites: string[] }>("dex_stats"),
   searchTasks: (q: string) => call<Task[]>("search_tasks", { q }),
   createTask: (task: NewTaskInput) => call<Task>("create_task", { task: { scheduled: false, ...task } }),
   updateTask: (patch: Partial<Task> & { id: number; tagIds?: number[] }) => call<Task>("update_task", { patch }),
@@ -218,4 +218,14 @@ export const api = {
   updateCategory: (id: number, name: string, pokemon: string, sprite: string) =>
     call<void>("update_category", { id, name, pokemon, sprite }),
   deleteCategory: (id: number) => call<void>("delete_category", { id }),
+  /** 连胜天数（连续有捕捉的日历日，含一个宽容日）+ 今日已捕捉数 */
+  taskStreak: () => call<{ days: number; todayCount: number }>("task_streak"),
+  /** 桌宠 AI 对话：接主 agent + 任务上下文，单轮问答（≤2 句，只答不执行） */
+  petChat: (message: string) => call<string>("pet_chat", { message }),
+  /** 系统语音播报一句（pet_voice 开启时调用；失败静默） */
+  petSpeak: (text: string) => call<void>("pet_speak", { text }),
+  /** 输入响应总开关同步到后端监听线程；返回 "ok" | "permission"（macOS 未授权辅助功能） */
+  petInputSetEnabled: (enabled: boolean) => call<string>("pet_input_set_enabled", { enabled }),
+  /** macOS 辅助功能权限（输入响应的前提；其他平台恒 true） */
+  petInputPermission: () => call<boolean>("pet_input_permission"),
 };

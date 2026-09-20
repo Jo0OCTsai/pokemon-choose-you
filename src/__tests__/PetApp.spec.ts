@@ -21,7 +21,12 @@ vi.mock("../api", () => ({
     pauseCurrentTask: vi.fn(),
     getCurrentTask: vi.fn(),
     addFocusSeconds: vi.fn(),
-    dexStats: vi.fn(async () => ({ caught: 0, escaped: 0 })),
+    dexStats: vi.fn(async () => ({ caught: 0, escaped: 0, sprites: [] })),
+    taskStreak: vi.fn(async () => ({ days: 0, todayCount: 0 })),
+    petChat: vi.fn(async () => "好的！"),
+    petSpeak: vi.fn(async () => undefined),
+    petInputSetEnabled: vi.fn(async () => "ok"),
+    petInputPermission: vi.fn(async () => true),
     listCategories: vi.fn(),
     setCategoryPokemon: vi.fn(),
     getSetting: vi.fn(),
@@ -74,9 +79,20 @@ function broadcast(event: string, payload: unknown = null) {
   (eventHandlers.get(event) ?? []).forEach((cb) => cb({ event, id: 0, payload }));
 }
 
-const petWindowMock = { setSize: vi.fn(async () => {}), startDragging: vi.fn() };
+const petWindowMock = {
+  setSize: vi.fn(async () => {}),
+  startDragging: vi.fn(),
+  outerPosition: vi.fn(async () => ({ x: 100, y: 100 })),
+  outerSize: vi.fn(async () => ({ width: 300, height: 330 })),
+};
 vi.mock("@tauri-apps/api/window", () => ({
   getCurrentWindow: () => petWindowMock,
+  currentMonitor: vi.fn(async () => ({
+    scaleFactor: 1,
+    position: { x: 0, y: 0 },
+    size: { width: 1440, height: 900 },
+    workArea: { position: { x: 0, y: 0 }, size: { width: 1440, height: 900 } },
+  })),
 }));
 
 const categories = [

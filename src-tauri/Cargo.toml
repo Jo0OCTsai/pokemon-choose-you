@@ -44,6 +44,8 @@ thiserror = "2"
 keyring = "4"
 # 派发会话续接：预生成 claude --session-id 用的 UUID v4
 uuid = { version = "1", features = ["v4"] }
+# 输入响应（F1）：全局键鼠活动强度监听（回调只递增计数器，不取内容）；macOS 需辅助功能权限
+rdev = "0.5"
 
 [dev-dependencies]
 # 仅测试构建启用 mock 运行时，不影响正常编译与发布产物

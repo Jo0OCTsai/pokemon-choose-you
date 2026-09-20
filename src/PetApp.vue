@@ -1,7 +1,7 @@
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted, ref } from "vue";
+import { computed, nextTick, onMounted, onUnmounted, ref, watch } from "vue";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
-import { getCurrentWindow } from "@tauri-apps/api/window";
+import { currentMonitor, getCurrentWindow } from "@tauri-apps/api/window";
 import { api } from "./api";
 import { EVENTS } from "./events";
 import type { Task } from "./types";
@@ -13,6 +13,9 @@ import { usePomodoro } from "./composables/usePomodoro";
 import { usePetDrag } from "./composables/usePetDrag";
 import { usePetClickThrough } from "./composables/usePetClickThrough";
 import { motionReduced, usePetIdle, type PetMicroAction } from "./composables/usePetIdle";
+import { shouldPerch } from "./composables/usePerch";
+import { lineDedupKey, pickTimeLine } from "./composables/useTimeLines";
+import { useInputResponse } from "./composables/useInputResponse";
 import { openContextMenu, type ContextMenuItem } from "./contextMenu";
 import PokemonSprite from "./components/PokemonSprite.vue";
 import DexContextMenu from "./components/DexContextMenu.vue";
@@ -121,17 +124,24 @@ async function doneTask() {
   const pokemon = currentCat.value?.pokemon ?? "";
   pomo.stop();
   sceneBusy.value = true; // 先占住防连点，演出接管后统一释放
-  const before = (await api.dexStats().catch(() => null))?.caught;
+  const [statsBefore, streakBefore] = await Promise.all([
+    api.dexStats().catch(() => null),
+    api.taskStreak().catch(() => null),
+  ]);
   await api.updateTask({ id: task.id, status: "done" });
   await refreshCurrent();
-  const after = (await api.dexStats().catch(() => null))?.caught;
+  const [statsAfter, streakAfter] = await Promise.all([
+    api.dexStats().catch(() => null),
+    api.taskStreak().catch(() => null),
+  ]);
   const openCount = await api
     .listTasks("open")
     .then((l) => l.length)
     .catch(() => 1);
-  const milestone = milestoneCrossed(before, after);
+  const milestone = milestoneCrossed(statsBefore?.caught, statsAfter?.caught);
   const allDone = !current.value && openCount === 0;
-  await runCatchScene({ pokemon, title: task.title, milestone, allDone });
+  const streak = streakToShow(milestone, streakBefore, streakAfter);
+  await runCatchScene({ pokemon, title: task.title, milestone, allDone, streak });
 }
 
 /** 里程碑档位：累计捕捉跨过任一阈值时返回该阈值 */
@@ -140,6 +150,22 @@ function milestoneCrossed(before: number | null | undefined, after: number | nul
   for (const m of [10, 50, 100, 200, 500, 1000]) {
     if (before < m && after >= m) return m;
   }
+  return null;
+}
+
+/** 语音（F5）：只接四类「郑重时刻」，默认静音；失败静默（锦上添花不阻塞气泡） */
+function speak(text: string) {
+  if (settings.bool("pet_voice")) void api.petSpeak(text).catch(() => {});
+}
+
+/** 连胜演出触发（F7）：连胜 ≥3 天且这次捕捉是今天的第一只（里程碑优先，互不叠加） */
+function streakToShow(
+  milestone: number | null,
+  before: { days: number; todayCount: number } | null,
+  after: { days: number; todayCount: number } | null,
+): number | null {
+  if (milestone != null || !before || !after) return null;
+  if (before.todayCount === 0 && after.todayCount > 0 && after.days >= 3) return after.days;
   return null;
 }
 
@@ -196,9 +222,8 @@ async function toggleQuick() {
   } else {
     say(randomQuote(petSprite.value));
   }
-  // 展开时把窗口调高，收起恢复（透明窗口，多余高度不可见）
-  const { LogicalSize } = await import("@tauri-apps/api/dpi");
-  await petWindow.setSize(new LogicalSize(300, quickOpen.value ? 590 : 330));
+  // 展开时把窗口调高，收起恢复（透明窗口，多余高度不可见；快捷屏优先于对话态）
+  await resizePetWindow();
 }
 async function quickStart(id: number) {
   const taskTitle = candidates.value.find((x) => x.id === id)?.title;
@@ -292,6 +317,7 @@ let pressPt: { x: number; y: number } | null = null;
 function onStageDragStart(e: MouseEvent) {
   markActivity();
   pressPt = { x: e.screenX, y: e.screenY };
+  perched.value = false; // 拎起来即离开栖息姿态
   onDragStart(e);
 }
 function onStageDragMove(e: MouseEvent) {
@@ -310,6 +336,28 @@ function onStageDragEnd() {
     setTimeout(() => {
       if (dragPhys.value === "release") dragPhys.value = null;
     }, 420);
+    // 松手落定后判栖息：窗口底边进了任务栏 / Dock 一带（≤72px）就坐下
+    setTimeout(() => void checkPerch(false), 480);
+  }
+}
+
+// ---- 屏幕边缘栖息（F4）：底缘一带切坐/趴（动画幅度减半），拖离自动恢复 ----
+const perched = ref(false);
+async function checkPerch(announce: boolean) {
+  try {
+    const mon = await currentMonitor();
+    if (!mon) return;
+    const [pos, size] = await Promise.all([petWindow.outerPosition(), petWindow.outerSize()]);
+    const scale = mon.scaleFactor || 1;
+    const wasPerched = perched.value;
+    perched.value = shouldPerch(pos.y + size.height, mon.workArea.position.y + mon.workArea.size.height, 72 * scale);
+    if (perched.value && !wasPerched) {
+      runMicro("sit");
+      if (announce) say(t("pet.perched"), true, true);
+      else setTimeout(() => say(t("pet.perched"), true, true), 600);
+    }
+  } catch {
+    /* 非桌面 / 测试环境静默 */
   }
 }
 
@@ -321,8 +369,17 @@ function onStagePointerDownCapture() {
 // ---- 生命感调度器：idle 低频微动作（PET_INTERACTION_DESIGN §3.4） ----
 const microCls = ref<string | null>(null);
 let microTimer: ReturnType<typeof setTimeout> | null = null;
-const MICRO_DUR: Record<string, number> = { blink: 240, look: 1000, flip: 1200, yawn: 900, wake: 650, hop: 550 };
-function runMicro(action: PetMicroAction | "wake" | "hop") {
+const MICRO_DUR: Record<string, number> = {
+  blink: 240,
+  look: 1000,
+  flip: 1200,
+  yawn: 900,
+  wake: 650,
+  hop: 550,
+  earwig: 120, // 输入响应微抖（F1）
+  sit: 420, // 落座挤压回弹（F4）
+};
+function runMicro(action: PetMicroAction | "wake" | "hop" | "earwig" | "sit") {
   if (sceneBusy.value || microCls.value !== null || dragPhys.value !== null || petState.value === "asleep") return;
   microCls.value = `ma-${action}`;
   if (microTimer) clearTimeout(microTimer);
@@ -346,6 +403,175 @@ const idleCtl = usePetIdle({
   trigger: (a) => runMicro(a),
 });
 
+// ---- 输入响应（F1）：消费全局活动强度事件（Rust 侧只发每秒计数） ----
+const hopScale = ref<number | null>(null);
+const irCtl = useInputResponse({
+  isEnabled: () => settings.bool("pet_input_response"),
+  isWorking: () => petState.value === "working" || petState.value === "urgent",
+  isWorkingCoupled: () => settings.bool("pet_input_response_working"),
+  isBusy: () =>
+    sceneBusy.value ||
+    microCls.value !== null ||
+    dragPhys.value !== null ||
+    petted.value ||
+    quickOpen.value ||
+    switching.value ||
+    chatOpen.value ||
+    petState.value === "asleep",
+  onWiggle: () => runMicro("earwig"),
+  onNotice: () => runMicro("look"),
+  onDoze: () => runMicro(Math.random() < 0.5 ? "yawn" : "look"),
+  onHopScale: (s) => (hopScale.value = s),
+});
+
+// ---- 时刻台词（F3）：整点/深夜/周五晚/精灵生日，每类每周期只说一次 ----
+let metAt = Date.now();
+try {
+  const first = localStorage.getItem("pet.metOn");
+  if (first) metAt = Number(first) || Date.now();
+  else localStorage.setItem("pet.metOn", String(Date.now()));
+} catch {
+  /* 存储不可用时跳过生日台词 */
+}
+const birthday = (() => {
+  const d = new Date(metAt);
+  return Number.isFinite(metAt) && metAt > 0 ? { month: d.getMonth() + 1, day: d.getDate() } : null;
+})();
+let lineTimer: ReturnType<typeof setInterval> | null = null;
+function checkTimeLines() {
+  if (
+    petState.value === "asleep" ||
+    petState.value === "urgent" ||
+    chatOpen.value ||
+    sceneBusy.value ||
+    quickOpen.value ||
+    switching.value ||
+    reminderTask.value ||
+    dragPhys.value !== null
+  )
+    return;
+  const now = new Date();
+  const key = pickTimeLine(now, { birthday });
+  if (!key) return;
+  const dk = lineDedupKey(key, now);
+  try {
+    if (localStorage.getItem(dk) !== null) return;
+    localStorage.setItem(dk, "1");
+  } catch {
+    return;
+  }
+  if (key === "birthday") {
+    const days = Math.max(1, Math.floor((Date.now() - metAt) / 86_400_000));
+    const line = t("pet.birthdayLine", { n: days });
+    say(line, false, true);
+    runMicro("hop");
+    burstStars(3);
+    speak(line);
+  } else if (key === "night") {
+    say(t("pet.nightLine"), false, true);
+  } else if (key === "friday") {
+    say(t("pet.fridayLine"), false, true);
+  } else {
+    say(t("pet.hourLine"), false, true);
+  }
+}
+
+// ---- 陪跑精灵（F6）：专注满 25 分钟一位客人来旁陪坐（默认关；零台词零闪烁零数值） ----
+const mate = ref<null | { sprite: string; phase: "walk" | "sit" | "wave" }>(null);
+let mateShownThisSession = false;
+const focusElapsedSec = computed(() =>
+  pomo.running.value && pomo.phase.value === "focus" ? pomo.totalSec.value - pomo.remainSec.value : 0,
+);
+watch(focusElapsedSec, (s) => {
+  if (mate.value || mateShownThisSession || s < 25 * 60) return;
+  if (!settings.bool("pet_mate") || petState.value !== "working") return;
+  mateShownThisSession = true; // 一次会话最多一位、只出现一次
+  void inviteMate();
+});
+watch(
+  () => pomo.running.value,
+  (run, was) => {
+    if (!run && was) mateShownThisSession = false; // 会话结束重置，下一场专注可再请
+  },
+);
+async function inviteMate() {
+  let pool: string[] = [];
+  try {
+    pool = (await api.dexStats()).sprites ?? [];
+  } catch {
+    /* 图鉴不可用 → 回退伊布 */
+  }
+  const exclude = new Set([petSprite.value, settings.sget("main_pokemon")]);
+  const candidates = pool.filter((s) => s && !exclude.has(s));
+  const sprite = candidates.length ? candidates[Math.floor(Math.random() * candidates.length)] : "eevee";
+  mate.value = { sprite, phase: motionReduced() ? "sit" : "walk" };
+  if (!motionReduced()) {
+    setTimeout(() => {
+      if (mate.value?.phase === "walk") mate.value.phase = "sit";
+    }, 650);
+  }
+}
+function onMateLeave() {
+  if (!mate.value || mate.value.phase === "wave") return;
+  mate.value.phase = "wave";
+  setTimeout(() => (mate.value = null), motionReduced() ? 0 : 620);
+}
+
+// ---- AI 对话（F2）：右键菜单入口（配了 agent 才出现），对话框原位展开 ≤4 行 ----
+const chatOpen = ref(false);
+const chatLog = ref<{ role: "user" | "bot"; text: string }[]>([]);
+const chatThinking = ref(false);
+const chatInput = ref("");
+const chatInputRef = ref<HTMLInputElement | null>(null);
+const agentConfigured = computed(() => {
+  try {
+    return (JSON.parse(settings.sget("ai_agents") || "[]") as unknown[]).length > 0;
+  } catch {
+    return false;
+  }
+});
+function pushChat(role: "user" | "bot", text: string) {
+  chatLog.value.push({ role, text });
+  if (chatLog.value.length > 3) chatLog.value.shift();
+}
+async function resizePetWindow() {
+  const { LogicalSize } = await import("@tauri-apps/api/dpi");
+  const h = quickOpen.value ? 590 : chatOpen.value ? 480 : 330;
+  await petWindow.setSize(new LogicalSize(300, h));
+}
+function openChat() {
+  if (sceneBusy.value || chatOpen.value) return;
+  chatOpen.value = true;
+  void resizePetWindow();
+  if (!chatLog.value.length) pushChat("bot", t("pet.chatGreet"));
+  void nextTick(() => chatInputRef.value?.focus());
+}
+function closeChat() {
+  chatOpen.value = false;
+  void resizePetWindow();
+  bubbleText();
+}
+async function sendChat() {
+  const q = chatInput.value.trim();
+  if (!q || chatThinking.value) return;
+  chatInput.value = "";
+  pushChat("user", q);
+  chatThinking.value = true;
+  try {
+    const answer = await api.petChat(q);
+    pushChat("bot", answer);
+    bubbleNew.value = false; // 回答到达：▼ 闪三下（占位回归规则）
+    requestAnimationFrame(() => {
+      bubbleNew.value = true;
+    });
+    speak(answer);
+  } catch {
+    pushChat("bot", t("pet.chatFail"));
+  } finally {
+    chatThinking.value = false;
+  }
+}
+
 /** 精灵类：微动作/演出期间替换状态循环动画（JS 层互斥，避免 CSS 优先级缠斗） */
 const spriteClass = computed(() => {
   const cls: Record<string, boolean> = {
@@ -355,10 +581,18 @@ const spriteClass = computed(() => {
     released: dragPhys.value === "release",
     "catch-prep": catchPhase.value === "prep",
     "catch-hide": catchPhase.value === "hide",
+    perched: perched.value && dragPhys.value === null,
+    listening: chatOpen.value,
   };
   if (microCls.value) cls[microCls.value] = true;
   else cls[petState.value] = true;
   return cls;
+});
+
+/** working 态输入响应的节奏耦合（F1）：hop 时长轻缩放（≤+10%），非专注/焦急态恢复默认 */
+const hopStyle = computed(() => {
+  if (hopScale.value == null || petState.value !== "working" || anxious.value || microCls.value !== null) return {};
+  return { animationDuration: `${(1.6 * hopScale.value).toFixed(3)}s` };
 });
 
 // ---- 睡觉与醒来（P3 简化版：无进行中任务且窗口 5 分钟无交互 → 打盹） ----
@@ -388,10 +622,18 @@ function checkSleep() {
   bubble.value = t("pet.asleepHint");
 }
 
-// ---- 捕捉演出（juice 三段式：预备 → 掷球 → 三摇 → 星星，≤1.5s 可跳过） ----
+/** keydown 统一入口：算作「还醒着」+ Esc 收起对话 */
+function onWindowKeydown(e: KeyboardEvent) {
+  markActivity();
+  if (e.key === "Escape" && chatOpen.value) closeChat();
+}
+
+// ---- 捕捉演出（juice 三段式：预备 → 掷球 → 三摇 → 星星，≤1.5s 可跳过；连胜为双球变体 ≤2s） ----
 const sceneBusy = ref(false);
 const catchPhase = ref<null | "prep" | "hide">(null);
-const catchBall = ref<null | "fly" | "land" | "shake">(null);
+/** 精灵球编队：普通捕捉单球居中；连胜双球左右交替三摇（F7） */
+const catchBalls = ref<{ phase: "fly" | "land" | "shake"; side: -1 | 0 | 1 }[]>([]);
+const streakScene = ref(false);
 let skipScene = false;
 const spriteHitRef = ref<HTMLElement | null>(null);
 const waitMs = (ms: number) => new Promise<void>((r) => setTimeout(r, motionReduced() ? 0 : ms));
@@ -412,43 +654,81 @@ function burstStars(n: number) {
   }
 }
 
-async function runCatchScene(opts: { pokemon: string; title: string; milestone: number | null; allDone: boolean }) {
+async function runCatchScene(opts: {
+  pokemon: string;
+  title: string;
+  milestone: number | null;
+  allDone: boolean;
+  streak: number | null;
+}) {
   sceneBusy.value = true;
   skipScene = false;
+  streakScene.value = opts.streak != null;
   catchPhase.value = "prep";
   say(t("pet.throwing", { p: opts.pokemon }), true, true);
   await waitMs(120);
+  const two = opts.streak != null;
   if (!skipScene) {
-    catchBall.value = "fly";
+    catchBalls.value = two
+      ? [
+          { phase: "fly", side: -1 },
+          { phase: "fly", side: 1 },
+        ]
+      : [{ phase: "fly", side: 0 }];
     catchPhase.value = "hide";
   }
   await waitMs(300);
-  if (!skipScene) catchBall.value = "land";
+  if (!skipScene) catchBalls.value.forEach((b) => (b.phase = "land"));
   await waitMs(350);
-  if (!skipScene) catchBall.value = "shake";
-  await waitMs(600);
+  if (!skipScene) {
+    if (two) {
+      // 双球交替三摇（各 350ms × 2 轮；唯一允许超 1.5s 的演出，上限 2s）
+      for (let round = 0; round < 2; round++) {
+        for (const side of [-1, 1] as const) {
+          const ball = catchBalls.value.find((b) => b.side === side);
+          if (ball) ball.phase = "shake";
+          await waitMs(350);
+          if (ball) ball.phase = "land";
+          if (skipScene) break;
+        }
+        if (skipScene) break;
+      }
+    } else {
+      catchBalls.value[0].phase = "shake";
+      await waitMs(600);
+    }
+  }
   const finish = () => {
-    catchBall.value = null;
+    catchBalls.value = [];
     catchPhase.value = null;
     sceneBusy.value = false;
+    streakScene.value = false;
   };
   if (skipScene) {
     finish();
   } else {
-    burstStars(opts.milestone ? 12 : 6);
+    burstStars(two ? 14 : opts.milestone ? 12 : 6);
+    if (two && !motionReduced()) setTimeout(() => burstStars(6), 150);
     finish();
   }
   if (opts.allDone) {
     say(t("pet.allDone", { p: opts.pokemon }), false, true);
     runMicro("hop");
+    speak(t("pet.allDone", { p: opts.pokemon }));
+    // 收工即送客：陪跑的客人跟着庆祝后离场（一次会话一位一次的尾声）
+    if (mate.value) setTimeout(() => onMateLeave(), 700);
   } else if (opts.milestone) {
     say(t("pet.milestone", { p: opts.pokemon, n: opts.milestone }), false, true);
+    speak(t("pet.milestone", { p: opts.pokemon, n: opts.milestone }));
+  } else if (opts.streak) {
+    say(t("pet.streakN", { n: opts.streak }), false, true);
+    speak(t("pet.streakN", { n: opts.streak }));
   } else {
     say(t("pet.catchOk", { p: opts.pokemon, t: opts.title }), false, true);
   }
 }
 
-// ---- 桌宠右键菜单：低频操作收纳处（⇄ 切换自药丸移入） ----
+// ---- 桌宠右键菜单：低频操作收纳处（⇄ 切换自药丸移入；💬 对话跟随 agent 配置） ----
 function onPetContextMenu(e: MouseEvent) {
   e.preventDefault();
   const items: ContextMenuItem[] = [
@@ -459,6 +739,9 @@ function onPetContextMenu(e: MouseEvent) {
       action: () => void toggleQuick(),
     },
   ];
+  if (agentConfigured.value && !quickOpen.value) {
+    items.push({ key: "chat", label: t("pet.menuChat"), action: openChat });
+  }
   if (current.value) {
     items.push({ key: "switch", label: t("pet.menuSwitch"), action: () => void openSwitcher() });
     items.push({ key: "pause", label: t("pet.menuPause"), action: () => void pauseTask() });
@@ -541,11 +824,18 @@ onMounted(async () => {
   await refreshCurrent();
   greetOnce();
   idleCtl.start();
-  // 睡眠检测：窗口内任何交互都算「还醒着」
+  if (settings.bool("pet_input_response")) irCtl.start();
+  setTimeout(() => void checkPerch(false), 600); // 启动时窗口记忆位置可能就在底缘
+  lineTimer = setInterval(checkTimeLines, 30_000);
+  setTimeout(checkTimeLines, 2500); // 问候之后不久补一次时刻检查
+  // 睡眠检测：窗口内任何交互都算「还醒着」；Esc 收起对话
   window.addEventListener("pointermove", markActivity, { passive: true });
   window.addEventListener("pointerdown", markActivity, { passive: true });
-  window.addEventListener("keydown", markActivity);
+  window.addEventListener("keydown", onWindowKeydown);
   sleepTimer = setInterval(checkSleep, 15_000);
+
+  // 输入响应：后端每秒喂一次活动强度（只计数不取内容）
+  unlisteners.push(await listen<{ cps: number }>(EVENTS.inputActivity, (e) => irCtl.feed(e.payload?.cps ?? 0)));
 
   unlisteners.push(
     await listen<{ id: number; title: string; urgent: boolean; pokemon?: string | null }>(EVENTS.taskReminder, (e) => {
@@ -580,6 +870,11 @@ onMounted(async () => {
         if (!pomo.enabled()) {
           pomo.stop();
         }
+        if (settings.bool("pet_input_response")) {
+          irCtl.start();
+        } else {
+          irCtl.stop();
+        }
         bubbleText();
       }, 200);
     }),
@@ -591,10 +886,12 @@ onUnmounted(() => {
   if (microTimer) clearTimeout(microTimer);
   if (holdTimer) clearTimeout(holdTimer);
   if (sleepTimer) clearInterval(sleepTimer);
+  if (lineTimer) clearInterval(lineTimer);
   window.removeEventListener("pointermove", markActivity);
   window.removeEventListener("pointerdown", markActivity);
-  window.removeEventListener("keydown", markActivity);
+  window.removeEventListener("keydown", onWindowKeydown);
   idleCtl.stop();
+  irCtl.stop();
   disposeClickThrough?.();
 });
 </script>
@@ -633,18 +930,79 @@ onUnmounted(() => {
           :stroke-dashoffset="RING_C * (1 - ringPct)"
         />
       </svg>
-      <PokemonSprite class="pet-sprite" :class="spriteClass" :sprite="petSprite" draggable="false" />
+      <PokemonSprite class="pet-sprite" :class="spriteClass" :style="hopStyle" :sprite="petSprite" draggable="false" />
       <!-- 睡觉 zzz -->
       <div v-if="petState === 'asleep'" class="zzz" aria-hidden="true"><i>z</i><i>z</i><i>z</i></div>
-      <!-- 捕捉演出：精灵球（抛物线由 wrap X + ball Y 双层组合） -->
-      <div v-if="catchBall" class="ball-wrap" :class="catchBall" aria-hidden="true"><div class="ball"></div></div>
+      <!-- 捕捉演出：精灵球（抛物线由 wrap X + ball Y 双层组合；连胜为双球左右交替） -->
+      <div
+        v-for="(b, i) in catchBalls"
+        :key="i"
+        class="ball-wrap"
+        :class="[b.phase, { 'side-l': b.side < 0, 'side-r': b.side > 0, fast: streakScene }]"
+        aria-hidden="true"
+      >
+        <div class="ball"></div>
+      </div>
+    </div>
+
+    <!-- 陪跑精灵（F6）：客人在精灵旁坐下安静陪伴；点它挥手离开 -->
+    <div
+      v-if="mate"
+      class="pet-mate"
+      :class="mate.phase"
+      :title="t('pet.mateHint')"
+      aria-hidden="true"
+      @pointerdown.stop.prevent="onMateLeave"
+    >
+      <PokemonSprite :sprite="mate.sprite" />
     </div>
 
     <!-- 全宽对话框在下（cat-tag 已按信息极简裁决移除：分类由气泡 {p} 与精灵图承载） -->
-    <div class="dialog" :class="{ alert: petState === 'urgent', 'is-new': bubbleNew }">
-      <div class="dialog-inner">
+    <div class="dialog" :class="{ alert: petState === 'urgent' && !chatOpen, 'is-new': bubbleNew && !chatOpen }">
+      <div v-if="!chatOpen" class="dialog-inner">
         <span class="dialog-text">{{ bubble }}</span>
         <span class="dialog-next">▼</span>
+      </div>
+      <!-- 对话态（F2）：原位展开 ≤4 行——最近回答 + 思考点 + 输入行；Esc/✕ 收起 -->
+      <div v-else class="chat-box">
+        <div class="chat-log">
+          <div v-for="(m, i) in chatLog" :key="i" class="chat-msg" :class="m.role">{{ m.text }}</div>
+          <div v-if="chatThinking" class="chat-msg bot thinking"><i></i><i></i><i></i></div>
+        </div>
+        <div class="chat-chips">
+          <button
+            class="chat-chip"
+            :disabled="chatThinking"
+            @click="
+              chatInput = t('pet.chatQ1');
+              sendChat();
+            "
+          >
+            {{ t("pet.chatQ1") }}
+          </button>
+          <button
+            class="chat-chip"
+            :disabled="chatThinking"
+            @click="
+              chatInput = t('pet.chatQ2');
+              sendChat();
+            "
+          >
+            {{ t("pet.chatQ2") }}
+          </button>
+        </div>
+        <div class="chat-row">
+          <input
+            ref="chatInputRef"
+            v-model="chatInput"
+            class="chat-input"
+            :placeholder="t('pet.chatPh')"
+            :disabled="chatThinking"
+            @keydown.enter.prevent="sendChat"
+          />
+          <button class="pomo-btn" :title="t('pet.chatSend')" :disabled="chatThinking" @click="sendChat">▶</button>
+          <button class="pomo-btn" :title="t('pet.chatClose')" @click="closeChat">✕</button>
+        </div>
       </div>
     </div>
 
@@ -886,6 +1244,74 @@ onUnmounted(() => {
 .pet-sprite.anxious.working {
   animation: pk-hop 0.6s var(--e-sway) infinite;
 }
+/* 栖息姿态（F4）：重心下沉、幅度减半——它坐着（可叠加 idle/working/paused） */
+.pet-sprite.perched {
+  translate: 0 4px;
+}
+.pet-sprite.perched.idle {
+  animation: pk-sit-breathe 4.2s var(--e-sleep) infinite;
+}
+.pet-sprite.perched.working {
+  animation: pk-sit-bounce 1.6s var(--e-sway) infinite;
+}
+.pet-sprite.perched.paused {
+  filter: grayscale(0.6);
+  animation: pk-sit-breathe 5s var(--e-sleep) infinite;
+}
+@keyframes pk-sit-breathe {
+  0%,
+  100% {
+    transform: scale(1, 0.92);
+  }
+  50% {
+    transform: scale(1.008, 0.935);
+  }
+}
+@keyframes pk-sit-bounce {
+  0%,
+  100% {
+    transform: scale(1, 0.92) translateY(0);
+  }
+  50% {
+    transform: scale(1, 0.92) translateY(-3px);
+  }
+}
+/* 输入响应微抖（F1）：±2°/120ms 的「跟着你打字」 */
+.pet-sprite.ma-earwig {
+  animation: pk-earwig 120ms linear;
+}
+@keyframes pk-earwig {
+  0%,
+  100% {
+    transform: rotate(0);
+  }
+  30% {
+    transform: rotate(-2deg);
+  }
+  60% {
+    transform: rotate(2deg);
+  }
+}
+/* 落座（F4）：挤压回弹一次 */
+.pet-sprite.ma-sit {
+  animation: pk-sit-down 420ms var(--e-pop);
+}
+@keyframes pk-sit-down {
+  0% {
+    transform: scale(1.06, 0.82) translateY(4px);
+  }
+  45% {
+    transform: scale(0.95, 1) translateY(-3px);
+  }
+  100% {
+    transform: scale(1, 0.92);
+  }
+}
+/* 对话态（F2）：侧耳倾听 */
+.pet-sprite.listening {
+  animation: none;
+  transform: rotate(2deg);
+}
 
 /* 睡觉 zzz */
 .zzz {
@@ -973,6 +1399,16 @@ onUnmounted(() => {
 }
 .ball-wrap.shake .ball {
   animation: pk-ball-shake var(--t-scene) var(--e-sway);
+}
+/* 连胜双球（F7）：左右站位 + 交替快摇 350ms */
+.ball-wrap.side-l {
+  margin-left: -43px;
+}
+.ball-wrap.side-r {
+  margin-left: 9px;
+}
+.ball-wrap.shake.fast .ball {
+  animation-duration: 350ms;
 }
 
 /* 捕捉星星粒子 */
@@ -1174,6 +1610,154 @@ onUnmounted(() => {
   min-height: 32px;
   font-size: 13px;
   padding: 4px 12px;
+}
+
+/* 陪跑精灵（F6）：客人在主精灵左侧，走入→坐下呼吸→挥手离开；零台词零闪烁 */
+.pet-mate {
+  position: absolute;
+  left: 2px;
+  top: 16px;
+  width: 84px;
+  height: 84px;
+  cursor: pointer;
+}
+.pet-mate .pk-sprite {
+  width: 100%;
+  height: 100%;
+}
+.pet-mate.walk .pk-sprite {
+  animation: pk-mate-walk 650ms var(--e-snap);
+}
+.pet-mate.sit .pk-sprite {
+  animation: pk-sit-breathe 4.2s var(--e-sleep) infinite;
+}
+.pet-mate.wave .pk-sprite {
+  animation: pk-mate-wave 600ms var(--e-sway);
+}
+@keyframes pk-mate-walk {
+  0% {
+    transform: translateX(-90px) translateY(0);
+    opacity: 0;
+  }
+  25% {
+    opacity: 1;
+  }
+  50% {
+    transform: translateX(-45px) translateY(-5px);
+  }
+  100% {
+    transform: translateX(0) translateY(0);
+  }
+}
+@keyframes pk-mate-wave {
+  0%,
+  100% {
+    transform: scaleX(1);
+  }
+  50% {
+    transform: scaleX(-1);
+  }
+}
+
+/* 对话态（F2）：对话框原位展开 ≤4 行（历史 ≤3 条 + 输入行） */
+.chat-box {
+  border: 2px solid var(--dex-navy);
+  border-radius: 4px;
+  margin: 3px;
+  padding: 7px;
+}
+.chat-log {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  min-height: 44px;
+  max-height: 118px;
+  overflow: hidden;
+}
+.chat-msg {
+  font-size: 12px;
+  line-height: 1.55;
+  padding: 4px 8px;
+  border: 2px solid var(--dex-navy);
+  border-radius: 8px;
+  max-width: 94%;
+  overflow-wrap: anywhere;
+}
+.chat-msg.user {
+  align-self: flex-end;
+  background: var(--poke-yellow);
+  font-weight: 700;
+}
+.chat-msg.bot {
+  align-self: flex-start;
+  background: #fff;
+  font-weight: 500;
+}
+.chat-msg.thinking {
+  display: inline-flex;
+  gap: 4px;
+  align-items: center;
+  background: #f2f2ec;
+}
+.chat-msg.thinking i {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--ink-faint, #9a937f);
+  animation: pk-tdot 1s var(--e-sway) infinite;
+}
+.chat-msg.thinking i:nth-child(2) {
+  animation-delay: 0.2s;
+}
+.chat-msg.thinking i:nth-child(3) {
+  animation-delay: 0.4s;
+}
+@keyframes pk-tdot {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-4px);
+  }
+}
+.chat-chips {
+  display: flex;
+  gap: 5px;
+  margin: 6px 0;
+}
+.chat-chip {
+  font-size: 10.5px;
+  font-weight: 700;
+  border: 2px solid var(--dex-navy);
+  border-radius: 6px;
+  background: #fff;
+  padding: 3px 7px;
+  cursor: pointer;
+  font-family: inherit;
+}
+.chat-chip:hover {
+  background: var(--hover, #fff3c4);
+}
+.chat-chip:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+.chat-row {
+  display: flex;
+  gap: 5px;
+}
+.chat-input {
+  flex: 1;
+  min-width: 0;
+  border: 2px solid var(--dex-navy);
+  border-radius: 4px;
+  padding: 6px 7px;
+  font-size: 12px;
+  font-family: inherit;
+}
+.chat-input:focus {
+  outline: 2px solid var(--poke-yellow);
 }
 /* 番茄剩余时间色环 */
 .pomo-ring {

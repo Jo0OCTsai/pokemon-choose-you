@@ -60,6 +60,8 @@ const TASK_COLS: &str = "id, title, note, category_id, status, priority, due_at,
 pub struct DexStats {
     pub caught: i64,
     pub escaped: i64,
+    /// 已捕捉任务出现过的分类精灵 key 去重（陪跑精灵 F6 的候选池；空则前端回退伊布）
+    pub sprites: Vec<String>,
 }
 
 #[tauri::command]
@@ -70,7 +72,18 @@ pub fn dex_stats(db: State<Db>) -> AppResult<DexStats> {
         [],
         |r| Ok((r.get(0)?, r.get(1)?)),
     )?;
-    Ok(DexStats { caught, escaped })
+    let mut stmt = conn.prepare(
+        "SELECT DISTINCT c.sprite FROM tasks t JOIN categories c ON c.id = t.category_id
+         WHERE t.status='done' ORDER BY c.sprite LIMIT 40",
+    )?;
+    let sprites = stmt
+        .query_map([], |r| r.get::<_, String>(0))?
+        .collect::<Result<Vec<_>, _>>()?;
+    Ok(DexStats {
+        caught,
+        escaped,
+        sprites,
+    })
 }
 
 // ---- 操作日志（task_logs）：所有状态与属性变更的审计记录 ----
