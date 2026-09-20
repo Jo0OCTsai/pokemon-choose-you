@@ -259,9 +259,11 @@ export default {
     petInputWorking: "Respond while focusing",
     petInputWorkingDesc: "Hop rhythm follows typing pace while focusing (≤+10%)",
     petInputPerm:
-      "macOS needs Accessibility permission: System Settings → Privacy & Security → Accessibility, enable this app. Once granted, return to this page and it takes effect immediately (no restart). In dev mode (tauri dev) every rebuild changes the binary's signature and invalidates old entries — remove stale items (−), then re-add the current dev binary (target/debug/pokemon-choose-you)",
+      'macOS needs Accessibility permission: click "Grant" to open System Settings → Privacy & Security → Accessibility, then drag the binary at the path below into the list (or use + and ⌘⇧G to paste the path) and enable it. Return to this page and it takes effect immediately — no restart. Remove stale entries with the same name first (re-ticking an old entry does nothing); in dev mode every rebuild changes the signature, so re-add after rebuilding',
     petInputPermToast:
-      "Settings saved. Input response still needs the Accessibility permission — enable this app, then come back (no restart needed)",
+      'Settings saved. Input response still needs the Accessibility permission — use the "Grant" button under the toggle in the Focus tab',
+    petInputGrant: "Grant",
+    petInputExeCopy: "Click to copy path",
     petInputGranted: "Accessibility granted — input response is now active",
     petVoice: "Pet voice",
     petVoiceDesc: "Speaks one line for milestones / wrap-up / birthday / chat replies (system TTS, muted by default)",

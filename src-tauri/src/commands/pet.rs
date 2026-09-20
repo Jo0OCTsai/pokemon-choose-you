@@ -15,9 +15,22 @@ pub fn pet_input_permission() -> bool {
     crate::input::ax_trusted()
 }
 
+/// 当前进程可执行文件路径（授权指引展示：辅助功能列表里要勾选的就是它）
+#[tauri::command]
+pub fn pet_input_exe() -> String {
+    crate::input::exe_path()
+}
+
+/// 一键授权引导：Finder 定位二进制 + 直达 系统设置→辅助功能 面板。
+/// 这版 macOS 禁止了 AX 官方弹窗，只能直达设置；勾选后回到本页自动生效。
+#[tauri::command]
+pub fn pet_input_grant() {
+    crate::input::open_grant_assist();
+}
+
 /// 同步输入响应开关到后端监听线程。
-/// 返回 "ok" 或 "permission"（macOS 未授权：弹系统授权对话框，前端保留设置并
-/// 在授权后免重启重试——窗口聚焦时复查；开发模式每次重编译换签名需重新勾选）
+/// 返回 "ok" 或 "permission"（macOS 未授权：前端保留设置并指路「去授权」，
+/// 窗口聚焦时复查——授权后免重启；dev 模式每次重编译换签名需重新勾选）
 #[tauri::command]
 pub fn pet_input_set_enabled<R: tauri::Runtime>(
     app: tauri::AppHandle<R>,
@@ -28,9 +41,6 @@ pub fn pet_input_set_enabled<R: tauri::Runtime>(
         return Ok("ok");
     }
     if !crate::input::ax_trusted() {
-        // 用户显式开启才走到这：弹官方对话框引导勾选「本应用」，而不是让用户
-        // 自己在系统设置里找路径（容易加错对象/勾到旧构建的残留条目）
-        crate::input::ax_trusted_prompt();
         return Ok("permission");
     }
     crate::input::set_enabled(&app, true);

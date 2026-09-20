@@ -20,61 +20,13 @@ static COUNTER: AtomicU64 = AtomicU64::new(0);
 // 输入监听在 macOS 上的前提，未授权时 rdev 收不到事件。其他平台恒 true。
 #[cfg(target_os = "macos")]
 mod ax {
-    use std::ffi::c_void;
-    // CF 类型走不透明指针（不引 core-foundation 依赖，只用到 C 符号）
-    type CFTypeRef = *const c_void;
-    pub type CFStringRef = CFTypeRef;
-    type CFDictionaryRef = CFTypeRef;
-    type CFAllocatorRef = CFTypeRef;
-    type CFIndex = isize;
-
     #[link(name = "ApplicationServices", kind = "framework")]
     extern "C" {
         fn AXIsProcessTrusted() -> u8;
-        fn AXIsProcessTrustedWithOptions(options: CFDictionaryRef) -> u8;
-        static kAXTrustedCheckOptionPrompt: CFStringRef;
-    }
-
-    #[link(name = "CoreFoundation", kind = "framework")]
-    extern "C" {
-        fn CFDictionaryCreate(
-            allocator: CFAllocatorRef,
-            keys: *const CFTypeRef,
-            values: *const CFTypeRef,
-            num_values: CFIndex,
-            key_callbacks: *const c_void,
-            value_callbacks: *const c_void,
-        ) -> CFDictionaryRef;
-        fn CFRelease(cf: CFTypeRef);
-        static kCFBooleanTrue: CFTypeRef;
     }
 
     pub fn trusted() -> bool {
         unsafe { AXIsProcessTrusted() == 1 }
-    }
-
-    /// 带系统弹窗的查询：未授权时 macOS 弹官方授权对话框（带「打开系统设置」），
-    /// 引导用户勾选的正是当前应用，避免在系统设置里加错对象。
-    /// 只在用户显式开启输入响应时调用（命令层把关），启动恢复路径用静默版。
-    pub fn trusted_prompt() -> bool {
-        unsafe {
-            let keys: [CFTypeRef; 1] = [kAXTrustedCheckOptionPrompt];
-            let values: [CFTypeRef; 1] = [kCFBooleanTrue];
-            // 回调传 null = kCFTypeDictionaryKeyCallBacks/ValueCallBacks（官方允许）
-            let dict = CFDictionaryCreate(
-                std::ptr::null(),
-                keys.as_ptr(),
-                values.as_ptr(),
-                1,
-                std::ptr::null(),
-                std::ptr::null(),
-            );
-            let ok = AXIsProcessTrustedWithOptions(dict) == 1;
-            if !dict.is_null() {
-                CFRelease(dict);
-            }
-            ok
-        }
     }
 }
 
@@ -83,18 +35,36 @@ pub fn ax_trusted() -> bool {
     ax::trusted()
 }
 
-/// 弹系统授权对话框并返回当前授权状态（非 macOS 恒 true，不弹窗）
-pub fn ax_trusted_prompt() -> bool {
-    #[cfg(target_os = "macos")]
-    return ax::trusted_prompt();
-    #[cfg(not(target_os = "macos"))]
-    true
-}
-
 #[cfg(not(target_os = "macos"))]
 pub fn ax_trusted() -> bool {
     true
 }
+
+/// 当前进程可执行文件路径（授权指引展示；辅助功能列表里要勾选的就是它）
+pub fn exe_path() -> String {
+    std::env::current_exe()
+        .map(|p| p.to_string_lossy().into_owned())
+        .unwrap_or_default()
+}
+
+/// 授权引导：Finder 定位当前二进制 + 直达 系统设置→辅助功能 面板。
+/// 注意这版 macOS 已禁止 AX 官方弹窗（tccd 日志 "does not allow prompting"），
+/// AXIsProcessTrustedWithOptions 弹不出来，只能把用户直接送到正确的面板；
+/// Finder 里选中的二进制可直接拖进授权列表（比 +/⌘⇧G 导航省事）。
+#[cfg(target_os = "macos")]
+pub fn open_grant_assist() {
+    if let Ok(exe) = std::env::current_exe() {
+        let _ = std::process::Command::new("open")
+            .args(["-R", &exe.to_string_lossy()])
+            .status();
+    }
+    let _ = std::process::Command::new("open")
+        .arg("x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility")
+        .status();
+}
+
+#[cfg(not(target_os = "macos"))]
+pub fn open_grant_assist() {}
 
 /// rdev::listen 无法停止：首次启用后回调常驻（只做一次原子加，开销可忽略），
 /// 是否上报由 1s ticker 的存活决定——关闭即 ticker 退出，回调留空转。
