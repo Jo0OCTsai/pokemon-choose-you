@@ -69,6 +69,13 @@ const reviewOn = boolSetting("review_enabled");
 const reviewDowOptions = computed(() =>
   [1, 2, 3, 4, 5, 6, 7].map((d) => ({ value: String(d), label: t(`reviewDow.${d}`) })),
 );
+// 桌宠陪伴（PET_EXPERIENCE_PROPOSAL）：输入响应 / 语音 / 陪跑精灵，随「保存设置」落库
+const petInputOn = boolSetting("pet_input_response");
+const petInputWorkOn = boolSetting("pet_input_response_working");
+const petVoiceOn = boolSetting("pet_voice");
+const petMateOn = boolSetting("pet_mate");
+/** macOS 辅助功能授权（输入响应的前提）；其他平台恒 true */
+const inputPerm = ref(true);
 
 // ---- 数据备份：每日快照滚动保留 + 手动备份 + 从备份恢复 ----
 const backupOn = boolSetting("backup_enabled");
@@ -293,7 +300,19 @@ function fmtDatePreview(fmt: string): string {
 
 async function saveSettings(msg?: string) {
   await settings.save(SETTING_KEYS);
-  testMsg.value = msg ?? t("saved");
+  // 输入响应的后端监听线程跟随保存结果同步（幂等；macOS 未授权时提示而不是报错）
+  if (petInputOn.value) {
+    try {
+      const r = await api.petInputSetEnabled(true);
+      inputPerm.value = r !== "permission";
+      if (r === "permission") testMsg.value = t("focus.petInputPerm");
+    } catch {
+      /* 非桌面环境静默 */
+    }
+  } else {
+    void api.petInputSetEnabled(false).catch(() => {});
+  }
+  testMsg.value = testMsg.value || msg || t("saved");
   setTimeout(() => (testMsg.value = ""), 2000);
 }
 
@@ -922,6 +941,11 @@ onMounted(async () => {
   await loadFeishuAuth();
   await loadBackups();
   try {
+    inputPerm.value = await api.petInputPermission();
+  } catch {
+    /* 非桌面环境（E2E mock 未提供）按已授权显示 */
+  }
+  try {
     appVersion.value = await getVersion();
   } catch {
     /* 非桌面环境（E2E mock 未提供）静默 */
@@ -997,6 +1021,23 @@ onUnmounted(() => unlisteners.forEach((u) => u()));
           </SettingRow>
           <SettingRow :label="t('remind.quietEnd')">
             <DexSelect v-model="settings.values.quiet_end" :options="quietTimeOptions" />
+          </SettingRow>
+        </section>
+
+        <section class="set-card">
+          <h3>{{ t("focus.petTitle") }}</h3>
+          <SettingRow :label="t('focus.petInput')" :desc="t('focus.petInputDesc')">
+            <DexToggle v-model="petInputOn" />
+          </SettingRow>
+          <SettingRow v-if="petInputOn" :label="t('focus.petInputWorking')" :desc="t('focus.petInputWorkingDesc')">
+            <DexToggle v-model="petInputWorkOn" />
+          </SettingRow>
+          <p v-if="petInputOn && !inputPerm" class="set-foot">{{ t("focus.petInputPerm") }}</p>
+          <SettingRow :label="t('focus.petVoice')" :desc="t('focus.petVoiceDesc')">
+            <DexToggle v-model="petVoiceOn" />
+          </SettingRow>
+          <SettingRow :label="t('focus.petMate')" :desc="t('focus.petMateDesc')">
+            <DexToggle v-model="petMateOn" />
           </SettingRow>
         </section>
       </template>

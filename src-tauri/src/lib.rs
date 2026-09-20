@@ -7,6 +7,7 @@ pub mod error;
 mod events;
 mod feishu;
 mod health;
+mod input;
 mod lark_cli;
 mod logshare;
 pub mod models;
@@ -15,6 +16,7 @@ mod secrets;
 mod shortcuts;
 pub mod skills;
 mod tray;
+mod voice;
 mod which;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -85,6 +87,12 @@ pub fn run() {
             ));
             app.manage(health::HealthState::default());
             scheduler::spawn_reminder_loop(app.handle().clone());
+            // 输入响应（F1）：开机即开时恢复全局活动强度上报（macOS 未授权辅助功能则静默跳过）
+            if crate::db::setting(app.handle(), "pet_input_response").as_deref() == Some("true")
+                && input::ax_trusted()
+            {
+                input::set_enabled(app.handle(), true);
+            }
             // 自动派发循环（M3）：到期未开始的 project 待办排队 → 无头执行（默认关闭，
             // dispatch_auto_enabled 开启后生效）
             commands::dispatch::spawn_dispatch_loop(app.handle().clone());
@@ -168,6 +176,11 @@ pub fn run() {
             commands::install_update,
             commands::open_main_window,
             commands::consume_quick_capture,
+            commands::pet_input_set_enabled,
+            commands::pet_input_permission,
+            commands::pet_speak,
+            commands::pet_chat,
+            commands::task_streak,
         ])
         .build(tauri::generate_context!())
         .expect("error while building tauri application");

@@ -18,6 +18,7 @@ const RUST_SIDE_FIXTURE = [
   "update-available",
   "update-progress",
   "integration-health-changed",
+  "input-activity",
 ];
 
 describe("前后端事件契约", () => {
