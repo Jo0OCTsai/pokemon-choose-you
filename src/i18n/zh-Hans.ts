@@ -254,7 +254,10 @@ export default {
     petInputDesc: "只感知打字快慢，不知道你打了什么；空闲时它会对你敲键盘做出小回应",
     petInputWorking: "专注时也响应",
     petInputWorkingDesc: "专注中蹦跳节奏轻随打字快慢（≤+10%）",
-    petInputPerm: "macOS 需要辅助功能权限：系统设置 → 隐私与安全性 → 辅助功能，勾选本应用后重新保存即可生效",
+    petInputPerm:
+      "macOS 需要辅助功能权限：系统设置 → 隐私与安全性 → 辅助功能，勾选本应用；勾选后回到本页即自动生效，无需重启。开发模式（tauri dev）每次重新编译都会更换二进制签名，旧勾选会失效——先移除列表里的旧条目（−），再重新添加当前的 dev 二进制（target/debug/pokemon-choose-you）",
+    petInputPermToast: "设置已保存。输入响应还差辅助功能授权：勾选本应用后回到本页自动生效（无需重启）",
+    petInputGranted: "辅助功能已授权，输入响应开始工作",
     petVoice: "桌宠语音",
     petVoiceDesc: "里程碑 / 收工 / 精灵生日 / 对话回答时说一句（系统语音，默认静音）",
     petMate: "陪跑精灵",

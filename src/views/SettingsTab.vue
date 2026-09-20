@@ -300,12 +300,13 @@ function fmtDatePreview(fmt: string): string {
 
 async function saveSettings(msg?: string) {
   await settings.save(SETTING_KEYS);
-  // 输入响应的后端监听线程跟随保存结果同步（幂等；macOS 未授权时提示而不是报错）
+  // 输入响应的后端监听线程跟随保存结果同步（幂等；macOS 未授权时弹系统
+  // 授权对话框并提示——设置本身已保存，只有这个可选功能在等授权）
   if (petInputOn.value) {
     try {
       const r = await api.petInputSetEnabled(true);
       inputPerm.value = r !== "permission";
-      if (r === "permission") testMsg.value = t("focus.petInputPerm");
+      if (r === "permission") testMsg.value = t("focus.petInputPermToast");
     } catch {
       /* 非桌面环境静默 */
     }
@@ -314,6 +315,21 @@ async function saveSettings(msg?: string) {
   }
   testMsg.value = testMsg.value || msg || t("saved");
   setTimeout(() => (testMsg.value = ""), 2000);
+}
+
+/** 授权后免重启生效：窗口重新聚焦（用户从系统设置回来）时复查，
+ *  已授权就拉起监听线程并收掉常驻提示——省掉「重启应用再试」这一步 */
+async function recheckInputPerm() {
+  if (!petInputOn.value || inputPerm.value) return;
+  try {
+    if (!(await api.petInputPermission())) return;
+    inputPerm.value = true;
+    await api.petInputSetEnabled(true);
+    testMsg.value = t("focus.petInputGranted");
+    setTimeout(() => (testMsg.value = ""), 2000);
+  } catch {
+    /* 非桌面环境静默 */
+  }
 }
 
 /** 保存按钮提升到 App.vue 标题行右侧，经 ref 调用 */
@@ -936,7 +952,10 @@ const today = new Date();
 const isLinux = /linux/i.test(navigator.userAgent);
 
 const unlisteners: UnlistenFn[] = [];
+// 用户去系统设置勾选辅助功能后切回来：复查并自动拉起输入响应（配对清理防重复挂载）
+const onWinFocus = () => void recheckInputPerm();
 onMounted(async () => {
+  window.addEventListener("focus", onWinFocus);
   await loadAutostart();
   await loadFeishuAuth();
   await loadBackups();
@@ -967,7 +986,10 @@ onMounted(async () => {
     }),
   );
 });
-onUnmounted(() => unlisteners.forEach((u) => u()));
+onUnmounted(() => {
+  window.removeEventListener("focus", onWinFocus);
+  unlisteners.forEach((u) => u());
+});
 </script>
 
 <template>

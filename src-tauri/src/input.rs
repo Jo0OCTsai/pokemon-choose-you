@@ -19,14 +19,76 @@ static COUNTER: AtomicU64 = AtomicU64::new(0);
 // macOS 辅助功能授权（AXIsProcessTrusted，ApplicationServices 伞框架）；
 // 输入监听在 macOS 上的前提，未授权时 rdev 收不到事件。其他平台恒 true。
 #[cfg(target_os = "macos")]
-#[link(name = "ApplicationServices", kind = "framework")]
-extern "C" {
-    fn AXIsProcessTrusted() -> u8;
+mod ax {
+    use std::ffi::c_void;
+    // CF 类型走不透明指针（不引 core-foundation 依赖，只用到 C 符号）
+    type CFTypeRef = *const c_void;
+    pub type CFStringRef = CFTypeRef;
+    type CFDictionaryRef = CFTypeRef;
+    type CFAllocatorRef = CFTypeRef;
+    type CFIndex = isize;
+
+    #[link(name = "ApplicationServices", kind = "framework")]
+    extern "C" {
+        fn AXIsProcessTrusted() -> u8;
+        fn AXIsProcessTrustedWithOptions(options: CFDictionaryRef) -> u8;
+        static kAXTrustedCheckOptionPrompt: CFStringRef;
+    }
+
+    #[link(name = "CoreFoundation", kind = "framework")]
+    extern "C" {
+        fn CFDictionaryCreate(
+            allocator: CFAllocatorRef,
+            keys: *const CFTypeRef,
+            values: *const CFTypeRef,
+            num_values: CFIndex,
+            key_callbacks: *const c_void,
+            value_callbacks: *const c_void,
+        ) -> CFDictionaryRef;
+        fn CFRelease(cf: CFTypeRef);
+        static kCFBooleanTrue: CFTypeRef;
+    }
+
+    pub fn trusted() -> bool {
+        unsafe { AXIsProcessTrusted() == 1 }
+    }
+
+    /// 带系统弹窗的查询：未授权时 macOS 弹官方授权对话框（带「打开系统设置」），
+    /// 引导用户勾选的正是当前应用，避免在系统设置里加错对象。
+    /// 只在用户显式开启输入响应时调用（命令层把关），启动恢复路径用静默版。
+    pub fn trusted_prompt() -> bool {
+        unsafe {
+            let keys: [CFTypeRef; 1] = [kAXTrustedCheckOptionPrompt];
+            let values: [CFTypeRef; 1] = [kCFBooleanTrue];
+            // 回调传 null = kCFTypeDictionaryKeyCallBacks/ValueCallBacks（官方允许）
+            let dict = CFDictionaryCreate(
+                std::ptr::null(),
+                keys.as_ptr(),
+                values.as_ptr(),
+                1,
+                std::ptr::null(),
+                std::ptr::null(),
+            );
+            let ok = AXIsProcessTrustedWithOptions(dict) == 1;
+            if !dict.is_null() {
+                CFRelease(dict);
+            }
+            ok
+        }
+    }
 }
 
 #[cfg(target_os = "macos")]
 pub fn ax_trusted() -> bool {
-    unsafe { AXIsProcessTrusted() == 1 }
+    ax::trusted()
+}
+
+/// 弹系统授权对话框并返回当前授权状态（非 macOS 恒 true，不弹窗）
+pub fn ax_trusted_prompt() -> bool {
+    #[cfg(target_os = "macos")]
+    return ax::trusted_prompt();
+    #[cfg(not(target_os = "macos"))]
+    true
 }
 
 #[cfg(not(target_os = "macos"))]
