@@ -259,7 +259,7 @@ export default {
     petInputWorking: "Respond while focusing",
     petInputWorkingDesc: "Hop rhythm follows typing pace while focusing (≤+10%)",
     petInputPerm:
-      'macOS needs Accessibility permission: click "Grant" to open System Settings → Privacy & Security → Accessibility, then drag the binary at the path below into the list (or use + and ⌘⇧G to paste the path) and enable it. Return to this page and it takes effect immediately — no restart. Remove stale entries with the same name first (re-ticking an old entry does nothing); in dev mode every rebuild changes the signature, so re-add after rebuilding',
+      'macOS needs Accessibility permission: click "Grant" to open System Settings → Privacy & Security → Accessibility, then drag the binary at the path below into the list (or use + and ⌘⇧G to paste the path) and enable it. Return to this page and it takes effect immediately — no restart. Remove stale entries with the same name first (re-ticking an old entry does nothing). Dev builds are auto-stabilized by src-tauri/scripts/dev-sign.sh so the grant survives rebuilds; without the cert, rebuilds invalidate it and you must re-add',
     petInputPermToast:
       'Settings saved. Input response still needs the Accessibility permission — use the "Grant" button under the toggle in the Focus tab',
     petInputGrant: "Grant",
