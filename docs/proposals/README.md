@@ -8,6 +8,7 @@
 | [FEISHU_MESSAGE_ANALYSIS.md](FEISHU_MESSAGE_ANALYSIS.md) | 飞书消息分析策略（收音机） | 已落地，策略持续 review |
 | [TAG_SYSTEM_PROPOSAL.md](TAG_SYSTEM_PROPOSAL.md) | 标签体系维度化 + AI 自动治理 | P1–P5 已落地（P5 的保存视图与 projects 表平移为可选项未做） |
 | [MEMORY_KNOWLEDGE_PROPOSAL.md](MEMORY_KNOWLEDGE_PROPOSAL.md) | 分层记忆 + 本地知识检索 | 方案（未实施） |
+| [PERSONAL_MEMORY_HUB_PROPOSAL.md](PERSONAL_MEMORY_HUB_PROPOSAL.md) | 个人记忆中枢（Hub + Spokes）：跨应用记忆与个人知识库 | 方案（未实施），独立项目落地 |
 | [AGENT_DISPATCH_PROPOSAL.md](AGENT_DISPATCH_PROPOSAL.md) | 待办驱动的 Agent 调度 | M1–M3 已全部落地 |
 
 约定：新提案放本目录，命名 `TOPIC_PROPOSAL.md`（分析类用 `_ANALYSIS.md`）；实施状态写在文首引言，随落地更新；互引与 README.md 中的引用使用 `docs/proposals/` 前缀路径。
