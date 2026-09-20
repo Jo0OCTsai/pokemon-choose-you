@@ -33,6 +33,24 @@ npm run tauri build   # 打包 (macOS: dmg / Windows: NSIS / Linux: deb·rpm·Ap
 | `npm run clippy` | cargo clippy `-D warnings` |
 | `npm run test` | 单元 + Rust 全套 |
 
+## macOS 开发签名（辅助功能授权）
+
+桌宠「输入响应」需要 macOS 辅助功能权限，而 TCC 按代码签名身份匹配授权条目：
+`tauri dev` 的 debug 二进制是 ad-hoc 签名，cdhash 每次重编译都变，授权随之失效。
+
+仓库内置了稳定签名方案（`src-tauri/scripts/dev-sign.sh`）：
+
+- **首次**自动生成本机自签代码签名证书并导入登录钥匙串（一次性；首次签名若弹出
+  钥匙串授权对话框，点「始终允许」）；
+- `src-tauri/.cargo/config.toml` 把它配为 darwin target 的 cargo runner——
+  `tauri dev` / `cargo run` 执行前自动重签，designated requirement 只含
+  「证书 + identifier」，跨编译恒定，**辅助功能授权一次长期有效**；
+- 测试产物（`deps/` 下）自动跳过；CI / 他人环境没有证书时静默跳过，不影响构建。
+
+换新机器开发时重跑一次 `src-tauri/scripts/dev-sign.sh` 再授权即可（每台机器各自
+持证，无需共享私钥）。发布版分发签名（Developer ID + 公证）是另一条线，见上文
+「发布」与 `release.yml`。
+
 ## 测试
 
 - **单元测试**：前端覆盖设置存储/日期格式化、图鉴风组件、主面板与桌宠的状态机；Rust 侧用 Tauri mock 运行时 + 内存 SQLite 驱动真实命令函数（任务 CRUD、专注模式唯一 active、分类管理、提醒调度、AI/飞书纯逻辑）。

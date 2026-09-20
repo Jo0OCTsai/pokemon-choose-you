@@ -1,0 +1,8 @@
+# dev 构建自动稳定签名（见 scripts/dev-sign.sh）：darwin 产物执行前重签，
+# 让 macOS 辅助功能授权不随重编译失效。证书只在本机登录钥匙串（首次自动生成）；
+# CI / 他人环境没有证书时脚本自动跳过，不影响构建与测试。
+[target.aarch64-apple-darwin]
+runner = ["scripts/dev-sign.sh", "exec"]
+
+[target.x86_64-apple-darwin]
+runner = ["scripts/dev-sign.sh", "exec"]
