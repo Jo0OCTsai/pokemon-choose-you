@@ -15,8 +15,8 @@
 
 ## 已知边界（非漏洞，但与信任模型相关）
 
-- **安装包未做 OS 代码签名**（macOS 不购买开发者账号；Windows SignPath 免费签名申请中）：
-  - macOS 首次打开需 Gatekeeper「右键 → 打开 / 仍要打开」；
+- **安装包未做 Apple/微软官方代码签名**（macOS 不购买开发者账号；Windows SignPath 免费签名申请中）：
+  - macOS 包带**固定的自签代码签名证书**（非 Apple 签发、未公证）：仅提供跨版本稳定的代码身份——辅助功能等系统授权不会因升级失效；不通过 Gatekeeper 信任链，首次打开仍需「右键 → 打开 / 仍要打开」；
   - Windows SmartScreen 提示时走「更多信息 → 仍要运行」。
   - 从 GitHub Releases 官方渠道下载的包可由下方方式校验完整性。
 - **自动更新走 minisign 独立签名**（与 OS 代码签名相互独立）：更新包由发布流水线签名，公钥内置于应用（`src-tauri/tauri.conf.json` 的 `plugins.updater.pubkey`），安装前强制校验，无法被替换为未签名的安装包。

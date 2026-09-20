@@ -78,6 +78,14 @@ jobs:
           # 私钥生成：npx tauri signer generate -w ~/.tauri/pokemon-choose-you.key ；须配置为仓库 secret
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+          # macOS 代码签名（自签证书）：给所有 release 一个稳定签名身份，辅助功能等
+          # TCC 授权跨版本存活（非 Apple 公证，Gatekeeper 首开仍需「仍要打开」）。
+          # 证书与密码存 ~/Library/Application Support/pokemon-choose-you/release-signing/，
+          # 生成与轮换步骤见 docs/DEVELOPMENT.md「macOS 开发签名」。仅 macOS 矩阵生效，
+          # 其余平台留空被忽略。
+          APPLE_CERTIFICATE: ${{ matrix.platform == 'macos-latest' && secrets.APPLE_CERTIFICATE || '' }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ matrix.platform == 'macos-latest' && secrets.APPLE_CERTIFICATE_PASSWORD || '' }}
+          APPLE_SIGNING_IDENTITY: ${{ matrix.platform == 'macos-latest' && secrets.APPLE_SIGNING_IDENTITY || '' }}
         with:
           # 版本占位符取自 tauri.conf.json 的 version：draft 始终跟随当前开发版本
           tagName: v__VERSION__
@@ -98,11 +106,11 @@ jobs:
 
             | 平台 | 包 | 备注 |
             |---|---|---|
-            | macOS (Intel + Apple Silicon) | `.dmg` | 首次打开需 Gatekeeper「仍要打开」 |
+            | macOS (Intel + Apple Silicon) | `.dmg` | 带固定自签证书（稳定身份，辅助功能授权跨版本存活）；非 Apple 公证，首次打开需 Gatekeeper「仍要打开」 |
             | Windows | `.exe` (NSIS) | SmartScreen「更多信息 → 仍要运行」 |
             | Linux | `.AppImage` / `.deb` / `.rpm` | 实验性：置顶需 X11；NVIDIA 白屏设 `WEBKIT_DISABLE_DMABUF_RENDERER=1`；仅 AppImage 支持自动更新 |
 
-            安装包未做 OS 代码签名（详见仓库 SECURITY.md）；更新包均经 minisign 签名校验。
+            macOS 包为自签证书（非 Apple 官方签名/公证，详见仓库 SECURITY.md）；Windows 包未做 OS 代码签名。更新包均经 minisign 签名校验。
             数据（SQLite）存于本机：Linux `~/.local/share/com.jotsai.pokemonchooseyou/` · macOS `~/Library/Application Support/com.jotsai.pokemonchooseyou/` · Windows `%APPDATA%\com.jotsai.pokemonchooseyou\`。
             0.x 阶段数据格式未承诺稳定，升级前请备份数据库文件。
           releaseDraft: true

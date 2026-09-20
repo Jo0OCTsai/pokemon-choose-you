@@ -51,6 +51,24 @@ npm run tauri build   # 打包 (macOS: dmg / Windows: NSIS / Linux: deb·rpm·Ap
 持证，无需共享私钥）。发布版分发签名（Developer ID + 公证）是另一条线，见上文
 「发布」与 `release.yml`。
 
+### 发布包稳定签名（自签证书，免费方案）
+
+release 流水线用**固定的自签代码签名证书**签 macOS 包，让安装版的 TCC 授权
+（辅助功能等）跨版本/自动更新存活——原理同上（DR = 证书哈希 + identifier）。
+tauri-bundler 的身份解析只认 Apple 命名格式，所以证书按该格式签发：
+
+- CN = `Developer ID Application: pokemon-choose-you (JOTSAI0001)`，OU = `JOTSAI0001`
+  （OU 是 tauri 要求的「Team ID」位，自造即可）；EKU 含 codeSigning。
+
+证书与密码存于本机 `~/Library/Application Support/pokemon-choose-you/release-signing/`
+（p12 为 OpenSSL legacy 格式，`security` 才能导入），仓库 secrets 为
+`APPLE_CERTIFICATE`（p12 的 base64）/ `APPLE_CERTIFICATE_PASSWORD` /
+`APPLE_SIGNING_IDENTITY`（完整 CN），`release.yml` 仅在 macOS 矩阵下发。
+签名后无 Apple 凭据会自动跳过公证（仅告警）。
+
+**轮换**：重新生成同格式证书 → 更新三个 secrets → 用户侧 TCC 授权会失效一次
+（身份变了），需重新勾选。p12/密码丢失同理。
+
 ## 测试
 
 - **单元测试**：前端覆盖设置存储/日期格式化、图鉴风组件、主面板与桌宠的状态机；Rust 侧用 Tauri mock 运行时 + 内存 SQLite 驱动真实命令函数（任务 CRUD、专注模式唯一 active、分类管理、提醒调度、AI/飞书纯逻辑）。
