@@ -4,6 +4,7 @@
 > ② 同一棵文件树同时是**个人知识库**：人用编辑器 / Obsidian 直接维护，AI 经 MCP / CLI / 文件投影消费，双向受益；
 > ③ 全本地、git 管仓、无守护进程——文件是稳定契约，协议只是适配器。
 > 核心分工：**Spoke（各应用/agent）持有过程数据，Hub 只持有结论**。
+> 项目命名：**pokemon-remember-you（就记得是你）**——与 pokemon-choose-you（就决定是你了）为姊妹项目，「就决定是你了」负责抓住任务，「就记得是你」负责记住训练家；CLI 二进制名 **dex**（图鉴，兼有 index 双关），数据仓库即「图鉴」`~/dex`，MCP 以 `dex mcp` 子命令随同一二进制分发。
 > 调研时间：2026-09-20。
 
 ## 一、要解决的问题
@@ -88,7 +89,7 @@ flowchart LR
 ## 五、Hub 的组织：目录即 scope
 
 ```text
-~/hub/                              # git 私仓（路径自定，示例 ~/hub）；同一棵树即 Obsidian vault
+~/dex/                             # 「图鉴」——git 私仓（路径自定，示例 ~/dex）；同一棵树即 Obsidian vault
 ├── person/                         # 个人层：全应用默认可见
 │   ├── profile.md                  #   我是谁、做什么、机器不可推断的长期事实
 │   └── preferences.md              #   稳定偏好（写作风格、沟通习惯、常用格式）
@@ -156,7 +157,7 @@ stateDiagram-v2
 要点：
 
 - **提案即文件**：Spoke 的固化管道（或 agent 本人）产出提案文件落 `inbox/`，轻 frontmatter（source / kind / confidence / evidence）；确认时人编辑内容、剥掉元数据、移动到目标 scope——`git mv` 即确认动作，历史即审计。
-- **使用记录不写回 Hub**：注入命中计数留在各 Spoke（它们本来就有过程数据），避免 Hub 文件被高频改写；衰减信号由两部分组成——`hub stale` 按 git log 扫「最后实质变更 ≥90 天」的条目 + 各 Spoke 周报汇总的引用情况，周回顾人审裁决。
+- **使用记录不写回 Hub**：注入命中计数留在各 Spoke（它们本来就有过程数据），避免 Hub 文件被高频改写；衰减信号由两部分组成——`dex stale` 按 git log 扫「最后实质变更 ≥90 天」的条目 + 各 Spoke 周报汇总的引用情况，周回顾人审裁决。
 - **遗忘不删除历史**：否决、归档、改写旧版全部活在 git 历史里，`archive/` 只是「不再注入」的显式标记。
 
 ## 七、访问通道与写入协议
@@ -165,9 +166,9 @@ stateDiagram-v2
 
 | 通道 | 定位 | 接入方式 |
 |---|---|---|
-| 文件投影 | 零依赖底线 | `hub render <agent>` 把「该消费方 scope 的合并视图」渲染成入口文件（AGENT.md）放进其工作区；Claude Code 可省一步——`~/.claude/CLAUDE.md` 里 `@~/hub/person/profile.md` 等引用即全局生效，项目级 `.claude/CLAUDE.md` 引 `projects/<proj>/` |
-| CLI | 应用与脚本集成 | `hub search <q> [--scope …]`（v1 用 ripgrep，v2 走派生索引）、`hub read`、`hub propose`（stdin 提案）、`hub render`、`hub stale`、`hub reindex`、`hub review`（生成周回顾清单） |
-| MCP stdio | 通用 agent 生态 | 工具面只三类：`hub_search` / `hub_read` / `hub_propose`——**没有直写 scope 的工具**，按需拉起，无常驻进程 |
+| 文件投影 | 零依赖底线 | `dex render <agent>` 把「该消费方 scope 的合并视图」渲染成入口文件（AGENT.md）放进其工作区；Claude Code 可省一步——`~/.claude/CLAUDE.md` 里 `@~/dex/person/profile.md` 等引用即全局生效，项目级 `.claude/CLAUDE.md` 引 `projects/<proj>/` |
+| CLI | 应用与脚本集成 | `dex search <q> [--scope …]`（v1 用 ripgrep，v2 走派生索引）、`dex read`、`dex propose`（stdin 提案）、`dex render`、`dex stale`、`dex reindex`、`dex review`（生成周回顾清单） |
+| MCP stdio | 通用 agent 生态 | 工具面只三类：`dex_search` / `dex_read` / `dex_propose`——**没有直写 scope 的工具**；以 `dex mcp` 子命令随同一二进制分发，按需拉起，无常驻进程 |
 
 **inbox 提案格式**（机器写，人读，周回顾消费）：
 
@@ -201,7 +202,7 @@ evidence: chat_feedback #1234 #1301 #1355
 flowchart LR
     CAP["① 捕获 Capture<br/>应用摘要 → journal/<br/>提案 → inbox/ · 人手写速记"] --> CUR["② 经营 Curate<br/>周回顾：确认归位 / 合并近义<br/>改写 / 归档 / scope 升降级<br/>（唯一写入口，git 留痕）"]
     CUR --> CON["③ 消费 Consume<br/>agent：scope 检索 + 入口注入（预算内）<br/>人：编辑器 / Obsidian 直接阅读"]
-    CON --> DEC["④ 衰减 Decay<br/>hub stale 扫描 + Spoke 使用周报<br/>90 天未变更未引用 → 归档建议"]
+    CON --> DEC["④ 衰减 Decay<br/>dex stale 扫描 + Spoke 使用周报<br/>90 天未变更未引用 → 归档建议"]
     DEC --> CUR
 ```
 
@@ -209,7 +210,7 @@ flowchart LR
 
 1. **清 inbox**：逐条 确认归位 / 编辑后归位 / 否决；
 2. **提 journal**：从本周每日页提取值得长期保留的事实；
-3. **处理衰减清单**：`hub stale` 输出 + Spoke 使用周报 → 归档 / 改写 / 保留；
+3. **处理衰减清单**：`dex stale` 输出 + Spoke 使用周报 → 归档 / 改写 / 保留；
 4. **scope 升降级**：某条应用记忆发现跨应用成立 → 上提 `domains/` 或 `person/`；反之下降；
 5. **合并冗余**：`index/` 工具预筛的近义条目（字符串相似度预筛，人裁决）。
 
@@ -226,7 +227,7 @@ flowchart LR
 |---|---|---|
 | v0 约定先行 | 建仓 + 目录结构 + 手写 `person/`、`journal/` + Claude Code `@import` 接入 + Obsidian 打开同一 vault | 半天，当天可用 |
 | v1 CLI | ripgrep 版 `search/read/propose/render/stale/review`；1–2 个应用开始供稿 journal 与 inbox（摘要与提案） | 一个小工具 |
-| v2 MCP + 索引 | MCP stdio server（search/read/propose）；FTS5 → sqlite-vec 派生索引；`hub render` 支持多 agent 入口 | Hub 侧服务化 |
+| v2 MCP + 索引 | MCP stdio server（`dex mcp`，search/read/propose）；FTS5 → sqlite-vec 派生索引；`dex render` 支持多 agent 入口 | Hub 侧服务化 |
 | v3 经营强化 | 周回顾 UI（独立页面或寄生在某个应用的复盘向导）；`index/` 生成式导览；Spoke 使用周报汇总协议 | 体验完善 |
 
 演进逻辑：**先让约定跑起来（v0 零代码），再让工具长出来（v1/v2），最后才做界面（v3）**——每一级都不依赖后一级的存在。
