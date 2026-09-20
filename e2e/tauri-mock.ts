@@ -158,6 +158,10 @@ export async function installTauriMock(page: Page, state: Partial<MockState> = {
             return "ok";
           case "pet_input_permission":
             return true;
+          case "pet_input_exe":
+            return "/mock/path/pokemon-choose-you";
+          case "pet_input_grant":
+            return null;
           case "create_task": {
             const t = {
               id: db.nextId++,

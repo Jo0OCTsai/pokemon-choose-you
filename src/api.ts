@@ -228,4 +228,8 @@ export const api = {
   petInputSetEnabled: (enabled: boolean) => call<string>("pet_input_set_enabled", { enabled }),
   /** macOS 辅助功能权限（输入响应的前提；其他平台恒 true） */
   petInputPermission: () => call<boolean>("pet_input_permission"),
+  /** 当前进程可执行文件路径（授权指引：辅助功能列表里要勾选的就是它） */
+  petInputExe: () => call<string>("pet_input_exe"),
+  /** 一键授权引导：Finder 定位二进制 + 直达 系统设置→辅助功能 面板 */
+  petInputGrant: () => call<void>("pet_input_grant"),
 };

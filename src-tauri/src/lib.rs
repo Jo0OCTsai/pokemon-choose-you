@@ -178,6 +178,8 @@ pub fn run() {
             commands::consume_quick_capture,
             commands::pet_input_set_enabled,
             commands::pet_input_permission,
+            commands::pet_input_exe,
+            commands::pet_input_grant,
             commands::pet_speak,
             commands::pet_chat,
             commands::task_streak,

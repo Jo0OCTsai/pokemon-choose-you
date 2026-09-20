@@ -255,8 +255,10 @@ export default {
     petInputWorking: "专注时也响应",
     petInputWorkingDesc: "专注中蹦跳节奏轻随打字快慢（≤+10%）",
     petInputPerm:
-      "macOS 需要辅助功能权限：系统设置 → 隐私与安全性 → 辅助功能，勾选本应用；勾选后回到本页即自动生效，无需重启。开发模式（tauri dev）每次重新编译都会更换二进制签名，旧勾选会失效——先移除列表里的旧条目（−），再重新添加当前的 dev 二进制（target/debug/pokemon-choose-you）",
-    petInputPermToast: "设置已保存。输入响应还差辅助功能授权：勾选本应用后回到本页自动生效（无需重启）",
+      "macOS 需要辅助功能权限：点「去授权」直达 系统设置 → 隐私与安全性 → 辅助功能，把下方路径的二进制拖进列表（或点 + 后 ⌘⇧G 粘贴路径）并勾选；回到本页即自动生效，无需重启。同名的旧条目先移除（−）——重新勾选旧条目无效；dev 模式每次重编译签名都会变，重编译后需重新添加",
+    petInputPermToast: "设置已保存。输入响应还差辅助功能授权——到「专注」页开关下方点「去授权」完成勾选",
+    petInputGrant: "去授权",
+    petInputExeCopy: "点击复制路径",
     petInputGranted: "辅助功能已授权，输入响应开始工作",
     petVoice: "桌宠语音",
     petVoiceDesc: "里程碑 / 收工 / 精灵生日 / 对话回答时说一句（系统语音，默认静音）",

@@ -76,6 +76,21 @@ const petVoiceOn = boolSetting("pet_voice");
 const petMateOn = boolSetting("pet_mate");
 /** macOS 辅助功能授权（输入响应的前提）；其他平台恒 true */
 const inputPerm = ref(true);
+/** 当前进程可执行文件路径（授权指引：辅助功能列表里要勾选的就是它） */
+const inputExe = ref("");
+/** 开关开着且未授权时拉一次路径（去授权按钮旁展示，可拖进/⌘⇧G 粘贴） */
+watch(
+  [petInputOn, inputPerm],
+  ([on, perm]) => {
+    if (on && !perm && !inputExe.value) {
+      void api
+        .petInputExe()
+        .then((p) => (inputExe.value = p))
+        .catch(() => {});
+    }
+  },
+  { immediate: true },
+);
 
 // ---- 数据备份：每日快照滚动保留 + 手动备份 + 从备份恢复 ----
 const backupOn = boolSetting("backup_enabled");
@@ -327,6 +342,16 @@ async function recheckInputPerm() {
     await api.petInputSetEnabled(true);
     testMsg.value = t("focus.petInputGranted");
     setTimeout(() => (testMsg.value = ""), 2000);
+  } catch {
+    /* 非桌面环境静默 */
+  }
+}
+
+/** 一键授权引导：Finder 定位当前二进制 + 直达 系统设置→辅助功能 面板
+ *  （这版 macOS 禁止了 AX 官方弹窗，只能把用户送到正确的面板） */
+async function grantInputPerm() {
+  try {
+    await api.petInputGrant();
   } catch {
     /* 非桌面环境静默 */
   }
@@ -1054,7 +1079,18 @@ onUnmounted(() => {
           <SettingRow v-if="petInputOn" :label="t('focus.petInputWorking')" :desc="t('focus.petInputWorkingDesc')">
             <DexToggle v-model="petInputWorkOn" />
           </SettingRow>
-          <p v-if="petInputOn && !inputPerm" class="set-foot">{{ t("focus.petInputPerm") }}</p>
+          <!-- 未授权指引：一键直达辅助功能面板 + 当前二进制路径（可拖进列表/复制后 ⌘⇧G） -->
+          <div v-if="petInputOn && !inputPerm" class="perm-hint">
+            <p>{{ t("focus.petInputPerm") }}</p>
+            <p class="perm-exe-row">
+              <code class="perm-exe" :title="t('focus.petInputExeCopy')" @click="void clipWrite(inputExe)">{{
+                inputExe || "…"
+              }}</code>
+              <button class="btn ghost mini" @click="grantInputPerm">
+                {{ t("focus.petInputGrant") }}
+              </button>
+            </p>
+          </div>
           <SettingRow :label="t('focus.petVoice')" :desc="t('focus.petVoiceDesc')">
             <DexToggle v-model="petVoiceOn" />
           </SettingRow>
@@ -1906,6 +1942,31 @@ onUnmounted(() => {
   margin-top: 6px;
   padding-top: 0;
   border-top: none;
+}
+/* 输入响应未授权指引：说明 + 当前二进制路径（点击复制）+ 去授权按钮 */
+.perm-hint {
+  margin: 12px 0 0;
+  padding-top: 10px;
+  border-top: 2px dashed var(--ink-faint);
+  font-size: 12px;
+  color: var(--ink-soft);
+  line-height: 1.7;
+}
+.perm-exe-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.perm-exe {
+  max-width: 100%;
+  overflow-wrap: anywhere;
+  cursor: copy;
+  font-size: 11px;
+  padding: 2px 6px;
+  border: 2px solid var(--ink-faint);
+  border-radius: 6px;
+  background: var(--dex-body);
 }
 /* 瞬时反馈信息（保存结果 / 错误 / 空态），不是常驻说明 */
 .hint {

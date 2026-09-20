@@ -255,8 +255,10 @@ export default {
     petInputWorking: "專注時也回應",
     petInputWorkingDesc: "專注中蹦跳節奏輕隨打字快慢（≤+10%）",
     petInputPerm:
-      "macOS 需要輔助使用權限：系統設定 → 隱私權與安全性 → 輔助使用，勾選本應用；勾選後回到本頁即自動生效，無需重新啟動。開發模式（tauri dev）每次重新編譯都會更換二進位簽章，舊勾選會失效——先移除列表裡的舊條目（−），再重新加入目前的 dev 二進位檔（target/debug/pokemon-choose-you）",
-    petInputPermToast: "設定已儲存。輸入回應還差輔助使用權限：勾選本應用後回到本頁自動生效（無需重新啟動）",
+      "macOS 需要輔助使用權限：點「去授權」直達 系統設定 → 隱私權與安全性 → 輔助使用，把下方路徑的二進位檔拖進列表（或點 + 後 ⌘⇧G 貼上路徑）並勾選；回到本頁即自動生效，無需重新啟動。同名的舊條目先移除（−）——重新勾選舊條目無效；dev 模式每次重新編譯簽章都會變，重新編譯後需重新加入",
+    petInputPermToast: "設定已儲存。輸入回應還差輔助使用權限——到「專注」頁開關下方點「去授權」完成勾選",
+    petInputGrant: "去授權",
+    petInputExeCopy: "點擊複製路徑",
     petInputGranted: "輔助使用已授權，輸入回應開始工作",
     petVoice: "桌寵語音",
     petVoiceDesc: "里程碑 / 收工 / 精靈生日 / 對話回答時說一句（系統語音，預設靜音）",
