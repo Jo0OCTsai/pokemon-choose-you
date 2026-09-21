@@ -116,20 +116,22 @@ describe("TagDispatchCard 项目派发卡片", () => {
     expect(items[3].text()).toContain("已停用");
   });
 
-  it("保存把空串归一成 null 落库，成功后发出 feedback", async () => {
+  it("改动即时把空串归一成 null 落库，成功后发出 feedback", async () => {
     const w = await mountCard([tag({ id: 7, name: "周报", meta: { workdir: "~/repo" } })]);
     const inputs = w.findAll("input");
     await inputs[1].setValue("Rust 项目"); // 项目上下文
-    await w.get(".btn-row .btn").trigger("click");
+    await inputs[1].trigger("change"); // 失焦即存（无独立保存按钮）
     await new Promise((r) => setTimeout(r));
     expect(api.setTagMeta).toHaveBeenCalledWith(7, { workdir: "~/repo", agentId: null, context: "Rust 项目" });
     expect(w.emitted("feedback")?.[0]?.[0]).toContain("标签已更新");
   });
 
-  it("保存失败时 feedback 带错误信息", async () => {
+  it("落库失败时 feedback 带错误信息", async () => {
     vi.mocked(api.setTagMeta).mockRejectedValueOnce(new Error("boom"));
     const w = await mountCard([tag({ id: 7 })]);
-    await w.get(".btn-row .btn").trigger("click");
+    const input = w.get("input"); // 工作目录
+    await input.setValue("~/repo");
+    await input.trigger("change");
     await new Promise((r) => setTimeout(r));
     expect(w.emitted("feedback")?.[0]?.[0]).toContain("boom");
   });

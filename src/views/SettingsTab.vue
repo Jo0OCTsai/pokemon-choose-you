@@ -470,10 +470,10 @@ function startEditTags() {
     dimension: g.dimension || "topic",
   }));
 }
-/** 已配置派发的标签 id（直接跟随 store，派发卡片保存后行内 ⚡ 即时点亮） */
+/** 已改写派发路由的项目标签 id（口径与派发卡的「已配置」一致：agent 或目录任一指定；
+ * 直接跟随 store，即时保存后行内 ⚡ 即时点亮） */
 const dispatchIds = computed(
-  () =>
-    new Set(tagsStore.list.filter((g) => !!(g.meta?.workdir || g.meta?.agentId || g.meta?.context)).map((g) => g.id)),
+  () => new Set(tagsStore.list.filter((g) => !!(g.meta?.workdir || g.meta?.agentId)).map((g) => g.id)),
 );
 /** 编辑行按维度分组渲染（维度序 = tagsStore.dimensions 的 sort） */
 const editingGroups = computed(() =>
@@ -1106,12 +1106,10 @@ onUnmounted(() => {
             <button class="btn ghost" @click="addCat">{{ t("cats.new") }}</button>
           </div>
           <p class="set-foot">{{ t("cats.hint") }}</p>
-          <p class="set-foot">{{ t("cats.disableHint") }}</p>
         </section>
 
         <section class="set-card">
           <h3>{{ t("cats.quotesTitle") }}</h3>
-          <p class="set-sub">{{ t("cats.quotesHint") }}</p>
           <div class="quotes-controls">
             <PokemonPicker :model-value="quotePokemon" @update:model-value="onQuotePokemonChange" />
             <span class="quotes-count">{{ t("cats.quotesCount", { n: quoteCount }) }}</span>
