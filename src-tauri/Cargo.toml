@@ -36,7 +36,7 @@ rusqlite = { version = "0.32", features = ["bundled", "backup"] }
 chrono = { version = "0.4", features = ["serde"] }
 tokio = { version = "1", features = ["time", "macros", "process", "io-util"] }
 # pk CLI 定位应用数据库文件（与 tauri 的 app_data_dir 同一规则：config_dir/<identifier>）
-dirs = "5"
+dirs = "7.0.0"
 log = "0.4"
 thiserror = "2"
 # 秘钥存 OS 钥匙串（macOS Keychain / Windows Credential Manager / Linux Secret Service）；
