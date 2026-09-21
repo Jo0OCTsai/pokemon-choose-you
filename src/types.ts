@@ -306,6 +306,12 @@ export interface BatchReviewResult {
   failed: { id: number; error: string }[];
 }
 
+/** 批量重判「AI 判定失败」的结果：ok = 重新拿到判定的条数，仍失败的逐条汇报 */
+export interface RetryAiResult {
+  ok: number;
+  failed: { id: number; error: string }[];
+}
+
 /** 派发确认弹窗里的可改选 agent（启用的） */
 export interface DispatchAgentOption {
   id: string;

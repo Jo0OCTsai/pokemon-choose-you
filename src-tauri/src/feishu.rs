@@ -605,7 +605,8 @@ async fn poll_once_inner(app: &AppHandle) -> AppResult<usize> {
         );
     }
 
-    // 2. 分批送 AI（每批 20 条，避免超 token），带同会话近期消息作上下文
+    // 2. 分批送 AI（每批 20 条，避免超 token），带同会话近期消息作上下文。
+    //    判定管道（会话回链 / 健康登记 / 失败挽救与迟到回调回看）与「重判失败」共用
     let actionable: Vec<&NewMessage> = fresh.iter().filter(|m| m.needs_ai).collect();
     let mut saved = 0usize;
     for chunk in actionable.chunks(20) {
@@ -629,122 +630,7 @@ async fn poll_once_inner(app: &AppHandle) -> AppResult<usize> {
                 })
                 .collect::<Vec<_>>()
         };
-        // 分类调用按次落 agent_sessions（会话回链与成本观察：时长 / 会话 id / 成败）；
-        // 判重上下文由 agent 执行 pk context 自取
-        let started = std::time::Instant::now();
-        let classified = ai::classify_with_session(&agent, &batch, &db).await;
-        let duration_ms = started.elapsed().as_millis() as i64;
-        let suggestions = match classified {
-            Ok((s, session_id)) => {
-                let conn = db.0.lock().unwrap();
-                let _ = crate::commands::sessions::log_session_conn(
-                    &conn,
-                    &crate::commands::sessions::NewAgentSession {
-                        task_id: None,
-                        agent_id: agent.id.clone(),
-                        session_id,
-                        command: None,
-                        exit_code: Some(0),
-                        status: "ok".into(),
-                        duration_ms: Some(duration_ms),
-                        cost_usd: None,
-                        input_tokens: None,
-                        output_tokens: None,
-                    },
-                );
-                s
-            }
-            Err(e) => {
-                log::warn!("AI 分类失败（本轮跳过）: {e}");
-                app.state::<crate::health::HealthState>().record_failure(
-                    app,
-                    crate::health::AI,
-                    &e.to_string(),
-                );
-                let conn = db.0.lock().unwrap();
-                let _ = crate::commands::sessions::log_session_conn(
-                    &conn,
-                    &crate::commands::sessions::NewAgentSession {
-                        task_id: None,
-                        agent_id: agent.id.clone(),
-                        session_id: None,
-                        command: None,
-                        exit_code: None,
-                        status: "error".into(),
-                        duration_ms: Some(duration_ms),
-                        cost_usd: None,
-                        input_tokens: None,
-                        output_tokens: None,
-                    },
-                );
-                for m in chunk {
-                    let _ = conn.execute(
-                        "UPDATE chat_messages SET ai_status='error' WHERE message_id=?1",
-                        params![m.message_id],
-                    );
-                }
-                continue;
-            }
-        };
-        app.state::<crate::health::HealthState>()
-            .record_success(app, crate::health::AI);
-        let n_todo = suggestions.iter().filter(|s| s.is_todo()).count();
-        let n_update = suggestions.iter().filter(|s| s.is_update()).count();
-        let n_follow = suggestions.iter().filter(|s| s.is_follow_up()).count();
-        log::info!(
-            "feishu: AI 判定 {}/{} 条：新待办 {n_todo} · 变更建议 {n_update} · 跟进 {n_follow}",
-            n_todo + n_update + n_follow,
-            batch.len()
-        );
-        let by_id: HashMap<String, &ai::AiSuggestion> = suggestions
-            .iter()
-            .map(|s| (s.message_id.clone(), s))
-            .collect();
-        let conn = db.0.lock().unwrap();
-        for m in chunk {
-            // 未被提及的消息按 none 记状态（AI 没给判定不等于跳过）
-            let fallback;
-            let s: &ai::AiSuggestion = match by_id.get(&m.message_id) {
-                Some(s) => s,
-                None => {
-                    fallback = ai::AiSuggestion {
-                        message_id: m.message_id.clone(),
-                        ..Default::default()
-                    };
-                    &fallback
-                }
-            };
-            if s.is_todo() {
-                log::info!(
-                    "feishu: 新待办「{}」分类 {} 优先级 {} due {:?} 标签 {:?}（消息 {}）",
-                    s.title.as_deref().unwrap_or("-"),
-                    s.category.as_deref().unwrap_or("-"),
-                    s.priority.as_deref().unwrap_or("-"),
-                    s.due,
-                    s.tags,
-                    s.message_id
-                );
-            } else if s.is_update() {
-                // AI 判定是对现有待办的变更（改期/改优先级等）：
-                // 落成「更新建议」卡，用户在收音机确认后才应用
-                log::info!(
-                    "feishu: 消息 {} 判定为待办 {} 的变更建议（待确认）",
-                    m.message_id,
-                    s.update_task_id.unwrap_or(0)
-                );
-            } else if s.is_follow_up() {
-                // AI 判定是对现有待办的跟进：直接挂跟进记录，不建新待办
-                log::info!(
-                    "feishu: 消息 {} 判定为待办 {} 的跟进，已记录",
-                    m.message_id,
-                    s.follow_up_task_id.unwrap_or(0)
-                );
-            }
-            crate::commands::radio::apply_suggestion_conn(&conn, s, &agent.id)?;
-            if s.is_todo() {
-                saved += 1;
-            }
-        }
+        saved += crate::commands::radio::classify_and_apply(app, &db, &agent, &batch).await?;
     }
 
     if !fresh.is_empty() {

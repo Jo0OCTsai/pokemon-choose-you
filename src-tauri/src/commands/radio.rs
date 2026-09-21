@@ -908,6 +908,195 @@ pub(crate) fn chat_context_lines(
         .collect()
 }
 
+/// 把消息标记为「AI 判定失败」的统一实现：只翻转仍是 pending 的消息，并清空残留
+/// 建议载荷（error 态没有可展示的建议）。agent 超时被杀前后，它派出的 `pk suggest`
+/// 都可能已把判定写库（todo/none/…），无条件覆盖会把已到手的结果抹成失败。
+/// 返回实际标记的条数。
+pub(crate) fn mark_ai_error_conn(conn: &Connection, message_ids: &[String]) -> AppResult<usize> {
+    let mut marked = 0usize;
+    for id in message_ids {
+        marked += conn.execute(
+            "UPDATE chat_messages SET ai_status='error',
+                    suggested_title=NULL, suggested_note=NULL, suggested_category=NULL,
+                    suggested_due=NULL, suggested_priority=NULL, suggested_tags='[]',
+                    suggested_reason=NULL, suggested_confidence=NULL, update_task_id=NULL
+             WHERE message_id=?1 AND ai_status='pending'",
+            params![id],
+        )?;
+    }
+    Ok(marked)
+}
+
+/// 迟到判定的延迟回看：agent 超时被杀后，它已派出的 `pk suggest` 子进程不会随主进程
+/// 一起死（孤儿进程），常在几秒后把判定写库、把 error 翻正——pk 是独立进程发不出
+/// 应用事件，界面不会自己刷新。等一小段再回看一次，有翻正就广播消息变更。
+const LATE_JUDGMENT_GRACE_SECS: u64 = 30;
+
+fn spawn_late_judgment_recheck<R: tauri::Runtime>(
+    app: tauri::AppHandle<R>,
+    message_ids: Vec<String>,
+) {
+    if message_ids.is_empty() {
+        return;
+    }
+    tauri::async_runtime::spawn(async move {
+        tokio::time::sleep(std::time::Duration::from_secs(LATE_JUDGMENT_GRACE_SECS)).await;
+        let db = app.state::<Db>();
+        let placeholders = std::iter::repeat_n("?", message_ids.len())
+            .collect::<Vec<_>>()
+            .join(",");
+        let flipped: Option<i64> = {
+            let conn = db.0.lock().unwrap();
+            conn.query_row(
+                &format!(
+                    "SELECT COUNT(*) FROM chat_messages
+                     WHERE ai_status NOT IN ('pending','error') AND message_id IN ({placeholders})"
+                ),
+                rusqlite::params_from_iter(message_ids.iter()),
+                |r| r.get(0),
+            )
+            .ok()
+        };
+        if flipped.unwrap_or(0) > 0 {
+            log::info!(
+                "radio: 迟到的 pk 判定落库（{} 条），广播刷新收音机",
+                flipped.unwrap_or(0)
+            );
+            events::broadcast(&app, events::CHAT_MESSAGES_CHANGED);
+        }
+    });
+}
+
+/// 一批消息的 AI 判定管道：飞书后台轮询与「重判失败」共用。
+/// 按 agent_sessions 落分类会话（时长 / 会话 id / 成败）并登记 AI 链路健康；
+/// 判定失败时先回读数据库——agent 在超时/出错前可能已把部分判定经 pk 写库
+/// （判定落库与进程退出是两件事），已落库的照常收下，未落库的按 pending→error
+/// 标记（可重判），并安排迟到回调的延迟回看。返回判定出的新待办数。
+pub(crate) async fn classify_and_apply<R: tauri::Runtime>(
+    app: &tauri::AppHandle<R>,
+    db: &Db,
+    agent: &AgentConfig,
+    batch: &[AiMessage],
+) -> AppResult<usize> {
+    let ids: Vec<String> = batch.iter().map(|m| m.message_id.clone()).collect();
+    let started = std::time::Instant::now();
+    let classified = ai::classify_with_session(agent, batch, db).await;
+    let duration_ms = started.elapsed().as_millis() as i64;
+    let suggestions = match classified {
+        Ok((s, session_id)) => {
+            let conn = db.0.lock().unwrap();
+            let _ = crate::commands::sessions::log_session_conn(
+                &conn,
+                &crate::commands::sessions::NewAgentSession {
+                    task_id: None,
+                    agent_id: agent.id.clone(),
+                    session_id,
+                    command: None,
+                    exit_code: Some(0),
+                    status: "ok".into(),
+                    duration_ms: Some(duration_ms),
+                    cost_usd: None,
+                    input_tokens: None,
+                    output_tokens: None,
+                },
+            );
+            s
+        }
+        Err(e) => {
+            log::warn!("AI 分类失败（本轮跳过）: {e}");
+            app.state::<crate::health::HealthState>().record_failure(
+                app,
+                crate::health::AI,
+                &e.to_string(),
+            );
+            {
+                let conn = db.0.lock().unwrap();
+                let _ = crate::commands::sessions::log_session_conn(
+                    &conn,
+                    &crate::commands::sessions::NewAgentSession {
+                        task_id: None,
+                        agent_id: agent.id.clone(),
+                        session_id: None,
+                        command: None,
+                        exit_code: None,
+                        status: "error".into(),
+                        duration_ms: Some(duration_ms),
+                        cost_usd: None,
+                        input_tokens: None,
+                        output_tokens: None,
+                    },
+                );
+                // 失败回读挽救：已落库的判定保留（pk 已写入，无需重放），
+                // 未落库的标 error 待重判；迟到的孤儿回调交给延迟回看
+                let loaded = load_suggestions_conn(&conn, &ids)?;
+                let landed = loaded.iter().filter(|s| s.action != "pending").count();
+                let missed: Vec<String> = loaded
+                    .iter()
+                    .filter(|s| s.action == "pending")
+                    .map(|s| s.message_id.clone())
+                    .collect();
+                mark_ai_error_conn(&conn, &missed)?;
+                if landed > 0 {
+                    log::info!(
+                        "radio: AI 判定失败但 {landed} / {} 条判定已落库，收下（其余 {} 条标记可重判）",
+                        ids.len(),
+                        missed.len()
+                    );
+                }
+                spawn_late_judgment_recheck(app.clone(), missed);
+                let todos = loaded.iter().filter(|s| s.is_todo()).count();
+                return Ok(todos);
+            }
+        }
+    };
+    app.state::<crate::health::HealthState>()
+        .record_success(app, crate::health::AI);
+    let n_todo = suggestions.iter().filter(|s| s.is_todo()).count();
+    let n_update = suggestions.iter().filter(|s| s.is_update()).count();
+    let n_follow = suggestions.iter().filter(|s| s.is_follow_up()).count();
+    log::info!(
+        "radio: AI 判定 {}/{} 条：新待办 {n_todo} · 变更建议 {n_update} · 跟进 {n_follow}",
+        n_todo + n_update + n_follow,
+        batch.len()
+    );
+    let by_id: std::collections::HashMap<String, &ai::AiSuggestion> = suggestions
+        .iter()
+        .map(|s| (s.message_id.clone(), s))
+        .collect();
+    let conn = db.0.lock().unwrap();
+    let mut saved = 0usize;
+    for m in batch {
+        // 未被提及的消息按 none 记状态（AI 没给判定不等于跳过）
+        let fallback;
+        let s: &ai::AiSuggestion = match by_id.get(&m.message_id) {
+            Some(s) => s,
+            None => {
+                fallback = ai::AiSuggestion {
+                    message_id: m.message_id.clone(),
+                    ..Default::default()
+                };
+                &fallback
+            }
+        };
+        if s.is_todo() {
+            log::info!(
+                "radio: 新待办「{}」分类 {} 优先级 {} due {:?} 标签 {:?}（消息 {}）",
+                s.title.as_deref().unwrap_or("-"),
+                s.category.as_deref().unwrap_or("-"),
+                s.priority.as_deref().unwrap_or("-"),
+                s.due,
+                s.tags,
+                s.message_id
+            );
+        }
+        apply_suggestion_conn(&conn, s, &agent.id)?;
+        if s.is_todo() {
+            saved += 1;
+        }
+    }
+    Ok(saved)
+}
+
 /// 强制为消息创建待办：先让 AI 判重（对照现有待办清单），
 /// 判定为跟进/重复则不建并告知；其余情况照建（AI 建议优先，无建议用消息截断）。
 #[tauri::command]
@@ -963,10 +1152,8 @@ pub async fn force_create_todo<R: tauri::Runtime>(
         Ok(s) => s.into_iter().find(|s| s.message_id == msg.message_id),
         Err(e) => {
             let conn = db.0.lock().unwrap();
-            let _ = conn.execute(
-                "UPDATE chat_messages SET ai_status='error' WHERE id=?1",
-                params![id],
-            );
+            // 只翻转仍未落库判定的消息：分类失败前 pk 可能已把判定写库，不能覆盖
+            let _ = mark_ai_error_conn(&conn, std::slice::from_ref(&msg.message_id));
             app.state::<crate::health::HealthState>().record_failure(
                 &app,
                 crate::health::AI,
@@ -1134,10 +1321,7 @@ pub async fn capture_todo<R: tauri::Runtime>(
         Err(e) => {
             {
                 let conn = db.0.lock().unwrap();
-                let _ = conn.execute(
-                    "UPDATE chat_messages SET ai_status='error' WHERE id=?1",
-                    params![row_id],
-                );
+                let _ = mark_ai_error_conn(&conn, std::slice::from_ref(&message_id));
                 let _ = crate::commands::sessions::log_session_conn(
                     &conn,
                     &crate::commands::sessions::NewAgentSession {
@@ -1206,6 +1390,126 @@ pub async fn capture_todo<R: tauri::Runtime>(
         get_message(&conn, row_id)?
     };
     Ok(CaptureOutcome { message, task_id })
+}
+
+/// 批量重判「AI 判定失败」的结果：ok = 重新拿到判定的条数，仍失败的逐条汇报
+#[derive(Debug, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RetryAiResult {
+    pub ok: usize,
+    pub failed: Vec<BatchFailure>,
+}
+
+/// 批量重判 AI 判定失败的消息：把 error 且未分诊的消息重置 pending（清掉不可信的
+/// 残留建议）后重新送 AI——复用轮询的判定管道（含失败挽救与迟到回调回看）。
+/// 非 error / 已分诊的逐条报失败，不影响其余。判定失败的明细见诊断中心（AI 链路）。
+#[tauri::command]
+pub async fn retry_ai_judgment<R: tauri::Runtime>(
+    app: tauri::AppHandle<R>,
+    db: State<'_, Db>,
+    ids: Vec<i64>,
+) -> AppResult<RetryAiResult> {
+    if ids.is_empty() {
+        return Err(AppError::Invalid("未选择任何消息".into()));
+    }
+    let agent = {
+        let conn = db.0.lock().unwrap();
+        let get = |k: &str| -> Option<String> {
+            conn.query_row("SELECT value FROM settings WHERE key=?1", params![k], |r| {
+                r.get::<_, String>(0)
+            })
+            .ok()
+        };
+        ai::primary_agent(&get)
+    }
+    .ok_or_else(|| AppError::Invalid("请先在设置中配置 AI Agent".into()))?;
+
+    let mut result = RetryAiResult {
+        ok: 0,
+        failed: vec![],
+    };
+    // 锁内校验并重置 pending；判定对象带上来源标签与同会话上下文（与轮询同语境）
+    let mut targets: Vec<(i64, AiMessage)> = vec![];
+    {
+        let conn = db.0.lock().unwrap();
+        for id in ids {
+            let msg = match get_message(&conn, id) {
+                Ok(m) => m,
+                Err(e) => {
+                    result.failed.push(BatchFailure {
+                        id,
+                        error: e.to_string(),
+                    });
+                    continue;
+                }
+            };
+            if msg.ai_status != "error" || msg.review_status != "pending" {
+                result.failed.push(BatchFailure {
+                    id,
+                    error: format!(
+                        "该消息当前是「{}」状态，不是可重判的判定失败",
+                        msg.ai_status
+                    ),
+                });
+                continue;
+            }
+            let n = conn.execute(
+                "UPDATE chat_messages SET ai_status='pending',
+                        suggested_title=NULL, suggested_note=NULL, suggested_category=NULL,
+                        suggested_due=NULL, suggested_priority=NULL, suggested_tags='[]',
+                        suggested_reason=NULL, suggested_confidence=NULL, update_task_id=NULL
+                 WHERE id=?1 AND ai_status='error' AND review_status='pending'",
+                params![id],
+            )?;
+            if n == 0 {
+                // 与校验间被并发改掉（如恰好分诊/重判）：跳过不报错
+                continue;
+            }
+            let context = match msg.sent_at {
+                Some(at) => {
+                    chat_context_lines(&conn, &msg.chat_id, at, &msg.message_id, 30 * 60 * 1000, 10)
+                }
+                None => vec![],
+            };
+            targets.push((
+                id,
+                AiMessage {
+                    message_id: msg.message_id.clone(),
+                    sender: msg.sender.clone(),
+                    chat_label: chat_label(&msg.chat_type, &msg.chat_name),
+                    content: msg.content.clone(),
+                    context,
+                },
+            ));
+        }
+    }
+    for chunk in targets.chunks(20) {
+        let batch: Vec<AiMessage> = chunk.iter().map(|(_, m)| m.clone()).collect();
+        classify_and_apply(&app, &db, &agent, &batch).await?;
+    }
+    // 按最终状态汇总：不再是 error 即拿到判定（todo/update/followup/none 都算）
+    {
+        let conn = db.0.lock().unwrap();
+        for (id, m) in &targets {
+            let status: String = conn
+                .query_row(
+                    "SELECT ai_status FROM chat_messages WHERE message_id=?1",
+                    params![m.message_id],
+                    |r| r.get(0),
+                )
+                .unwrap_or_else(|_| "error".into());
+            if status == "error" {
+                result.failed.push(BatchFailure {
+                    id: *id,
+                    error: "AI 判定仍失败（明细见诊断中心）".into(),
+                });
+            } else {
+                result.ok += 1;
+            }
+        }
+    }
+    events::broadcast(&app, events::CHAT_MESSAGES_CHANGED);
+    Ok(result)
 }
 
 #[cfg(test)]
@@ -2495,5 +2799,181 @@ mod tests {
             .unwrap()
         };
         assert_eq!(n, 0, "capture 来源在撤销安全域内，可删除回滚");
+    }
+
+    // ---- 判定失败标记 / 挽救 / 批量重判 ----
+
+    fn seed_status_message(
+        app: &tauri::App<tauri::test::MockRuntime>,
+        msg_id: &str,
+        ai_status: &str,
+        review_status: &str,
+    ) -> i64 {
+        let db = app.state::<Db>();
+        let conn = db.0.lock().unwrap();
+        conn.execute(
+            "INSERT INTO chat_messages (message_id, chat_name, sender, content, suggested_title,
+                                        ai_status, review_status, created_at)
+             VALUES (?1, '项目群', '张三', '明天 10 点开周会', '残留建议', ?2, ?3, '2026-09-11T00:00:00Z')",
+            params![msg_id, ai_status, review_status],
+        )
+        .unwrap();
+        conn.last_insert_rowid()
+    }
+
+    fn ai_status_of(
+        app: &tauri::App<tauri::test::MockRuntime>,
+        msg_id: &str,
+    ) -> (String, Option<String>) {
+        let db = app.state::<Db>();
+        let conn = db.0.lock().unwrap();
+        conn.query_row(
+            "SELECT ai_status, suggested_title FROM chat_messages WHERE message_id=?1",
+            params![msg_id],
+            |r| Ok((r.get(0)?, r.get(1)?)),
+        )
+        .unwrap()
+    }
+
+    /// 判定失败标记只翻转 pending：pk 已落库的判定（todo/none）不被覆盖成 error，
+    /// pending 的残留建议载荷一并清空（error 态没有可展示的建议）
+    #[test]
+    fn mark_ai_error_only_flips_pending_and_clears_payload() {
+        let app = setup();
+        seed_status_message(&app, "om_pending", "pending", "pending");
+        seed_status_message(&app, "om_todo", "todo", "pending");
+        seed_status_message(&app, "om_none", "none", "pending");
+        seed_status_message(&app, "om_error", "error", "pending");
+        {
+            let db = app.state::<Db>();
+            let conn = db.0.lock().unwrap();
+            let n = mark_ai_error_conn(
+                &conn,
+                &[
+                    "om_pending".into(),
+                    "om_todo".into(),
+                    "om_none".into(),
+                    "om_error".into(),
+                    "om_missing".into(),
+                ],
+            )
+            .unwrap();
+            assert_eq!(n, 1, "只有 pending 被标记，不存在的 id 不计");
+        }
+        assert_eq!(
+            ai_status_of(&app, "om_pending"),
+            ("error".into(), None),
+            "pending → error 且残留建议被清"
+        );
+        assert_eq!(
+            ai_status_of(&app, "om_todo"),
+            ("todo".into(), Some("残留建议".into())),
+            "已落库判定不被覆盖"
+        );
+        assert_eq!(ai_status_of(&app, "om_none").0, "none");
+        assert_eq!(ai_status_of(&app, "om_error").0, "error");
+    }
+
+    /// 失败挽救（用户报告的核心场景）：agent 超时/非零退出时，pk 可能已把部分判定写库
+    /// ——已落库的保留，未落库的标 error 待重判，新待办数按已落库的计
+    #[test]
+    fn classify_failure_salvages_landed_judgments() {
+        let app = setup();
+        // om_landed 模拟 agent 被杀前 pk 已写入的 todo 判定；om_missed 仍是 pending
+        seed_status_message(&app, "om_landed", "pending", "pending");
+        {
+            let db = app.state::<Db>();
+            let conn = db.0.lock().unwrap();
+            conn.execute(
+                "INSERT INTO chat_messages (message_id, chat_name, sender, content, ai_status, review_status, created_at)
+                 VALUES ('om_missed', '项目群', '李四', '记得交周报', 'pending', 'pending', '2026-09-11T00:00:00Z')",
+                [],
+            )
+            .unwrap();
+            conn.execute(
+                "UPDATE chat_messages SET ai_status='todo', suggested_title='参加周会' WHERE message_id='om_landed'",
+                [],
+            )
+            .unwrap();
+        }
+        let agent = AgentConfig {
+            id: "fake".into(),
+            name: "Fake".into(),
+            command: "/usr/bin/false".into(),
+            timeout_secs: 10,
+            ..Default::default()
+        };
+        let batch = vec![
+            AiMessage::simple("om_landed", "张三", "明天 10 点开周会"),
+            AiMessage::simple("om_missed", "李四", "记得交周报"),
+        ];
+        let todos = {
+            let db = app.state::<Db>();
+            tauri::async_runtime::block_on(classify_and_apply(app.handle(), &db, &agent, &batch))
+        }
+        .unwrap();
+        assert_eq!(todos, 1, "挽救出的 todo 计入新待办数");
+        assert_eq!(
+            ai_status_of(&app, "om_landed"),
+            ("todo".into(), Some("参加周会".into())),
+            "已落库判定保留，不被失败标记覆盖"
+        );
+        assert_eq!(
+            ai_status_of(&app, "om_missed").0,
+            "error",
+            "未落库的标记判定失败（可重判）"
+        );
+    }
+
+    /// 批量重判：只动 error 且未分诊的消息（重置→重判；失败则回到 error 且残留建议被清），
+    /// 其余状态逐条报失败；空选择直接拒绝
+    #[test]
+    fn retry_ai_judgment_rejects_non_error_and_reports_still_failed() {
+        let app = setup();
+        seed_agent(&app, "/usr/bin/false");
+        let err1 = seed_status_message(&app, "om_err1", "error", "pending");
+        let err2 = seed_status_message(&app, "om_err2", "error", "pending");
+        let todo_id = seed_status_message(&app, "om_todo", "todo", "pending");
+        let dismissed_err = seed_status_message(&app, "om_err3", "error", "dismissed");
+
+        let err = tauri::async_runtime::block_on(async {
+            let db = app.state::<Db>();
+            retry_ai_judgment(app.handle().clone(), db, vec![]).await
+        })
+        .unwrap_err();
+        assert!(matches!(err, AppError::Invalid(_)), "空选择拒绝: {err}");
+
+        let r = tauri::async_runtime::block_on(async {
+            let db = app.state::<Db>();
+            retry_ai_judgment(
+                app.handle().clone(),
+                db,
+                vec![err1, err2, todo_id, dismissed_err],
+            )
+            .await
+        })
+        .unwrap();
+        assert_eq!(r.ok, 0, "agent 失败 → 无一拿到判定");
+        assert_eq!(r.failed.len(), 4, "仍失败的 + 状态不符的逐条汇报");
+        assert_eq!(
+            ai_status_of(&app, "om_err1").0,
+            "error",
+            "重判失败回到 error"
+        );
+        assert_eq!(
+            ai_status_of(&app, "om_err2"),
+            ("error".into(), None),
+            "重置时清掉不可信的残留建议"
+        );
+        assert_eq!(
+            ai_status_of(&app, "om_todo"),
+            ("todo".into(), Some("残留建议".into())),
+            "非 error 状态不被重置"
+        );
+        assert_eq!(
+            ai_status_of(&app, "om_err3").0,
+            "error",
+            "已分诊的 error 不被动"
+        );
     }
 }

@@ -263,6 +263,25 @@ async function clearNoise() {
   }
 }
 
+// ---- 判定失败重判：error 消息重新送 AI 判定（无信号区一键批量 / 详情单条） ----
+const failedList = computed(() => noiseList.value.filter((m) => m.aiStatus === "error"));
+const retrying = ref(false);
+async function retryFailed(ids: number[]) {
+  if (!ids.length || retrying.value) return;
+  retrying.value = true;
+  try {
+    const r = await api.retryAiJudgment(ids);
+    showToast(
+      r.failed.length ? t("im.retryPartial", { ok: r.ok, fail: r.failed.length }) : t("im.retryDone", { n: r.ok }),
+    );
+  } catch (e) {
+    showToast(`❌ ${errorMessage(e)}`, { error: true });
+  } finally {
+    retrying.value = false;
+    await reload();
+  }
+}
+
 // ---- 键盘流：↑↓/J/K 换条 · C 捕捉 · X 逃走 · F 强制 ----
 function onKeydown(e: KeyboardEvent) {
   const el = e.target as HTMLElement | null;
@@ -317,445 +336,472 @@ const chipTitle = (tag: { name: string; dimension: string; isNew: boolean }) =>
 
 <template>
   <div class="im-split">
-    <!-- 左栏：电波列表 -->
-    <section class="im-left">
-      <!-- 快速捕捉：一句话发给 AI 判定属性（内容 / 分类 / 标签 / 截止时间） -->
-      <form class="capture-bar" @submit.prevent="submitCapture">
-        <span class="cap-icon" aria-hidden="true">⚡</span>
-        <input
-          ref="captureInput"
-          v-model="captureText"
-          class="cap-input"
-          :placeholder="t('im.capturePlaceholder')"
-          :disabled="capturing"
-        />
-        <button class="cap-send" type="submit" :disabled="!captureText.trim() || capturing">
-          {{ capturing ? t("im.capturing") : t("im.captureSend") }}
-        </button>
-      </form>
-
-      <div class="im-toolbar">
-        <input v-model="query" class="search-input" :placeholder="t('im.search')" />
-        <div class="view-toggle" role="group" :aria-label="t('im.viewMode')">
-          <button type="button" :class="{ on: mode === 'time' }" @click="mode = 'time'">
-            {{ t("im.viewTime") }}
-          </button>
-          <button type="button" :class="{ on: mode === 'channel' }" @click="mode = 'channel'">
-            {{ t("im.viewChannel") }}
-          </button>
-        </div>
-      </div>
-
-      <div class="im-list-box">
-        <div v-if="!list.length" class="empty">{{ t("im.empty1") }}<br />{{ t("im.empty2") }}</div>
-
-        <template v-else-if="mode === 'time'">
-          <!-- 待办信号：AI 挑出的待办/更新建议，要细审 -->
-          <section class="list-group" data-group="pending">
-            <button type="button" class="lg-head" @click="toggleGroup('pending')">
-              <span class="lg-caret">{{ collapsed.has("pending") ? "▸" : "▾" }}</span>
-              {{ t("im.groupSignal") }}
-              <span class="lg-count hot">{{ signalList.length }}</span>
-              <span class="lg-state">{{ collapsed.has("pending") ? t("im.expand") : t("im.collapse") }}</span>
+    <div class="im-main">
+      <!-- 左栏：电波列表 -->
+      <section class="im-left">
+        <div class="im-toolbar">
+          <input v-model="query" class="search-input" :placeholder="t('im.search')" />
+          <div class="view-toggle" role="group" :aria-label="t('im.viewMode')">
+            <button type="button" :class="{ on: mode === 'time' }" @click="mode = 'time'">
+              {{ t("im.viewTime") }}
             </button>
-            <div v-if="!collapsed.has('pending')" class="lg-body">
-              <div v-if="!signalList.length" class="pending-empty">{{ t("im.signalAllDone") }}</div>
-              <div
-                v-for="m in signalList"
-                :key="m.id"
-                class="rrow"
-                :class="{ sel: m.id === selectedId }"
-                @click="selectedId = m.id"
-              >
-                <input
-                  type="checkbox"
-                  class="im-check"
-                  :checked="checked.has(m.id)"
-                  :aria-label="t('im.selectAll')"
-                  @click.stop
-                  @change="toggleOne(m.id)"
-                />
-                <div class="r-main">
-                  <div class="r-line1">
-                    <span v-if="m.chatType || m.chatName" class="chat-badge">
-                      {{ chatTypeLabel(m) ? `${chatTypeLabel(m)}·` : "" }}{{ m.chatName || "FEISHU" }}
-                    </span>
-                    <span class="r-sender">{{ m.sender }}</span>
-                    <span v-if="m.aiStatus === 'update'" class="chat-badge">🔧 {{ t("im.chipUpdate") }}</span>
-                    <span
-                      class="conf"
-                      :class="m.suggestedConfidence || 'low'"
-                      :title="t(`im.confidence.${m.suggestedConfidence || 'low'}`)"
-                    ></span>
-                    <span class="r-time">{{ fmtDateTime(m.createdAt) }}</span>
-                  </div>
-                  <div class="r-snippet">{{ snippet(m) }}</div>
-                </div>
-              </div>
-            </div>
-          </section>
-
-          <!-- 无信号：不是任务（或判定失败），一键清扫 -->
-          <section v-if="noiseList.length" class="list-group" data-group="noise">
-            <button type="button" class="lg-head" @click="toggleGroup('noise')">
-              <span class="lg-caret">{{ collapsed.has("noise") ? "▸" : "▾" }}</span>
-              {{ t("im.groupNoise") }}
-              <span class="lg-count">{{ noiseList.length }}</span>
-              <span class="lg-state">{{ collapsed.has("noise") ? t("im.expand") : t("im.collapse") }}</span>
-              <span
-                v-if="!collapsed.has('noise')"
-                class="clear-noise"
-                role="button"
-                :title="t('im.clearNoiseTitle')"
-                @click.stop="clearNoise"
-              >
-                {{ t("im.clearNoise") }}
-              </span>
+            <button type="button" :class="{ on: mode === 'channel' }" @click="mode = 'channel'">
+              {{ t("im.viewChannel") }}
             </button>
-            <div v-if="!collapsed.has('noise')" class="lg-body">
-              <div
-                v-for="m in noiseList"
-                :key="m.id"
-                class="rrow"
-                :class="{ sel: m.id === selectedId }"
-                @click="selectedId = m.id"
-              >
-                <input
-                  type="checkbox"
-                  class="im-check"
-                  :checked="checked.has(m.id)"
-                  :aria-label="t('im.selectAll')"
-                  @click.stop
-                  @change="toggleOne(m.id)"
-                />
-                <div class="r-main">
-                  <div class="r-line1">
-                    <span v-if="m.chatType || m.chatName" class="chat-badge">
-                      {{ chatTypeLabel(m) ? `${chatTypeLabel(m)}·` : "" }}{{ m.chatName || "FEISHU" }}
-                    </span>
-                    <span class="r-sender">{{ m.sender }}</span>
-                    <span class="r-time">{{ fmtDateTime(m.createdAt) }}</span>
-                  </div>
-                  <div class="r-snippet">{{ snippet(m) }}</div>
-                </div>
-              </div>
-            </div>
-          </section>
-
-          <!-- 已捕捉：默认收起，回看用 -->
-          <section
-            v-if="caughtList.length"
-            class="list-group"
-            :class="{ collapsed: collapsed.has('caught') }"
-            data-group="caught"
-          >
-            <button type="button" class="lg-head" @click="toggleGroup('caught')">
-              <span class="lg-caret">{{ collapsed.has("caught") ? "▸" : "▾" }}</span>
-              {{ t("im.groupCaught") }}
-              <span class="lg-count">{{ caughtList.length }}</span>
-              <span class="lg-state">{{ collapsed.has("caught") ? t("im.expand") : t("im.collapse") }}</span>
-            </button>
-            <div class="lg-body">
-              <div
-                v-for="m in caughtList"
-                :key="m.id"
-                class="rrow dim"
-                :class="{ sel: m.id === selectedId }"
-                @click="selectedId = m.id"
-              >
-                <div class="r-main">
-                  <div class="r-line1">
-                    <span v-if="m.chatType || m.chatName" class="chat-badge">
-                      {{ chatTypeLabel(m) ? `${chatTypeLabel(m)}·` : "" }}{{ m.chatName || "FEISHU" }}
-                    </span>
-                    <span class="r-sender">{{ m.sender }}</span>
-                    <span class="r-time">{{ fmtDateTime(m.createdAt) }}</span>
-                  </div>
-                  <div class="r-snippet">{{ snippet(m) }}</div>
-                </div>
-                <span class="r-mark ok">
-                  {{ m.followupTaskId ? t("im.markMerged", { id: m.followupTaskId }) : `✔ No.${m.taskId}` }}
-                </span>
-              </div>
-            </div>
-          </section>
-
-          <!-- 已逃走：默认收起 -->
-          <section
-            v-if="escapedList.length"
-            class="list-group"
-            :class="{ collapsed: collapsed.has('escaped') }"
-            data-group="escaped"
-          >
-            <button type="button" class="lg-head" @click="toggleGroup('escaped')">
-              <span class="lg-caret">{{ collapsed.has("escaped") ? "▸" : "▾" }}</span>
-              {{ t("im.groupEscaped") }}
-              <span class="lg-count">{{ escapedList.length }}</span>
-              <span class="lg-state">{{ collapsed.has("escaped") ? t("im.expand") : t("im.collapse") }}</span>
-            </button>
-            <div class="lg-body">
-              <div
-                v-for="m in escapedList"
-                :key="m.id"
-                class="rrow dim"
-                :class="{ sel: m.id === selectedId }"
-                @click="selectedId = m.id"
-              >
-                <div class="r-main">
-                  <div class="r-line1">
-                    <span v-if="m.chatType || m.chatName" class="chat-badge">
-                      {{ chatTypeLabel(m) ? `${chatTypeLabel(m)}·` : "" }}{{ m.chatName || "FEISHU" }}
-                    </span>
-                    <span class="r-sender">{{ m.sender }}</span>
-                    <span class="r-time">{{ fmtDateTime(m.createdAt) }}</span>
-                  </div>
-                  <div class="r-snippet">{{ snippet(m) }}</div>
-                </div>
-                <span class="r-mark no">✕</span>
-              </div>
-            </div>
-          </section>
-        </template>
-
-        <!-- 频道模式：按会话聚拢，组内信号在前 -->
-        <template v-else>
-          <section
-            v-for="g in channelGroups"
-            :key="g.key"
-            class="list-group"
-            :class="{ collapsed: collapsed.has('ch:' + g.key) }"
-          >
-            <button type="button" class="lg-head" @click="toggleGroup('ch:' + g.key)">
-              <span class="lg-caret">{{ collapsed.has("ch:" + g.key) ? "▸" : "▾" }}</span>
-              📡 {{ g.name }}
-              <span class="lg-count" :class="{ hot: g.list.some((m) => m.reviewStatus === 'pending' && isSignal(m)) }">
-                {{
-                  t("im.chanPending", { n: g.list.filter((m) => m.reviewStatus === "pending" && isSignal(m)).length })
-                }}
-              </span>
-              <span class="lg-state">{{ t("im.chanTotal", { n: g.list.length }) }}</span>
-            </button>
-            <div class="lg-body">
-              <div
-                v-for="m in g.list"
-                :key="m.id"
-                class="rrow"
-                :class="{ sel: m.id === selectedId, dim: m.reviewStatus !== 'pending' }"
-                @click="selectedId = m.id"
-              >
-                <input
-                  v-if="m.reviewStatus === 'pending'"
-                  type="checkbox"
-                  class="im-check"
-                  :checked="checked.has(m.id)"
-                  :aria-label="t('im.selectAll')"
-                  @click.stop
-                  @change="toggleOne(m.id)"
-                />
-                <div class="r-main">
-                  <div class="r-line1">
-                    <span class="r-sender">{{ m.sender }}</span>
-                    <span v-if="m.aiStatus === 'update' && m.reviewStatus === 'pending'" class="chat-badge">
-                      🔧 {{ t("im.chipUpdate") }}
-                    </span>
-                    <span v-if="!isSignal(m) && m.reviewStatus === 'pending'" class="chat-badge"
-                      >🔇 {{ t("im.chipNoise") }}</span
-                    >
-                    <span
-                      v-if="m.reviewStatus === 'pending' && isSignal(m)"
-                      class="conf"
-                      :class="m.suggestedConfidence || 'low'"
-                    ></span>
-                    <span class="r-time">{{ fmtDateTime(m.createdAt) }}</span>
-                  </div>
-                  <div class="r-snippet">{{ snippet(m) }}</div>
-                </div>
-                <span v-if="m.followupTaskId" class="r-mark ok">{{
-                  t("im.markMerged", { id: m.followupTaskId })
-                }}</span>
-                <span v-else-if="m.taskId" class="r-mark ok">✔ No.{{ m.taskId }}</span>
-                <span v-else-if="m.reviewStatus === 'dismissed'" class="r-mark no">✕</span>
-              </div>
-            </div>
-          </section>
-        </template>
-      </div>
-
-      <!-- 批量条：跟着勾选走（勾选只作用于信号区 + 无信号区手选） -->
-      <div class="batch-bar">
-        <label class="batch-check">
-          <input type="checkbox" :checked="allChecked" @change="toggleAll" />
-          {{ t("im.selectAll") }}
-        </label>
-        <button class="hi-conf-btn" type="button" @click="checkHighConfidence">{{ t("im.hiConf") }}</button>
-        <button class="btn" :disabled="!checked.size || batching" @click="batch('accept')">
-          {{ t("im.batchCatch") }}{{ checked.size ? `（${checked.size}）` : "" }}
-        </button>
-        <button class="btn ghost" :disabled="!checked.size || batching" @click="batch('dismiss')">
-          {{ t("im.batchRelease") }}{{ checked.size ? `（${checked.size}）` : "" }}
-        </button>
-      </div>
-    </section>
-
-    <!-- 右栏：详情与操作（按钮位置固定，不随消息滚动） -->
-    <section class="im-right">
-      <div v-if="!selected" class="d-empty">{{ t("im.selectHint") }}</div>
-      <div v-else class="d-body">
-        <div class="d-meta">
-          <span v-if="selected.chatType" class="type-badge">{{ chatTypeLabel(selected) }}</span>
-          <span
-            >{{ selected.chatName || "FEISHU" }} · {{ selected.sender }} · {{ fmtDateTime(selected.createdAt) }}</span
-          >
-          <span class="ai-status">{{ t(aiStatusKey(selected)) }}</span>
-        </div>
-        <div class="lcd d-content im-content">{{ selected.content }}</div>
-
-        <!-- AI 建议：新待办 -->
-        <div
-          v-if="selected.suggestedTitle && selected.aiStatus !== 'update' && selected.reviewStatus === 'pending'"
-          class="im-suggest"
-        >
-          {{ t("im.found") }}{{ selected.suggestedTitle }}
-          <span v-if="selected.suggestedDue">（{{ t("entry.due", { v: fmtDateTime(selected.suggestedDue) }) }}）</span>
-          <span v-if="selected.suggestedPriority" class="sug-prio">{{
-            t(`priority.${selected.suggestedPriority}`)
-          }}</span>
-          <span v-if="selected.suggestedConfidence" class="sug-conf" :class="'c-' + selected.suggestedConfidence">
-            {{ t(`im.confidence.${selected.suggestedConfidence}`) }}
-          </span>
-          <span
-            v-for="tag in selected.suggestedTags"
-            :key="tag.dimension + ':' + tag.name"
-            class="sug-tag"
-            :class="{ 'sug-new': tag.isNew, ['sug-dim-' + tag.dimension]: true }"
-            :title="chipTitle(tag)"
-            >{{ tag.isNew ? "＋" : "#" }} {{ tag.name }}</span
-          >
-          <span v-if="selected.suggestedReason" class="sug-reason">💡 {{ selected.suggestedReason }}</span>
-        </div>
-
-        <!-- AI 建议：更新已有待办（只展示明确给出的变更字段） -->
-        <div
-          v-if="selected.aiStatus === 'update' && selected.updateTaskId && selected.reviewStatus === 'pending'"
-          class="im-suggest update"
-        >
-          {{ t("im.updateFound", { id: selected.updateTaskId })
-          }}<span v-if="taskTitle(selected.updateTaskId)">「{{ taskTitle(selected.updateTaskId) }}」</span>
-          <span v-if="selected.suggestedTitle">{{ t("edit.title") }} → {{ selected.suggestedTitle }}</span>
-          <span v-if="selected.suggestedDue">（{{ t("entry.due", { v: fmtDateTime(selected.suggestedDue) }) }}）</span>
-          <span v-if="selected.suggestedPriority" class="sug-prio">{{
-            t(`priority.${selected.suggestedPriority}`)
-          }}</span>
-          <span v-if="selected.suggestedConfidence" class="sug-conf" :class="'c-' + selected.suggestedConfidence">
-            {{ t(`im.confidence.${selected.suggestedConfidence}`) }}
-          </span>
-          <span
-            v-for="tag in selected.suggestedTags"
-            :key="tag.dimension + ':' + tag.name"
-            class="sug-tag"
-            :class="{ 'sug-new': tag.isNew, ['sug-dim-' + tag.dimension]: true }"
-            :title="chipTitle(tag)"
-            >{{ tag.isNew ? "＋" : "#" }} {{ tag.name }}</span
-          >
-          <span v-if="selected.suggestedReason" class="sug-reason">💡 {{ selected.suggestedReason }}</span>
-        </div>
-
-        <!-- 无信号说明 -->
-        <div v-if="!isSignal(selected) && selected.reviewStatus === 'pending'" class="im-suggest none">
-          🔇 {{ t(`im.status.${selected.aiStatus}`)
-          }}<span v-if="selected.suggestedReason"> · {{ selected.suggestedReason }}</span>
-        </div>
-
-        <!-- 已处理状态条 -->
-        <div v-if="selected.followupTaskId" class="done-banner">
-          ✔ {{ t("im.followedTask", { id: selected.followupTaskId }) }}
-          <span v-if="taskTitle(selected.followupTaskId)" class="caught-sub"
-            >「{{ taskTitle(selected.followupTaskId) }}」</span
-          >
-        </div>
-        <div v-else-if="selected.reviewStatus === 'accepted'" class="done-banner">
-          ✔ {{ t("im.caughtTask", { id: selected.taskId ?? 0 }) }}
-        </div>
-        <div v-else-if="selected.reviewStatus === 'dismissed'" class="done-banner dim-banner">
-          ✕ {{ t("im.released") }}
-        </div>
-
-        <!-- 操作区 -->
-        <div class="im-actions">
-          <template v-if="selected.reviewStatus === 'pending' && selected.aiStatus === 'update'">
-            <button class="btn" :disabled="forcingId === selected.id" @click="acceptIm(selected)">
-              {{ forcingId === selected.id ? t("im.forcing") : t("im.applyUpdate") }}<span class="kbd">C</span>
-            </button>
-            <button class="btn red" @click="dismissIm(selected)">
-              {{ t("im.release") }}<span class="kbd">X</span>
-            </button>
-            <button
-              class="btn ghost er-toggle"
-              :title="t('im.escapeWhy')"
-              :aria-label="t('im.escapeWhy')"
-              @click="toggleEscapeMenu"
-            >
-              ▾
-            </button>
-          </template>
-          <template v-else-if="selected.reviewStatus === 'pending' && selected.aiStatus === 'todo'">
-            <button class="btn" @click="acceptIm(selected)">{{ t("im.catch") }}<span class="kbd">C</span></button>
-            <button class="btn red" @click="dismissIm(selected)">
-              {{ t("im.release") }}<span class="kbd">X</span>
-            </button>
-            <button
-              class="btn ghost er-toggle"
-              :title="t('im.escapeWhy')"
-              :aria-label="t('im.escapeWhy')"
-              @click="toggleEscapeMenu"
-            >
-              ▾
-            </button>
-            <button class="btn ghost force" :disabled="forcingId === selected.id" @click="forceCreate(selected)">
-              {{ forcingId === selected.id ? t("im.forcing") : t("im.force") }}<span class="kbd">F</span>
-            </button>
-          </template>
-          <template v-else-if="selected.reviewStatus === 'pending'">
-            <!-- 无信号/判定失败：逃走或强制捕捉 -->
-            <button class="btn red" @click="dismissIm(selected)">
-              {{ t("im.release") }}<span class="kbd">X</span>
-            </button>
-            <button
-              class="btn ghost er-toggle"
-              :title="t('im.escapeWhy')"
-              :aria-label="t('im.escapeWhy')"
-              @click="toggleEscapeMenu"
-            >
-              ▾
-            </button>
-            <button class="btn ghost force" :disabled="forcingId === selected.id" @click="forceCreate(selected)">
-              {{ forcingId === selected.id ? t("im.forcing") : t("im.force") }}<span class="kbd">F</span>
-            </button>
-          </template>
-          <template v-else-if="selected.reviewStatus === 'dismissed'">
-            <button class="btn ghost" @click="restoreIm(selected)">↩ {{ t("im.restore") }}</button>
-            <button class="btn ghost force" :disabled="forcingId === selected.id" @click="forceCreate(selected)">
-              {{ forcingId === selected.id ? t("im.forcing") : t("im.force") }}<span class="kbd">F</span>
-            </button>
-          </template>
-          <template v-else>
-            <button class="btn ghost force" :disabled="forcingId === selected.id" @click="forceCreate(selected)">
-              {{ forcingId === selected.id ? t("im.forcing") : t("im.force") }}<span class="kbd">F</span>
-            </button>
-          </template>
-
-          <!-- 逃走原因弹层（可选）：选原因码再逃走，帮 AI 越判越准 -->
-          <div v-if="escapeMenuId === selected.id" class="escape-pop">
-            <div class="er-label">{{ t("im.escapeWhy") }}</div>
-            <button v-for="code in ESCAPE_REASONS" :key="code" class="er-chip" @click="dismissIm(selected, code)">
-              {{ t(`im.escapeReasons.${code}`) }}
-            </button>
-            <button class="er-chip just" @click="dismissIm(selected)">{{ t("im.justEscape") }}</button>
           </div>
         </div>
-        <div v-if="escapeMenuId === selected.id" class="pop-mask" @click="escapeMenuId = null"></div>
-      </div>
-    </section>
+
+        <div class="im-list-box">
+          <div v-if="!list.length" class="empty">{{ t("im.empty1") }}<br />{{ t("im.empty2") }}</div>
+
+          <template v-else-if="mode === 'time'">
+            <!-- 待办信号：AI 挑出的待办/更新建议，要细审 -->
+            <section class="list-group" data-group="pending">
+              <button type="button" class="lg-head" @click="toggleGroup('pending')">
+                <span class="lg-caret">{{ collapsed.has("pending") ? "▸" : "▾" }}</span>
+                {{ t("im.groupSignal") }}
+                <span class="lg-count hot">{{ signalList.length }}</span>
+                <span class="lg-state">{{ collapsed.has("pending") ? t("im.expand") : t("im.collapse") }}</span>
+              </button>
+              <div v-if="!collapsed.has('pending')" class="lg-body">
+                <div v-if="!signalList.length" class="pending-empty">{{ t("im.signalAllDone") }}</div>
+                <div
+                  v-for="m in signalList"
+                  :key="m.id"
+                  class="rrow"
+                  :class="{ sel: m.id === selectedId }"
+                  @click="selectedId = m.id"
+                >
+                  <input
+                    type="checkbox"
+                    class="im-check"
+                    :checked="checked.has(m.id)"
+                    :aria-label="t('im.selectAll')"
+                    @click.stop
+                    @change="toggleOne(m.id)"
+                  />
+                  <div class="r-main">
+                    <div class="r-line1">
+                      <span v-if="m.chatType || m.chatName" class="chat-badge">
+                        {{ chatTypeLabel(m) ? `${chatTypeLabel(m)}·` : "" }}{{ m.chatName || "FEISHU" }}
+                      </span>
+                      <span class="r-sender">{{ m.sender }}</span>
+                      <span v-if="m.aiStatus === 'update'" class="chat-badge">🔧 {{ t("im.chipUpdate") }}</span>
+                      <span
+                        class="conf"
+                        :class="m.suggestedConfidence || 'low'"
+                        :title="t(`im.confidence.${m.suggestedConfidence || 'low'}`)"
+                      ></span>
+                      <span class="r-time">{{ fmtDateTime(m.createdAt) }}</span>
+                    </div>
+                    <div class="r-snippet">{{ snippet(m) }}</div>
+                  </div>
+                </div>
+              </div>
+            </section>
+
+            <!-- 无信号：不是任务（或判定失败），一键清扫 -->
+            <section v-if="noiseList.length" class="list-group" data-group="noise">
+              <button type="button" class="lg-head" @click="toggleGroup('noise')">
+                <span class="lg-caret">{{ collapsed.has("noise") ? "▸" : "▾" }}</span>
+                {{ t("im.groupNoise") }}
+                <span class="lg-count">{{ noiseList.length }}</span>
+                <span class="lg-state">{{ collapsed.has("noise") ? t("im.expand") : t("im.collapse") }}</span>
+                <span
+                  v-if="!collapsed.has('noise') && failedList.length"
+                  class="clear-noise"
+                  role="button"
+                  :title="t('im.retryFailedTitle')"
+                  @click.stop="retryFailed(failedList.map((m) => m.id))"
+                >
+                  {{ retrying ? t("im.retrying") : `♻ ${t("im.retryFailed")}（${failedList.length}）` }}
+                </span>
+                <span
+                  v-if="!collapsed.has('noise')"
+                  class="clear-noise"
+                  role="button"
+                  :title="t('im.clearNoiseTitle')"
+                  @click.stop="clearNoise"
+                >
+                  {{ t("im.clearNoise") }}
+                </span>
+              </button>
+              <div v-if="!collapsed.has('noise')" class="lg-body">
+                <div
+                  v-for="m in noiseList"
+                  :key="m.id"
+                  class="rrow"
+                  :class="{ sel: m.id === selectedId }"
+                  @click="selectedId = m.id"
+                >
+                  <input
+                    type="checkbox"
+                    class="im-check"
+                    :checked="checked.has(m.id)"
+                    :aria-label="t('im.selectAll')"
+                    @click.stop
+                    @change="toggleOne(m.id)"
+                  />
+                  <div class="r-main">
+                    <div class="r-line1">
+                      <span v-if="m.chatType || m.chatName" class="chat-badge">
+                        {{ chatTypeLabel(m) ? `${chatTypeLabel(m)}·` : "" }}{{ m.chatName || "FEISHU" }}
+                      </span>
+                      <span class="r-sender">{{ m.sender }}</span>
+                      <span class="r-time">{{ fmtDateTime(m.createdAt) }}</span>
+                    </div>
+                    <div class="r-snippet">{{ snippet(m) }}</div>
+                  </div>
+                </div>
+              </div>
+            </section>
+
+            <!-- 已捕捉：默认收起，回看用 -->
+            <section
+              v-if="caughtList.length"
+              class="list-group"
+              :class="{ collapsed: collapsed.has('caught') }"
+              data-group="caught"
+            >
+              <button type="button" class="lg-head" @click="toggleGroup('caught')">
+                <span class="lg-caret">{{ collapsed.has("caught") ? "▸" : "▾" }}</span>
+                {{ t("im.groupCaught") }}
+                <span class="lg-count">{{ caughtList.length }}</span>
+                <span class="lg-state">{{ collapsed.has("caught") ? t("im.expand") : t("im.collapse") }}</span>
+              </button>
+              <div class="lg-body">
+                <div
+                  v-for="m in caughtList"
+                  :key="m.id"
+                  class="rrow dim"
+                  :class="{ sel: m.id === selectedId }"
+                  @click="selectedId = m.id"
+                >
+                  <div class="r-main">
+                    <div class="r-line1">
+                      <span v-if="m.chatType || m.chatName" class="chat-badge">
+                        {{ chatTypeLabel(m) ? `${chatTypeLabel(m)}·` : "" }}{{ m.chatName || "FEISHU" }}
+                      </span>
+                      <span class="r-sender">{{ m.sender }}</span>
+                      <span class="r-time">{{ fmtDateTime(m.createdAt) }}</span>
+                    </div>
+                    <div class="r-snippet">{{ snippet(m) }}</div>
+                  </div>
+                  <span class="r-mark ok">
+                    {{ m.followupTaskId ? t("im.markMerged", { id: m.followupTaskId }) : `✔ No.${m.taskId}` }}
+                  </span>
+                </div>
+              </div>
+            </section>
+
+            <!-- 已逃走：默认收起 -->
+            <section
+              v-if="escapedList.length"
+              class="list-group"
+              :class="{ collapsed: collapsed.has('escaped') }"
+              data-group="escaped"
+            >
+              <button type="button" class="lg-head" @click="toggleGroup('escaped')">
+                <span class="lg-caret">{{ collapsed.has("escaped") ? "▸" : "▾" }}</span>
+                {{ t("im.groupEscaped") }}
+                <span class="lg-count">{{ escapedList.length }}</span>
+                <span class="lg-state">{{ collapsed.has("escaped") ? t("im.expand") : t("im.collapse") }}</span>
+              </button>
+              <div class="lg-body">
+                <div
+                  v-for="m in escapedList"
+                  :key="m.id"
+                  class="rrow dim"
+                  :class="{ sel: m.id === selectedId }"
+                  @click="selectedId = m.id"
+                >
+                  <div class="r-main">
+                    <div class="r-line1">
+                      <span v-if="m.chatType || m.chatName" class="chat-badge">
+                        {{ chatTypeLabel(m) ? `${chatTypeLabel(m)}·` : "" }}{{ m.chatName || "FEISHU" }}
+                      </span>
+                      <span class="r-sender">{{ m.sender }}</span>
+                      <span class="r-time">{{ fmtDateTime(m.createdAt) }}</span>
+                    </div>
+                    <div class="r-snippet">{{ snippet(m) }}</div>
+                  </div>
+                  <span class="r-mark no">✕</span>
+                </div>
+              </div>
+            </section>
+          </template>
+
+          <!-- 频道模式：按会话聚拢，组内信号在前 -->
+          <template v-else>
+            <section
+              v-for="g in channelGroups"
+              :key="g.key"
+              class="list-group"
+              :class="{ collapsed: collapsed.has('ch:' + g.key) }"
+            >
+              <button type="button" class="lg-head" @click="toggleGroup('ch:' + g.key)">
+                <span class="lg-caret">{{ collapsed.has("ch:" + g.key) ? "▸" : "▾" }}</span>
+                📡 {{ g.name }}
+                <span
+                  class="lg-count"
+                  :class="{ hot: g.list.some((m) => m.reviewStatus === 'pending' && isSignal(m)) }"
+                >
+                  {{
+                    t("im.chanPending", { n: g.list.filter((m) => m.reviewStatus === "pending" && isSignal(m)).length })
+                  }}
+                </span>
+                <span class="lg-state">{{ t("im.chanTotal", { n: g.list.length }) }}</span>
+              </button>
+              <div class="lg-body">
+                <div
+                  v-for="m in g.list"
+                  :key="m.id"
+                  class="rrow"
+                  :class="{ sel: m.id === selectedId, dim: m.reviewStatus !== 'pending' }"
+                  @click="selectedId = m.id"
+                >
+                  <input
+                    v-if="m.reviewStatus === 'pending'"
+                    type="checkbox"
+                    class="im-check"
+                    :checked="checked.has(m.id)"
+                    :aria-label="t('im.selectAll')"
+                    @click.stop
+                    @change="toggleOne(m.id)"
+                  />
+                  <div class="r-main">
+                    <div class="r-line1">
+                      <span class="r-sender">{{ m.sender }}</span>
+                      <span v-if="m.aiStatus === 'update' && m.reviewStatus === 'pending'" class="chat-badge">
+                        🔧 {{ t("im.chipUpdate") }}
+                      </span>
+                      <span v-if="!isSignal(m) && m.reviewStatus === 'pending'" class="chat-badge"
+                        >🔇 {{ t("im.chipNoise") }}</span
+                      >
+                      <span
+                        v-if="m.reviewStatus === 'pending' && isSignal(m)"
+                        class="conf"
+                        :class="m.suggestedConfidence || 'low'"
+                      ></span>
+                      <span class="r-time">{{ fmtDateTime(m.createdAt) }}</span>
+                    </div>
+                    <div class="r-snippet">{{ snippet(m) }}</div>
+                  </div>
+                  <span v-if="m.followupTaskId" class="r-mark ok">{{
+                    t("im.markMerged", { id: m.followupTaskId })
+                  }}</span>
+                  <span v-else-if="m.taskId" class="r-mark ok">✔ No.{{ m.taskId }}</span>
+                  <span v-else-if="m.reviewStatus === 'dismissed'" class="r-mark no">✕</span>
+                </div>
+              </div>
+            </section>
+          </template>
+        </div>
+
+        <!-- 批量条：跟着勾选走（勾选只作用于信号区 + 无信号区手选） -->
+        <div class="batch-bar">
+          <label class="batch-check">
+            <input type="checkbox" :checked="allChecked" @change="toggleAll" />
+            {{ t("im.selectAll") }}
+          </label>
+          <button class="hi-conf-btn" type="button" @click="checkHighConfidence">{{ t("im.hiConf") }}</button>
+          <button class="btn" :disabled="!checked.size || batching" @click="batch('accept')">
+            {{ t("im.batchCatch") }}{{ checked.size ? `（${checked.size}）` : "" }}
+          </button>
+          <button class="btn ghost" :disabled="!checked.size || batching" @click="batch('dismiss')">
+            {{ t("im.batchRelease") }}{{ checked.size ? `（${checked.size}）` : "" }}
+          </button>
+        </div>
+      </section>
+
+      <!-- 右栏：详情与操作（按钮位置固定，不随消息滚动） -->
+      <section class="im-right">
+        <div v-if="!selected" class="d-empty">{{ t("im.selectHint") }}</div>
+        <div v-else class="d-body">
+          <div class="d-meta">
+            <span v-if="selected.chatType" class="type-badge">{{ chatTypeLabel(selected) }}</span>
+            <span
+              >{{ selected.chatName || "FEISHU" }} · {{ selected.sender }} · {{ fmtDateTime(selected.createdAt) }}</span
+            >
+            <span class="ai-status">{{ t(aiStatusKey(selected)) }}</span>
+          </div>
+          <div class="lcd d-content im-content">{{ selected.content }}</div>
+
+          <!-- AI 建议：新待办 -->
+          <div
+            v-if="selected.suggestedTitle && selected.aiStatus !== 'update' && selected.reviewStatus === 'pending'"
+            class="im-suggest"
+          >
+            {{ t("im.found") }}{{ selected.suggestedTitle }}
+            <span v-if="selected.suggestedDue"
+              >（{{ t("entry.due", { v: fmtDateTime(selected.suggestedDue) }) }}）</span
+            >
+            <span v-if="selected.suggestedPriority" class="sug-prio">{{
+              t(`priority.${selected.suggestedPriority}`)
+            }}</span>
+            <span v-if="selected.suggestedConfidence" class="sug-conf" :class="'c-' + selected.suggestedConfidence">
+              {{ t(`im.confidence.${selected.suggestedConfidence}`) }}
+            </span>
+            <span
+              v-for="tag in selected.suggestedTags"
+              :key="tag.dimension + ':' + tag.name"
+              class="sug-tag"
+              :class="{ 'sug-new': tag.isNew, ['sug-dim-' + tag.dimension]: true }"
+              :title="chipTitle(tag)"
+              >{{ tag.isNew ? "＋" : "#" }} {{ tag.name }}</span
+            >
+            <span v-if="selected.suggestedReason" class="sug-reason">💡 {{ selected.suggestedReason }}</span>
+          </div>
+
+          <!-- AI 建议：更新已有待办（只展示明确给出的变更字段） -->
+          <div
+            v-if="selected.aiStatus === 'update' && selected.updateTaskId && selected.reviewStatus === 'pending'"
+            class="im-suggest update"
+          >
+            {{ t("im.updateFound", { id: selected.updateTaskId })
+            }}<span v-if="taskTitle(selected.updateTaskId)">「{{ taskTitle(selected.updateTaskId) }}」</span>
+            <span v-if="selected.suggestedTitle">{{ t("edit.title") }} → {{ selected.suggestedTitle }}</span>
+            <span v-if="selected.suggestedDue"
+              >（{{ t("entry.due", { v: fmtDateTime(selected.suggestedDue) }) }}）</span
+            >
+            <span v-if="selected.suggestedPriority" class="sug-prio">{{
+              t(`priority.${selected.suggestedPriority}`)
+            }}</span>
+            <span v-if="selected.suggestedConfidence" class="sug-conf" :class="'c-' + selected.suggestedConfidence">
+              {{ t(`im.confidence.${selected.suggestedConfidence}`) }}
+            </span>
+            <span
+              v-for="tag in selected.suggestedTags"
+              :key="tag.dimension + ':' + tag.name"
+              class="sug-tag"
+              :class="{ 'sug-new': tag.isNew, ['sug-dim-' + tag.dimension]: true }"
+              :title="chipTitle(tag)"
+              >{{ tag.isNew ? "＋" : "#" }} {{ tag.name }}</span
+            >
+            <span v-if="selected.suggestedReason" class="sug-reason">💡 {{ selected.suggestedReason }}</span>
+          </div>
+
+          <!-- 无信号说明 -->
+          <div v-if="!isSignal(selected) && selected.reviewStatus === 'pending'" class="im-suggest none">
+            🔇 {{ t(`im.status.${selected.aiStatus}`)
+            }}<span v-if="selected.suggestedReason"> · {{ selected.suggestedReason }}</span>
+          </div>
+
+          <!-- 已处理状态条 -->
+          <div v-if="selected.followupTaskId" class="done-banner">
+            ✔ {{ t("im.followedTask", { id: selected.followupTaskId }) }}
+            <span v-if="taskTitle(selected.followupTaskId)" class="caught-sub"
+              >「{{ taskTitle(selected.followupTaskId) }}」</span
+            >
+          </div>
+          <div v-else-if="selected.reviewStatus === 'accepted'" class="done-banner">
+            ✔ {{ t("im.caughtTask", { id: selected.taskId ?? 0 }) }}
+          </div>
+          <div v-else-if="selected.reviewStatus === 'dismissed'" class="done-banner dim-banner">
+            ✕ {{ t("im.released") }}
+          </div>
+
+          <!-- 操作区 -->
+          <div class="im-actions">
+            <template v-if="selected.reviewStatus === 'pending' && selected.aiStatus === 'update'">
+              <button class="btn" :disabled="forcingId === selected.id" @click="acceptIm(selected)">
+                {{ forcingId === selected.id ? t("im.forcing") : t("im.applyUpdate") }}<span class="kbd">C</span>
+              </button>
+              <button class="btn red" @click="dismissIm(selected)">
+                {{ t("im.release") }}<span class="kbd">X</span>
+              </button>
+              <button
+                class="btn ghost er-toggle"
+                :title="t('im.escapeWhy')"
+                :aria-label="t('im.escapeWhy')"
+                @click="toggleEscapeMenu"
+              >
+                ▾
+              </button>
+            </template>
+            <template v-else-if="selected.reviewStatus === 'pending' && selected.aiStatus === 'todo'">
+              <button class="btn" @click="acceptIm(selected)">{{ t("im.catch") }}<span class="kbd">C</span></button>
+              <button class="btn red" @click="dismissIm(selected)">
+                {{ t("im.release") }}<span class="kbd">X</span>
+              </button>
+              <button
+                class="btn ghost er-toggle"
+                :title="t('im.escapeWhy')"
+                :aria-label="t('im.escapeWhy')"
+                @click="toggleEscapeMenu"
+              >
+                ▾
+              </button>
+              <button class="btn ghost force" :disabled="forcingId === selected.id" @click="forceCreate(selected)">
+                {{ forcingId === selected.id ? t("im.forcing") : t("im.force") }}<span class="kbd">F</span>
+              </button>
+            </template>
+            <template v-else-if="selected.reviewStatus === 'pending'">
+              <!-- 无信号/判定失败：重判（仅 error）、逃走或强制捕捉 -->
+              <button
+                v-if="selected.aiStatus === 'error'"
+                class="btn ghost"
+                :disabled="retrying"
+                @click="retryFailed([selected.id])"
+              >
+                {{ retrying ? t("im.retrying") : `♻ ${t("im.retry")}` }}
+              </button>
+              <button class="btn red" @click="dismissIm(selected)">
+                {{ t("im.release") }}<span class="kbd">X</span>
+              </button>
+              <button
+                class="btn ghost er-toggle"
+                :title="t('im.escapeWhy')"
+                :aria-label="t('im.escapeWhy')"
+                @click="toggleEscapeMenu"
+              >
+                ▾
+              </button>
+              <button class="btn ghost force" :disabled="forcingId === selected.id" @click="forceCreate(selected)">
+                {{ forcingId === selected.id ? t("im.forcing") : t("im.force") }}<span class="kbd">F</span>
+              </button>
+            </template>
+            <template v-else-if="selected.reviewStatus === 'dismissed'">
+              <button class="btn ghost" @click="restoreIm(selected)">↩ {{ t("im.restore") }}</button>
+              <button class="btn ghost force" :disabled="forcingId === selected.id" @click="forceCreate(selected)">
+                {{ forcingId === selected.id ? t("im.forcing") : t("im.force") }}<span class="kbd">F</span>
+              </button>
+            </template>
+            <template v-else>
+              <button class="btn ghost force" :disabled="forcingId === selected.id" @click="forceCreate(selected)">
+                {{ forcingId === selected.id ? t("im.forcing") : t("im.force") }}<span class="kbd">F</span>
+              </button>
+            </template>
+
+            <!-- 逃走原因弹层（可选）：选原因码再逃走，帮 AI 越判越准 -->
+            <div v-if="escapeMenuId === selected.id" class="escape-pop">
+              <div class="er-label">{{ t("im.escapeWhy") }}</div>
+              <button v-for="code in ESCAPE_REASONS" :key="code" class="er-chip" @click="dismissIm(selected, code)">
+                {{ t(`im.escapeReasons.${code}`) }}
+              </button>
+              <button class="er-chip just" @click="dismissIm(selected)">{{ t("im.justEscape") }}</button>
+            </div>
+          </div>
+          <div v-if="escapeMenuId === selected.id" class="pop-mask" @click="escapeMenuId = null"></div>
+        </div>
+      </section>
+    </div>
+
+    <!-- 快速捕捉（发送区）：一句话发给 AI 判定属性（内容 / 分类 / 标签 / 截止时间）；
+         通栏垫底，与上方收听区分隔 -->
+    <form class="capture-bar" @submit.prevent="submitCapture">
+      <span class="cap-icon" aria-hidden="true">⚡</span>
+      <input
+        ref="captureInput"
+        v-model="captureText"
+        class="cap-input"
+        :placeholder="t('im.capturePlaceholder')"
+        :disabled="capturing"
+      />
+      <button class="cap-send" type="submit" :disabled="!captureText.trim() || capturing">
+        {{ capturing ? t("im.capturing") : t("im.captureSend") }}
+      </button>
+    </form>
   </div>
 
   <!-- 撤销 toast：处理完立即生效，5 秒内可反悔 -->
@@ -766,13 +812,20 @@ const chipTitle = (tag: { name: string; dimension: string; isNew: boolean }) =>
 </template>
 
 <style scoped>
-/* 收音机两栏：左列表右详情，约 3:2 分栏（左列最小 360px） */
+/* 收音机：上收听下发送——两栏收听区（约 3:2，左列最小 360px）+ 底部通栏捕捉条 */
 .im-split {
   flex: 1;
   min-height: 0;
   display: flex;
-  gap: 14px;
+  flex-direction: column;
+  gap: 12px;
   padding: 4px 20px 20px;
+}
+.im-main {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  gap: 14px;
 }
 .im-left {
   flex: 3 1 0;
@@ -786,12 +839,14 @@ const chipTitle = (tag: { name: string; dimension: string; isNew: boolean }) =>
   display: flex;
   gap: 8px;
 }
-/* 快速捕捉条：左栏首行，主入口用黄底强调 */
+/* 快速捕捉条（发送区）：通栏垫底，分隔线划开收 / 发两个区域，主入口用黄底强调 */
 .capture-bar {
   flex: none;
   display: flex;
   gap: 8px;
   align-items: center;
+  padding-top: 12px;
+  border-top: 3px solid var(--dex-navy);
 }
 .cap-icon {
   flex: none;

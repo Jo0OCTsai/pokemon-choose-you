@@ -183,7 +183,8 @@ test.describe("设置 · 标签与项目派发", () => {
       .filter({ hasText: /Claude Code$/ })
       .click();
     await block.locator("input[placeholder='~/projects/my-repo']").fill("~/projects/lark-mcp");
-    await block.locator(".btn-row .btn", { hasText: "保存" }).click();
+    // 改动即时保存：文本失焦（change）即落库，无独立保存按钮
+    await block.locator("input[placeholder='~/projects/my-repo']").blur();
 
     await expect
       .poll(async () => ((await mockInvoke(page, "list_tags")) as any[]).find((t) => t.id === 2)?.meta)

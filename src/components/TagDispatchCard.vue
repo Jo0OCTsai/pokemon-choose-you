@@ -1,8 +1,9 @@
 <script setup lang="ts">
 /**
  * 项目派发卡片：project 维度标签 → agent / 工作目录 / 项目上下文 的路由表。
- * 从标签行内嵌的半档派发行抽出独立成卡：字段有名字与说明（不再靠 placeholder），
  * 全部项目标签的路由一目了然。编辑草稿按标签 id 存，store 刷新时增量同步。
+ * 改动即时落库（与应用其余「选中即存」一致）：下拉选中即存，文本失焦（change）即存——
+ * 页面顶部「保存设置」只写 settings 表，覆盖不到这里，行内按钮曾造成两套保存心智。
  */
 import { computed, reactive, watch } from "vue";
 import { useI18n } from "vue-i18n";
@@ -26,9 +27,10 @@ interface Draft {
 
 const projectTags = computed(() => tagsStore.list.filter((g) => (g.dimension || "topic") === "project"));
 
-/** 已保存至少一项派发配置（状态徽标与标签行的 ⚡ 提示同一口径） */
+/** 已改写派发路由（指定了 agent 或目录）：context 只进提示词，不点亮徽标——
+ * 只填 context 时实际仍按全局默认派发，亮「已配置」会与脚注口径矛盾 */
 function configured(g: Tag): boolean {
-  return !!(g.meta?.workdir || g.meta?.agentId || g.meta?.context);
+  return !!(g.meta?.workdir || g.meta?.agentId);
 }
 
 const drafts = reactive(new Map<number, Draft>());
@@ -80,6 +82,12 @@ async function saveMeta(tag: Tag) {
     emit("feedback", `❌ ${errorMessage(e)}`);
   }
 }
+
+/** 下拉选中即存（v-model 拆开手动绑定，选中后立刻落库） */
+function pickAgent(tag: Tag, draft: Draft, v: string) {
+  draft.agentId = v;
+  void saveMeta(tag);
+}
 </script>
 
 <template>
@@ -93,18 +101,24 @@ async function saveMeta(tag: Tag) {
           {{ configured(row.tag) ? t("tagDispatch.configured") : t("tagDispatch.unconfigured") }}
         </span>
       </div>
-      <SettingRow :label="t('tagDispatch.agent')" :desc="t('tagDispatch.agentDesc')" :label-width="128">
-        <DexSelect v-model="row.draft.agentId" :options="agentOptions(row.draft)" />
+      <SettingRow :label="t('tagDispatch.agent')" :label-width="128">
+        <DexSelect
+          :model-value="row.draft.agentId"
+          :options="agentOptions(row.draft)"
+          @update:model-value="(v) => pickAgent(row.tag, row.draft, v)"
+        />
       </SettingRow>
       <SettingRow :label="t('tagDispatch.workdir')" :desc="t('tagDispatch.workdirDesc')" wide :label-width="128">
-        <input v-model="row.draft.workdir" :placeholder="t('tagDispatch.workdirPh')" spellcheck="false" />
+        <input
+          v-model="row.draft.workdir"
+          :placeholder="t('tagDispatch.workdirPh')"
+          spellcheck="false"
+          @change="saveMeta(row.tag)"
+        />
       </SettingRow>
-      <SettingRow :label="t('tagDispatch.context')" :desc="t('tagDispatch.contextDesc')" wide :label-width="128">
-        <input v-model="row.draft.context" :placeholder="t('tagDispatch.contextPh')" />
+      <SettingRow :label="t('tagDispatch.context')" wide :label-width="128">
+        <input v-model="row.draft.context" :placeholder="t('tagDispatch.contextPh')" @change="saveMeta(row.tag)" />
       </SettingRow>
-      <div class="btn-row">
-        <button class="btn ghost" @click="saveMeta(row.tag)">{{ t("tags.save") }}</button>
-      </div>
     </div>
     <p v-if="!rows.length" class="hint">{{ t("tagDispatch.empty") }}</p>
     <p class="set-foot">{{ t("tagDispatch.foot") }}</p>
@@ -175,9 +189,5 @@ async function saveMeta(tag: Tag) {
   border-color: var(--dex-navy);
   background: var(--ok-soft);
   color: var(--ok-ink);
-}
-.btn-row {
-  display: flex;
-  gap: 10px;
 }
 </style>
