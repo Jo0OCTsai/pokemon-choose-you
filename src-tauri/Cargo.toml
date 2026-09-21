@@ -44,7 +44,11 @@ thiserror = "2.0.20"
 keyring = "4.2.0"
 # 派发会话续接：预生成 claude --session-id 用的 UUID v4
 uuid = { version = "1.26.1", features = ["v4"] }
-# 输入响应（F1）：全局键鼠活动强度监听（回调只递增计数器，不取内容）；macOS 需辅助功能权限
+
+# 输入响应（F1）：全局键鼠活动强度监听（回调只递增计数器，不取内容），仅 Windows/Linux；
+# macOS 自写最小 CGEventTap（见 input.rs）——rdev 0.5.3 在监听线程调 TIS 布局 API，
+# 部分 macOS×键盘布局组合下授权后一敲键就段错误闪退（Narsil/rdev#146，修复未发布）
+[target.'cfg(not(target_os = "macos"))'.dependencies]
 rdev = "0.5.3"
 
 [dev-dependencies]
