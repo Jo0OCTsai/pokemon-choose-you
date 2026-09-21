@@ -263,6 +263,25 @@ async function clearNoise() {
   }
 }
 
+// ---- 判定失败重判：error 消息重新送 AI 判定（无信号区一键批量 / 详情单条） ----
+const failedList = computed(() => noiseList.value.filter((m) => m.aiStatus === "error"));
+const retrying = ref(false);
+async function retryFailed(ids: number[]) {
+  if (!ids.length || retrying.value) return;
+  retrying.value = true;
+  try {
+    const r = await api.retryAiJudgment(ids);
+    showToast(
+      r.failed.length ? t("im.retryPartial", { ok: r.ok, fail: r.failed.length }) : t("im.retryDone", { n: r.ok }),
+    );
+  } catch (e) {
+    showToast(`❌ ${errorMessage(e)}`, { error: true });
+  } finally {
+    retrying.value = false;
+    await reload();
+  }
+}
+
 // ---- 键盘流：↑↓/J/K 换条 · C 捕捉 · X 逃走 · F 强制 ----
 function onKeydown(e: KeyboardEvent) {
   const el = e.target as HTMLElement | null;
@@ -388,6 +407,15 @@ const chipTitle = (tag: { name: string; dimension: string; isNew: boolean }) =>
                 {{ t("im.groupNoise") }}
                 <span class="lg-count">{{ noiseList.length }}</span>
                 <span class="lg-state">{{ collapsed.has("noise") ? t("im.expand") : t("im.collapse") }}</span>
+                <span
+                  v-if="!collapsed.has('noise') && failedList.length"
+                  class="clear-noise"
+                  role="button"
+                  :title="t('im.retryFailedTitle')"
+                  @click.stop="retryFailed(failedList.map((m) => m.id))"
+                >
+                  {{ retrying ? t("im.retrying") : `♻ ${t("im.retryFailed")}（${failedList.length}）` }}
+                </span>
                 <span
                   v-if="!collapsed.has('noise')"
                   class="clear-noise"
@@ -709,7 +737,15 @@ const chipTitle = (tag: { name: string; dimension: string; isNew: boolean }) =>
               </button>
             </template>
             <template v-else-if="selected.reviewStatus === 'pending'">
-              <!-- 无信号/判定失败：逃走或强制捕捉 -->
+              <!-- 无信号/判定失败：重判（仅 error）、逃走或强制捕捉 -->
+              <button
+                v-if="selected.aiStatus === 'error'"
+                class="btn ghost"
+                :disabled="retrying"
+                @click="retryFailed([selected.id])"
+              >
+                {{ retrying ? t("im.retrying") : `♻ ${t("im.retry")}` }}
+              </button>
               <button class="btn red" @click="dismissIm(selected)">
                 {{ t("im.release") }}<span class="kbd">X</span>
               </button>

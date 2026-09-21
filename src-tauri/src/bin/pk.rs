@@ -1843,6 +1843,36 @@ mod tests {
         assert!(err.0.contains("维度"), "{}", err.0);
     }
 
+    /// 迟到回调：应用已把消息标成「AI 判定失败」（agent 超时被杀），被杀前派出的
+    /// pk 子进程随后仍能把判定写库——校验只看 review_status，error 须能翻正，
+    /// 否则迟到的正确判定永远被压在失败态下
+    #[test]
+    fn suggest_flips_error_status_when_review_pending() {
+        let mut conn = test_db();
+        conn.execute(
+            "INSERT INTO chat_messages (message_id, chat_name, sender, content, ai_status, review_status, created_at)
+             VALUES ('om_late', '项目群', '张三', '明天交周报', 'error', 'pending', '2026-09-20T00:00:00Z')",
+            [],
+        )
+        .unwrap();
+        let out = suggest_batch_from_str(
+            &mut conn,
+            r#"{"results":[{"messageId":"om_late","action":"todo","title":"交周报","reason":"对方明确要求周五前交付"}]}"#,
+            Some("claude-code"),
+        )
+        .unwrap();
+        assert_eq!(out["submitted"], json!(1));
+        let (status, title): (String, Option<String>) = conn
+            .query_row(
+                "SELECT ai_status, suggested_title FROM chat_messages WHERE message_id='om_late'",
+                [],
+                |r| Ok((r.get(0)?, r.get(1)?)),
+            )
+            .unwrap();
+        assert_eq!(status, "todo", "迟到回调把 error 翻成 todo");
+        assert_eq!(title.as_deref(), Some("交周报"));
+    }
+
     #[test]
     fn update_supports_clear_due_and_tags() {
         let mut conn = test_db();

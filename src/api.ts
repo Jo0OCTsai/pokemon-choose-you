@@ -12,6 +12,7 @@ import type {
   IntegrationHealth,
   LogEntry,
   RemotePkReport,
+  RetryAiResult,
   Tag,
   TagCheckupReport,
   TagDimension,
@@ -160,6 +161,8 @@ export const api = {
       action,
       reasonCode: reasonCode ?? null,
     }),
+  /** 批量重判「AI 判定失败」的消息：重置后重新送 AI 判定，仍失败的逐条汇报 */
+  retryAiJudgment: (ids: number[]) => call<RetryAiResult>("retry_ai_judgment", { ids }),
   /** 备份三件套：列表 / 立即备份 / 从备份恢复（恢复成功后广播全部数据变更事件） */
   listBackups: () => call<BackupInfo[]>("list_backups"),
   createBackupNow: () => call<string>("create_backup_now"),
