@@ -40,6 +40,8 @@ export interface MockState {
   settings: Record<string, string>;
   /** 标签列表（缺省为空；project 标签可带 meta 供派发设置展示） */
   tags?: Record<string, unknown>[];
+  /** 标签维度（缺省为内置四个；设置页维度管理会改写） */
+  dimensions?: Record<string, unknown>[];
 }
 
 export const DEFAULT_CATEGORIES: MockCategory[] = [
@@ -85,7 +87,17 @@ export async function installTauriMock(page: Page, state: Partial<MockState> = {
       const db = {
         ...st,
         tags: st.tags ?? [],
+        // 与 Rust 侧迁移内置的四个维度一致；注入函数被序列化进浏览器，缺省值必须在函数体内
+        dimensions:
+          st.dimensions ??
+          [
+            { id: 1, key: "project", name: "项目", cardinality: "single", maxTags: 20, sort: 1, enabled: true },
+            { id: 2, key: "context", name: "场景", cardinality: "multi", maxTags: 10, sort: 2, enabled: true },
+            { id: 3, key: "person", name: "人物", cardinality: "multi", maxTags: 30, sort: 3, enabled: true },
+            { id: 4, key: "topic", name: "主题", cardinality: "multi", maxTags: 30, sort: 4, enabled: true },
+          ].map((d) => ({ ...d })),
         nextId: st.tasks.reduce((m: number, t: { id: number }) => Math.max(m, t.id), 0) + 1,
+        nextDimId: 5,
       };
       let cbId = 0;
 
@@ -387,6 +399,32 @@ export async function installTauriMock(page: Page, state: Partial<MockState> = {
             broadcast("tags-changed");
             return { ...tag };
           }
+          case "update_tag": {
+            const tag = db.tags.find((t: any) => t.id === args.id);
+            if (!tag) throw new Error(`标签 ${args.id} 不存在`);
+            const name = String(args.name ?? "").trim();
+            if (!name) throw new Error("标签名不能为空");
+            tag.name = name;
+            tag.description = args.description ?? "";
+            if (args.dimension) tag.dimension = args.dimension;
+            broadcast("tags-changed");
+            return null;
+          }
+          case "delete_tag": {
+            // 任务上的关联随删除清理（对齐 Rust 侧 task_tags 级联）
+            const dead = db.tags.find((t: any) => t.id === args.id);
+            db.tags = db.tags.filter((t: any) => t.id !== args.id);
+            if (dead) {
+              db.tasks.forEach((t) => {
+                t.tags = t.tags.filter(
+                  (r) => !(r.name === dead.name && (r.dimension || "topic") === (dead.dimension || "topic")),
+                );
+              });
+            }
+            broadcast("tags-changed");
+            broadcast("tasks-changed");
+            return null;
+          }
           case "tag_checkup":
             return { merges: [], zombies: [], newDimensions: [], judged: false };
           case "merge_tag":
@@ -398,12 +436,39 @@ export async function installTauriMock(page: Page, state: Partial<MockState> = {
             broadcast("tasks-changed");
             return null;
           case "list_tag_dimensions":
-            return [
-              { id: 1, key: "project", name: "项目", cardinality: "single", maxTags: 20, sort: 1, enabled: true },
-              { id: 2, key: "context", name: "场景", cardinality: "multi", maxTags: 10, sort: 2, enabled: true },
-              { id: 3, key: "person", name: "人物", cardinality: "multi", maxTags: 30, sort: 3, enabled: true },
-              { id: 4, key: "topic", name: "主题", cardinality: "multi", maxTags: 30, sort: 4, enabled: true },
-            ];
+            return db.dimensions.map((d: any) => ({ ...d }));
+          case "create_tag_dimension": {
+            // 与 Rust 侧对齐：key 小写 ascii、cardinality 缺省 single、上限缺省 20（1~200）
+            const key = String(args.key ?? "")
+              .trim()
+              .toLowerCase();
+            const name = String(args.name ?? "").trim();
+            if (!key || !name) throw new Error("维度 key 与名称不能为空");
+            if (!/^[a-z0-9_-]+$/.test(key)) throw new Error("维度 key 只能包含小写字母、数字、-、_");
+            const dim = {
+              id: db.nextDimId++,
+              key,
+              name,
+              cardinality: args.cardinality == null ? "single" : String(args.cardinality),
+              maxTags: args.maxTags == null ? 20 : Math.min(200, Math.max(1, Number(args.maxTags))),
+              sort: db.dimensions.length + 1,
+              enabled: true,
+            };
+            db.dimensions.push(dim);
+            broadcast("tags-changed");
+            return { ...dim };
+          }
+          case "update_tag_dimension": {
+            const dim = db.dimensions.find((d: any) => d.id === args.id);
+            if (!dim) throw new Error(`维度 ${args.id} 不存在`);
+            const name = String(args.name ?? "").trim();
+            if (!name) throw new Error("维度名称不能为空");
+            dim.name = name;
+            if (args.maxTags != null) dim.maxTags = Math.min(200, Math.max(1, Number(args.maxTags)));
+            if (args.enabled != null) dim.enabled = Boolean(args.enabled);
+            broadcast("tags-changed");
+            return null;
+          }
           case "search_tasks":
             return db.tasks.filter((t: any) => (t.title ?? "").includes(args.q)).map((t: any) => ({ ...t }));
           case "list_agent_sessions":

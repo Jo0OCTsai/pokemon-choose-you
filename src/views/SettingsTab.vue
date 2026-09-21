@@ -24,6 +24,7 @@ import { clipWrite, openContextMenu } from "../contextMenu";
 import DexSelect from "../components/DexSelect.vue";
 import DexToggle from "../components/DexToggle.vue";
 import SettingRow from "../components/SettingRow.vue";
+import TagDispatchCard from "../components/TagDispatchCard.vue";
 import PokemonPicker from "../components/PokemonPicker.vue";
 
 /** App 壳监听到 update-available 后传入的版本号（空串 = 无新版本） */
@@ -459,10 +460,6 @@ interface EditingTag {
   name: string;
   description: string;
   dimension: string;
-  /** 派发设置（仅 project 维度展示编辑）：meta 三字段的表单态，空串 = 未配置 */
-  metaWorkdir: string;
-  metaAgentId: string;
-  metaContext: string;
 }
 const editingTags = ref<EditingTag[]>([]);
 function startEditTags() {
@@ -471,11 +468,13 @@ function startEditTags() {
     name: g.name,
     description: g.description,
     dimension: g.dimension || "topic",
-    metaWorkdir: g.meta?.workdir ?? "",
-    metaAgentId: g.meta?.agentId ?? "",
-    metaContext: g.meta?.context ?? "",
   }));
 }
+/** 已配置派发的标签 id（直接跟随 store，派发卡片保存后行内 ⚡ 即时点亮） */
+const dispatchIds = computed(
+  () =>
+    new Set(tagsStore.list.filter((g) => !!(g.meta?.workdir || g.meta?.agentId || g.meta?.context)).map((g) => g.id)),
+);
 /** 编辑行按维度分组渲染（维度序 = tagsStore.dimensions 的 sort） */
 const editingGroups = computed(() =>
   tagsStore.dimensions.map((d) => ({
@@ -515,34 +514,11 @@ async function addTag(dimKey: string) {
   }
 }
 
-// ---- project 标签的派发设置（标签 → agent / 工作目录 / 项目上下文） ----
-/** 派发 agent 下拉：不指定（用全局默认）+ 启用的 agent（SSH 徽标）；
- *  已保存但停用的保留选项，避免下拉退化成裸 id */
-function metaAgentOptions(row: EditingTag): { value: string; label: string }[] {
-  const opts = [{ value: "", label: t("tags.metaAgentNone") }];
-  for (const a of agents.value) {
-    if (!a.enabled && a.id !== row.metaAgentId) continue;
-    opts.push({
-      value: a.id,
-      label: `${a.name || a.command}${a.remote?.host?.trim() ? " · SSH" : ""}${a.enabled ? "" : ` · ${t("tags.metaAgentOff")}`}`,
-    });
-  }
-  return opts;
-}
-async function saveTagMeta(row: EditingTag) {
-  try {
-    await api.setTagMeta(row.id, {
-      workdir: row.metaWorkdir || null,
-      agentId: row.metaAgentId || null,
-      context: row.metaContext || null,
-    });
-    await tagsStore.load();
-    startEditTags();
-    testMsg.value = t("tagSaved");
-    setTimeout(() => (testMsg.value = ""), 2000);
-  } catch (e) {
-    testMsg.value = `❌ ${errorMessage(e)}`;
-  }
+// ---- project 标签的派发配置：整卡抽到 TagDispatchCard（agent / 工作目录 / 项目上下文） ----
+/** 卡片内保存结果借用页面底部状态条反馈 */
+function onDispatchFeedback(msg: string) {
+  testMsg.value = msg;
+  setTimeout(() => (testMsg.value = ""), 2000);
 }
 
 // ---- 维度管理（改名 / 上限 / 停用；key 与单多选建后不可改） ----
@@ -829,7 +805,7 @@ watch(settingsTab, (tab) => {
   if (tab === "tags") {
     if (!editingTags.value.length) startEditTags();
     if (!editingDims.value.length) startEditDims();
-    if (!agents.value.length) loadAgents(); // 派发设置的 agent 下拉要用
+    if (!agents.value.length) loadAgents(); // 项目派发卡片的 agent 下拉要用
   }
   if (tab === "integrations" && !agents.value.length) loadAgents();
   if (tab === "diag") loadDiagnostics();
@@ -1165,35 +1141,21 @@ onUnmounted(() => {
               </button>
             </div>
             <template v-for="row in group.rows" :key="row.id">
+              <!-- ⚡ = 已配置派发（配置入口在下方「项目派发」卡片） -->
               <div class="tag-row">
                 <input v-model="row.name" class="tag-name" :placeholder="t('tags.namePh')" />
+                <span v-if="dispatchIds.has(row.id)" class="tag-meta-chip" :title="t('tagDispatch.chipHint')">⚡</span>
                 <input v-model="row.description" class="tag-desc" :placeholder="t('tags.descPh')" />
                 <DexSelect v-model="row.dimension" :options="dimOptions" class="tag-dim-select" />
                 <button class="btn ghost" @click="saveTag(row)">{{ t("tags.save") }}</button>
                 <button class="btn ghost del" @click="removeTag(row.id)">{{ t("tags.release") }}</button>
               </div>
-              <!-- 派发设置：项目标签专属（路由锚点），一行配 agent / 工作目录 / 项目上下文 -->
-              <div v-if="row.dimension === 'project'" class="tag-dispatch">
-                <span class="td-mark" :title="t('tags.metaHint')">⚡</span>
-                <DexSelect v-model="row.metaAgentId" :options="metaAgentOptions(row)" class="td-agent" />
-                <input
-                  v-model="row.metaWorkdir"
-                  class="td-dir"
-                  :placeholder="t('tags.metaWorkdirPh')"
-                  :title="t('tags.metaWorkdir')"
-                />
-                <input
-                  v-model="row.metaContext"
-                  class="td-ctx"
-                  :placeholder="t('tags.metaContextPh')"
-                  :title="t('tags.metaContext')"
-                />
-                <button class="btn ghost" @click="saveTagMeta(row)">{{ t("tags.metaSave") }}</button>
-              </div>
             </template>
           </div>
           <p class="set-foot">{{ t("tags.dimHint") }}</p>
         </section>
+
+        <TagDispatchCard :agents="agents" @feedback="onDispatchFeedback" />
 
         <section class="set-card">
           <h3>{{ t("tags.dimTitle") }}</h3>
@@ -1748,52 +1710,11 @@ onUnmounted(() => {
   min-height: 38px;
   font-size: 13px;
 }
-/* 派发设置行（紧跟项目标签行）：紧凑半档控件，虚线左缘区分主行 */
-.tag-row:has(+ .tag-dispatch) {
-  margin-bottom: 4px;
-}
-.tag-dispatch {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  flex-wrap: wrap;
-  margin-bottom: 10px;
-  padding-left: 2px;
-}
-.td-mark {
+/* 标签行内 ⚡ 徽标：已配置派发的项目标签（配置入口在下方「项目派发」卡片） */
+.tag-meta-chip {
   flex: none;
   font-size: 13px;
-}
-.tag-dispatch input {
-  min-width: 120px;
-  padding: 6px 9px;
-  border: 2px solid var(--dex-navy);
-  border-radius: 8px;
-  font-size: 12.5px;
-  font-family: inherit;
-  min-height: 34px;
-}
-.td-agent {
-  flex: none;
-}
-.td-agent :deep(.ds-btn) {
-  min-width: 120px;
-  min-height: 34px;
-  padding: 6px 9px;
-  font-size: 12.5px;
-  border-width: 2px;
-}
-.td-dir {
-  flex: 1.1;
-}
-.td-ctx {
-  flex: 1;
-}
-.tag-dispatch .btn {
-  flex: none;
-  padding: 6px 10px;
-  min-height: 34px;
-  font-size: 12.5px;
+  cursor: help;
 }
 /* 维度分组管理 */
 .tag-dim-group {
@@ -1814,6 +1735,12 @@ onUnmounted(() => {
 .tag-dim-select {
   width: 92px;
   flex: none;
+}
+/* ds-btn 全局 min-width 150px，会从 92px 容器溢出盖住右侧「保存」按钮，钉回容器宽 */
+.tag-dim-select :deep(.ds-btn) {
+  width: 100%;
+  min-width: 0;
+  padding: 7px 8px;
 }
 .dim-row .dim-key {
   flex: none;
