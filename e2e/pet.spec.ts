@@ -2,10 +2,10 @@ import { expect, test } from "@playwright/test";
 import { installTauriMock, task } from "./tauri-mock";
 
 test.describe("桌宠窗口", () => {
-  test("无任务时显示待机气泡与默认精灵", async ({ page }) => {
+  test("无任务时显示欢迎气泡与默认精灵", async ({ page }) => {
     await installTauriMock(page, { windowLabel: "pet" });
     await page.goto("/pet.html");
-    await expect(page.locator(".dialog-text")).toHaveText("今天的冒险还没开始，点击我挑个目标吧");
+    await expect(page.locator(".dialog-text")).toHaveText("今天想捕捉哪只宝可梦？悬停打开快捷图鉴屏吧！");
     await expect(page.locator(".pet-sprite")).toHaveAttribute("src", "/pokemon/pikachu.gif");
     await expect(page.locator(".pomo-pill")).toBeHidden();
   });
@@ -21,7 +21,7 @@ test.describe("桌宠窗口", () => {
     await expect(page.locator(".pomo-pill .px")).toContainText("25:00");
   });
 
-  test("点击精灵展开快捷图鉴屏，双击列表项直接出发", async ({ page }) => {
+  test("点悬停浮现的 ☰ 钮展开快捷图鉴屏，双击列表项直接出发", async ({ page }) => {
     await installTauriMock(page, {
       windowLabel: "pet",
       tasks: [
@@ -30,8 +30,8 @@ test.describe("桌宠窗口", () => {
       ],
     });
     await page.goto("/pet.html");
-    // 精灵有持续蹦跳动画（Playwright 视为不稳定元素），直接派发点击事件
-    await page.locator(".pet-sprite").dispatchEvent("click");
+    // ☰ 钮平时隐身（悬停精灵才浮现），直接派发点击事件绕过显隐
+    await page.locator(".quick-fab").dispatchEvent("click");
     const quick = page.locator(".quick-dex");
     await expect(quick).toBeVisible();
     await expect(quick.locator(".q-item")).toHaveCount(2);
@@ -57,7 +57,7 @@ test.describe("桌宠窗口", () => {
   test("快捷屏未选目标点出发，气泡提示先选目标", async ({ page }) => {
     await installTauriMock(page, { windowLabel: "pet" });
     await page.goto("/pet.html");
-    await page.locator(".pet-sprite").dispatchEvent("click");
+    await page.locator(".quick-fab").dispatchEvent("click");
     const quick = page.locator(".quick-dex");
     await expect(quick).toBeVisible();
     await quick.locator(".ops .btn", { hasText: "出发" }).click();

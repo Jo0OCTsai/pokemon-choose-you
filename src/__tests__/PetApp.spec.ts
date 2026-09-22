@@ -9,6 +9,7 @@ vi.mock("../chime", () => ({
   chime: vi.fn(),
 }));
 import { i18n } from "../i18n";
+import { lineDedupKey } from "../composables/useTimeLines";
 import type { Task } from "../types";
 
 vi.mock("../api", () => ({
@@ -60,6 +61,13 @@ vi.mock("../api", () => ({
     installUpdate: vi.fn(),
   },
 }));
+
+/** 静音环境台词与问候（新测试快进时间窗内不乱入搭话，只留被测气泡） */
+function seedChatter() {
+  localStorage.setItem("pet.greetedOn", new Date().toISOString().slice(0, 10));
+  localStorage.setItem("pet.metOn", String(Date.now() - 30 * 86_400_000)); // 生日不在今天
+  localStorage.setItem(lineDedupKey("hour", new Date()), "1");
+}
 
 /** 捕获注册的 Tauri 事件监听，模拟后端数据变更广播 */
 const eventHandlers = new Map<string, ((e: unknown) => void)[]>();
@@ -159,18 +167,48 @@ afterEach(() => {
 });
 
 describe("PetApp 桌宠", () => {
-  it("无任务时显示待机气泡与默认精灵", async () => {
+  it("无任务时显示欢迎气泡与默认精灵，无常驻状态文字", async () => {
     const w = await mountPet();
-    expect(w.get(".dialog-text").text()).toBe("今天的冒险还没开始，点击我挑个目标吧");
+    expect(w.get(".dialog-text").text()).toBe("今天想捕捉哪只宝可梦？悬停打开快捷图鉴屏吧！");
     expect(w.get(".pet-sprite").attributes("src")).toBe("/pokemon/pikachu.gif");
     expect(w.find(".pomo-pill").exists()).toBe(false);
+    // 台词瞬态：到时自动淡出收起，屏幕上只剩精灵
+    await vi.advanceTimersByTimeAsync(20_000);
+    expect(w.find(".dialog").exists()).toBe(false);
+  });
+
+  it("台词瞬态：悬停暂停倒计时，移开续走剩余时间", async () => {
+    seedChatter();
+    const w = await mountPet();
+    await w.get(".dialog").trigger("mouseenter");
+    await vi.advanceTimersByTimeAsync(20_000);
+    expect(w.find(".dialog").exists()).toBe(true); // 悬停期间不消失
+    await w.get(".dialog").trigger("mouseleave");
+    await vi.advanceTimersByTimeAsync(20_000);
+    expect(w.find(".dialog").exists()).toBe(false); // 移开后按剩余时间收起
+  });
+
+  it("台词瞬态：点击气泡立即收起", async () => {
+    const w = await mountPet();
+    await w.get(".dialog").trigger("click");
+    await vi.advanceTimersByTimeAsync(300); // 渐隐
+    expect(w.find(".dialog").exists()).toBe(false);
+  });
+
+  it("单击精灵：随机搭话，不再展开快捷屏", async () => {
+    const w = await mountPet();
+    await w.get(".sprite-hit").trigger("click");
+    await vi.advanceTimersByTimeAsync(250); // 越过单击/双击区分延迟
+    await flush();
+    expect(w.find(".quick-dex").exists()).toBe(false);
+    expect(w.find(".dialog").exists()).toBe(true);
   });
 
   it("设置主宝可梦后：空闲只换精灵图，气泡与名牌不带它的名字", async () => {
     vi.mocked(api.listAllSettings).mockResolvedValue({ main_pokemon: "eevee" });
     const w = await mountPet();
     expect(w.get(".pet-sprite").attributes("src")).toBe("/pokemon/eevee.gif");
-    expect(w.get(".dialog-text").text()).toBe("今天的冒险还没开始，点击我挑个目标吧");
+    expect(w.get(".dialog-text").text()).toBe("今天想捕捉哪只宝可梦？悬停打开快捷图鉴屏吧！");
     expect(w.find(".cat-tag").exists()).toBe(false);
   });
 
@@ -272,14 +310,13 @@ describe("PetApp 桌宠", () => {
     expect(api.updateTask).toHaveBeenCalledWith({ id: 1, status: "done" });
   });
 
-  it("点击精灵展开快捷图鉴屏，列出候选任务", async () => {
+  it("点悬停浮现的 ☰ 钮展开快捷图鉴屏，列出候选任务", async () => {
     await import("@tauri-apps/api/dpi"); // 预热动态导入，toggleQuick 内的 import 走缓存
     current = task({ id: 1, status: "active" });
     tasks = [task({ id: 1, title: "进行中" }), task({ id: 2, title: "下一个", status: "scheduled" })];
     const w = await mountPet();
     expect(w.find(".quick-dex").exists()).toBe(false);
-    await w.get(".sprite-hit").trigger("click");
-    await vi.advanceTimersByTimeAsync(250); // 越过单击/双击区分延迟
+    await w.get(".quick-fab").trigger("click");
     await flush();
     expect(w.find(".quick-dex").exists()).toBe(true);
     const items = w.findAll(".q-item");
@@ -292,8 +329,7 @@ describe("PetApp 桌宠", () => {
     current = task({ id: 1, status: "active" });
     tasks = [task({ id: 1, title: "进行中" }), task({ id: 2, title: "下一个", status: "scheduled" })];
     const w = await mountPet();
-    await w.get(".sprite-hit").trigger("click");
-    await vi.advanceTimersByTimeAsync(250);
+    await w.get(".quick-fab").trigger("click");
     await flush();
     await w.findAll(".q-item")[1].trigger("click"); // 选中
     await w.get(".quick-dex .ops .btn").trigger("click"); // ▶ 出发
@@ -307,8 +343,7 @@ describe("PetApp 桌宠", () => {
     current = null; // 无进行中任务 → 快捷屏默认不选中
     tasks = [task({ id: 2, title: "备选", status: "scheduled" })];
     const w = await mountPet();
-    await w.get(".sprite-hit").trigger("click");
-    await vi.advanceTimersByTimeAsync(250);
+    await w.get(".quick-fab").trigger("click");
     await flush();
     expect(w.find(".quick-dex").exists()).toBe(true);
     await w.get(".quick-dex .ops .btn").trigger("click"); // ▶ 出发
@@ -327,7 +362,8 @@ describe("PetApp 桌宠", () => {
     expect(w.find(".quick-dex").exists()).toBe(false);
   });
 
-  it("就近可操作提醒：气泡带完成/推迟动作，动作直接消化无需打开主面板", async () => {
+  it("就近可操作提醒：气泡钉住不自动倒计时，带完成/推迟动作直接消化", async () => {
+    seedChatter();
     current = task({ id: 5, title: "交报告" });
     const w = await mountPet();
     // 后端敲钟：task-reminder 事件（pokemon = 任务分类关联的宝可梦名）
@@ -336,6 +372,9 @@ describe("PetApp 桌宠", () => {
     expect(w.get(".dialog-text").text()).toContain("皮卡丘");
     expect(w.get(".dialog-text").text()).toContain("交报告");
     expect(w.find(".reminder-actions").exists()).toBe(true);
+    // 钉住：不参与自动淡出（等用户处理或 60s 兜底）
+    await vi.advanceTimersByTimeAsync(20_000);
+    expect(w.get(".dialog-text").text()).toContain("交报告");
 
     // 推迟 10 分钟：回写 remindAt（本地无时区格式），气泡确认
     vi.mocked(api.updateTask).mockResolvedValue(current);
@@ -390,7 +429,7 @@ describe("PetApp 桌宠", () => {
     current = null;
     broadcast("tasks-changed");
     await flush();
-    expect(w.get(".dialog-text").text()).toBe("今天的冒险还没开始，点击我挑个目标吧");
+    expect(w.get(".dialog-text").text()).toBe("今天的冒险还没开始，悬停打开快捷图鉴屏挑个目标吧");
     expect(w.find(".pomo-pill").exists()).toBe(false);
   });
 
