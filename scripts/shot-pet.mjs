@@ -93,25 +93,6 @@ function tauriMock() {
   };
 }
 
-const task = (p) => ({
-  id: 1,
-  title: "写周报",
-  note: null,
-  categoryId: 1,
-  status: "active",
-  priority: "normal",
-  dueAt: null,
-  remindAt: null,
-  reminded: false,
-  source: "local",
-  externalId: null,
-  createdAt: "2026-09-01T00:00:00Z",
-  completedAt: null,
-  focusSeconds: 0,
-  tags: [],
-  ...p,
-});
-
 const browser = await chromium.launch();
 const ctx = await browser.newContext({ viewport: { width: 300, height: 330 }, deviceScaleFactor: 2 });
 const page = await ctx.newPage();
