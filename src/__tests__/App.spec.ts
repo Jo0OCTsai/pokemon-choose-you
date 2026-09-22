@@ -603,6 +603,80 @@ describe("App 图鉴机主面板", () => {
     expect(api.undoChatReview).toHaveBeenCalledWith(9);
   });
 
+  it("已逃走区区分 AI 原判与人工否决：否决 chip + 详情亮出 AI 原判与原因", async () => {
+    tasks = seed([]);
+    const dismissed = (id: number, content: string, aiStatus: string, dismissReason?: string): ChatMessage => ({
+      id,
+      messageId: `m${id}`,
+      chatName: "项目群",
+      sender: "张三",
+      content,
+      suggestedTags: [],
+      aiStatus,
+      reviewStatus: "dismissed",
+      taskId: null,
+      createdAt: "2026-09-11T00:00:00Z",
+      dismissReason,
+    });
+    vi.mocked(api.listChatMessages).mockResolvedValue([
+      dismissed(20, "明天上午10点开周会", "todo", "not_task"), // AI 判有信号，被人工否决
+      dismissed(21, "哈哈哈", "none", "noise"), // AI 判无信号，人工照单确认
+      dismissed(22, "周末打球吗", "todo"), // 被否决但直接逃走：无原因
+    ]);
+    const w = await mountApp();
+    await w.findAll(".menu-btn")[4].trigger("click"); // 收音机
+    await w.get('[data-group="escaped"] .lg-head').trigger("click"); // 已逃走默认收起，展开
+    const escapedRows = w.findAll('[data-group="escaped"] .rrow');
+    expect(escapedRows).toHaveLength(3);
+    // ⚡ chip 只挂被否决的 AI 信号（有/无原因都算）；AI 判无信号被确认的不挂
+    const chips = escapedRows.filter((r) => r.find(".veto-chip").exists());
+    expect(chips.map((r) => r.text())).toHaveLength(2);
+    expect(chips[0].text()).toContain("明天上午10点开周会");
+    expect(chips[1].text()).toContain("周末打球吗");
+    expect(chips[0].get(".veto-chip").attributes("title")).toContain("否决");
+
+    // 详情条按条亮出人工 review 的边界：AI 原判 + 逃走原因
+    await chips[0].trigger("click");
+    let banner = w.get(".dim-banner").text();
+    expect(banner).toContain("AI 原判");
+    expect(banner).toContain("有待办信号");
+    expect(banner).toContain("不是给我的任务");
+
+    await escapedRows.filter((r) => r.text().includes("哈哈哈"))[0].trigger("click");
+    banner = w.get(".dim-banner").text();
+    expect(banner).toContain("无待办");
+    expect(banner).toContain("闲聊/噪音");
+
+    await chips[1].trigger("click"); // 直接逃走：有 AI 原判、无原因段
+    expect(w.get(".dim-banner").text()).not.toContain("原因");
+
+    // 频道视图：被否决的信号同样挂 chip，回看视角一致
+    await w.findAll(".view-toggle button")[1].trigger("click");
+    const chRow = w.findAll(".rrow").find((r) => r.text().includes("明天上午10点开周会"))!;
+    expect(chRow.find(".veto-chip").exists()).toBe(true);
+  });
+
+  it("无信号组头 tooltip 点明边界：AI 判定、未经人工确认", async () => {
+    tasks = seed([]);
+    vi.mocked(api.listChatMessages).mockResolvedValue([
+      {
+        id: 30,
+        messageId: "m30",
+        chatName: "闲聊群",
+        sender: "王五",
+        content: "中午吃什么",
+        suggestedTags: [],
+        aiStatus: "none",
+        reviewStatus: "pending",
+        taskId: null,
+        createdAt: "2026-09-11T00:00:00Z",
+      },
+    ]);
+    const w = await mountApp();
+    await w.findAll(".menu-btn")[4].trigger("click");
+    expect(w.get('[data-group="noise"] .lg-head').attributes("title")).toContain("未经人工确认");
+  });
+
   it("收音机快速捕捉：一句话交给 AI，todo 自动建待办并在撤销窗口内可回滚", async () => {
     tasks = seed([]);
     const w = await mountApp();

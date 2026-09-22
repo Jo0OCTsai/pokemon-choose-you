@@ -197,6 +197,10 @@ pub struct ChatMessage {
     pub ai_status: String,
     /// pending / accepted / dismissed
     pub review_status: String,
+    /// 人工逃走时选的原因码（duplicate/noise/…；直接逃走为空串）。
+    /// 消息行自带原因，供收音机区分「AI 判无信号后被确认」与「人工否决 AI 信号」
+    #[serde(default)]
+    pub dismiss_reason: String,
     /// 该消息已创建的待办 id
     pub task_id: Option<i64>,
     /// update 建议指向的目标待办 id（AI 判定消息是对该待办的变更）
@@ -542,6 +546,7 @@ mod tests {
             ai_agent: String::new(),
             ai_status: "pending".into(),
             review_status: "pending".into(),
+            dismiss_reason: String::new(),
             task_id: None,
             update_task_id: None,
             followup_task_id: None,
@@ -557,6 +562,7 @@ mod tests {
                 "chatType",
                 "content",
                 "createdAt",
+                "dismissReason",
                 "followupTaskId",
                 "id",
                 "isSelf",

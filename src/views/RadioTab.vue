@@ -402,7 +402,7 @@ const chipTitle = (tag: { name: string; dimension: string; isNew: boolean }) =>
 
             <!-- 无信号：不是任务（或判定失败），一键清扫 -->
             <section v-if="noiseList.length" class="list-group" data-group="noise">
-              <button type="button" class="lg-head" @click="toggleGroup('noise')">
+              <button type="button" class="lg-head" :title="t('im.groupNoiseTitle')" @click="toggleGroup('noise')">
                 <span class="lg-caret">{{ collapsed.has("noise") ? "▸" : "▾" }}</span>
                 {{ t("im.groupNoise") }}
                 <span class="lg-count">{{ noiseList.length }}</span>
@@ -525,7 +525,12 @@ const chipTitle = (tag: { name: string; dimension: string; isNew: boolean }) =>
                     </div>
                     <div class="r-snippet">{{ snippet(m) }}</div>
                   </div>
-                  <span class="r-mark no">✕</span>
+                  <span class="r-marks">
+                    <span v-if="isSignal(m)" class="veto-chip" :title="t('im.vetoedTitle')"
+                      >⚡ {{ t("im.chipVetoed") }}</span
+                    >
+                    <span class="r-mark no">✕</span>
+                  </span>
                 </div>
               </div>
             </section>
@@ -591,7 +596,12 @@ const chipTitle = (tag: { name: string; dimension: string; isNew: boolean }) =>
                     t("im.markMerged", { id: m.followupTaskId })
                   }}</span>
                   <span v-else-if="m.taskId" class="r-mark ok">✔ No.{{ m.taskId }}</span>
-                  <span v-else-if="m.reviewStatus === 'dismissed'" class="r-mark no">✕</span>
+                  <span v-else-if="m.reviewStatus === 'dismissed'" class="r-marks">
+                    <span v-if="isSignal(m)" class="veto-chip" :title="t('im.vetoedTitle')"
+                      >⚡ {{ t("im.chipVetoed") }}</span
+                    >
+                    <span class="r-mark no">✕</span>
+                  </span>
                 </div>
               </div>
             </section>
@@ -699,6 +709,10 @@ const chipTitle = (tag: { name: string; dimension: string; isNew: boolean }) =>
           </div>
           <div v-else-if="selected.reviewStatus === 'dismissed'" class="done-banner dim-banner">
             ✕ {{ t("im.released") }}
+            <span class="caught-sub">{{ t("im.aiVerdict") }}：{{ t(aiStatusKey(selected)) }}</span>
+            <span v-if="selected.dismissReason" class="caught-sub"
+              >{{ t("im.dismissReasonLabel") }}：{{ t(`im.escapeReasons.${selected.dismissReason}`) }}</span
+            >
           </div>
 
           <!-- 操作区 -->
@@ -1098,6 +1112,26 @@ const chipTitle = (tag: { name: string; dimension: string; isNew: boolean }) =>
 .r-mark.no {
   color: var(--ink-soft);
 }
+/* 行尾标记组：✕ 旁可挂「已否决」chip——AI 判了信号但被人工推翻，回看时一眼找到推翻点 */
+.r-marks {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex: none;
+  margin-top: 2px;
+}
+.r-marks .r-mark {
+  margin-top: 0;
+}
+.veto-chip {
+  font-size: 10px;
+  font-weight: 800;
+  color: var(--warn-ink);
+  border: 2px solid var(--warn-ink);
+  border-radius: 4px;
+  padding: 0 4px;
+  white-space: nowrap;
+}
 /* 置信色点（行内紧凑版） */
 .conf {
   width: 9px;
@@ -1363,10 +1397,11 @@ const chipTitle = (tag: { name: string; dimension: string; isNew: boolean }) =>
   padding: 8px 10px;
 }
 
-/* 逃走原因弹层 */
+/* 逃走原因弹层：操作区贴着窗口底部，向下弹会超出窗口——改向上弹盖住详情；
+   极矮窗口里限高内部滚动兜底 */
 .escape-pop {
   position: absolute;
-  top: calc(100% + 6px);
+  bottom: calc(100% + 6px);
   right: 0;
   z-index: 60;
   background: #fff;
@@ -1378,6 +1413,8 @@ const chipTitle = (tag: { name: string; dimension: string; isNew: boolean }) =>
   flex-direction: column;
   gap: 4px;
   min-width: 200px;
+  max-height: min(320px, 60vh);
+  overflow-y: auto;
 }
 .escape-pop .er-label {
   font-size: 11px;

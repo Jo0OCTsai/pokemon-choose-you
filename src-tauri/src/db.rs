@@ -144,7 +144,8 @@ CREATE TABLE IF NOT EXISTS chat_messages (
     followup_task_id INTEGER,
     suggested_reason TEXT,
     suggested_confidence TEXT,
-    ai_agent TEXT NOT NULL DEFAULT ''
+    ai_agent TEXT NOT NULL DEFAULT '',
+    dismiss_reason TEXT NOT NULL DEFAULT ''
 );
 CREATE INDEX IF NOT EXISTS idx_chat_messages_created ON chat_messages(created_at);
 CREATE INDEX IF NOT EXISTS idx_chat_messages_chat ON chat_messages(chat_id, sent_at);
