@@ -617,7 +617,7 @@ export default {
     emptyRoute: "路线图空空的，给待办设个截止时间，规划下一站吧！",
   },
   pet: {
-    welcome: "今天想捕捉哪只宝可梦？点我出发！",
+    welcome: "今天想捕捉哪只宝可梦？悬停打开快捷图鉴屏吧！",
     menuDex: "打开图鉴机",
     menuQuick: "快捷图鉴屏",
     menuPause: "暂停当前任务",
@@ -639,9 +639,9 @@ export default {
     greetDay: "下午好！{p}在草丛边等你挑目标",
     greetEvening: "晚上好！今天的冒险还剩一点，{p}陪你收尾",
     greetNight: "夜深了，{p}说：再专注也要睡觉哦",
-    idle: "今天的冒险还没开始，点击我挑个目标吧",
+    idle: "今天的冒险还没开始，悬停打开快捷图鉴屏挑个目标吧",
     /** 设了主宝可梦时的待机气泡（说出它的名字） */
-    idleNamed: "{p}在等你出发！点我挑个目标吧",
+    idleNamed: "{p}在等你出发！悬停打开快捷图鉴屏挑个目标吧",
     working: "{p}正在捕捉：{t}",
     paused: "{p}暂停中，休息一下~",
     remindUrgent: "‼ {p}急得直跺脚：「{t}」很紧急！",
@@ -662,6 +662,7 @@ export default {
     quickStart: "▶ 出发",
     quickPause: "⏸ 暂停",
     quickClose: "✕ 收起",
+    bubbleClose: "点击收起台词",
     switchTitle: "切换捕捉目标…",
     switchCancel: "取消",
     gotcha: "就决定是你了！{t}",

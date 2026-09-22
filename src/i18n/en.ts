@@ -625,7 +625,7 @@ export default {
     emptyRoute: "Your route is empty—set a due time to plan the next stop!",
   },
   pet: {
-    welcome: "Which Pokémon will you catch today? Click me!",
+    welcome: "Which Pokémon will you catch today? Hover to open the Quick Dex!",
     menuDex: "Open Pokédex",
     menuQuick: "Quick Dex screen",
     menuPause: "Pause current task",
@@ -647,9 +647,9 @@ export default {
     greetDay: "Good afternoon! {p} waits by the tall grass",
     greetEvening: "Good evening! A bit of adventure left—{p} is with you",
     greetNight: "It's late—{p} says: focus, but sleep too",
-    idle: "Today's adventure hasn't started—click me to pick a target",
+    idle: "Today's adventure hasn't started—hover to open the Quick Dex and pick a target",
     /** Idle bubble when a main Pokemon is set (speaks its name) */
-    idleNamed: "{p} is waiting for you! Click me to pick a target",
+    idleNamed: "{p} is waiting for you! Hover to open the Quick Dex and pick a target",
     working: "{p} is catching: {t}",
     paused: "{p} paused—take a breather~",
     remindUrgent: "‼ {p} is stomping anxiously: '{t}' is urgent!",
@@ -670,6 +670,7 @@ export default {
     quickStart: "▶ Set out",
     quickPause: "⏸ Pause",
     quickClose: "✕ Close",
+    bubbleClose: "Click to dismiss",
     switchTitle: "Switch target…",
     switchCancel: "Cancel",
     gotcha: "I choose you! {t}",

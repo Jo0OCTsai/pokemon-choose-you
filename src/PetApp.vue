@@ -15,6 +15,7 @@ import { usePetClickThrough } from "./composables/usePetClickThrough";
 import { motionReduced, usePetIdle, type PetMicroAction } from "./composables/usePetIdle";
 import { shouldPerch } from "./composables/usePerch";
 import { lineDedupKey, pickTimeLine } from "./composables/useTimeLines";
+import { bubbleDuration } from "./bubbleTiming";
 import { useInputResponse } from "./composables/useInputResponse";
 import { openContextMenu, type ContextMenuItem } from "./contextMenu";
 import PokemonSprite from "./components/PokemonSprite.vue";
@@ -50,7 +51,12 @@ const anxious = computed(() => {
   if (ringPct.value == null) return false;
   return pomo.remainSec.value <= Math.max(300, pomo.totalSec.value * 0.2);
 });
-const bubble = ref(t("pet.welcome"));
+// ---- 瞬态台词气泡（VPet 范式）：说完自动淡出，悬停暂停、点击收起；状态不占常驻文字 ----
+const bubble = ref("");
+const bubbleVisible = ref(false);
+const bubbleFading = ref(false);
+/** 钉住态不参与自动倒计时（提醒气泡可操作，等用户处理或 60s 兜底） */
+const bubblePinned = ref(false);
 const bubbleNew = ref(false);
 const switching = ref(false);
 const quickOpen = ref(false);
@@ -71,9 +77,9 @@ const pomo = usePomodoro({
   onFocusDone: (title, trialDone) => {
     petState.value = "urgent";
     // 「先试 5 分钟」到期：零挫败出口——继续或收工都被肯定
-    bubble.value = trialDone ? t("pet.trialDone") : t("pet.pomoDone", { t: title, p: currentCat.value?.pokemon ?? "" });
+    say(trialDone ? t("pet.trialDone") : t("pet.pomoDone", { t: title, p: currentCat.value?.pokemon ?? "" }), true);
   },
-  onBreakStart: () => say(t("pet.breakStart"), false, true),
+  onBreakStart: () => say(t("pet.breakStart"), true),
   onBreakEnd: () => {
     petState.value = "working";
     say(t("pet.breakEnd"));
@@ -84,23 +90,21 @@ const pomo = usePomodoro({
 function startTrial() {
   if (!current.value) return;
   pomo.startTrial();
-  say(t("pet.trialStart"), false);
+  say(t("pet.trialStart"));
 }
 
-function bubbleText() {
-  if (!current.value) {
-    petState.value = "idle";
-    bubble.value = t("pet.idle");
-    return;
-  }
-  petState.value = pomo.running.value ? "working" : "paused";
-  bubble.value = pomo.running.value
-    ? t("pet.working", { p: currentCat.value?.pokemon ?? "", t: current.value.title })
-    : t("pet.paused", { p: currentCat.value?.pokemon ?? "" });
+/** 状态切换播报：只在状态或任务变化时说一次；日常状态由精灵动画与番茄药丸承载 */
+function announceState(state: "idle" | "working" | "paused") {
+  if (chatOpen.value) return;
+  if (state === "idle") say(t("pet.idle"));
+  else if (state === "working")
+    say(t("pet.working", { p: currentCat.value?.pokemon ?? "", t: current.value?.title ?? "" }), true);
+  else say(t("pet.paused", { p: currentCat.value?.pokemon ?? "" }));
 }
 
 async function refreshCurrent() {
   const prevId = current.value?.id ?? null;
+  const prevState = petState.value;
   current.value = await api.getCurrentTask();
   if (!current.value) {
     pomo.stop();
@@ -108,7 +112,12 @@ async function refreshCurrent() {
     // 活动任务换了（本窗口切换，或主程序开始/完成、外部同步）→ 番茄钟跟随新任务
     pomo.start();
   }
-  bubbleText();
+  const state = !current.value ? "idle" : pomo.running.value ? "working" : "paused";
+  petState.value = state;
+  // 状态或任务切换才播报一次（urgent 等演出态由下一次刷新收敛）
+  if (state !== prevState || (current.value != null && current.value.id !== prevId)) {
+    announceState(state);
+  }
   if (quickOpen.value) await loadQuickList();
 }
 
@@ -195,19 +204,80 @@ async function loadQuickList() {
 const quickSel = ref<number | null>(null);
 
 let bubbleTimer: ReturnType<typeof setTimeout> | null = null;
-function say(text: string, thenRestore = true, isNew = false) {
+let bubbleRemainMs = 0;
+let bubbleDeadline = 0;
+const BUBBLE_FADE_MS = 220;
+
+function stopBubbleTimer() {
+  if (bubbleTimer) {
+    clearTimeout(bubbleTimer);
+    bubbleTimer = null;
+  }
+}
+function startBubbleCountdown() {
+  stopBubbleTimer();
+  // 钉住态（提醒）与快捷屏展开期间（引导台词）不自动消失
+  if (bubblePinned.value || quickOpen.value) return;
+  bubbleRemainMs = bubbleDuration(bubble.value);
+  bubbleDeadline = Date.now() + bubbleRemainMs;
+  bubbleTimer = setTimeout(fadeBubble, bubbleRemainMs);
+}
+function showBubble(text: string, opts: { isNew?: boolean; pinned?: boolean } = {}) {
   bubble.value = text;
-  if (isNew) {
+  bubblePinned.value = opts.pinned ?? false;
+  bubbleFading.value = false;
+  bubbleVisible.value = true;
+  if (opts.isNew) {
     // ▼ 只在「有新事」时闪 3 次后回归静态（注意力红线：不永久占用闪烁名额）
     bubbleNew.value = false;
     requestAnimationFrame(() => {
       bubbleNew.value = true;
     });
   }
-  if (bubbleTimer) clearTimeout(bubbleTimer);
-  if (thenRestore) {
-    bubbleTimer = setTimeout(bubbleText, 2000);
+  startBubbleCountdown();
+}
+function say(text: string, isNew = false) {
+  showBubble(text, { isNew });
+}
+/** 到时渐隐：透明度过渡结束后再摘除节点 */
+function fadeBubble() {
+  stopBubbleTimer();
+  if (!bubbleVisible.value || chatOpen.value) return;
+  bubbleFading.value = true;
+  bubbleTimer = setTimeout(
+    () => {
+      bubbleVisible.value = false;
+      bubbleFading.value = false;
+    },
+    motionReduced() ? 0 : BUBBLE_FADE_MS,
+  );
+}
+/** 点击收起（手动关）：顺带消化钉住的提醒 */
+function dismissBubble() {
+  if (chatOpen.value) return;
+  if (reminderTask.value) {
+    reminderTask.value = null;
+    clearTimeout(reminderTimer);
   }
+  bubblePinned.value = false;
+  fadeBubble();
+}
+/** 悬停暂停倒计时：想细读就停留，移开再续走剩余时间 */
+function pauseBubbleCountdown() {
+  if (!bubbleVisible.value || bubblePinned.value || bubbleFading.value || !bubbleTimer) return;
+  bubbleRemainMs = Math.max(0, bubbleDeadline - Date.now());
+  stopBubbleTimer();
+}
+function resumeBubbleCountdown() {
+  if (!bubbleVisible.value || bubblePinned.value || bubbleFading.value || bubbleTimer) return;
+  bubbleDeadline = Date.now() + bubbleRemainMs;
+  bubbleTimer = setTimeout(fadeBubble, bubbleRemainMs);
+}
+function hideBubble() {
+  stopBubbleTimer();
+  bubbleVisible.value = false;
+  bubbleFading.value = false;
+  bubblePinned.value = false;
 }
 
 async function toggleQuick() {
@@ -218,7 +288,7 @@ async function toggleQuick() {
     await loadQuickList();
     quickSel.value = current.value?.id ?? null;
     // 一半概率出引导，一半概率出随机撸宠台词（当前展示的宝可梦有自定义台词则优先）
-    say(Math.random() < 0.5 ? t("pet.quickPick") : randomQuote(petSprite.value), false, true);
+    say(Math.random() < 0.5 ? t("pet.quickPick") : randomQuote(petSprite.value), true);
   } else {
     say(randomQuote(petSprite.value));
   }
@@ -230,7 +300,7 @@ async function quickStart(id: number) {
   await api.startTask(id);
   await refreshCurrent();
   if (pomo.enabled()) pomo.start();
-  say(t("pet.gotcha", { t: taskTitle ?? "" }), true, true);
+  say(t("pet.gotcha", { t: taskTitle ?? "" }), true);
 }
 function quickStartSel() {
   if (quickSel.value != null) {
@@ -250,16 +320,16 @@ const openPanel = async () => {
   }
 };
 
-// ---- 单击/双击/长按三分（长按 600ms = 撸宠，与单击快捷屏、拖拽互不干扰） ----
+// ---- 单击/双击/长按三分（单击=随机搭话，双击=图鉴机，长按 600ms=撸宠；快捷屏由悬停 ☰ 钮唤出） ----
 let clickTimer: ReturnType<typeof setTimeout> | null = null;
 let lastPetAt = 0;
 function onSpriteClick() {
-  // 长按撸宠刚触发过 → 抬手这次 click 不再展开快捷屏
+  // 长按撸宠刚触发过 → 抬手这次 click 不再搭话
   if (Date.now() - lastPetAt < 800) return;
   if (clickTimer) return;
   clickTimer = setTimeout(() => {
     clickTimer = null;
-    void toggleQuick();
+    say(randomQuote(petSprite.value));
   }, 250);
 }
 async function onSpriteDblClick() {
@@ -279,7 +349,7 @@ function petTheSprite() {
   onStageDragEnd(); // 长按期间取消窗口拖拽预备
   petted.value = true;
   setTimeout(() => (petted.value = false), 900);
-  say(t("pet.petted", { p: currentCat.value?.pokemon ?? "" }), true, true);
+  say(t("pet.petted", { p: currentCat.value?.pokemon ?? "" }), true);
 }
 function onSpritePointerDown(e: PointerEvent) {
   markActivity();
@@ -323,7 +393,7 @@ function onStageDragStart(e: MouseEvent) {
 function onStageDragMove(e: MouseEvent) {
   if (pressPt && dragPhys.value === null && Math.abs(e.screenX - pressPt.x) + Math.abs(e.screenY - pressPt.y) > 6) {
     dragPhys.value = "hold";
-    say(t("pet.beingCarried"), false);
+    say(t("pet.beingCarried"));
   }
   onDragMove(e);
 }
@@ -332,7 +402,7 @@ function onStageDragEnd() {
   pressPt = null;
   if (dragPhys.value === "hold") {
     dragPhys.value = "release";
-    say(t("pet.dropped"), true, true);
+    say(t("pet.dropped"), true);
     setTimeout(() => {
       if (dragPhys.value === "release") dragPhys.value = null;
     }, 420);
@@ -353,8 +423,8 @@ async function checkPerch(announce: boolean) {
     perched.value = shouldPerch(pos.y + size.height, mon.workArea.position.y + mon.workArea.size.height, 72 * scale);
     if (perched.value && !wasPerched) {
       runMicro("sit");
-      if (announce) say(t("pet.perched"), true, true);
-      else setTimeout(() => say(t("pet.perched"), true, true), 600);
+      if (announce) say(t("pet.perched"), true);
+      else setTimeout(() => say(t("pet.perched"), true), 600);
     }
   } catch {
     /* 非桌面 / 测试环境静默 */
@@ -463,16 +533,16 @@ function checkTimeLines() {
   if (key === "birthday") {
     const days = Math.max(1, Math.floor((Date.now() - metAt) / 86_400_000));
     const line = t("pet.birthdayLine", { n: days });
-    say(line, false, true);
+    say(line, true);
     runMicro("hop");
     burstStars(3);
     speak(line);
   } else if (key === "night") {
-    say(t("pet.nightLine"), false, true);
+    say(t("pet.nightLine"), true);
   } else if (key === "friday") {
-    say(t("pet.fridayLine"), false, true);
+    say(t("pet.fridayLine"), true);
   } else {
-    say(t("pet.hourLine"), false, true);
+    say(t("pet.hourLine"), true);
   }
 }
 
@@ -549,7 +619,7 @@ function openChat() {
 function closeChat() {
   chatOpen.value = false;
   void resizePetWindow();
-  bubbleText();
+  hideBubble();
 }
 async function sendChat() {
   const q = chatInput.value.trim();
@@ -604,7 +674,7 @@ function markActivity() {
   if (petState.value === "asleep") {
     petState.value = "idle";
     runMicro("wake");
-    say(t("pet.wakeUp", { p: currentCat.value?.pokemon ?? "" }), true, true);
+    say(t("pet.wakeUp", { p: currentCat.value?.pokemon ?? "" }), true);
   }
 }
 function checkSleep() {
@@ -619,7 +689,7 @@ function checkSleep() {
     return;
   petState.value = "asleep";
   bubbleNew.value = false;
-  bubble.value = t("pet.asleepHint");
+  say(t("pet.asleepHint"));
 }
 
 /** keydown 统一入口：算作「还醒着」+ Esc 收起对话 */
@@ -665,7 +735,7 @@ async function runCatchScene(opts: {
   skipScene = false;
   streakScene.value = opts.streak != null;
   catchPhase.value = "prep";
-  say(t("pet.throwing", { p: opts.pokemon }), true, true);
+  say(t("pet.throwing", { p: opts.pokemon }), true);
   await waitMs(120);
   const two = opts.streak != null;
   if (!skipScene) {
@@ -712,19 +782,19 @@ async function runCatchScene(opts: {
     finish();
   }
   if (opts.allDone) {
-    say(t("pet.allDone", { p: opts.pokemon }), false, true);
+    say(t("pet.allDone", { p: opts.pokemon }), true);
     runMicro("hop");
     speak(t("pet.allDone", { p: opts.pokemon }));
     // 收工即送客：陪跑的客人跟着庆祝后离场（一次会话一位一次的尾声）
     if (mate.value) setTimeout(() => onMateLeave(), 700);
   } else if (opts.milestone) {
-    say(t("pet.milestone", { p: opts.pokemon, n: opts.milestone }), false, true);
+    say(t("pet.milestone", { p: opts.pokemon, n: opts.milestone }), true);
     speak(t("pet.milestone", { p: opts.pokemon, n: opts.milestone }));
   } else if (opts.streak) {
-    say(t("pet.streakN", { n: opts.streak }), false, true);
+    say(t("pet.streakN", { n: opts.streak }), true);
     speak(t("pet.streakN", { n: opts.streak }));
   } else {
-    say(t("pet.catchOk", { p: opts.pokemon, t: opts.title }), false, true);
+    say(t("pet.catchOk", { p: opts.pokemon, t: opts.title }), true);
   }
 }
 
@@ -765,9 +835,9 @@ async function completeFromReminder() {
     burstStars(6);
     await refreshCurrent();
     // 刷新会把气泡重置为当前任务状态，确认文案放在刷新之后
-    say(t("pet.reminderDone", { t: r.title, p: r.pokemon ?? "" }), true, true);
+    say(t("pet.reminderDone", { t: r.title, p: r.pokemon ?? "" }), true);
   } catch {
-    bubbleText();
+    hideBubble();
   }
 }
 
@@ -785,7 +855,7 @@ async function snoozeFromReminder() {
     await refreshCurrent();
     say(t("pet.reminderSnoozed"));
   } catch {
-    bubbleText();
+    hideBubble();
   }
 }
 
@@ -811,7 +881,7 @@ function greetOnce() {
         : h < 23
           ? t("pet.greetEvening", { p: mainPokemonName() })
           : t("pet.greetNight", { p: mainPokemonName() });
-  setTimeout(() => say(line, false, true), 800);
+  setTimeout(() => say(line, true), 800);
 }
 
 // 透明区域点击穿透：精灵两侧/快捷屏下方的空白放行给下层应用（见 composable 注释）
@@ -822,6 +892,8 @@ onMounted(async () => {
   disposeClickThrough = usePetClickThrough();
   await Promise.all([categories.load(), settings.load()]);
   await refreshCurrent();
+  // 启动播报：无任务时欢迎一次（有任务已由状态切换播报 working）；日常无常驻文字
+  if (!current.value) say(t("pet.welcome"), true);
   greetOnce();
   idleCtl.start();
   if (settings.bool("pet_input_response")) irCtl.start();
@@ -841,19 +913,18 @@ onMounted(async () => {
     await listen<{ id: number; title: string; urgent: boolean; pokemon?: string | null }>(EVENTS.taskReminder, (e) => {
       const p = e.payload.pokemon ?? "";
       petState.value = e.payload.urgent ? "urgent" : "working";
-      bubble.value = e.payload.urgent
-        ? t("pet.remindUrgent", { t: e.payload.title, p })
-        : t("pet.remindNormal", { t: e.payload.title, p });
-      bubbleNew.value = false;
-      requestAnimationFrame(() => {
-        bubbleNew.value = true;
-      });
-      // 就近可操作：提醒气泡直接带「完成 / 推迟 10 分钟」，不打开主面板也能消化
+      // 就近可操作提醒：钉住不自动倒计时（悬停暂停不适用），点击气泡或动作按钮消化
+      showBubble(
+        e.payload.urgent
+          ? t("pet.remindUrgent", { t: e.payload.title, p })
+          : t("pet.remindNormal", { t: e.payload.title, p }),
+        { isNew: true, pinned: true },
+      );
       reminderTask.value = e.payload;
       clearTimeout(reminderTimer);
       reminderTimer = setTimeout(() => {
         reminderTask.value = null;
-        bubbleText();
+        hideBubble();
       }, 60_000);
     }),
   );
@@ -875,7 +946,6 @@ onMounted(async () => {
         } else {
           irCtl.stop();
         }
-        bubbleText();
       }, 200);
     }),
   );
@@ -887,6 +957,8 @@ onUnmounted(() => {
   if (holdTimer) clearTimeout(holdTimer);
   if (sleepTimer) clearInterval(sleepTimer);
   if (lineTimer) clearInterval(lineTimer);
+  if (reminderTimer) clearTimeout(reminderTimer);
+  stopBubbleTimer();
   window.removeEventListener("pointermove", markActivity);
   window.removeEventListener("pointerdown", markActivity);
   window.removeEventListener("keydown", onWindowKeydown);
@@ -931,6 +1003,17 @@ onUnmounted(() => {
         />
       </svg>
       <PokemonSprite class="pet-sprite" :class="spriteClass" :style="hopStyle" :sprite="petSprite" draggable="false" />
+      <!-- 快捷图鉴屏唤出钮：悬停精灵时浮现（单击精灵改为随机搭话，防误触展开大面板） -->
+      <button
+        v-if="!quickOpen"
+        class="quick-fab"
+        :title="t('pet.menuQuick')"
+        :aria-label="t('pet.menuQuick')"
+        @pointerdown.stop
+        @click.stop.prevent="toggleQuick()"
+      >
+        ☰
+      </button>
       <!-- 睡觉 zzz -->
       <div v-if="petState === 'asleep'" class="zzz" aria-hidden="true"><i>z</i><i>z</i><i>z</i></div>
       <!-- 捕捉演出：精灵球（抛物线由 wrap X + ball Y 双层组合；连胜为双球左右交替） -->
@@ -957,8 +1040,34 @@ onUnmounted(() => {
       <PokemonSprite :sprite="mate.sprite" />
     </div>
 
-    <!-- 全宽对话框在下（cat-tag 已按信息极简裁决移除：分类由气泡 {p} 与精灵图承载） -->
-    <div class="dialog" :class="{ alert: petState === 'urgent' && !chatOpen, 'is-new': bubbleNew && !chatOpen }">
+    <!-- 番茄钟（信息极简 v2：运行中 ⏸✔；暂停态 ▶🍦✔；⇄ 切换移入右键菜单）——
+         常驻状态由药丸承载（台词瞬态化后不再有常驻状态文字），置于气泡前避免被顶动 -->
+    <div v-if="current && pomo.enabled()" class="pomo-pill" :class="{ break: pomo.phase.value === 'break' }">
+      <span class="px">{{ pomo.phase.value === "break" ? "☕" : "🍅" }} {{ pomo.mmss.value }}</span>
+      <button v-if="pomo.running.value" class="pomo-btn" :title="t('pet.menuPause')" @click="pauseTask">⏸</button>
+      <template v-else>
+        <button class="pomo-btn" :title="t('pet.trialStart')" @click="startTrial">🍦</button>
+        <button class="pomo-btn" :title="t('pet.menuResume')" @click="resume">▶</button>
+      </template>
+      <button class="pomo-btn" :title="t('pet.menuDone')" @click="doneTask">✔</button>
+    </div>
+
+    <!-- 瞬态台词气泡（VPet 范式）：说完自动淡出，悬停暂停、点击收起；不说话时完全让位（cat-tag 已按信息极简裁决移除） -->
+    <div
+      v-if="chatOpen || bubbleVisible"
+      class="dialog"
+      :class="{
+        alert: petState === 'urgent' && !chatOpen,
+        'is-new': bubbleNew && !chatOpen,
+        fading: bubbleFading && !chatOpen,
+        dismissible: !chatOpen,
+        chat: chatOpen,
+      }"
+      :title="chatOpen ? undefined : t('pet.bubbleClose')"
+      @click="dismissBubble"
+      @mouseenter="pauseBubbleCountdown"
+      @mouseleave="resumeBubbleCountdown"
+    >
       <div v-if="!chatOpen" class="dialog-inner">
         <span class="dialog-text">{{ bubble }}</span>
         <span class="dialog-next">▼</span>
@@ -1012,18 +1121,7 @@ onUnmounted(() => {
       <button class="btn ghost" @click="snoozeFromReminder">⇨ {{ t("pet.reminderSnooze") }}</button>
     </div>
 
-    <!-- 番茄钟（信息极简 v2：运行中 ⏸✔；暂停态 ▶🍦✔；⇄ 切换移入右键菜单） -->
-    <div v-if="current && pomo.enabled()" class="pomo-pill" :class="{ break: pomo.phase.value === 'break' }">
-      <span class="px">{{ pomo.phase.value === "break" ? "☕" : "🍅" }} {{ pomo.mmss.value }}</span>
-      <button v-if="pomo.running.value" class="pomo-btn" :title="t('pet.menuPause')" @click="pauseTask">⏸</button>
-      <template v-else>
-        <button class="pomo-btn" :title="t('pet.trialStart')" @click="startTrial">🍦</button>
-        <button class="pomo-btn" :title="t('pet.menuResume')" @click="resume">▶</button>
-      </template>
-      <button class="pomo-btn" :title="t('pet.menuDone')" @click="doneTask">✔</button>
-    </div>
-
-    <!-- 快捷图鉴屏：点精灵展开 -->
+    <!-- 快捷图鉴屏：悬停精灵出 ☰ 钮展开 -->
     <div v-if="quickOpen" class="quick-dex">
       <div class="hinge"></div>
       <div class="lcd screen">
@@ -1080,33 +1178,82 @@ onUnmounted(() => {
   pointer-events: auto;
 }
 
-/* 初代对话框：白底 + 双线框，全宽在精灵下方 */
+/* 紧凑对白气泡（瞬态后不再需要控制台的固定全宽框）：宽随内容、单层描边、
+   顶部小尾巴指向精灵；白底 + 藏青框 + 硬投影保留初代语感 */
 .dialog {
-  width: 100%;
+  position: relative;
+  width: fit-content;
+  max-width: 100%;
   background: #fff;
   border: 3px solid var(--dex-navy);
   border-radius: 8px;
-  box-shadow: 3px 3px 0 var(--dex-navy);
+  box-shadow: 2px 2px 0 var(--dex-navy);
+  margin-top: 14px; /* 给尾巴让出高度 */
+  transition: opacity 220ms var(--e-snap);
+  animation: pk-bubble-in 240ms var(--e-pop);
+}
+/* 尾巴：双色三角（藏青描边 + 白芯），白芯底边穿过边框区探入内部（y≈4px），
+   与气泡白色连通成「开口」而非实心箭头；藏青只留两条斜边——标准气球尾巴画法。
+   伪元素是 content-box（全局 * reset 不匹配伪元素），零尺寸 + 纯 border 的三角画法不受影响，
+   且最深点 4px < 文字顶 8px，任何字体度量下都不会再遮字 */
+.dialog:not(.chat)::before,
+.dialog:not(.chat)::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  width: 0;
+  height: 0;
+  border-style: solid;
+  border-color: transparent;
+}
+.dialog:not(.chat)::before {
+  top: -6px;
+  margin-left: -7px;
+  border-width: 0 7px 9px;
+  border-bottom-color: var(--dex-navy);
+}
+.dialog:not(.chat)::after {
+  top: -5px;
+  margin-left: -4px;
+  border-width: 0 4px 9px;
+  border-bottom-color: #fff;
+}
+/* 对话态是展开的控制台：恢复全宽、无尾巴 */
+.dialog.chat {
+  width: 100%;
   margin-top: 10px;
+}
+.dialog.dismissible {
+  cursor: pointer;
+}
+.dialog.fading {
+  opacity: 0;
+  pointer-events: none;
+}
+@keyframes pk-bubble-in {
+  0% {
+    opacity: 0;
+    transform: translateY(4px) scale(0.98);
+  }
+  100% {
+    opacity: 1;
+    transform: none;
+  }
 }
 .dialog.alert {
   animation: pk-shake var(--t-act) 3;
 }
 .dialog-inner {
-  border: 2px solid var(--dex-navy);
-  border-radius: 4px;
-  margin: 3px;
-  padding: 8px 10px;
-  min-height: 44px;
+  padding: 5px 12px 5px 10px;
   display: flex;
   align-items: center;
   gap: 8px;
 }
 .dialog-text {
   flex: 1;
-  font-size: 13px;
-  font-weight: 700;
-  line-height: 1.6;
+  font-size: 12.5px;
+  font-weight: 600;
+  line-height: 1.5;
   color: var(--dex-navy);
 }
 /* 初代"继续"箭头 v2：默认静态（存在即语义），仅新事件闪 3 次后停——
@@ -1114,7 +1261,7 @@ onUnmounted(() => {
 .dialog-next {
   flex: none;
   align-self: flex-end;
-  font-size: 11px;
+  font-size: 10px;
   color: var(--dex-red);
   opacity: 0.9;
 }
@@ -1158,6 +1305,37 @@ onUnmounted(() => {
   width: 104px;
   height: 104px;
   image-rendering: pixelated;
+}
+/* 快捷图鉴屏唤出钮：平时隐身（不挡点击穿透），悬停精灵才浮现——两段式防误触 */
+.quick-fab {
+  position: absolute;
+  right: -40px;
+  top: 36px;
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  border: 3px solid var(--dex-navy);
+  background: var(--poke-yellow);
+  box-shadow: 2px 2px 0 var(--dex-navy);
+  color: var(--dex-navy);
+  font-size: 13px;
+  font-weight: 700;
+  font-family: inherit;
+  cursor: pointer;
+  opacity: 0;
+  pointer-events: none;
+  transition:
+    opacity var(--t-tap),
+    transform var(--t-tap);
+}
+.sprite-hit:hover .quick-fab,
+.quick-fab:focus-visible {
+  opacity: 1;
+  pointer-events: auto;
+}
+.quick-fab:active {
+  transform: translate(1px, 1px);
+  box-shadow: 1px 1px 0 var(--dex-navy);
 }
 .pet-sprite.working {
   animation: pk-hop 1.6s var(--e-sway) infinite;

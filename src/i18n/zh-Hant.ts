@@ -615,7 +615,7 @@ export default {
     emptyRoute: "路線圖空空的，給待辦設個截止時間，規劃下一站吧！",
   },
   pet: {
-    welcome: "今天想捕捉哪隻寶可夢？點我出發！",
+    welcome: "今天想捕捉哪隻寶可夢？懸停打開快捷圖鑑屏吧！",
     menuDex: "開啟圖鑑機",
     menuQuick: "快捷圖鑑屏",
     menuPause: "暫停目前任務",
@@ -637,9 +637,9 @@ export default {
     greetDay: "午安！{p}在草叢邊等你挑目標",
     greetEvening: "晚上好！今天的冒險還剩一點，{p}陪你收尾",
     greetNight: "夜深了，{p}說：再專注也要睡覺哦",
-    idle: "今天的冒險還沒開始，點擊我挑個目標吧",
+    idle: "今天的冒險還沒開始，懸停打開快捷圖鑑屏挑個目標吧",
     /** 設了主寶可夢時的待機氣泡（說出牠的名字） */
-    idleNamed: "{p}在等你出發！點我挑個目標吧",
+    idleNamed: "{p}在等你出發！懸停打開快捷圖鑑屏挑個目標吧",
     working: "{p}正在捕捉：{t}",
     paused: "{p}暫停中，休息一下~",
     remindUrgent: "‼ {p}急得直跺腳：「{t}」很緊急！",
@@ -660,6 +660,7 @@ export default {
     quickStart: "▶ 出發",
     quickPause: "⏸ 暫停",
     quickClose: "✕ 收起",
+    bubbleClose: "點擊收起台詞",
     switchTitle: "切換捕捉目標…",
     switchCancel: "取消",
     gotcha: "就決定是你了！{t}",
