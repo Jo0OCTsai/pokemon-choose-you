@@ -144,6 +144,8 @@ export interface ChatMessage {
   /** pending / todo / none / followup / error */
   aiStatus: string;
   reviewStatus: "pending" | "accepted" | "dismissed";
+  /** 逃走时选的原因码（duplicate/noise/…；直接逃走为空串）；撤销/恢复即清空 */
+  dismissReason?: string;
   /** 该消息已创建的待办 id */
   taskId?: number | null;
   /** update 建议指向的目标待办 id（AI 判定消息是对该待办的变更） */

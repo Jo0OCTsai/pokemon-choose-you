@@ -12,7 +12,7 @@ use tauri::{Manager, State};
 const MSG_COLS: &str = "id, message_id, chat_id, chat_name, chat_type, sender, sender_id, sent_at, is_self, content, \
                         suggested_title, suggested_category, suggested_due, suggested_priority, suggested_note, suggested_tags, \
                         suggested_reason, suggested_confidence, ai_agent, \
-                        ai_status, review_status, task_id, update_task_id, followup_task_id, created_at";
+                        ai_status, review_status, task_id, update_task_id, followup_task_id, created_at, dismiss_reason";
 
 fn row_to_message(row: &rusqlite::Row) -> rusqlite::Result<ChatMessage> {
     let tags_raw: String = row.get(15)?;
@@ -42,6 +42,7 @@ fn row_to_message(row: &rusqlite::Row) -> rusqlite::Result<ChatMessage> {
         update_task_id: row.get(22)?,
         followup_task_id: row.get(23)?,
         created_at: row.get(24)?,
+        dismiss_reason: row.get(25)?,
     })
 }
 
@@ -273,8 +274,9 @@ pub(crate) fn create_task_from_message(conn: &Connection, msg: &ChatMessage) -> 
         Some(&title),
         "radio",
     )?;
+    // 原因随状态一起清：已逃走消息被强制捕捉时不留陈旧原因
     conn.execute(
-        "UPDATE chat_messages SET review_status='accepted', task_id=?2 WHERE id=?1",
+        "UPDATE chat_messages SET review_status='accepted', task_id=?2, dismiss_reason='' WHERE id=?1",
         params![msg.id, task_id],
     )?;
     Ok(task_id)
@@ -315,8 +317,8 @@ pub fn dismiss_chat_message<R: tauri::Runtime>(
         let conn = db.0.lock().unwrap();
         let msg = get_message(&conn, id)?;
         conn.execute(
-            "UPDATE chat_messages SET review_status='dismissed' WHERE id=?1",
-            params![id],
+            "UPDATE chat_messages SET review_status='dismissed', dismiss_reason=?2 WHERE id=?1",
+            params![id, reason],
         )?;
         record_feedback(&conn, &msg, "dismissed", &reason)?;
     }
@@ -351,7 +353,7 @@ pub fn undo_chat_review<R: tauri::Runtime>(
         match msg.review_status.as_str() {
             "dismissed" => {
                 conn.execute(
-                    "UPDATE chat_messages SET review_status='pending' WHERE id=?1",
+                    "UPDATE chat_messages SET review_status='pending', dismiss_reason='' WHERE id=?1",
                     params![id],
                 )?;
                 delete_last_feedback(&conn, id)?;
@@ -416,7 +418,8 @@ pub(crate) fn attach_followup(
         params![task_id, content, now()],
     )?;
     conn.execute(
-        "UPDATE chat_messages SET ai_status='followup', followup_task_id=?2, review_status='accepted'
+        "UPDATE chat_messages SET ai_status='followup', followup_task_id=?2, review_status='accepted',
+                dismiss_reason=''
          WHERE message_id=?1",
         params![message_id, task_id],
     )?;
@@ -809,8 +812,9 @@ pub fn batch_review_chat_messages<R: tauri::Runtime>(
             let n = {
                 let conn = db.0.lock().unwrap();
                 let n = conn.execute(
-                    "UPDATE chat_messages SET review_status='dismissed' WHERE id=?1 AND review_status='pending'",
-                    params![id],
+                    "UPDATE chat_messages SET review_status='dismissed', dismiss_reason=?2
+                     WHERE id=?1 AND review_status='pending'",
+                    params![id, reason],
                 )?;
                 if n > 0 {
                     if let Ok(msg) = get_message(&conn, id) {
@@ -1767,6 +1771,14 @@ mod tests {
             "agent 名快照防配置删改后无法辨识"
         );
         assert_eq!(ai_action, "todo", "关联建议的 AI 动作");
+        let msgs = {
+            let db = app.state::<Db>();
+            list_chat_messages(db, None).unwrap()
+        };
+        assert_eq!(
+            msgs[0].dismiss_reason, "duplicate",
+            "原因随消息行落库（供列表展示）"
+        );
     }
 
     /// 逃走原因码只认白名单；直接逃走（无原因码）也记反馈
@@ -1813,6 +1825,7 @@ mod tests {
             list_chat_messages(db, None).unwrap()
         };
         assert_eq!(msgs[0].review_status, "pending");
+        assert_eq!(msgs[0].dismiss_reason, "", "撤销后原因随状态一起清");
         let feedback: i64 = {
             let db = app.state::<Db>();
             let conn = db.0.lock().unwrap();
@@ -1964,6 +1977,35 @@ mod tests {
                 ("dismissed".to_string(), "noise".to_string())
             ]
         );
+        let msgs = {
+            let db = app.state::<Db>();
+            list_chat_messages(db, None).unwrap()
+        };
+        assert!(
+            msgs.iter().all(|m| m.dismiss_reason == "noise"),
+            "批量逃走的原因也随消息行落库"
+        );
+    }
+
+    /// 已逃走消息被强制捕捉（或 AI 改判跟进）后 review_status 翻 accepted，
+    /// 行上的逃走原因必须随之清掉，不留陈旧残留
+    #[test]
+    fn create_task_from_message_clears_dismiss_reason() {
+        let app = setup();
+        let mid = seed_message(&app, "om_1");
+        let db = app.state::<Db>();
+        let conn = db.0.lock().unwrap();
+        conn.execute(
+            "UPDATE chat_messages SET review_status='dismissed', dismiss_reason='noise' WHERE id=?1",
+            params![mid],
+        )
+        .unwrap();
+        let msg = get_message(&conn, mid).unwrap();
+        assert_eq!(msg.dismiss_reason, "noise");
+        create_task_from_message(&conn, &msg).unwrap();
+        let msg = get_message(&conn, mid).unwrap();
+        assert_eq!(msg.review_status, "accepted");
+        assert_eq!(msg.dismiss_reason, "", "状态翻 accepted 时原因一起清");
     }
 
     /// AI 建议了停用分类名时，回落到第一个启用分类而不是停用的同名分类

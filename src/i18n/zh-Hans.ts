@@ -103,6 +103,9 @@ export default {
     forceDone: "✔ 已创建待办",
     caughtTask: "已捕捉为待办 No.{id}",
     released: "已逃走",
+    // 已逃走详情条：亮出 AI 原判与人工原因，区分「AI 判无信号后被确认」与「人工否决 AI 信号」
+    aiVerdict: "AI 原判",
+    dismissReasonLabel: "原因",
     applyUpdate: "◎ 应用更新",
     updateFound: "🔧 建议更新待办 No.{id}",
     updatedTask: "已更新待办 No.{id}",
@@ -139,6 +142,7 @@ export default {
     viewChannel: "📡 按频道",
     groupSignal: "◎ 待办信号",
     groupNoise: "🔇 无信号",
+    groupNoiseTitle: "AI 判定为无信号（未经人工确认）；一键清空 = 整组确认为噪音",
     groupCaught: "✔ 已捕捉",
     groupEscaped: "✕ 已逃走",
     collapse: "收起",
@@ -159,6 +163,9 @@ export default {
     restore: "恢复",
     chipUpdate: "更新",
     chipNoise: "无信号",
+    // 已逃走行内 chip：AI 判了信号但被人工否决，回看时一眼找到推翻点
+    chipVetoed: "已否决",
+    vetoedTitle: "AI 判定有待办信号，你否决了它",
     chanPending: "{n} 待处理",
     chanTotal: "{n} 条",
     markMerged: "并入 No.{id}",
