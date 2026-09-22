@@ -110,7 +110,20 @@ await page.evaluate(() => {
     { id: 1, title: "写周报", categoryId: 1, status: "active" },
     { id: 2, title: "整理收件箱", categoryId: 1, status: "scheduled" },
     { id: 3, title: "读《图鉴收集指南》第三章", categoryId: 2, status: "scheduled" },
-  ].map((t) => ({ ...t, note: null, priority: "normal", dueAt: null, remindAt: null, reminded: false, source: "local", externalId: null, createdAt: "2026-09-01", completedAt: null, focusSeconds: 0, tags: [] }));
+  ].map((t) => ({
+    ...t,
+    note: null,
+    priority: "normal",
+    dueAt: null,
+    remindAt: null,
+    reminded: false,
+    source: "local",
+    externalId: null,
+    createdAt: "2026-09-01",
+    completedAt: null,
+    focusSeconds: 0,
+    tags: [],
+  }));
 });
 await page.reload({ waitUntil: "networkidle" });
 await page.waitForTimeout(700);
