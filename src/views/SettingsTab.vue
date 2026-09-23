@@ -1334,6 +1334,9 @@ onUnmounted(() => {
           <SettingRow :label="t('feishu.interval')">
             <DexSelect v-model="settings.values.feishu_poll_interval" :options="pollIntervalOptions" />
           </SettingRow>
+          <SettingRow :label="t('feishu.myNames')" :desc="t('feishu.myNamesDesc')">
+            <input v-model="settings.values.feishu_my_names" class="agent-cmd" :placeholder="t('feishu.myNamesPh')" />
+          </SettingRow>
           <div class="btn-row">
             <button class="btn ghost" :disabled="testing" @click="runTest(api.testFeishuConfig)">
               {{ t("feishu.test") }}

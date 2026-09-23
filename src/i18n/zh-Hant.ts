@@ -422,6 +422,10 @@ export default {
     test: "測試飛書連線",
     pollNow: "立即拉取一次",
     pollResult: "本輪新增 {n} 條建議",
+    myNames: "我的稱呼",
+    myNamesDesc:
+      "群裡同事怎麼叫你（逗號分隔可多個）。命中這些稱呼的訊息會標註「疑似指派給你」；所有真實姓名都不會發給 AI，一律以代號出現。",
+    myNamesPh: "如：喬老闆，老喬",
   },
   diag: {
     healthTitle: "🩺 整合健康",

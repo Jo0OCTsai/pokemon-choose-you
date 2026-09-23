@@ -444,17 +444,38 @@ impl AiSuggestion {
 }
 
 /// 送 AI 判定的一条消息：除内容外还携带来源语境（私聊/群聊/机器人、发送者）
-/// 与同会话近期上下文，模型据此理解指代、判断"谁要谁做什么"
+/// 与同会话近期上下文，模型据此理解指代、判断"谁要谁做什么"。
+/// 内容/发送者/上下文均已假名化（代号见 anonymize 模块），真名不进 prompt。
 #[derive(Debug, Clone)]
 pub struct AiMessage {
     pub message_id: String,
-    /// 发送者显示名
+    /// 发送者代号（「我」= 用户本人，其余为 成员_xxxx）
     pub sender: String,
     /// 来源标签，如 "飞书·群聊「项目群」" / "飞书·机器人私聊"
     pub chat_label: String,
+    /// 匿名版内容（@我 / 成员代号 / （疑似@我）标记）
     pub content: String,
-    /// 同会话上下文（已格式化的 "HH:MM 发送者: 内容" 行，按时间升序）
+    /// 同会话上下文（已匿名化的 "[HH:MM] 发送者: 内容" 行，按时间升序）
     pub context: Vec<String>,
+    /// 归属标注行（空 = 无标注），由 mention_note() 生成
+    pub mention_note: String,
+}
+
+/// 归属标注：渲染层确定性判定的「这条消息是否提及了用户」，模型只做语义解释。
+/// at_me：""（无）/ "at"（mention 结构命中，显式 @）/ "name"（手打文本命中称呼）。
+/// same_name_risk：通讯录缓存里存在与用户称呼同名的其他成员，提示模型谨慎。
+pub fn mention_note(at_me: &str, _anon_content: &str, same_name_risk: bool) -> String {
+    let base = match at_me {
+        "at" => "提及：@我（显式）".to_string(),
+        // 名字匹配是本地文本替换，可能有误差，交给模型结合语境判断
+        "name" => "提及：疑似@我（本地名字匹配，可能有误差）".to_string(),
+        _ => return String::new(),
+    };
+    if same_name_risk {
+        format!("{base}；注意：群内存在同名成员，请结合上下文谨慎判断归属")
+    } else {
+        base
+    }
 }
 
 impl AiMessage {
@@ -466,16 +487,20 @@ impl AiMessage {
             chat_label: String::new(),
             content: content.into(),
             context: vec![],
+            mention_note: String::new(),
         }
     }
 }
 
-/// 消息列表渲染（分类提示词的正文）：[id] + 来源 + 发送者 + 内容 + 同会话上下文
+/// 消息列表渲染（分类提示词的正文）：[id] + 来源 + 发送者 + 归属标注 + 内容 + 同会话上下文
 fn render_messages(batch: &[AiMessage]) -> String {
     let mut s = String::from("消息：\n");
     for m in batch {
         s.push_str(&format!("[{}] 来源：{}\n", m.message_id, m.chat_label));
         s.push_str(&format!("发送者：{}\n", m.sender));
+        if !m.mention_note.is_empty() {
+            s.push_str(&format!("{}\n", m.mention_note));
+        }
         s.push_str(&format!("内容：{}\n", m.content));
         if !m.context.is_empty() {
             s.push_str("同会话上下文（仅供参考）：\n");
@@ -493,7 +518,8 @@ fn render_messages(batch: &[AiMessage]) -> String {
 const TOOLS_SYSTEM_PROMPT: &str = r#"你是待办事项提取助手，通过 pk 命令行工具工作。给你一组 IM 消息（含来源、发送者、内容与同会话上下文），找出其中隐含的、需要用户本人行动的待办事项、承诺、或对方希望你完成/参加的事情，并把判定结果用 pk 工具写回数据库。
 规则：
 - 每条消息带「来源」标签：单聊是对方直接对你说的，语气常更直接；「与机器人的私聊」是用户发给助手 bot 的，是用户给自己记的备忘/指令，同样要提取。上下文里标注为「我」的是用户自己说的话，只用于理解指代与时间，不是待办来源。
-- 群聊必须先判断任务归属，只提取明确指派给用户的：内容 @我、点名让用户做、或回复/接着用户的话头向用户提出请求。消息把任务指派给别人的（@他人、点名让他人做、说某事由某人负责/跟进）是别人的任务，内容再像待办也判 none（reason 注明是 @谁/谁 的任务）；不点名且从上下文判断不出是安排给用户的，同样判 none。宁漏勿滥：判 none 的消息用户在收音机里仍能看到、可手动捕捉，误报则会污染待办清单。
+- 人名已代号化：消息内容、发送者与上下文里的真实姓名都已替换成稳定代号（如 成员_a1b2），同一代号始终是同一人；「我」/「@我」指用户本人。不要猜测或还原真实姓名，生成 title/note/reason 时沿用原文代号。
+- 群聊归属按标注判断：带「提及：@我（显式）」的消息明确提及了用户，默认视为可能指派给用户——除非内容明确把任务交给别人（让某代号去做、说某事由某代号负责/跟进），否则按 todo/update/followUp 正常判定；带「提及：疑似@我（本地名字匹配，可能有误差）」的，结合内容与上下文判断是否在向用户布置任务/提出请求；两种标注都出现「群内存在同名成员」警示时需更谨慎，拿不准判 none 并降低置信度。无提及标注、且上下文判断不出指派给用户的群聊消息判 none（reason 注明是给哪个代号的）。宁漏勿滥：判 none 的消息用户在收音机里仍能看到、可手动捕捉，误报则会污染待办清单。
 - 同会话上下文仅供参考：帮你理解对话背景（前因后果、时间指代），最终判断只针对消息本身。
 - 只提取"需要用户行动"的内容（任务、承诺、会议、deadline、请求）。闲聊、通知、纯信息分享不算。
 - 判重（两步）：① 先执行 `pk context` 拿现有待办清单，已有本质相同的未完成待办时绝不再新建，改按 update / followUp / none 处理；② 本批消息互相判重——多条消息指向同一件事时，只对信息最明确最完整的一条生成 todo，其余判 none（reason 注明「与消息 [那条id] 同一件事」）。
@@ -511,7 +537,7 @@ const TOOLS_SYSTEM_PROMPT: &str = r#"你是待办事项提取助手，通过 pk 
 - 新标签：仅当某维度确实没有贴切选项、且消息里有明确依据（明确出现的项目名/人名/群名）时才提议新标签（isNew=true 并归入该维度，名字用原文里的称呼）；模糊语境一律复用现有标签或留空，禁止为凑数造词。pk context 的 dimensions 里 remaining<=0 的维度禁止新建。归属「项目」维度时优先参考消息来源（群聊名常含项目名）。
 - pk context 的 tagFeedback 列出用户多次移除过的标签：没有新的明确依据不要再建议。
 - followUpTaskId 只在 action="followUp" 时填写，updateTaskId 只在 action="update" 时填写，取值都必须是 pk context 的 openTasks 里出现的 id。
-- reason: 一句话中文说明判定理由（如「对方明确要求周五前交付」/「与待办 No.3 本质相同」/「纯信息分享无需行动」），不超过 30 字。
+- reason: 一句话中文说明判定理由，归属类判定注明依据（如「显式@我且要求周五前交付」/「任务给成员_a1b2非用户」/「与待办 No.3 本质相同」/「纯信息分享无需行动」），不超过 30 字。
 - confidence: 从 high/medium/low 里选：消息直白明确用 high；依赖语境推断（指代、隐含的时间或对象）用 medium；拿不准、像又不像的用 low。
 执行流程（务必遵守）：
 1. 先执行 `pk context` 获取当前时间、现有待办清单、可用分类与标签。
@@ -534,6 +560,7 @@ fn build_tools_prompt(agent: &AgentConfig, batch: &[AiMessage]) -> String {
 const CAPTURE_SYSTEM_PROMPT: &str = r#"你是待办事项录入助手，通过 pk 命令行工具工作。用户在应用里手动输入了一条自然语言快速捕捉（自己要做的待办），把它的结构化属性判定出来，并用 pk 工具写回数据库。
 规则：
 - 输入一定是用户要为自己创建的待办：默认 action="todo"，不要判断任务归属，不要因为内容像闲聊而判 none。
+- 人名已代号化：输入里的真实姓名已替换成稳定代号（如 成员_a1b2），生成 title/note 时沿用代号，不要还原或猜测真实姓名。
 - 判重：先执行 `pk context` 拿现有待办清单，openTasks 里已有本质相同的未完成待办时不再新建——输入是对它的属性变更（改期/改优先级等）用 update，是补充信息/进展用 followUp，纯重复提及用 none（reason 注明与哪个待办重复）。
 - title 用简短的祈使句中文概括要做的事（不超过 20 字），时间、分类等已被抽走的修饰不要保留。
 - note 一句话保留原文里有用的上下文（对象、地点、要求），没有就留空。
@@ -1600,10 +1627,45 @@ mod tests {
     #[test]
     fn tools_prompt_carries_group_ownership_and_batch_dedup_rules() {
         let p = TOOLS_SYSTEM_PROMPT;
-        assert!(p.contains("群聊必须先判断任务归属"), "缺群聊归属规则");
-        assert!(p.contains("是别人的任务"), "缺指派他人判 none 规则");
+        assert!(p.contains("群聊归属按标注判断"), "缺群聊归属规则");
+        assert!(p.contains("人名已代号化"), "缺假名化总则");
+        assert!(
+            p.contains("提及：@我（显式）") && p.contains("疑似@我"),
+            "缺归属标注的两级判定规则"
+        );
         assert!(p.contains("宁漏勿滥"), "缺收窄倾向说明");
         assert!(p.contains("本批消息互相判重"), "缺批内判重规则");
+    }
+
+    /// 归属标注行按 at_me 分级生成，同名风险只叠加在已有提及之上
+    #[test]
+    fn mention_note_levels_and_same_name_warning() {
+        assert_eq!(mention_note("", "（疑似@我）无关", false), "");
+        assert_eq!(mention_note("at", "", false), "提及：@我（显式）");
+        assert_eq!(
+            mention_note("name", "", false),
+            "提及：疑似@我（本地名字匹配，可能有误差）"
+        );
+        let warned = mention_note("name", "", true);
+        assert!(warned.contains("群内存在同名成员"), "{warned}");
+    }
+
+    /// render_messages：归属标注插在发送者与内容之间，匿名文本不回填真名
+    #[test]
+    fn render_messages_includes_mention_note() {
+        let m = AiMessage {
+            message_id: "om_1".into(),
+            sender: "成员_00aa".into(),
+            chat_label: "飞书·群聊「项目群」".into(),
+            content: "@我 周会改到周四10点".into(),
+            context: vec![],
+            mention_note: mention_note("at", "", false),
+        };
+        let out = render_messages(std::slice::from_ref(&m));
+        assert!(
+            out.contains("提及：@我（显式）\n内容："),
+            "标注行位于发送者与内容之间: {out}"
+        );
     }
 
     // ---- 进程调用链（unix 下用 /bin/sh 脚本模拟 agent） ----

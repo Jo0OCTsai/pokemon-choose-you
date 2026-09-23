@@ -430,6 +430,10 @@ export default {
     test: "Test Feishu connection",
     pollNow: "Poll now",
     pollResult: "{n} new suggestions this round",
+    myNames: "My nicknames",
+    myNamesDesc:
+      'How coworkers call you in group chats (comma-separated). Messages hitting these names get flagged as "possibly assigned to you"; no real names are ever sent to the AI — everyone appears as a stable codename.',
+    myNamesPh: "e.g. Boss Qiao, Lao Qiao",
   },
   diag: {
     healthTitle: "🩺 Integration health",

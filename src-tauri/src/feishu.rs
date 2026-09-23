@@ -146,6 +146,10 @@ struct NewMessage {
     is_self: bool,
     sent_at: i64,
     content: String,
+    /// 送大模型的匿名版（人名代号化）；老数据空串，使用时回退现场 scrub
+    content_anon: String,
+    /// "" / "at"（显式 @到我）：归属标注的数据源
+    at_me: &'static str,
     needs_ai: bool,
 }
 
@@ -164,18 +168,28 @@ fn is_media_only(msg_type: &str) -> bool {
     )
 }
 
-/// 把消息 body.content 渲染成可读文本。
-/// text/post/卡片保留语义结构（@人名、链接），媒体类给占位符，无法理解的返回 None 跳过。
-/// mentions：消息级 @ 映射（key "@_user_1" → name/open_id），text 占位符与 post 的 user_key 都靠它还原人名。
-/// my_open_id：授权用户自己的 open_id——@到我 的提及渲染成「@我」而非真名，
-/// 让 AI 能把「给我的任务」和「@别人的任务」区分开。
+/// 消息渲染产物：display 给用户看（真名原样），anon 送大模型（人名已代号化）。
+/// at_me = 显式 @到我（mention 结构 open_id 命中），供归属标注；匿名版里它渲染成「@我」。
+#[derive(Debug, PartialEq)]
+pub(crate) struct Rendered {
+    pub display: String,
+    pub anon: String,
+    pub at_me: bool,
+}
+
+/// 把消息 body.content 渲染成可读文本（用户版 + 大模型匿名版）。
+/// text/post/卡片保留语义结构（@人、链接），媒体类给占位符，无法理解的返回 None 跳过。
+/// mentions：消息级 @ 映射（key "@_user_1" → name/open_id），text 占位符与 post 的 user_key 都靠它还原。
+/// my_open_id：授权用户自己的 open_id——@到我 在 display/anon 都渲染成「@我」，
+/// 其他人在 anon 版渲染成稳定代号（AnonRules 需先对消息内 open_id 预分配）。
 fn render_content(
     msg_type: &str,
     content: &str,
     mentions: &serde_json::Value,
     my_open_id: &str,
     resolve_name: &dyn Fn(&str) -> Option<String>,
-) -> Option<String> {
+    rules: &crate::anonymize::AnonRules,
+) -> Option<Rendered> {
     let v: serde_json::Value = serde_json::from_str(content).ok()?;
     let mention_name = |key: &str| -> Option<String> {
         mentions
@@ -190,28 +204,53 @@ fn render_content(
                 named.or_else(|| m["id"]["open_id"].as_str().and_then(resolve_name))
             })
     };
+    // user_key（@_user_N）→ open_id：匿名版 at 段定位代号用
+    let mention_oid = |key: &str| -> Option<String> {
+        mentions
+            .as_array()?
+            .iter()
+            .find(|m| m["key"].as_str() == Some(key))
+            .and_then(|m| m["id"]["open_id"].as_str().map(String::from))
+    };
+    // 显式 @到我：消息级 mentions 命中即算（text 占位符与 post 的 at 段同源）
+    let at_me = !my_open_id.is_empty()
+        && mentions
+            .as_array()
+            .map(|arr| {
+                arr.iter()
+                    .any(|m| m["id"]["open_id"].as_str() == Some(my_open_id))
+            })
+            .unwrap_or(false);
     match msg_type {
         "text" => {
-            let mut text = v["text"].as_str()?.to_string();
+            let raw = v["text"].as_str()?.to_string();
+            let mut display = raw.clone();
+            let mut anon = raw;
             if let Some(arr) = mentions.as_array() {
                 for m in arr {
-                    if let Some(key) = m["key"].as_str() {
-                        let name = if m["id"]["open_id"].as_str() == Some(my_open_id)
-                            && !my_open_id.is_empty()
-                        {
-                            "我".to_string()
-                        } else {
-                            m["name"]
-                                .as_str()
-                                .map(String::from)
-                                .or_else(|| m["id"]["open_id"].as_str().and_then(resolve_name))
-                                .unwrap_or_else(|| "成员".into())
-                        };
-                        text = text.replace(key, &format!("@{name}"));
-                    }
+                    let Some(key) = m["key"].as_str() else {
+                        continue;
+                    };
+                    let oid = m["id"]["open_id"].as_str().unwrap_or_default();
+                    let display_name = if oid == my_open_id && !my_open_id.is_empty() {
+                        "我".to_string()
+                    } else {
+                        m["name"]
+                            .as_str()
+                            .map(String::from)
+                            .or_else(|| (!oid.is_empty()).then(|| resolve_name(oid)).flatten())
+                            .unwrap_or_else(|| "成员".into())
+                    };
+                    let anon_name = rules.alias_cached(oid);
+                    display = display.replace(key, &format!("@{display_name}"));
+                    anon = anon.replace(key, &format!("@{anon_name}"));
                 }
             }
-            Some(text)
+            Some(Rendered {
+                display,
+                anon: rules.scrub(&anon),
+                at_me,
+            })
         }
         "post" => {
             // 富文本可能按语言分包（zh_cn/en_us/...），取第一个语言包，否则整体即内容
@@ -219,28 +258,44 @@ fn render_content(
                 .iter()
                 .find_map(|k| v[k].as_object().map(|_| &v[k]))
                 .unwrap_or(&v);
-            let mut out = String::new();
-            if let Some(title) = body["title"].as_str().filter(|s| !s.is_empty()) {
-                out.push_str(&format!("{title}\n"));
-            }
+            let title = body["title"].as_str().filter(|s| !s.is_empty());
             let paragraphs = body["content"].as_array()?;
-            let mut lines = vec![];
+            let mut display_lines = vec![];
+            let mut anon_lines = vec![];
+            if let Some(t) = title {
+                display_lines.push(t.to_string());
+                anon_lines.push(rules.scrub(t));
+            }
             for para in paragraphs {
-                let mut line = vec![];
+                let mut display_line = vec![];
+                let mut anon_line = vec![];
                 if let Some(segs) = para.as_array() {
                     for seg in segs {
-                        line.push(render_post_segment(seg, &mention_name, resolve_name));
+                        let (d, a) = render_post_segment(
+                            seg,
+                            &mention_name,
+                            &mention_oid,
+                            resolve_name,
+                            rules,
+                        );
+                        display_line.push(d);
+                        anon_line.push(a);
                     }
                 }
-                let joined: String = line
-                    .into_iter()
-                    .filter(|s| !s.is_empty())
-                    .collect::<Vec<_>>()
-                    .join(" ");
-                lines.push(joined);
+                let join = |line: Vec<String>| {
+                    line.into_iter()
+                        .filter(|s| !s.is_empty())
+                        .collect::<Vec<_>>()
+                        .join(" ")
+                };
+                display_lines.push(join(display_line));
+                anon_lines.push(join(anon_line));
             }
-            out.push_str(&lines.join("\n"));
-            Some(out)
+            Some(Rendered {
+                display: display_lines.join("\n"),
+                anon: anon_lines.join("\n"),
+                at_me,
+            })
         }
         "interactive" => {
             // 卡片消息（机器人通知居多）：收集文本节点拼一段摘要
@@ -270,48 +325,73 @@ fn render_content(
             if s.is_empty() {
                 None
             } else {
-                Some(format!("[卡片] {s}"))
+                Some(Rendered {
+                    display: format!("[卡片] {s}"),
+                    anon: format!("[卡片] {}", rules.scrub(&s)),
+                    at_me: false,
+                })
             }
         }
-        "image" => Some("[图片]".into()),
-        "audio" => Some("[语音]".into()),
-        "media" => Some("[视频]".into()),
+        "image" => placeholder("[图片]"),
+        "audio" => placeholder("[语音]"),
+        "media" => placeholder("[视频]"),
         "file" => {
             let name = v["file_name"].as_str().unwrap_or_default();
-            Some(if name.is_empty() {
+            let s = if name.is_empty() {
                 "[文件]".into()
             } else {
                 format!("[文件:{name}]")
-            })
+            };
+            placeholder(&s)
         }
-        "sticker" => Some("[表情]".into()),
-        "share_chat" => Some("[群名片]".into()),
-        "share_user" => Some("[个人名片]".into()),
-        "merged_forward" => Some("[合并转发]".into()),
+        "sticker" => placeholder("[表情]"),
+        "share_chat" => placeholder("[群名片]"),
+        "share_user" => placeholder("[个人名片]"),
+        "merged_forward" => placeholder("[合并转发]"),
         _ => None,
     }
 }
 
-/// post 富文本的单个元素 → 文本（@人、链接带 href，媒体给占位符）
+/// 媒体占位符：两版相同（不含人名）
+fn placeholder(s: &str) -> Option<Rendered> {
+    Some(Rendered {
+        display: s.into(),
+        anon: s.into(),
+        at_me: false,
+    })
+}
+
+/// post 富文本的单个元素 → (用户版, 匿名版) 文本。
+/// at 段：display 用真名（@到我 → @我），anon 用代号；text/a 段匿名版过称呼/成员名替换。
 fn render_post_segment(
     seg: &serde_json::Value,
     mention_name: &dyn Fn(&str) -> Option<String>,
+    mention_oid: &dyn Fn(&str) -> Option<String>,
     resolve_name: &dyn Fn(&str) -> Option<String>,
-) -> String {
+    rules: &crate::anonymize::AnonRules,
+) -> (String, String) {
     let tag = seg["tag"].as_str().unwrap_or_default();
     match tag {
-        "text" => seg["text"].as_str().unwrap_or_default().to_string(),
+        "text" => {
+            let t = seg["text"].as_str().unwrap_or_default();
+            (t.to_string(), rules.scrub(t))
+        }
         "a" => {
             let text = seg["text"].as_str().unwrap_or_default();
-            match seg["href"].as_str().filter(|h| !h.is_empty()) {
-                Some(href) => format!("{text}({href})"),
-                None => text.to_string(),
+            let href = seg["href"].as_str().filter(|h| !h.is_empty());
+            match href {
+                Some(href) => (
+                    format!("{text}({href})"),
+                    format!("{}({href})", rules.scrub(text)),
+                ),
+                None => (text.to_string(), rules.scrub(text)),
             }
         }
         "at" => {
-            let name = seg["user_key"]
-                .as_str()
-                .and_then(mention_name)
+            let key = seg["user_key"].as_str().unwrap_or_default();
+            let display = (!key.is_empty())
+                .then(|| mention_name(key))
+                .flatten()
                 .or_else(|| {
                     seg["user_id"]
                         .as_str()
@@ -319,12 +399,25 @@ fn render_post_segment(
                         .and_then(resolve_name)
                 })
                 .unwrap_or_else(|| "成员".into());
-            format!("@{name}")
+            // 匿名版：能定位到 open_id 就走代号（@到我 由 alias_cached 直接给「我」）；
+            // user_key 查不到 mentions 时它本身常就是 open_id
+            let oid = (!key.is_empty())
+                .then(|| mention_oid(key))
+                .flatten()
+                .or_else(|| {
+                    seg["user_id"]
+                        .as_str()
+                        .or_else(|| seg["open_id"].as_str())
+                        .map(String::from)
+                })
+                .unwrap_or_default();
+            let anon = rules.alias_cached(&oid);
+            (format!("@{display}"), format!("@{anon}"))
         }
-        "img" => "[图片]".into(),
-        "media" => "[视频]".into(),
-        "emotion" => "[表情]".into(),
-        _ => String::new(),
+        "img" => ("[图片]".into(), "[图片]".into()),
+        "media" => ("[视频]".into(), "[视频]".into()),
+        "emotion" => ("[表情]".into(), "[表情]".into()),
+        _ => (String::new(), String::new()),
     }
 }
 
@@ -380,6 +473,21 @@ async fn pull_new_messages(
     since_ms: Option<i64>,
 ) -> AppResult<(Vec<NewMessage>, i64)> {
     let (my_open_id, my_name) = crate::lark_cli::user_identity(bin).await?;
+    // 身份落 settings：pk context 脱敏词源（我的称呼）在 CLI 进程里离线可读
+    let mut rules = {
+        let conn = db.0.lock().unwrap();
+        for (k, v) in [
+            ("feishu_my_open_id", my_open_id.as_str()),
+            ("feishu_my_name", my_name.as_str()),
+        ] {
+            let _ = conn.execute(
+                "INSERT INTO settings (key, value) VALUES (?1, ?2)
+                 ON CONFLICT(key) DO UPDATE SET value=?2",
+                params![k, v],
+            );
+        }
+        crate::anonymize::AnonRules::build(&conn)
+    };
     let mut chats = chats(bin).await?;
     if chats.is_empty() {
         log::info!("feishu: 授权用户不在任何会话中，无消息可拉取");
@@ -425,11 +533,21 @@ async fn pull_new_messages(
                 let mentions = &m["mentions"];
                 let names_ref = &names;
                 let resolve = move |oid: &str| names_ref.get(oid).cloned();
-                let Some(text) = render_content(msg_type, content, mentions, &my_open_id, &resolve)
+                // 渲染前预分配本条消息所有 mention 的代号：render_content 对规则包只读
+                {
+                    let conn = db.0.lock().unwrap();
+                    for mm in mentions.as_array().into_iter().flatten() {
+                        if let Some(oid) = mm["id"]["open_id"].as_str() {
+                            rules.alias_of(&conn, oid);
+                        }
+                    }
+                }
+                let Some(rendered) =
+                    render_content(msg_type, content, mentions, &my_open_id, &resolve, &rules)
                 else {
                     continue;
                 };
-                if text.trim().is_empty() {
+                if rendered.display.trim().is_empty() {
                     continue;
                 }
                 let is_self = sender_type == "user" && sender_id == my_open_id;
@@ -474,8 +592,9 @@ async fn pull_new_messages(
                     }
                 };
                 log::debug!(
-                    "feishu: 新消息「{chat_type}·{}」{sender_name}: {text}",
-                    chat.name
+                    "feishu: 新消息「{chat_type}·{}」{sender_name}: {}",
+                    chat.name,
+                    rendered.display
                 );
                 out.push(NewMessage {
                     message_id,
@@ -486,7 +605,15 @@ async fn pull_new_messages(
                     sender_name,
                     is_self,
                     sent_at,
-                    content: text,
+                    content: rendered.display,
+                    content_anon: rendered.anon.clone(),
+                    at_me: if rendered.at_me {
+                        "at"
+                    } else if rules.hints_me(&rendered.anon) {
+                        "name"
+                    } else {
+                        ""
+                    },
                     needs_ai,
                 });
                 chat_count += 1;
@@ -577,8 +704,8 @@ async fn poll_once_inner(app: &AppHandle) -> AppResult<usize> {
                 .unwrap_or_else(now);
             conn.execute(
                 "INSERT INTO chat_messages (message_id, chat_id, chat_name, chat_type, sender, sender_id,
-                                            content, sent_at, is_self, ai_status, review_status, created_at)
-                 VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,'pending',?11)",
+                                            content, content_anon, at_me, sent_at, is_self, ai_status, review_status, created_at)
+                 VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,?12,'pending',?13)",
                 params![
                     m.message_id,
                     m.chat_id,
@@ -587,6 +714,8 @@ async fn poll_once_inner(app: &AppHandle) -> AppResult<usize> {
                     m.sender_name,
                     m.sender_id,
                     m.content,
+                    m.content_anon,
+                    m.at_me,
                     m.sent_at,
                     m.is_self as i64,
                     if m.needs_ai { "pending" } else { "skipped" },
@@ -612,21 +741,37 @@ async fn poll_once_inner(app: &AppHandle) -> AppResult<usize> {
     for chunk in actionable.chunks(20) {
         let batch = {
             let conn = db.0.lock().unwrap();
+            let mut rules = crate::anonymize::AnonRules::build(&conn);
             chunk
                 .iter()
-                .map(|m| AiMessage {
-                    message_id: m.message_id.clone(),
-                    sender: m.sender_name.clone(),
-                    chat_label: crate::commands::radio::chat_label(&m.chat_type, &m.chat_name),
-                    content: m.content.clone(),
-                    context: crate::commands::radio::chat_context_lines(
+                .map(|m| {
+                    let context = crate::commands::radio::chat_context_lines(
                         &conn,
                         &m.chat_id,
                         m.sent_at,
                         &m.message_id,
                         CONTEXT_WINDOW_MS,
                         CONTEXT_MAX_MESSAGES,
-                    ),
+                    );
+                    AiMessage {
+                        message_id: m.message_id.clone(),
+                        // 送 AI 的 sender 用代号（「我」/成员_xxxx），真名不进 prompt
+                        sender: if m.is_self {
+                            crate::anonymize::ME.to_string()
+                        } else {
+                            rules.alias_of(&conn, &m.sender_id)
+                        },
+                        chat_label: crate::commands::radio::chat_label(&m.chat_type, &m.chat_name),
+                        content: m.content_anon.clone(),
+                        context: crate::commands::radio::format_context_lines(
+                            &conn, &mut rules, context,
+                        ),
+                        mention_note: crate::ai::mention_note(
+                            m.at_me,
+                            &m.content_anon,
+                            rules.same_name_risk,
+                        ),
+                    }
                 })
                 .collect::<Vec<_>>()
         };
@@ -726,116 +871,220 @@ mod tests {
 
     // ---- render_content：富文本与占位符渲染 ----
 
+    /// 渲染测试的规则包：内存库 + 固定身份（我=ou_me/乔老板，张三=ou_z/成员_00aa）
+    fn render_rules(my_name: &str) -> crate::anonymize::AnonRules {
+        let conn = test_conn();
+        let setting = |k: &str, v: &str| {
+            conn.execute(
+                "INSERT INTO settings (key, value) VALUES (?1, ?2)
+                 ON CONFLICT(key) DO UPDATE SET value=?2",
+                params![k, v],
+            )
+            .unwrap();
+        };
+        setting("feishu_my_open_id", "ou_me");
+        if !my_name.is_empty() {
+            setting("feishu_my_name", my_name);
+        }
+        conn.execute(
+            "INSERT INTO feishu_users (open_id, name, alias, updated_at)
+             VALUES ('ou_z', '张三', '成员_00aa', '2026-09-01')",
+            [],
+        )
+        .unwrap();
+        crate::anonymize::AnonRules::build(&conn)
+    }
+
     #[test]
     fn render_text_message_with_mentions() {
+        let rules = render_rules("");
         let content = r#"{"text":"@_user_1 看一下这个"}"#;
         let mentions = serde_json::json!([
             {"key": "@_user_1", "name": "张三", "id": {"open_id": "ou_z"}}
         ]);
-        assert_eq!(
-            render_content("text", content, &mentions, "", &|_| None).as_deref(),
-            Some("@张三 看一下这个")
-        );
-        // @到我 的提及渲染成「@我」（即使 name 字段是真名），AI 才能区分任务归属
+        let r = render_content("text", content, &mentions, "", &|_| None, &rules).unwrap();
+        assert_eq!(r.display, "@张三 看一下这个");
+        // 匿名版：他人替换成代号，真名不进 anon
+        assert_eq!(r.anon, "@成员_00aa 看一下这个");
+        assert!(!r.at_me);
+        // @到我 的提及：display/anon 都渲染成「@我」（即使 name 字段是真名），at_me 标记
         let to_me = serde_json::json!([
             {"key": "@_user_1", "name": "本大爷", "id": {"open_id": "ou_me"}}
         ]);
-        assert_eq!(
-            render_content("text", content, &to_me, "ou_me", &|_| None).as_deref(),
-            Some("@我 看一下这个")
-        );
-        // 无 mentions 映射时保留原文
-        assert_eq!(
-            render_content("text", content, &serde_json::Value::Null, "", &|_| None).as_deref(),
-            Some("@_user_1 看一下这个")
-        );
+        let r = render_content("text", content, &to_me, "ou_me", &|_| None, &rules).unwrap();
+        assert_eq!(r.display, "@我 看一下这个");
+        assert_eq!(r.anon, "@我 看一下这个");
+        assert!(r.at_me);
+        // 无 mentions 映射时 display 保留原文
+        let r = render_content(
+            "text",
+            content,
+            &serde_json::Value::Null,
+            "",
+            &|_| None,
+            &rules,
+        )
+        .unwrap();
+        assert_eq!(r.display, "@_user_1 看一下这个");
+    }
+
+    #[test]
+    fn render_text_without_mention_marks_my_typed_name() {
+        // 手打文本提及（无 mention 结构）：display 原样，anon 里我的称呼 → 疑似@我，
+        // 其他成员 → 代号；归属标注的数据源（at_me=name）在 pull 链路据此判定
+        let rules = render_rules("乔老板");
+        let content = r#"{"text":"乔老板帮我看下，再找张三对一遍"}"#;
+        let r = render_content(
+            "text",
+            content,
+            &serde_json::Value::Null,
+            "",
+            &|_| None,
+            &rules,
+        )
+        .unwrap();
+        assert_eq!(r.display, "乔老板帮我看下，再找张三对一遍");
+        assert!(r.anon.contains("（疑似@我）帮我看下"), "{}", r.anon);
+        assert!(r.anon.contains("找成员_00aa对一遍"), "{}", r.anon);
+        assert!(!r.anon.contains("乔老板") && !r.anon.contains("张三"));
     }
 
     #[test]
     fn render_post_rich_text_with_at_link_and_media() {
+        let rules = render_rules("");
         let content = r#"{"title":"纪要","content":[[
             {"tag":"text","text":"周三前"},
             {"tag":"at","user_id":"ou_z"},
             {"tag":"a","text":"需求文档","href":"https://doc.example/x"},
             {"tag":"img","image_key":"k"}
         ]]}"#;
-        let out = render_content("post", content, &serde_json::Value::Null, "", &|id| {
-            (id == "ou_z").then(|| "张三".to_string())
-        })
+        let r = render_content(
+            "post",
+            content,
+            &serde_json::Value::Null,
+            "",
+            &|id| (id == "ou_z").then(|| "张三".to_string()),
+            &rules,
+        )
         .unwrap();
-        assert!(out.starts_with("纪要\n"), "标题单独成行: {out}");
-        assert!(out.contains("周三前"));
-        assert!(out.contains("@张三"), "at 段解析成 @人名: {out}");
         assert!(
-            out.contains("需求文档(https://doc.example/x)"),
-            "链接带 href: {out}"
+            r.display.starts_with("纪要\n"),
+            "标题单独成行: {}",
+            r.display
         );
-        assert!(out.contains("[图片]"), "图片给占位符: {out}");
+        assert!(r.display.contains("周三前"));
+        assert!(
+            r.display.contains("@张三"),
+            "at 段解析成 @人名: {}",
+            r.display
+        );
+        assert!(
+            r.display.contains("需求文档(https://doc.example/x)"),
+            "链接带 href: {}",
+            r.display
+        );
+        assert!(r.display.contains("[图片]"), "图片给占位符: {}", r.display);
+        // 匿名版：at 段走代号
+        assert!(r.anon.contains("@成员_00aa"), "{}", r.anon);
+        assert!(!r.anon.contains("张三"), "{}", r.anon);
     }
 
     #[test]
     fn render_post_localized_pack_and_media_placeholders() {
+        let rules = render_rules("");
         // 语言包形态：取 zh_cn
         let content = r#"{"title":"外层","zh_cn":{"title":"中文标题","content":[[{"tag":"text","text":"你好"}]]}}"#;
-        assert_eq!(
-            render_content("post", content, &serde_json::Value::Null, "", &|_| None).as_deref(),
-            Some("中文标题\n你好")
-        );
-        assert_eq!(
-            render_content(
-                "image",
-                r#"{"image_key":"k"}"#,
-                &serde_json::Value::Null,
-                "",
-                &|_| None
-            )
-            .as_deref(),
-            Some("[图片]")
-        );
-        assert_eq!(
-            render_content(
-                "file",
-                r#"{"file_name":"合同.pdf"}"#,
-                &serde_json::Value::Null,
-                "",
-                &|_| None
-            )
-            .as_deref(),
-            Some("[文件:合同.pdf]")
-        );
-        assert_eq!(
-            render_content("audio", "{}", &serde_json::Value::Null, "", &|_| None).as_deref(),
-            Some("[语音]")
-        );
+        let r = render_content(
+            "post",
+            content,
+            &serde_json::Value::Null,
+            "",
+            &|_| None,
+            &rules,
+        )
+        .unwrap();
+        assert_eq!(r.display, "中文标题\n你好");
+        assert_eq!(r.anon, "中文标题\n你好");
+        let img = render_content(
+            "image",
+            r#"{"image_key":"k"}"#,
+            &serde_json::Value::Null,
+            "",
+            &|_| None,
+            &rules,
+        )
+        .unwrap();
+        assert_eq!(img.display, "[图片]");
+        assert_eq!(img.anon, "[图片]");
+        let f = render_content(
+            "file",
+            r#"{"file_name":"合同.pdf"}"#,
+            &serde_json::Value::Null,
+            "",
+            &|_| None,
+            &rules,
+        )
+        .unwrap();
+        assert_eq!(f.display, "[文件:合同.pdf]");
+        let a = render_content(
+            "audio",
+            "{}",
+            &serde_json::Value::Null,
+            "",
+            &|_| None,
+            &rules,
+        )
+        .unwrap();
+        assert_eq!(a.display, "[语音]");
     }
 
     #[test]
     fn render_interactive_card_collects_text() {
-        let content = r#"{"header":{"title":{"content":"审批提醒"}},"elements":[{"tag":"div","text":{"text":"张三提交了请假申请"}}]}"#;
-        let out = render_content(
+        let rules = render_rules("乔老板");
+        let content = r#"{"header":{"title":{"content":"审批提醒"}},"elements":[{"tag":"div","text":{"text":"乔老板提交了请假申请"}}]}"#;
+        let r = render_content(
             "interactive",
             content,
             &serde_json::Value::Null,
             "",
             &|_| None,
+            &rules,
         )
         .unwrap();
-        assert!(out.starts_with("[卡片]"));
+        assert!(r.display.starts_with("[卡片]"));
         assert!(
-            out.contains("审批提醒") && out.contains("请假申请"),
-            "{out}"
+            r.display.contains("审批提醒") && r.display.contains("请假申请"),
+            "{}",
+            r.display
         );
+        // 卡片文本节点同样过称呼替换，真名不进 anon
+        assert!(r.anon.contains("（疑似@我）提交了请假申请"), "{}", r.anon);
     }
 
     #[test]
     fn render_unknown_and_invalid_returns_none() {
+        let rules = render_rules("");
         assert_eq!(
-            render_content("system", "{}", &serde_json::Value::Null, "", &|_| None),
+            render_content(
+                "system",
+                "{}",
+                &serde_json::Value::Null,
+                "",
+                &|_| None,
+                &rules
+            ),
             None,
             "系统消息跳过"
         );
         assert_eq!(
-            render_content("text", "not-json", &serde_json::Value::Null, "", &|_| None),
+            render_content(
+                "text",
+                "not-json",
+                &serde_json::Value::Null,
+                "",
+                &|_| None,
+                &rules
+            ),
             None,
             "非法 JSON 跳过"
         );
@@ -873,7 +1122,7 @@ mod tests {
                 r#"#!/bin/sh
 case "$3" in
   /open-apis/authen/v1/user_info)
-    printf '%s' '{"ok":true,"data":{"open_id":"ou_me","name":"我"}}' ;;
+    printf '%s' '{"ok":true,"data":{"open_id":"ou_me","name":"乔老板"}}' ;;
   /open-apis/im/v1/chats)
     printf '%s' '{"ok":true,"data":{"items":[
         {"chat_id":"oc_bot","name":"皮卡丘助手","chat_mode":"p2p","p2p_target_type":"bot","p2p_target_id":"ou_bot2"},
@@ -910,7 +1159,8 @@ case "$3" in
             {"message_id":"om_g2","msg_type":"text","create_time":"1789200001000","sender":{"id":"ou_me","sender_type":"user"},"body":{"content":"{\"text\":\"收到\"}"}},
             {"message_id":"om_g3","msg_type":"text","create_time":"1789200002000","sender":{"id":"ou_bot","sender_type":"app"},"body":{"content":"{\"text\":\"每日站会提醒\"}"}},
             {"message_id":"om_g4","msg_type":"image","create_time":"1789200003000","sender":{"id":"ou_z","sender_type":"user"},"body":{"content":"{\"image_key\":\"k\"}"}},
-            {"message_id":"om_g5","msg_type":"text","create_time":"1789200004000","sender":{"id":"ou_z","sender_type":"user"},"body":{"content":"{\"text\":\"@_user_2 你来写周报\"}"},"mentions":[{"key":"@_user_2","name":"王五","id":{"open_id":"ou_wang"}}]}
+            {"message_id":"om_g5","msg_type":"text","create_time":"1789200004000","sender":{"id":"ou_z","sender_type":"user"},"body":{"content":"{\"text\":\"@_user_2 你来写周报\"}"},"mentions":[{"key":"@_user_2","name":"王五","id":{"open_id":"ou_wang"}}]},
+            {"message_id":"om_g6","msg_type":"text","create_time":"1789200005000","sender":{"id":"ou_z","sender_type":"user"},"body":{"content":"{\"text\":\"乔老板帮我看下发布单\"}"}}
           ],"has_more":false}}' ;;
       *)
         echo 'unexpected chat' >&2; exit 1 ;;
@@ -937,7 +1187,7 @@ esac
             let b1 = find("om_b1");
             assert_eq!(b1.chat_type, "bot");
             assert!(b1.is_self && b1.needs_ai, "我发给机器人的要送 AI");
-            assert_eq!(b1.sender_name, "我");
+            assert_eq!(b1.sender_name, "乔老板");
             assert_eq!(b1.sent_at, t0, "create_time 毫秒时间戳入库");
             let b2 = find("om_b2");
             assert!(!b2.needs_ai, "机器人的回复只作上下文");
@@ -949,7 +1199,7 @@ esac
             assert_eq!(f1.sender_name, "李四", "单聊会话名即对方");
             let f2 = find("om_f2");
             assert!(!f2.needs_ai, "我自己发的只作上下文");
-            assert_eq!(f2.sender_name, "我");
+            assert_eq!(f2.sender_name, "乔老板");
             // 发给自己的会话：我的消息视作备忘送 AI
             let s1 = find("om_s1");
             assert_eq!(s1.chat_type, "p2p");
@@ -972,6 +1222,12 @@ esac
                 "mentions 还原成 @我: {}",
                 g1.content
             );
+            assert_eq!(g1.at_me, "at", "显式 @到我 要带归属标记");
+            assert_eq!(
+                g1.content_anon, "@我 周会改到周四10点",
+                "匿名版 @到我 同样是 @我: {}",
+                g1.content_anon
+            );
             assert!(!find("om_g2").needs_ai, "群里我自己的消息跳过");
             let g3 = find("om_g3");
             assert!(
@@ -982,14 +1238,35 @@ esac
             let g4 = find("om_g4");
             assert!(!g4.needs_ai, "图片消息只作上下文");
             assert_eq!(g4.content, "[图片]");
-            // @别人派活的消息：提及保留真名，AI 才能判定这是别人的任务
+            // @别人派活的消息：display 保留真名（用户可见），匿名版替换成代号
             let g5 = find("om_g5");
             assert!(g5.needs_ai);
             assert!(
                 g5.content.contains("@王五"),
-                "他人的提及保留真名: {}",
+                "他人的提及 display 保留真名: {}",
                 g5.content
             );
+            assert!(
+                g5.content_anon.contains("@成员_"),
+                "匿名版他人提及是代号: {}",
+                g5.content_anon
+            );
+            assert!(
+                !g5.content_anon.contains("王五"),
+                "真名不进匿名版: {}",
+                g5.content_anon
+            );
+            assert_eq!(g5.at_me, "");
+            // 手打文本提及我（无 mention 结构）：display 原样，匿名版换疑似@我，归属标记 name
+            let g6 = find("om_g6");
+            assert!(g6.needs_ai);
+            assert_eq!(g6.content, "乔老板帮我看下发布单");
+            assert!(
+                g6.content_anon.contains("（疑似@我）帮我看下发布单"),
+                "{}",
+                g6.content_anon
+            );
+            assert_eq!(g6.at_me, "name", "手打名字命中称呼列表标记为疑似提及");
             // 名字缓存已落库
             let cached: String = {
                 let conn = db.0.lock().unwrap();
@@ -1001,6 +1278,26 @@ esac
                 .unwrap()
             };
             assert_eq!(cached, "张三");
+            // 身份 settings 已落库（pk context 脱敏词源的离线数据源）
+            {
+                let conn = db.0.lock().unwrap();
+                let (oid, name): (String, String) = conn
+                    .query_row(
+                        "SELECT value FROM settings WHERE key='feishu_my_open_id'",
+                        [],
+                        |r| r.get(0),
+                    )
+                    .and_then(|o: String| {
+                        conn.query_row(
+                            "SELECT value FROM settings WHERE key='feishu_my_name'",
+                            [],
+                            |r| r.get(0),
+                        )
+                        .map(|n: String| (o, n))
+                    })
+                    .unwrap();
+                assert_eq!((oid.as_str(), name.as_str()), ("ou_me", "乔老板"));
+            }
             let _ = std::fs::remove_dir_all(&dir);
         });
     }

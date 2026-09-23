@@ -863,8 +863,20 @@ pub(crate) fn chat_label(chat_type: &str, chat_name: &str) -> String {
     }
 }
 
-/// 同会话近期上下文（发送时间在 [sent_at - window, sent_at) 内的最近 max 条），
-/// 格式化为 "HH:MM 发送者: 内容"，自己发的标注为「我」。供 AI 理解对话背景。
+/// 一条上下文消息的原料（未格式化）：匿名化由调用方持规则包完成
+#[derive(Debug, Clone)]
+pub(crate) struct ContextLine {
+    pub time: String,
+    pub sender_id: String,
+    pub is_self: bool,
+    /// 用户可见版（真名）
+    pub content: String,
+    /// 匿名版（老数据空串，格式化时现场 scrub）
+    pub content_anon: String,
+}
+
+/// 同会话近期上下文（发送时间在 [sent_at - window, sent_at) 内的最近 max 条）。
+/// 返回未匿名化的原料行，经 format_context_lines 格式化为 "[HH:MM] 发送者: 内容"。
 pub(crate) fn chat_context_lines(
     conn: &Connection,
     chat_id: &str,
@@ -872,19 +884,19 @@ pub(crate) fn chat_context_lines(
     exclude_message_id: &str,
     window_ms: i64,
     max_messages: i64,
-) -> Vec<String> {
+) -> Vec<ContextLine> {
     if chat_id.is_empty() || sent_at <= 0 {
         return vec![];
     }
     let mut stmt = match conn.prepare(
-        "SELECT sender, is_self, content, sent_at FROM chat_messages
+        "SELECT sender_id, is_self, content, content_anon, sent_at FROM chat_messages
          WHERE chat_id=?1 AND sent_at IS NOT NULL AND sent_at >= ?2 AND sent_at < ?3 AND message_id != ?4
          ORDER BY sent_at DESC LIMIT ?5",
     ) {
         Ok(s) => s,
         Err(_) => return vec![],
     };
-    let rows: Vec<(String, i64, String, i64)> = match stmt.query_map(
+    let rows: Vec<(String, i64, String, String, i64)> = match stmt.query_map(
         params![
             chat_id,
             sent_at - window_ms,
@@ -892,22 +904,54 @@ pub(crate) fn chat_context_lines(
             exclude_message_id,
             max_messages
         ],
-        |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?, r.get(3)?)),
+        |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?, r.get(3)?, r.get(4)?)),
     ) {
         Ok(rows) => rows.flatten().collect(),
         Err(_) => return vec![],
     };
     rows.into_iter()
         .rev() // 查询取最近 N 条的倒序，还原为时间升序
-        .map(|(sender, is_self, content, at)| {
-            let who = if is_self != 0 { "我" } else { sender.as_str() };
-            let time = chrono::Local
-                .timestamp_millis_opt(at)
-                .single()
-                .map(|t| t.format("%H:%M").to_string())
-                .unwrap_or_default();
-            let clipped: String = content.chars().take(200).collect();
-            format!("[{time}] {who}: {clipped}")
+        .map(
+            |(sender_id, is_self, content, content_anon, at)| ContextLine {
+                time: chrono::Local
+                    .timestamp_millis_opt(at)
+                    .single()
+                    .map(|t| t.format("%H:%M").to_string())
+                    .unwrap_or_default(),
+                sender_id,
+                is_self: is_self != 0,
+                content,
+                content_anon,
+            },
+        )
+        .collect()
+}
+
+/// 上下文行的匿名化格式化：发送者用代号（自己标注「我」），内容用匿名版
+/// （老数据无匿名列时现场 scrub 真名版兜底），真名不进 prompt。
+pub(crate) fn format_context_lines(
+    conn: &Connection,
+    rules: &mut crate::anonymize::AnonRules,
+    lines: Vec<ContextLine>,
+) -> Vec<String> {
+    lines
+        .into_iter()
+        .map(|l| {
+            let who = if l.is_self {
+                crate::anonymize::ME.to_string()
+            } else if l.sender_id.is_empty() {
+                // 老数据缺 sender_id：宁丢发送者信息也不泄真名
+                "成员".to_string()
+            } else {
+                rules.alias_of(conn, &l.sender_id)
+            };
+            let text = if l.content_anon.is_empty() {
+                rules.scrub(&l.content)
+            } else {
+                l.content_anon
+            };
+            let clipped: String = text.chars().take(200).collect();
+            format!("[{}] {who}: {clipped}", l.time)
         })
         .collect()
 }
@@ -1127,26 +1171,51 @@ pub async fn force_create_todo<R: tauri::Runtime>(
     let agent = agent.ok_or_else(|| AppError::Invalid("请先在设置中配置 AI Agent".into()))?;
 
     // 判定对象带上来源标签与同会话近期上下文，和后台轮询的语境一致
-    // （判重上下文由 agent 执行 pk context 自取）
-    let (label, context) = {
+    // （判重上下文由 agent 执行 pk context 自取）；送 AI 的文本全部匿名化
+    let (label, context, sender_anon, content_anon, note) = {
         let conn = db.0.lock().unwrap();
+        let mut rules = crate::anonymize::AnonRules::build(&conn);
         let label = chat_label(&msg.chat_type, &msg.chat_name);
+        let (anon, at_me): (String, String) = conn
+            .query_row(
+                "SELECT content_anon, at_me FROM chat_messages WHERE message_id=?1",
+                params![msg.message_id],
+                |r| Ok((r.get(0)?, r.get(1)?)),
+            )
+            .unwrap_or_default();
+        // 老数据无匿名列：现场 scrub 真名版兜底，真名同样不进 prompt
+        let content = if anon.is_empty() {
+            rules.scrub(&msg.content)
+        } else {
+            anon
+        };
+        let sender = if msg.is_self {
+            crate::anonymize::ME.to_string()
+        } else if msg.sender_id.is_empty() {
+            "成员".to_string()
+        } else {
+            rules.alias_of(&conn, &msg.sender_id)
+        };
         let context = match msg.sent_at {
-            Some(at) => {
-                chat_context_lines(&conn, &msg.chat_id, at, &msg.message_id, 30 * 60 * 1000, 10)
-            }
+            Some(at) => format_context_lines(
+                &conn,
+                &mut rules,
+                chat_context_lines(&conn, &msg.chat_id, at, &msg.message_id, 30 * 60 * 1000, 10),
+            ),
             None => vec![],
         };
-        (label, context)
+        let note = ai::mention_note(&at_me, &content, rules.same_name_risk);
+        (label, context, sender, content, note)
     };
     let res = ai::classify(
         &agent,
         &[AiMessage {
             message_id: msg.message_id.clone(),
-            sender: msg.sender.clone(),
+            sender: sender_anon,
             chat_label: label,
-            content: msg.content.clone(),
+            content: content_anon,
             context,
+            mention_note: note,
         }],
         &db,
     )
@@ -1291,17 +1360,20 @@ pub async fn capture_todo<R: tauri::Runtime>(
     }
     .ok_or_else(|| AppError::Invalid("请先在设置中配置 AI Agent".into()))?;
 
-    // 落库成 local 消息：与飞书消息同一张表、同一套建议列与分诊流，AI 出口（pk suggest）无需区分
+    // 落库成 local 消息：与飞书消息同一张表、同一套建议列与分诊流，AI 出口（pk suggest）无需区分。
+    // content 存原文（真名，用户可见），content_anon 存匿名版（用户输入里提及的成员名代号化）
     let message_id = format!("cap_{}", uuid::Uuid::new_v4());
-    let row_id = {
+    let (row_id, anon) = {
         let conn = db.0.lock().unwrap();
+        let rules = crate::anonymize::AnonRules::build(&conn);
+        let anon = rules.scrub(&text);
         conn.execute(
             "INSERT INTO chat_messages (message_id, chat_id, chat_name, chat_type, sender, sender_id,
-                                        content, sent_at, is_self, ai_status, review_status, created_at)
-             VALUES (?1,'','', 'local', '我', '', ?2, ?3, 1, 'pending', 'pending', ?4)",
-            params![message_id, text, chrono::Utc::now().timestamp_millis(), now()],
+                                        content, content_anon, sent_at, is_self, ai_status, review_status, created_at)
+             VALUES (?1,'','', 'local', '我', '', ?2, ?3, ?4, 1, 'pending', 'pending', ?5)",
+            params![message_id, text, anon, chrono::Utc::now().timestamp_millis(), now()],
         )?;
-        conn.last_insert_rowid()
+        (conn.last_insert_rowid(), anon)
     };
 
     // 会话回链与健康记录与飞书轮询同口径：时长 / session_id / 成败
@@ -1312,8 +1384,9 @@ pub async fn capture_todo<R: tauri::Runtime>(
             message_id: message_id.clone(),
             sender: "我".into(),
             chat_label: chat_label("local", ""),
-            content: text.clone(),
+            content: anon,
             context: vec![],
+            mention_note: String::new(),
         },
         &db,
     )
@@ -1432,10 +1505,12 @@ pub async fn retry_ai_judgment<R: tauri::Runtime>(
         ok: 0,
         failed: vec![],
     };
-    // 锁内校验并重置 pending；判定对象带上来源标签与同会话上下文（与轮询同语境）
+    // 锁内校验并重置 pending；判定对象带上来源标签与同会话上下文（与轮询同语境），
+    // 送 AI 的文本全部匿名化（老数据无匿名列时现场 scrub 兜底）
     let mut targets: Vec<(i64, AiMessage)> = vec![];
     {
         let conn = db.0.lock().unwrap();
+        let mut rules = crate::anonymize::AnonRules::build(&conn);
         for id in ids {
             let msg = match get_message(&conn, id) {
                 Ok(m) => m,
@@ -1469,20 +1544,49 @@ pub async fn retry_ai_judgment<R: tauri::Runtime>(
                 // 与校验间被并发改掉（如恰好分诊/重判）：跳过不报错
                 continue;
             }
+            let (anon, at_me): (String, String) = conn
+                .query_row(
+                    "SELECT content_anon, at_me FROM chat_messages WHERE message_id=?1",
+                    params![msg.message_id],
+                    |r| Ok((r.get(0)?, r.get(1)?)),
+                )
+                .unwrap_or_default();
+            let content = if anon.is_empty() {
+                rules.scrub(&msg.content)
+            } else {
+                anon
+            };
+            let sender = if msg.is_self {
+                crate::anonymize::ME.to_string()
+            } else if msg.sender_id.is_empty() {
+                "成员".to_string()
+            } else {
+                rules.alias_of(&conn, &msg.sender_id)
+            };
             let context = match msg.sent_at {
-                Some(at) => {
-                    chat_context_lines(&conn, &msg.chat_id, at, &msg.message_id, 30 * 60 * 1000, 10)
-                }
+                Some(at) => format_context_lines(
+                    &conn,
+                    &mut rules,
+                    chat_context_lines(
+                        &conn,
+                        &msg.chat_id,
+                        at,
+                        &msg.message_id,
+                        30 * 60 * 1000,
+                        10,
+                    ),
+                ),
                 None => vec![],
             };
             targets.push((
                 id,
                 AiMessage {
                     message_id: msg.message_id.clone(),
-                    sender: msg.sender.clone(),
+                    sender,
                     chat_label: chat_label(&msg.chat_type, &msg.chat_name),
-                    content: msg.content.clone(),
+                    content,
                     context,
+                    mention_note: ai::mention_note(&at_me, "", rules.same_name_risk),
                 },
             ));
         }
@@ -2226,8 +2330,9 @@ mod tests {
         assert!(hit.is_empty(), "上下文消息不进搜索");
     }
 
-    /// 上下文窗口：同会话、时间在 [t-30min, t) 的消息按时间升序拼接，
-    /// 自己发的标注「我」；之后的/超窗的/别的会话的都不算
+    /// 上下文窗口：同会话、时间在 [t-30min, t) 的消息按时间升序，
+    /// 自己发的标注「我」；之后的/超窗的/别的会话的都不算。
+    /// 匿名化格式化后：他人 sender 用代号、老数据无匿名版现场 scrub，真名不进 prompt
     #[test]
     fn chat_context_lines_picks_recent_same_chat_only() {
         let app = setup();
@@ -2235,35 +2340,52 @@ mod tests {
         {
             let db = app.state::<Db>();
             let conn = db.0.lock().unwrap();
-            let ins = |mid: &str, chat: &str, sender: &str, is_self: i64, at: i64| {
+            let ins = |mid: &str, chat: &str, sender: &str, sid: &str, is_self: i64, at: i64| {
                 conn.execute(
-                    "INSERT INTO chat_messages (message_id, chat_id, chat_name, chat_type, sender, content, sent_at, is_self, ai_status, review_status, created_at)
-                     VALUES (?1, ?2, '项目群', 'group', ?3, '内容', ?4, ?5, 'skipped', 'pending', '2026-09-12T00:00:00Z')",
-                    params![mid, chat, sender, at, is_self],
+                    "INSERT INTO chat_messages (message_id, chat_id, chat_name, chat_type, sender, sender_id, content, sent_at, is_self, ai_status, review_status, created_at)
+                     VALUES (?1, ?2, '项目群', 'group', ?3, ?4, '内容', ?5, ?6, 'skipped', 'pending', '2026-09-12T00:00:00Z')",
+                    params![mid, chat, sender, sid, at, is_self],
                 )
                 .unwrap();
             };
-            ins("om_me", "oc_g", "我的显示名", 1, t - 60_000);
-            ins("om_other", "oc_g", "李四", 0, t - 30_000);
-            ins("om_after", "oc_g", "李四", 0, t + 10_000);
-            ins("om_stale", "oc_g", "李四", 0, t - 40 * 60_000);
-            ins("om_else", "oc_h", "李四", 0, t - 10_000);
+            ins("om_me", "oc_g", "我的显示名", "ou_me", 1, t - 60_000);
+            ins("om_other", "oc_g", "李四", "ou_li", 0, t - 30_000);
+            ins("om_after", "oc_g", "李四", "ou_li", 0, t + 10_000);
+            ins("om_stale", "oc_g", "李四", "ou_li", 0, t - 40 * 60_000);
+            ins("om_else", "oc_h", "李四", "ou_li", 0, t - 10_000);
+            conn.execute(
+                "INSERT INTO feishu_users (open_id, name, alias, updated_at)
+                 VALUES ('ou_li', '李四', '成员_00dd', '2026-09-01')",
+                [],
+            )
+            .unwrap();
         }
-        let lines = {
+        let (lines, formatted) = {
             let db = app.state::<Db>();
             let conn = db.0.lock().unwrap();
-            chat_context_lines(&conn, "oc_g", t, "om_target", 30 * 60 * 1000, 10)
+            let mut rules = crate::anonymize::AnonRules::build(&conn);
+            let lines = chat_context_lines(&conn, "oc_g", t, "om_target", 30 * 60 * 1000, 10);
+            let formatted = format_context_lines(&conn, &mut rules, lines.clone());
+            (lines, formatted)
         };
         assert_eq!(lines.len(), 2, "{lines:?}");
+        assert!(lines[0].is_self, "时间升序：第一条是我");
         assert!(
-            lines[0].contains("我: 内容"),
-            "时间升序且自己标注为「我」: {lines:?}"
+            formatted[0].contains("我: 内容"),
+            "自己标注为「我」: {formatted:?}"
         );
         assert!(
-            !lines[0].contains("我的显示名"),
-            "不暴露原始显示名以免与「我」混淆: {lines:?}"
+            !formatted[0].contains("我的显示名"),
+            "不暴露原始显示名以免与「我」混淆: {formatted:?}"
         );
-        assert!(lines[1].contains("李四: 内容"), "{lines:?}");
+        assert!(
+            formatted[1].contains("成员_00dd: 内容"),
+            "他人 sender 用代号: {formatted:?}"
+        );
+        assert!(
+            !formatted[1].contains("李四"),
+            "上下文行真名不进 prompt: {formatted:?}"
+        );
         // 空会话 / 老数据（无 sent_at）安全退化为空
         let empty = {
             let db = app.state::<Db>();
