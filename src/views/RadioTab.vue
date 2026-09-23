@@ -715,6 +715,11 @@ const chipTitle = (tag: { name: string; dimension: string; isNew: boolean }) =>
             >
           </div>
 
+          <!-- 弹层背板：点外面收起。必须排在操作区之前——弹层挂在操作区内，
+               「先于操作区 + 更低 z」让 DOM 顺序与 z-index 两种层叠解释下选项都压在背板上
+               （WKWebView 上曾表现为背板盖住弹层，选项点击被背板吞掉只关菜单） -->
+          <div v-if="escapeMenuId === selected.id" class="pop-mask" @click="escapeMenuId = null"></div>
+
           <!-- 操作区 -->
           <div class="im-actions">
             <template v-if="selected.reviewStatus === 'pending' && selected.aiStatus === 'update'">
@@ -796,7 +801,6 @@ const chipTitle = (tag: { name: string; dimension: string; isNew: boolean }) =>
               <button class="er-chip just" @click="dismissIm(selected)">{{ t("im.justEscape") }}</button>
             </div>
           </div>
-          <div v-if="escapeMenuId === selected.id" class="pop-mask" @click="escapeMenuId = null"></div>
         </div>
       </section>
     </div>
