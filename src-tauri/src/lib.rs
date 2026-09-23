@@ -1,4 +1,6 @@
 pub mod ai;
+// 假名化：pk CLI（context 脱敏 / suggest 还原）与应用共用同一套映射
+pub mod anonymize;
 pub mod backup;
 // db / models / error / commands 对外公开：pk CLI（src/bin/pk.rs）以 crate 库形式复用同一套数据逻辑
 pub mod commands;

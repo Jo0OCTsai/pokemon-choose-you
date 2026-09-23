@@ -424,6 +424,10 @@ export default {
     test: "测试飞书连接",
     pollNow: "立即拉取一次",
     pollResult: "本轮新增 {n} 条建议",
+    myNames: "我的称呼",
+    myNamesDesc:
+      "群里同事怎么叫你（逗号分隔可多个）。命中这些称呼的消息会标注「疑似指派给你」；所有真实姓名都不会发给 AI，一律以代号出现。",
+    myNamesPh: "如：乔老板，老乔",
   },
   diag: {
     healthTitle: "🩺 集成健康",

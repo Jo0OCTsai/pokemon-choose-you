@@ -6,6 +6,7 @@
 //! - 通过 WAL 与运行中的应用并发读写，PK_DB 环境变量可覆盖数据库路径。
 
 use pokemon_choose_you_lib::ai::{AiSuggestion, ProposedTag};
+use pokemon_choose_you_lib::anonymize;
 use pokemon_choose_you_lib::commands::dispatch;
 use pokemon_choose_you_lib::commands::radio::apply_suggestion_conn;
 use pokemon_choose_you_lib::commands::sessions::{
@@ -952,9 +953,28 @@ fn run_suggest_single(
         confidence: non_empty("confidence"),
     };
     let agent = p.flag("agent").filter(|a| !a.is_empty()).unwrap_or("cli");
+    let mut s = s;
+    restore_suggestion(conn, &mut s);
     validate_suggestion(conn, &s, 1)?;
     apply_suggestion(conn, &s, agent)?;
     Ok(json!({ "applied": s.action, "message": s.message_id, "agent": agent }))
+}
+
+/// 建议回写的文本字段反向还原：模型看到与输出的是代号，落库给用户看的必须是真名。
+/// 未知代号（模型幻觉/无真名行）原样保留，便于排查。
+fn restore_suggestion(conn: &Connection, s: &mut AiSuggestion) {
+    if let Some(t) = s.title.take() {
+        s.title = Some(anonymize::restore(conn, &t));
+    }
+    if let Some(n) = s.note.take() {
+        s.note = Some(anonymize::restore(conn, &n));
+    }
+    if let Some(r) = s.reason.take() {
+        s.reason = Some(anonymize::restore(conn, &r));
+    }
+    for t in &mut s.tags {
+        t.name = anonymize::restore(conn, &t.name);
+    }
 }
 
 fn run_suggest_batch(
@@ -972,15 +992,19 @@ fn run_suggest_batch(
     suggest_batch_from_str(conn, &body, agent_flag)
 }
 
-/// batch 的解析与落库（与 stdin 读取分离，便于测试）：整批先校验再单事务落库，一损俱损
+/// batch 的解析与落库（与 stdin 读取分离，便于测试）：整批先校验再单事务落库，一损俱损。
+/// agent 回写的代号先反向还原成真名（发生在校验前——词表按真名匹配），用户可见文本不含代号
 fn suggest_batch_from_str(
     conn: &mut Connection,
     body: &str,
     agent_flag: Option<&str>,
 ) -> Result<serde_json::Value, CliError> {
-    let list = parse_batch(body)?;
+    let mut list = parse_batch(body)?;
     if list.is_empty() {
         return Err(usage_err("results 为空，无可提交的建议"));
+    }
+    for s in &mut list {
+        restore_suggestion(conn, s);
     }
     for (i, s) in list.iter().enumerate() {
         validate_suggestion(conn, s, i + 1)?;
@@ -1625,6 +1649,9 @@ fn help_schema() -> String {
 }
 
 fn run_context(conn: &Connection) -> Result<serde_json::Value, CliError> {
+    // 输出整体脱敏：待办标题/标签词表里的真名替换成代号（我的称呼 → 「我」），
+    // 与消息 prompt 同一套映射，agent 侧「同代号=同人」始终成立
+    let rules = pokemon_choose_you_lib::anonymize::AnonRules::build(conn);
     let open_tasks: Vec<(i64, String)> = {
         let mut stmt = conn
             .prepare(
@@ -1648,7 +1675,7 @@ fn run_context(conn: &Connection) -> Result<serde_json::Value, CliError> {
         .map_err(db_err)?
         .into_iter()
         .map(|t| {
-            json!({ "id": t.id, "name": t.name, "description": t.description, "dimension": t.dimension })
+            json!({ "id": t.id, "name": rules.scrub_titles(&t.name), "description": t.description, "dimension": t.dimension })
         })
         .collect::<Vec<_>>();
     // 维度元信息（AI 提议新标签前对照剩余名额；remaining<=0 禁止新建）
@@ -1667,11 +1694,11 @@ fn run_context(conn: &Connection) -> Result<serde_json::Value, CliError> {
     let tag_feedback = tags::removal_feedback(conn, 30, 2, 3)
         .map_err(db_err)?
         .into_iter()
-        .map(|(name, removed)| json!({ "name": name, "removed": removed }))
+        .map(|(name, removed)| json!({ "name": rules.scrub_titles(&name), "removed": removed }))
         .collect::<Vec<_>>();
     let open: Vec<serde_json::Value> = open_tasks
         .into_iter()
-        .map(|(id, title)| json!({ "id": id, "title": title }))
+        .map(|(id, title)| json!({ "id": id, "title": rules.scrub_titles(&title) }))
         .collect();
     Ok(json!({
         "now": chrono::Local::now().format("%Y-%m-%dT%H:%M").to_string(),
@@ -1841,6 +1868,65 @@ mod tests {
         let full = r#"{"results":[{"messageId":"om_t3","action":"todo","title":"t3","tags":[{"name":"挤不进","dimension":"nope","isNew":true}]}]}"#;
         let err = suggest_batch_from_str(&mut conn, full, None).unwrap_err();
         assert!(err.0.contains("维度"), "{}", err.0);
+    }
+
+    /// 假名化闭环：context 输出的待办标题已代号化（我的称呼 → 「我」）；
+    /// suggest 回写的代号在落库前还原成真名——两端共用 feishu_users 映射，
+    /// 「同代号 = 同人」跨进程成立，用户可见文本不含代号
+    #[test]
+    fn context_scrubs_titles_and_suggest_restores_aliases() {
+        let mut conn = test_db();
+        let set = |k: &str, v: &str| {
+            conn.execute(
+                "INSERT INTO settings (key, value) VALUES (?1, ?2)
+                 ON CONFLICT(key) DO UPDATE SET value=?2",
+                params![k, v],
+            )
+            .unwrap();
+        };
+        set("feishu_my_open_id", "ou_me");
+        set("feishu_my_name", "乔老板");
+        conn.execute(
+            "INSERT INTO feishu_users (open_id, name, alias, updated_at) VALUES
+                ('ou_me', '乔老板', '', '2026-09-01'),
+                ('ou_z', '张三', '成员_00aa', '2026-09-01')",
+            [],
+        )
+        .unwrap();
+        create(&mut conn, "找张三对齐材料");
+        create(&mut conn, "给乔老板准备发言稿");
+        let ctx = run_ok(&mut conn, &["context"]);
+        let titles: Vec<&str> = ctx["openTasks"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|t| t["title"].as_str().unwrap())
+            .collect();
+        assert!(titles.contains(&"找成员_00aa对齐材料"), "{titles:?}");
+        assert!(titles.contains(&"给我准备发言稿"), "{titles:?}");
+
+        // 模型按代号回写 → 落库还原真名
+        conn.execute(
+            "INSERT INTO chat_messages (message_id, content, created_at) VALUES ('om_a', 'x', 'x')",
+            [],
+        )
+        .unwrap();
+        let out = suggest_batch_from_str(
+            &mut conn,
+            r#"{"results":[{"messageId":"om_a","action":"todo","title":"找成员_00aa对齐材料","reason":"成员_00aa明确指派"}]}"#,
+            None,
+        )
+        .unwrap();
+        assert_eq!(out["submitted"], json!(1));
+        let (title, reason): (String, String) = conn
+            .query_row(
+                "SELECT suggested_title, suggested_reason FROM chat_messages WHERE message_id='om_a'",
+                [],
+                |r| Ok((r.get(0)?, r.get(1)?)),
+            )
+            .unwrap();
+        assert_eq!(title, "找张三对齐材料");
+        assert!(reason.contains("张三"), "{}", reason);
     }
 
     /// 迟到回调：应用已把消息标成「AI 判定失败」（agent 超时被杀），被杀前派出的

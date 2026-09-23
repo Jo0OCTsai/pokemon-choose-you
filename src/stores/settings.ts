@@ -48,6 +48,8 @@ export const SETTING_DEFAULTS: Record<string, string> = {
   pet_mate: "false",
   feishu_poll_interval: "120",
   feishu_enabled: "false",
+  /** 我的称呼（逗号/顿号分隔）：群里被这样叫的消息会标注疑似指派给你；真名不发给 AI */
+  feishu_my_names: "",
   /** AI agent CLI 列表（AgentConfig 的 JSON 数组字符串） */
   ai_agents: "[]",
   /** 收音机分类使用的 agent id（空则用第一个启用的） */
@@ -97,6 +99,7 @@ export const SETTING_KEYS = [
   "pet_voice",
   "pet_mate",
   "feishu_poll_interval",
+  "feishu_my_names",
   "ai_agents",
   "ai_agent_id",
   "dispatch_auto_enabled",

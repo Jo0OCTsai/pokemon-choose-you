@@ -145,7 +145,9 @@ CREATE TABLE IF NOT EXISTS chat_messages (
     suggested_reason TEXT,
     suggested_confidence TEXT,
     ai_agent TEXT NOT NULL DEFAULT '',
-    dismiss_reason TEXT NOT NULL DEFAULT ''
+    dismiss_reason TEXT NOT NULL DEFAULT '',
+    content_anon TEXT NOT NULL DEFAULT '',
+    at_me TEXT NOT NULL DEFAULT ''
 );
 CREATE INDEX IF NOT EXISTS idx_chat_messages_created ON chat_messages(created_at);
 CREATE INDEX IF NOT EXISTS idx_chat_messages_chat ON chat_messages(chat_id, sent_at);
@@ -153,8 +155,12 @@ CREATE INDEX IF NOT EXISTS idx_chat_messages_chat ON chat_messages(chat_id, sent
 CREATE TABLE IF NOT EXISTS feishu_users (
     open_id TEXT PRIMARY KEY,
     name TEXT NOT NULL DEFAULT '',
-    updated_at TEXT NOT NULL DEFAULT ''
+    updated_at TEXT NOT NULL DEFAULT '',
+    alias TEXT NOT NULL DEFAULT ''
 );
+-- 代号唯一（空串豁免）：懒分配的防碰撞锚点，见 anonymize 模块
+CREATE UNIQUE INDEX IF NOT EXISTS idx_feishu_users_alias
+    ON feishu_users(alias) WHERE alias != '';
 
 CREATE TABLE IF NOT EXISTS chat_feedback (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
