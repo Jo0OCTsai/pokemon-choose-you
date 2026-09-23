@@ -12,6 +12,11 @@
     {
       "matchFileNames": ["package.json"],
       "groupName": "npm dependencies"
+    },
+    {
+      "description": "typescript-eslint peer 上限 <6.1.0，TS 7 会 ERESOLVE；工具链支持后移除此上限",
+      "matchPackageNames": ["typescript"],
+      "allowedVersions": "<7"
     }
   ]
 }
