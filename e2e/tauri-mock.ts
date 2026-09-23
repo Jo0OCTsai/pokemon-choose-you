@@ -42,47 +42,6 @@ export interface MockState {
   tags?: Record<string, unknown>[];
   /** 标签维度（缺省为内置四个；设置页维度管理会改写） */
   dimensions?: Record<string, unknown>[];
-  /** 收音机电波消息（缺省为空；分诊语义与 Rust 侧对齐——原因随消息行落库） */
-  chatMessages?: MockChatMessage[];
-}
-
-export interface MockChatMessage {
-  id: number;
-  messageId: string;
-  chatName: string;
-  sender: string;
-  content: string;
-  chatId?: string;
-  chatType?: string;
-  suggestedTitle?: string | null;
-  suggestedTags: { name: string; dimension: string; isNew?: boolean }[];
-  suggestedReason?: string | null;
-  suggestedConfidence?: string | null;
-  /** pending / todo / none / update / followup / error */
-  aiStatus: string;
-  /** pending / accepted / dismissed */
-  reviewStatus: string;
-  taskId?: number | null;
-  updateTaskId?: number | null;
-  dismissReason?: string;
-  createdAt: string;
-}
-
-export function chatMessage(partial: Partial<MockChatMessage> & { id: number; content: string }): MockChatMessage {
-  return {
-    messageId: `m${partial.id}`,
-    chatName: "项目群",
-    sender: "张三",
-    suggestedTitle: null,
-    suggestedTags: [],
-    suggestedReason: null,
-    suggestedConfidence: null,
-    aiStatus: "todo",
-    reviewStatus: "pending",
-    taskId: null,
-    createdAt: "2026-09-11T00:00:00Z",
-    ...partial,
-  };
 }
 
 export const DEFAULT_CATEGORIES: MockCategory[] = [
@@ -128,7 +87,6 @@ export async function installTauriMock(page: Page, state: Partial<MockState> = {
       const db = {
         ...st,
         tags: st.tags ?? [],
-        chatMessages: st.chatMessages ?? [],
         // 与 Rust 侧迁移内置的四个维度一致；注入函数被序列化进浏览器，缺省值必须在函数体内
         dimensions:
           st.dimensions ??
@@ -369,23 +327,16 @@ export async function installTauriMock(page: Page, state: Partial<MockState> = {
             return null;
           case "list_im_suggestions":
           case "list_chat_messages":
-            return db.chatMessages.map((m: any) => ({ ...m }));
+            return [];
           case "accept_im_suggestion":
           case "accept_chat_message":
             broadcast("tasks-changed");
             broadcast("chat-messages-changed");
             return db.nextId++;
           case "dismiss_im_suggestion":
-          case "dismiss_chat_message": {
-            // 与 Rust 侧同口径：逃走翻转 review_status，原因码随消息行落库
-            const msg = db.chatMessages.find((m: any) => m.id === args.id);
-            if (msg) {
-              msg.reviewStatus = "dismissed";
-              msg.dismissReason = args.reasonCode ?? "";
-            }
+          case "dismiss_chat_message":
             broadcast("chat-messages-changed");
             return null;
-          }
           case "force_create_todo":
             broadcast("tasks-changed");
             broadcast("chat-messages-changed");
