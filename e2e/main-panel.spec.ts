@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test";
-import { installTauriMock, task } from "./tauri-mock";
+import { installTauriMock, chatMessage, task } from "./tauri-mock";
 
 test.beforeEach(async ({ page }) => {
   await installTauriMock(page);
@@ -33,6 +33,31 @@ test.describe("图鉴机主面板", () => {
     await expect(entry).toContainText("端到端捕捉的任务");
     await expect(entry.locator(".dex-no")).toHaveText("No.001");
     await expect(entry.locator(".badge")).toHaveText("工作");
+  });
+
+  test("逃走原因弹层：向上弹出完整落在视口内，遮罩不吞点击、原因码随逃走落库", async ({ page }) => {
+    await installTauriMock(page, {
+      chatMessages: [chatMessage({ id: 7, content: "明天上午10点开周会", suggestedTitle: "参加周会" })],
+    });
+    await page.goto("/");
+    await page.locator(".menu-btn", { hasText: "收音机" }).click();
+    await page.locator(".er-toggle").click();
+    const pop = page.locator(".escape-pop");
+    await expect(pop).toBeVisible();
+    // 回归 1：弹层不再向下溢出窗口底部（向上弹出 + 限高兜底）
+    const box = (await pop.boundingBox())!;
+    expect(box.y).toBeGreaterThanOrEqual(0);
+    expect(box.y + box.height).toBeLessThanOrEqual(page.viewportSize()!.height);
+    // 回归 2：点击选项要真的命中按钮（弹层背板不得盖住选项吞掉点击）
+    await pop.locator(".er-chip", { hasText: "闲聊/噪音" }).click();
+    await expect(page.locator(".toast")).toContainText("已逃走");
+    // 原因码随消息行落库：已逃走详情亮出「AI 原判 + 原因」
+    await page.locator('[data-group="escaped"] .lg-head').click(); // 已逃走默认收起
+    await page.locator('[data-group="escaped"] .rrow').first().click();
+    const banner = page.locator(".dim-banner");
+    await expect(banner).toContainText("AI 原判");
+    await expect(banner).toContainText("有待办信号");
+    await expect(banner).toContainText("闲聊/噪音");
   });
 
   test("完成任务进入图鉴，进度条同步", async ({ page }) => {
