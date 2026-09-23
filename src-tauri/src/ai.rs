@@ -779,6 +779,34 @@ async fn run_process(
     }
 }
 
+/// Linux 竞态兜底：刚写入/关闭的脚本立即 exec 偶发 ETXTBSY（Text file busy，
+/// os error 26）——写端句柄在内核侧彻底释放前，exec 拒绝映射该文件。
+/// 小退避重试即可根治（窗口通常亚毫秒），同时覆盖生产路径：
+/// npm 刚装完的 lark-cli、setup_remote_pk 刚写好的 shim 立刻执行是同款场景。
+async fn spawn_with_etxtbusy_retry(
+    cmd: &mut tokio::process::Command,
+    program: &str,
+) -> AppResult<tokio::process::Child> {
+    const ETXTBSY: i32 = 26;
+    const RETRIES: u32 = 4;
+    const BACKOFF: Duration = Duration::from_millis(25);
+    for attempt in 0..=RETRIES {
+        match cmd.spawn() {
+            Ok(child) => return Ok(child),
+            Err(e) if e.raw_os_error() == Some(ETXTBSY) && attempt < RETRIES => {
+                log::warn!(
+                    "ai: spawn「{program}」遇 Text file busy，重试 {}/{}",
+                    attempt + 1,
+                    RETRIES
+                );
+                tokio::time::sleep(BACKOFF).await;
+            }
+            Err(e) => return Err(spawn_error(program, e)),
+        }
+    }
+    unreachable!("重试循环必经 Ok/Err 出口")
+}
+
 async fn spawn_and_wait(
     program: &str,
     argv: &[String],
@@ -827,7 +855,7 @@ async fn spawn_and_wait(
         .stdout(std::process::Stdio::piped())
         .stderr(std::process::Stdio::piped())
         .kill_on_drop(true);
-    let mut child = cmd.spawn().map_err(|e| spawn_error(program, e))?;
+    let mut child = spawn_with_etxtbusy_retry(&mut cmd, program).await?;
     if let Some(prompt) = stdin {
         if let Some(mut handle) = child.stdin.take() {
             let bytes = prompt.as_bytes().to_vec();
@@ -1382,6 +1410,54 @@ mod tests {
         );
 
         std::fs::remove_dir_all(&dir).ok();
+    }
+
+    /// ETXTBSY 竞态根治（CI ubuntu 偶发 Text file busy）：写端 fd 压住脚本制造
+    /// 稳定 ETXTBSY，60ms 后异步释放——必须落在重试窗口（4×25ms）内成功 exec
+    #[cfg(unix)]
+    #[test]
+    fn spawn_retries_etxtbusy() {
+        use std::os::unix::fs::PermissionsExt;
+
+        tauri::async_runtime::block_on(async {
+            let dir = std::env::temp_dir().join(format!("pk-etxtbusy-{}", std::process::id()));
+            std::fs::create_dir_all(&dir).unwrap();
+            // macOS 的 /var 是 /private/var 符号链接，pwd 输出真实路径，统一 canonicalize 再比
+            let dir = dir.canonicalize().unwrap();
+            let script = dir.join("hold-agent.sh");
+            std::fs::write(&script, "#!/bin/sh\npwd\n").unwrap();
+            std::fs::set_permissions(&script, std::fs::Permissions::from_mode(0o755)).unwrap();
+
+            // 写端句柄不关 → exec 持续报 ETXTBSY；60ms 后释放（早于末次重试 75ms，
+            // 晚于前三次 0/25/50ms，任何调度漂移下都至少压住一次重试）
+            let hold = std::fs::OpenOptions::new()
+                .write(true)
+                .open(&script)
+                .unwrap();
+            let release = tokio::spawn(async move {
+                tokio::time::sleep(Duration::from_millis(60)).await;
+                drop(hold);
+            });
+            let out = run_process(
+                script.to_string_lossy().as_ref(),
+                &[],
+                None,
+                Some(dir.as_path()),
+                None,
+                &[],
+                Duration::from_secs(10),
+            )
+            .await
+            .unwrap();
+            release.await.unwrap();
+            assert_eq!(
+                std::path::Path::new(out.trim()),
+                dir.as_path(),
+                "重试窗口内应成功执行: {out}"
+            );
+
+            std::fs::remove_dir_all(&dir).ok();
+        });
     }
 
     /// ai_agents JSON 带 remote（camelCase）往返；缺省无 remote 也兼容
