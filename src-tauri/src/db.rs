@@ -191,6 +191,23 @@ CREATE TABLE IF NOT EXISTS agent_sessions (
     created_at TEXT NOT NULL DEFAULT ''
 );
 CREATE INDEX IF NOT EXISTS idx_agent_sessions_task ON agent_sessions(task_id);
+
+-- 用户手动过滤偏好（飞书会话过滤）：always_filter / always_pull；「跟随」不落库（无行即跟随）
+CREATE TABLE IF NOT EXISTS chat_filter_prefs (
+    chat_id TEXT PRIMARY KEY,
+    preference TEXT NOT NULL CHECK (preference IN ('always_filter','always_pull')),
+    updated_at TEXT NOT NULL
+);
+
+-- 最近一轮拉取快照（管理界面唯一数据源，行随每轮整表替换生灭）；
+-- 快照时间是轮级事实，不设行级列（唯一载体 = settings 键 feishu_snapshot_at，零会话轮无行可携带）
+CREATE TABLE IF NOT EXISTS feishu_chats (
+    chat_id TEXT PRIMARY KEY,
+    chat_name TEXT NOT NULL DEFAULT '',
+    chat_type TEXT NOT NULL DEFAULT '',
+    -- muted / unmuted / unknown（unknown = 所在查询批次失败，降级不过滤）
+    mute_outcome TEXT NOT NULL CHECK (mute_outcome IN ('muted','unmuted','unknown'))
+);
 "#;
 
 /// 迁移按序号执行：MIGRATIONS[i] 负责把 `PRAGMA user_version` 从 i 升到 i+1。
@@ -635,6 +652,41 @@ pub(crate) mod tests {
             )
             .unwrap();
         assert_eq!(note.as_deref(), Some("家里还有半只"));
+    }
+
+    /// 基线自带会话过滤两张表（feishu-chat-filter）：偏好表 CHECK 只收
+    /// always_filter/always_pull（follow=无行不落库），快照表 CHECK 只收
+    /// muted/unmuted/unknown（unknown = 所在免打扰查询批次失败）
+    #[test]
+    fn baseline_creates_chat_filter_tables_with_checks() {
+        let conn = test_conn();
+        // 合法行可写入
+        conn.execute(
+            "INSERT INTO chat_filter_prefs (chat_id, preference, updated_at)
+             VALUES ('oc_a', 'always_filter', '2026-09-23T00:00:00Z')",
+            [],
+        )
+        .unwrap();
+        conn.execute(
+            "INSERT INTO feishu_chats (chat_id, chat_name, chat_type, mute_outcome)
+             VALUES ('oc_a', '群', 'group', 'unknown')",
+            [],
+        )
+        .unwrap();
+        // 非法 preference（follow 是「无行」语义，不落库）被 CHECK 拒绝
+        let bad_pref = conn.execute(
+            "INSERT INTO chat_filter_prefs (chat_id, preference, updated_at)
+             VALUES ('oc_b', 'follow', 'x')",
+            [],
+        );
+        assert!(bad_pref.is_err(), "preference CHECK 拒绝 follow");
+        // 非法 mute_outcome 被拒
+        let bad_outcome = conn.execute(
+            "INSERT INTO feishu_chats (chat_id, chat_name, chat_type, mute_outcome)
+             VALUES ('oc_b', '群', 'group', 'maybe')",
+            [],
+        );
+        assert!(bad_outcome.is_err(), "mute_outcome CHECK 封闭枚举");
     }
 
     #[test]

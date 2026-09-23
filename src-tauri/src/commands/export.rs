@@ -11,7 +11,8 @@ use tauri::State;
 /// 导出文件名前缀与全量 JSON 的 app 标识字段
 const APP_SLUG: &str = "pokemon-choose-you";
 
-/// 全量导出包含的表（顺序即导入顺序：被引用表在前）
+/// 全量导出包含的表（顺序即导入顺序：被引用表在前）。
+/// feishu_chats 不导出：派生缓存，下一轮成功拉取即重建（与 chat_feedback/agent_sessions 不导出先例一致）
 const DUMP_TABLES: &[&str] = &[
     "categories",
     "tasks",
@@ -23,7 +24,13 @@ const DUMP_TABLES: &[&str] = &[
     "feishu_users",
     "sync_state",
     "settings",
+    "chat_filter_prefs",
 ];
+
+/// 导入时可缺键的表（缺键按空数组容忍）：chat_filter_prefs 是后加表，
+/// 本特性合入前导出的旧备份文件没有它——按格式版本分派校验集复杂且要维护版本映射，
+/// 容忍缺键天然向后兼容
+const IMPORT_OPTIONAL_TABLES: &[&str] = &["chat_filter_prefs"];
 
 fn exports_dir(data_dir: &Path) -> PathBuf {
     data_dir.join("exports")
@@ -218,7 +225,7 @@ pub fn import_json_from(content: &str, conn: &mut Connection) -> AppResult<usize
         .as_object()
         .ok_or_else(|| AppError::Invalid("导出文件缺少 data 字段".into()))?;
     for table in DUMP_TABLES {
-        if !data.contains_key(*table) {
+        if !data.contains_key(*table) && !IMPORT_OPTIONAL_TABLES.contains(table) {
             return Err(AppError::Invalid(format!("导出文件缺少 {table} 表")));
         }
     }
@@ -236,12 +243,16 @@ pub fn import_json_from(content: &str, conn: &mut Connection) -> AppResult<usize
     };
     for table in DUMP_TABLES {
         tx.execute(&format!("DELETE FROM {table}"), [])?;
-        let rows: Vec<serde_json::Map<String, serde_json::Value>> = data[*table]
-            .as_array()
-            .ok_or_else(|| AppError::Invalid(format!("{table} 不是数组")))?
-            .iter()
-            .filter_map(|v| v.as_object().cloned())
-            .collect();
+        let rows: Vec<serde_json::Map<String, serde_json::Value>> = match data.get(*table) {
+            // 可选表缺键（旧备份文件）：按空数组容忍
+            None => vec![],
+            Some(v) => v
+                .as_array()
+                .ok_or_else(|| AppError::Invalid(format!("{table} 不是数组")))?
+                .iter()
+                .filter_map(|v| v.as_object().cloned())
+                .collect(),
+        };
         let rows = if *table == "settings" {
             rows.into_iter()
                 .filter(|r| {
@@ -520,6 +531,8 @@ pub fn import_json<R: tauri::Runtime>(
     events::broadcast(&app, events::TAGS_CHANGED);
     events::broadcast(&app, events::SETTINGS_CHANGED);
     events::broadcast(&app, events::CHAT_MESSAGES_CHANGED);
+    // 偏好被整体替换：已挂载的过滤管理器立即刷新，不等下一轮拉取
+    events::broadcast(&app, events::FEISHU_CHAT_FILTER_CHANGED);
     Ok(n)
 }
 
@@ -762,5 +775,121 @@ mod tests {
             !fallback.contains(std::path::MAIN_SEPARATOR),
             "空白 dest 回退默认目录: {fallback}"
         );
+    }
+
+    // ---- 会话过滤偏好的导出/导入（feishu-chat-filter）----
+
+    /// chat_filter_prefs 随全量导出/导入往返；feishu_chats 是派生缓存不导出
+    #[test]
+    fn chat_filter_prefs_roundtrip_and_feishu_chats_excluded() {
+        let dir = tmp_dir("filter-roundtrip");
+        let conn = test_conn();
+        seed(&conn);
+        conn.execute(
+            "INSERT INTO chat_filter_prefs (chat_id, preference, updated_at)
+             VALUES ('oc_a','always_filter','2026-09-23T00:00:00Z')",
+            [],
+        )
+        .unwrap();
+        conn.execute(
+            "INSERT INTO feishu_chats (chat_id, chat_name, chat_type, mute_outcome)
+             VALUES ('oc_a','群','group','muted')",
+            [],
+        )
+        .unwrap();
+
+        let file = export_json_to(&dir, &conn, None).unwrap();
+        let content = read_export(&dir, &file);
+        let parsed: serde_json::Value = serde_json::from_str(&content).unwrap();
+        assert_eq!(
+            parsed["data"]["chat_filter_prefs"]
+                .as_array()
+                .unwrap()
+                .len(),
+            1,
+            "偏好行随导出带出"
+        );
+        assert!(
+            parsed["data"].get("feishu_chats").is_none(),
+            "feishu_chats 派生缓存不导出（下一轮成功拉取即重建）"
+        );
+
+        let mut fresh = test_conn();
+        import_json_from(&content, &mut fresh).unwrap();
+        let (n, pref): (i64, String) = fresh
+            .query_row(
+                "SELECT COUNT(*), MAX(preference) FROM chat_filter_prefs",
+                [],
+                |r| Ok((r.get(0)?, r.get(1)?)),
+            )
+            .unwrap();
+        assert_eq!((n, pref.as_str()), (1, "always_filter"), "偏好随导入恢复");
+    }
+
+    /// 旧格式备份（本特性合入前导出，缺 chat_filter_prefs 键）可导入：
+    /// 缺键按空数组容忍，且导入是整体替换——库内旧偏好被清空
+    #[test]
+    fn import_tolerates_legacy_backup_without_filter_prefs() {
+        let dir = tmp_dir("filter-legacy");
+        let conn = test_conn();
+        seed(&conn);
+        let file = export_json_to(&dir, &conn, None).unwrap();
+        let content = read_export(&dir, &file);
+        let mut parsed: serde_json::Value = serde_json::from_str(&content).unwrap();
+        parsed["data"]
+            .as_object_mut()
+            .unwrap()
+            .remove("chat_filter_prefs");
+        let legacy = serde_json::to_string(&parsed).unwrap();
+
+        let mut fresh = test_conn();
+        fresh
+            .execute(
+                "INSERT INTO chat_filter_prefs (chat_id, preference, updated_at)
+                 VALUES ('oc_old','always_pull','2026-09-01T00:00:00Z')",
+                [],
+            )
+            .unwrap();
+        import_json_from(&legacy, &mut fresh).unwrap();
+        let n: i64 = fresh
+            .query_row("SELECT COUNT(*) FROM chat_filter_prefs", [], |r| r.get(0))
+            .unwrap();
+        assert_eq!(n, 0, "缺键按空数组导入：偏好被整体替换为空");
+        let tasks: i64 = fresh
+            .query_row("SELECT COUNT(*) FROM tasks", [], |r| r.get(0))
+            .unwrap();
+        assert_eq!(tasks, 2, "其余表照常导入");
+    }
+
+    /// 全量导入成功后广播 feishu-chat-filter-changed（偏好被整体替换，管理器立即刷新）
+    #[test]
+    fn import_json_broadcasts_filter_changed() {
+        use std::sync::mpsc;
+        use tauri::{Listener, Manager};
+
+        let app = tauri::test::mock_app();
+        app.manage(crate::db::Db(std::sync::Mutex::new(test_conn())));
+        let (tx, rx) = mpsc::channel::<String>();
+        let t1 = tx.clone();
+        app.handle()
+            .listen(crate::events::FEISHU_CHAT_FILTER_CHANGED, move |_| {
+                t1.send("hit".into()).unwrap();
+            });
+        drop(tx);
+
+        let dir = tmp_dir("filter-broadcast");
+        let src = test_conn();
+        seed(&src);
+        let file = export_json_to(&dir, &src, None).unwrap();
+        let content = read_export(&dir, &file);
+
+        let db = app.state::<crate::db::Db>();
+        import_json(app.handle().clone(), db, content).unwrap();
+
+        let mut got = vec![];
+        while let Ok(m) = rx.try_recv() {
+            got.push(m);
+        }
+        assert_eq!(got, vec!["hit".to_string()], "导入成功后发出过滤变化事件");
     }
 }

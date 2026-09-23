@@ -23,6 +23,7 @@ import { BUNDLED_POKEMON, POKEMON_BY_KEY, mergePokemonQuotes, pokemonQuotesFor }
 import { clipWrite, openContextMenu } from "../contextMenu";
 import DexSelect from "../components/DexSelect.vue";
 import DexToggle from "../components/DexToggle.vue";
+import FeishuChatFilterManager from "../components/FeishuChatFilterManager.vue";
 import SettingRow from "../components/SettingRow.vue";
 import TagDispatchCard from "../components/TagDispatchCard.vue";
 import PokemonPicker from "../components/PokemonPicker.vue";
@@ -1350,6 +1351,9 @@ onUnmounted(() => {
             </button>
           </div>
         </section>
+
+        <!-- 会话过滤：逐会话三态偏好（组件自取数，点击即写库即时生效，不进 save 缓冲） -->
+        <FeishuChatFilterManager />
       </template>
 
       <template v-if="settingsTab === 'diag'">

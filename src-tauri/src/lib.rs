@@ -172,6 +172,8 @@ pub fn run() {
             commands::trigger_feishu_poll,
             commands::feishu_oauth_login,
             commands::feishu_oauth_status,
+            commands::get_feishu_chat_filter_overview,
+            commands::set_feishu_chat_filter,
             commands::integration_health,
             commands::list_log_entries,
             commands::build_support_report,

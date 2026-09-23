@@ -278,6 +278,211 @@ pub async fn feishu_oauth_login() -> AppResult<String> {
         .map(|term| format!("已在 {term} 中启动 lark-cli 登录，完成后回到这里点「测试」"))
 }
 
+// ---- 飞书会话过滤偏好（feishu-chat-filter；契约 = specs/feishu-chat-filter/architecture.md §4）----
+
+/// 单会话过滤视图：快照观测事实 × 偏好合并；effective / source 读取时现算，不落库。
+#[derive(Debug, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct FeishuChatFilterView {
+    pub chat_id: String,
+    pub chat_name: String,
+    /// group / p2p / bot（与 chat_messages.chat_type 同词表）
+    pub chat_type: String,
+    /// muted / unmuted / unknown（unknown = 上轮该会话所在批次查询失败）
+    pub mute_outcome: String,
+    /// follow / always_filter / always_pull（follow = 无行，已解析为显式三态）
+    pub preference: String,
+    /// pull / filter
+    pub effective: String,
+    /// manual / follow / followDegraded（降级直出独立来源值，前端零合并）
+    pub source: String,
+    /// 快照时间 RFC3339（与信封 snapshotAt 同源 = settings.feishu_snapshot_at；沉睡行空串）
+    pub updated_at: String,
+}
+
+/// 摘要行与筛选 chip 的计数
+#[derive(serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct FilterCounts {
+    pub total: u32,
+    pub pulling: u32,
+    pub filtered: u32,
+    pub manual: u32,
+}
+
+/// 最近一轮拉取快照 + 偏好合并后的过滤总览。
+/// snapshotAt = None 表示从未成功拉取；Some 但 chats 为空 = 零会话账号（两种空态的区分依据）。
+#[derive(serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct FeishuChatFilterOverview {
+    pub chats: Vec<FeishuChatFilterView>,
+    pub counts: FilterCounts,
+    pub snapshot_at: Option<String>,
+}
+
+/// 过滤总览（纯本地 SQLite 读，不触发任何飞书 API——快照数据源是轮询副产物）
+#[tauri::command]
+pub fn get_feishu_chat_filter_overview(db: State<'_, Db>) -> AppResult<FeishuChatFilterOverview> {
+    let conn = db.0.lock().unwrap();
+    let snapshot_at: Option<String> = conn
+        .query_row(
+            "SELECT value FROM settings WHERE key='feishu_snapshot_at'",
+            [],
+            |r| r.get(0),
+        )
+        .ok();
+    let mut stmt = conn.prepare(
+        "SELECT c.chat_id, c.chat_name, c.chat_type, c.mute_outcome, p.preference
+         FROM feishu_chats c LEFT JOIN chat_filter_prefs p ON p.chat_id = c.chat_id
+         ORDER BY c.chat_id",
+    )?;
+    let rows = stmt.query_map([], |r| {
+        Ok((
+            r.get::<_, String>(0)?,
+            r.get::<_, String>(1)?,
+            r.get::<_, String>(2)?,
+            r.get::<_, String>(3)?,
+            r.get::<_, Option<String>>(4)?,
+        ))
+    })?;
+    let mut chats = vec![];
+    let mut counts = FilterCounts {
+        total: 0,
+        pulling: 0,
+        filtered: 0,
+        manual: 0,
+    };
+    for row in rows {
+        let (chat_id, chat_name, chat_type, mute_outcome, pref_raw) = row?;
+        let outcome = crate::feishu::MuteOutcome::parse(&mute_outcome);
+        let pref = pref_raw
+            .as_deref()
+            .and_then(crate::feishu::FilterPref::parse)
+            .unwrap_or(crate::feishu::FilterPref::Follow);
+        let (effect, source) = crate::feishu::filter_decision(pref, outcome);
+        if effect == crate::feishu::FilterEffect::Pull {
+            counts.pulling += 1;
+        } else {
+            counts.filtered += 1;
+        }
+        if source == crate::feishu::FilterSource::Manual {
+            counts.manual += 1;
+        }
+        counts.total += 1;
+        chats.push(FeishuChatFilterView {
+            chat_id,
+            chat_name,
+            chat_type,
+            mute_outcome: outcome.as_str().to_string(),
+            preference: pref.as_str().to_string(),
+            effective: effect.as_str().to_string(),
+            source: source.as_str().to_string(),
+            updated_at: snapshot_at.clone().unwrap_or_default(),
+        });
+    }
+    Ok(FeishuChatFilterOverview {
+        chats,
+        counts,
+        snapshot_at,
+    })
+}
+
+/// 单会话合并视图（set 的返回值）：快照行存在 → 用该轮 outcome 推导；
+/// 沉睡行（快照无该行）→ muteOutcome=unknown、名称/类型/updatedAt 空串、按纯偏好推导（manual 恒定）
+fn feishu_chat_filter_merged_view(
+    conn: &rusqlite::Connection,
+    chat_id: &str,
+    pref: crate::feishu::FilterPref,
+) -> AppResult<FeishuChatFilterView> {
+    let snapshot: Option<(String, String, String)> = conn
+        .query_row(
+            "SELECT chat_name, chat_type, mute_outcome FROM feishu_chats WHERE chat_id=?1",
+            rusqlite::params![chat_id],
+            |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?)),
+        )
+        .ok();
+    let (chat_name, chat_type, outcome, updated_at) = match snapshot {
+        // 快照行存在：updatedAt 与信封 snapshotAt 同源填充（该行属于本轮快照）
+        Some((name, ctype, outcome)) => {
+            let at: Option<String> = conn
+                .query_row(
+                    "SELECT value FROM settings WHERE key='feishu_snapshot_at'",
+                    [],
+                    |r| r.get(0),
+                )
+                .ok();
+            (
+                name,
+                ctype,
+                crate::feishu::MuteOutcome::parse(&outcome),
+                at.unwrap_or_default(),
+            )
+        }
+        // 沉睡行：无所属快照轮次，名称/类型/updatedAt 空串、outcome=unknown（按纯偏好推导）
+        None => (
+            String::new(),
+            String::new(),
+            crate::feishu::MuteOutcome::Unknown,
+            String::new(),
+        ),
+    };
+    let (effect, source) = crate::feishu::filter_decision(pref, outcome);
+    Ok(FeishuChatFilterView {
+        chat_id: chat_id.to_string(),
+        chat_name,
+        chat_type,
+        mute_outcome: outcome.as_str().to_string(),
+        preference: pref.as_str().to_string(),
+        effective: effect.as_str().to_string(),
+        source: source.as_str().to_string(),
+        updated_at,
+    })
+}
+
+/// 设置单会话三态过滤偏好；follow = 删除偏好行（回到跟随免打扰）。
+/// 不校验会话是否在快照中（孤儿沉睡偏好，SDD 规则）、不校验 feishu_enabled（本地数据，
+/// 停用期设置无害）。成功后广播 feishu-chat-filter-changed（两窗口重拉）。
+#[tauri::command]
+pub fn set_feishu_chat_filter<R: tauri::Runtime>(
+    app: tauri::AppHandle<R>,
+    db: State<'_, Db>,
+    chat_id: String,
+    preference: String,
+) -> AppResult<FeishuChatFilterView> {
+    // chatId 非空且 ≤64 字符：飞书 chat_id 形如 oc_ 前缀约 20-30 字符，64 上限宽松；
+    // 拦截空串/超长防永久沉睡的垃圾行
+    if chat_id.trim().is_empty() || chat_id.chars().count() > 64 {
+        return Err(AppError::Invalid("chatId 必须非空且不超过 64 字符".into()));
+    }
+    let pref = crate::feishu::FilterPref::parse(&preference).ok_or_else(|| {
+        AppError::Invalid(format!(
+            "preference 必须是 follow / always_filter / always_pull：{preference}"
+        ))
+    })?;
+    let view = {
+        let conn = db.0.lock().unwrap();
+        match pref {
+            crate::feishu::FilterPref::Follow => {
+                conn.execute(
+                    "DELETE FROM chat_filter_prefs WHERE chat_id=?1",
+                    rusqlite::params![chat_id],
+                )?;
+            }
+            crate::feishu::FilterPref::AlwaysFilter | crate::feishu::FilterPref::AlwaysPull => {
+                conn.execute(
+                    "INSERT INTO chat_filter_prefs (chat_id, preference, updated_at)
+                     VALUES (?1, ?2, ?3)
+                     ON CONFLICT(chat_id) DO UPDATE SET preference=?2, updated_at=?3",
+                    rusqlite::params![chat_id, pref.as_str(), crate::db::now()],
+                )?;
+            }
+        }
+        feishu_chat_filter_merged_view(&conn, &chat_id, pref)?
+    };
+    events::broadcast(&app, events::FEISHU_CHAT_FILTER_CHANGED);
+    Ok(view)
+}
+
 // ---- 自动更新（tauri-plugin-updater，endpoint/公钥在 tauri.conf.json） ----
 
 #[tauri::command]
@@ -473,5 +678,247 @@ mod tests {
             line.contains("cd '/tmp/has space' && '/usr/local/bin/my agent' --resume"),
             "目录与命令分别引用: {line}"
         );
+    }
+
+    // ---- 飞书会话过滤（feishu-chat-filter，AD §8 测试 3）----
+
+    fn seed_filter_snapshot(app: &tauri::App<tauri::test::MockRuntime>) {
+        let db = app.state::<Db>();
+        let conn = db.0.lock().unwrap();
+        conn.execute(
+            "INSERT INTO feishu_chats (chat_id, chat_name, chat_type, mute_outcome) VALUES
+             ('oc_group','项目群','group','unmuted'),
+             ('oc_noisy','灌水群','group','muted'),
+             ('oc_flaky','失败批群','group','unknown')",
+            [],
+        )
+        .unwrap();
+        conn.execute(
+            "INSERT INTO chat_filter_prefs (chat_id, preference, updated_at)
+             VALUES ('oc_noisy','always_filter','2026-09-22T00:00:00Z')",
+            [],
+        )
+        .unwrap();
+        conn.execute(
+            "INSERT INTO settings (key, value) VALUES ('feishu_snapshot_at','2026-09-23T08:00:00+00:00')",
+            [],
+        )
+        .unwrap();
+    }
+
+    /// 总览：camelCase 视图、三态解析、effective/source 派生（含 followDegraded）、counts 汇总
+    #[test]
+    fn feishu_chat_filter_overview_merges_and_counts() {
+        let app = setup();
+        seed_filter_snapshot(&app);
+        let db = app.state::<Db>();
+        let overview = get_feishu_chat_filter_overview(db).unwrap();
+        // 序列化键为 camelCase（前端契约）
+        let v = serde_json::to_value(&overview).unwrap();
+        assert_eq!(v["snapshotAt"], "2026-09-23T08:00:00+00:00");
+        assert_eq!(
+            v["counts"],
+            serde_json::json!({"total": 3, "pulling": 2, "filtered": 1, "manual": 1})
+        );
+        let chats = v["chats"].as_array().unwrap();
+        assert_eq!(chats.len(), 3);
+        // 按 chat_id 排序：oc_flaky < oc_group < oc_noisy
+        assert_eq!(chats[0]["chatId"], "oc_flaky");
+        assert_eq!(chats[0]["chatName"], "失败批群");
+        assert_eq!(chats[0]["muteOutcome"], "unknown");
+        assert_eq!(chats[0]["preference"], "follow");
+        assert_eq!(chats[0]["effective"], "pull");
+        assert_eq!(
+            chats[0]["source"], "followDegraded",
+            "批次失败降级直出独立来源值，前端零合并"
+        );
+        assert_eq!(chats[0]["updatedAt"], "2026-09-23T08:00:00+00:00");
+        assert_eq!(chats[1]["chatId"], "oc_group");
+        assert_eq!(chats[1]["source"], "follow");
+        assert_eq!(chats[1]["effective"], "pull");
+        assert_eq!(chats[2]["chatId"], "oc_noisy");
+        assert_eq!(chats[2]["muteOutcome"], "muted");
+        assert_eq!(chats[2]["preference"], "always_filter");
+        assert_eq!(chats[2]["effective"], "filter");
+        assert_eq!(chats[2]["source"], "manual");
+    }
+
+    /// 两种空态可区分：无键 = 从未成功拉取（snapshotAt=null）；有键空表 = 零会话账号
+    #[test]
+    fn feishu_chat_filter_overview_empty_states_distinguishable() {
+        let app = setup();
+        let db = app.state::<Db>();
+        let o = get_feishu_chat_filter_overview(db).unwrap();
+        assert!(o.chats.is_empty());
+        assert!(o.snapshot_at.is_none(), "从未成功拉取");
+        {
+            let db = app.state::<Db>();
+            let conn = db.0.lock().unwrap();
+            conn.execute(
+                "INSERT INTO settings (key, value) VALUES ('feishu_snapshot_at','2026-09-23T08:00:00+00:00')",
+                [],
+            )
+            .unwrap();
+        }
+        let db = app.state::<Db>();
+        let o = get_feishu_chat_filter_overview(db).unwrap();
+        assert!(o.chats.is_empty());
+        assert_eq!(
+            o.snapshot_at.as_deref(),
+            Some("2026-09-23T08:00:00+00:00"),
+            "零会话账号：有键 ∧ 空表"
+        );
+    }
+
+    /// set 三态：follow=删行、覆盖态=UPSERT 单行、返回该行合并视图、沉睡行视图、入参校验
+    #[test]
+    fn set_feishu_chat_filter_three_states_and_validation() {
+        let app = setup();
+        seed_filter_snapshot(&app);
+        // 改设 always_pull：muted × 手动拉取 → 返回 manual 视图（updatedAt 与信封同源）
+        {
+            let db = app.state::<Db>();
+            let v = set_feishu_chat_filter(
+                app.handle().clone(),
+                db,
+                "oc_noisy".into(),
+                "always_pull".into(),
+            )
+            .unwrap();
+            assert_eq!(v.chat_id, "oc_noisy");
+            assert_eq!(v.chat_name, "灌水群");
+            assert_eq!(v.preference, "always_pull");
+            assert_eq!(v.effective, "pull");
+            assert_eq!(v.source, "manual");
+            assert_eq!(v.mute_outcome, "muted");
+            assert_eq!(v.updated_at, "2026-09-23T08:00:00+00:00");
+        }
+        // 再改 always_filter：UPSERT 覆盖为单行
+        {
+            let db = app.state::<Db>();
+            let v = set_feishu_chat_filter(
+                app.handle().clone(),
+                db,
+                "oc_noisy".into(),
+                "always_filter".into(),
+            )
+            .unwrap();
+            assert_eq!(v.effective, "filter");
+        }
+        {
+            let db = app.state::<Db>();
+            let conn = db.0.lock().unwrap();
+            let (n, pref): (i64, String) = conn
+                .query_row(
+                    "SELECT COUNT(*), MAX(preference) FROM chat_filter_prefs WHERE chat_id='oc_noisy'",
+                    [],
+                    |r| Ok((r.get(0)?, r.get(1)?)),
+                )
+                .unwrap();
+            assert_eq!((n, pref.as_str()), (1, "always_filter"), "覆盖写不叠行");
+        }
+        // follow：删行回到跟随（muted → 过滤、来源 follow）
+        {
+            let db = app.state::<Db>();
+            let v = set_feishu_chat_filter(
+                app.handle().clone(),
+                db,
+                "oc_noisy".into(),
+                "follow".into(),
+            )
+            .unwrap();
+            assert_eq!(v.preference, "follow");
+            assert_eq!(v.source, "follow");
+            assert_eq!(v.effective, "filter");
+        }
+        {
+            let db = app.state::<Db>();
+            let conn = db.0.lock().unwrap();
+            let n: i64 = conn
+                .query_row(
+                    "SELECT COUNT(*) FROM chat_filter_prefs WHERE chat_id='oc_noisy'",
+                    [],
+                    |r| r.get(0),
+                )
+                .unwrap();
+            assert_eq!(n, 0, "follow 删除偏好行");
+        }
+        // 沉睡行（快照无该行）：被接受，muteOutcome=unknown、名称/类型/updatedAt 空串、manual 恒定
+        {
+            let db = app.state::<Db>();
+            let v = set_feishu_chat_filter(
+                app.handle().clone(),
+                db,
+                "oc_ghost".into(),
+                "always_filter".into(),
+            )
+            .unwrap();
+            assert_eq!(v.mute_outcome, "unknown");
+            assert_eq!(v.chat_name, "");
+            assert_eq!(v.chat_type, "");
+            assert_eq!(v.updated_at, "");
+            assert_eq!(v.effective, "filter");
+            assert_eq!(v.source, "manual");
+        }
+        // 校验：非法 preference / 空 chatId / 超长 chatId → AppError::Invalid
+        {
+            let db = app.state::<Db>();
+            let err =
+                set_feishu_chat_filter(app.handle().clone(), db, "oc_x".into(), "nope".into())
+                    .unwrap_err();
+            assert!(matches!(err, AppError::Invalid(_)), "{err}");
+        }
+        {
+            let db = app.state::<Db>();
+            let err = set_feishu_chat_filter(app.handle().clone(), db, "".into(), "follow".into())
+                .unwrap_err();
+            assert!(matches!(err, AppError::Invalid(_)), "{err}");
+        }
+        {
+            let db = app.state::<Db>();
+            let long = "x".repeat(65);
+            let err = set_feishu_chat_filter(app.handle().clone(), db, long, "follow".into())
+                .unwrap_err();
+            assert!(matches!(err, AppError::Invalid(_)), "{err}");
+        }
+        // 恰好 64 字符可接受
+        {
+            let db = app.state::<Db>();
+            let ok64 = "o".repeat(64);
+            set_feishu_chat_filter(app.handle().clone(), db, ok64, "follow".into()).unwrap();
+        }
+    }
+
+    /// set 成功后恰广播一次 feishu-chat-filter-changed（跨窗口重拉通道）；失败不广播
+    #[test]
+    fn set_feishu_chat_filter_broadcasts_once() {
+        use std::sync::mpsc;
+        use tauri::Listener;
+
+        let app = setup();
+        let (tx, rx) = mpsc::channel::<String>();
+        let t1 = tx.clone();
+        app.handle()
+            .listen(crate::events::FEISHU_CHAT_FILTER_CHANGED, move |_| {
+                t1.send("hit".into()).unwrap();
+            });
+        drop(tx);
+
+        let db = app.state::<Db>();
+        set_feishu_chat_filter(
+            app.handle().clone(),
+            db,
+            "oc_a".into(),
+            "always_pull".into(),
+        )
+        .unwrap();
+        let db = app.state::<Db>();
+        let _ = set_feishu_chat_filter(app.handle().clone(), db, "oc_a".into(), "bogus".into());
+
+        let mut got = vec![];
+        while let Ok(m) = rx.try_recv() {
+            got.push(m);
+        }
+        assert_eq!(got, vec!["hit".to_string()], "成功一次广播、失败不广播");
     }
 }

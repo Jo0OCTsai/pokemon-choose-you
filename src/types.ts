@@ -199,6 +199,43 @@ export interface FeishuOauthStatus {
   userName: string;
 }
 
+/** 会话过滤偏好三态（follow = 无手动记录，已由后端解析为显式值） */
+export type FeishuChatFilterPreference = "follow" | "always_filter" | "always_pull";
+
+/** 快照计数（摘要行 + 筛选 chips：全部/拉取/过滤/手动） */
+export interface FilterCounts {
+  total: number;
+  pulling: number;
+  filtered: number;
+  manual: number;
+}
+
+/** 单会话过滤行视图：后端把「偏好 × 最近一轮拉取快照」合并后直出（前端零合并逻辑） */
+export interface FeishuChatFilterView {
+  chatId: string;
+  chatName: string;
+  /** group=群聊 / p2p=私聊 / bot=机器人（与 chat_messages.chat_type 同词表） */
+  chatType: "group" | "p2p" | "bot";
+  /** muted / unmuted / unknown（unknown = 上轮该会话所在免打扰查询批次失败） */
+  muteOutcome: "muted" | "unmuted" | "unknown";
+  /** 手动偏好（点击即写库即时生效，不进设置页保存缓冲） */
+  preference: FeishuChatFilterPreference;
+  /** pull / filter（filter_decision 现算派生，不落库） */
+  effective: "pull" | "filter";
+  /** manual / follow / followDegraded（followDegraded = 跟随态且查询失败降级） */
+  source: "manual" | "follow" | "followDegraded";
+  /** 快照时间 RFC3339（与信封 snapshotAt 同源；沉睡行视图为空串） */
+  updatedAt: string;
+}
+
+/** 会话过滤总览（设置页「会话过滤」卡）：最近一轮拉取快照 + 偏好合并后的全部会话 */
+export interface FeishuChatFilterOverview {
+  chats: FeishuChatFilterView[];
+  counts: FilterCounts;
+  /** 本轮快照时间 RFC3339；null = 从未成功拉取（与「零会话账号」的区分载体） */
+  snapshotAt: string | null;
+}
+
 /** SSH 远程执行：agent CLI 装在远程机器上，本地经 `ssh host -- command` 无头调用 */
 export interface AgentRemote {
   /** ssh 目标（user@host） */

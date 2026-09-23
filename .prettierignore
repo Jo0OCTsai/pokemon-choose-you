@@ -10,6 +10,7 @@ src-tauri/capabilities
 src-tauri/tauri.conf.json
 public
 docs
+specs
 *.md
 src-tauri/Cargo.lock
 src/pokemon/catalog.json

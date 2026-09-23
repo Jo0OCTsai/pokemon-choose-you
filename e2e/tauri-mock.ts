@@ -44,6 +44,40 @@ export interface MockState {
   dimensions?: Record<string, unknown>[];
   /** 收音机电波消息（缺省为空；分诊语义与 Rust 侧对齐——原因随消息行落库） */
   chatMessages?: MockChatMessage[];
+  /** 会话过滤总览种子（缺省为空表；行字段与 FeishuChatFilterView 对齐，合并语义镜像后端 filter_decision） */
+  chatFilter?: MockChatFilterView[];
+  /** 会话过滤快照时间（缺省 = 当前时间；显式 null = 从未成功拉取空态） */
+  chatFilterSnapshotAt?: string | null;
+}
+
+export interface MockChatFilterView {
+  chatId: string;
+  chatName: string;
+  /** group / p2p / bot */
+  chatType: string;
+  /** muted / unmuted / unknown */
+  muteOutcome: string;
+  /** follow / always_filter / always_pull */
+  preference: string;
+  /** pull / filter（派生，不落库） */
+  effective: string;
+  /** manual / follow / followDegraded */
+  source: string;
+  updatedAt: string;
+}
+
+export function chatFilter(
+  partial: Partial<MockChatFilterView> & { chatId: string; chatName: string },
+): MockChatFilterView {
+  return {
+    chatType: "group",
+    muteOutcome: "unmuted",
+    preference: "follow",
+    effective: "pull",
+    source: "follow",
+    updatedAt: "2026-09-23T08:00:00Z",
+    ...partial,
+  };
 }
 
 export interface MockChatMessage {
@@ -129,6 +163,7 @@ export async function installTauriMock(page: Page, state: Partial<MockState> = {
         ...st,
         tags: st.tags ?? [],
         chatMessages: st.chatMessages ?? [],
+        chatFilter: st.chatFilter ?? [],
         // 与 Rust 侧迁移内置的四个维度一致；注入函数被序列化进浏览器，缺省值必须在函数体内
         dimensions:
           st.dimensions ??
@@ -654,6 +689,43 @@ export async function installTauriMock(page: Page, state: Partial<MockState> = {
             return "授权成功：测试用户（E2E mock）";
           case "feishu_oauth_status":
             return { authorized: true, userName: "测试用户" };
+          // ---- 会话过滤（合并规则镜像后端 filter_decision；set 后广播事件供两窗口重拉） ----
+          case "get_feishu_chat_filter_overview": {
+            const chats = db.chatFilter.map((c: any) => ({ ...c }));
+            const pulling = chats.filter((c: any) => c.effective === "pull").length;
+            const manual = chats.filter((c: any) => c.preference !== "follow").length;
+            return {
+              chats,
+              counts: { total: chats.length, pulling, filtered: chats.length - pulling, manual },
+              snapshotAt: db.chatFilterSnapshotAt === undefined ? nowIso() : db.chatFilterSnapshotAt,
+            };
+          }
+          case "set_feishu_chat_filter": {
+            if (!["follow", "always_filter", "always_pull"].includes(args.preference))
+              throw new Error(`非法 preference：${args.preference}`);
+            const row = db.chatFilter.find((c: any) => c.chatId === args.chatId);
+            if (!row) throw new Error(`会话不存在：${args.chatId}`);
+            row.preference = args.preference;
+            if (args.preference === "always_filter") {
+              row.effective = "filter";
+              row.source = "manual";
+            } else if (args.preference === "always_pull") {
+              row.effective = "pull";
+              row.source = "manual";
+            } else if (row.muteOutcome === "muted") {
+              row.effective = "filter";
+              row.source = "follow";
+            } else if (row.muteOutcome === "unknown") {
+              row.effective = "pull";
+              row.source = "followDegraded";
+            } else {
+              row.effective = "pull";
+              row.source = "follow";
+            }
+            row.updatedAt = nowIso();
+            broadcast("feishu-chat-filter-changed");
+            return { ...row };
+          }
           // ---- 插件 ----
           case "plugin:autostart|isEnabled":
             return false;

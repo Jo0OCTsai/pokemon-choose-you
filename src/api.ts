@@ -8,6 +8,9 @@ import type {
   Category,
   ChatMessage,
   DispatchResult,
+  FeishuChatFilterOverview,
+  FeishuChatFilterPreference,
+  FeishuChatFilterView,
   FeishuOauthStatus,
   IntegrationHealth,
   LogEntry,
@@ -209,6 +212,11 @@ export const api = {
   feishuOauthLogin: () => call<string>("feishu_oauth_login"),
   /** 飞书授权状态（lark-cli 登录态：是否已登录 + 用户名） */
   feishuOauthStatus: () => call<FeishuOauthStatus>("feishu_oauth_status"),
+  /** 会话过滤总览（纯本地读不触发飞书 API；snapshotAt=null 即从未成功拉取） */
+  getFeishuChatFilterOverview: () => call<FeishuChatFilterOverview>("get_feishu_chat_filter_overview"),
+  /** 设置单会话三态过滤偏好（follow=清除手动记录），返回该行合并后最新视图供乐观更新校正 */
+  setFeishuChatFilter: (chatId: string, preference: FeishuChatFilterPreference) =>
+    call<FeishuChatFilterView>("set_feishu_chat_filter", { chatId, preference }),
   /** 集成健康汇总（飞书 / AI） */
   getIntegrationHealth: () => call<IntegrationHealth[]>("integration_health"),
   /** 读取运行日志尾部（可按最低级别过滤） */
