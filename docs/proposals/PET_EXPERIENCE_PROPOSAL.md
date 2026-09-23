@@ -8,8 +8,10 @@
 > - M1 纯前端：F4 栖息（`usePerch` + 拖拽落点判定，动画幅度减半）、F3 时刻台词（`useTimeLines`，
 >   localStorage 每类每周期去重，urgent/提醒/对话态让路）、F7 连胜演出（`task_streak` 命令 +
 >   双球交替三摇变体，里程碑优先）、F6 陪跑精灵（`dex_stats.sprites` 候选池，一次会话一位一次）。
-> - M2 输入链路：F1（`input.rs` rdev 监听线程只计数、每秒 `emit_to("pet")`；macOS
->   `AXIsProcessTrusted` 检查 + 设置页授权提示 + 拒绝回落；前端 `useInputResponse` 分档）。
+> - M2 输入链路：F1（`input.rs` 全局输入监听线程只计数、每秒 `emit_to("pet")`；macOS
+>   自写最小 CGEventTap——rdev 0.5.3 在部分 macOS×键盘布局组合下授权后敲键段错误（Narsil/rdev#146），
+>   后续修复替换，其余平台仍 rdev；`AXIsProcessTrusted` 检查 + 设置页授权提示 + 拒绝回落；
+>   前端 `useInputResponse` 分档）。
 > - M3 外部服务：F2 对话（`pet_chat` 命令接 `run_agent` + 任务上下文 prompt + 两句收敛，
 >   桌宠右键菜单入口、对话框原位对话态）、F5 语音（`voice.rs` 平台系统 TTS：macOS `say` /
 >   Windows System.Speech / Linux spd-say→espeak，四类时刻接线；**EdgeTTS 云引擎档未实施**，

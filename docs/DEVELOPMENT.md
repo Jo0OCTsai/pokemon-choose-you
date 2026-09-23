@@ -85,7 +85,8 @@ src/                    前端（Vue 3 + TS + Pinia）
   components/           图鉴风自绘组件（DexSelect / DexToggle / DexDateTime / TaskCard…）
   views/                主面板分页（TaskTab / RadioTab / SettingsTab）
   stores/               Pinia 状态（settings / tasks / categories / tags）
-  composables/          usePomodoro（番茄钟状态机）/ usePetDrag（手动拖拽）
+  composables/          组合逻辑：usePomodoro（番茄钟状态机）/ usePetDrag（手动拖拽）/
+                        usePetIdle（微动作调度）/ useInputResponse（输入响应）等
   api.ts                IPC 封装 + 错误分层
   events.ts             前后端事件名契约（与 src-tauri/src/events.rs 成对）
   pokemon.ts            全量宝可梦名录（pokemon/catalog.json）+ 本地化名/精灵图候选链/台词存取
@@ -98,13 +99,15 @@ src-tauri/src/
   db.rs                 SQLite 初始化 + 版本迁移 + 默认分类
   commands/             IPC 命令按域拆分：tasks / categories / tags / tag_health（标签体检）/
                         settings / integrations / radio / sessions / skills / dispatch（待办派发）/
-                        remote_pk / backup / export / diagnostics / windows（conn 层供 pk CLI 复用）
+                        remote_pk / backup / export / diagnostics / pet（桌宠）/ windows（conn 层供 pk CLI 复用）
   bin/pk.rs             pk 命令行：供 AI agent 与终端读写待办（JSON 输出）
   scheduler.rs          提醒调度（提前量、通知开关、多语言通知）
   feishu.rs             用户身份增量轮询（lark-cli 聚合翻页 + 语境规则）+ 富文本渲染
   ai.rs                 AI agent CLI 无头调用（多 Agent 配置 / 超时 / 判定经 pk 落库后回读）
+  anonymize.rs          判定链路假名化：送大模型前姓名→稳定代号（锚定 open_id）、落库前还原
   health.rs             集成链路健康状态（诊断中心）
                         （各文件内 #[cfg(test)] 为 Rust 单元测试与契约测试）
+src-tauri/skills/       pk 技能源文件（SKILL.md + references/，`pk skill install` 分发到各 agent 技能目录）
 public/pokemon/         内置宝可梦素材 (PokeAPI sprites；全量名录的其余精灵图运行时从 CDN 加载)
 ```
 

@@ -21,17 +21,18 @@ cd pokemon-choose-you
 
 ```
 src/                    前端（Vue 3 + TS + Pinia）
-  components/           图鉴风自绘组件（DexSelect / TaskCard / AddTaskForm…）
+  components/           图鉴风自绘组件（DexSelect / TaskCard / TagDispatchCard…）
   views/                App.vue 拆出的页（TaskTab / RadioTab / SettingsTab）
-  stores/               Pinia：settings / tasks / categories
-  composables/          usePomodoro（番茄钟状态机）/ usePetDrag（手动拖拽）
+  stores/               Pinia：settings / tasks / categories / tags
+  composables/          usePomodoro（番茄钟状态机）/ usePetDrag（手动拖拽）/ useInputResponse（输入响应）等
   events.ts             前后端事件名契约（与 src-tauri/src/events.rs 成对）
   api.ts                IPC 封装 + ApiError 错误分层
 src-tauri/src/
-  commands/             IPC 命令按域拆分：tasks / categories / settings / integrations / windows
+  commands/             IPC 命令按域拆分：tasks / categories / tags / radio / dispatch / windows 等
   error.rs              AppError（thiserror + serde，前端按 kind/retryable 分层）
   events.rs             事件名集中定义 + 契约测试
   db.rs                 SQLite + PRAGMA user_version 迁移（改表加新迁移条目，勿改旧条目）
+  anonymize.rs          判定链路假名化（送大模型前姓名→代号、落库还原）
   tray.rs / shortcuts.rs 托盘菜单 / 全局快捷键
   ai.rs / feishu.rs / scheduler.rs
 ```
