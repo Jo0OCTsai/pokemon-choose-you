@@ -265,7 +265,7 @@ footer { width: min(1160px, 100%); font-size: 12px; color: #9aa0b5; line-height:
 <!-- ================= 1 升级舞台 ================= -->
 <section>
   <div class="sec-head"><span class="no px">1</span><h2 class="px-cn">升级舞台（真实交互）</h2></div>
-  <p class="sec-desc">舞台即桌宠窗口：底部是模拟任务栏（<b>栖息判定带：距底缘 ≤72px</b>）；本页任意处的键盘输入模拟全局输入监听（真实实现为 Rust 侧 rdev 线程，事件只带每秒计数 {cps}，不带按键内容）。拖拽 / 按住 600ms 撸宠沿用基础稿。</p>
+  <p class="sec-desc">舞台即桌宠窗口：底部是模拟任务栏（<b>栖息判定带：距底缘 ≤72px</b>）；本页任意处的键盘输入模拟全局输入监听（真实实现为 Rust 侧全局输入事件线程——macOS 自写最小 CGEventTap、其余平台 rdev，事件只带每秒计数 {cps}，不带按键内容）。拖拽 / 按住 600ms 撸宠沿用基础稿。</p>
   <div class="stage-wrap">
     <div class="stage" id="stage">
       <div class="petwin">
@@ -369,7 +369,7 @@ footer { width: min(1160px, 100%); font-size: 12px; color: #9aa0b5; line-height:
     <tr><td><b>停顿 &gt;3s</b></td><td>强度落回静默</td><td>一次哈欠或回头看你</td><td>无（不打断专注节奏）</td></tr>
   </table>
   <div class="card-grid" style="margin-top:12px">
-    <div class="info-card privacy"><b>感知不窥探（新原则）</b><span>Rust 侧 rdev 回调只递增计数器，每秒 emit <code>{cps}</code> 一个数字——不带按键内容、不带窗口标题、不带应用名；键盘鼠标合并计数，无法反推输入了什么。macOS 需辅助功能权限，拒绝则开关自动回落。</span></div>
+    <div class="info-card privacy"><b>感知不窥探（新原则）</b><span>Rust 侧输入事件回调只递增计数器，每秒 emit <code>{cps}</code> 一个数字——不带按键内容、不带窗口标题、不带应用名；键盘鼠标合并计数，无法反推输入了什么。macOS 需辅助功能权限，拒绝则开关自动回落。</span></div>
     <div class="info-card"><b>与调度器的关系</b><span>输入响应不是新状态：它是 usePetIdle 之外的第二信号源，受同一 busy 互斥让路；「减弱动效」下整体关闭（跟随双通道）。</span></div>
   </div>
 </section>

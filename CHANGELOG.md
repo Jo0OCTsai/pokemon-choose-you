@@ -2,7 +2,7 @@
 
 所有重要变更记录于此。格式遵循 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，
 版本号遵循 [Semantic Versioning](https://semver.org/lang/zh-CN/)。
-本文件由 release-please 自动维护——合并 release PR 时更新，请勿手工编辑已发布段落。
+发布走开发版草稿流（见 [开发指南 · 发布](docs/DEVELOPMENT.md)）：本文件随版本人工维护，已发布段落请勿手工编辑。
 
 ## [1.0.0](https://github.com/Jo0OCTsai/pokemon-choose-you/compare/pokemon-choose-you-v0.1.0...pokemon-choose-you-v1.0.0) (2026-09-13)
 
@@ -13,6 +13,21 @@
 
 ### Features
 
+* 收音机判定全链路假名化——真名不进大模型，归属判断交给确定性标注 ([5db5625](https://github.com/Jo0OCTsai/pokemon-choose-you/commit/5db5625d47c1bd990d8b7407161b62096ee92559))
+* 桌宠台词瞬态化——气泡按时长自动淡出、悬停暂停、点击收起，快捷图鉴屏改悬停☰钮唤出 ([7ff45ea](https://github.com/Jo0OCTsai/pokemon-choose-you/commit/7ff45ea5894cd17f34b723e339668ca09b23eace))
+* 收音机人工裁决显影——已逃走亮出 AI 原判与逃走原因，原因弹层上弹不再溢出 ([8eb4a2e](https://github.com/Jo0OCTsai/pokemon-choose-you/commit/8eb4a2efe4e8cefe3da179e181266dced6f26e42))
+* 收音机判定失败可重判——超时挽救已落库判定，error 消息批量重送 AI ([810372e](https://github.com/Jo0OCTsai/pokemon-choose-you/commit/810372e123f1d1f3e6d60874d24df25404f4cf6c))
+* 项目标签 agent 派发表单抽成独立「项目派发」卡片，修复维度下拉盖住保存按钮 ([06f55e6](https://github.com/Jo0OCTsai/pokemon-choose-you/commit/06f55e675668a86dfccc666878d76ef98dddbcbe))
+* release macOS 包稳定签名——自签证书(Apple 命名格式)固定身份，TCC 授权跨版本存活 ([2b5b16c](https://github.com/Jo0OCTsai/pokemon-choose-you/commit/2b5b16cc86a8c30b27618588d8b8bf6c63f0771a))
+* macOS dev 稳定签名——自签证书 + cargo runner 自动重签，辅助功能授权跨编译存活 ([4e6a98c](https://github.com/Jo0OCTsai/pokemon-choose-you/commit/4e6a98c1d5c32246404af51115b592ac823ee87a))
+* 桌宠体验升级——输入响应/AI 对话/时刻台词/边缘栖息/连胜演出/陪跑精灵/语音 ([5d70856](https://github.com/Jo0OCTsai/pokemon-choose-you/commit/5d70856b7e357f8d2a97a1a37a6e91b001f5d989))
+* 快速捕捉收拢收音机——移除任务页创建表单，一句话经 AI agent 判定属性建待办 ([004c8d7](https://github.com/Jo0OCTsai/pokemon-choose-you/commit/004c8d7d71d7ba9e82e79346ca3bee677c7b4941))
+* 待办派发体系 M1–M3——标签路由到 agent/机器/工作目录，交互/无头双通道与状态回传 ([e0f4e62](https://github.com/Jo0OCTsai/pokemon-choose-you/commit/e0f4e62f21519696fef7fc6b0e3e01d65ad068de))
+* agent 能力增强——多实例辨识、SSH 远程历史修复、会话回链预设升级、技能检查同步与设置页优化 ([15ee10b](https://github.com/Jo0OCTsai/pokemon-choose-you/commit/15ee10b8ebdb000e6673ac716eebc47a798fda10))
+* 设计焕新 v2 落地 + 设置页说明文字四层归位与 AI agent 修复 + design 目录整理 ([1fd573b](https://github.com/Jo0OCTsai/pokemon-choose-you/commit/1fd573be52e665463d84dda71ac0db46b15484d7))
+* 标签体系维度化 + AI 自动打标与体检治理；下线 Todoist 与 AI text 模式 ([3348e4b](https://github.com/Jo0OCTsai/pokemon-choose-you/commit/3348e4bff591068822a4928d82506f427145dfe4))
+* 收音机收件箱式分诊改版 + 飞书归属/判重修复 + agent 固定工作目录 ([4a5bfd](https://github.com/Jo0OCTsai/pokemon-choose-you/commit/4a5bfdac0345cd02393404e010b52220628670b7))
+* 应用更名 POKéMON Choose You，中文系统显示「就决定是你了」 ([f6986d2](https://github.com/Jo0OCTsai/pokemon-choose-you/commit/f6986d236aa05d9297be8de5055e8680dc12ced5))
 * 「先试 5 分钟」启动模式——零挫败入场券，到期不接休息 ([d777294](https://github.com/Jo0OCTsai/pokemon-choose-you/commit/d77729433ed1a5ac0d1b9638c03aef06027b817c))
 * agent CLI 支持 SSH 远程执行——无头调用与历史入口经 ssh 转发 ([96d2be9](https://github.com/Jo0OCTsai/pokemon-choose-you/commit/96d2be91207930cd951465d3560aaf5b39922deb))
 * agent 会话回链与成本记录——分类调用自动落库，pk session 关联任务，弹窗可回放转录 ([21cc64c](https://github.com/Jo0OCTsai/pokemon-choose-you/commit/21cc64ce1ca0b05f283f59a7d6e393d70871e057))
@@ -45,6 +60,16 @@
 
 ### Bug Fixes
 
+* 逃走原因弹层选项点不中——背板挪到操作区之前，DOM 顺序与 z 双保险 ([69bc5a1](https://github.com/Jo0OCTsai/pokemon-choose-you/commit/69bc5a1eb2cffbeddc622a55f1069126badc1be3))
+* spawn 兜底 ETXTBSY 退避重试——根治 CI 偶发 Text file busy 竞态 ([1618294](https://github.com/Jo0OCTsai/pokemon-choose-you/commit/16182941791a2f24e9ee55c770c12105c0d0a007))
+* 输入响应 macOS 自写 CGEventTap 取代 rdev——授权后敲键段错误闪退 ([0bae75d](https://github.com/Jo0OCTsai/pokemon-choose-you/commit/0bae75d8f0061fea5792b1c36c61f8fc85870c5f))
+* 输入响应授权引导改直达设置面板——这版 macOS 已禁 AX 官方弹窗 ([5179120](https://github.com/Jo0OCTsai/pokemon-choose-you/commit/5179120d39fe23f0515220e0fa3a6480960f7e69))
+* 输入响应授权体验——系统弹窗引导勾选本应用、保存反馈不被权限提示吞掉、授权后免重启生效 ([fefd60e](https://github.com/Jo0OCTsai/pokemon-choose-you/commit/fefd60e9acf1e300e17d54816f24b7e0c05d4c34))
+* 收音机按频道模式组头点击无效——补上 collapsed class 使分组可收起 ([b85bca0](https://github.com/Jo0OCTsai/pokemon-choose-you/commit/b85bca04e32b087aee520cf471d78b4908ea780c))
+* 修复 GUI 精简 PATH 下 env node 找不到——lark-cli/agent 脚本目录补进子进程 PATH ([8c756fc](https://github.com/Jo0OCTsai/pokemon-choose-you/commit/8c756fcd4bb96ccf228e1f1a7df24417a50f0df7))
+* **deps:** update rust dependencies ([5fb2cce](https://github.com/Jo0OCTsai/pokemon-choose-you/commit/5fb2cceb4584a03e1b5a0288fdfccb8650c43c15))
+* **deps:** update npm dependencies ([3130809](https://github.com/Jo0OCTsai/pokemon-choose-you/commit/3130809c6cf88d31d422c4df245d93502692419a))
+* **deps:** update rust crate dirs to v7 ([8e0a2e5](https://github.com/Jo0OCTsai/pokemon-choose-you/commit/8e0a2e51c6d47b02edc2bb5a1fa83f219279c961))
 * bundle targets 显式列表去掉 MSI，Windows 只出 NSIS ([6f8d027](https://github.com/Jo0OCTsai/pokemon-choose-you/commit/6f8d027459d9c4d06b6b4d7628b95f3662bd2d7c))
 * bundle targets 补 app 目标，恢复 macOS 更新包产出 ([9a88583](https://github.com/Jo0OCTsai/pokemon-choose-you/commit/9a885837a4eb9baa525a022a50245bce05c561d3))
 * **ci:** 首版固定 0.1.0 并豁免 tauri.conf.json 格式检查 ([9db6fe2](https://github.com/Jo0OCTsai/pokemon-choose-you/commit/9db6fe27bea922c20091e116096eef64a2179d16))
