@@ -22,15 +22,16 @@ const DUMP_TABLES: &[&str] = &[
     "task_logs",
     "chat_messages",
     "feishu_users",
+    "feishu_chat_aliases",
     "sync_state",
     "settings",
     "chat_filter_prefs",
 ];
 
-/// 导入时可缺键的表（缺键按空数组容忍）：chat_filter_prefs 是后加表，
-/// 本特性合入前导出的旧备份文件没有它——按格式版本分派校验集复杂且要维护版本映射，
-/// 容忍缺键天然向后兼容
-const IMPORT_OPTIONAL_TABLES: &[&str] = &["chat_filter_prefs"];
+/// 导入时可缺键的表（缺键按空数组容忍）：chat_filter_prefs 与 feishu_chat_aliases
+/// 是后加表，本特性合入前导出的旧备份文件没有它们——按格式版本分派校验集复杂且要
+/// 维护版本映射，容忍缺键天然向后兼容
+const IMPORT_OPTIONAL_TABLES: &[&str] = &["chat_filter_prefs", "feishu_chat_aliases"];
 
 fn exports_dir(data_dir: &Path) -> PathBuf {
     data_dir.join("exports")
@@ -45,19 +46,59 @@ fn write_export(data_dir: &Path, name: String, content: &str) -> AppResult<PathB
     Ok(path)
 }
 
+/// 导出目标的安全校验（防被入侵的渲染层借 export 命令任意写文件）：
+/// - 扩展名须与导出类型一致（白名单）；
+/// - 父目录必须已存在（不再替任意路径 create_dir_all——建目录原语本身就是要拦的）；
+/// - 目标位置不能是已存在的目录。
+///
+/// 合法 UI 流（系统保存对话框）返回的路径天然满足后两条
+fn validate_dest(dest: &str, expect_ext: &str) -> AppResult<()> {
+    let path = Path::new(dest);
+    let name = path
+        .file_name()
+        .map(|n| n.to_string_lossy().into_owned())
+        .unwrap_or_default();
+    if name.is_empty() {
+        return Err(AppError::Invalid("导出路径缺少文件名".into()));
+    }
+    let ext_ok = path
+        .extension()
+        .map(|e| e.to_string_lossy().eq_ignore_ascii_case(expect_ext))
+        .unwrap_or(false);
+    if !ext_ok {
+        return Err(AppError::Invalid(format!(
+            "导出目标的扩展名须为 .{expect_ext}"
+        )));
+    }
+    let parent = path.parent();
+    let parent_ok = parent.is_some_and(|p| p.is_dir());
+    if !parent_ok {
+        return Err(AppError::Invalid(format!(
+            "导出目录不存在：{}（如需新目录请先在文件管理器中创建）",
+            parent.map(|p| p.display().to_string()).unwrap_or_default()
+        )));
+    }
+    if path.is_dir() {
+        return Err(AppError::Invalid(format!(
+            "导出目标是一个目录：{}",
+            path.display()
+        )));
+    }
+    Ok(())
+}
+
 /// 统一出口：dest=用户经保存对话框自选的完整路径（返回全路径），否则写默认 exports/ 目录（返回文件名）
 fn finish_export(
     data_dir: &Path,
     name: String,
     content: &str,
     dest: Option<&str>,
+    expect_ext: &str,
 ) -> AppResult<String> {
     match dest.filter(|s| !s.trim().is_empty()) {
         Some(dest) => {
+            validate_dest(dest, expect_ext)?;
             let path = Path::new(dest);
-            if let Some(parent) = path.parent() {
-                std::fs::create_dir_all(parent)?;
-            }
             std::fs::write(path, content)?;
             log::info!("export: 已写出 {}", path.display());
             Ok(path.to_string_lossy().into_owned())
@@ -121,13 +162,19 @@ fn restore_table(
     if rows.is_empty() {
         return Ok(());
     }
-    // 列集合以导入数据为准（表里多出的新列取默认值）
+    // 列集合以导入数据为准（表里多出的新列取默认值）。列名来自导入 JSON 的键——
+    // 不可信输入，只认 `[A-Za-z_][A-Za-z0-9_]*`，防恶意备份用含引号的键越出标识符引用
     let cols: Vec<&String> = rows
         .iter()
         .flat_map(|r| r.keys())
         .collect::<std::collections::BTreeSet<_>>()
         .into_iter()
         .collect();
+    if let Some(bad) = cols.iter().find(|c| !valid_identifier(c)) {
+        return Err(AppError::Invalid(format!(
+            "导入文件的「{table}」含非法列名「{bad}」"
+        )));
+    }
     let placeholders = cols.iter().map(|_| "?").collect::<Vec<_>>().join(",");
     let col_list = cols
         .iter()
@@ -144,6 +191,13 @@ fn restore_table(
         stmt.execute(rusqlite::params_from_iter(params))?;
     }
     Ok(())
+}
+
+/// SQLite 标识符白名单（导入列名防线）
+fn valid_identifier(s: &str) -> bool {
+    let mut chars = s.chars();
+    matches!(chars.next(), Some(c) if c.is_ascii_alphabetic() || c == '_')
+        && chars.all(|c| c.is_ascii_alphanumeric() || c == '_')
 }
 
 fn json_to_sql(v: &serde_json::Value) -> SqlValue {
@@ -209,6 +263,7 @@ pub fn export_json_to(data_dir: &Path, conn: &Connection, dest: Option<&str>) ->
         format!("{APP_SLUG}-full-{}.json", stamp_now()),
         &pretty,
         dest,
+        "json",
     )
 }
 
@@ -366,6 +421,7 @@ pub fn export_csv_to(data_dir: &Path, conn: &Connection, dest: Option<&str>) -> 
         format!("{APP_SLUG}-tasks-{}.csv", stamp_now()),
         &out,
         dest,
+        "csv",
     )
 }
 
@@ -492,7 +548,13 @@ pub fn export_daily_md_to(
             md.push_str(&format!("- No.{tid} {title}：{tag}{content}\n"));
         }
     }
-    finish_export(data_dir, format!("{APP_SLUG}-daily-{date}.md"), &md, dest)
+    finish_export(
+        data_dir,
+        format!("{APP_SLUG}-daily-{date}.md"),
+        &md,
+        dest,
+        "md",
+    )
 }
 
 // ---- Tauri 命令 ----
@@ -581,6 +643,59 @@ mod tests {
         let dir = std::env::temp_dir().join(format!("pk-export-{}-{name}", std::process::id()));
         std::fs::create_dir_all(&dir).unwrap();
         dir
+    }
+
+    /// 导出目标校验：扩展名白名单 + 父目录必须已存在（M4——渲染层不可信时
+    /// 不给「任意路径建目录写文件」原语），合法保存对话框路径不受影响
+    #[test]
+    fn dest_requires_existing_dir_and_expected_extension() {
+        let dir = tmp_dir("dest");
+        let data_dir = dir.join("data");
+        let good = dir.join("out.json");
+        let r = finish_export(
+            &data_dir,
+            "x.json".into(),
+            "{}",
+            Some(good.to_str().unwrap()),
+            "json",
+        )
+        .unwrap();
+        assert_eq!(r, good.to_string_lossy());
+        // 扩展名不符 → 拒绝
+        let bad_ext = dir.join("a.txt");
+        assert!(finish_export(
+            &data_dir,
+            "x".into(),
+            "{}",
+            Some(bad_ext.to_str().unwrap()),
+            "json"
+        )
+        .is_err());
+        // 父目录不存在 → 拒绝且不代建（不再 create_dir_all 任意路径）
+        let no_dir = dir.join("nope").join("b.json");
+        assert!(finish_export(
+            &data_dir,
+            "x".into(),
+            "{}",
+            Some(no_dir.to_str().unwrap()),
+            "json"
+        )
+        .is_err());
+        assert!(!dir.join("nope").exists(), "不得替任意路径建目录");
+    }
+
+    /// 导入列名白名单：恶意备份用含引号的键越出标识符引用（低危 SQL 面收敛）
+    #[test]
+    fn restore_rejects_malicious_column_names() {
+        let conn = test_conn();
+        let mut bad = serde_json::Map::new();
+        bad.insert("name\"), (\"1\"=1 --".into(), serde_json::json!("x"));
+        let err = restore_table(&conn, "tags", &[bad]);
+        assert!(err.is_err(), "含引号列名被拒");
+        let mut good = serde_json::Map::new();
+        good.insert("name".into(), serde_json::json!("正常标签"));
+        good.insert("created_at".into(), serde_json::json!("2026-09-24"));
+        assert!(restore_table(&conn, "tags", &[good]).is_ok());
     }
 
     fn read_export(dir: &Path, file: &str) -> String {
@@ -755,13 +870,16 @@ mod tests {
         assert!(!md2.contains("对方确认周五交付"));
     }
 
-    /// 另存为：dest 指定完整路径时写到该处并返回全路径，不落 exports/；空白 dest 视为未指定
+    /// 另存为：dest 指定完整路径时写到该处并返回全路径，不落 exports/；空白 dest 视为未指定。
+    /// 安全校验后父目录须已存在（不再替任意路径建目录，M4），嵌套目录先手工建好
     #[test]
     fn custom_dest_writes_exactly_there() {
         let dir = tmp_dir("dest");
         let conn = test_conn();
         seed(&conn);
-        let dest = dir.join("nested").join("backup.json");
+        let nested = dir.join("nested");
+        std::fs::create_dir_all(&nested).unwrap();
+        let dest = nested.join("backup.json");
         let returned = export_json_to(&dir, &conn, Some(dest.to_str().unwrap())).unwrap();
         assert_eq!(returned, dest.to_string_lossy(), "自选路径返回全路径");
         assert!(dest.exists(), "文件写在自选路径");

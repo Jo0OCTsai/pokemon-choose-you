@@ -162,6 +162,16 @@ CREATE TABLE IF NOT EXISTS feishu_users (
 CREATE UNIQUE INDEX IF NOT EXISTS idx_feishu_users_alias
     ON feishu_users(alias) WHERE alias != '';
 
+-- 群聊代号（anonymize 模块）：AI prompt 的来源标签用 群_xxxx 代号，真群名只存本地，
+-- pk 落库前经 anonymize::restore 还原展示；feishu_chats 是每轮整表替换的快照，存不得
+CREATE TABLE IF NOT EXISTS feishu_chat_aliases (
+    chat_id TEXT PRIMARY KEY,
+    chat_name TEXT NOT NULL DEFAULT '',
+    alias TEXT NOT NULL DEFAULT ''
+);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_feishu_chat_aliases_alias
+    ON feishu_chat_aliases(alias) WHERE alias != '';
+
 CREATE TABLE IF NOT EXISTS chat_feedback (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     chat_message_id INTEGER NOT NULL,

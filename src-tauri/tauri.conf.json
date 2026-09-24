@@ -36,7 +36,8 @@
       }
     ],
     "security": {
-      "csp": "default-src 'self'; img-src 'self' asset: http://asset.localhost data: https://cdn.jsdelivr.net https://fastly.jsdelivr.net https://raw.githubusercontent.com; style-src 'self' 'unsafe-inline'; font-src 'self'; connect-src 'self' ipc: http://ipc.localhost ws://localhost:1420"
+      "csp": "default-src 'self'; img-src 'self' data: https://cdn.jsdelivr.net https://fastly.jsdelivr.net https://raw.githubusercontent.com; style-src 'self' 'unsafe-inline'; font-src 'self'; connect-src 'self' ipc: http://ipc.localhost",
+      "devCsp": "default-src 'self'; img-src 'self' data: https://cdn.jsdelivr.net https://fastly.jsdelivr.net https://raw.githubusercontent.com; style-src 'self' 'unsafe-inline'; font-src 'self'; connect-src 'self' ipc: http://ipc.localhost ws://localhost:1420"
     }
   },
   "bundle": {

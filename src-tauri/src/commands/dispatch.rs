@@ -292,7 +292,8 @@ fn interactive_args(history_args: &str) -> Vec<String> {
     out
 }
 
-/// agent 命令行（本地/远端同一份）：命令 + 交互参数 + prompt 作为首条输入（整体引用）
+/// agent 命令行（本地/远端同一份）：命令 + 交互参数 + prompt 作为首条输入（整体引用）。
+/// 目标是 POSIX shell（本地 macOS/Linux 终端、远端 ssh 登录 shell）
 fn agent_line(command: &str, args: &[String], prompt: &str) -> String {
     let mut line = std::iter::once(command)
         .chain(args.iter().map(String::as_str))
@@ -301,6 +302,21 @@ fn agent_line(command: &str, args: &[String], prompt: &str) -> String {
         .join(" ");
     line.push(' ');
     line.push_str(&posix_quote(prompt));
+    line
+}
+
+/// agent 命令行的 Windows 本地终端版：目标 shell 是 cmd.exe（spawn_line_in_terminal 的
+/// cmd /K 路径），不认 POSIX 单引号——逐参经 windows_cmd_quote（不可信的 prompt 正文
+/// 在消灭 `"`/`%`/控制字符后整参双引号包裹，cmd 元字符在双引号内均为字面量，
+/// 不存在逃逸路径）。prompt 的轻微形变（全角替换）对 LLM 语义无损
+fn agent_line_windows(command: &str, args: &[String], prompt: &str) -> String {
+    let mut line = std::iter::once(command)
+        .chain(args.iter().map(String::as_str))
+        .map(crate::ai::windows_cmd_quote)
+        .collect::<Vec<_>>()
+        .join(" ");
+    line.push(' ');
+    line.push_str(&crate::ai::windows_cmd_quote(prompt));
     line
 }
 
@@ -336,8 +352,9 @@ fn push_ssh_target(remote: &AgentRemote, argv: &mut Vec<String>) {
         argv.push("-p".into());
         argv.push(remote.port.to_string());
     }
-    argv.push(remote.host.trim().to_string());
+    // -- 在 host 之前：以 - 开头的 host 不被当成 ssh 选项
     argv.push("--".into());
+    argv.push(remote.host.trim().to_string());
     argv.push("exec".into());
     argv.push("\"$SHELL\"".into());
     argv.push("-lc".into());
@@ -749,16 +766,29 @@ fn prepare_dispatch(db: &Db, task_id: i64, agent_id: Option<&str>) -> AppResult<
         .query_map(params![task_id], |r| r.get::<_, String>(0))?
         .collect::<Result<_, _>>()?;
     notes.reverse();
+    // 送 agent 的待办正文先过假名化（与收音机判定同一套规则）：标题/跟进/项目备注
+    // 常来自飞书消息原文，真名不随派发 prompt 出机（交互/无头两条通道共用本取数）
+    let rules = crate::anonymize::AnonRules::build(&conn);
+    let scrubbed_title = rules.scrub_titles(&task.title);
+    let scrubbed_note = task.note.as_deref().map(|n| rules.scrub_titles(n));
+    for n in notes.iter_mut() {
+        *n = rules.scrub_titles(n);
+    }
+    let context = route.context.as_deref().map(|c| rules.scrub_titles(c));
     Ok(DispatchPrep {
         prev_session: task
             .dispatched_session
             .clone()
             .filter(|s| !s.trim().is_empty()),
-        task,
+        task: Task {
+            title: scrubbed_title,
+            note: scrubbed_note,
+            ..task
+        },
         notes,
         agent,
         workdir: route.workdir,
-        context: route.context,
+        context,
     })
 }
 
@@ -835,7 +865,14 @@ pub async fn dispatch_task<R: tauri::Runtime>(
         prep.context.as_deref(),
     );
     let args = interactive_args(&prep.agent.history_args);
+    // 远端 ssh 的目标是 POSIX 登录 shell（posix 引用）；Windows 本地终端是 cmd /K，
+    // 单引号无效，须用 cmd 安全引用——prompt 含飞书消息原文，不能裸拼
     let line = agent_line(&prep.agent.command, &args, &prompt);
+    let local_line = if cfg!(windows) {
+        agent_line_windows(&prep.agent.command, &args, &prompt)
+    } else {
+        line.clone()
+    };
     let summary = summarize_line(&prep.agent.command, &args, &prompt);
 
     // worktree 覆盖（opt-in）：本地/远程都换成工作树目录
@@ -849,9 +886,14 @@ pub async fn dispatch_task<R: tauri::Runtime>(
     let launched: AppResult<(String, Option<String>, Option<String>)> = match remote {
         None => {
             // 本地：cd 进派发目录后启动 agent，prompt 作为首条输入
+            // （Windows 终端走 cmd 引用版命令行，见 local_line 注释）
             let full_line = match local_dispatch_dir(&prep.agent, &workdir) {
-                Some(d) => format!("cd {} && {}", cd_prefix_target(&d.to_string_lossy()), line),
-                None => line,
+                Some(d) => format!(
+                    "cd {} && {}",
+                    cd_prefix_target(&d.to_string_lossy()),
+                    local_line
+                ),
+                None => local_line,
             };
             let term = spawn_line_in_terminal(&full_line).await?;
             Ok((term.into(), None, None))
@@ -1720,6 +1762,25 @@ mod tests {
         let long_prompt: String = "字".repeat(100);
         let summary = summarize_line("claude", &[], &long_prompt);
         assert!(summary.contains('…') && !summary.contains(&long_prompt));
+    }
+
+    /// Windows 终端行的 cmd 安全性：`"`（关引用）/`%`（环境展开）被中和为全角，
+    /// 元字符整体锁在双引号内——IM 正文里的 cmd 注入载荷全部失效（M1 回归）
+    #[test]
+    fn agent_line_windows_neutralizes_cmd_metacharacters() {
+        let line = agent_line_windows(
+            "claude.cmd",
+            &["--model".into(), "opus".into()],
+            "任务：a\" & calc & del /f & b%s% ^| ^& <x> !var!",
+        );
+        assert!(line.starts_with("\"claude.cmd\""), "整参双引号: {line}");
+        // 会被 cmd 解析为元语法的字符不允许出现在引号外/破坏引号配对
+        assert!(!line.contains("\"&"), "闭引号接 & 的逃逸形态被消灭: {line}");
+        assert!(!line.contains('%'), "%展开被中和: {line}");
+        assert!(!line.contains('\n'), "换行被压平: {line}");
+        // 全角替换保留语义可读性，正文主体仍在
+        assert!(line.contains("任务：a＂"), "双引号→全角: {line}");
+        assert_eq!(line.matches('"').count() % 2, 0, "引号成对: {line}");
     }
 
     #[test]

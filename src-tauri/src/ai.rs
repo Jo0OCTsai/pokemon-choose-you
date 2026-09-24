@@ -158,8 +158,9 @@ fn build_invocation(agent: &AgentConfig, prompt: &str, envs: &[(String, String)]
                 argv.push("-R".to_string());
                 argv.push(format!("127.0.0.1:{tp}:127.0.0.1:22"));
             }
-            argv.push(r.host.trim().to_string());
+            // -- 在 host 之前：以 - 开头的 host 不被当成 ssh 选项；其后整行是远端命令
             argv.push("--".to_string());
+            argv.push(r.host.trim().to_string());
             // 远端经登录 shell 执行：ssh 非交互会话只加载 .zshenv/.bashrc 之外的初始化，
             // brew/nvm 的 PATH 常在 .zprofile/.bash_profile（登录时）里，包一层 $SHELL -lc 才找得到命令
             argv.push("exec".to_string());
@@ -266,6 +267,29 @@ pub(crate) fn posix_quote(s: &str) -> String {
     }
 }
 
+/// Windows cmd.exe 场景的中和映射：`"` 会关闭 cmd 的引用态、`%` 会被环境变量展开、
+/// 控制字符会打断命令行——这三类没有可靠的转义方案，替换为全角同形字（对送 LLM 的
+/// 提示词只是轻微形变，不损语义）。其余元字符（& | < > ^ ( ) !）在双引号内对 cmd
+/// 均为字面量，交给外层双引号包裹防护（见 windows_cmd_quote）。
+pub(crate) fn windows_neutralize(s: &str) -> String {
+    s.chars()
+        .map(|c| match c {
+            '"' => '＂',
+            '%' => '％',
+            '\n' | '\r' | '\t' => ' ',
+            _ => c,
+        })
+        .collect()
+}
+
+/// Windows cmd.exe 的参数引用（安全侧，用于「整行交 cmd 执行」的终端派发与 cmd /C
+/// 回退）：先经 windows_neutralize 消灭无法转义的字符，再无条件双引号包裹——
+/// 引号内 cmd 元字符均为字面量，不存在逃逸路径。注意与直接 spawn 的 argv 传递
+/// 互斥使用：CreateProcess 不重解析参数，直接 spawn 时动原文反而破坏数据。
+pub(crate) fn windows_cmd_quote(s: &str) -> String {
+    format!("\"{}\"", windows_neutralize(s))
+}
+
 /// 把会话 id 适配进历史参数（agent 级参数，本地远程共用）：
 /// - `--resume` / `resume`（claude 语法）：id 插到该参数后 —— `claude --resume <id>`
 /// - `--resume-picker`（kiro 语法）：换成按 id 恢复 —— `kiro-cli chat --resume-id <id>`
@@ -320,8 +344,9 @@ pub fn history_invocation(
                 argv.push("-p".to_string());
                 argv.push(r.port.to_string());
             }
-            argv.push(r.host.trim().to_string());
+            // -- 在 host 之前：以 - 开头的 host 不被当成 ssh 选项；其后整行是远端命令
             argv.push("--".to_string());
+            argv.push(r.host.trim().to_string());
             argv.push("exec".to_string());
             argv.push("\"$SHELL\"".to_string());
             argv.push("-lc".to_string());
@@ -550,7 +575,7 @@ fn render_messages(batch: &[AiMessage]) -> String {
 const TOOLS_SYSTEM_PROMPT: &str = r#"你是待办事项提取助手，通过 pk 命令行工具工作。给你一组 IM 消息（含来源、发送者、内容与同会话上下文），找出其中隐含的、需要用户本人行动的待办事项、承诺、或对方希望你完成/参加的事情，并把判定结果用 pk 工具写回数据库。
 规则：
 - 每条消息带「来源」标签：单聊是对方直接对你说的，语气常更直接；「与机器人的私聊」是用户发给助手 bot 的，是用户给自己记的备忘/指令，同样要提取。上下文里标注为「我」的是用户自己说的话，只用于理解指代与时间，不是待办来源。
-- 人名已代号化：消息内容、发送者与上下文里的真实姓名都已替换成稳定代号（如 成员_a1b2），同一代号始终是同一人；「我」/「@我」指用户本人。不要猜测或还原真实姓名，生成 title/note/reason 时沿用原文代号。
+- 人名与群名已代号化：消息内容、发送者、来源标签与上下文里的真实姓名、群聊名都已替换成稳定代号（人如 成员_a1b2、群如 群_c3d4），同一代号始终是同一人/同一会话；「我」/「@我」指用户本人。不要猜测或还原真实姓名，生成 title/note/reason 时沿用原文代号；确需以群聊语境命名新标签时直接使用群代号（保存前会自动还原成真实群名）。
 - 群聊归属按标注判断：带「提及：@我（显式）」的消息明确提及了用户，默认视为可能指派给用户——除非内容明确把任务交给别人（让某代号去做、说某事由某代号负责/跟进），否则按 todo/update/followUp 正常判定；带「提及：疑似@我（本地名字匹配，可能有误差）」的，结合内容与上下文判断是否在向用户布置任务/提出请求；两种标注都出现「群内存在同名成员」警示时需更谨慎，拿不准判 none 并降低置信度。无提及标注、且上下文判断不出指派给用户的群聊消息判 none（reason 注明是给哪个代号的）。宁漏勿滥：判 none 的消息用户在收音机里仍能看到、可手动捕捉，误报则会污染待办清单。
 - 同会话上下文仅供参考：帮你理解对话背景（前因后果、时间指代），最终判断只针对消息本身。
 - 只提取"需要用户行动"的内容（任务、承诺、会议、deadline、请求）。闲聊、通知、纯信息分享不算。
@@ -566,7 +591,7 @@ const TOOLS_SYSTEM_PROMPT: &str = r#"你是待办事项提取助手，通过 pk 
 - priority 从 low/normal/high/urgent 里选：对方明确催促或当天到期用 urgent/high，默认 normal。
 - due: 消息里有明确时间就用 YYYY-MM-DDTHH:MM 格式（对照 pk context 的 now 换算年份），否则留空。
 - tags: 按维度选 0~3 个最贴切的标签，格式 [{"name":"标签名","dimension":"维度key","isNew":false}]，没有合适的用 []。「项目」维度至多 1 个；优先复用 pk context 的 tags（含 dimension）里已有的。
-- 新标签：仅当某维度确实没有贴切选项、且消息里有明确依据（明确出现的项目名/人名/群名）时才提议新标签（isNew=true 并归入该维度，名字用原文里的称呼）；模糊语境一律复用现有标签或留空，禁止为凑数造词。pk context 的 dimensions 里 remaining<=0 的维度禁止新建。归属「项目」维度时优先参考消息来源（群聊名常含项目名）。
+- 新标签：仅当某维度确实没有贴切选项、且消息里有明确依据（明确出现的项目名/人名）时才提议新标签（isNew=true 并归入该维度，名字用原文里的称呼）；模糊语境一律复用现有标签或留空，禁止为凑数造词。pk context 的 dimensions 里 remaining<=0 的维度禁止新建。归属「项目」维度时优先参考消息来源：群聊代号是稳定的会话语境，同一代号下的消息多属同一项目，可直接用群代号命名（保存前自动还原为真实群名）。
 - pk context 的 tagFeedback 列出用户多次移除过的标签：没有新的明确依据不要再建议。
 - followUpTaskId 只在 action="followUp" 时填写，updateTaskId 只在 action="update" 时填写，取值都必须是 pk context 的 openTasks 里出现的 id。
 - reason: 一句话中文说明判定理由，归属类判定注明依据（如「显式@我且要求周五前交付」/「任务给成员_a1b2非用户」/「与待办 No.3 本质相同」/「纯信息分享无需行动」），不超过 30 字。
@@ -827,7 +852,8 @@ pub async fn run_agent_env(
 }
 
 /// 启动外部进程并等待结束，返回 stdout。进程未找到给出可操作的提示；
-/// Windows 上 npm 全局命令多为 .cmd 垫片，直接 spawn 会失败，回退 cmd /C 再试一次。
+/// Windows 上 npm 全局命令多为 .cmd 垫片，直接 spawn 会失败，回退 cmd /C 再试一次
+/// （回退路径逐参做 cmd 安全引用，防 argv 内不可信正文的 cmd 元字符逃逸）。
 /// pk_dir 非空时前插进子进程 PATH（见 run_agent）；cwd 非空时作为子进程工作目录；
 /// envs 逐对注入子进程环境（远程 ssh 模式不透传）。
 async fn run_process(
@@ -843,8 +869,12 @@ async fn run_process(
         Ok(out) => Ok(out),
         #[cfg(windows)]
         Err(AppError::Invalid(_)) => {
-            let mut cmd_argv = vec!["/C".to_string(), program.to_string()];
-            cmd_argv.extend(argv.iter().cloned());
+            // cmd /C 回退（npm 全局命令多为 .cmd 垫片，直接 spawn 失败）。argv 里可能
+            // 含 {prompt} 替换进来的 IM 正文（不可信输入），cmd.exe 不认 POSIX 引用且
+            // 有自己的元字符语义——逐参经 windows_cmd_quote 中和后整参双引号包裹，
+            // 杜绝引号逃逸与 %展开（见函数注释）
+            let mut cmd_argv = vec!["/C".to_string(), windows_cmd_quote(program)];
+            cmd_argv.extend(argv.iter().map(|a| windows_cmd_quote(a)));
             spawn_and_wait("cmd", &cmd_argv, stdin, cwd, pk_dir, envs, timeout).await
         }
         Err(e) => Err(e),
@@ -1017,6 +1047,19 @@ pub async fn test(agent: &AgentConfig) -> AppResult<String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// Windows cmd 引用：`"`（关引用）与 `%`（环境展开）无转义方案，必须中和为全角；
+    /// 其余元字符交由整参双引号包裹防护（M1 cmd /C 回退路径的回归用例）
+    #[test]
+    fn windows_cmd_quote_neutralizes_unescapable_chars() {
+        let q = windows_cmd_quote("a\" & calc & del /f & %PATH%^|<x>!v!");
+        assert!(q.starts_with('"') && q.ends_with('"'), "整参包裹: {q}");
+        assert!(!q.contains("\"&"), "闭引号逃逸形态消灭: {q}");
+        assert!(!q.contains('%'), "% 展开消灭: {q}");
+        assert!(q.contains('＂'), "双引号→全角保留可读: {q}");
+        // 换行/制表压平为空格（cmd 命令行不接受多行）
+        assert!(!windows_cmd_quote("a\nb\tc").contains('\n'));
+    }
 
     /// 构造持有数据的设置读取闭包（避免借用临时数组）
     fn getter(pairs: &[(&str, &str)]) -> impl Fn(&str) -> Option<String> {
@@ -1308,8 +1351,8 @@ mod tests {
                 "~/.ssh/id_ed25519",
                 "-p",
                 "2222",
-                "dev@buildbox",
                 "--",
+                "dev@buildbox",
                 "exec",
                 "\"$SHELL\"",
                 "-lc",
@@ -1339,8 +1382,8 @@ mod tests {
                 "BatchMode=yes",
                 "-o",
                 "ConnectTimeout=10",
-                "box",
                 "--",
+                "box",
                 "exec",
                 "\"$SHELL\"",
                 "-lc",
@@ -1732,7 +1775,8 @@ mod tests {
     fn tools_prompt_carries_group_ownership_and_batch_dedup_rules() {
         let p = TOOLS_SYSTEM_PROMPT;
         assert!(p.contains("群聊归属按标注判断"), "缺群聊归属规则");
-        assert!(p.contains("人名已代号化"), "缺假名化总则");
+        assert!(p.contains("人名与群名已代号化"), "缺假名化总则");
+        assert!(p.contains("群_c3d4"), "缺群代号说明");
         assert!(
             p.contains("提及：@我（显式）") && p.contains("疑似@我"),
             "缺归属标注的两级判定规则"

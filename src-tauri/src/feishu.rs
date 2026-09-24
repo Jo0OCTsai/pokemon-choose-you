@@ -808,9 +808,9 @@ async fn pull_new_messages(
                     }
                 };
                 log::debug!(
-                    "feishu: 新消息「{chat_type}·{}」{sender_name}: {}",
-                    chat.name,
-                    rendered.display
+                    "feishu: 新消息「{chat_type}·{}」{}（内容见匿名字段，真名不进日志）",
+                    rules.scrub(&chat.name),
+                    rules.scrub(&sender_name),
                 );
                 out.push(NewMessage {
                     message_id,
@@ -839,7 +839,10 @@ async fn pull_new_messages(
             }
             page_token = page.page_token;
         }
-        log::debug!("feishu: 会话「{}」本轮共 {chat_count} 条消息", chat.name);
+        log::debug!(
+            "feishu: 会话「{}」本轮共 {chat_count} 条消息",
+            rules.scrub(&chat.name)
+        );
     }
     Ok((out, now_ms))
 }
@@ -1001,7 +1004,13 @@ async fn poll_once_inner<R: tauri::Runtime>(app: &tauri::AppHandle<R>) -> AppRes
                         } else {
                             rules.alias_of(&conn, &m.sender_id)
                         },
-                        chat_label: crate::commands::radio::chat_label(&m.chat_type, &m.chat_name),
+                        chat_label: crate::commands::radio::chat_label_anon(
+                            &conn,
+                            &mut rules,
+                            &m.chat_id,
+                            &m.chat_type,
+                            &m.chat_name,
+                        ),
                         content: m.content_anon.clone(),
                         context: crate::commands::radio::format_context_lines(
                             &conn, &mut rules, context,

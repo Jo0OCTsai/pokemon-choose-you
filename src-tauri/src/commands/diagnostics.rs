@@ -227,8 +227,123 @@ const SENSITIVE_KEYS: &[&str] = &[
     "access_key",
 ];
 
-/// 单行脱敏：扫描敏感键名（ASCII 大小写不敏感），把其后的取值遮为 ***。
-/// 支持形如 `app_secret=xxx`、`"refresh_token":"yyy"`、`Authorization: Bearer zzz` 的写法。
+/// 单行脱敏第二层（值形态）：不带键名也能识别的敏感形态——
+/// 邮箱（local@domain → ***@***）与常见凭证前缀（sk- / ghp_ / github_pat_ /
+/// AKIA / xox* 后接 8 位以上串）。日志里 agent 回复片段、报错回显常夹带这类内容
+pub fn redact_values(line: &str) -> String {
+    const TOKEN_PREFIXES: &[&str] = &[
+        "sk-",
+        "ghp_",
+        "gho_",
+        "ghu_",
+        "ghs_",
+        "github_pat_",
+        "AKIA",
+        "xoxb-",
+        "xoxa-",
+        "xoxp-",
+        "xoxr-",
+        "xapps-",
+    ];
+    let chars: Vec<char> = line.chars().collect();
+    let mut out = String::with_capacity(line.len());
+    let mut i = 0usize;
+    while i < chars.len() {
+        let rest: String = chars[i..].iter().collect();
+        // 凭证前缀 + 长串（跨前缀取字母数字/_/-，至少 8 位才算凭证，避免误伤短词）
+        if let Some(p) = TOKEN_PREFIXES.iter().find(|p| rest.starts_with(**p)) {
+            let plen = chars[i..]
+                .iter()
+                .take_while(|c| c.is_ascii_alphanumeric() || **c == '_' || **c == '-')
+                .count();
+            if plen >= p.len() + 8 {
+                out.push_str("***");
+                i += plen;
+                continue;
+            }
+        }
+        // 邮箱：向前扫 local 部分字符遇到 @，向后扫域名
+        if chars[i] == '@' {
+            let mut s = i;
+            while s > 0 && (chars[s - 1].is_ascii_alphanumeric() || "._%+-".contains(chars[s - 1]))
+            {
+                s -= 1;
+            }
+            let mut e = i + 1;
+            while e < chars.len() && (chars[e].is_ascii_alphanumeric() || ".-".contains(chars[e])) {
+                e += 1;
+            }
+            let has_local = i - s >= 1;
+            let has_domain = e > i + 1 && chars[i + 1..e].contains(&'.');
+            if has_local && has_domain {
+                // 回退已输出的 local 部分，整体遮蔽
+                let local_len = i - s;
+                for _ in 0..local_len {
+                    out.pop();
+                }
+                out.push_str("***@***");
+                i = e;
+                continue;
+            }
+        }
+        out.push(chars[i]);
+        i += 1;
+    }
+    out
+}
+
+/// 单行脱敏第三层（词表）：通讯录真名、我的称呼、群聊名 → ***。
+/// 这些是内容类字段（日志的消息摘要/健康错误回显里出现），键名与值形态都拦不住
+fn redact_names(names: &[String], line: &str) -> String {
+    let mut out = line.to_string();
+    for n in names {
+        if !n.is_empty() && out.contains(n.as_str()) {
+            out = out.replace(n.as_str(), "***");
+        }
+    }
+    out
+}
+
+/// 汇集本库里的敏感名词表：成员真名（feishu_users）、我的称呼（settings）、
+/// 群名（feishu_chats 快照 + feishu_chat_aliases），长名优先替换
+fn collect_sensitive_names(conn: &rusqlite::Connection) -> Vec<String> {
+    let mut names: Vec<String> = vec![];
+    let _ = conn
+        .prepare("SELECT name FROM feishu_users WHERE length(name) >= 2")
+        .map(|mut s| {
+            let _ = s
+                .query_map([], |r| r.get::<_, String>(0))
+                .map(|rows| names.extend(rows.flatten()));
+        });
+    let _ = conn
+        .prepare("SELECT chat_name FROM feishu_chats WHERE length(chat_name) >= 2")
+        .map(|mut s| {
+            let _ = s
+                .query_map([], |r| r.get::<_, String>(0))
+                .map(|rows| names.extend(rows.flatten()));
+        });
+    let _ = conn
+        .prepare("SELECT chat_name FROM feishu_chat_aliases WHERE length(chat_name) >= 2")
+        .map(|mut s| {
+            let _ = s
+                .query_map([], |r| r.get::<_, String>(0))
+                .map(|rows| names.extend(rows.flatten()));
+        });
+    for k in ["feishu_my_name", "feishu_my_names"] {
+        let _ = conn
+            .query_row(
+                "SELECT value FROM settings WHERE key=?1",
+                rusqlite::params![k],
+                |r| r.get::<_, String>(0),
+            )
+            .map(|v| names.extend(crate::anonymize::parse_name_list(&v)))
+            .map_err(|_| () as ());
+    }
+    names.sort_by_key(|n| std::cmp::Reverse(n.chars().count()));
+    names.dedup();
+    names
+}
+
 pub fn redact_line(line: &str) -> String {
     let bytes = line.as_bytes();
     let mut out = String::with_capacity(line.len());
@@ -313,10 +428,15 @@ pub fn build_support_report<R: tauri::Runtime>(
     ));
 
     report.push_str("—— 集成健康 ——\n");
-    let infos = {
+    let (infos, sensitive_names) = {
         let conn = db.0.lock().unwrap();
-        collect_health(&app, &conn, &crate::lark_cli::lark_bin())?
+        (
+            collect_health(&app, &conn, &crate::lark_cli::lark_bin())?,
+            collect_sensitive_names(&conn),
+        )
     };
+    // 三层脱敏：键名 → 值形态（邮箱/凭证）→ 本库名词表（人名/群名）
+    let scrub = |s: &str| redact_names(&sensitive_names, &redact_values(&redact_line(s)));
     for h in &infos {
         report.push_str(&format!(
             "[{}] 状态 {} · 上次成功 {} · 连续失败 {}",
@@ -333,11 +453,11 @@ pub fn build_support_report<R: tauri::Runtime>(
         }
         report.push('\n');
         if let Some(err) = &h.last_error {
-            report.push_str(&format!("  最近错误：{}\n", redact_line(err)));
+            report.push_str(&format!("  最近错误：{}\n", scrub(err)));
         }
     }
 
-    report.push_str("\n—— 最近日志（已脱敏） ——\n");
+    report.push_str("\n—— 最近日志（已脱敏：敏感键值 / 邮箱凭证 / 人名群名） ——\n");
     let entries = list_log_entries(
         app.clone(),
         Some(200),
@@ -352,7 +472,7 @@ pub fn build_support_report<R: tauri::Runtime>(
             redact_line(&e.time),
             e.level,
             redact_line(&e.target),
-            redact_line(&e.message)
+            scrub(&e.message)
         ));
     }
     Ok(report)
@@ -420,6 +540,55 @@ mod tests {
             redact_line("AI 判定 3/5 条：新待办 2"),
             "AI 判定 3/5 条：新待办 2"
         );
+    }
+
+    /// 值形态脱敏：邮箱与常见凭证前缀，不带键名也遮（agent 回显片段的兜底）
+    #[test]
+    fn redact_values_masks_emails_and_token_shapes() {
+        assert_eq!(
+            redact_values("联系 joe.cai+tag@example.com 收尾"),
+            "联系 ***@*** 收尾"
+        );
+        assert_eq!(
+            redact_values("key: sk-proj-AbCd1234EfGh5678 done"),
+            "key: *** done"
+        );
+        assert_eq!(
+            redact_values("ghp_0123456789abcdefghijklm 失效"),
+            "*** 失效"
+        );
+        assert_eq!(
+            redact_values("AWS AKIAIOSFODNN7EXAMPLE 权限不足"),
+            "AWS *** 权限不足"
+        );
+        // 前缀后的短串不算凭证（sk-ips 之类普通词不误伤）
+        assert_eq!(redact_values("sk-ip 是普通词"), "sk-ip 是普通词");
+        // 无形态可匹配时原样保留
+        assert_eq!(redact_values("AI 判定 3/5 条"), "AI 判定 3/5 条");
+    }
+
+    /// 词表脱敏：库里的真名/群名在报告文本中出现即遮蔽，长名优先
+    #[test]
+    fn redact_names_uses_db_dictionary() {
+        let conn = crate::db::tests::test_conn();
+        conn.execute(
+            "INSERT INTO feishu_users (open_id, name, updated_at) VALUES ('ou_a', '张三丰', 'x')",
+            rusqlite::params![],
+        )
+        .unwrap();
+        conn.execute(
+            "INSERT INTO feishu_chat_aliases (chat_id, chat_name, alias)
+             VALUES ('oc_g', '项目攻坚群', '群_00aa')",
+            rusqlite::params![],
+        )
+        .unwrap();
+        let names = collect_sensitive_names(&conn);
+        let out = redact_names(&names, "张三丰在 项目攻坚群 提到 joe@example.com");
+        assert!(
+            !out.contains("张三丰") && !out.contains("项目攻坚群"),
+            "{out}"
+        );
+        assert!(out.contains("在 *** 提到"), "{out}");
     }
 
     /// 测试里插入一个启用的 agent 配置，让 AI 链路算「已配置」

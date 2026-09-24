@@ -111,6 +111,8 @@ fn tunnel_argv(k: &TunnelKey) -> Vec<String> {
         argv.push("-p".to_string());
         argv.push(k.ssh_port.to_string());
     }
+    // -- 在 host 之前：以 - 开头的 host 名不被当成 ssh 选项
+    argv.push("--".to_string());
     argv.push(k.host.clone());
     argv
 }
@@ -361,9 +363,11 @@ mod tests {
         assert!(argv
             .windows(2)
             .any(|w| w == ["-o", "ExitOnForwardFailure=yes"]));
-        // 密钥与非默认端口进 argv，主机收尾，-N 不执行远端命令
+        // 密钥与非默认端口进 argv，-- 之后是主机，-N 不执行远端命令
         assert!(argv.windows(2).any(|w| w == ["-i", "~/.ssh/id_ed25519"]));
         assert!(argv.windows(2).any(|w| w == ["-p", "2222"]));
+        let host_pos = argv.iter().position(|x| x == "dev@box").unwrap();
+        assert_eq!(argv[host_pos - 1], "--", "host 之前有 -- 保护");
         assert_eq!(argv.last().unwrap(), "dev@box");
         assert!(argv.contains(&"-N".to_string()));
         // 默认端口 22 不带 -p
