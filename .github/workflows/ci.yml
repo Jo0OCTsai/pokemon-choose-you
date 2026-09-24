@@ -66,6 +66,4 @@ jobs:
         with:
           tool: cargo-audit
       - name: cargo audit（RustSEC 已知漏洞）
-        # RUSTSEC-2024-0370（proc-macro-error unmaintained）：仅维护状态公告、无已知
-        # 漏洞，系传递依赖引入，上游生态普遍未替换——显式忽略，出真漏洞时仍会 fail
-        run: cargo audit --file src-tauri/Cargo.lock --ignore RUSTSEC-2024-0370
+        run: cargo audit --file src-tauri/Cargo.lock
