@@ -1,6 +1,6 @@
 # 远程 pk 通道方案（常驻通信与可靠性）
 
-> 状态：**A/B 已落地**（2026-09：shim 连接复用、常驻隧道管理器与设置页开关/状态、PK_* 环境透传；实施时对 §5.4 有一处偏离——无头调用保留按需 `-R` 作断线兜底而非「常驻健康时跳过」，理由见 §5.6）。§8 authorized_keys 加固未做；T（Tailscale）经决策不做；C（内嵌服务 + MCP）待定。本文基于 2026-09 对代码现状的评估（`ai.rs` / `commands/remote_pk.rs` / `commands/dispatch.rs` / `bin/pk.rs`）与社区实践调研。落地新条目时按 §10 排序实施，并回写本引言状态。
+> 状态：**A/B 已落地**（2026-09：shim 连接复用、常驻隧道管理器与设置页开关/状态、PK_* 环境透传；实施时对 §5.4 有一处偏离——无头调用保留按需 `-R` 作断线兜底而非「常驻健康时跳过」，理由见 §5.6）。§8 authorized_keys 加固已落地（2026-09-24：restrict,command= 受限条目 + pk __ssh_entry 语法级校验，旧裸公钥条目重跑一键配置自动升级）；T（Tailscale）经决策不做；C（内嵌服务 + MCP）待定。本文基于 2026-09 对代码现状的评估（`ai.rs` / `commands/remote_pk.rs` / `commands/dispatch.rs` / `bin/pk.rs`）与社区实践调研。落地新条目时按 §10 排序实施，并回写本引言状态。
 
 ## 1. 背景与问题
 
@@ -344,7 +344,7 @@ restrict,command="/Applications/就决定是你了.app/Contents/MacOS/pk $SSH_OR
 
 ## 10. 落地排序（建议）
 
-1. ~~**第一批（S 级）**：方案 A（shim 复用）~~ ✅ 已落地（§5.6）；§8 authorized_keys 加固**未做**，仍可独立补
+1. ~~**第一批（S 级）**：方案 A（shim 复用）~~ ✅ 已落地（§5.6）；§8 authorized_keys 加固 ✅ 已落地（restrict,command= 进 remote_pk 装配步骤；forced command 指向 pk 的 __ssh_entry，严格校验「[env] PK_* 白名单 + 本 pk 路径 + 参数」形态后以 argv 直启自身）
 2. ~~**第二批（M 级，主菜）**：方案 B 常驻隧道 + 环境变量透传修复（④）~~ ✅ 已落地（§5.6）
 3. **第三批（S 级）**：~~Tailscale 文档与 doctor 识别~~ ❌ 经用户决策不做（本地优先，不引导第三方依赖；`pk remote shim --host` 的 Tailscale 主机名用法保留在既有帮助文本里，不算功能）
 4. **远期（L 级）**：方案 C 内嵌服务 + MCP server 化——**待定**；待 agent 生态远程 MCP 消费侧更成熟、且 B 落地后仍有明确需求时再评估

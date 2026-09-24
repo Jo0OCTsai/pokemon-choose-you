@@ -10,17 +10,20 @@ on:
   workflow_dispatch:
 
 permissions:
-  # prepare 删旧草稿、tauri-action 创建 draft release 并上传产物
-  contents: write
+  # 默认只读；需要写 Release 的 job（prepare 删旧草稿、build 经 tauri-action 建草稿
+  # 并上传产物）单独提权——缩小持有发布产物写权限的面
+  contents: read
 
 jobs:
   prepare:
+    permissions:
+      contents: write
     runs-on: ubuntu-latest
     outputs:
       version: ${{ steps.v.outputs.version }}
       skip: ${{ steps.check.outputs.skip }}
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
       - id: v
         run: echo "version=$(node -p "require('./src-tauri/tauri.conf.json').version")" >> "$GITHUB_OUTPUT"
       - id: check
@@ -41,6 +44,8 @@ jobs:
   build:
     needs: prepare
     if: needs.prepare.outputs.skip != 'true'
+    permissions:
+      contents: write
     strategy:
       fail-fast: false
       matrix:
@@ -54,8 +59,8 @@ jobs:
             args: "--config src-tauri/tauri.linux.conf.json"
     runs-on: ${{ matrix.platform }}
     steps:
-      - uses: actions/checkout@v7
-      - uses: actions/setup-node@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
         with:
           node-version: 24.21.0
           cache: npm
@@ -64,14 +69,14 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y libwebkit2gtk-4.1-dev build-essential curl wget file libxdo-dev libssl-dev libayatana-appindicator3-dev librsvg2-dev
-      - uses: dtolnay/rust-toolchain@stable
+      - uses: dtolnay/rust-toolchain@6bed0761d98439e5a578e2877258200ad565ba87 # stable
         with:
           targets: ${{ matrix.platform == 'macos-latest' && 'aarch64-apple-darwin,x86_64-apple-darwin' || '' }}
-      - uses: swatinem/rust-cache@v2
+      - uses: swatinem/rust-cache@49a0bdc70d2e1b713ca9e2869b211fcce03d3c1c # v2
         with:
           workspaces: src-tauri
       - run: npm install
-      - uses: tauri-apps/tauri-action@v1
+      - uses: tauri-apps/tauri-action@944946e3e4cac6603d1fe8f514171e9ecd3c78aa # v1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           # 自动更新签名（bundle.createUpdaterArtifacts 开启后 tauri-action 会自动产出并上传 latest.json）

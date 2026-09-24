@@ -79,7 +79,8 @@ fn ssh_run(
     for e in extra {
         cmd.arg(e);
     }
-    cmd.arg(ctx.host.trim()).arg("--").arg(remote_line);
+    // -- 在 host 之前：以 - 开头的 host 不被当成 ssh 选项
+    cmd.arg("--").arg(ctx.host.trim()).arg(remote_line);
     let child = cmd
         .stdin(if stdin.is_some() {
             std::process::Stdio::piped()
@@ -155,9 +156,9 @@ pub(crate) fn shim_script(pk_path: &str, tunnel_port: u16, local_user: &str) -> 
          {env_fwd}\
          exec ssh -o BatchMode=yes -o ConnectTimeout=10 \\\n\
          -o ControlMaster=auto -o ControlPath=\"$HOME/.ssh/pk-shim-%C\" -o ControlPersist=10m \\\n\
-         -i \"$HOME/.ssh/pk_shim\" -p {port} {user}@127.0.0.1 {tail}\n",
+         -i \"$HOME/.ssh/pk_shim\" -p {port} {user} {tail}\n",
         port = tunnel_port,
-        user = local_user,
+        user = posix_quote(&format!("{local_user}@127.0.0.1")),
     )
 }
 
@@ -171,6 +172,21 @@ fn posix_quote(s: &str) -> String {
     } else {
         format!("'{}'", s.replace('\'', r"'\''"))
     }
+}
+
+/// authorized_keys 受限条目：restrict（禁 pty / 端口转发 / X11 / agent 转发）+
+/// forced command 指向 pk 的 __ssh_entry 校验入口（见 bin/pk.rs）。远程持钥者
+/// 只能回连执行 pk，拿不到 shell。选项值里的 `\` 与 `"` 按 sshd 规则转义
+/// （`\\` → `\`、`\"` → `"`；Windows 路径的反斜杠须整体加倍后由 sshd 还原）
+pub(crate) fn authorized_entry(pk_path: &str, pub_line: &str) -> String {
+    let forced = if cfg!(windows) {
+        // Windows 本机 sshd 默认 shell 是 cmd：路径用双引号包裹
+        format!("\"{pk_path}\" __ssh_entry")
+    } else {
+        format!("{} __ssh_entry", posix_quote(pk_path))
+    };
+    let escaped = forced.replace('\\', "\\\\").replace('"', "\\\"");
+    format!("restrict,command=\"{escaped}\" {pub_line}")
 }
 
 /// ssh-keyscan 输出 → known_hosts 条目：主机名改写为 [127.0.0.1]:隧道端口
@@ -350,15 +366,55 @@ pub(crate) fn run_setup(ctx: &RemotePkSetup) -> SetupReport {
         }
     };
 
-    // 4. 公钥装配本机 authorized_keys（幂等：已含则跳过）
+    // 4. 公钥装配本机 authorized_keys（幂等；旧版裸公钥行原位升级为受限条目）。
+    //    restrict,command= 把该密钥锁死为只能执行本机 pk（提案 §8 安全加固）：
+    //    远程私钥（~/.ssh/pk_shim）失陷时拿不到 shell——forced command 进 pk 的
+    //    __ssh_entry 入口做语法级校验（只认「[env] PK_* <本 pk> 参数…」形态）
     let ssh_dir = ctx.local_home.join(".ssh");
     let ak = ssh_dir.join("authorized_keys");
+    let entry = authorized_entry(&ctx.pk_path, &pub_line);
     let existing = std::fs::read_to_string(&ak).unwrap_or_default();
-    if existing.lines().any(|l| l.trim() == pub_line) {
+    if existing.lines().any(|l| l.trim() == entry) {
         steps.push(SetupStep {
             name: "本机公钥装配".into(),
             status: "skip".into(),
-            detail: "authorized_keys 已含该公钥".into(),
+            detail: "authorized_keys 已含该公钥（restrict,command= 受限条目）".into(),
+        });
+    } else if existing.lines().any(|l| l.trim() == pub_line) {
+        // 旧版本写入的裸公钥行：原位替换为我们自己的受限条目（其余行不动）
+        let upgraded = existing
+            .lines()
+            .map(|l| {
+                if l.trim() == pub_line {
+                    entry.as_str()
+                } else {
+                    l
+                }
+            })
+            .collect::<Vec<_>>()
+            .join("\n");
+        if std::fs::write(&ak, format!("{upgraded}\n")).is_err() {
+            fail(
+                &mut steps,
+                "本机公钥装配",
+                format!("升级 {} 中的旧条目失败", ak.display()),
+            );
+            return report_of(steps, None);
+        }
+        steps.push(SetupStep {
+            name: "本机公钥装配".into(),
+            status: "ok".into(),
+            detail: format!(
+                "旧裸公钥已升级为受限条目（restrict,command=，仅可执行本机 pk）：{}",
+                ak.display()
+            ),
+        });
+    } else if existing.lines().any(|l| l.contains(&pub_line)) {
+        // 用户手工加过带自定义限制的同款公钥：尊重现状不动
+        steps.push(SetupStep {
+            name: "本机公钥装配".into(),
+            status: "skip".into(),
+            detail: "authorized_keys 已含该公钥（自定义限制条目，保持不动）".into(),
         });
     } else {
         let _ = std::fs::create_dir_all(&ssh_dir);
@@ -377,7 +433,7 @@ pub(crate) fn run_setup(ctx: &RemotePkSetup) -> SetupReport {
                 return report_of(steps, None);
             }
         };
-        if writeln!(file, "{pub_line}").is_err() {
+        if writeln!(file, "{entry}").is_err() {
             fail(
                 &mut steps,
                 "本机公钥装配",
@@ -707,6 +763,29 @@ mod tests {
     }
 
     #[test]
+    fn authorized_entry_is_restricted_forced_command() {
+        let pub_line = "ssh-ed25519 AAAAC3TEST pokemon-knock remote pk shim";
+        let entry = authorized_entry("/opt/pk", pub_line);
+        assert!(
+            entry.starts_with("restrict,command=\""),
+            "restrict + forced command 前缀: {entry}"
+        );
+        assert!(entry.contains("__ssh_entry"), "指向 pk 校验入口: {entry}");
+        assert!(entry.ends_with(pub_line), "公钥收尾: {entry}");
+        // 含空格路径按平台引用（unix 单引号 / windows 转义双引号），且不破坏选项值的引号配对
+        let spaced = authorized_entry("/opt/pokemon knock/pk", pub_line);
+        if cfg!(windows) {
+            assert!(spaced.contains("\\\"/opt/pokemon knock/pk\\\""), "{spaced}");
+        } else {
+            assert!(
+                spaced.contains("'/opt/pokemon knock/pk' __ssh_entry"),
+                "{spaced}"
+            );
+        }
+        assert_eq!(spaced.matches('"').count() % 2, 0, "引号成对: {spaced}");
+    }
+
+    #[test]
     fn known_hosts_lines_rewrite_host_to_tunnel_endpoint() {
         let scan = "# localhost:22 SSH-2.0-OpenSSH_9\nlocalhost ssh-ed25519 AAAAC3NzaTEST key-comment\nlocalhost ssh-rsa AAAAB3TEST2\n";
         let out = to_known_hosts_lines(scan, 10022);
@@ -808,7 +887,7 @@ mod tests {
                 locate.detail
             );
         }
-        // 公钥已装配本机 authorized_keys，内容与生成的公钥一致
+        // 公钥已装配本机 authorized_keys，内容与生成的公钥一致——且是受限条目
         let ak = home.join(".ssh/authorized_keys");
         let ak_text = std::fs::read_to_string(&ak).unwrap();
         let pub_text =
@@ -816,6 +895,25 @@ mod tests {
         assert!(
             ak_text.contains(pub_text.trim()),
             "公钥进 authorized_keys: {ak_text}"
+        );
+        assert!(
+            ak_text.contains("restrict,command=") && ak_text.contains("__ssh_entry"),
+            "受限条目（§8 加固）: {ak_text}"
+        );
+        // 旧版本裸公钥行：重跑后原位升级为受限条目（其余行不动、不重复追加）
+        let bare = format!("# 用户自己的其他条目\n{}\n", pub_text.trim());
+        std::fs::write(&ak, &bare).unwrap();
+        let report3 = run_setup(&ctx);
+        assert!(report3.ok, "升级跑报告: {report3:?}");
+        let ak_text3 = std::fs::read_to_string(&ak).unwrap();
+        assert!(
+            ak_text3.contains("# 用户自己的其他条目"),
+            "无关行保留: {ak_text3}"
+        );
+        assert!(
+            ak_text3.contains("restrict,command=")
+                && !ak_text3.lines().any(|l| l.trim() == pub_text.trim()),
+            "裸公钥被替换为受限条目: {ak_text3}"
         );
         // 幂等：重跑全部 skip/ok 且 authorized_keys 不重复追加
         let report2 = run_setup(&ctx);

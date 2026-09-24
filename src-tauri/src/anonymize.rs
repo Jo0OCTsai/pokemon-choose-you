@@ -1,11 +1,11 @@
-//! 假名化（pseudonymization）：送大模型前把真实姓名替换成稳定代号，判定落库前反向还原。
-//! 隐私边界：真名只存在于本地库（chat_messages / feishu_users / settings），
-//! prompt 与 pk context 输出里只有代号与第一人称「我」。
+//! 假名化（pseudonymization）：送大模型前把真实姓名与群聊名替换成稳定代号，
+//! 判定落库前反向还原。隐私边界：真名只存在于本地库（chat_messages / feishu_users /
+//! feishu_chat_aliases / settings），prompt 与 pk context 输出里只有代号与第一人称「我」。
 //!
 //! 代号锚定 open_id（`feishu_users.alias`，部分唯一索引）：由 open_id 哈希确定性生成，
 //! 分配一次永不重算——跨批次、跨消息、跨 pk context 同一代号，模型才能维持
 //! 「同代号 = 同一人」的指代（判重、跟进、人物标签都依赖）；哈希截短偶发碰撞由
-//! 唯一索引拒绝，向后探测补位。
+//! 唯一索引拒绝，向后探测补位。群聊名同构（`feishu_chat_aliases`，群_xxxx）。
 
 use rusqlite::{params, Connection};
 use std::collections::HashMap;
@@ -69,10 +69,69 @@ fn existing_alias(conn: &Connection, open_id: &str) -> Option<String> {
 /// open_id → 「成员_xxxx」：DefaultHasher 在同一构建内确定（std 不承诺跨版本稳定，
 /// 但已分配代号以库为准，哈希漂移只影响未分配的新 open_id，无一致性风险）
 fn alias_hash(open_id: &str) -> String {
+    chat_style_hash("成员", open_id)
+}
+
+/// 哈希截短 → 「前缀_xxxx」形态代号（成员/群共用）
+fn chat_style_hash(prefix: &str, key: &str) -> String {
     use std::hash::{Hash, Hasher};
     let mut h = std::collections::hash_map::DefaultHasher::new();
-    open_id.hash(&mut h);
-    format!("成员_{:04x}", h.finish() & 0xffff)
+    key.hash(&mut h);
+    format!("{prefix}_{:04x}", h.finish() & 0xffff)
+}
+
+/// 懒分配并返回群聊代号（群_xxxx，锚定 chat_id）：已分配则复用并同步最新群名
+/// （restore 还原展示用），未分配则按哈希生成、唯一索引冲突向后探测。
+/// 行不存在时先补行再分配（与 ensure_alias 同构）
+pub fn ensure_chat_alias(conn: &Connection, chat_id: &str, chat_name: &str) -> Option<String> {
+    if chat_id.is_empty() {
+        return None;
+    }
+    if let Some(alias) = existing_chat_alias(conn, chat_id) {
+        if !chat_name.is_empty() {
+            let _ = conn.execute(
+                "UPDATE feishu_chat_aliases SET chat_name=?2 WHERE chat_id=?1 AND chat_name<>'' AND chat_name<>?2",
+                params![chat_id, chat_name],
+            );
+        }
+        return Some(alias);
+    }
+    let _ = conn.execute(
+        "INSERT INTO feishu_chat_aliases (chat_id, chat_name) VALUES (?1, ?2)
+         ON CONFLICT(chat_id) DO NOTHING",
+        params![chat_id, chat_name],
+    );
+    let base = chat_style_hash("群", chat_id);
+    for probe in 0..64u32 {
+        let candidate = if probe == 0 {
+            base.clone()
+        } else {
+            format!("{base}{probe:x}")
+        };
+        match conn.execute(
+            "UPDATE feishu_chat_aliases SET alias=?2 WHERE chat_id=?1 AND (alias='' OR alias IS NULL)",
+            params![chat_id, candidate],
+        ) {
+            Ok(1) => return Some(candidate),
+            _ => {
+                if let Some(alias) = existing_chat_alias(conn, chat_id) {
+                    return Some(alias);
+                }
+            }
+        }
+    }
+    log::warn!("anonymize: 群代号探测 64 次未收敛（chat_id={chat_id}），本轮来源不带群名");
+    None
+}
+
+fn existing_chat_alias(conn: &Connection, chat_id: &str) -> Option<String> {
+    conn.query_row(
+        "SELECT alias FROM feishu_chat_aliases WHERE chat_id=?1",
+        params![chat_id],
+        |r| r.get::<_, String>(0),
+    )
+    .ok()
+    .filter(|a| !a.is_empty())
 }
 
 /// 一轮脱敏的规则包：构建时查一次库做快照，整批判定复用。
@@ -84,6 +143,7 @@ pub struct AnonRules {
     my_open_id: String,
     my_names: Vec<String>,
     aliases: HashMap<String, String>,
+    chat_aliases: HashMap<String, String>,
     replacements: Vec<(String, String)>,
     pub same_name_risk: bool,
 }
@@ -151,10 +211,19 @@ impl AnonRules {
             .map(|n| (n.clone(), ME_HINT.to_string()))
             .collect();
         replacements.extend(others);
+        // 群聊代号快照（老库无表时为空映射，chat_alias_of 的懒分配自会补齐或降级）
+        let chat_aliases = conn
+            .prepare("SELECT chat_id, alias FROM feishu_chat_aliases WHERE alias != ''")
+            .and_then(|mut stmt| {
+                stmt.query_map([], |r| Ok((r.get::<_, String>(0)?, r.get::<_, String>(1)?)))
+                    .map(|rows| rows.flatten().collect::<HashMap<_, _>>())
+            })
+            .unwrap_or_default();
         Self {
             my_open_id,
             my_names,
             aliases,
+            chat_aliases,
             replacements,
             same_name_risk,
         }
@@ -172,6 +241,22 @@ impl AnonRules {
             ensure_alias(conn, open_id).unwrap_or_else(|| open_id.chars().take(11).collect());
         self.aliases.insert(open_id.into(), assigned.clone());
         assigned
+    }
+
+    /// chat_id → 群代号（群_xxxx，未分配的懒分配并写库；chat_id 空或分配失败返回 None，
+    /// 调用方降级为不带名的来源标签）
+    pub fn chat_alias_of(
+        &mut self,
+        conn: &Connection,
+        chat_id: &str,
+        chat_name: &str,
+    ) -> Option<String> {
+        if let Some(a) = self.chat_aliases.get(chat_id) {
+            return Some(a.clone());
+        }
+        let assigned = ensure_chat_alias(conn, chat_id, chat_name)?;
+        self.chat_aliases.insert(chat_id.into(), assigned.clone());
+        Some(assigned)
     }
 
     /// 只读版：渲染等不可变借用场景用。调用方需先 `alias_of` 预分配过本批 open_id，
@@ -216,9 +301,14 @@ impl AnonRules {
 
 /// 代号 → 真名（pk 落库前还原用户可见文本）：只还原能查到真名的代号，
 /// 查不到真名的保留原样（模型幻觉代号原样可见，也便于排查）。
+/// 群代号（群_xxxx）同样还原——模型可能把来源代号写进新标签名
 pub fn restore(conn: &Connection, text: &str) -> String {
-    let pairs: Vec<(String, String)> = match conn
-        .prepare("SELECT alias, name FROM feishu_users WHERE alias != '' AND name != ''")
+    let mut pairs: Vec<(String, String)> = match conn
+        .prepare(
+            "SELECT alias, name FROM feishu_users WHERE alias != '' AND name != ''
+             UNION ALL
+             SELECT alias, chat_name FROM feishu_chat_aliases WHERE alias != '' AND chat_name != ''",
+        )
         .and_then(|mut stmt| {
             stmt.query_map([], |r| Ok((r.get::<_, String>(0)?, r.get::<_, String>(1)?)))
                 .map(|rows| rows.flatten().collect())
@@ -226,6 +316,8 @@ pub fn restore(conn: &Connection, text: &str) -> String {
         Ok(p) => p,
         Err(_) => return text.to_string(),
     };
+    // 长代号优先：防止 群_a1 被前缀相同的更长代号截胡
+    pairs.sort_by_key(|(a, _)| std::cmp::Reverse(a.chars().count()));
     let mut out = text.to_string();
     for (alias, name) in pairs {
         if out.contains(alias.as_str()) {
@@ -382,6 +474,33 @@ mod tests {
         assert_eq!(out, "找张三对齐材料");
         // 未知代号（模型幻觉/无真名）原样保留
         assert_eq!(restore(&conn, "找成员_ffff对齐"), "找成员_ffff对齐");
+    }
+
+    #[test]
+    fn chat_alias_is_stable_lazy_and_restores() {
+        let conn = db();
+        let a1 = ensure_chat_alias(&conn, "oc_chat", "项目攻坚群").unwrap();
+        let a2 = ensure_chat_alias(&conn, "oc_chat", "项目攻坚群（改名）").unwrap();
+        assert_eq!(a1, a2, "分配一次后稳定复用");
+        assert!(a1.starts_with("群_"), "代号形如 群_xxxx: {a1}");
+        // 群名更新同步（restore 还原展示用）
+        let name: String = conn
+            .query_row(
+                "SELECT chat_name FROM feishu_chat_aliases WHERE chat_id='oc_chat'",
+                [],
+                |r| r.get(0),
+            )
+            .unwrap();
+        assert_eq!(name, "项目攻坚群（改名）");
+        // 空 chat_id 不分配；AnonRules 走缓存
+        assert!(ensure_chat_alias(&conn, "", "x").is_none());
+        let mut rules = AnonRules::build(&conn);
+        assert_eq!(rules.chat_alias_of(&conn, "oc_chat", ""), Some(a1.clone()));
+        let other = rules.chat_alias_of(&conn, "oc_new", "新群").unwrap();
+        assert!(other.starts_with("群_"));
+        // restore：群代号还原成最新群名（模型把来源代号写进标签名的场景）
+        let out = restore(&conn, &format!("按 {a1} 的安排推进"));
+        assert_eq!(out, "按 项目攻坚群（改名） 的安排推进");
     }
 
     #[test]

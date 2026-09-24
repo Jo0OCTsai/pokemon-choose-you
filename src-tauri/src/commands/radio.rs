@@ -863,6 +863,35 @@ pub(crate) fn chat_label(chat_type: &str, chat_name: &str) -> String {
     }
 }
 
+/// AI prompt 来源标签的匿名版：群名换成稳定代号（群_xxxx）、单聊对方名过人名词表
+/// scrub——真名/真群名不进 prompt（display 场景仍用上面的 chat_label）。
+/// 群代号分配失败（老库无表等）降级为不带名的「飞书·群聊」
+pub(crate) fn chat_label_anon(
+    conn: &Connection,
+    rules: &mut crate::anonymize::AnonRules,
+    chat_id: &str,
+    chat_type: &str,
+    chat_name: &str,
+) -> String {
+    match chat_type {
+        "group" => match rules.chat_alias_of(conn, chat_id, chat_name) {
+            Some(alias) => format!("飞书·群聊「{alias}」"),
+            None => "飞书·群聊".into(),
+        },
+        // 单聊对方名过人名词表 scrub（词表未覆盖的名字是已知边界）
+        "p2p" => format!("飞书·私聊「{}」", rules.scrub(chat_name)),
+        // 机器人私聊/快速捕捉是常量标签；兜底形态带名时同样 scrub
+        "bot" | "local" => chat_label(chat_type, chat_name),
+        _ => {
+            if chat_name.is_empty() {
+                "飞书".into()
+            } else {
+                format!("飞书「{}」", rules.scrub(chat_name))
+            }
+        }
+    }
+}
+
 /// 一条上下文消息的原料（未格式化）：匿名化由调用方持规则包完成
 #[derive(Debug, Clone)]
 pub(crate) struct ContextLine {
@@ -1175,7 +1204,13 @@ pub async fn force_create_todo<R: tauri::Runtime>(
     let (label, context, sender_anon, content_anon, note) = {
         let conn = db.0.lock().unwrap();
         let mut rules = crate::anonymize::AnonRules::build(&conn);
-        let label = chat_label(&msg.chat_type, &msg.chat_name);
+        let label = chat_label_anon(
+            &conn,
+            &mut rules,
+            &msg.chat_id,
+            &msg.chat_type,
+            &msg.chat_name,
+        );
         let (anon, at_me): (String, String) = conn
             .query_row(
                 "SELECT content_anon, at_me FROM chat_messages WHERE message_id=?1",
@@ -1583,7 +1618,13 @@ pub async fn retry_ai_judgment<R: tauri::Runtime>(
                 AiMessage {
                     message_id: msg.message_id.clone(),
                     sender,
-                    chat_label: chat_label(&msg.chat_type, &msg.chat_name),
+                    chat_label: chat_label_anon(
+                        &conn,
+                        &mut rules,
+                        &msg.chat_id,
+                        &msg.chat_type,
+                        &msg.chat_name,
+                    ),
                     content,
                     context,
                     mention_note: ai::mention_note(&at_me, "", rules.same_name_risk),
@@ -2586,6 +2627,42 @@ mod tests {
         assert_eq!(chat_label("p2p", "李四"), "飞书·私聊「李四」");
         assert_eq!(chat_label("group", "项目群"), "飞书·群聊「项目群」");
         assert_eq!(chat_label("", ""), "飞书");
+    }
+
+    /// 匿名版来源标签：群名 → 稳定代号、单聊对方名过词表、真名/真群名不进 prompt
+    #[test]
+    fn chat_label_anon_pseudonymizes_names() {
+        let conn = crate::db::tests::test_conn();
+        conn.execute(
+            "INSERT INTO feishu_users (open_id, name, updated_at, alias)
+             VALUES ('ou_z', '张三', '2026-09-01', '成员_00aa')",
+            [],
+        )
+        .unwrap();
+        let mut rules = crate::anonymize::AnonRules::build(&conn);
+        // 群名换稳定代号，且两次调用同一代号
+        let g1 = chat_label_anon(&conn, &mut rules, "oc_g", "group", "项目攻坚群");
+        let g2 = chat_label_anon(&conn, &mut rules, "oc_g", "group", "项目攻坚群");
+        assert_eq!(g1, g2);
+        assert!(
+            g1.starts_with("飞书·群聊「群_") && g1.ends_with("」"),
+            "{g1}"
+        );
+        assert!(!g1.contains("项目攻坚群"), "真群名不出现: {g1}");
+        // 单聊对方名在词表内 → 代号；不在词表的名字保持原样（词表边界）
+        let p = chat_label_anon(&conn, &mut rules, "oc_p", "p2p", "张三");
+        assert_eq!(p, "飞书·私聊「成员_00aa」");
+        let unknown = chat_label_anon(&conn, &mut rules, "oc_p2", "p2p", "陌生人名X");
+        assert_eq!(unknown, "飞书·私聊「陌生人名X」");
+        // 常量标签不带入名字
+        assert_eq!(
+            chat_label_anon(&conn, &mut rules, "", "bot", "皮卡丘助手"),
+            "飞书·机器人私聊"
+        );
+        assert_eq!(
+            chat_label_anon(&conn, &mut rules, "", "local", ""),
+            "手动输入·快速捕捉"
+        );
     }
 
     /// 跟进并入：插入跟进记录并把消息标记 followup + 记录目标待办（收音机可见）

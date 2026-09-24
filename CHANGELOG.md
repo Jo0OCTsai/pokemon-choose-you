@@ -4,6 +4,18 @@
 版本号遵循 [Semantic Versioning](https://semver.org/lang/zh-CN/)。
 发布走开发版草稿流（见 [开发指南 · 发布](docs/DEVELOPMENT.md)）：本文件随版本人工维护，已发布段落请勿手工编辑。
 
+## [Unreleased]
+
+### Security
+
+- 远程 pk 通道安全收敛——authorized_keys 改为 `restrict,command=` 受限条目，forced command 进 pk 新增的 `__ssh_entry` 校验入口（严格白名单 `[env] PK_* <本机 pk> 参数…`，argv 直启自身不经 shell），远程 shim 私钥失陷也拿不到本机 shell；旧裸公钥条目重跑一键配置自动原位升级（REMOTE_PK_CHANNEL_PROPOSAL §8 落地）
+- Windows 命令注入面收敛——`cmd /C` 回退与交互派发终端（`cmd /K`）逐参改用 cmd 安全引用：`"`/`%`/控制字符中和为全角后整参双引号包裹，飞书消息正文里的 cmd 元字符不再可逃逸（macOS/Linux 路径原本安全，不受影响）
+- 假名化旁路补齐——AI prompt 的来源标签群名换稳定代号（新增 `feishu_chat_aliases`，群_xxxx，落库前自动还原真实群名）；桌宠问答的任务快照、待办派发 prompt（标题/跟进/项目备注）过同一套假名化规则；开发态 debug 日志不再打印消息原文
+- 支持报告脱敏升级——三层脱敏（敏感键名 → 邮箱/凭证值形态 → 本库人名与群名词表），报告里的日志与健康错误不再带出内容类敏感信息
+- 导出目标校验——自选路径须扩展名匹配且父目录已存在（不再替任意路径 `create_dir_all`），导入列名白名单校验（拒含引号标识符），收紧被入侵渲染层的任意写原语
+- CI 加固——第三方 Actions 全部 pin 到 commit SHA（Renovate 按 `# vX` 注释跟进）、Release 写权限从工作流顶层收敛到具体 job、新增 cargo audit 依赖漏洞扫描
+- 零散注入面收敛——全部 ssh argv 的 host 前置 `--` 保护；`pk remote shim --host/--key` 引用后进脚本；lark-cli 授权终端行引用 bin 路径；生产 CSP 剥离 Vite HMR 的 `ws://localhost:1420` 与死配置 `asset:`（开发态经 `devCsp` 保留）
+
 ## [1.0.0](https://github.com/Jo0OCTsai/pokemon-choose-you/compare/pokemon-choose-you-v0.1.0...pokemon-choose-you-v1.0.0) (2026-09-13)
 
 

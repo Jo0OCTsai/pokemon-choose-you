@@ -75,13 +75,20 @@ async fn open_agent_in_terminal(
 }
 
 /// 「cd 工作目录 && 命令」整行：目录是 agent_workdir 展开后的绝对路径，
-/// 经 cd_prefix_target 跨平台引用；命令与参数逐个 shell 引用
+/// 经 cd_prefix_target 跨平台引用；命令与参数逐个按目标 shell 引用
+/// （unix 终端是 POSIX shell，Windows 本地终端是 cmd /K——单引号无效，
+/// 会话 id 等参数含 cmd 元字符时须用 cmd 安全引用防逃逸）
 fn local_history_line(dir: &str, program: &str, args: &[String]) -> String {
+    let quote: fn(&str) -> String = if cfg!(windows) {
+        crate::ai::windows_cmd_quote
+    } else {
+        shell_quote
+    };
     let mut line = format!("cd {} && ", cd_prefix_target(dir));
-    line.push_str(&shell_quote(program));
+    line.push_str(&quote(program));
     for a in args {
         line.push(' ');
-        line.push_str(&shell_quote(a));
+        line.push_str(&quote(a));
     }
     line
 }
@@ -102,10 +109,18 @@ pub(crate) fn cd_prefix_target(dir: &str) -> String {
 /// 在一个新的终端窗口里运行命令（各系统终端差异大，尽力而为）。
 /// 成功返回实际使用的终端程序名。（派发交互通道经 ssh argv 复用）
 pub(crate) async fn spawn_in_terminal(program: &str, args: &[String]) -> AppResult<&'static str> {
-    let mut line = shell_quote(program).to_string();
+    // Windows 本地终端经 cmd /K 执行整行：POSIX 单引号无效，改用 cmd 安全引用
+    //（含 ssh 远程参数——远端命令行内部仍按 POSIX 构造，这里只保证它作为单个
+    // 参数完整抵达 ssh；macOS/Linux 终端走 POSIX 引用不变）
+    let quote: fn(&str) -> String = if cfg!(windows) {
+        crate::ai::windows_cmd_quote
+    } else {
+        shell_quote
+    };
+    let mut line = quote(program).to_string();
     for a in args {
         line.push(' ');
-        line.push_str(&shell_quote(a));
+        line.push_str(&quote(a));
     }
     spawn_line_in_terminal(&line).await
 }
@@ -267,11 +282,17 @@ pub async fn feishu_oauth_status() -> AppResult<FeishuOauthStatus> {
 #[tauri::command]
 pub async fn feishu_oauth_login() -> AppResult<String> {
     let bin = crate::lark_cli::lark_bin();
+    // 含空格/特殊字符的 bin 路径须引用（终端整行经目标 shell 重解析）
+    let quoted_bin = if cfg!(windows) {
+        crate::ai::windows_cmd_quote(&bin)
+    } else {
+        shell_quote(&bin)
+    };
     // 首次使用 lark-cli 需先 config init（浏览器里创建自建应用），之后才是用户授权
     let line = if crate::lark_cli::config_ready(&bin).await {
-        format!("{bin} auth login --domain im --recommend")
+        format!("{quoted_bin} auth login --domain im --recommend")
     } else {
-        format!("{bin} config init --new && {bin} auth login --domain im --recommend")
+        format!("{quoted_bin} config init --new && {quoted_bin} auth login --domain im --recommend")
     };
     spawn_line_in_terminal(&line)
         .await

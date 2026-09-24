@@ -145,8 +145,10 @@ pub async fn pet_chat(db: State<'_, Db>, message: String) -> AppResult<String> {
     Ok(trim_sentences(&out, 2))
 }
 
-/// 拼装任务快照（轻量查询，不挂标签）：进行中 + 今天的路线 + 图鉴累计 + 连胜
+/// 拼装任务快照（轻量查询，不挂标签）：进行中 + 今天的路线 + 图鉴累计 + 连胜。
+/// 标题过假名化（标题可能来自飞书消息原文，真名不随桌宠问答出机）
 fn build_context(conn: &Connection) -> AppResult<String> {
+    let rules = crate::anonymize::AnonRules::build(conn);
     let current: Option<String> = conn
         .query_row(
             "SELECT title FROM tasks WHERE status='active' ORDER BY started_at DESC LIMIT 1",
@@ -154,6 +156,7 @@ fn build_context(conn: &Connection) -> AppResult<String> {
             |r| r.get(0),
         )
         .ok();
+    let current = current.map(|t| rules.scrub_titles(&t));
     let mut stmt = conn.prepare(
         "SELECT title, COALESCE(due_at, '') FROM tasks
          WHERE status IN ('inbox','scheduled','active','paused')
@@ -163,7 +166,7 @@ fn build_context(conn: &Connection) -> AppResult<String> {
         .query_map([], |r| {
             Ok(format!(
                 "{}{}",
-                r.get::<_, String>(0)?,
+                rules.scrub_titles(&r.get::<_, String>(0)?),
                 if r.get::<_, String>(1)?.is_empty() {
                     String::new()
                 } else {
