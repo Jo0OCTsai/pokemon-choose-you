@@ -10,8 +10,8 @@ jobs:
     name: 前端（lint + 单元 + E2E 三引擎）
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v7
-      - uses: actions/setup-node@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
         with:
           node-version: 24.21.0
           cache: npm
@@ -28,7 +28,7 @@ jobs:
         run: npx playwright install --with-deps chromium firefox webkit
       - name: E2E（chromium / firefox / webkit 兼容性矩阵）
         run: npm run test:e2e
-      - uses: actions/upload-artifact@v7
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         if: failure()
         with:
           name: playwright-report
@@ -39,11 +39,11 @@ jobs:
     name: Rust（fmt + clippy + 单元/契约/wiremock 集成测试）
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v7
-      - uses: dtolnay/rust-toolchain@stable
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: dtolnay/rust-toolchain@6bed0761d98439e5a578e2877258200ad565ba87 # stable
         with:
           components: rustfmt, clippy
-      - uses: swatinem/rust-cache@v2
+      - uses: swatinem/rust-cache@49a0bdc70d2e1b713ca9e2869b211fcce03d3c1c # v2
         with:
           workspaces: src-tauri
       - name: 安装 Tauri 系统依赖
@@ -56,3 +56,14 @@ jobs:
         run: cargo clippy --manifest-path src-tauri/Cargo.toml --all-targets -- -D warnings
       - name: cargo test
         run: cargo test --manifest-path src-tauri/Cargo.toml
+
+  audit:
+    name: Rust 依赖漏洞扫描（cargo audit）
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: taiki-e/install-action@7623a79cdfecb99d681017af368ca353d9f49bb5 # v2
+        with:
+          tool: cargo-audit
+      - name: cargo audit（RustSEC 已知漏洞）
+        run: cargo audit --file src-tauri/Cargo.lock
