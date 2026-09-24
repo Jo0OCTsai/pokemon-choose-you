@@ -1232,15 +1232,31 @@ fn run_remote(rest: &[String]) -> Result<serde_json::Value, CliError> {
     };
     let key = p.flag("key").filter(|k| !k.is_empty());
     let mut fwd = String::from("ssh -o BatchMode=yes -o ConnectTimeout=10");
+    // 连接复用：首调建 ControlMaster，后续调用毫秒级（脚本运行在远程 unix，与本机系统无关）
+    fwd.push_str(
+        " -o ControlMaster=auto -o ControlPath=\"$HOME/.ssh/pk-ctl-%C\" -o ControlPersist=10m",
+    );
     if let Some(k) = key {
         fwd.push_str(&format!(" -i {k}"));
     }
     if let Some(pn) = port {
         fwd.push_str(&format!(" -p {pn}"));
     }
-    fwd.push_str(&format!(" {host} pk \"$@\""));
+    fwd.push_str(&format!(" {host}"));
+    // unix 本机加 PK_* 透传段（cmd.exe 没有 env 命令，Windows 本机保持直呼）；
+    // 值在远程侧求值并内联进回连命令，本机侧 pk 照常拿到
+    let (env_fwd, cmd) = if cfg!(unix) {
+        (
+            "fwd=env\n\
+             [ -n \"$PK_LOG_FILE\" ] && fwd=\"$fwd PK_LOG_FILE=\\\"$PK_LOG_FILE\\\"\"\n\
+             [ -n \"$PK_DISPATCH_TASK\" ] && fwd=\"$fwd PK_DISPATCH_TASK=$PK_DISPATCH_TASK\"\n",
+            "\"$fwd pk\" \"$@\"",
+        )
+    } else {
+        ("", "pk \"$@\"")
+    };
     let script = format!(
-        "#!/bin/sh\n# pk 远程透传 shim（pokemon-choose-you）：把 pk 命令经 ssh 转发回本机执行，数据始终留在本机。\n# 部署：放到远程主机的 PATH 里并 chmod +x，如 ~/bin/pk；本机需开 sshd 并配好免密登录。\nexec {fwd}\n"
+        "#!/bin/sh\n# pk 远程透传 shim（pokemon-choose-you）：把 pk 命令经 ssh 转发回本机执行，数据始终留在本机。\n# 部署：放到远程主机的 PATH 里并 chmod +x，如 ~/bin/pk；本机需开 sshd 并配好免密登录。\n{env_fwd}exec {fwd} {cmd}\n"
     );
     match p.flag("write").filter(|w| !w.is_empty()) {
         Some(path) => {
@@ -2365,6 +2381,16 @@ mod tests {
         assert!(script.contains("exec ssh"), "{script}");
         assert!(script.contains("-p 2222"), "{script}");
         assert!(script.contains("-i ~/.ssh/id_ed"), "{script}");
+        // 连接复用三件套 + PK_* 透传段 + 命令透传（unix 本机走 $fwd 前缀）
+        assert!(script.contains("ControlMaster=auto"), "{script}");
+        assert!(script.contains("ControlPersist=10m"), "{script}");
+        assert!(script.contains("[ -n \"$PK_DISPATCH_TASK\" ]"), "{script}");
+        #[cfg(unix)]
+        assert!(
+            script.contains("dev@box \"$fwd pk\" \"$@\""),
+            "命令透传回本机: {script}"
+        );
+        #[cfg(windows)]
         assert!(
             script.contains("dev@box pk \"$@\""),
             "命令透传回本机: {script}"

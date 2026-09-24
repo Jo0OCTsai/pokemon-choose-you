@@ -88,6 +88,10 @@ pub fn run() {
                 std::sync::atomic::AtomicBool::new(false),
             ));
             app.manage(health::HealthState::default());
+            // 常驻反向隧道（方案 B）：managed state + 启动时按存量配置拉起，
+            // 之后由前端在 agent 保存/一键配置后调 sync_tunnels 对齐
+            app.manage(commands::tunnel::TunnelManager::default());
+            commands::tunnel::spawn_startup_sync(app.handle().clone());
             scheduler::spawn_reminder_loop(app.handle().clone());
             // 输入响应（F1）：开机即开时恢复全局活动强度上报（macOS 未授权辅助功能则静默跳过）
             if crate::db::setting(app.handle(), "pet_input_response").as_deref() == Some("true")
@@ -162,6 +166,8 @@ pub fn run() {
             commands::test_ai_config,
             commands::open_agent_history,
             commands::setup_remote_pk,
+            commands::tunnel_status,
+            commands::sync_tunnels,
             commands::agent_skill_status,
             commands::agent_skill_install,
             commands::set_tag_meta,

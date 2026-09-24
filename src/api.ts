@@ -20,6 +20,7 @@ import type {
   TagCheckupReport,
   TagDimension,
   TagMeta,
+  TunnelStatus,
   Task,
   TaskDispatchTarget,
   TaskLog,
@@ -193,6 +194,10 @@ export const api = {
   /** 一键配置远程 pk：密钥/公钥/指纹/shim/PATH 全自动，成功写回隧道端口 */
   setupRemotePk: (agentId: string, port?: number) =>
     call<RemotePkReport>("setup_remote_pk", { agentId, port: port ?? null }),
+  /** agent 的常驻反向隧道状态（off / connecting / healthy / retrying，附详情） */
+  tunnelStatus: (agentId: string) => call<TunnelStatus>("tunnel_status", { agentId }),
+  /** 按已保存的 agent 配置对齐常驻隧道集合（保存/一键配置后调用） */
+  syncTunnels: () => call<void>("sync_tunnels"),
   /** 检查 agent 的 pk 技能安装状态（本地直读；远程经 ssh 读远端目录） */
   agentSkillStatus: (agentId: string) => call<AgentSkillStatus>("agent_skill_status", { agentId }),
   /** 安装/同步 agent 的 pk 技能到应用内置版本（幂等，跨版本即升级） */

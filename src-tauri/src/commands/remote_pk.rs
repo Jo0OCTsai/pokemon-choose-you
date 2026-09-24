@@ -121,6 +121,11 @@ fn ssh_run(
 
 /// shim 脚本内容：命令经应用建立的反向隧道（远程 127.0.0.1:端口 ⇄ 本机 sshd）回本机执行。
 /// pk 用绝对路径内嵌（本机 sshd 的非交互 PATH 通常找不到应用目录里的 pk）。
+/// - 连接复用（方案 A）：ControlMaster 让首调后的每次调用免握手，ControlPersist 保活；
+///   复用发生在远程侧 ssh 客户端（远程必为 unix），与本机系统无关
+/// - 环境透传（方案 B 的 ④ 修复）：PK_LOG_FILE / PK_DISPATCH_TASK 在远端求值并内联进
+///   回连命令，本机侧 pk 照常拿到（值内含双引号/反斜杠不支持，实际只有日志路径与任务 id）。
+///   仅 unix 本机——Windows 本机 sshd 默认 shell 是 cmd，没有 env 命令，保持直呼 pk
 pub(crate) fn shim_script(pk_path: &str, tunnel_port: u16, local_user: &str) -> String {
     let quoted_pk = if cfg!(windows) {
         // 本机 sshd 默认 shell 是 cmd：含空格的路径用双引号
@@ -132,13 +137,27 @@ pub(crate) fn shim_script(pk_path: &str, tunnel_port: u16, local_user: &str) -> 
     } else {
         posix_quote(pk_path)
     };
+    // unix 本机：PK_* 已设置时以 env 前缀带回（值含空格安全：远端求值时已加引号）
+    let (env_fwd, tail) = if cfg!(unix) {
+        (
+            "fwd=env\n\
+             [ -n \"$PK_LOG_FILE\" ] && fwd=\"$fwd PK_LOG_FILE=\\\"$PK_LOG_FILE\\\"\"\n\
+             [ -n \"$PK_DISPATCH_TASK\" ] && fwd=\"$fwd PK_DISPATCH_TASK=$PK_DISPATCH_TASK\"\n",
+            format!("\"$fwd {quoted_pk}\" \"$@\""),
+        )
+    } else {
+        ("", format!("{quoted_pk} \"$@\""))
+    };
     format!(
         "#!/bin/sh\n\
-         # pk 远程透传 shim（pokemon-knock 一键配置生成）：经应用建立的反向隧道回本机执行，数据始终留在本机。\n\
-         exec ssh -o BatchMode=yes -o ConnectTimeout=10 -i \"$HOME/.ssh/pk_shim\" -p {port} {user}@127.0.0.1 {pk} \"$@\"\n",
+         # pk 远程透传 shim（就决定是你了一键配置生成）：经应用建立的反向隧道回本机执行，数据始终留在本机。\n\
+         # 连接复用：首调建 ControlMaster，后续调用毫秒级；环境透传见下方 fwd 段。\n\
+         {env_fwd}\
+         exec ssh -o BatchMode=yes -o ConnectTimeout=10 \\\n\
+         -o ControlMaster=auto -o ControlPath=\"$HOME/.ssh/pk-shim-%C\" -o ControlPersist=10m \\\n\
+         -i \"$HOME/.ssh/pk_shim\" -p {port} {user}@127.0.0.1 {tail}\n",
         port = tunnel_port,
         user = local_user,
-        pk = quoted_pk,
     )
 }
 
@@ -651,7 +670,7 @@ mod tests {
         assert!(s.starts_with("#!/bin/sh"), "{s}");
         assert!(s.contains("-p 10022"), "{s}");
         assert!(s.contains("joeca@127.0.0.1"), "{s}");
-        // 含空格路径被引用，避免本机 shell 拆词
+        // 含空格路径被引用，避免本机 shell 拆词（unix 下以 $fwd 前缀内嵌）
         assert!(
             s.contains("'/opt/apps/pokemon knock/pk'")
                 || s.contains("\"/opt/apps/pokemon knock/pk\""),
@@ -659,10 +678,31 @@ mod tests {
         );
         assert!(s.contains("pk_shim"), "使用专用私钥: {s}");
         assert!(s.contains("\"$@\""), "透传全部参数: {s}");
+        // 方案 A：连接复用三件套（远程侧 ssh 客户端生效，与本机系统无关）
+        assert!(s.contains("ControlMaster=auto"), "{s}");
+        assert!(s.contains("ControlPath=\"$HOME/.ssh/pk-shim-%C\""), "{s}");
+        assert!(s.contains("ControlPersist=10m"), "{s}");
+        // 方案 B ④：PK_* 在远端求值并带回本机侧 pk（值加引号，路径含空格安全）
+        #[cfg(unix)]
+        {
+            assert!(s.contains("[ -n \"$PK_LOG_FILE\" ]"), "{s}");
+            assert!(
+                s.contains("fwd=\"$fwd PK_LOG_FILE=\\\"$PK_LOG_FILE\\\"\""),
+                "{s}"
+            );
+            assert!(s.contains("[ -n \"$PK_DISPATCH_TASK\" ]"), "{s}");
+            assert!(s.contains("\"$fwd '/opt/apps/pokemon knock/pk'\""), "{s}");
+        }
         let simple = shim_script("/usr/local/bin/pk", 10022, "u");
+        #[cfg(unix)]
+        assert!(
+            simple.contains("\"$fwd /usr/local/bin/pk\" \"$@\""),
+            "unix 本机走 env 前缀: {simple}"
+        );
+        #[cfg(windows)]
         assert!(
             simple.contains(" /usr/local/bin/pk \"$@\""),
-            "无特殊字符不引用: {simple}"
+            "Windows 本机直呼 pk: {simple}"
         );
     }
 

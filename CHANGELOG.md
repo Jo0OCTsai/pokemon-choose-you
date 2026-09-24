@@ -98,6 +98,7 @@
 
 ### Added
 
+- **远程 pk 常驻通道（方案 A+B）**：远程 SSH agent 场景下 pk 回传链路的可靠性与可用性升级——① shim 增加 ControlMaster 连接复用（首调建主连接，会话内后续调用毫秒级，弱网失败率大降，重跑「一键配置远程 pk」即升级旧 shim）；② agent 配置新增「常驻隧道」开关：应用驻留期间自持 `ssh -N -R` 长连（ServerAliveInterval 10s×3 自愈、ExitOnForwardFailure 杜绝假隧道、1s→30s 指数退避重连，按主机+端口+密钥+隧道端口去重共享），tmux 常驻会话/手动 ssh 等远程任何进程随时可调 pk，不再受「应用发起调用的存活窗口」限制；设置页实时显示隧道状态（已连通/建立中/重连中，附 ssh 报错尾行）；③ 无头调用注入的 `PK_DISPATCH_TASK`/`PK_LOG_FILE` 经远端命令行 + shim 转发跨过 ssh 边界（派发回传兜底与执行轨迹回写远程照常生效；Windows 本机 sshd 的 cmd shell 无 env 命令，此透传不生效）。设计全貌见 `docs/proposals/REMOTE_PK_CHANNEL_PROPOSAL.md`。
 - **会话过滤偏好**：飞书免打扰从唯一过滤依据降级为默认值——设置 → 集成 → 「会话过滤」卡片逐会话三态（跟随免打扰（默认）/ 总是拉取 / 总是过滤），手动覆盖后以本应用为准；每轮落拉取快照（含生效状态与来源、免打扰查询失败逐会话降级标示）；偏好即时生效、导出导入可恢复；顺手补上拉取 in-flight 守卫（轮询与「立即拉取」并发防护，既有缺口）。
 - **常驻应用标配**：系统托盘（打开图鉴机 / 显示隐藏桌宠 / 设置 / 检查更新 / 退出）、单实例保护、窗口位置记忆、全局快捷键（`Ctrl/Cmd+Shift+K` 快速捕捉待办、`Ctrl/Cmd+Shift+D` 显示/隐藏桌宠）、自动更新（minisign 签名，托盘与设置页入口）。
 - **工程链**：ESLint（flat）+ Prettier + lefthook + commitlint + release-please + Renovate；CI 增加 clippy/fmt/lint 关卡。
