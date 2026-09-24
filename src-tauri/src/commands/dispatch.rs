@@ -1729,6 +1729,7 @@ mod tests {
             port: 2222,
             key_path: Some("~/.ssh/id_ed25519".into()),
             tunnel: None,
+            persistent: false,
         };
         // attach：-tt + 登录 shell + attach-or-create，带 -c 工作目录
         let argv = tmux_attach_argv(&remote, "pk-5", "~/lab repo");

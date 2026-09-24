@@ -17,6 +17,7 @@ import type {
   IntegrationHealth,
   LogEntry,
   RemotePkReport,
+  TunnelStatus,
 } from "../types";
 import { SUPPORTED_LOCALES } from "../i18n";
 import { BUNDLED_POKEMON, POKEMON_BY_KEY, mergePokemonQuotes, pokemonQuotesFor } from "../pokemon";
@@ -652,20 +653,68 @@ function loadAgents() {
   }
 }
 
-/** 把本地编辑的 agent 列表序列化进设置并落库（隧道端口空值归一成 null，空串会让后端反序列化失败） */
+/** 把本地编辑的 agent 列表序列化进设置并落库（隧道端口空值归一成 null，空串会让后端反序列化失败）；
+ * 落库后对齐常驻隧道集合（开关/启停的增删在这生效，失败静默——保存本身不因此报错） */
 async function saveAgents() {
   settings.values.ai_agents = JSON.stringify(
     agents.value.map((a) => ({
       ...a,
-      remote: a.remote ? { ...a.remote, tunnel: a.remote.tunnel || null } : null,
+      remote: a.remote
+        ? { ...a.remote, tunnel: a.remote.tunnel || null, persistent: a.remote.persistent || false }
+        : null,
     })),
   );
   await settings.save(["ai_agents", "ai_agent_id"]);
+  await api.syncTunnels().catch(() => {});
+  loadTunnelStatuses();
 }
 
 /** 开/关 SSH 远程执行：开启给默认值（端口 22），关闭清空 */
 function toggleRemote(ag: AgentConfig, on: boolean) {
   ag.remote = on ? { host: "", port: 22, keyPath: "" } : null;
+}
+
+// ---- 常驻反向隧道（方案 B）：开关 + 状态轮询 ----
+const tunnelStates = ref<Record<string, TunnelStatus>>({});
+
+/** 开/关常驻隧道：写表单 → 落库（saveAgents 内已对齐隧道集合）→ 刷新状态 */
+async function togglePersistent(ag: AgentConfig, on: boolean) {
+  if (ag.remote) {
+    ag.remote.persistent = on;
+    await saveAgents();
+    refreshTunnelStatus(ag);
+  }
+}
+
+function refreshTunnelStatus(ag: AgentConfig) {
+  if (!ag.id) return;
+  api
+    .tunnelStatus(ag.id)
+    .then((s) => {
+      tunnelStates.value[ag.id] = s;
+    })
+    .catch(() => {
+      delete tunnelStates.value[ag.id];
+    });
+}
+
+/** 刷新所有开了常驻隧道的 agent 状态（设置页进入/保存后调用） */
+function loadTunnelStatuses() {
+  agents.value.filter((a) => a.remote?.persistent).forEach(refreshTunnelStatus);
+}
+
+/** 隧道状态一行字（● 与配色由 data-state class 控制） */
+function tunnelText(ag: AgentConfig): string {
+  const s = tunnelStates.value[ag.id];
+  if (!s) return t("ai.tunnelUnknown");
+  const base =
+    {
+      healthy: t("ai.tunnelHealthy"),
+      connecting: t("ai.tunnelConnecting"),
+      retrying: t("ai.tunnelRetrying"),
+    }[s.state] ?? t("ai.tunnelOff");
+  // 重试态附上后端给的 ssh 报错尾行（端口占用/认证失败等），定位不用进日志
+  return s.state === "retrying" && s.detail ? `${base}：${s.detail}` : base;
 }
 
 /** 预设名已被占用时加序号后缀（如 Claude Code 2）：同类型配多个（本地 + 远程）时列表仍可辨 */
@@ -782,6 +831,9 @@ async function setupRemotePkFor(ag: AgentConfig) {
     if (report.ok) {
       await settings.load();
       loadAgents();
+      // 一键配置刚写回隧道端口：立即对齐常驻隧道集合并刷新状态
+      await api.syncTunnels().catch(() => {});
+      refreshTunnelStatus(ag);
     }
   } catch (e) {
     testMsg.value = `❌ ${errorMessage(e)}`;
@@ -809,6 +861,7 @@ watch(settingsTab, (tab) => {
     if (!agents.value.length) loadAgents(); // 项目派发卡片的 agent 下拉要用
   }
   if (tab === "integrations" && !agents.value.length) loadAgents();
+  if (tab === "integrations") loadTunnelStatuses();
   if (tab === "diag") loadDiagnostics();
 });
 
@@ -1276,6 +1329,21 @@ onUnmounted(() => {
               </div>
               <SettingRow :label="t('ai.sshTunnel')" :label-width="128">
                 <input v-model.number="ag.remote.tunnel" type="number" min="1" max="65535" placeholder="10022" />
+              </SettingRow>
+              <SettingRow :label="t('ai.sshKeepAlive')" :desc="t('ai.sshKeepAliveDesc')" :label-width="128">
+                <div class="tunnel-cell">
+                  <DexToggle
+                    :model-value="!!ag.remote.persistent"
+                    @update:model-value="(v) => togglePersistent(ag, Boolean(v))"
+                  />
+                  <span
+                    v-if="ag.remote.persistent"
+                    class="tunnel-state"
+                    :class="tunnelStates[ag.id]?.state || 'off'"
+                    :title="tunnelStates[ag.id]?.detail"
+                    >● {{ tunnelText(ag) }}</span
+                  >
+                </div>
               </SettingRow>
             </template>
             <div class="btn-row">
@@ -1842,6 +1910,28 @@ onUnmounted(() => {
   color: var(--ok-ink);
 }
 .skill-state.stale {
+  color: var(--warn-ink);
+}
+/* 常驻隧道开关行：开关 + 状态点并排；配色沿用技能状态行的语义色 */
+.tunnel-cell {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  flex: 1;
+}
+.tunnel-state {
+  font-size: 12px;
+  color: var(--ink-soft);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.tunnel-state.healthy {
+  color: var(--ok-ink);
+}
+.tunnel-state.retrying,
+.tunnel-state.connecting {
   color: var(--warn-ink);
 }
 .agent-row .btn {

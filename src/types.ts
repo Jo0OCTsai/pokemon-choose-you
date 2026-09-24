@@ -246,6 +246,8 @@ export interface AgentRemote {
   keyPath?: string | null;
   /** 反向隧道端口：随 ssh 连接把远程侧 127.0.0.1:<port> 转回本机 sshd，供远程 pk shim 回连 */
   tunnel?: number | null;
+  /** 常驻反向隧道：应用驻留期间保持 -R 长连（keepalive + 退避重连），远程随时可调 pk */
+  persistent?: boolean | null;
 }
 
 /** AI agent CLI 配置（如 Claude Code / OpenCode / Kiro CLI），可配置多个 */
@@ -280,6 +282,12 @@ export interface RemotePkReport {
   steps: RemotePkStep[];
   /** 端到端验证拿回的远程 pk 版本 */
   version?: string | null;
+}
+
+/** 常驻反向隧道状态（后端 tunnel_status）：state = off / connecting / healthy / retrying */
+export interface TunnelStatus {
+  state: string;
+  detail: string;
 }
 
 /** agent 技能检查结果（本地直读；远程经 ssh 读远端目录） */

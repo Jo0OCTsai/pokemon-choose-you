@@ -25,6 +25,11 @@ pub struct AgentRemote {
     /// None = 不建隧道（远程 shim 需能直连本机）。
     #[serde(default)]
     pub tunnel: Option<u16>,
+    /// 常驻反向隧道：开启后应用驻留期间由隧道管理器维持 ssh -N -R 长连
+    /// （keepalive + 退避重连），远程任何进程（无头 agent / tmux / 手动 ssh）
+    /// 随时可调 pk，不再依赖应用发起调用的存活窗口。见 REMOTE_PK_CHANNEL_PROPOSAL §5。
+    #[serde(default)]
+    pub persistent: bool,
 }
 
 fn default_ssh_port() -> u16 {
@@ -38,6 +43,7 @@ impl Default for AgentRemote {
             port: default_ssh_port(),
             key_path: None,
             tunnel: None,
+            persistent: false,
         }
     }
 }
@@ -104,12 +110,13 @@ struct Invocation {
 /// 组装实际执行的命令行（纯函数，独立测试）。
 /// - 本地：args 中的 {prompt} 替换为提示词；未出现时提示词走标准输入；
 ///   裸命令名先经 which::resolve 补扫 GUI 进程缺失的 PATH（macOS Dock/Finder 启动
-///   看不到 Homebrew/nvm 里的 claude 等），显式路径原样透传
+///   看不到 Homebrew/nvm 里的 claude 等），显式路径原样透传；envs 经 cmd.env 注入子进程
 /// - 远程：`ssh -o BatchMode=yes -o ConnectTimeout=10 [-i key] [-p port] host -- command args...`；
 ///   提示词一律走标准输入——ssh 会把 argv 拼接后交远端 shell 重解析，长提示词里的引号/换行必被打碎，
 ///   stdin 转发没有这个问题。args 中带 {prompt} 的元素剔除（如 `claude -p {prompt}` → `claude -p`，
-///   -p 本身支持读 stdin），保证语义等价。
-fn build_invocation(agent: &AgentConfig, prompt: &str) -> Invocation {
+///   -p 本身支持读 stdin），保证语义等价；envs 以 `VAR='值'` 前缀进远端命令行
+///   （ssh 会话环境不透传，只能这样带给远端 agent；远端 shim 再把 PK_* 转发回本机侧 pk）
+fn build_invocation(agent: &AgentConfig, prompt: &str, envs: &[(String, String)]) -> Invocation {
     let args: Vec<String> = agent.args.split_whitespace().map(String::from).collect();
     let remote = agent.remote.as_ref().filter(|r| !r.host.trim().is_empty());
     match remote {
@@ -145,7 +152,9 @@ fn build_invocation(agent: &AgentConfig, prompt: &str) -> Invocation {
                 argv.push(r.port.to_string());
             }
             if let Some(tp) = r.tunnel.filter(|t| *t != 0) {
-                // 反向隧道：远程侧 127.0.0.1:<tp> ⇄ 本机 sshd，供远程 pk shim 回连（仅本连接存活）
+                // 反向隧道：远程侧 127.0.0.1:<tp> ⇄ 本机 sshd，供远程 pk shim 回连（仅本连接存活）。
+                // 常驻隧道开启时这里仍照带——常驻连接已占住远程端口时 ssh 仅告警不失败，
+                // 而常驻隧道断线的空窗期这条按需隧道正好兜底，shim 不断流
                 argv.push("-R".to_string());
                 argv.push(format!("127.0.0.1:{tp}:127.0.0.1:22"));
             }
@@ -156,12 +165,18 @@ fn build_invocation(agent: &AgentConfig, prompt: &str) -> Invocation {
             argv.push("exec".to_string());
             argv.push("\"$SHELL\"".to_string());
             argv.push("-lc".to_string());
+            let env_prefix = env_prefix_line(envs);
             let mut remote_line = std::iter::once(agent.command.as_str())
                 .chain(args.iter().map(String::as_str))
                 .filter(|a| !a.contains("{prompt}"))
                 .map(posix_quote)
                 .collect::<Vec<_>>()
                 .join(" ");
+            if !env_prefix.is_empty() {
+                // VAR='值' 前缀贴在 agent 命令前（env 赋值只作用于这条命令）；
+                // cd 之后再前缀，赋值不泄漏进远端登录 shell 的后续会话
+                remote_line = format!("{env_prefix} {remote_line}");
+            }
             // 工作目录是远程机器上的路径：cd 前缀进远端命令行（本地 cwd 管不到远端）
             if !agent.workdir.trim().is_empty() {
                 remote_line = format!(
@@ -183,6 +198,23 @@ fn build_invocation(agent: &AgentConfig, prompt: &str) -> Invocation {
             }
         }
     }
+}
+
+/// 远端命令行的环境变量前缀（`VAR='值' VAR2='值2' `，空 envs 返回空串）。
+/// 键只认 `[A-Za-z_][A-Za-z0-9_]*`（注入面收敛到应用自身的常量键），
+/// 值经 posix_quote 由远端登录 shell 还原
+fn env_prefix_line(envs: &[(String, String)]) -> String {
+    envs.iter()
+        .filter(|(k, _)| {
+            !k.is_empty()
+                && k.chars()
+                    .next()
+                    .is_some_and(|c| c.is_ascii_alphabetic() || c == '_')
+                && k.chars().all(|c| c.is_ascii_alphanumeric() || c == '_')
+        })
+        .map(|(k, v)| format!("{k}={}", posix_quote(v)))
+        .collect::<Vec<_>>()
+        .join(" ")
 }
 
 /// agent 缺省工作目录名（主目录下）：应用专属工作区，agent 的产物集中在这里，
@@ -736,14 +768,27 @@ pub async fn run_agent(agent: &AgentConfig, prompt: &str) -> AppResult<String> {
     run_agent_env(agent, prompt, &[]).await
 }
 
-/// run_agent 的带环境变量版：额外键值注入子进程（远程 ssh 模式下环境不透传，等价于无注入）。
+/// run_agent 的带环境变量版：额外键值注入子进程。本地经 cmd.env；远程 ssh 会话
+/// 环境不透传，改以 VAR='值' 前缀进远端命令行（远端 shim 把 PK_* 再转发回本机侧 pk）。
 /// 派发场景用 PK_DISPATCH_TASK 标记任务 id，供 agent 的 Stop hook / pk dispatch 回传状态
 pub async fn run_agent_env(
     agent: &AgentConfig,
     prompt: &str,
     envs: &[(&str, &str)],
 ) -> AppResult<String> {
-    let inv = build_invocation(agent, prompt);
+    // 远端命令行要带的变量：显式 envs（如派发的 PK_DISPATCH_TASK）+ 共享日志文件
+    // （PK_LOG_FILE；本地路径由 spawn_and_wait 的 cmd.env 注入，远程走命令行前缀）
+    let mut line_envs: Vec<(String, String)> = envs
+        .iter()
+        .map(|(k, v)| (k.to_string(), v.to_string()))
+        .collect();
+    if let Some(log_file) = crate::logshare::agent_log_file() {
+        line_envs.push((
+            "PK_LOG_FILE".into(),
+            log_file.to_string_lossy().into_owned(),
+        ));
+    }
+    let inv = build_invocation(agent, prompt, &line_envs);
     let timeout = Duration::from_secs(agent.timeout_secs.max(MIN_TIMEOUT_SECS));
     // 本地调用把随应用分发的 pk 所在目录前插进子进程 PATH：GUI 进程不继承登录 shell 的
     // PATH，agent 的 Bash 工具里裸名 pk 找不到（开发态在 target/debug，安装态在应用目录）；
@@ -1098,7 +1143,7 @@ mod tests {
             }),
             ..Default::default()
         };
-        let inv = build_invocation(&a, "x");
+        let inv = build_invocation(&a, "x", &[]);
         let i = inv
             .argv
             .iter()
@@ -1116,7 +1161,65 @@ mod tests {
             }),
             ..Default::default()
         };
-        assert!(!build_invocation(&b, "x").argv.contains(&"-R".to_string()));
+        assert!(!build_invocation(&b, "x", &[])
+            .argv
+            .contains(&"-R".to_string()));
+    }
+
+    #[test]
+    fn invocation_remote_env_prefix_carries_vars() {
+        // ssh 会话环境不透传：envs 以 VAR='值' 前缀进远端命令行（cd 之后、agent 命令之前），
+        // 值经 posix_quote，远端登录 shell 求值后进入 agent 环境，由 shim 转发回本机侧 pk
+        let a = AgentConfig {
+            command: "claude".into(),
+            args: "-p".into(),
+            workdir: "~/lab".into(),
+            remote: Some(AgentRemote {
+                host: "box".into(),
+                ..Default::default()
+            }),
+            ..Default::default()
+        };
+        let envs = vec![
+            ("PK_DISPATCH_TASK".to_string(), "42".to_string()),
+            (
+                "PK_LOG_FILE".to_string(),
+                "/tmp/app support/x.log".to_string(),
+            ),
+            ("BAD-KEY".to_string(), "应被丢弃".to_string()),
+        ];
+        let inv = build_invocation(&a, "x", &envs);
+        let line = inv.argv.last().unwrap();
+        // 整行被再引用过：还原内层单引号后断言
+        let normalized = line.replace("'\\''", "'");
+        assert!(
+            normalized.starts_with("'cd ~/lab && PK_DISPATCH_TASK=42 "),
+            "前缀在 cd 后、agent 命令前: {line}"
+        );
+        assert!(
+            normalized.contains("PK_LOG_FILE='/tmp/app support/x.log'"),
+            "含空格路径整体引用: {line}"
+        );
+        assert!(
+            normalized.contains(" claude -p'"),
+            "前缀后接 agent 命令: {line}"
+        );
+        assert!(
+            !line.contains("BAD-KEY"),
+            "非环境变量键名的条目被丢弃: {line}"
+        );
+
+        // 无 envs：远端命令行与旧格式完全一致（回归）
+        assert_eq!(
+            build_invocation(&a, "x", &[]).argv.last().unwrap(),
+            "'cd ~/lab && claude -p'"
+        );
+
+        // 本地分支不吃命令行前缀（由 spawn_and_wait 的 cmd.env 注入）
+        let mut local = a.clone();
+        local.remote = None;
+        let li = build_invocation(&local, "x", &envs);
+        assert!(li.argv.iter().all(|x| !x.contains("PK_DISPATCH_TASK")));
     }
 
     #[test]
@@ -1126,7 +1229,7 @@ mod tests {
             args: "-p {prompt}".into(),
             ..Default::default()
         };
-        let inv = build_invocation(&a, "你好");
+        let inv = build_invocation(&a, "你好", &[]);
         assert_eq!(inv.program, "");
         assert_eq!(inv.argv, vec!["-p".to_string(), "你好".to_string()]);
         assert!(inv.stdin.is_none(), "占位符模式不走 stdin");
@@ -1134,13 +1237,13 @@ mod tests {
 
         // 无占位符 → 提示词走 stdin
         a.args = "-p".into();
-        let inv = build_invocation(&a, "你好");
+        let inv = build_invocation(&a, "你好", &[]);
         assert_eq!(inv.argv, vec!["-p".to_string()]);
         assert_eq!(inv.stdin.as_deref(), Some("你好"));
 
         // remote 配了但 host 为空 → 仍走本地
         a.remote = Some(crate::ai::AgentRemote::default());
-        let inv = build_invocation(&a, "你好");
+        let inv = build_invocation(&a, "你好", &[]);
         assert!(inv.remote_host.is_none(), "空 host 视为未配置");
     }
 
@@ -1154,7 +1257,7 @@ mod tests {
             args: "-p".into(),
             ..Default::default()
         };
-        let inv = build_invocation(&a, "x");
+        let inv = build_invocation(&a, "x", &[]);
         assert!(
             std::path::Path::new(&inv.program).is_absolute(),
             "PATH 中的裸命令应解析为绝对路径，got {}",
@@ -1170,7 +1273,7 @@ mod tests {
             }),
             ..Default::default()
         };
-        let inv = build_invocation(&r, "x");
+        let inv = build_invocation(&r, "x", &[]);
         assert!(!inv.program.contains("claude"), "远程分支的程序是 ssh");
         assert!(
             inv.argv.iter().any(|x| x.contains("claude")),
@@ -1188,10 +1291,11 @@ mod tests {
                 port: 2222,
                 key_path: Some("~/.ssh/id_ed25519".into()),
                 tunnel: None,
+                persistent: false,
             }),
             ..Default::default()
         };
-        let inv = build_invocation(&a, "明天 5pm 交周报");
+        let inv = build_invocation(&a, "明天 5pm 交周报", &[]);
         assert_eq!(inv.program, "ssh");
         assert_eq!(
             inv.argv,
@@ -1227,7 +1331,7 @@ mod tests {
             }),
             ..Default::default()
         };
-        let inv = build_invocation(&b, "x");
+        let inv = build_invocation(&b, "x", &[]);
         assert_eq!(
             inv.argv,
             vec![
@@ -1266,7 +1370,7 @@ mod tests {
             ..Default::default()
         };
         assert_eq!(
-            build_invocation(&a, "x").cwd.as_deref(),
+            build_invocation(&a, "x", &[]).cwd.as_deref(),
             Some(std::path::Path::new("/tmp/lab"))
         );
 
@@ -1275,11 +1379,11 @@ mod tests {
             workdir: "~/proj".into(),
             ..Default::default()
         };
-        assert_eq!(build_invocation(&a, "x").cwd, Some(home.join("proj")));
+        assert_eq!(build_invocation(&a, "x", &[]).cwd, Some(home.join("proj")));
 
         // 未配置 → ~/.choose-you（应用专属工作区），不继承 GUI 进程的 cwd
         assert_eq!(
-            build_invocation(&AgentConfig::default(), "x").cwd,
+            build_invocation(&AgentConfig::default(), "x", &[]).cwd,
             Some(home.join(".choose-you"))
         );
     }
@@ -1296,7 +1400,7 @@ mod tests {
             }),
             ..Default::default()
         };
-        let inv = build_invocation(&a, "x");
+        let inv = build_invocation(&a, "x", &[]);
         let line = inv.argv.last().unwrap();
         assert!(
             line.contains("cd ~/lab && claude -p"),

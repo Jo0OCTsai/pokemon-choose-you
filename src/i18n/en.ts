@@ -382,6 +382,14 @@ export default {
     sshPort: "SSH port",
     sshKeyPh: "Private key path (optional, e.g. ~/.ssh/id_ed25519)",
     sshTunnel: "Reverse tunnel port",
+    sshKeepAlive: "Persistent tunnel",
+    sshKeepAliveDesc:
+      'Keep the tunnel up while the app runs (auto-reconnect on drops) so remote agents can call pk anytime — otherwise the tunnel only lives during app-initiated calls; run "Set up remote pk" first',
+    tunnelOff: "Not running",
+    tunnelHealthy: "Connected — pk reachable from remote anytime",
+    tunnelConnecting: "Establishing tunnel…",
+    tunnelRetrying: "Dropped, reconnecting",
+    tunnelUnknown: "Fetching status…",
     setupRemote: "Set up remote pk (one click)",
     settingUp: "Setting up remote pk… (sshd / keys / shim / end-to-end check, ~15s)",
     setupDone:

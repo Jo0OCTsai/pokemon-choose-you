@@ -11,5 +11,6 @@
 | [PERSONAL_MEMORY_HUB_PROPOSAL.md](PERSONAL_MEMORY_HUB_PROPOSAL.md) | 个人记忆中枢（Hub + Spokes）：跨应用记忆与个人知识库 | 方案（未实施），落地项目 pokemon-remember-you（CLI：dex） |
 | [AGENT_DISPATCH_PROPOSAL.md](AGENT_DISPATCH_PROPOSAL.md) | 待办驱动的 Agent 调度 | M1–M3 已全部落地 |
 | [PET_EXPERIENCE_PROPOSAL.md](PET_EXPERIENCE_PROPOSAL.md) | 桌宠体验升级（输入响应/对话/时间与空间感知） | M1–M3 已落地（EdgeTTS 云引擎档未做） |
+| [REMOTE_PK_CHANNEL_PROPOSAL.md](REMOTE_PK_CHANNEL_PROPOSAL.md) | 远程 pk 通道（常驻通信与可靠性） | A/B 已落地（§8 加固未做；T 决定不做，C 待定） |
 
 约定：新提案放本目录，命名 `TOPIC_PROPOSAL.md`（分析类用 `_ANALYSIS.md`）；实施状态写在文首引言，随落地更新；互引与 README.md 中的引用使用 `docs/proposals/` 前缀路径。
