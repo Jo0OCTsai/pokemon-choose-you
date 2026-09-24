@@ -1,0 +1,792 @@
+<!DOCTYPE html>
+<html lang="zh-Hans">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>飞书会话过滤偏好 · 规格可视化（L 级视觉保真原型）</title>
+<!--
+  规格可视化原型（非生产代码）：mock 数据、不连 API。
+  视觉基准 = docs/design/DESIGN_SYSTEM.md 图鉴复古风（token 直接取自 src/dex.css）。
+  状态切换：body[data-state] = default / empty-disabled / empty-nosnapshot / loading / error
+  陈旧横幅：body[data-stale] = fresh / stale；mock 快照龄随「轮询间隔」选择推导（阈值 = max(5min, 2.5×interval)，§3.2）
+  键盘：三段选择器 roving tabindex（Tab 单停点；方向键/Home/End 即选即写，§6.2 处方）
+  断点预览：.stage 加 narrow(≈640) / min(375) 类；真实 media query 亦生效。
+  文案：§8 三语全量内置（语言切换演示 i18n 键覆盖；生产实现走 src/i18n/*）。
+  无障碍：toast role=status；降级行说明经 sr-only + 三段 aria-describedby；黄底控件焦点环 navy（§6.2 注记）。
+-->
+<style>
+  /* ===== dex.css 既有 token（原值引用，不新造） ===== */
+  :root {
+    --dex-red: #ee1515;
+    --dex-body: #f5f0dc;
+    --dex-navy: #1a1b25;
+    --poke-yellow: #ffcb05;
+    --ink: #1a1b25;
+    --ink-soft: #6b6657;
+    --ink-faint: #9a937f;
+    --hover: #fff3c4;
+    --ok-soft: #dff3e4;
+    --ok-ink: #1d6b3c;
+    --warn-soft: #fff3cd;
+    --warn-ink: #8a5e06;
+    --conf-low-soft: #eceada;
+    --t-tap: 80ms;
+    --t-pop: 150ms;
+  }
+  * { box-sizing: border-box; }
+  /* 防 author display 规则击穿 hidden（noMatch 等：.only-default 的 display:block 会覆盖 UA [hidden]） */
+  [hidden] { display: none !important; }
+  body {
+    margin: 0;
+    background: var(--dex-body);
+    color: var(--ink);
+    font-family: "Noto Sans CJK SC", "Noto Sans SC", "PingFang SC", "Microsoft YaHei", system-ui, sans-serif;
+    font-size: 13px;
+  }
+  /* 像素装饰位近似（生产为本地打包 Press Start 2P，原型用等宽栈示意） */
+  .px { font-family: "Courier New", ui-monospace, monospace; letter-spacing: 1px; }
+
+  :focus-visible { outline: 3px solid var(--poke-yellow); outline-offset: 2px; }
+  /* 黄底上下文焦点环改 navy 描边（黄环在黄底上近乎不可见；§6.2 焦点环对比度注记） */
+  .stab.active:focus-visible,
+  .cf-chip.on:focus-visible,
+  .cf-seg button[aria-checked="true"]:focus-visible { outline-color: var(--dex-navy); }
+
+  /* 仅读屏可见（降级说明的键盘/读屏通道，§6.2） */
+  .sr-only {
+    position: absolute; width: 1px; height: 1px; margin: -1px;
+    overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; padding: 0;
+  }
+
+  /* ===== 舞台：模拟主窗口内容区 ===== */
+  .stage { max-width: 920px; margin: 0 auto; padding: 20px 20px 120px; }
+
+  /* 设置页 stab 条（上下文锚点；仅「集成」为真内容，其余为占位） */
+  .stabs { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 14px; }
+  .stab {
+    border: 3px solid var(--dex-navy); border-radius: 8px; background: #fff;
+    padding: 6px 12px; min-height: 38px; font-weight: 700; font-size: 13px;
+    color: var(--dex-navy); cursor: pointer; font-family: inherit;
+    box-shadow: 3px 3px 0 var(--dex-navy);
+    transition: transform var(--t-tap), box-shadow var(--t-tap), background var(--t-tap);
+  }
+  .stab:active { transform: translate(2px, 2px); box-shadow: 1px 1px 0 var(--dex-navy); }
+  .stab:hover { background: var(--hover); }
+  .stab.active { background: var(--poke-yellow); }
+  .stab.active::before { content: "▶ "; font-size: 10px; }
+
+  /* ===== 会话过滤卡片（set-card：卡片级 3px/4px/12px） ===== */
+  .set-card {
+    border: 3px solid var(--dex-navy); border-radius: 12px; background: #fff;
+    box-shadow: 4px 4px 0 var(--dex-navy); padding: 16px; margin-bottom: 16px;
+  }
+  .set-card h3 { margin: 0 0 6px; font-size: 16px; }
+  .set-sub { margin: 0 0 12px; font-size: 12px; color: var(--ink-soft); line-height: 1.6; }
+
+  /* 摘要行 */
+  .cf-summary { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 10px; }
+  .cf-counts { font-size: 12px; font-weight: 700; color: var(--ink-soft); }
+  .cf-snaptime { margin-left: auto; font-size: 11px; color: var(--ink-soft); font-weight: 600; }
+  .cf-stale-banner {
+    display: none; width: 100%;
+    background: var(--warn-soft); border: 2px solid var(--warn-ink); border-radius: 4px;
+    color: var(--warn-ink); font-size: 12px; font-weight: 700;
+    padding: 6px 10px; align-items: center; gap: 10px; flex-wrap: wrap;
+  }
+  body[data-stale="stale"] .cf-stale-banner { display: flex; }
+  body[data-stale="stale"] .cf-snaptime-fresh { display: none; }
+
+  /* 工具行 */
+  .cf-toolbar { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 10px; }
+  .cf-search {
+    flex: 1 1 200px; min-width: 0; min-height: 38px;
+    border: 3px solid var(--dex-navy); border-radius: 8px; background: #fff;
+    box-shadow: 3px 3px 0 var(--dex-navy); padding: 8px 10px;
+    font-size: 13px; font-family: inherit;
+  }
+  .cf-chips { display: flex; gap: 6px; flex-wrap: wrap; }
+  .cf-chip {
+    border: 2px solid var(--dex-navy); border-radius: 4px; background: #fff;
+    color: var(--dex-navy); font-size: 11px; font-weight: 800; font-family: inherit;
+    padding: 6px 10px; min-height: 32px; cursor: pointer;
+    box-shadow: 2px 2px 0 var(--dex-navy);
+    transition: transform var(--t-tap), box-shadow var(--t-tap), background var(--t-tap);
+  }
+  .cf-chip:active { transform: translate(1px, 1px); box-shadow: 1px 1px 0 var(--dex-navy); }
+  .cf-chip:not(.on):not(:disabled):hover { background: var(--hover); }
+  .cf-chip:disabled { opacity: 0.55; cursor: default; box-shadow: 2px 2px 0 var(--ink-faint); border-color: var(--ink-faint); }
+  .cf-chip.on { background: var(--poke-yellow); }
+  .cf-card[data-state="empty-disabled"] .cf-toolbar { opacity: 0.55; pointer-events: none; }
+
+  /* 列表容器（max-height 内滚） */
+  .cf-list-box {
+    border: 3px solid var(--dex-navy); border-radius: 8px; background: #fff;
+    box-shadow: 3px 3px 0 var(--dex-navy);
+    max-height: 420px; overflow-y: auto; padding: 6px;
+  }
+  .cf-row {
+    display: flex; align-items: center; gap: 8px;
+    padding: 5px 8px; border-radius: 8px; min-height: 44px;
+  }
+  .cf-row:hover { background: var(--hover); }
+  .cf-row + .cf-row { margin-top: 2px; }
+
+  .cf-badge {
+    flex: none; font-size: 11px; font-weight: 800; color: var(--ink-soft);
+    border: 2px solid var(--ink-faint); border-radius: 4px; padding: 0 4px;
+  }
+  .cf-name {
+    flex: 1 1 auto; min-width: 80px; font-size: 13px; font-weight: 700; color: var(--ink);
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+
+  /* 生效 chip（浅底深字，语义色见 §6.1 映射） */
+  .cf-eff {
+    flex: none; font-size: 11px; font-weight: 800;
+    border: 2px solid var(--dex-navy); border-radius: 4px; padding: 2px 6px;
+    white-space: nowrap; background: #fff; color: var(--ink);
+    transition: background var(--t-pop), color var(--t-pop);
+  }
+  .cf-eff.pull { background: var(--ok-soft); color: var(--ok-ink); }
+  .cf-eff.mute { background: var(--conf-low-soft); color: var(--ink-soft); }
+  .cf-eff.degraded { background: var(--warn-soft); color: var(--warn-ink); }
+
+  /* 三段选择器（radiogroup；选中 = 唯一选中黄） */
+  .cf-seg {
+    flex: none; display: flex;
+    border: 3px solid var(--dex-navy); border-radius: 8px; background: #fff;
+    box-shadow: 3px 3px 0 var(--dex-navy); overflow: hidden;
+  }
+  .cf-seg button {
+    border: 0; background: transparent; color: var(--dex-navy);
+    font-size: 12px; font-weight: 700; font-family: inherit;
+    padding: 0 12px; min-height: 38px; cursor: pointer;
+    transition: background var(--t-pop);
+  }
+  .cf-seg button + button { border-left: 2px solid var(--dex-navy); }
+  .cf-seg button:hover:not([aria-checked="true"]) { background: var(--hover); }
+  .cf-seg button[aria-checked="true"] { background: var(--poke-yellow); }
+  .cf-seg.busy { opacity: 0.55; pointer-events: none; }
+
+  /* 空态 / loading / 错误 */
+  .cf-statebox {
+    border: 3px solid var(--dex-navy); border-radius: 8px; background: #fff;
+    box-shadow: 3px 3px 0 var(--dex-navy);
+    padding: 36px 12px; text-align: center; color: var(--ink-soft);
+    font-size: 13px; line-height: 2;
+  }
+  .cf-statebox .btn { margin-top: 8px; }
+  .cf-err { color: var(--dex-red); font-weight: 700; }
+
+  /* 按钮（复用全局 .btn/.btn.ghost 质感） */
+  .btn {
+    border: 3px solid var(--dex-navy); border-radius: 8px; background: var(--poke-yellow);
+    color: var(--dex-navy); font-size: 13px; font-weight: 800; font-family: inherit;
+    padding: 8px 14px; min-height: 38px; cursor: pointer;
+    box-shadow: 3px 3px 0 var(--dex-navy);
+    transition: transform var(--t-tap), box-shadow var(--t-tap), background var(--t-tap);
+  }
+  .btn:active { transform: translate(2px, 2px); box-shadow: 1px 1px 0 var(--dex-navy); }
+  .btn:disabled { opacity: 0.55; cursor: default; }
+  .btn.ghost { background: #fff; }
+  .btn.ghost:hover:not(:disabled) { background: var(--hover); }
+  .btn.link { box-shadow: none; border-width: 2px; padding: 4px 10px; font-size: 12px; }
+
+  /* 脚注（set-foot：虚线分隔下沉） */
+  .cf-foot {
+    margin-top: 12px; padding-top: 10px; border-top: 2px dashed var(--ink-faint);
+    font-size: 12px; color: var(--ink-soft); line-height: 1.7;
+  }
+
+  /* 各 data-state 显隐 */
+  .cf-card .only-state { display: none; }
+  .cf-card[data-state="default"] .only-default { display: block; }
+  .cf-card[data-state="empty-disabled"] .only-empty-disabled { display: block; }
+  .cf-card[data-state="empty-nosnapshot"] .only-empty-nosnapshot { display: block; }
+  .cf-card[data-state="loading"] .only-loading { display: block; }
+  .cf-card[data-state="error"] .only-error { display: block; }
+
+  /* toast */
+  .toast {
+    position: fixed; right: 24px; bottom: 96px; z-index: 100;
+    background: #fff; border: 3px solid var(--dex-navy); border-radius: 8px;
+    box-shadow: 4px 4px 0 var(--dex-navy); padding: 10px 14px;
+    font-size: 13px; font-weight: 700; max-width: 70%;
+  }
+  .toast.error { color: #e00f0f; }
+
+  /* ===== 演示控制台（评审用，非规格内容） ===== */
+  .devbar {
+    position: fixed; left: 0; right: 0; bottom: 0; z-index: 110;
+    background: #1a1b25; color: #f5f0dc; font-size: 12px;
+    padding: 8px 14px; display: flex; flex-wrap: wrap; gap: 8px 14px; align-items: center;
+  }
+  .devbar b { font-weight: 800; }
+  .devbar button {
+    background: transparent; color: #f5f0dc; border: 2px solid #f5f0dc; border-radius: 4px;
+    font-size: 11px; padding: 3px 8px; cursor: pointer; font-family: inherit;
+  }
+  .devbar button.on { background: var(--poke-yellow); color: var(--dex-navy); border-color: var(--poke-yellow); }
+  .devbar select { background: #1a1b25; color: #f5f0dc; border: 2px solid #f5f0dc; border-radius: 4px; font-size: 11px; padding: 2px 4px; }
+  .devbar label { display: inline-flex; gap: 4px; align-items: center; cursor: pointer; }
+
+  /* 占位 tab 提示 */
+  .placeholder-note { font-size: 12px; color: var(--ink-soft); padding: 24px 0; text-align: center; }
+
+  /* ===== 断点（真实 media query + 舞台类模拟，规则同 §7） ===== */
+  @media (max-width: 640px) {
+    .cf-row { flex-wrap: wrap; }
+    .cf-seg { order: 5; margin-left: auto; }
+  }
+  .stage.narrow { max-width: 640px; }
+  .stage.narrow .cf-row { flex-wrap: wrap; }
+  .stage.narrow .cf-seg { order: 5; margin-left: auto; }
+  @media (max-width: 480px) {
+    .cf-toolbar { flex-direction: column; }
+    .cf-search { flex: 1 1 auto; }
+  }
+  .stage.mini { max-width: 375px; }
+  .stage.mini .cf-toolbar { flex-direction: column; }
+
+  /* 减弱动效双通道（演示）：按压位移/色变过渡关闭 */
+  @media (prefers-reduced-motion: reduce) {
+    * { transition: none !important; }
+  }
+</style>
+</head>
+<body data-state="default" data-stale="fresh">
+
+<div class="stage" id="stage">
+  <!-- 设置页 stab 条：上下文锚点（集成 = 本原型范围，其余占位） -->
+  <nav class="stabs" aria-label="设置分区">
+    <button class="stab" data-tab="focus">专注</button>
+    <button class="stab" data-tab="cats">分类</button>
+    <button class="stab" data-tab="tags">标签</button>
+    <button class="stab" data-tab="display">显示</button>
+    <button class="stab active" data-tab="integrations" aria-current="true">集成</button>
+    <button class="stab" data-tab="diag">诊断</button>
+    <button class="stab" data-tab="general">通用</button>
+  </nav>
+
+  <!-- 现有飞书卡片（占位示意：本原型不改它） -->
+  <div class="set-card" id="feishu-card" hidden>
+    <h3>💬 飞书（现有卡片，不在本原型范围）</h3>
+    <p class="set-sub">授权状态 / 启用轮询 / 轮询间隔 / 我的称呼 / 测试与立即拉取 —— 零改动。</p>
+  </div>
+
+  <!-- ===== 新增：会话过滤卡片 ===== -->
+  <div class="set-card cf-card" data-state="default" id="cfCard">
+    <h3>📡 <span data-i18n="title"></span></h3>
+    <p class="set-sub" data-i18n="hint"></p>
+
+    <!-- 摘要行 -->
+    <div class="cf-summary only-default">
+      <span class="cf-counts" id="counts"></span>
+      <span class="cf-snaptime cf-snaptime-fresh" id="snaptime"></span>
+      <div class="cf-stale-banner">
+        <span id="staleText"></span>
+        <button class="btn ghost link" id="pollNow2" data-i18n="pollNow"></button>
+      </div>
+    </div>
+
+    <!-- 工具行 -->
+    <div class="cf-toolbar only-default">
+      <input class="cf-search" id="search" data-i18n-attr="placeholder:searchPh aria-label:searchLabel" />
+      <div class="cf-chips" role="group" id="chips" data-i18n-attr="aria-label:chipsLabel"></div>
+    </div>
+
+    <!-- 就绪列表 -->
+    <div class="cf-list-box only-default" id="listBox"></div>
+
+    <!-- 空·未启用（含权限：未授权同文案，指向上方授权按钮） -->
+    <div class="cf-statebox only-empty-disabled">
+      <span data-i18n="emptyDisabled"></span>
+    </div>
+
+    <!-- 空·无快照 -->
+    <div class="cf-statebox only-empty-nosnapshot">
+      <span data-i18n="emptyNoSnap"></span><br />
+      <button class="btn ghost" id="pollNow1" data-i18n="pollNow"></button>
+    </div>
+
+    <!-- 空·无匹配（仅由搜索词触发：列表区渲染此文案；0 计数筛选档已禁用 + 选中档降 0 自动回退，§3.2） -->
+    <div class="cf-statebox only-default" id="noMatch" hidden>
+      <span id="noMatchText"></span>
+    </div>
+
+    <!-- loading -->
+    <div class="cf-statebox only-loading"><span data-i18n="loading"></span></div>
+
+    <!-- 读取失败 -->
+    <div class="cf-statebox only-error">
+      <span class="cf-err" id="errText"></span><br />
+      <button class="btn ghost" id="retryBtn"></button>
+    </div>
+
+    <!-- 脚注 -->
+    <div class="cf-foot">
+      <p data-i18n="footImmediate" style="margin:0 0 4px"></p>
+      <p data-i18n="footNoBackfill" style="margin:0"></p>
+    </div>
+  </div>
+
+  <p class="placeholder-note" id="tabNote" hidden>占位：该设置分区为现有界面，不在本原型范围（规格见 uiux-design.md §2 信息架构）。</p>
+</div>
+
+<div class="toast" id="toast" role="status" hidden><span id="toastText"></span></div>
+
+<!-- ===== 演示控制台（评审工具，非产品 UI） ===== -->
+<div class="devbar">
+  <b>状态</b>
+  <button data-state-btn="default" class="on">就绪</button>
+  <button data-state-btn="empty-disabled">空·未启用</button>
+  <button data-state-btn="empty-nosnapshot">空·无快照</button>
+  <button data-state-btn="loading">loading</button>
+  <button data-state-btn="error">读取失败</button>
+  <b>陈旧</b>
+  <button data-stale-btn="fresh" class="on">新鲜</button>
+  <button data-stale-btn="stale" id="staleBtn">stale</button>
+  <b>轮询间隔</b>
+  <select id="intervalSel" title="mock feishu_poll_interval（陈旧阈值 = max(5min, 2.5×间隔)，§3.2）">
+    <option value="1">1 分钟</option>
+    <option value="2" selected>2 分钟（默认）</option>
+    <option value="5">5 分钟</option>
+    <option value="15">15 分钟</option>
+  </select>
+  <b>断点</b>
+  <button data-w-btn="" class="on">桌面</button>
+  <button data-w-btn="narrow">&lt;640</button>
+  <button data-w-btn="mini">375</button>
+  <b>语言</b>
+  <select id="langSel">
+    <option value="zh-Hans">zh-Hans</option>
+    <option value="zh-Hant">zh-Hant</option>
+    <option value="en">en</option>
+  </select>
+  <b>评审工具</b>
+  <button id="gen500">生成 500 行</button>
+  <label><input type="checkbox" id="failSim" /> 模拟写入失败</label>
+</div>
+
+<script>
+/* ===== §8 三语文案（键结构与 uiux-design.md §8 / i18n feishu.filter.* 一致） ===== */
+const I18N = {
+  "zh-Hans": {
+    title: "会话过滤",
+    hint: "逐会话决定哪些飞书消息参与拉取；跟随免打扰为默认，手动设置后以本应用为准。",
+    summary: "共 {total} 个会话：{pulling} 拉取 · {filtered} 过滤 · 手动 {manual}",
+    staleOk: "以上一轮拉取为准（{time}）",
+    staleWarn: "⚠ 距上一轮拉取已 {min} 分钟，状态可能不是最新。可在「诊断 · 集成健康」查看详情。",
+    searchPh: "搜索会话名",
+    searchLabel: "按会话名称搜索",
+    chipsLabel: "筛选会话列表",
+    prefGroupLabel: "{name}：过滤偏好",
+    fAll: "全部 {n}", fFiltered: "被过滤 {n}", fManual: "手动设置 {n}",
+    prefFollow: "跟随", prefPull: "拉取", prefFilter: "过滤",
+    prefFollowTitle: "跟随免打扰（默认）：按飞书侧免打扰决定",
+    prefPullTitle: "总是拉取：无论飞书是否免打扰都拉取",
+    prefFilterTitle: "总是过滤：整会话跳过，一条消息都不拉",
+    effPull: "📡 拉取", effFilter: "🔇 过滤",
+    srcManual: "手动", srcFollow: "跟随", srcDegraded: "降级",
+    srcDegradedTitle: "免打扰查询失败，本轮降级为不过滤；下一轮恢复后按免打扰推导",
+    emptyDisabled: "启用飞书后台轮询后，这里会列出你的全部会话。",
+    emptyNoSnap: "还没有拉取快照。等待下一轮轮询，或立即拉取一次。",
+    emptySnapEmpty: "上一轮拉取未发现会话。",
+    emptySearch: "没有匹配「{q}」的会话",
+    loading: "读取会话快照…",
+    loadFail: "会话列表读取失败：{err}",
+    retry: "重试",
+    writeFail: "❌ 设置未生效，请重试：{err}",
+    footImmediate: "此处的更改立即生效（无需点「保存设置」），下一轮拉取起作用。",
+    footNoBackfill: "解除过滤只收新消息，不回补历史；设置过滤前的消息与待办保持原样。",
+    pollNow: "立即拉取一次",
+    "type.group": "群聊", "type.p2p": "私聊", "type.bot": "机器人",
+  },
+  "zh-Hant": {
+    title: "會話過濾",
+    hint: "逐會話決定哪些飛書訊息參與拉取；跟隨免打擾為預設，手動設定後以本應用為準。",
+    summary: "共 {total} 個會話：{pulling} 拉取 · {filtered} 過濾 · 手動 {manual}",
+    staleOk: "以上一輪拉取為準（{time}）",
+    staleWarn: "⚠ 距上一輪拉取已 {min} 分鐘，狀態可能不是最新。可在「診斷 · 整合健康」查看詳情。",
+    searchPh: "搜尋會話名稱",
+    searchLabel: "按會話名稱搜尋",
+    chipsLabel: "篩選會話列表",
+    prefGroupLabel: "{name}：過濾偏好",
+    fAll: "全部 {n}", fFiltered: "被過濾 {n}", fManual: "手動設定 {n}",
+    prefFollow: "跟隨", prefPull: "拉取", prefFilter: "過濾",
+    prefFollowTitle: "跟隨免打擾（預設）：按飛書側免打擾決定",
+    prefPullTitle: "總是拉取：無論飛書是否免打擾都拉取",
+    prefFilterTitle: "總是過濾：整會話跳過，一條訊息都不拉",
+    effPull: "📡 拉取", effFilter: "🔇 過濾",
+    srcManual: "手動", srcFollow: "跟隨", srcDegraded: "降級",
+    srcDegradedTitle: "免打擾查詢失敗，本輪降級為不過濾；下一輪恢復後按免打擾推導",
+    emptyDisabled: "啟用飛書背景輪詢後，這裡會列出你的全部會話。",
+    emptyNoSnap: "還沒有拉取快照。等待下一輪輪詢，或立即拉取一次。",
+    emptySnapEmpty: "上一輪拉取未發現會話。",
+    emptySearch: "沒有符合「{q}」的會話",
+    loading: "讀取會話快照…",
+    loadFail: "會話列表讀取失敗：{err}",
+    retry: "重試",
+    writeFail: "❌ 設定未生效，請重試：{err}",
+    footImmediate: "此處的更改立即生效（無需點「儲存設定」），下一輪拉取起作用。",
+    footNoBackfill: "解除過濾只收新訊息，不回補歷史；設定過濾前的訊息與待辦保持原樣。",
+    pollNow: "立即拉取一次",
+    "type.group": "群聊", "type.p2p": "私聊", "type.bot": "機器人",
+  },
+  en: {
+    title: "Chat filters",
+    hint: "Choose which Feishu chats get pulled. Follow mute is the default; manual choices override it.",
+    summary: "{total} chats: {pulling} pulling · {filtered} filtered · {manual} manual",
+    staleOk: "Based on the last pull ({time})",
+    staleWarn: "⚠ Last pull was {min} min ago; status may be outdated. Check Diagnostics · Integration health.",
+    searchPh: "Search chats",
+    searchLabel: "Search chats by name",
+    chipsLabel: "Filter the chat list",
+    prefGroupLabel: "{name}: chat filter preference",
+    fAll: "All {n}", fFiltered: "Filtered {n}", fManual: "Manual {n}",
+    prefFollow: "Follow", prefPull: "Pull", prefFilter: "Filter",
+    prefFollowTitle: "Follow Feishu mute (default)",
+    prefPullTitle: "Always pull, regardless of Feishu mute",
+    prefFilterTitle: "Always filter: skip the whole chat",
+    effPull: "📡 Pull", effFilter: "🔇 Filter",
+    srcManual: "manual", srcFollow: "follow", srcDegraded: "degraded",
+    srcDegradedTitle: "Mute lookup failed this round; degraded to not filtered",
+    emptyDisabled: "Enable Feishu background polling to list your chats here.",
+    emptyNoSnap: "No pull snapshot yet. Wait for the next poll, or pull now.",
+    emptySnapEmpty: "The last pull found no chats.",
+    emptySearch: "No chats match \"{q}\"",
+    loading: "Loading chat snapshot…",
+    loadFail: "Failed to load chats: {err}",
+    retry: "Retry",
+    writeFail: "❌ Change not applied, retry: {err}",
+    footImmediate: "Changes here apply immediately (no Save needed) and take effect on the next pull.",
+    footNoBackfill: "Unfiltering only receives new messages (no backfill); existing messages and todos are kept as-is.",
+    pollNow: "Pull now",
+    "type.group": "Group", "type.p2p": "Direct", "type.bot": "Bot",
+  },
+};
+let lang = "zh-Hans";
+const t = (k, p) => I18N[lang][k].replace(/\{(\w+)\}/g, (_, n) => (p && p[n] != null ? p[n] : ""));
+
+/* ===== mock 数据（字段对齐 contract.json displayFields） =====
+   preference: follow / always_pull / always_filter（无记录 = follow）
+   muteQuery（快照）: ok-unmuted / ok-muted / failed
+   生效合并（原型 mock 后端合并规则，§3.2 矩阵） */
+const BASE = [
+  { id: "c1", name: "重要项目群", type: "group", preference: "always_pull", muteQuery: "ok-muted" },
+  { id: "c2", name: "灌水群（中午摸鱼、表情包大战专用）", type: "group", preference: "always_filter", muteQuery: "ok-unmuted" },
+  { id: "c3", name: "团队群", type: "group", preference: "follow", muteQuery: "ok-unmuted" },
+  { id: "c4", name: "家庭群", type: "group", preference: "follow", muteQuery: "ok-muted" },
+  { id: "c5", name: "张三", type: "p2p", preference: "follow", muteQuery: "ok-muted" },
+  { id: "c6", name: "李四（外包对接）", type: "p2p", preference: "follow", muteQuery: "failed" },
+  { id: "c7", name: "告警机器人", type: "bot", preference: "always_filter", muteQuery: "ok-unmuted" },
+  { id: "c8", name: "CI 构建通知", type: "bot", preference: "follow", muteQuery: "failed" },
+  { id: "c9", name: "老同学群", type: "group", preference: "follow", muteQuery: "ok-unmuted" },
+  { id: "c10", name: "王五", type: "p2p", preference: "follow", muteQuery: "ok-unmuted" },
+  { id: "c11", name: "产品评审会·冲刺 42 期专项长期群", type: "group", preference: "follow", muteQuery: "ok-muted" },
+  { id: "c12", name: "日报机器人", type: "bot", preference: "follow", muteQuery: "ok-unmuted" },
+  { id: "c13", name: "赵六", type: "p2p", preference: "always_pull", muteQuery: "ok-unmuted" },
+  { id: "c14", name: "供应商对接群 A", type: "group", preference: "follow", muteQuery: "failed" },
+];
+let chats = BASE.slice();
+
+/* 后端合并规则 mock（真实实现在后端读/写命令中，前端只消费结果） */
+function merge(c) {
+  if (c.preference === "always_pull") return { eff: "pull", src: "manual" };
+  if (c.preference === "always_filter") return { eff: "filter", src: "manual" };
+  if (c.muteQuery === "ok-muted") return { eff: "filter", src: "follow" };
+  if (c.muteQuery === "failed") return { eff: "pull", src: "degraded" };
+  return { eff: "pull", src: "follow" };
+}
+
+/* ===== 视图状态 ===== */
+let filter = "all";
+let query = "";
+
+const TYPE_ORDER = { group: 0, p2p: 1, bot: 2 };
+function sorted(list) {
+  return list.slice().sort((a, b) => {
+    const am = a.preference !== "follow" ? 0 : 1, bm = b.preference !== "follow" ? 0 : 1;
+    return am - bm || TYPE_ORDER[a.type] - TYPE_ORDER[b.type] || a.name.localeCompare(b.name, "zh");
+  });
+}
+function visible() {
+  return sorted(chats.filter((c) => {
+    if (query && !c.name.toLowerCase().includes(query.toLowerCase())) return false;
+    const m = merge(c);
+    if (filter === "filtered") return m.eff === "filter";
+    if (filter === "manual") return c.preference !== "follow";
+    return true;
+  }));
+}
+
+/* ===== 渲染 ===== */
+const $ = (s) => document.querySelector(s);
+const listBox = $("#listBox"), noMatch = $("#noMatch"), chipsBox = $("#chips");
+
+function fmtClock(d) {
+  return `${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")} ${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
+}
+/* ===== 陈旧阈值随轮询间隔推导（§3.2：max(5min, 2.5×interval)；间隔档位对齐设置页 1/2/5/15 分钟） ===== */
+let pollInterval = 2; // mock feishu_poll_interval（分钟）
+function staleThresholdMin() { return Math.max(5, 2.5 * pollInterval); }
+function snapDate() {
+  const stale = document.body.dataset.stale === "stale";
+  // 新鲜 = 0.6×间隔；陈旧 = 阈值 + 2 分钟（确保稳定越过推导阈值）
+  const age = stale ? staleThresholdMin() + 2 : Math.min(pollInterval * 0.6, 10);
+  return new Date(Date.now() - age * 60000);
+}
+function updateStaleDemo() {
+  const el = document.getElementById("staleBtn");
+  if (el) el.textContent = `stale(${Math.round(staleThresholdMin() + 2)}min)`;
+}
+
+function renderSummary() {
+  const pulling = chats.filter((c) => merge(c).eff === "pull").length;
+  const manual = chats.filter((c) => c.preference !== "follow").length;
+  $("#counts").textContent = t("summary", { total: chats.length, pulling, filtered: chats.length - pulling, manual });
+  const d = snapDate();
+  $("#snaptime").textContent = t("staleOk", { time: fmtClock(d) });
+  $("#staleText").textContent = t("staleWarn", { min: Math.round((Date.now() - d.getTime()) / 60000) });
+}
+
+function filterCounts() {
+  return {
+    all: chats.length,
+    filtered: chats.filter((c) => merge(c).eff === "filter").length,
+    manual: chats.filter((c) => c.preference !== "follow").length,
+  };
+}
+
+function renderChips() {
+  chipsBox.innerHTML = "";
+  const counts = filterCounts();
+  // 当前选中档计数因偏好变更降为 0 → 自动切回「全部」（禁用档不可作为停留态，§3.2）
+  if (filter !== "all" && counts[filter] === 0) filter = "all";
+  const defs = [
+    ["all", "fAll", counts.all],
+    ["filtered", "fFiltered", counts.filtered],
+    ["manual", "fManual", counts.manual],
+  ];
+  for (const [key, label, n] of defs) {
+    const b = document.createElement("button");
+    b.className = "cf-chip" + (filter === key ? " on" : "");
+    b.textContent = t(label, { n });
+    b.disabled = n === 0; // 计数为 0 的档位禁用：文案自带计数自解释，免 chip-only 空态文案（§3.2）
+    b.onclick = () => { filter = key; renderChips(); renderList(); };
+    chipsBox.appendChild(b);
+  }
+}
+
+function renderList() {
+  const rows = visible();
+  listBox.innerHTML = "";
+  // 空·无匹配仅由搜索词触发（0 计数筛选档已禁用 + 选中档降 0 自动回退，§3.2）
+  noMatch.hidden = rows.length > 0 || !query;
+  $("#noMatchText").textContent = t("emptySearch", { q: query || "…" });
+  for (const c of rows) listBox.appendChild(renderRow(c));
+}
+
+function renderRow(c) {
+  const m = merge(c);
+  const row = document.createElement("div");
+  row.className = "cf-row";
+
+  const badge = document.createElement("span");
+  badge.className = "cf-badge";
+  badge.textContent = t("type." + c.type);
+
+  const name = document.createElement("span");
+  name.className = "cf-name";
+  name.textContent = c.name;
+  name.title = c.name; // ellipsis 截断时 title 给全名
+
+  const eff = document.createElement("span");
+  const effBase = m.eff === "pull" ? "effPull" : "effFilter";
+  eff.className = "cf-eff " + (m.src === "degraded" ? "degraded" : m.eff);
+  eff.textContent = `${t(effBase)} · ${t(m.src === "manual" ? "srcManual" : m.src === "follow" ? "srcFollow" : "srcDegraded")}`;
+  if (m.src === "degraded") { eff.textContent = `${t(effBase)} · ${t("srcDegraded")} ⚠`; eff.title = t("srcDegradedTitle"); }
+  else if (m.src === "manual") eff.title = t(c.preference === "always_pull" ? "prefPullTitle" : "prefFilterTitle");
+  else eff.title = t("prefFollowTitle");
+
+  // 降级说明的键盘/读屏通道：sr-only 节点 + 同行三段 aria-describedby（title 仍是鼠标通道，§6.2）
+  if (m.src === "degraded") {
+    const desc = document.createElement("span");
+    desc.className = "sr-only";
+    desc.id = "cf-dg-" + c.id;
+    desc.textContent = t("srcDegradedTitle");
+    row.append(desc);
+  }
+
+  const seg = document.createElement("div");
+  seg.className = "cf-seg";
+  seg.setAttribute("role", "radiogroup");
+  seg.setAttribute("aria-label", t("prefGroupLabel", { name: c.name }));
+  if (m.src === "degraded") seg.setAttribute("aria-describedby", "cf-dg-" + c.id);
+  const SEGS = [
+    ["follow", "prefFollow", "prefFollowTitle"],
+    ["always_pull", "prefPull", "prefPullTitle"],
+    ["always_filter", "prefFilter", "prefFilterTitle"],
+  ];
+  for (const [val, label, title] of SEGS) {
+    const b = document.createElement("button");
+    b.type = "button";
+    b.setAttribute("role", "radio");
+    b.setAttribute("aria-checked", String(c.preference === val));
+    b.tabIndex = c.preference === val ? 0 : -1; // roving tabindex：Tab 单停点（§6.2 处方）
+    b.textContent = t(label);
+    b.title = t(title);
+    b.onclick = () => setPref(c, val, row, seg, false);
+    seg.appendChild(b);
+  }
+  // 键盘处方（§6.2）：ArrowLeft/Up=上一段、ArrowRight/Down=下一段（循环）、Home/End=首/末段；
+  // 方向键即移动焦点并选中（radio 模式，与点击共用同一写入路径，无需 Enter/Space 二次确认）
+  seg.addEventListener("keydown", (e) => {
+    if (seg.classList.contains("busy")) return;
+    const cur = SEGS.findIndex(([v]) => v === c.preference);
+    let next = null;
+    if (e.key === "ArrowRight" || e.key === "ArrowDown") next = (cur + 1) % SEGS.length;
+    else if (e.key === "ArrowLeft" || e.key === "ArrowUp") next = (cur - 1 + SEGS.length) % SEGS.length;
+    else if (e.key === "Home") next = 0;
+    else if (e.key === "End") next = SEGS.length - 1;
+    else return;
+    e.preventDefault();
+    const [val] = SEGS[next];
+    if (val === c.preference) seg.children[next].focus();
+    else setPref(c, val, row, seg, true);
+  });
+
+  row.dataset.id = c.id;
+  row.append(badge, name, eff, seg);
+  return row;
+}
+
+/* 三段写入：乐观 UI（即时生效语义 §3.2）→ 成功刷新 / 失败回滚 + toast；
+   keyboard = 经键盘触发时，重渲/回滚后焦点跟随（回到当前选中段，保 roving 不丢焦） */
+function setPref(c, val, rowEl, segEl, keyboard) {
+  const prev = c.preference;
+  if (prev === val) return;
+  c.preference = val; // 乐观
+  segEl.classList.add("busy");
+  const fresh = renderRowInto(c, rowEl, segEl);
+  if (keyboard) focusRowSeg(c.id);
+  setTimeout(() => {
+    segEl.classList.remove("busy");
+    if ($("#failSim").checked) {
+      c.preference = prev; // 回滚
+      renderAll();
+      if (keyboard) focusRowSeg(c.id); // 焦点回到回滚后的原选中段
+      showToast(t("writeFail", { err: "mock command error" }), true);
+    } else {
+      renderAll();
+      if (keyboard) focusRowSeg(c.id); // 成功后焦点留在新选中段（若行仍可见）
+    }
+  }, 400);
+}
+function focusRowSeg(id) {
+  const btn = document.querySelector(`.cf-row[data-id="${id}"] .cf-seg button[aria-checked="true"]`);
+  if (btn) btn.focus();
+}
+function renderRowInto(c, rowEl, segEl) {
+  const fresh = renderRow(c);
+  const freshSeg = fresh.querySelector(".cf-seg");
+  freshSeg.classList.toggle("busy", segEl.classList.contains("busy"));
+  rowEl.replaceWith(fresh);
+  return fresh;
+}
+
+function renderAll() { renderSummary(); renderChips(); renderList(); }
+
+/* toast（5s，错误红） */
+let toastTimer;
+function showToast(text, isErr) {
+  const el = $("#toast");
+  el.hidden = false;
+  el.classList.toggle("error", !!isErr);
+  $("#toastText").textContent = text;
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => (el.hidden = true), 5000);
+}
+
+/* ===== 静态文案应用（data-i18n） ===== */
+function applyI18n() {
+  document.querySelectorAll("[data-i18n]").forEach((el) => (el.textContent = t(el.dataset.i18n)));
+  document.querySelectorAll("[data-i18n-attr]").forEach((el) => {
+    // 支持空格分隔的多对 "attr:key"（如 placeholder + aria-label）
+    for (const pair of el.dataset.i18nAttr.split(" ")) {
+      const [attr, key] = pair.split(":");
+      el.setAttribute(attr, t(key));
+    }
+  });
+  $("#retryBtn").textContent = t("retry");
+  document.documentElement.lang = lang === "en" ? "en" : "zh-Hans";
+}
+
+/* ===== 演示控制台 ===== */
+document.querySelectorAll("[data-state-btn]").forEach((b) =>
+  b.onclick = () => {
+    document.querySelectorAll("[data-state-btn]").forEach((x) => x.classList.remove("on"));
+    b.classList.add("on");
+    const s = b.dataset.stateBtn;
+    document.body.dataset.state = s;
+    $("#cfCard").dataset.state = s;
+    if (s === "error") $("#errText").textContent = t("loadFail", { err: "mock: db lock" });
+    if (s === "default") $("#feishu-card").hidden = false; // 就绪态展示上方飞书卡片上下文
+    else $("#feishu-card").hidden = true;
+  },
+);
+document.querySelectorAll("[data-stale-btn]").forEach((b) =>
+  b.onclick = () => {
+    document.querySelectorAll("[data-stale-btn]").forEach((x) => x.classList.remove("on"));
+    b.classList.add("on");
+    document.body.dataset.stale = b.dataset.staleBtn;
+    renderSummary();
+  },
+);
+document.querySelectorAll("[data-w-btn]").forEach((b) =>
+  b.onclick = () => {
+    document.querySelectorAll("[data-w-btn]").forEach((x) => x.classList.remove("on"));
+    b.classList.add("on");
+    $("#stage").classList.remove("narrow", "mini");
+    if (b.dataset.wBtn) $("#stage").classList.add(b.dataset.wBtn);
+  },
+);
+document.querySelectorAll(".stab").forEach((b) =>
+  b.onclick = () => {
+    document.querySelectorAll(".stab").forEach((x) => { x.classList.remove("active"); x.removeAttribute("aria-current"); });
+    b.classList.add("active");
+    b.setAttribute("aria-current", "true");
+    const isIntegration = b.dataset.tab === "integrations";
+    $("#cfCard").hidden = !isIntegration;
+    $("#feishu-card").hidden = !isIntegration || $("#cfCard").dataset.state !== "default";
+    $("#tabNote").hidden = isIntegration;
+  },
+);
+$("#langSel").onchange = (e) => { lang = e.target.value; applyI18n(); renderAll(); };
+$("#intervalSel").onchange = (e) => { pollInterval = Number(e.target.value); updateStaleDemo(); renderSummary(); };
+$("#search").oninput = (e) => { query = e.target.value.trim(); renderList(); };
+$("#retryBtn").onclick = () => document.querySelector('[data-state-btn="default"]').click();
+for (const id of ["pollNow1", "pollNow2"]) {
+  $("#" + id).onclick = () => {
+    // mock：拉取完成后重读总览 → 回到就绪 + toast（真实链路 = trigger_feishu_poll → 重读/事件刷新）
+    document.querySelector('[data-state-btn="default"]').click();
+    showToast("本轮新增 3 条建议（mock）");
+  };
+}
+$("#gen500").onclick = () => {
+  chats = [];
+  const types = ["group", "p2p", "bot"], prefs = ["follow", "follow", "follow", "always_pull", "always_filter"], mutes = ["ok-unmuted", "ok-muted", "failed"];
+  for (let i = 1; i <= 500; i++) {
+    chats.push({ id: "g" + i, name: "会话 " + String(i).padStart(3, "0"), type: types[i % 3], preference: prefs[i % 5], muteQuery: mutes[i % 3] });
+  }
+  renderAll();
+};
+
+/* init */
+applyI18n();
+updateStaleDemo();
+$("#feishu-card").hidden = false;
+renderAll();
+</script>
+</body>
+</html>

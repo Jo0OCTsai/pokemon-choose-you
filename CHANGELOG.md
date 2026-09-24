@@ -98,6 +98,7 @@
 
 ### Added
 
+- **会话过滤偏好**：飞书免打扰从唯一过滤依据降级为默认值——设置 → 集成 → 「会话过滤」卡片逐会话三态（跟随免打扰（默认）/ 总是拉取 / 总是过滤），手动覆盖后以本应用为准；每轮落拉取快照（含生效状态与来源、免打扰查询失败逐会话降级标示）；偏好即时生效、导出导入可恢复；顺手补上拉取 in-flight 守卫（轮询与「立即拉取」并发防护，既有缺口）。
 - **常驻应用标配**：系统托盘（打开图鉴机 / 显示隐藏桌宠 / 设置 / 检查更新 / 退出）、单实例保护、窗口位置记忆、全局快捷键（`Ctrl/Cmd+Shift+K` 快速捕捉待办、`Ctrl/Cmd+Shift+D` 显示/隐藏桌宠）、自动更新（minisign 签名，托盘与设置页入口）。
 - **工程链**：ESLint（flat）+ Prettier + lefthook + commitlint + release-please + Renovate；CI 增加 clippy/fmt/lint 关卡。
 - **架构补强**：命令统一 `AppError`（kind/retryable，前端 api.ts 分层捕获）；SQLite 启用 `PRAGMA user_version` 迁移；事件名前后端契约测试；wiremock 覆盖 AI/飞书/Todoist 的 HTTP 分支。

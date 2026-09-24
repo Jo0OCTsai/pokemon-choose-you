@@ -19,6 +19,7 @@ const RUST_SIDE_FIXTURE = [
   "update-progress",
   "integration-health-changed",
   "input-activity",
+  "feishu-chat-filter-changed",
 ];
 
 describe("前后端事件契约", () => {

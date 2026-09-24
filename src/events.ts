@@ -22,6 +22,8 @@ export const EVENTS = {
   updateProgress: "update-progress",
   /** 集成健康状态变化（飞书/AI 链路的成功/失败记录），诊断页跟随刷新 */
   integrationHealthChanged: "integration-health-changed",
+  /** 会话过滤数据变化（偏好写入后 / 每轮拉取落快照后 / 全量导入后广播，无 payload），设置页过滤卡重拉 */
+  feishuChatFilterChanged: "feishu-chat-filter-changed",
   /** 全局输入活动强度（F1 输入响应，仅发桌宠窗口），payload: { cps }（每秒键鼠事件数，只计数不取内容） */
   inputActivity: "input-activity",
 } as const;

@@ -21,6 +21,9 @@ pub const UPDATE_PROGRESS: &str = "update-progress";
 pub const INTEGRATION_HEALTH_CHANGED: &str = "integration-health-changed";
 /// 全局输入活动强度（F1 输入响应，仅发桌宠窗口），payload: { cps }（每秒键鼠事件数，只计数不取内容）
 pub const INPUT_ACTIVITY: &str = "input-activity";
+/// 飞书会话过滤数据面变化（偏好 set / 每轮拉取快照提交 / 全量导入后），前端重拉过滤总览。
+/// 无 payload；快照可能无新消息也变化（免打扰改动/退群），故每轮成功拉取都广播（AD §4.2）
+pub const FEISHU_CHAT_FILTER_CHANGED: &str = "feishu-chat-filter-changed";
 
 /// 事件名全集（契约测试与前端 fixture 对齐用）
 #[cfg(test)]
@@ -38,6 +41,7 @@ pub fn all() -> &'static [&'static str] {
         UPDATE_PROGRESS,
         INTEGRATION_HEALTH_CHANGED,
         INPUT_ACTIVITY,
+        FEISHU_CHAT_FILTER_CHANGED,
     ]
 }
 
@@ -57,7 +61,7 @@ mod tests {
     fn event_names_match_frontend_contract() {
         assert_eq!(
             serde_json::to_string(all()).unwrap(),
-            r#"["tasks-changed","categories-changed","settings-changed","chat-messages-changed","tags-changed","task-reminder","quick-capture","show-settings","update-available","update-progress","integration-health-changed","input-activity"]"#,
+            r#"["tasks-changed","categories-changed","settings-changed","chat-messages-changed","tags-changed","task-reminder","quick-capture","show-settings","update-available","update-progress","integration-health-changed","input-activity","feishu-chat-filter-changed"]"#,
             "事件名集合必须与前端 src/events.ts 一致"
         );
         // 事件名统一 kebab-case，防止大小写风格混用
