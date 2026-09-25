@@ -4,7 +4,9 @@
 //! 每次派发先落一条 agent_sessions（§5.4，任务抽屉时间线可见）。
 
 use crate::ai::{self, posix_quote, quote_cd_target, AgentConfig, AgentRemote};
-use crate::commands::integrations::{cd_prefix_target, spawn_in_terminal, spawn_line_in_terminal};
+use crate::commands::integrations::{
+    self, local_cd_prefix, spawn_in_terminal, spawn_line_in_terminal,
+};
 use crate::commands::sessions::{log_session_conn, NewAgentSession};
 use crate::commands::skills::ssh_run;
 use crate::commands::tasks::get_task_conn;
@@ -306,19 +308,21 @@ fn agent_line(command: &str, args: &[String], prompt: &str) -> String {
     line
 }
 
-/// agent 命令行的 Windows 本地终端版：目标 shell 是 cmd.exe（spawn_line_in_terminal 的
-/// cmd /K 路径），不认 POSIX 单引号——逐参经 windows_cmd_quote（不可信的 prompt 正文
-/// 在消灭 `"`/`%`/控制字符后整参双引号包裹，cmd 元字符在双引号内均为字面量，
-/// 不存在逃逸路径）。prompt 的轻微形变（全角替换）对 LLM 语义无损
+/// agent 命令行的 Windows 本地终端版：目标 shell 是 PowerShell（spawn_line_in_terminal
+/// 的 powershell -Command 路径）——逐参经 windows_ps_quote 成单引号字面量（不可信
+/// prompt 正文里能逃出 PS 字面量的唯一字符 `'` 双写转义；`"`/`%`/控制字符因整行仍过
+/// cmd 开窗层与 wt 重组层而沿用全角中和，其余 PS 元字符在单引号内均为字面量，
+/// 不存在逃逸路径）。行首 `&` 是 PS 调用符：语句首 token 为带引号字符串时 PS 走
+/// 表达式模式、不会执行命令。PS 5.1 无 `&&`，cd 串联见 local_cd_prefix 的 `;` 分隔
 fn agent_line_windows(command: &str, args: &[String], prompt: &str) -> String {
     let mut line = std::iter::once(command)
         .chain(args.iter().map(String::as_str))
-        .map(crate::ai::windows_cmd_quote)
+        .map(crate::ai::windows_ps_quote)
         .collect::<Vec<_>>()
         .join(" ");
     line.push(' ');
-    line.push_str(&crate::ai::windows_cmd_quote(prompt));
-    line
+    line.push_str(&crate::ai::windows_ps_quote(prompt));
+    format!("& {line}")
 }
 
 /// 落库/提示用的命令行摘要：prompt 替换为截断版（按字符截，中文安全）
@@ -872,6 +876,11 @@ pub async fn dispatch_task<R: tauri::Runtime>(
     }
 
     // ---- 交互通道（M1 行为 + claim/状态机 + worktree） ----
+    // 唤起哪个终端应用跟设置走（headless 不开终端，读提前了也用不到）
+    let term_pref = {
+        let conn = db.0.lock().unwrap();
+        integrations::terminal_pref(&conn)
+    };
     let prompt = dispatch_prompt(
         prep.task.id,
         &prep.task.title,
@@ -880,8 +889,8 @@ pub async fn dispatch_task<R: tauri::Runtime>(
         prep.context.as_deref(),
     );
     let args = interactive_args(&prep.agent.history_args);
-    // 远端 ssh 的目标是 POSIX 登录 shell（posix 引用）；Windows 本地终端是 cmd /K，
-    // 单引号无效，须用 cmd 安全引用——prompt 含飞书消息原文，不能裸拼
+    // 远端 ssh 的目标是 POSIX 登录 shell（posix 引用）；Windows 本地终端是
+    // PowerShell，按 PS 单引号字面量逐参引用——prompt 含飞书消息原文，不能裸拼
     let line = agent_line(&prep.agent.command, &args, &prompt);
     let local_line = if cfg!(windows) {
         agent_line_windows(&prep.agent.command, &args, &prompt)
@@ -901,16 +910,12 @@ pub async fn dispatch_task<R: tauri::Runtime>(
     let launched: AppResult<(String, Option<String>, Option<String>)> = match remote {
         None => {
             // 本地：cd 进派发目录后启动 agent，prompt 作为首条输入
-            // （Windows 终端走 cmd 引用版命令行，见 local_line 注释）
+            // （Windows 终端走 PS 引用版命令行，cd 前缀亦按 PS 分隔，见 local_cd_prefix）
             let full_line = match local_dispatch_dir(&prep.agent, &workdir) {
-                Some(d) => format!(
-                    "cd {} && {}",
-                    cd_prefix_target(&d.to_string_lossy()),
-                    local_line
-                ),
+                Some(d) => format!("{}{}", local_cd_prefix(&d.to_string_lossy()), local_line),
                 None => local_line,
             };
-            let term = spawn_line_in_terminal(&full_line).await?;
+            let term = spawn_line_in_terminal(term_pref, &full_line).await?;
             Ok((term.into(), None, None))
         }
         Some(remote) => {
@@ -929,7 +934,7 @@ pub async fn dispatch_task<R: tauri::Runtime>(
             if probe.trim().is_empty() {
                 // 降级：无 tmux，直接 ssh -tt 启动（断开即结束）
                 let argv = direct_ssh_argv(remote, &workdir, &line);
-                let term = spawn_in_terminal(&ai::ssh_bin(), &argv).await?;
+                let term = spawn_in_terminal(term_pref, &ai::ssh_bin(), &argv).await?;
                 Ok((
                     term.into(),
                     Some(
@@ -942,7 +947,7 @@ pub async fn dispatch_task<R: tauri::Runtime>(
                 // tmux 路径：终端里 attach-or-create，应用另起 ssh 注入任务命令
                 let session_name = tmux_session_name(task_id);
                 let argv = tmux_attach_argv(remote, &session_name, &workdir);
-                let term = spawn_in_terminal(&ai::ssh_bin(), &argv).await?;
+                let term = spawn_in_terminal(term_pref, &ai::ssh_bin(), &argv).await?;
                 let inject = format!(
                     "exec \"$SHELL\" -lc {}",
                     posix_quote(&tmux_inject_line(&session_name, &line))
@@ -1784,23 +1789,23 @@ mod tests {
         assert!(summary.contains('…') && !summary.contains(&long_prompt));
     }
 
-    /// Windows 终端行的 cmd 安全性：`"`（关引用）/`%`（环境展开）被中和为全角，
-    /// 元字符整体锁在双引号内——IM 正文里的 cmd 注入载荷全部失效（M1 回归）
+    /// Windows 终端行（目标 shell = PowerShell）的单引号字面量安全性：不可信
+    /// prompt 正文里能逃出 PS 字面量的唯一字符 `'` 双写转义后引号永远成对闭合；
+    /// `"`/`%` 因整行仍过 cmd 开窗层（start）与 wt 重组层而维持全角中和（M1
+    /// 回归迁移），`$()`/反引号在单引号内是字面量、原样保留
     #[test]
-    fn agent_line_windows_neutralizes_cmd_metacharacters() {
+    fn agent_line_windows_quotes_as_ps_literals() {
         let line = agent_line_windows(
-            "claude.cmd",
+            "claude.ps1",
             &["--model".into(), "opus".into()],
-            "任务：a\" & calc & del /f & b%s% ^| ^& <x> !var!",
+            "任务：a' & calc\n$(calc) %PATH% \"x\" `b`",
         );
-        assert!(line.starts_with("\"claude.cmd\""), "整参双引号: {line}");
-        // 会被 cmd 解析为元语法的字符不允许出现在引号外/破坏引号配对
-        assert!(!line.contains("\"&"), "闭引号接 & 的逃逸形态被消灭: {line}");
-        assert!(!line.contains('%'), "%展开被中和: {line}");
+        assert_eq!(
+            line, "& 'claude.ps1' '--model' 'opus' '任务：a'' & calc $(calc) ％PATH％ ＂x＂ `b`'",
+            "行首 & 调用符、逐参单引号、' 双写、换行压平、cmd 危险字符仍中和"
+        );
+        assert_eq!(line.matches('\'').count() % 2, 0, "单引号成对闭合: {line}");
         assert!(!line.contains('\n'), "换行被压平: {line}");
-        // 全角替换保留语义可读性，正文主体仍在
-        assert!(line.contains("任务：a＂"), "双引号→全角: {line}");
-        assert_eq!(line.matches('"').count() % 2, 0, "引号成对: {line}");
     }
 
     #[test]

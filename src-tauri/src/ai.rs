@@ -269,6 +269,8 @@ pub(crate) fn posix_quote(s: &str) -> String {
 /// 控制字符会打断命令行——这三类没有可靠的转义方案，替换为全角同形字（对送 LLM 的
 /// 提示词只是轻微形变，不损语义）。其余元字符（& | < > ^ ( ) !）在双引号内对 cmd
 /// 均为字面量，交给外层双引号包裹防护（见 windows_cmd_quote）。
+/// 仅 Windows 消费（无头 cmd /C 回退），其他平台保留编译与测试
+#[cfg_attr(not(windows), allow(dead_code))]
 pub(crate) fn windows_neutralize(s: &str) -> String {
     s.chars()
         .map(|c| match c {
@@ -280,12 +282,31 @@ pub(crate) fn windows_neutralize(s: &str) -> String {
         .collect()
 }
 
-/// Windows cmd.exe 的参数引用（安全侧，用于「整行交 cmd 执行」的终端派发与 cmd /C
-/// 回退）：先经 windows_neutralize 消灭无法转义的字符，再无条件双引号包裹——
-/// 引号内 cmd 元字符均为字面量，不存在逃逸路径。注意与直接 spawn 的 argv 传递
-/// 互斥使用：CreateProcess 不重解析参数，直接 spawn 时动原文反而破坏数据。
+/// Windows cmd.exe 的参数引用（安全侧，用于无头调用的 cmd /C 回退——npm 全局
+/// 命令多为 .cmd 垫片）：先经 windows_neutralize 消灭无法转义的字符，再无条件
+/// 双引号包裹——引号内 cmd 元字符均为字面量，不存在逃逸路径。注意与直接 spawn
+/// 的 argv 传递互斥使用：CreateProcess 不重解析参数，直接 spawn 时动原文反而
+/// 破坏数据。交互终端已换 PowerShell（见 windows_ps_quote），此函数仅剩
+/// cfg(windows) 的无头回退消费，其他平台保留编译与测试
+#[cfg_attr(not(windows), allow(dead_code))]
 pub(crate) fn windows_cmd_quote(s: &str) -> String {
     format!("\"{}\"", windows_neutralize(s))
+}
+
+/// PowerShell 单引号字符串字面量的引用（Windows 本地交互终端的目标 shell，
+/// 见 integrations::spawn_powershell_window）：先沿用 windows_neutralize 消灭
+/// `"`/`%`/控制字符——整行仍要过 `cmd /C start` 开窗器，cmd 在自身解析阶段
+/// 不认识 PS 规则（`"` 翻转引用态、`%` 环境展开），这三类必须维持 cmd 时代的
+/// 中和；wt.exe 路径同样因 wt 重组命令行不转义内嵌引号而依赖此中和。之后按
+/// PS 单引号字面量包裹，唯一特殊字符 `'` 双写 `''` 转义（`$`/`` ` ``/`&` 等
+/// 在单引号内对 PS 均为字面量，不构成逃逸）。
+///
+/// 隐式不变量：cmd 层对 `& | ^ < > ( )` 的防护来自 Rust 把整行作为单个 argv
+/// 元素编码时的成对双引号（EscapeArg 在含空白时包裹）——现有调用方产出的行
+/// 必然含空白（参数间空格、cd 前缀），若未来出现「无空白整行且含 cmd 元字符」
+/// 的构造须重新评估。
+pub(crate) fn windows_ps_quote(s: &str) -> String {
+    format!("'{}'", windows_neutralize(s).replace('\'', "''"))
 }
 
 /// 把会话 id 适配进历史参数（agent 级参数，本地远程共用）：
@@ -1082,6 +1103,21 @@ mod tests {
         assert!(q.contains('＂'), "双引号→全角保留可读: {q}");
         // 换行/制表压平为空格（cmd 命令行不接受多行）
         assert!(!windows_cmd_quote("a\nb\tc").contains('\n'));
+    }
+
+    /// PowerShell 单引号引用（Windows 交互终端路径）：`'` 双写转义、引号永远
+    /// 成对闭合；`"`/`%` 沿用 cmd 中和（整行过 cmd /C start 开窗层与 wt 重组层），
+    /// `$()`/反引号在单引号内是字面量、原样保留，换行/制表压平
+    #[test]
+    fn windows_ps_quote_only_escapes_single_quotes() {
+        let q = windows_ps_quote("a' & calc; $(calc) %PATH% \"x\" `b`");
+        assert_eq!(
+            q, "'a'' & calc; $(calc) ％PATH％ ＂x＂ `b`'",
+            "整参单引号、' 双写、cmd 危险字符仍中和"
+        );
+        assert_eq!(q.matches('\'').count() % 2, 0, "单引号成对闭合: {q}");
+        assert!(!windows_ps_quote("a\nb\tc").contains('\n'));
+        assert_eq!(windows_ps_quote(""), "''", "空参为空字符串字面量");
     }
 
     /// 构造持有数据的设置读取闭包（避免借用临时数组）

@@ -1016,6 +1016,20 @@ async function installUpdate() {
 const today = new Date();
 /** 平台限定的说明只在对应平台渲染（DESIGN_SYSTEM.md §4.4 说明文字四层归属） */
 const isLinux = /linux/i.test(navigator.userAgent);
+/** 终端偏好选项按当前平台裁剪：可选值与后端 TerminalPref 对齐（default 恒可选） */
+const isMac = /mac/i.test(navigator.userAgent);
+const isWin = /win/i.test(navigator.userAgent);
+const terminalOptions = computed(() => {
+  const opts = [{ value: "default", label: t("ai.termBuiltin") }];
+  if (isMac) {
+    opts.push({ value: "iterm2", label: "iTerm2" }, { value: "ghostty", label: "Ghostty" });
+  } else if (isWin) {
+    opts.push({ value: "windows-terminal", label: "Windows Terminal" });
+  } else if (isLinux) {
+    opts.push({ value: "ghostty", label: "Ghostty" });
+  }
+  return opts;
+});
 
 const unlisteners: UnlistenFn[] = [];
 // 用户去系统设置勾选辅助功能后切回来：复查并自动拉起输入响应（配对清理防重复挂载）
@@ -1276,6 +1290,9 @@ onUnmounted(() => {
           <p class="set-sub">{{ t("ai.hint") }}</p>
           <SettingRow :label="t('ai.primary')">
             <DexSelect v-model="settings.values.ai_agent_id" :options="primaryAgentOptions" />
+          </SettingRow>
+          <SettingRow :label="t('ai.terminal')" :desc="t('ai.terminalDesc')">
+            <DexSelect v-model="settings.values.terminal_preference" :options="terminalOptions" />
           </SettingRow>
           <div v-for="ag in agents" :key="ag.id" class="agent-block" :class="{ off: !ag.enabled }">
             <div class="agent-row">

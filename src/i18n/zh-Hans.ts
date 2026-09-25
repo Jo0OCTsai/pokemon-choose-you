@@ -400,6 +400,10 @@ export default {
     enabled: "启用",
     primary: "用于收音机分类",
     primaryNone: "不指定",
+    terminal: "终端偏好",
+    terminalDesc:
+      "交互派发、历史记录与飞书授权唤起的终端应用（系统内置 = macOS Terminal / Windows PowerShell / Linux 自动探测）",
+    termBuiltin: "系统内置",
     save: "保存",
     test: "测试",
     history: "历史记录 ↗",

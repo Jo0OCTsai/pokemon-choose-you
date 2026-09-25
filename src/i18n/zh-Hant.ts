@@ -398,6 +398,10 @@ export default {
     enabled: "啟用",
     primary: "用於收音機分類",
     primaryNone: "不指定",
+    terminal: "終端偏好",
+    terminalDesc:
+      "互動派發、歷史記錄與飛書授權喚起的終端應用（系統內建 = macOS Terminal / Windows PowerShell / Linux 自動探測）",
+    termBuiltin: "系統內建",
     save: "儲存",
     test: "測試",
     history: "歷史記錄 ↗",

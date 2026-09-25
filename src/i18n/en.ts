@@ -405,6 +405,10 @@ export default {
     enabled: "Enabled",
     primary: "Use for radio classification",
     primaryNone: "None",
+    terminal: "Terminal",
+    terminalDesc:
+      "Terminal app for interactive dispatch, session history and Feishu authorization (built-in = macOS Terminal / Windows PowerShell / Linux auto-detect)",
+    termBuiltin: "System built-in",
     save: "Save",
     test: "Test",
     history: "History ↗",
