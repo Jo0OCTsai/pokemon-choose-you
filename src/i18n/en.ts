@@ -383,8 +383,7 @@ export default {
     sshKeyPh: "Private key path (optional, e.g. ~/.ssh/id_ed25519)",
     sshTunnel: "Reverse tunnel port",
     sshKeepAlive: "Persistent tunnel",
-    sshKeepAliveDesc:
-      'Keep the tunnel up while the app runs (auto-reconnect on drops) so remote agents can call pk anytime — otherwise the tunnel only lives during app-initiated calls; run "Set up remote pk" first',
+    sshKeepAliveDesc: "Keeps the tunnel up while the app runs (auto-reconnect) so remote pk stays callable",
     tunnelOff: "Not running",
     tunnelHealthy: "Connected — pk reachable from remote anytime",
     tunnelConnecting: "Establishing tunnel…",
@@ -429,7 +428,7 @@ export default {
   feishu: {
     enable: "Enable background polling",
     interval: "Poll interval",
-    hint: "Install lark-cli first (npm install -g {'@'}larksuite/cli), then click \"Authorize\" to finish its setup and login in a terminal; credentials stay with lark-cli, never enter this app's database.",
+    hint: "Install lark-cli first (npm install -g {'@'}larksuite/cli), then click \"Authorize\" to finish its setup and login in a terminal; credentials stay with lark-cli, never enter this app's database. Classification is pseudonymized: real names are never sent to the AI — everyone appears as a codename.",
     auth: "Authorize login",
     reauth: "Re-authorize",
     authing: "Launching lark-cli login in a terminal…",
@@ -439,8 +438,7 @@ export default {
     pollNow: "Poll now",
     pollResult: "{n} new suggestions this round",
     myNames: "My nicknames",
-    myNamesDesc:
-      'How coworkers call you in group chats (comma-separated). Messages hitting these names get flagged as "possibly assigned to you"; no real names are ever sent to the AI — everyone appears as a stable codename.',
+    myNamesDesc: 'Messages mentioning these names get flagged as "possibly assigned to you"',
     myNamesPh: "e.g. Boss Qiao, Lao Qiao",
     filter: {
       title: "Chat filters",

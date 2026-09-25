@@ -377,8 +377,7 @@ export default {
     sshKeyPh: "私鑰路徑（可選，如 ~/.ssh/id_ed25519）",
     sshTunnel: "反向隧道連接埠",
     sshKeepAlive: "常駐隧道",
-    sshKeepAliveDesc:
-      "應用駐留期間保持通道長連（斷線自動重連），遠端 agent 隨時可調 pk——不開啟時通道僅隨應用的呼叫視窗存活；需先跑「一鍵配置遠端 pk」",
+    sshKeepAliveDesc: "應用駐留期間保持長連（斷線自動重連），遠端隨時可調 pk",
     tunnelOff: "未運行",
     tunnelHealthy: "已連通，遠端隨時可調 pk",
     tunnelConnecting: "隧道建立中…",
@@ -421,7 +420,7 @@ export default {
   feishu: {
     enable: "啟用背景輪詢",
     interval: "輪詢間隔",
-    hint: "先安裝 lark-cli（npm install -g {'@'}larksuite/cli），再點「授權登入」在終端機完成初始化與授權；憑證由 lark-cli 保管，不進本應用資料庫。",
+    hint: "先安裝 lark-cli（npm install -g {'@'}larksuite/cli），再點「授權登入」在終端機完成初始化與授權；憑證由 lark-cli 保管，不進本應用資料庫。判定全程假名化：真實姓名不發給 AI，一律以代號出現。",
     auth: "授權登入",
     reauth: "重新授權",
     authing: "正在終端啟動 lark-cli 登入…",
@@ -431,8 +430,7 @@ export default {
     pollNow: "立即拉取一次",
     pollResult: "本輪新增 {n} 條建議",
     myNames: "我的稱呼",
-    myNamesDesc:
-      "群裡同事怎麼叫你（逗號分隔可多個）。命中這些稱呼的訊息會標註「疑似指派給你」；所有真實姓名都不會發給 AI，一律以代號出現。",
+    myNamesDesc: "命中這些稱呼的訊息會標註「疑似指派給你」",
     myNamesPh: "如：喬老闆，老喬",
     filter: {
       title: "會話過濾",
