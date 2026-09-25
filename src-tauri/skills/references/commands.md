@@ -78,7 +78,7 @@
 
 | 命令 | 说明 |
 |---|---|
-| `pk skill install <claude-code\|opencode\|kiro> [--dir <目录>]` | 把 pk 使用技能（SKILL.md + references/）装进 agent 的技能目录；跨版本重装提示更新 |
+| `pk skill install <claude-code\|opencode\|kiro\|pi\|qoder> [--dir <目录>]` | 把 pk 使用技能（SKILL.md + references/）装进 agent 的技能目录；跨版本重装提示更新 |
 | `pk skill show` | 打印技能全部内容（其他 agent 自行粘贴用） |
 | `pk remote shim --host <本机地址> [--port <n>] [--key <私钥>] [--write <路径>]` | 生成远程透传脚本（默认打 stdout 可重定向；经 ssh 反向隧道回连本机执行 pk，数据留在本机） |
 | `pk init-db` | 初始化 `PK_DB` 指定的空库（应用主库通常无需执行） |

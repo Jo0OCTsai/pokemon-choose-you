@@ -1,5 +1,5 @@
 //! pk 使用技能的分发与版本管理：pk CLI 的 `skill install/show` 与桌面应用的
-//! 「安装/检查技能」共用同一套内容与目录规则（claude-code / opencode / kiro）。
+//! 「安装/检查技能」共用同一套内容与目录规则（claude-code / opencode / kiro / pi / qoder）。
 //!
 //! 技能放 agent 的**全局目录**（`~/.claude/skills/` 等）：pk 技能是个人跨项目工具，
 //! 官方建议项目约定进仓库目录、个人工作流进 home 全局目录；且远程 agent 场景下
@@ -19,20 +19,25 @@ pub const SKILL_REFS: &[(&str, &str)] = &[
     ),
 ];
 /// 当前技能版本（与 SKILL.md frontmatter 的 version 保持一致，用于安装时的版本对比）
-pub const SKILL_VERSION: &str = "4";
+pub const SKILL_VERSION: &str = "5";
 
 /// 技能在各 agent 技能目录下的文件夹名（Agent Skills 标准：与 frontmatter name 一致）
 const SKILL_DIR_NAME: &str = "pokemon-choose-you";
 
-/// 从 agent 可执行命令推断技能目标类型：basename 包含关键词即命中
-/// （claude / kiro-cli / opencode；绝对路径与自定义包装脚本也能识别）
+/// 从 agent 可执行命令推断技能目标类型：basename 匹配关键词即命中
+/// （claude / kiro-cli / opencode / pi / qoder；绝对路径与自定义包装脚本也能识别）。
+/// pi 名字只有两个字母，必须精确等值匹配——子串匹配会把 copilot 之类误判成 pi
 pub fn kind_for_command(command: &str) -> Option<&'static str> {
     let base = command
         .rsplit(['/', '\\'])
         .next()
         .unwrap_or(command)
         .to_lowercase();
-    if base.contains("kiro") {
+    if base == "pi" || base.contains("pi-coding-agent") {
+        Some("pi")
+    } else if base.contains("qoder") {
+        Some("qoder")
+    } else if base.contains("kiro") {
         Some("kiro")
     } else if base.contains("claude") {
         Some("claude-code")
@@ -45,6 +50,7 @@ pub fn kind_for_command(command: &str) -> Option<&'static str> {
 
 /// 技能文件所在目录（本机 $HOME 下的绝对路径）：claude-code → ~/.claude/skills；
 /// opencode → ~/.config/opencode/skill；kiro → ~/.kiro/skills；
+/// pi → ~/.pi/agent/skills；qoder → ~/.qoder/skills；
 /// 其他 agent 用 --dir 显式指定
 pub fn skill_dir_for(agent: &str, dir_flag: Option<&str>) -> Result<std::path::PathBuf, String> {
     if let Some(d) = dir_flag.filter(|d| !d.is_empty()) {
@@ -61,8 +67,10 @@ pub fn skill_dir_rel(agent: &str) -> Result<String, String> {
         "claude-code" | "claude" => Ok(format!(".claude/skills/{SKILL_DIR_NAME}")),
         "opencode" => Ok(format!(".config/opencode/skill/{SKILL_DIR_NAME}")),
         "kiro" | "kiro-cli" => Ok(format!(".kiro/skills/{SKILL_DIR_NAME}")),
+        "pi" => Ok(format!(".pi/agent/skills/{SKILL_DIR_NAME}")),
+        "qoder" => Ok(format!(".qoder/skills/{SKILL_DIR_NAME}")),
         other => Err(format!(
-            "暂不认识 agent「{other}」的技能目录：支持 claude-code / opencode / kiro，其他 agent 用 --dir <目录> 指定，或 pk skill show 自行粘贴"
+            "暂不认识 agent「{other}」的技能目录：支持 claude-code / opencode / kiro / pi / qoder，其他 agent 用 --dir <目录> 指定，或 pk skill show 自行粘贴"
         )),
     }
 }
@@ -184,6 +192,23 @@ mod tests {
         assert_eq!(kind_for_command("my-agent"), None, "未知命令无技能目标");
     }
 
+    /// pi 名字太短，只能精确命中（contains 会误伤 copilot 之类）；
+    /// qoder 与既有 kiro/claude 一样走子串
+    #[test]
+    fn kind_for_command_matches_pi_and_qoder() {
+        assert_eq!(kind_for_command("pi"), Some("pi"));
+        assert_eq!(kind_for_command("/usr/local/bin/pi"), Some("pi"));
+        assert_eq!(kind_for_command("pi-coding-agent"), Some("pi"));
+        assert_eq!(kind_for_command("qoder"), Some("qoder"));
+        assert_eq!(kind_for_command("/opt/homebrew/bin/qoder"), Some("qoder"));
+        assert_eq!(
+            kind_for_command("copilot"),
+            None,
+            "含 pi 子串的无关命令不误报"
+        );
+        assert_eq!(kind_for_command("ping-agent"), None);
+    }
+
     #[test]
     fn skill_dirs_cover_three_agents() {
         let home = dirs::home_dir().unwrap();
@@ -198,6 +223,14 @@ mod tests {
         assert_eq!(
             skill_dir_for("opencode", None).unwrap(),
             home.join(".config/opencode/skill/pokemon-choose-you")
+        );
+        assert_eq!(
+            skill_dir_for("pi", None).unwrap(),
+            home.join(".pi/agent/skills/pokemon-choose-you")
+        );
+        assert_eq!(
+            skill_dir_for("qoder", None).unwrap(),
+            home.join(".qoder/skills/pokemon-choose-you")
         );
         assert_eq!(
             skill_dir_for("unknown", Some("/tmp/x")).unwrap(),

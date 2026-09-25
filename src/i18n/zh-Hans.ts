@@ -372,7 +372,7 @@ export default {
   },
   ai: {
     title: "🤖 AI Agent CLI",
-    hint: "用本地 AI agent 命令行（Claude Code / OpenCode / Kiro CLI 等）处理收音机消息分类与判重，可配置多个。",
+    hint: "用本地 AI agent 命令行（Claude Code / OpenCode / Kiro CLI / pi / Qoder CLI 等）处理收音机消息分类与判重，可配置多个。",
     sshOn: "SSH 远程执行",
     sshHostPh: "user{'@'}host",
     sshPort: "SSH 端口",
@@ -393,7 +393,7 @@ export default {
     args: "附加参数",
     argsPh: "-p {'{prompt}'}",
     namePh: "Claude Code",
-    cmdPh: "claude / opencode / kiro-cli",
+    cmdPh: "claude / opencode / kiro-cli / pi / qoder",
     workdir: "工作目录",
     workdirPh: "空 = ~/.choose-you；可填绝对路径或 ~/路径",
     historyArgs: "历史参数",
