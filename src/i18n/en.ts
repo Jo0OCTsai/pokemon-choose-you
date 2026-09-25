@@ -376,7 +376,7 @@ export default {
   },
   ai: {
     title: "🤖 AI Agent CLI",
-    hint: "Classify and dedupe radio messages with local AI agent CLIs (Claude Code / OpenCode / Kiro CLI, …); one or more can be configured.",
+    hint: "Classify and dedupe radio messages with local AI agent CLIs (Claude Code / OpenCode / Kiro CLI / pi / Qoder CLI, …); one or more can be configured.",
     sshOn: "Run over SSH",
     sshHostPh: "user{'@'}host",
     sshPort: "SSH port",
@@ -398,7 +398,7 @@ export default {
     args: "Extra args",
     argsPh: "-p {'{prompt}'}",
     namePh: "Claude Code",
-    cmdPh: "claude / opencode / kiro-cli",
+    cmdPh: "claude / opencode / kiro-cli / pi / qoder",
     workdir: "Working directory",
     workdirPh: "empty = ~/.choose-you; absolute or ~/path",
     historyArgs: "History args",

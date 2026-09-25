@@ -48,7 +48,7 @@ impl Default for AgentRemote {
     }
 }
 
-/// 一个 AI agent CLI 工具的调用配置（Claude Code / OpenCode / Kiro CLI 等），
+/// 一个 AI agent CLI 工具的调用配置（Claude Code / OpenCode / Kiro CLI / pi / Qoder CLI 等），
 /// 无头调用本地 agent 进程完成分类。判定结果统一由 agent 经 pk CLI 写回数据库，
 /// 应用从库回读，不解析 agent 的文本输出。
 /// remote 配置后改为经 SSH 在远程机器执行。
@@ -57,7 +57,7 @@ impl Default for AgentRemote {
 pub struct AgentConfig {
     pub id: String,
     pub name: String,
-    /// 可执行文件名或绝对路径，如 claude / opencode / kiro
+    /// 可执行文件名或绝对路径，如 claude / opencode / kiro / pi / qoder
     pub command: String,
     /// 附加参数（按空白切分）。{prompt} 占位符替换为提示词；未出现时提示词经标准输入传入；
     /// SSH 远程模式下占位符元素被剔除、提示词一律走标准输入
@@ -291,10 +291,27 @@ pub(crate) fn windows_cmd_quote(s: &str) -> String {
 }
 
 /// 把会话 id 适配进历史参数（agent 级参数，本地远程共用）：
-/// - `--resume` / `resume`（claude 语法）：id 插到该参数后 —— `claude --resume <id>`
+/// - `--resume` / `resume`（claude、qoder 语法）：id 插到该参数后 —— `claude --resume <id>`
 /// - `--resume-picker`（kiro 语法）：换成按 id 恢复 —— `kiro-cli chat --resume-id <id>`
+/// - pi：`-r`/`--resume` 是会话选择器（不带 id 形态），换成 `--session <id>`；
+///   已配 `--session`/`--session-id` 时 id 直接插到其后
 /// - 无可识别的恢复参数：不注入（如 opencode 历史参数为空，直接启动）
-fn adapt_history_args(args: &mut Vec<String>, session: &str) {
+fn adapt_history_args(args: &mut Vec<String>, session: &str, kind: Option<&str>) {
+    if kind == Some("pi") {
+        if let Some(i) = args
+            .iter()
+            .position(|a| a == "-r" || a == "--resume" || a == "--session" || a == "--session-id")
+        {
+            // 选择器旗标换成 --session（按 id 打开会话）；本就带 id 位的旗标保持
+            if args[i] == "-r" || args[i] == "--resume" {
+                args[i] = "--session".into();
+            }
+            // 紧跟其后插入而非追加到末尾：用户在历史参数后还配了别的开关时，
+            // id 混进末尾会被当成无名参数丢掉
+            args.insert(i + 1, session.to_string());
+        }
+        return;
+    }
     if let Some(i) = args.iter().position(|a| a == "--resume" || a == "resume") {
         // 紧跟其后插入而非追加到末尾：用户在历史参数后还配了别的开关时，
         // id 混进末尾会被当成无名参数丢掉
@@ -304,6 +321,13 @@ fn adapt_history_args(args: &mut Vec<String>, session: &str) {
     if let Some(i) = args.iter().position(|a| a == "--resume-picker") {
         args[i] = "--resume-id".into();
         args.insert(i + 1, session.to_string());
+        return;
+    }
+    // qoder 的 --session-id <id>（必带值）：id 后插
+    if kind == Some("qoder") {
+        if let Some(i) = args.iter().position(|a| a == "--session-id") {
+            args.insert(i + 1, session.to_string());
+        }
     }
 }
 
@@ -319,7 +343,8 @@ pub fn history_invocation(
         .map(String::from)
         .collect();
     if let Some(sess) = resume_session.filter(|s| !s.trim().is_empty()) {
-        adapt_history_args(&mut args, sess.trim());
+        let kind = crate::skills::kind_for_command(&agent.command);
+        adapt_history_args(&mut args, sess.trim(), kind);
     }
     match agent.remote.as_ref().filter(|r| !r.host.trim().is_empty()) {
         None => (agent.command.clone(), args),
@@ -1502,6 +1527,32 @@ mod tests {
         let (_, args) = history_invocation(&plain, Some("sess-9"));
         assert!(args.is_empty());
 
+        // pi：-r 是会话选择器（不带 id），按 id 恢复须换成 --session <id>
+        let pi = AgentConfig {
+            command: "pi".into(),
+            history_args: "-r".into(),
+            ..Default::default()
+        };
+        let (_, args) = history_invocation(&pi, Some("sess-9"));
+        assert_eq!(args, vec!["--session".to_string(), "sess-9".to_string()]);
+        // pi 已配 --session（自带 id 位）：id 原位插到其后，不重复换旗标
+        let pi2 = AgentConfig {
+            command: "pi".into(),
+            history_args: "--session".into(),
+            ..Default::default()
+        };
+        let (_, args) = history_invocation(&pi2, Some("sess-9"));
+        assert_eq!(args, vec!["--session".to_string(), "sess-9".to_string()]);
+
+        // qoder：--resume [id] 与 claude 同形，id 后插即合法
+        let qoder = AgentConfig {
+            command: "qoder".into(),
+            history_args: "--resume".into(),
+            ..Default::default()
+        };
+        let (_, args) = history_invocation(&qoder, Some("sess-9"));
+        assert_eq!(args, vec!["--resume".to_string(), "sess-9".to_string()]);
+
         // 远程：id 进远端命令行而不是 ssh 的选项区（回归：旧实现误判 ssh argv 首参）
         let remote = AgentConfig {
             command: "claude".into(),
@@ -1526,7 +1577,7 @@ mod tests {
             "--model".to_string(),
             "opus".to_string(),
         ];
-        adapt_history_args(&mut mixed, "s1");
+        adapt_history_args(&mut mixed, "s1", Some("claude-code"));
         assert_eq!(
             mixed,
             vec!["--resume", "s1", "--model", "opus"]

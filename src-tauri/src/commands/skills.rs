@@ -16,7 +16,7 @@ use tokio::io::AsyncWriteExt;
 #[serde(rename_all = "camelCase")]
 pub struct AgentSkillStatus {
     pub agent_id: String,
-    /// 技能目标类型（claude-code / opencode / kiro）
+    /// 技能目标类型（claude-code / opencode / kiro / pi / qoder）
     pub kind: String,
     /// 技能目录（本地绝对路径；远程为 $HOME 相对路径）
     pub dir: String,
@@ -62,7 +62,7 @@ fn skill_kind(agent: &AgentConfig) -> AppResult<String> {
         .map(str::to_string)
         .ok_or_else(|| {
             AppError::Invalid(format!(
-            "无法识别「{}」对应的技能目录（支持 claude / opencode / kiro-cli）。自定义 agent 可在终端执行 `pk skill install <claude-code|opencode|kiro> --dir <目录>` 指定落点，或 `pk skill show` 打印全文自行粘贴",
+            "无法识别「{}」对应的技能目录（支持 claude / opencode / kiro-cli / pi / qoder）。自定义 agent 可在终端执行 `pk skill install <claude-code|opencode|kiro|pi|qoder> --dir <目录>` 指定落点，或 `pk skill show` 打印全文自行粘贴",
             agent.command
         ))
         })
@@ -304,6 +304,22 @@ mod tests {
             })
             .unwrap(),
             "kiro"
+        );
+        assert_eq!(
+            skill_kind(&AgentConfig {
+                command: "pi".into(),
+                ..Default::default()
+            })
+            .unwrap(),
+            "pi"
+        );
+        assert_eq!(
+            skill_kind(&AgentConfig {
+                command: "qoder".into(),
+                ..Default::default()
+            })
+            .unwrap(),
+            "qoder"
         );
         let err = skill_kind(&AgentConfig {
             command: "my-agent".into(),

@@ -6,6 +6,10 @@
 
 ## [Unreleased]
 
+### Features
+
+- Agent CLI 集成新增 **pi**（[pi coding agent](https://github.com/earendil-works/pi)）与 **Qoder CLI** 支持——设置页预设一键添加（无头参数、会话恢复语法预配），pk 技能目录自动识别（pi → `~/.pi/agent/skills/`、qoder → `~/.qoder/skills/`，`pk skill install pi|qoder` 可装），历史入口按 id 恢复（pi 的选择器 `-r` 自动换 `--session <id>`；qoder `--resume <id>`），无头派发会话续接（pi 预生成 `--session-id`，qoder 有上轮 id 才 `--resume`）
+
 ### Security
 
 - 远程 pk 通道安全收敛——authorized_keys 改为 `restrict,command=` 受限条目，forced command 进 pk 新增的 `__ssh_entry` 校验入口（严格白名单 `[env] PK_* <本机 pk> 参数…`，argv 直启自身不经 shell），远程 shim 私钥失陷也拿不到本机 shell；旧裸公钥条目重跑一键配置自动原位升级（REMOTE_PK_CHANNEL_PROPOSAL §8 落地）

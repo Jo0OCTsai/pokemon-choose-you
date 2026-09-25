@@ -1006,6 +1006,27 @@ describe("App 图鉴机主面板", () => {
       .find((b) => b.text() === "删除")!
       .trigger("click");
     expect(w.findAll(".agent-block")).toHaveLength(0);
+
+    // pi 预设：下拉切换后添加，命令与无头参数就位（不带 qoder 的权限参数）
+    const addRow = w.find(".btn-row.add-agent");
+    await addRow.find(".ds-btn").trigger("click");
+    const piOption = addRow.findAll(".ds-list li").find((li) => li.text().trim().endsWith("pi"))!; // li 前缀带 ▶ 游标
+    await piOption.trigger("click");
+    await w
+      .findAll(".btn")
+      .find((b) => b.text().includes("添加 Agent"))!
+      .trigger("click");
+    const piBlock = w.findAll(".agent-block")[0];
+    expect((piBlock.find(".agent-cmd").element as HTMLInputElement).value).toBe("pi");
+    const piArgs = piBlock
+      .findAll("input")
+      .map((i) => (i.element as HTMLInputElement).value)
+      .find((v) => v.includes("{prompt}"));
+    expect(piArgs).toBe("-p {prompt}");
+    await w
+      .findAll(".btn")
+      .find((b) => b.text() === "删除")!
+      .trigger("click");
   });
 
   it("AI agent 支持配置 SSH 远程执行并序列化进 ai_agents", async () => {

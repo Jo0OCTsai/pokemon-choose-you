@@ -597,7 +597,9 @@ async function feishuLogin() {
  * 无头调用约定的预设：{prompt} 占位符由应用替换为提示词；没有占位符时提示词经标准输入传入（kiro-cli 即此方式）。
  * claude 带 --output-format json：stdout 变 JSON 信封（含 session_id/成本），应用解信封后
  * 会话回链自动落库；kiro 带 --agent-engine v2：--no-interactive 默认回落 classic 引擎、
- * 会话不落盘，显式 v2 才持久化；kiro 历史参数需带 chat 子命令（--resume-picker 打开选择器）
+ * 会话不落盘，显式 v2 才持久化；kiro 历史参数需带 chat 子命令（--resume-picker 打开选择器）；
+ * pi 的 -r 是会话选择器（按 id 恢复时后端自动换成 --session <id>）；qoder 无头用
+ * --permission-mode auto 放行 pk 命令，--resume 与 claude 同形
  */
 const AGENT_PRESETS: Record<string, Omit<AgentConfig, "id" | "timeoutSecs" | "enabled">> = {
   claude: {
@@ -613,12 +615,21 @@ const AGENT_PRESETS: Record<string, Omit<AgentConfig, "id" | "timeoutSecs" | "en
     args: "chat --no-interactive --trust-all-tools --agent-engine v2",
     historyArgs: "chat --resume-picker",
   },
+  pi: { name: "pi", command: "pi", args: "-p {prompt}", historyArgs: "-r" },
+  qoder: {
+    name: "Qoder CLI",
+    command: "qoder",
+    args: "-p {prompt} --permission-mode auto",
+    historyArgs: "--resume",
+  },
   custom: { name: "", command: "", args: "{prompt}", historyArgs: "" },
 };
 const presetOptions = [
   { value: "claude", label: "Claude Code" },
   { value: "opencode", label: "OpenCode" },
   { value: "kiro", label: "Kiro CLI" },
+  { value: "pi", label: "pi" },
+  { value: "qoder", label: "Qoder CLI" },
   { value: "custom", label: "Custom" },
 ];
 const agentPreset = ref("claude");
