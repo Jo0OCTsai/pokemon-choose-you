@@ -49,15 +49,13 @@ pub fn run() {
         .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_process::init())
         .plugin({
-            // 日志归位归一化根的 logs/ 子目录（与 pk 的 PK_LOG_FILE 同一目录）；
-            // 拿不到主目录（极端环境）退回系统日志目录，行为同旧版
             let file_target = match db::log_dir() {
                 Some(dir) => tauri_plugin_log::Target::new(tauri_plugin_log::TargetKind::Folder {
                     path: dir,
-                    file_name: None,
+                    file_name: Some(db::LOG_FILE_STEM.to_string()),
                 }),
                 None => tauri_plugin_log::Target::new(tauri_plugin_log::TargetKind::LogDir {
-                    file_name: None,
+                    file_name: Some(db::LOG_FILE_STEM.to_string()),
                 }),
             };
             tauri_plugin_log::Builder::new()
@@ -97,7 +95,7 @@ pub fn run() {
             // 写回同一日志文件（诊断页可见），见 logshare 模块
             logshare::init(
                 db::log_dir().or_else(|| app.path().app_log_dir().ok()),
-                &app.package_info().name,
+                db::LOG_FILE_STEM,
             );
             app.manage(commands::windows::PendingMainReopen(
                 std::sync::atomic::AtomicBool::new(false),

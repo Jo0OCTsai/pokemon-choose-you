@@ -29,6 +29,9 @@ pub const DATA_SUBDIR: &str = "data";
 /// 应用与 pk 共享日志的子目录
 pub const LOG_SUBDIR: &str = "logs";
 
+/// 日志文件名主干：插件 Folder 目标与 pk 轨迹（PK_LOG_FILE）落盘同一文件。
+pub const LOG_FILE_STEM: &str = "pokemon-choose-you";
+
 /// 旧 app_data_dir 布局中随库一起迁移的子目录
 const MIGRATE_SUBDIRS: &[&str] = &["backups", "exports"];
 
@@ -121,7 +124,7 @@ pub(crate) fn migrate_legacy_files(
         .unwrap_or(false);
     if !has_log {
         if let Some(newest) = legacy_logs.and_then(newest_log_file) {
-            let dest = new_logs.join(newest.file_name().unwrap_or_default());
+            let dest = new_logs.join(format!("{LOG_FILE_STEM}.log"));
             moved += copy_if_absent(&newest, &dest);
         }
     }
@@ -933,8 +936,9 @@ pub(crate) mod tests {
             "key"
         );
         assert_eq!(
-            std::fs::read_to_string(new_logs.join("app.log")).unwrap(),
-            "old-log"
+            std::fs::read_to_string(new_logs.join(format!("{LOG_FILE_STEM}.log"))).unwrap(),
+            "old-log",
+            "旧日志迁入时改用规范文件名"
         );
         // 旧文件保留：回滚旧版本仍可用
         assert!(legacy_data.join(DB_FILE).exists());
@@ -956,7 +960,7 @@ pub(crate) mod tests {
         let moved3 = migrate_legacy_files(&legacy_data, Some(&legacy_logs), &new_data, &new_logs);
         assert_eq!(moved3, 0, "全量幂等：无新增可迁");
         assert_eq!(
-            std::fs::read_to_string(new_logs.join("app.log")).unwrap(),
+            std::fs::read_to_string(new_logs.join(format!("{LOG_FILE_STEM}.log"))).unwrap(),
             "old-log"
         );
         assert!(!new_logs.join("app2.log").exists());
