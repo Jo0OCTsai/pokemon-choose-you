@@ -559,22 +559,19 @@ pub fn export_daily_md_to(
 
 // ---- Tauri 命令 ----
 
-fn data_dir<R: tauri::Runtime>(app: &tauri::AppHandle<R>) -> AppResult<PathBuf> {
-    use tauri::Manager;
-    app.path()
-        .app_data_dir()
-        .map_err(|e| AppError::External(format!("定位应用数据目录失败: {e}")))
+fn data_dir() -> AppResult<PathBuf> {
+    crate::db::data_dir().ok_or_else(|| AppError::External("定位应用数据目录失败".into()))
 }
 
 /// 全量 JSON 导出（秘钥除外）；dest=用户自选完整路径（另存为），缺省写 exports/。返回文件名或完整路径
 #[tauri::command]
 pub fn export_json<R: tauri::Runtime>(
-    app: tauri::AppHandle<R>,
+    _app: tauri::AppHandle<R>,
     db: State<Db>,
     dest: Option<String>,
 ) -> AppResult<String> {
     let conn = db.0.lock().unwrap();
-    export_json_to(&data_dir(&app)?, &conn, dest.as_deref())
+    export_json_to(&data_dir()?, &conn, dest.as_deref())
 }
 
 /// 全量 JSON 导入（前端经 <input type=file> 读内容传入；整体替换，秘钥不受影响）
@@ -601,32 +598,32 @@ pub fn import_json<R: tauri::Runtime>(
 /// 任务 CSV 导出（带 BOM，Excel 友好）；dest 同 export_json
 #[tauri::command]
 pub fn export_tasks_csv<R: tauri::Runtime>(
-    app: tauri::AppHandle<R>,
+    _app: tauri::AppHandle<R>,
     db: State<Db>,
     dest: Option<String>,
 ) -> AppResult<String> {
     let conn = db.0.lock().unwrap();
-    export_csv_to(&data_dir(&app)?, &conn, dest.as_deref())
+    export_csv_to(&data_dir()?, &conn, dest.as_deref())
 }
 
 /// 日报 Markdown 导出（缺省今天，可指定日期）；dest 同 export_json
 #[tauri::command]
 pub fn export_daily_md<R: tauri::Runtime>(
-    app: tauri::AppHandle<R>,
+    _app: tauri::AppHandle<R>,
     db: State<Db>,
     date: Option<String>,
     dest: Option<String>,
 ) -> AppResult<String> {
     let conn = db.0.lock().unwrap();
     let date = date.unwrap_or_else(|| Local::now().format("%Y-%m-%d").to_string());
-    export_daily_md_to(&data_dir(&app)?, &conn, &date, dest.as_deref())
+    export_daily_md_to(&data_dir()?, &conn, &date, dest.as_deref())
 }
 
 /// 在文件管理器中打开 exports 目录
 #[tauri::command]
 pub async fn open_exports_dir<R: tauri::Runtime>(app: tauri::AppHandle<R>) -> AppResult<()> {
     use tauri_plugin_opener::OpenerExt;
-    let dir = exports_dir(&data_dir(&app)?);
+    let dir = exports_dir(&data_dir()?);
     std::fs::create_dir_all(&dir)?;
     app.opener()
         .reveal_item_in_dir(&dir)

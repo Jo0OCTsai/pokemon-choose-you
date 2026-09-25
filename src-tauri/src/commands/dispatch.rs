@@ -407,7 +407,7 @@ fn tmux_inject_line(session: &str, line: &str) -> String {
 }
 
 /// 本地派发工作目录：meta 覆盖优先（只展开 ~，不自动创建——目录配错应报错而不是
-/// 静默建目录）；无覆盖时沿用 agent_workdir 语义（留空 = ~/.choose-you，自动创建）
+/// 静默建目录）；无覆盖时沿用 agent_workdir 语义（留空 = ~/.choose-you/workspace，自动创建）
 fn local_dispatch_dir(agent: &AgentConfig, override_dir: &str) -> Option<PathBuf> {
     let configured = override_dir.trim();
     if configured.is_empty() {

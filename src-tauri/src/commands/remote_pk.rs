@@ -13,7 +13,7 @@ use crate::error::{AppError, AppResult};
 use rusqlite::params;
 use std::io::Write;
 use std::path::PathBuf;
-use tauri::{Manager, State};
+use tauri::State;
 
 /// 默认反向隧道端口（远程侧 127.0.0.1:10022 ⇄ 本机 sshd）
 pub const DEFAULT_TUNNEL_PORT: u16 = 10022;
@@ -636,7 +636,7 @@ fn host_triple() -> String {
 /// 全部自动完成并逐步报告。成功后把隧道端口写回该 agent 的 SSH 配置。
 #[tauri::command]
 pub async fn setup_remote_pk<R: tauri::Runtime>(
-    app: tauri::AppHandle<R>,
+    _app: tauri::AppHandle<R>,
     db: State<'_, Db>,
     agent_id: String,
     port: Option<u16>,
@@ -651,10 +651,8 @@ pub async fn setup_remote_pk<R: tauri::Runtime>(
         };
         let agent = ai::agent_by_id(&get, &agent_id)
             .ok_or_else(|| AppError::Invalid(format!("Agent {agent_id} 不存在，请先保存配置")))?;
-        let dir = app
-            .path()
-            .app_data_dir()
-            .map_err(|e| AppError::External(format!("定位应用数据目录失败: {e}")))?;
+        let dir = crate::db::data_dir()
+            .ok_or_else(|| AppError::External("定位应用数据目录失败".into()))?;
         (agent, dir)
     };
     let remote = agent

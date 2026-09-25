@@ -48,8 +48,23 @@ pub fn run() {
         .plugin(shortcuts::plugin())
         .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_process::init())
-        .plugin(
+        .plugin({
+            // 日志归位归一化根的 logs/ 子目录（与 pk 的 PK_LOG_FILE 同一目录）；
+            // 拿不到主目录（极端环境）退回系统日志目录，行为同旧版
+            let file_target = match db::log_dir() {
+                Some(dir) => tauri_plugin_log::Target::new(tauri_plugin_log::TargetKind::Folder {
+                    path: dir,
+                    file_name: None,
+                }),
+                None => tauri_plugin_log::Target::new(tauri_plugin_log::TargetKind::LogDir {
+                    file_name: None,
+                }),
+            };
             tauri_plugin_log::Builder::new()
+                .targets([
+                    tauri_plugin_log::Target::new(tauri_plugin_log::TargetKind::Stdout),
+                    file_target,
+                ])
                 .level(if cfg!(debug_assertions) {
                     log::LevelFilter::Debug
                 } else {
@@ -60,8 +75,8 @@ pub fn run() {
                 .level_for("keyring_core", log::LevelFilter::Warn)
                 .max_file_size(512_000)
                 .rotation_strategy(tauri_plugin_log::RotationStrategy::KeepOne)
-                .build(),
-        )
+                .build()
+        })
         .setup(|app| {
             use tauri::Manager;
             // panic 显式捕获进轮转日志（诊断页/支持报告可见），再交还默认 hook 保留 stderr 输出
@@ -80,7 +95,10 @@ pub fn run() {
             db::init(app.handle())?;
             // 登记插件日志文件路径：拉起 agent 时注入 PK_LOG_FILE，让 pk 的执行轨迹
             // 写回同一日志文件（诊断页可见），见 logshare 模块
-            logshare::init(app.path().app_log_dir().ok(), &app.package_info().name);
+            logshare::init(
+                db::log_dir().or_else(|| app.path().app_log_dir().ok()),
+                &app.package_info().name,
+            );
             app.manage(commands::windows::PendingMainReopen(
                 std::sync::atomic::AtomicBool::new(false),
             ));

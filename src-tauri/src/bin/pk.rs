@@ -85,7 +85,7 @@ const HELP: &str = r#"pk — 就决定是你了命令行（供 AI agent 与终�
   pk skill install claude-code
 
 输出: JSON（stdout）。错误: {"error": "..."}（stderr），退出码 1（业务）/ 2（用法）。
-环境变量: PK_DB 覆盖数据库路径（默认为应用数据目录 pokemon-choose-you.db）。"#;
+环境变量: PK_DB 覆盖数据库路径（默认 ~/.choose-you/data/pokemon-choose-you.db，CHOOSE_YOU_HOME 可重定位归一化根）。"#;
 
 fn main() {
     let args: Vec<String> = std::env::args().skip(1).collect();
@@ -203,29 +203,35 @@ fn format_log_line(now: chrono::DateTime<chrono::Utc>, level: &str, msg: &str) -
     )
 }
 
-/// 与 tauri 的 app_data_dir 同一规则：data_dir/<identifier>/<db>。
-/// 必须用 data_dir 而非 config_dir——Linux 上两者不同（~/.local/share vs ~/.config），
-/// tauri 的应用数据在 data_dir；macOS/Windows 上两目录相同，不受影响。
+/// 与应用同一解析（db::app_home）：CHOOSE_YOU_HOME 优先，缺省 ~/.choose-you/data/<db>。
+/// 旧版默认在系统应用数据目录（data_dir/<identifier>/），由应用启动时一次性迁入新布局
 fn default_db_path() -> Result<std::path::PathBuf, String> {
-    let dir = dirs::data_dir().ok_or_else(|| "无法定位用户数据目录".to_string())?;
-    Ok(dir
-        .join(pokemon_choose_you_lib::db::APP_IDENTIFIER)
+    let home =
+        pokemon_choose_you_lib::db::app_home().ok_or_else(|| "无法定位用户主目录".to_string())?;
+    Ok(home
+        .join(pokemon_choose_you_lib::db::DATA_SUBDIR)
         .join(pokemon_choose_you_lib::db::DB_FILE))
 }
 
 /// 打开应用数据库：平时不做迁移（应用可能比 CLI 旧，抢跑迁移会让应用拒绝启动）；
 /// 设置 busy_timeout，与运行中的应用并发读写时等待而非立刻报 BUSY。
-/// tolerate_missing 供 init-db 引导独立库。
+/// tolerate_missing 供 init-db 引导独立库（连父目录一并创建；归一化布局下
+/// data/ 未必已由应用建好，裸机引导不能挂在这一步）
 fn open_db(tolerate_missing: bool) -> Result<Connection, String> {
     let path = match std::env::var_os("PK_DB") {
         Some(p) => std::path::PathBuf::from(p),
         None => default_db_path()?,
     };
-    if !path.exists() && !tolerate_missing {
-        return Err(format!(
-            "数据库不存在：{}。请先启动一次应用（或运行 pk init-db），也可用 PK_DB 环境变量指定路径",
-            path.display()
-        ));
+    if !path.exists() {
+        if !tolerate_missing {
+            return Err(format!(
+                "数据库不存在：{}。请先启动一次应用（或运行 pk init-db），也可用 PK_DB 环境变量指定路径",
+                path.display()
+            ));
+        }
+        if let Some(parent) = path.parent() {
+            std::fs::create_dir_all(parent).map_err(|e| format!("创建数据库目录失败: {e}"))?;
+        }
     }
     let conn = Connection::open(&path).map_err(|e| format!("打开数据库失败: {e}"))?;
     conn.execute_batch("PRAGMA journal_mode=WAL; PRAGMA busy_timeout=5000;")

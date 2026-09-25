@@ -64,7 +64,7 @@ pub struct AgentConfig {
     pub args: String,
     /// 打开历史记录界面用的参数（按空白切分），如 claude 的 --resume；空则直接启动
     pub history_args: String,
-    /// 工作目录（空 = ~/.choose-you，支持 ~ 前缀）：
+    /// 工作目录（空 = ~/.choose-you/workspace，支持 ~ 前缀）：
     /// agent 及其工具的相对路径基准；远程模式下是远程机器上的路径
     pub workdir: String,
     /// 单次调用超时（秒）
@@ -218,17 +218,15 @@ fn env_prefix_line(envs: &[(String, String)]) -> String {
         .join(" ")
 }
 
-/// agent 缺省工作目录名（主目录下）：应用专属工作区，agent 的产物集中在这里，
-/// 不混入数据库所在的应用数据目录
-const DEFAULT_WORKDIR: &str = ".choose-you";
-
-/// agent 进程的工作目录：显式配置优先（~ 前缀展开为主目录），缺省用 ~/.choose-you。
+/// agent 进程的工作目录：显式配置优先（~ 前缀展开为主目录），缺省用归一化根下的
+/// workspace/ 子目录——data/、logs/ 这些通用名不落在 agent 可写范围内，agent 自建
+/// 同名目录也不会踩到机器状态。
 /// GUI 进程的 cwd 不可控——Dock/Finder 启动时是 /，开发态是 src-tauri——
 /// 必须显式指定，agent 的相对路径操作（读写文件、git 等）才不会落在随机位置
 pub(crate) fn agent_workdir(agent: &AgentConfig) -> Option<PathBuf> {
     let configured = agent.workdir.trim();
     if configured.is_empty() {
-        let dir = dirs::home_dir().map(|h| h.join(DEFAULT_WORKDIR));
+        let dir = crate::db::app_home().map(|h| h.join(crate::db::WORKSPACE_SUBDIR));
         if let Some(d) = &dir {
             std::fs::create_dir_all(d).ok();
         }
@@ -949,7 +947,7 @@ async fn spawn_and_wait(
     if let Some(dir) = cwd {
         if !dir.is_dir() {
             return Err(AppError::Invalid(format!(
-                "Agent 工作目录不存在: {}（请在设置中改正，留空则用 ~/.choose-you）",
+                "Agent 工作目录不存在: {}（请在设置中改正，留空则用 ~/.choose-you/workspace）",
                 dir.display()
             )));
         }
@@ -1449,10 +1447,10 @@ mod tests {
         };
         assert_eq!(build_invocation(&a, "x", &[]).cwd, Some(home.join("proj")));
 
-        // 未配置 → ~/.choose-you（应用专属工作区），不继承 GUI 进程的 cwd
+        // 未配置 → ~/.choose-you/workspace（应用专属工作区），不继承 GUI 进程的 cwd
         assert_eq!(
             build_invocation(&AgentConfig::default(), "x", &[]).cwd,
-            Some(home.join(".choose-you"))
+            Some(home.join(".choose-you/workspace"))
         );
     }
 

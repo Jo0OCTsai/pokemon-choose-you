@@ -178,22 +178,15 @@ pub fn list_log_entries<R: tauri::Runtime>(
     tail: Option<usize>,
     min_level: Option<String>,
 ) -> AppResult<Vec<LogEntry>> {
-    let dir = match app.path().app_log_dir() {
-        Ok(d) => d,
-        Err(_) => return Ok(vec![]),
+    let dir = match crate::db::log_dir().or_else(|| app.path().app_log_dir().ok()) {
+        Some(d) => d,
+        None => return Ok(vec![]),
     };
-    let newest = std::fs::read_dir(&dir)
-        .ok()
-        .and_then(|rd| {
-            rd.flatten()
-                .filter(|f| f.path().extension().is_some_and(|e| e == "log"))
-                .max_by_key(|f| f.metadata().ok().and_then(|m| m.modified().ok()))
-        })
-        .map(|f| f.path());
-    let Some(path) = newest else {
-        return Ok(vec![]);
+    let newest = match crate::db::newest_log_file(&dir) {
+        Some(p) => p,
+        None => return Ok(vec![]),
     };
-    let content = match std::fs::read_to_string(&path) {
+    let content = match std::fs::read_to_string(&newest) {
         Ok(c) => c,
         Err(e) => return Err(AppError::Io(e)),
     };

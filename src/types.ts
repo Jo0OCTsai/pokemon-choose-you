@@ -260,7 +260,7 @@ export interface AgentConfig {
   args: string;
   /** 打开历史记录界面的参数，如 claude 的 --resume；空则直接启动 */
   historyArgs: string;
-  /** 工作目录：agent 及其工具的相对路径基准，支持 ~ 前缀；空 = ~/.choose-you（远程模式为远程机器上的路径，留空时落在远端登录目录） */
+  /** 工作目录：agent 及其工具的相对路径基准，支持 ~ 前缀；空 = ~/.choose-you/workspace（远程模式为远程机器上的路径，留空时落在远端登录目录） */
   workdir?: string;
   /** 单次调用超时（秒） */
   timeoutSecs: number;
@@ -377,7 +377,7 @@ export interface TaskDispatchTarget {
   agentId: string | null;
   agentName: string | null;
   sshHost: string | null;
-  /** 生效工作目录（空 = 本地 ~/.choose-you / 远端登录目录） */
+  /** 生效工作目录（空 = 本地 ~/.choose-you/workspace / 远端登录目录） */
   workdir: string;
   context: string | null;
   /** 可改选的启用 agent 列表 */

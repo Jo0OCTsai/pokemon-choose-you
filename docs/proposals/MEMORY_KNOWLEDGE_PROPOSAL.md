@@ -18,7 +18,7 @@
 | followUp 语境断裂 | 判定输入只有同会话 30min/10 条上下文 | 任务自身的过往跟进（`task_notes`）不在判定输入里，AI 无法判断「这条消息是在补充哪个任务」 |
 | 教训无沉淀出口 | TAG 方案二期「用户移除 AI 标签聚合注入负反馈 few-shot」是全仓唯一类似构想 | 该构想本质是情景记忆的特例，需要一个通用的记忆机制来承载 |
 
-已有的「记忆原料」其实很充足：`chat_feedback`（情景记忆的原料）、`task_notes`、`chat_messages`（60 天）、`task_logs`（字段级审计）、agent 工作目录 `~/.choose-you`（存在但无跨会话沉淀）。缺的是**固化管道（写路径）、注入管道（读路径）与工作区文件组织（活性层）**。
+已有的「记忆原料」其实很充足：`chat_feedback`（情景记忆的原料）、`task_notes`、`chat_messages`（60 天）、`task_logs`（字段级审计）、agent 工作目录 `~/.choose-you/workspace`（存在但无跨会话沉淀）。缺的是**固化管道（写路径）、注入管道（读路径）与工作区文件组织（活性层）**。
 
 ## 二、社区调研结论
 
@@ -152,12 +152,12 @@ flowchart LR
 
 ## 七、agent 工作区：文件组织与领地规则
 
-记忆与知识在 agent 工作区（缺省 `~/.choose-you`，取各 agent 配置的 workdir；每个**启用中**的 agent workdir 各渲染一份投影）以**一组 md 文件**组织，不是单一文档——拆分依据是**加载时机与治理动作不同**，不是为拆而拆。
+记忆与知识在 agent 工作区（缺省 `~/.choose-you/workspace`，取各 agent 配置的 workdir；每个**启用中**的 agent workdir 各渲染一份投影）以**一组 md 文件**组织，不是单一文档——拆分依据是**加载时机与治理动作不同**，不是为拆而拆。
 
 ### 7.1 目录布局
 
 ```text
-~/.choose-you/                       # agent workdir（缺省值；每个启用 agent 的 workdir 各一份投影）
+~/.choose-you/workspace/             # agent workdir（缺省值；每个启用 agent 的 workdir 各一份投影）
 ├── AGENT.md                         # 入口：常驻画像 top-N + 目录导览 + 协作规则（生成区，随渲染覆盖）
 ├── memory/                          # 记忆活性层（应用生成 · 固化后原子重写）
 │   ├── profile.md                   # 画像事实（kind=profile 全量分档）

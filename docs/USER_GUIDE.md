@@ -36,11 +36,11 @@
 
 建议第一件事：打开图鉴机 → 设置 → 通用 → 打开「开机自动启动」，以后登录系统桌宠自动出现。
 
-> 数据全部存在本地（macOS: `~/Library/Application Support/com.jotsai.pokemonchooseyou/`，Windows: `%APPDATA%/com.jotsai.pokemonchooseyou/`，Linux: `~/.local/share/com.jotsai.pokemonchooseyou/`），卸载重装不丢任务。
+> 数据全部存在本地，集中在归一化根目录 `~/.choose-you/`（agent 工作区在 `workspace/` 子目录，数据库在 `data/`、日志在 `logs/`；可用环境变量 `CHOOSE_YOU_HOME` 整体重定位），卸载重装不丢任务。旧版本数据在系统应用数据目录（macOS: `~/Library/Application Support/com.jotsai.pokemonchooseyou/` 等），新版启动时自动迁入新布局，旧目录保留不动，确认无误后可手动删除。
 >
-> **自动备份**：每天第一份快照存在数据目录的 `backups/` 下（`VACUUM INTO` 压缩产物），默认滚动保留 7 份，可在 设置 → 通用 → 数据备份 调整份数、立即备份或从任意一份恢复（恢复立即生效、无需重启，会覆盖当前全部数据；秘钥在系统钥匙串不受影响）。
+> **自动备份**：每天第一份快照存在 `~/.choose-you/data/backups/` 下（`VACUUM INTO` 压缩产物），默认滚动保留 7 份，可在 设置 → 通用 → 数据备份 调整份数、立即备份或从任意一份恢复（恢复立即生效、无需重启，会覆盖当前全部数据；秘钥在系统钥匙串不受影响）。
 >
-> **导出 / 导入**：设置 → 通用 → 数据导出 / 导入。全量 JSON（可在别的机器整体导入，秘钥不出文件）、任务 CSV（带 BOM，Excel 直接打开）、今日日报 Markdown（已完成/路线上/今日跟进三段，勾选框语法，可直接并入 Obsidian 等知识库）；产物都在数据目录 `exports/` 下，可一键打开目录。
+> **导出 / 导入**：设置 → 通用 → 数据导出 / 导入。全量 JSON（可在别的机器整体导入，秘钥不出文件）、任务 CSV（带 BOM，Excel 直接打开）、今日日报 Markdown（已完成/路线上/今日跟进三段，勾选框语法，可直接并入 Obsidian 等知识库）；产物都在 `~/.choose-you/data/exports/` 下，可一键打开目录。
 
 ## 核心概念（世界观）
 
@@ -318,7 +318,7 @@ AI 判定时会带上**同会话 30 分钟内的近期上下文**与消息来源
 要点：
 
 - **{prompt} 占位符**：附加参数中的 `{prompt}` 会被替换为完整提示词；不写占位符则提示词经标准输入传入（适合长提示词）。
-- **工作目录**：agent 及其工具（读写文件、git 等）的相对路径基准，支持 `~` 前缀；留空为应用专属工作区 `~/.choose-you`（不存在会自动创建，与数据库所在的应用数据目录互不混放）。应用启动方式不同、GUI 进程的默认目录不可控（Dock/Finder 启动时是 `/`），所以总会显式指定，不会「随机」落盘。SSH 远程模式下填的是**远程机器上的路径**，调用与「历史记录」终端会话都会先切到该目录；远程留空则落在远端登录目录（远端 `$HOME`）。
+- **工作目录**：agent 及其工具（读写文件、git 等）的相对路径基准，支持 `~` 前缀；留空为应用专属工作区 `~/.choose-you/workspace`（不存在会自动创建；根目录下的 `data/`、`logs/` 是应用自留地，不落在 agent 可写范围内）。应用启动方式不同、GUI 进程的默认目录不可控（Dock/Finder 启动时是 `/`），所以总会显式指定，不会「随机」落盘。SSH 远程模式下填的是**远程机器上的路径**，调用与「历史记录」终端会话都会先切到该目录；远程留空则落在远端登录目录（远端 `$HOME`）。
 - **超时**：agent 启动 + 推理比直连 API 慢，默认 120 秒，可按需调大。
 - Windows 下 npm 全局命令（`claude.cmd` 等）会自动经 `cmd /C` 回退启动，无需绝对路径。
 
@@ -386,7 +386,7 @@ pk help                              # 完整命令说明
 - **agent 友好性**：`--dry-run`（task create/update/delete 只校验回显不落库）、`task list --limit`（默认 50 条，`truncated` 提示用 search 收窄）、`help --json`（机器可读命令目录）、`doctor` 环境自检——检查数据库存在性、schema 版本、完整性、WAL 并发、context 读链路与技能安装版本，每项 ok/warn/fail 并附 `fix` 修复建议（有 fail 退出码 1）；远程部署排障加 `pk doctor --ssh <user@host>`，端到端验证 ssh 免密 → shim 在 PATH → 回连本机整条链
 - **会话回链与成本记录**：agent 代办后 `pk session log --task 3 --agent claude-code --session <id> --cost 0.12 --duration-ms 61000` 落一条会话；任务编辑弹窗的「Agent 执行」区展示每次的时长 / 成本 / 退出码（含收音机分类调用），有会话 id 的可一键在终端回放转录（`claude --resume <id>`）
 - 与桌面应用共用同一个 SQLite 库（WAL 并发安全），操作同样写入审计日志；
-- 环境变量 `PK_DB` 可指定独立数据库路径（`pk init-db` 可引导空库）；
+- 环境变量 `PK_DB` 可指定独立数据库路径（`pk init-db` 可引导空库）；默认库随应用走 `~/.choose-you/data/pokemon-choose-you.db`，`CHOOSE_YOU_HOME` 可重定位归一化根；
 - 安装位置：应用安装目录（与主程序同级），加入 PATH 后即可全局使用。
 
 ## 常见问题
