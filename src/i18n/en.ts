@@ -383,8 +383,7 @@ export default {
     sshKeyPh: "Private key path (optional, e.g. ~/.ssh/id_ed25519)",
     sshTunnel: "Reverse tunnel port",
     sshKeepAlive: "Persistent tunnel",
-    sshKeepAliveDesc:
-      'Keep the tunnel up while the app runs (auto-reconnect on drops) so remote agents can call pk anytime — otherwise the tunnel only lives during app-initiated calls; run "Set up remote pk" first',
+    sshKeepAliveDesc: "Keeps the tunnel up while the app runs (auto-reconnect) so remote pk stays callable",
     tunnelOff: "Not running",
     tunnelHealthy: "Connected — pk reachable from remote anytime",
     tunnelConnecting: "Establishing tunnel…",
@@ -400,12 +399,16 @@ export default {
     namePh: "Claude Code",
     cmdPh: "claude / opencode / kiro-cli / pi / qoder",
     workdir: "Working directory",
-    workdirPh: "empty = ~/.choose-you; absolute or ~/path",
+    workdirPh: "empty = ~/.choose-you/workspace; absolute or ~/path",
     historyArgs: "History args",
     timeout: "Timeout (s)",
     enabled: "Enabled",
     primary: "Use for radio classification",
     primaryNone: "None",
+    terminal: "Terminal",
+    terminalDesc:
+      "Terminal app for interactive dispatch, session history and Feishu authorization (built-in = macOS Terminal / Windows PowerShell / Linux auto-detect)",
+    termBuiltin: "System built-in",
     save: "Save",
     test: "Test",
     history: "History ↗",
@@ -429,7 +432,7 @@ export default {
   feishu: {
     enable: "Enable background polling",
     interval: "Poll interval",
-    hint: "Install lark-cli first (npm install -g {'@'}larksuite/cli), then click \"Authorize\" to finish its setup and login in a terminal; credentials stay with lark-cli, never enter this app's database.",
+    hint: "Install lark-cli first (npm install -g {'@'}larksuite/cli), then click \"Authorize\" to finish its setup and login in a terminal; credentials stay with lark-cli, never enter this app's database. Classification is pseudonymized: real names are never sent to the AI — everyone appears as a codename.",
     auth: "Authorize login",
     reauth: "Re-authorize",
     authing: "Launching lark-cli login in a terminal…",
@@ -439,8 +442,7 @@ export default {
     pollNow: "Poll now",
     pollResult: "{n} new suggestions this round",
     myNames: "My nicknames",
-    myNamesDesc:
-      'How coworkers call you in group chats (comma-separated). Messages hitting these names get flagged as "possibly assigned to you"; no real names are ever sent to the AI — everyone appears as a stable codename.',
+    myNamesDesc: 'Messages mentioning these names get flagged as "possibly assigned to you"',
     myNamesPh: "e.g. Boss Qiao, Lao Qiao",
     filter: {
       title: "Chat filters",
@@ -507,7 +509,7 @@ export default {
     copyReport: "Copy support report",
     reportCopied: "✔ Support report copied (version + health snapshot + recent logs, redacted)",
     reportFailed: "❌ Copy failed, please copy manually",
-    logEmpty: "No logs yet. Full log files live under the logs/ folder in the app data directory.",
+    logEmpty: "No logs yet. Full log files live under ~/.choose-you/logs/.",
   },
   general: {
     autostart: "Launch at login",
@@ -596,7 +598,7 @@ export default {
   backup: {
     title: "Backups",
     enable: "Daily auto backup",
-    enableDesc: "Snapshots in the app data backups/ folder, rolling retention",
+    enableDesc: "Snapshots in ~/.choose-you/data/backups/, rolling retention",
     keep: "Keep",
     keepN: "{n} copies",
     now: "Back up now",
@@ -615,7 +617,7 @@ export default {
     csv: "Tasks CSV",
     md: "Today's report",
     openDir: "Open exports folder",
-    hint: "Exports land in the app data exports/ folder; the JSON can be imported on another machine (full replace), and the Markdown report drops straight into a knowledge base.",
+    hint: "Exports land in ~/.choose-you/data/exports/; the JSON can be imported on another machine (full replace), and the Markdown report drops straight into a knowledge base.",
     pick: "Choose a JSON file…",
     chosen: "Chose {v}",
     saveJson: "Save full JSON as…",

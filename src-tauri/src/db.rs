@@ -1,15 +1,155 @@
 use rusqlite::Connection;
+use std::path::{Path, PathBuf};
 use std::sync::Mutex;
 use tauri::Manager;
 
 pub struct Db(pub Mutex<Connection>);
 
-/// 应用标识（tauri.conf.json 的 identifier）：数据目录名。
-/// pk CLI 定位数据库与 agent 缺省工作目录共用，改动须与 tauri.conf.json 同步
+/// 应用标识（tauri.conf.json 的 identifier）：旧版（1.0.x）数据目录名，
+/// 现仅作归一化布局迁移的来源标识，改动须与 tauri.conf.json 同步
 pub const APP_IDENTIFIER: &str = "com.jotsai.pokemonchooseyou";
 
 /// 数据库文件名（应用数据目录内）
 pub const DB_FILE: &str = "pokemon-choose-you.db";
+
+/// 归一化根目录（db / 日志 / agent workspace 共用）的环境变量覆盖键：
+/// GUI 与 pk CLI 同一规则，整体重定位用（测试 / 便携部署）
+pub const HOME_ENV: &str = "CHOOSE_YOU_HOME";
+
+/// 归一化根目录名（用户主目录下）：纯容器，agent 工作区与应用数据各占子目录互不混放
+pub const DEFAULT_HOME_DIR: &str = ".choose-you";
+
+/// agent 工作区子目录（缺省 workdir）：data/、logs/ 这类通用名不落在 agent 可写
+/// 范围内，agent 自建同名目录也不会踩到机器状态
+pub const WORKSPACE_SUBDIR: &str = "workspace";
+
+/// 应用数据子目录（db、backups、exports、remote-pk 密钥）
+pub const DATA_SUBDIR: &str = "data";
+
+/// 应用与 pk 共享日志的子目录
+pub const LOG_SUBDIR: &str = "logs";
+
+/// 日志文件名主干：插件 Folder 目标与 pk 轨迹（PK_LOG_FILE）落盘同一文件。
+pub const LOG_FILE_STEM: &str = "pokemon-choose-you";
+
+/// 旧 app_data_dir 布局中随库一起迁移的子目录
+const MIGRATE_SUBDIRS: &[&str] = &["backups", "exports"];
+
+/// 远程 pk 通道密钥对（丢了要重新一键配置，随库迁移）
+const REMOTE_PK_KEY_FILES: &[&str] = &["remote_pk_shim_ed25519", "remote_pk_shim_ed25519.pub"];
+
+/// 归一化根目录解析（纯函数便于测试）：CHOOSE_YOU_HOME 显式指定优先，缺省 <主目录>/.choose-you
+fn app_home_from(env: Option<&std::ffi::OsStr>, home: Option<&Path>) -> Option<PathBuf> {
+    if let Some(v) = env.filter(|v| !v.is_empty()) {
+        return Some(PathBuf::from(v));
+    }
+    home.map(|h| h.join(DEFAULT_HOME_DIR))
+}
+
+/// 应用归一化根目录：agent workspace 在 workspace/ 子目录，db 与日志在 data/、logs/。
+/// GUI 与 pk CLI 共用同一解析，保证两端看到同一个库与日志
+pub fn app_home() -> Option<PathBuf> {
+    app_home_from(
+        std::env::var_os(HOME_ENV).as_deref(),
+        dirs::home_dir().as_deref(),
+    )
+}
+
+/// 应用数据目录（db、backups、exports、remote-pk 密钥）：<app_home>/data
+pub fn data_dir() -> Option<PathBuf> {
+    app_home().map(|h| h.join(DATA_SUBDIR))
+}
+
+/// 应用与 pk 共享日志目录：<app_home>/logs
+pub fn log_dir() -> Option<PathBuf> {
+    app_home().map(|h| h.join(LOG_SUBDIR))
+}
+
+/// 目录内最新修改的 .log 文件（诊断页读取与旧日志迁移共用）
+pub(crate) fn newest_log_file(dir: &Path) -> Option<PathBuf> {
+    std::fs::read_dir(dir)
+        .ok()?
+        .flatten()
+        .filter(|f| f.path().extension().is_some_and(|e| e == "log"))
+        .max_by_key(|f| f.metadata().ok().and_then(|m| m.modified().ok()))
+        .map(|f| f.path())
+}
+
+/// 目标已存在（或源不是文件）则跳过的复制，返回复制文件数。
+/// 幂等迁移的基元：旧目录保留不清删，重复调用不翻新已迁移内容
+fn copy_if_absent(src: &Path, dest: &Path) -> usize {
+    if dest.exists() || !src.is_file() {
+        return 0;
+    }
+    if let Some(parent) = dest.parent() {
+        let _ = std::fs::create_dir_all(parent);
+    }
+    usize::from(std::fs::copy(src, dest).is_ok())
+}
+
+/// 旧布局（tauri app_data_dir / app_log_dir 分散存放）一次性迁入归一化根：
+/// db 主文件与 WAL 伴生、backups/、exports/、remote-pk 密钥对、最新一份日志。
+/// 目标已存在的条目一律跳过（幂等：重复启动、迁移后旧目录残留都不翻新），
+/// 旧文件保留不清删——回滚旧版本仍可用，确认无误后由用户手动清理
+pub(crate) fn migrate_legacy_files(
+    legacy_data: &Path,
+    legacy_logs: Option<&Path>,
+    new_data: &Path,
+    new_logs: &Path,
+) -> usize {
+    let mut moved = 0usize;
+    for suffix in ["", "-wal", "-shm"] {
+        let name = format!("{DB_FILE}{suffix}");
+        moved += copy_if_absent(&legacy_data.join(&name), &new_data.join(&name));
+    }
+    for sub in MIGRATE_SUBDIRS {
+        let Ok(entries) = std::fs::read_dir(legacy_data.join(sub)) else {
+            continue;
+        };
+        for e in entries.flatten() {
+            let dest = new_data.join(sub).join(e.file_name());
+            moved += copy_if_absent(&e.path(), &dest);
+        }
+    }
+    for key in REMOTE_PK_KEY_FILES {
+        moved += copy_if_absent(&legacy_data.join(key), &new_data.join(key));
+    }
+    // 日志：新目录还没有任何 .log 时搬最新一份旧日志，保住诊断页的历史轨迹；
+    // 插件已开写新日志（启动行）则不覆盖
+    let has_log = std::fs::read_dir(new_logs)
+        .map(|rd| {
+            rd.flatten()
+                .any(|f| f.path().extension().is_some_and(|e| e == "log"))
+        })
+        .unwrap_or(false);
+    if !has_log {
+        if let Some(newest) = legacy_logs.and_then(newest_log_file) {
+            let dest = new_logs.join(format!("{LOG_FILE_STEM}.log"));
+            moved += copy_if_absent(&newest, &dest);
+        }
+    }
+    moved
+}
+
+/// init 时调用：旧布局存在则迁入归一化根，失败只记日志不阻断启动
+fn migrate_legacy_layout(app: &tauri::AppHandle, new_data: &Path, new_logs: &Path) {
+    let Ok(legacy_data) = app.path().app_data_dir() else {
+        return;
+    };
+    // 新库已在（此前启动迁过 / 全新安装）无事可做；旧库不在则无源可迁
+    if new_data.join(DB_FILE).exists() || !legacy_data.join(DB_FILE).exists() {
+        return;
+    }
+    let legacy_logs = app.path().app_log_dir().ok();
+    let moved = migrate_legacy_files(&legacy_data, legacy_logs.as_deref(), new_data, new_logs);
+    if moved > 0 {
+        log::info!(
+            "db: 旧布局 {} → {} 已迁移 {moved} 个文件（旧目录保留未删，确认无误后可手动清理）",
+            legacy_data.display(),
+            new_data.display()
+        );
+    }
+}
 
 /// 1.0.0 初始化基线：完整当前 schema，单条迁移。
 /// 历史增量（标签/收音机、分类停用、任务状态机、飞书元数据、AI 建议与反馈、
@@ -274,8 +414,11 @@ const DEFAULT_TAG_DIMENSIONS: &[(&str, &str, &str, i64)] = &[
 ];
 
 pub fn init(app: &tauri::AppHandle) -> Result<(), Box<dyn std::error::Error>> {
-    let dir = app.path().app_data_dir()?;
+    let dir = data_dir().ok_or("无法定位归一化根目录（HOME / CHOOSE_YOU_HOME）")?;
     std::fs::create_dir_all(&dir)?;
+    if let Some(logs) = log_dir() {
+        migrate_legacy_layout(app, &dir, &logs);
+    }
     let conn = Connection::open(dir.join(DB_FILE))?;
     conn.execute_batch("PRAGMA journal_mode=WAL; PRAGMA synchronous=NORMAL;")?;
     init_conn(&conn)?;
@@ -725,5 +868,120 @@ pub(crate) mod tests {
             })
             .unwrap();
         assert_eq!(v, "en");
+    }
+
+    fn tmp_root(name: &str) -> PathBuf {
+        let dir = std::env::temp_dir().join(format!("pk-db-{}-{name}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        dir
+    }
+
+    /// 归一化根：CHOOSE_YOU_HOME 覆盖优先，缺省 <主目录>/.choose-you，空串视同未设置
+    #[test]
+    fn app_home_resolves_env_override_then_default() {
+        use std::ffi::OsStr;
+        assert_eq!(
+            app_home_from(None, Some(Path::new("/Users/demo"))),
+            Some(PathBuf::from("/Users/demo/.choose-you"))
+        );
+        assert_eq!(
+            app_home_from(Some(OsStr::new("")), Some(Path::new("/Users/demo"))),
+            Some(PathBuf::from("/Users/demo/.choose-you"))
+        );
+        assert_eq!(
+            app_home_from(Some(OsStr::new("/var/cy")), Some(Path::new("/Users/demo"))),
+            Some(PathBuf::from("/var/cy"))
+        );
+        assert_eq!(app_home_from(None, None), None);
+    }
+
+    /// 旧布局一次性迁入归一化根：db(+WAL)/backups/exports/远程密钥/旧日志全落位，
+    /// 目标已存在的一律跳过（幂等），旧文件保留不清删
+    #[test]
+    fn legacy_layout_migrates_idempotently() {
+        let root = tmp_root("migrate");
+        let legacy_data = root.join("legacy-data");
+        let legacy_logs = root.join("legacy-logs");
+        let new_data = root.join("new").join(DATA_SUBDIR);
+        let new_logs = root.join("new").join(LOG_SUBDIR);
+        for d in [
+            legacy_data.join(MIGRATE_SUBDIRS[0]),
+            legacy_data.join(MIGRATE_SUBDIRS[1]),
+            legacy_logs.clone(),
+            new_data.clone(),
+            new_logs.clone(),
+        ] {
+            std::fs::create_dir_all(&d).unwrap();
+        }
+        std::fs::write(legacy_data.join(DB_FILE), "db-v1").unwrap();
+        std::fs::write(legacy_data.join(format!("{DB_FILE}-wal")), "wal-v1").unwrap();
+        std::fs::write(legacy_data.join(MIGRATE_SUBDIRS[0]).join("b1.db"), "bk").unwrap();
+        std::fs::write(legacy_data.join(MIGRATE_SUBDIRS[1]).join("e.md"), "ex").unwrap();
+        std::fs::write(legacy_data.join(REMOTE_PK_KEY_FILES[0]), "key").unwrap();
+        std::fs::write(legacy_logs.join("app.log"), "old-log").unwrap();
+
+        let moved = migrate_legacy_files(&legacy_data, Some(&legacy_logs), &new_data, &new_logs);
+        assert_eq!(moved, 6, "db+wal+备份+导出+密钥+日志");
+        assert_eq!(
+            std::fs::read_to_string(new_data.join(DB_FILE)).unwrap(),
+            "db-v1"
+        );
+        assert_eq!(
+            std::fs::read_to_string(new_data.join(MIGRATE_SUBDIRS[0]).join("b1.db")).unwrap(),
+            "bk"
+        );
+        assert_eq!(
+            std::fs::read_to_string(new_data.join(REMOTE_PK_KEY_FILES[0])).unwrap(),
+            "key"
+        );
+        assert_eq!(
+            std::fs::read_to_string(new_logs.join(format!("{LOG_FILE_STEM}.log"))).unwrap(),
+            "old-log",
+            "旧日志迁入时改用规范文件名"
+        );
+        // 旧文件保留：回滚旧版本仍可用
+        assert!(legacy_data.join(DB_FILE).exists());
+
+        // 幂等：旧侧变化再跑，新侧已存在的不被翻新，只补缺失的
+        std::fs::write(legacy_data.join(DB_FILE), "db-v2").unwrap();
+        std::fs::write(legacy_data.join(MIGRATE_SUBDIRS[0]).join("b2.db"), "bk2").unwrap();
+        let moved2 = migrate_legacy_files(&legacy_data, Some(&legacy_logs), &new_data, &new_logs);
+        assert_eq!(moved2, 1, "只补新增的备份文件");
+        assert_eq!(
+            std::fs::read_to_string(new_data.join(DB_FILE)).unwrap(),
+            "db-v1",
+            "已迁移的库不被翻新"
+        );
+
+        // 新日志目录已有日志 → 旧日志不再搬（不覆盖轮转中的新日志）
+        std::fs::write(new_logs.join("fresh.log"), "fresh").unwrap();
+        std::fs::write(legacy_logs.join("app2.log"), "newer").unwrap();
+        let moved3 = migrate_legacy_files(&legacy_data, Some(&legacy_logs), &new_data, &new_logs);
+        assert_eq!(moved3, 0, "全量幂等：无新增可迁");
+        assert_eq!(
+            std::fs::read_to_string(new_logs.join(format!("{LOG_FILE_STEM}.log"))).unwrap(),
+            "old-log"
+        );
+        assert!(!new_logs.join("app2.log").exists());
+        std::fs::remove_dir_all(&root).ok();
+    }
+
+    /// 无旧日志目录 / 旧目录为空时迁移退化为纯 db 搬运，不报错
+    #[test]
+    fn legacy_migrate_tolerates_missing_logs_and_subdirs() {
+        let root = tmp_root("migrate-partial");
+        let legacy_data = root.join("legacy-data");
+        std::fs::create_dir_all(&legacy_data).unwrap();
+        std::fs::write(legacy_data.join(DB_FILE), "db-only").unwrap();
+        let new_data = root.join("new").join(DATA_SUBDIR);
+        let new_logs = root.join("new").join(LOG_SUBDIR);
+        let moved = migrate_legacy_files(&legacy_data, None, &new_data, &new_logs);
+        assert_eq!(moved, 1);
+        assert_eq!(
+            std::fs::read_to_string(new_data.join(DB_FILE)).unwrap(),
+            "db-only"
+        );
+        std::fs::remove_dir_all(&root).ok();
     }
 }

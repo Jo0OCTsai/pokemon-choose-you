@@ -54,6 +54,13 @@ export const SETTING_DEFAULTS: Record<string, string> = {
   ai_agents: "[]",
   /** 收音机分类使用的 agent id（空则用第一个启用的） */
   ai_agent_id: "",
+  /**
+   * 终端偏好：交互派发 / 历史记录 / 飞书授权唤起的终端应用。
+   * default = 系统内置（macOS Terminal / Windows PowerShell / Linux 自动探测）；
+   * iterm2 仅 macOS、ghostty 仅 macOS/Linux、windows-terminal 仅 Windows，
+   * 选项由设置页按平台裁剪（与后端 TerminalPref 对齐）
+   */
+  terminal_preference: "default",
   /** 自动派发（M3）：到期未开始且 project 标签 meta 指定 agent 的待办排队无头执行（默认关） */
   dispatch_auto_enabled: "false",
   /** 每机器并发上限（本机与每台 SSH 主机分别生效；自动派发领取闸门） */
@@ -102,6 +109,7 @@ export const SETTING_KEYS = [
   "feishu_my_names",
   "ai_agents",
   "ai_agent_id",
+  "terminal_preference",
   "dispatch_auto_enabled",
   "dispatch_max_concurrent",
   "dispatch_worktree",

@@ -379,8 +379,7 @@ export default {
     sshKeyPh: "私钥路径（可选，如 ~/.ssh/id_ed25519）",
     sshTunnel: "反向隧道端口",
     sshKeepAlive: "常驻隧道",
-    sshKeepAliveDesc:
-      "应用驻留期间保持隧道长连（断线自动重连），远程 agent 随时可调 pk——不开启时隧道仅随应用的调用窗口存活；需先跑「一键配置远程 pk」",
+    sshKeepAliveDesc: "应用驻留期间保持长连（断线自动重连），远程随时可调 pk",
     tunnelOff: "未运行",
     tunnelHealthy: "已连通，远程随时可调 pk",
     tunnelConnecting: "隧道建立中…",
@@ -395,12 +394,16 @@ export default {
     namePh: "Claude Code",
     cmdPh: "claude / opencode / kiro-cli / pi / qoder",
     workdir: "工作目录",
-    workdirPh: "空 = ~/.choose-you；可填绝对路径或 ~/路径",
+    workdirPh: "空 = ~/.choose-you/workspace；可填绝对路径或 ~/路径",
     historyArgs: "历史参数",
     timeout: "超时（秒）",
     enabled: "启用",
     primary: "用于收音机分类",
     primaryNone: "不指定",
+    terminal: "终端偏好",
+    terminalDesc:
+      "交互派发、历史记录与飞书授权唤起的终端应用（系统内置 = macOS Terminal / Windows PowerShell / Linux 自动探测）",
+    termBuiltin: "系统内置",
     save: "保存",
     test: "测试",
     history: "历史记录 ↗",
@@ -423,7 +426,7 @@ export default {
   feishu: {
     enable: "启用后台轮询",
     interval: "轮询间隔",
-    hint: "先安装 lark-cli（npm install -g {'@'}larksuite/cli），再点「授权登录」在终端完成初始化与授权；凭证由 lark-cli 保管，不进本应用数据库。",
+    hint: "先安装 lark-cli（npm install -g {'@'}larksuite/cli），再点「授权登录」在终端完成初始化与授权；凭证由 lark-cli 保管，不进本应用数据库。判定全程假名化：真实姓名不发给 AI，一律以代号出现。",
     auth: "授权登录",
     reauth: "重新授权",
     authing: "正在终端启动 lark-cli 登录…",
@@ -433,8 +436,7 @@ export default {
     pollNow: "立即拉取一次",
     pollResult: "本轮新增 {n} 条建议",
     myNames: "我的称呼",
-    myNamesDesc:
-      "群里同事怎么叫你（逗号分隔可多个）。命中这些称呼的消息会标注「疑似指派给你」；所有真实姓名都不会发给 AI，一律以代号出现。",
+    myNamesDesc: "命中这些称呼的消息会标注「疑似指派给你」",
     myNamesPh: "如：乔老板，老乔",
     filter: {
       title: "会话过滤",
@@ -499,7 +501,7 @@ export default {
     copyReport: "复制支持报告",
     reportCopied: "✔ 已复制支持报告（版本 + 健康快照 + 最近日志，已脱敏）",
     reportFailed: "❌ 复制失败，请手动复制",
-    logEmpty: "暂无日志。完整日志文件位于应用数据目录的 logs/ 下。",
+    logEmpty: "暂无日志。完整日志文件位于 ~/.choose-you/logs/ 下。",
   },
   general: {
     autostart: "开机自动启动",
@@ -588,7 +590,7 @@ export default {
   backup: {
     title: "数据备份",
     enable: "每日自动备份",
-    enableDesc: "快照存于应用数据目录 backups/，滚动保留",
+    enableDesc: "快照存于 ~/.choose-you/data/backups/，滚动保留",
     keep: "保留份数",
     keepN: "{n} 份",
     now: "立即备份",
@@ -607,7 +609,7 @@ export default {
     csv: "任务 CSV",
     md: "今日日报",
     openDir: "打开导出目录",
-    hint: "导出产物在应用数据目录 exports/ 下；JSON 可在别的机器导入（整体覆盖），Markdown 日报可直接并入知识库。",
+    hint: "导出产物在 ~/.choose-you/data/exports/ 下；JSON 可在别的机器导入（整体覆盖），Markdown 日报可直接并入知识库。",
     pick: "选择 JSON 文件…",
     chosen: "已选 {v}",
     saveJson: "另存全量 JSON…",

@@ -1,6 +1,6 @@
 # pk 命令完整参考
 
-约定：所有命令输出 UTF-8 JSON（stdout）；错误输出 `{"error":"..."}` 到 stderr，退出码 1=业务错误（数据不存在/校验失败）、2=用法错误。环境变量 `PK_DB` 可覆盖数据库路径（默认为应用数据目录 pokemon-choose-you.db）。
+约定：所有命令输出 UTF-8 JSON（stdout）；错误输出 `{"error":"..."}` 到 stderr，退出码 1=业务错误（数据不存在/校验失败）、2=用法错误。环境变量 `PK_DB` 可覆盖数据库路径（默认 `~/.choose-you/data/pokemon-choose-you.db`，`CHOOSE_YOU_HOME` 可重定位归一化根）。
 
 ## 任务（task）
 

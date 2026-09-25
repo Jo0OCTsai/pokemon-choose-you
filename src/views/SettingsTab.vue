@@ -1016,6 +1016,20 @@ async function installUpdate() {
 const today = new Date();
 /** 平台限定的说明只在对应平台渲染（DESIGN_SYSTEM.md §4.4 说明文字四层归属） */
 const isLinux = /linux/i.test(navigator.userAgent);
+/** 终端偏好选项按当前平台裁剪：可选值与后端 TerminalPref 对齐（default 恒可选） */
+const isMac = /mac/i.test(navigator.userAgent);
+const isWin = /win/i.test(navigator.userAgent);
+const terminalOptions = computed(() => {
+  const opts = [{ value: "default", label: t("ai.termBuiltin") }];
+  if (isMac) {
+    opts.push({ value: "iterm2", label: "iTerm2" }, { value: "ghostty", label: "Ghostty" });
+  } else if (isWin) {
+    opts.push({ value: "windows-terminal", label: "Windows Terminal" });
+  } else if (isLinux) {
+    opts.push({ value: "ghostty", label: "Ghostty" });
+  }
+  return opts;
+});
 
 const unlisteners: UnlistenFn[] = [];
 // 用户去系统设置勾选辅助功能后切回来：复查并自动拉起输入响应（配对清理防重复挂载）
@@ -1277,6 +1291,9 @@ onUnmounted(() => {
           <SettingRow :label="t('ai.primary')">
             <DexSelect v-model="settings.values.ai_agent_id" :options="primaryAgentOptions" />
           </SettingRow>
+          <SettingRow :label="t('ai.terminal')" :desc="t('ai.terminalDesc')">
+            <DexSelect v-model="settings.values.terminal_preference" :options="terminalOptions" />
+          </SettingRow>
           <div v-for="ag in agents" :key="ag.id" class="agent-block" :class="{ off: !ag.enabled }">
             <div class="agent-row">
               <input v-model="ag.name" class="agent-name" :placeholder="t('ai.namePh')" />
@@ -1338,10 +1355,10 @@ onUnmounted(() => {
                 />
                 <input v-model="ag.remote.keyPath" class="agent-cmd" :placeholder="t('ai.sshKeyPh')" />
               </div>
-              <SettingRow :label="t('ai.sshTunnel')" :label-width="128">
+              <SettingRow :label="t('ai.sshTunnel')">
                 <input v-model.number="ag.remote.tunnel" type="number" min="1" max="65535" placeholder="10022" />
               </SettingRow>
-              <SettingRow :label="t('ai.sshKeepAlive')" :desc="t('ai.sshKeepAliveDesc')" :label-width="128">
+              <SettingRow :label="t('ai.sshKeepAlive')" :desc="t('ai.sshKeepAliveDesc')">
                 <div class="tunnel-cell">
                   <DexToggle
                     :model-value="!!ag.remote.persistent"
@@ -1910,7 +1927,8 @@ onUnmounted(() => {
   flex: 1;
 }
 .skill-state {
-  flex: 1; /* 撑满剩余宽度，把检查/安装按钮推到行右缘（与其他行控件贴右一致） */
+  margin-left: auto; /* 状态字贴按钮排右缘，与超时/开关同一条右轴 */
+  min-width: 0;
   font-size: 12px;
   color: var(--ink-soft);
   overflow: hidden;

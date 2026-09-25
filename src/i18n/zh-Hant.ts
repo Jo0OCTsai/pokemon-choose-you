@@ -377,8 +377,7 @@ export default {
     sshKeyPh: "私鑰路徑（可選，如 ~/.ssh/id_ed25519）",
     sshTunnel: "反向隧道連接埠",
     sshKeepAlive: "常駐隧道",
-    sshKeepAliveDesc:
-      "應用駐留期間保持通道長連（斷線自動重連），遠端 agent 隨時可調 pk——不開啟時通道僅隨應用的呼叫視窗存活；需先跑「一鍵配置遠端 pk」",
+    sshKeepAliveDesc: "應用駐留期間保持長連（斷線自動重連），遠端隨時可調 pk",
     tunnelOff: "未運行",
     tunnelHealthy: "已連通，遠端隨時可調 pk",
     tunnelConnecting: "隧道建立中…",
@@ -393,12 +392,16 @@ export default {
     namePh: "Claude Code",
     cmdPh: "claude / opencode / kiro-cli / pi / qoder",
     workdir: "工作目錄",
-    workdirPh: "空 = ~/.choose-you；可填絕對路徑或 ~/路徑",
+    workdirPh: "空 = ~/.choose-you/workspace；可填絕對路徑或 ~/路徑",
     historyArgs: "歷史參數",
     timeout: "逾時（秒）",
     enabled: "啟用",
     primary: "用於收音機分類",
     primaryNone: "不指定",
+    terminal: "終端偏好",
+    terminalDesc:
+      "互動派發、歷史記錄與飛書授權喚起的終端應用（系統內建 = macOS Terminal / Windows PowerShell / Linux 自動探測）",
+    termBuiltin: "系統內建",
     save: "儲存",
     test: "測試",
     history: "歷史記錄 ↗",
@@ -421,7 +424,7 @@ export default {
   feishu: {
     enable: "啟用背景輪詢",
     interval: "輪詢間隔",
-    hint: "先安裝 lark-cli（npm install -g {'@'}larksuite/cli），再點「授權登入」在終端機完成初始化與授權；憑證由 lark-cli 保管，不進本應用資料庫。",
+    hint: "先安裝 lark-cli（npm install -g {'@'}larksuite/cli），再點「授權登入」在終端機完成初始化與授權；憑證由 lark-cli 保管，不進本應用資料庫。判定全程假名化：真實姓名不發給 AI，一律以代號出現。",
     auth: "授權登入",
     reauth: "重新授權",
     authing: "正在終端啟動 lark-cli 登入…",
@@ -431,8 +434,7 @@ export default {
     pollNow: "立即拉取一次",
     pollResult: "本輪新增 {n} 條建議",
     myNames: "我的稱呼",
-    myNamesDesc:
-      "群裡同事怎麼叫你（逗號分隔可多個）。命中這些稱呼的訊息會標註「疑似指派給你」；所有真實姓名都不會發給 AI，一律以代號出現。",
+    myNamesDesc: "命中這些稱呼的訊息會標註「疑似指派給你」",
     myNamesPh: "如：喬老闆，老喬",
     filter: {
       title: "會話過濾",
@@ -497,7 +499,7 @@ export default {
     copyReport: "複製支援報告",
     reportCopied: "✔ 已複製支援報告（版本 + 健康快照 + 最近日誌，已脫敏）",
     reportFailed: "❌ 複製失敗，請手動複製",
-    logEmpty: "暫無日誌。完整日誌檔案位於應用資料目錄的 logs/ 下。",
+    logEmpty: "暫無日誌。完整日誌檔案位於 ~/.choose-you/logs/ 下。",
   },
   general: {
     autostart: "開機自動啟動",
@@ -586,7 +588,7 @@ export default {
   backup: {
     title: "資料備份",
     enable: "每日自動備份",
-    enableDesc: "快照存於應用資料目錄 backups/，滾動保留",
+    enableDesc: "快照存於 ~/.choose-you/data/backups/，滾動保留",
     keep: "保留份數",
     keepN: "{n} 份",
     now: "立即備份",
@@ -605,7 +607,7 @@ export default {
     csv: "任務 CSV",
     md: "今日日報",
     openDir: "開啟匯出目錄",
-    hint: "匯出產物在應用資料目錄 exports/ 下；JSON 可在別的機器匯入（整體覆蓋），Markdown 日報可直接併入知識庫。",
+    hint: "匯出產物在 ~/.choose-you/data/exports/ 下；JSON 可在別的機器匯入（整體覆蓋），Markdown 日報可直接併入知識庫。",
     pick: "選擇 JSON 檔案…",
     chosen: "已選 {v}",
     saveJson: "另存全量 JSON…",

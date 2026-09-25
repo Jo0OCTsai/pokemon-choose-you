@@ -9,11 +9,11 @@ use std::sync::OnceLock;
 
 static LOG_FILE: OnceLock<Option<PathBuf>> = OnceLock::new();
 
-/// 应用启动时登记插件当前写入的日志文件。tauri-plugin-log 的 LogDir 目标落盘为
-/// `{app_log_dir}/{package_name}.log`（与 list_log_entries 扫描的目录一致）。
+/// 应用启动时登记插件当前写入的日志文件。日志落盘为
+/// `{log_dir}/{file_stem}.log`（归一化根的 logs/ 子目录，与 list_log_entries 扫描的目录一致）。
 /// 目录拿不到（极端环境）记 None，pk 日志随之停用，不影响主流程。
-pub fn init(dir: Option<std::path::PathBuf>, app_name: &str) {
-    let _ = LOG_FILE.set(dir.map(|d| d.join(format!("{app_name}.log"))));
+pub fn init(dir: Option<std::path::PathBuf>, file_stem: &str) {
+    let _ = LOG_FILE.set(dir.map(|d| d.join(format!("{file_stem}.log"))));
 }
 
 /// 拉起 agent 子进程时读取，注入 PK_LOG_FILE；未登记（测试环境 / 目录缺失）返回 None

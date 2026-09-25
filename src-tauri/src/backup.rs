@@ -4,6 +4,7 @@ use crate::error::{AppError, AppResult};
 use rusqlite::{params, Connection};
 use std::path::{Path, PathBuf};
 use std::time::Duration;
+use tauri::Manager;
 
 /// 备份文件名前缀 / 后缀（滚动清理与恢复的合法性判断共用）
 const NAME_PREFIX: &str = "pokemon-choose-you-";
@@ -175,9 +176,10 @@ pub fn spawn_daily_loop<R: tauri::Runtime>(app: tauri::AppHandle<R>) {
         loop {
             tick.tick().await;
             let result: AppResult<()> = (|| {
-                use tauri::Manager;
                 let db = app.state::<crate::db::Db>();
-                let data_dir = app.path().app_data_dir()?;
+                let data_dir = crate::db::data_dir().ok_or_else(|| {
+                    AppError::External("无法定位归一化根目录（HOME / CHOOSE_YOU_HOME）".into())
+                })?;
                 let conn = db.0.lock().unwrap();
                 let get = |k: &str| -> Option<String> {
                     conn.query_row("SELECT value FROM settings WHERE key=?1", params![k], |r| {

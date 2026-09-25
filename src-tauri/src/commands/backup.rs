@@ -3,24 +3,22 @@ use crate::db::Db;
 use crate::error::{AppError, AppResult};
 use crate::events;
 use rusqlite::params;
-use tauri::{Manager, State};
+use tauri::State;
 
-fn data_dir<R: tauri::Runtime>(app: &tauri::AppHandle<R>) -> AppResult<std::path::PathBuf> {
-    app.path()
-        .app_data_dir()
-        .map_err(|e| AppError::External(format!("定位应用数据目录失败: {e}")))
+fn data_dir() -> AppResult<std::path::PathBuf> {
+    crate::db::data_dir().ok_or_else(|| AppError::External("定位应用数据目录失败".into()))
 }
 
 /// 备份列表（时间倒序）
 #[tauri::command]
-pub fn list_backups<R: tauri::Runtime>(app: tauri::AppHandle<R>) -> AppResult<Vec<BackupInfo>> {
-    backup::list_backups(&data_dir(&app)?)
+pub fn list_backups<R: tauri::Runtime>(_app: tauri::AppHandle<R>) -> AppResult<Vec<BackupInfo>> {
+    backup::list_backups(&data_dir()?)
 }
 
 /// 立即备份（手动入口；同样参与滚动保留），返回备份文件名
 #[tauri::command]
 pub fn create_backup_now<R: tauri::Runtime>(
-    app: tauri::AppHandle<R>,
+    _app: tauri::AppHandle<R>,
     db: State<Db>,
 ) -> AppResult<String> {
     let keep: usize = {
@@ -36,9 +34,9 @@ pub fn create_backup_now<R: tauri::Runtime>(
     };
     let path = {
         let conn = db.0.lock().unwrap();
-        backup::create_backup(&data_dir(&app)?, &conn)?
+        backup::create_backup(&data_dir()?, &conn)?
     };
-    backup::prune_backups(&data_dir(&app)?, keep.max(1));
+    backup::prune_backups(&data_dir()?, keep.max(1));
     Ok(path
         .file_name()
         .map(|n| n.to_string_lossy().into_owned())
@@ -54,7 +52,7 @@ pub fn restore_backup<R: tauri::Runtime>(
 ) -> AppResult<()> {
     {
         let mut conn = db.0.lock().unwrap();
-        backup::restore_backup(&data_dir(&app)?, &mut conn, &file)?;
+        backup::restore_backup(&data_dir()?, &mut conn, &file)?;
         // 恢复把 settings 也回滚了，当日备份标记一并补上，避免恢复后立刻又触发一轮
         let today = chrono::Local::now().format("%Y-%m-%d").to_string();
         let _ = conn.execute(
