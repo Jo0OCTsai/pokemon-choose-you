@@ -1,7 +1,7 @@
 ---
 name: pokemon-choose-you
 description: 就决定是你了（pokemon-choose-you）待办管理技能——用 pk 命令读写本地待办库：建任务/查任务/完成任务/记跟进/提交 AI 判定建议/记录会话成本/回传派发状态。当用户提到待办、任务清单、周报、deadline、打卡或「帮我记一下」时使用。
-version: "5"
+version: "6"
 ---
 
 # 就决定是你了 · pk 命令技能

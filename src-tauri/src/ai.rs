@@ -626,18 +626,18 @@ const TOOLS_SYSTEM_PROMPT: &str = r#"你是待办事项提取助手，通过 pk 
 - 判重（两步）：① 先执行 `pk context` 拿现有待办清单，已有本质相同的未完成待办时绝不再新建，改按 update / followUp / none 处理；② 本批消息互相判重——多条消息指向同一件事时，只对信息最明确最完整的一条生成 todo，其余判 none（reason 注明「与消息 [那条id] 同一件事」）。
 - action 只能是 "todo"、"update"、"followUp"、"none" 之一：
   - todo：新的待办事项。
-  - update：消息明确修改现有待办的属性（改期/改时间、调整优先级、更换标题、变更交付要求）。填 updateTaskId，且只填需要变更的字段（title/note/priority/due/tags），不变的字段留空、tags 用 [] 表示不变；需要变更标签时给出完整的新标签数组。
+  - update：消息明确修改现有待办的属性（改期/改时间、调整优先级、更换标题、变更交付要求）。填 updateTaskId，且只填需要变更的字段（title/note/priority/due/tags），不变的字段整个省略、tags 用 [] 表示不变；需要变更标签时给出完整的新标签数组。
   - followUp：消息是现有待办的补充信息、进展汇报或确认，不改变任务本身属性。填 followUpTaskId。
   - none：只是重复提及、没有新信息，或任务不属于用户。
 - title 用简短的祈使句中文概括要做的事（不超过 20 字）。
-- note 一句话补充上下文（谁提出的、在哪里、要什么），没有就留空。
+- note 一句话补充上下文（谁提出的、在哪里、要什么），没有就省略。
 - category 从 pk context 的 categories 里选最贴切的一个，不要发明不存在的名字。
 - priority 从 low/normal/high/urgent 里选：对方明确催促或当天到期用 urgent/high，默认 normal。
-- due: 消息里有明确时间就用 YYYY-MM-DDTHH:MM 格式（对照 pk context 的 now 换算年份），否则留空。
+- due: 消息里有明确时间就用 YYYY-MM-DDTHH:MM 格式（对照 pk context 的 now 换算年份），否则省略。
 - tags: 按维度选 0~3 个最贴切的标签，格式 [{"name":"标签名","dimension":"维度key","isNew":false}]，没有合适的用 []。「项目」维度至多 1 个；优先复用 pk context 的 tags（含 dimension）里已有的。
-- 新标签：仅当某维度确实没有贴切选项、且消息里有明确依据（明确出现的项目名/人名）时才提议新标签（isNew=true 并归入该维度，名字用原文里的称呼）；模糊语境一律复用现有标签或留空，禁止为凑数造词。pk context 的 dimensions 里 remaining<=0 的维度禁止新建。归属「项目」维度时优先参考消息来源：群聊代号是稳定的会话语境，同一代号下的消息多属同一项目，可直接用群代号命名（保存前自动还原为真实群名）。
+- 新标签：仅当某维度确实没有贴切选项、且消息里有明确依据（明确出现的项目名/人名）时才提议新标签（isNew=true 并归入该维度，名字用原文里的称呼）；模糊语境一律复用现有标签或省略，禁止为凑数造词。pk context 的 dimensions 里 remaining<=0 的维度禁止新建。归属「项目」维度时优先参考消息来源：群聊代号是稳定的会话语境，同一代号下的消息多属同一项目，可直接用群代号命名（保存前自动还原为真实群名）。
 - pk context 的 tagFeedback 列出用户多次移除过的标签：没有新的明确依据不要再建议。
-- followUpTaskId 只在 action="followUp" 时填写，updateTaskId 只在 action="update" 时填写，取值都必须是 pk context 的 openTasks 里出现的 id。
+- followUpTaskId 只在 action="followUp" 时填写，updateTaskId 只在 action="update" 时填写，取值都必须是 pk context 的 openTasks 里出现的 id；不适用的字段整个省略，任何字段都不要填空字符串 ""（会导致整批解析失败）。
 - reason: 一句话中文说明判定理由，归属类判定注明依据（如「显式@我且要求周五前交付」/「任务给成员_a1b2非用户」/「与待办 No.3 本质相同」/「纯信息分享无需行动」），不超过 30 字。
 - confidence: 从 high/medium/low 里选：消息直白明确用 high；依赖语境推断（指代、隐含的时间或对象）用 medium；拿不准、像又不像的用 low。
 执行流程（务必遵守）：
@@ -664,14 +664,14 @@ const CAPTURE_SYSTEM_PROMPT: &str = r#"你是待办事项录入助手，通过 p
 - 人名已代号化：输入里的真实姓名已替换成稳定代号（如 成员_a1b2），生成 title/note 时沿用代号，不要还原或猜测真实姓名。
 - 判重：先执行 `pk context` 拿现有待办清单，openTasks 里已有本质相同的未完成待办时不再新建——输入是对它的属性变更（改期/改优先级等）用 update，是补充信息/进展用 followUp，纯重复提及用 none（reason 注明与哪个待办重复）。
 - title 用简短的祈使句中文概括要做的事（不超过 20 字），时间、分类等已被抽走的修饰不要保留。
-- note 一句话保留原文里有用的上下文（对象、地点、要求），没有就留空。
+- note 一句话保留原文里有用的上下文（对象、地点、要求），没有就省略。
 - category 从 pk context 的 categories 里选最贴切的一个，不要发明不存在的名字。
 - priority 从 low/normal/high/urgent 里选：用户语气紧急或当天到期用 urgent/high，默认 normal。
-- due: 用户表达了时间就解析成 YYYY-MM-DDTHH:MM 格式（相对时间对照 pk context 的 now 换算：只说时间没说日期默认今天、已过则顺延明天；只说日期没说时间用 09:00），没表达就留空，禁止编造。
+- due: 用户表达了时间就解析成 YYYY-MM-DDTHH:MM 格式（相对时间对照 pk context 的 now 换算：只说时间没说日期默认今天、已过则顺延明天；只说日期没说时间用 09:00），没表达就省略，禁止编造。
 - tags: 按维度选 0~3 个最贴切的标签，格式 [{"name":"标签名","dimension":"维度key","isNew":false}]，没有合适的用 []。「项目」维度至多 1 个；优先复用 pk context 的 tags（含 dimension）里已有的。
-- 新标签：仅当某维度确实没有贴切选项、且输入里有明确依据（明确出现的项目名/人名）时才提议新标签（isNew=true 并归入该维度，名字用原文里的称呼）；模糊语境一律复用现有标签或留空。pk context 的 dimensions 里 remaining<=0 的维度禁止新建。
+- 新标签：仅当某维度确实没有贴切选项、且输入里有明确依据（明确出现的项目名/人名）时才提议新标签（isNew=true 并归入该维度，名字用原文里的称呼）；模糊语境一律复用现有标签或省略。pk context 的 dimensions 里 remaining<=0 的维度禁止新建。
 - pk context 的 tagFeedback 列出用户多次移除过的标签：没有新的明确依据不要再建议。
-- updateTaskId 只在 action="update" 时填写，followUpTaskId 只在 action="followUp" 时填写，取值都必须是 pk context 的 openTasks 里出现的 id。
+- updateTaskId 只在 action="update" 时填写，followUpTaskId 只在 action="followUp" 时填写，取值都必须是 pk context 的 openTasks 里出现的 id；不适用的字段整个省略，任何字段都不要填空字符串 ""（会导致整批解析失败）。
 - reason: 一句话中文说明判定依据（如「用户输入，含明确截止时间」/「与待办 No.3 本质相同」），不超过 30 字。
 - confidence: 从 high/medium/low 里选：输入直白、无需推断用 high；需要解析相对时间或推断标签用 medium；输入含糊、靠猜的用 low。
 执行流程（务必遵守）：
