@@ -12,7 +12,9 @@
   - SettingsTab 拆分中子组件复制的 `.btn-row`/`.btn.del` scoped 副本（仓内已接受的做法），令牌化时一并收编。
 - [ ] **flash 状态条语义微差**（来源：同上，useActionToast 重构）：多条 flash 消息重叠时由「先到先清」改为「最新重置」（用户不可感知级别）；备份/导出卡内 flash 消息在有效期内切走 general 分区再回来会清空。若日后做多区域 toast 需求可一并重设计。
 - [ ] **SettingsTab script 内仍留页面级胶水**：autostart/feishuAuth/backups/appVersion 的 onMounted 预取与两个 tauri listen 留在父级经 props/emit/ref 转发（行为保持所需）；若后续做 feishu/update 域 store 可下沉。
+- [ ] **ai 引用工具仍被跨域直用**（来源：2026-09-26 后端大文件拆分评估）：dispatch/cmdline、skills、tunnel 仍直接用 `ai::posix_quote` / `ai::windows_ps_quote` / `ai::ssh_bin` 等底层零件自拼 SSH / tmux 命令行。本次拆分已把它们集中到 `ai/invocation.rs`（路径不变），后续可在其上提供统一的远端 argv 构造接口收编各处手拼。
 
 ## 已完成
 
+- [x] 2026-09-26 后端四大文件结构重构（ai.rs 2364→ai/ 五模块、radio.rs 3201→radio/ 六域+testsupport、dispatch.rs 2394→dispatch/ 九域、pk.rs 3162→bin/pk/ 十一子模块），行为保持不变、350 单测全绿；顺带解掉 ai↔radio 循环依赖（判定管线 classify/capture 与库回读归位消息域 radio/judge）。
 - [x] 2026-09-26 前端三大文件结构重构（RadioTab 1498→637、SettingsTab 2331→408、PetApp 1963→1789），行为保持不变，221 单测全绿——详见 `specs/frontend-component-split/reports/refactor-summary.md`。

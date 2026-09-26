@@ -98,12 +98,19 @@ scripts/
 src-tauri/src/
   db.rs                 SQLite 初始化 + 版本迁移 + 默认分类
   commands/             IPC 命令按域拆分：tasks / categories / tags / tag_health（标签体检）/
-                        settings / integrations / radio / sessions / skills / dispatch（待办派发）/
-                        remote_pk / backup / export / diagnostics / pet（桌宠）/ windows（conn 层供 pk CLI 复用）
-  bin/pk.rs             pk 命令行：供 AI agent 与终端读写待办（JSON 输出）
+                        settings / integrations / sessions / skills / remote_pk / backup /
+                        export / diagnostics / pet（桌宠）/ windows（conn 层供 pk CLI 复用）；
+                        radio/（收音机：store / suggest / review / context / judge / capture）与
+                        dispatch/（待办派发：meta / route / prompt / cmdline / probe / state /
+                        headless / exec / auto）为目录模块，mod.rs 平铺 re-export
+  ai/                   AI agent 无头调用：config（多 Agent 配置）/ invocation（命令行组装与
+                        shell 引用规则）/ prompts（判定提示词）/ types（协议类型）/
+                        runner（进程执行与连接测试）
+  bin/pk/               pk 命令行（供 AI agent 与终端读写待办，JSON 输出）：main（入口与分发）/
+                        cli（基础设施）/ task / tag / skill / session / dispatch / suggest /
+                        remote（ssh shim）/ doctor / context + tests（整合测试）
   scheduler.rs          提醒调度（提前量、通知开关、多语言通知）
   feishu.rs             用户身份增量轮询（lark-cli 聚合翻页 + 语境规则）+ 富文本渲染
-  ai.rs                 AI agent CLI 无头调用（多 Agent 配置 / 超时 / 判定经 pk 落库后回读）
   anonymize.rs          判定链路假名化：送大模型前姓名→稳定代号（锚定 open_id）、落库前还原
   health.rs             集成链路健康状态（诊断中心）
                         （各文件内 #[cfg(test)] 为 Rust 单元测试与契约测试）
