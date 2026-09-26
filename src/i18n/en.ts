@@ -399,6 +399,9 @@ export default {
     loading: "Loading…",
     empty: "No sessions yet",
     dirUnset: "(directory not recorded)",
+    prev: "Prev",
+    next: "Next",
+    pageOf: "Page {cur} of {max}",
   },
 
   ai: {

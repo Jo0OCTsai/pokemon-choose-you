@@ -557,6 +557,8 @@ export async function installTauriMock(page: Page, state: Partial<MockState> = {
             return db.tasks.filter((t: any) => (t.title ?? "").includes(args.q)).map((t: any) => ({ ...t }));
           case "list_agent_sessions":
             return [];
+          case "list_agent_sessions_paged":
+            return { items: [], total: 0, counts: { all: 0, radio: 0, dispatch: 0, other: 0 } };
           case "log_agent_session":
             return null;
           case "list_task_notes":

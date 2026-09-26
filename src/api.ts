@@ -16,6 +16,7 @@ import type {
   LogEntry,
   RemotePkReport,
   RetryAiResult,
+  SessionPage,
   Tag,
   TagCheckupReport,
   TagDimension,
@@ -208,6 +209,9 @@ export const api = {
   agentSkillInstall: (agentId: string) => call<AgentSkillInstallResult>("agent_skill_install", { agentId }),
   /** Agent 会话：taskId 查该任务时间线，缺省全局最近 100 条（含收音机分类调用） */
   listAgentSessions: (taskId?: number) => call<AgentSession[]>("list_agent_sessions", { taskId: taskId ?? null }),
+  /** 会话历史分页（全局视图）：group = all/radio/dispatch/other，id 倒序 */
+  listAgentSessionsPaged: (group: string, limit: number, offset: number) =>
+    call<SessionPage>("list_agent_sessions_paged", { group, limit, offset }),
   /** 回放一条落库会话：按记录里的执行时快照路由（远端 ssh / tmux 重连 / --resume 转录） */
   openRecordedSession: (id: number) => call<string>("open_recorded_session", { id }),
   /** 解析待办的派发目标（project 标签 meta → 全局默认 agent；弹窗展示用） */

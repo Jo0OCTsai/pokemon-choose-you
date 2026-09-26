@@ -12,9 +12,8 @@ import AgentConfigCard from "./AgentConfigCard.vue";
 
 /**
  * 「Agent」分区（自 SectionIntegrations 拆出）：AI agent 管理（列表/CRUD/隧道与技能状态在
- * agents store + AgentConfigCard，这里只剩分区级预设下拉与主 agent 单选）、会话历史、
- * 待办派发自动化。会话历史按执行时快照回放（收音机分类/快速捕捉/派发共用 agent_sessions），
- * 数据流全指向 agent 执行域，故随本分区不随飞书。
+ * agents store + AgentConfigCard，这里只剩分区级预设下拉与主 agent 单选）、待办派发自动化、
+ * 会话历史（待办派发卡下方，「配好自动化 → 回看跑过的会话」同屏动线）。
  */
 const { t } = useI18n();
 const settings = useSettingsStore();
@@ -91,13 +90,6 @@ const maxConcurrentOptions = computed(() =>
     <p class="set-foot">{{ t("ai.cliHint") }}</p>
   </section>
 
-  <!-- 会话历史：收音机分类 + 待办派发共用 agent_sessions，按执行时快照回放（不分本地/远程） -->
-  <section class="set-card">
-    <h3>{{ t("sess.title") }}</h3>
-    <p class="set-sub">{{ t("sess.hint") }}</p>
-    <AgentSessionHistory />
-  </section>
-
   <!-- 待办派发：M3 自动化与隔离（默认全关；手动派发不受这些开关影响） -->
   <section class="set-card">
     <h3>{{ t("dispatchCfg.title") }}</h3>
@@ -112,6 +104,13 @@ const maxConcurrentOptions = computed(() =>
       <DexToggle v-model="dispatchWorktreeOn" />
     </SettingRow>
     <p class="set-foot">{{ t("dispatchCfg.foot") }}</p>
+  </section>
+
+  <!-- 会话历史：收音机分类 + 待办派发共用 agent_sessions，按执行时快照回放（不分本地/远程） -->
+  <section class="set-card">
+    <h3>{{ t("sess.title") }}</h3>
+    <p class="set-sub">{{ t("sess.hint") }}</p>
+    <AgentSessionHistory />
   </section>
 </template>
 

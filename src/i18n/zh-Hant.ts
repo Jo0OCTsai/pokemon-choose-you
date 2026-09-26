@@ -393,6 +393,9 @@ export default {
     loading: "載入中…",
     empty: "還沒有會話記錄",
     dirUnset: "（未記錄目錄）",
+    prev: "上一頁",
+    next: "下一頁",
+    pageOf: "第 {cur}/{max} 頁",
   },
 
   ai: {

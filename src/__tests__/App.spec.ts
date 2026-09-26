@@ -78,6 +78,7 @@ vi.mock("../api", () => ({
     createBackupNow: vi.fn(),
     restoreBackup: vi.fn(),
     listAgentSessions: vi.fn(),
+    listAgentSessionsPaged: vi.fn(),
     exportJson: vi.fn(),
     importJson: vi.fn(),
     exportTasksCsv: vi.fn(),
@@ -165,6 +166,11 @@ function wireBackend() {
   vi.mocked(api.checkUpdate).mockResolvedValue("");
   vi.mocked(api.listBackups).mockResolvedValue([]);
   vi.mocked(api.listAgentSessions).mockResolvedValue([]);
+  vi.mocked(api.listAgentSessionsPaged).mockResolvedValue({
+    items: [],
+    total: 0,
+    counts: { all: 0, radio: 0, dispatch: 0, other: 0 },
+  });
   vi.mocked(api.exportJson).mockResolvedValue("pokemon-choose-you-full-x.json");
   vi.mocked(api.importJson).mockResolvedValue(0);
   vi.mocked(api.exportTasksCsv).mockResolvedValue("pokemon-choose-you-tasks-x.csv");

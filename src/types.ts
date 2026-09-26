@@ -193,6 +193,21 @@ export interface AgentSession {
   createdAt: string;
 }
 
+/** 会话历史四档筛选的全量计数（后端 SessionCounts 镜像；不随分组/翻页变化） */
+export interface SessionCounts {
+  all: number;
+  radio: number;
+  dispatch: number;
+  other: number;
+}
+
+/** 会话历史分页结果（后端 SessionPage 镜像）：当前页行 + 该分组总数 + 四档计数 */
+export interface SessionPage {
+  items: AgentSession[];
+  total: number;
+  counts: SessionCounts;
+}
+
 /** 数据备份快照（VACUUM INTO 产物，设置页展示与恢复） */
 export interface BackupInfo {
   /** 备份文件名（pokemon-choose-you-YYYYMMDD-HHMMSS.db） */

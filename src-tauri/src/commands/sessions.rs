@@ -4,6 +4,7 @@ use crate::db::{now, Db};
 use crate::error::{AppError, AppResult};
 use crate::models::AgentSession;
 use rusqlite::{params, Connection};
+use serde::Serialize;
 use tauri::State;
 
 /// 一次会话记录的输入（命令与 pk CLI 共用）
@@ -284,6 +285,96 @@ pub fn list_agent_sessions(db: State<Db>, task_id: Option<i64>) -> AppResult<Vec
     list_agent_sessions_conn(&conn, task_id)
 }
 
+/// 会话历史的来源分组过滤条件（与前端筛选 chip 对齐；kind 空/NULL 归「其他」，
+/// 与前端 `kind ?? ""` 不入 radio/dispatch 集合的既有语义一致）
+fn session_group_sql(group: &str) -> &'static str {
+    match group {
+        "radio" => " WHERE kind IN ('classify','capture')",
+        "dispatch" => " WHERE kind IN ('dispatch_headless','dispatch_interactive')",
+        "other" => {
+            " WHERE (kind IS NULL OR kind NOT IN ('classify','capture','dispatch_headless','dispatch_interactive'))"
+        }
+        _ => "",
+    }
+}
+
+/// 四个筛选档的全量计数（chip 徽标；不随当前分组/翻页变化）
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SessionCounts {
+    pub all: i64,
+    pub radio: i64,
+    pub dispatch: i64,
+    pub other: i64,
+}
+
+/// 分页结果：当前页行 + 该分组总数（翻页用）+ 四档计数（筛选 chip）
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SessionPage {
+    pub items: Vec<AgentSession>,
+    pub total: i64,
+    pub counts: SessionCounts,
+}
+
+/// 会话历史分页查询：按来源分组过滤 + id 倒序 LIMIT/OFFSET（全局视图；
+/// 任务时间线走 list_agent_sessions_conn，不分页）
+pub fn list_agent_sessions_page_conn(
+    conn: &Connection,
+    group: &str,
+    limit: i64,
+    offset: i64,
+) -> AppResult<SessionPage> {
+    let where_sql = session_group_sql(group);
+    let total: i64 = conn.query_row(
+        &format!("SELECT COUNT(*) FROM agent_sessions{where_sql}"),
+        [],
+        |r| r.get(0),
+    )?;
+    let mut stmt = conn.prepare(&format!(
+        "SELECT {SESSION_COLS} FROM agent_sessions{where_sql} ORDER BY id DESC LIMIT ?1 OFFSET ?2"
+    ))?;
+    let items = stmt
+        .query_map(params![limit.clamp(1, 100), offset.max(0)], row_to_session)?
+        .collect::<Result<Vec<_>, _>>()?;
+    let (radio, dispatch): (i64, i64) = conn.query_row(
+        "SELECT COALESCE(SUM(kind IN ('classify','capture')), 0), \
+                COALESCE(SUM(kind IN ('dispatch_headless','dispatch_interactive')), 0) \
+         FROM agent_sessions",
+        [],
+        |r| Ok((r.get(0)?, r.get(1)?)),
+    )?;
+    let all: i64 = conn.query_row("SELECT COUNT(*) FROM agent_sessions", [], |r| r.get(0))?;
+    let counts = SessionCounts {
+        all,
+        radio,
+        dispatch,
+        other: all - radio - dispatch,
+    };
+    Ok(SessionPage {
+        items,
+        total,
+        counts,
+    })
+}
+
+/// 会话历史分页（全局视图）：group = all/radio/dispatch/other，limit 默认 20（1-100 钳制）
+#[tauri::command]
+pub fn list_agent_sessions_paged(
+    db: State<Db>,
+    group: Option<String>,
+    limit: Option<i64>,
+    offset: Option<i64>,
+) -> AppResult<SessionPage> {
+    let conn = db.0.lock().unwrap();
+    list_agent_sessions_page_conn(
+        &conn,
+        group.as_deref().unwrap_or("all"),
+        limit.unwrap_or(20),
+        offset.unwrap_or(0),
+    )
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -460,5 +551,77 @@ mod tests {
             let err = get_session_conn(&conn, 999).unwrap_err();
             assert!(matches!(err, AppError::NotFound(_)), "{err}");
         }
+    }
+
+    /// 分页 + 分组过滤：id 倒序 LIMIT/OFFSET 翻页；radio/dispatch/other 分组
+    /// 与四档计数（kind 空 = 早期记录归「其他」）
+    #[test]
+    fn paged_sessions_group_and_pagination() {
+        let conn = crate::db::tests::test_conn();
+        let local = crate::ai::AgentConfig {
+            id: "ag".into(),
+            command: "claude".into(),
+            ..Default::default()
+        };
+        for (i, kind) in [
+            "classify",
+            "capture",
+            "classify",
+            "dispatch_headless",
+            "dispatch_headless",
+            "pk",
+            "",
+        ]
+        .into_iter()
+        .enumerate()
+        {
+            let mut rec = NewAgentSession::for_run(kind, &local, "/ws");
+            rec.command = Some(format!("run-{i}"));
+            log_session_conn(&conn, &rec).unwrap();
+        } // id 1..=7
+
+        let ids = |p: &SessionPage| p.items.iter().map(|s| s.id).collect::<Vec<_>>();
+
+        // 全量分页：每页 3，倒序翻页
+        let p1 = list_agent_sessions_page_conn(&conn, "all", 3, 0).unwrap();
+        assert_eq!(ids(&p1), vec![7, 6, 5]);
+        assert_eq!(p1.total, 7);
+        let p2 = list_agent_sessions_page_conn(&conn, "all", 3, 3).unwrap();
+        assert_eq!(ids(&p2), vec![4, 3, 2]);
+        let p3 = list_agent_sessions_page_conn(&conn, "all", 3, 6).unwrap();
+        assert_eq!(ids(&p3), vec![1]);
+
+        // 分组：radio = classify/capture，dispatch = dispatch_*，other = pk + 早期记录
+        let radio = list_agent_sessions_page_conn(&conn, "radio", 20, 0).unwrap();
+        assert_eq!(ids(&radio), vec![3, 2, 1]);
+        assert_eq!(radio.total, 3);
+        let dispatch = list_agent_sessions_page_conn(&conn, "dispatch", 20, 0).unwrap();
+        assert_eq!(ids(&dispatch), vec![5, 4]);
+        assert_eq!(dispatch.total, 2);
+        let other = list_agent_sessions_page_conn(&conn, "other", 20, 0).unwrap();
+        assert_eq!(ids(&other), vec![7, 6]);
+
+        // 四档计数不随分组/翻页变化；未知分组名按 all 处理
+        assert_eq!(
+            (
+                p1.counts.all,
+                p1.counts.radio,
+                p1.counts.dispatch,
+                p1.counts.other
+            ),
+            (7, 3, 2, 2)
+        );
+        assert_eq!(radio.counts.all, 7);
+        let unknown = list_agent_sessions_page_conn(&conn, "whatever", 20, 0).unwrap();
+        assert_eq!(unknown.total, 7);
+
+        // 边界钳制：limit ≤ 0 / offset < 0 不炸（clamp 到合法域）
+        assert_eq!(
+            list_agent_sessions_page_conn(&conn, "all", 0, -5)
+                .unwrap()
+                .items
+                .len(),
+            1
+        );
     }
 }

@@ -395,6 +395,9 @@ export default {
     loading: "加载中…",
     empty: "还没有会话记录",
     dirUnset: "（未记录目录）",
+    prev: "上一页",
+    next: "下一页",
+    pageOf: "第 {cur}/{max} 页",
   },
 
   ai: {

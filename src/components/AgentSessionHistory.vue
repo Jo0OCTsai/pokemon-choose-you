@@ -3,18 +3,25 @@ import { computed, onMounted, ref } from "vue";
 import { useI18n } from "vue-i18n";
 import { api, errorMessage } from "../api";
 import { fmtDateTime } from "../stores/settings";
-import type { AgentSession } from "../types";
+import type { AgentSession, SessionCounts } from "../types";
 
 /**
- * 全局会话历史卡（设置 · 集成 stab，agent 配置卡下方）：收音机分类（classify/capture）
+ * 全局会话历史卡（设置 · Agent stab，待办派发卡下方）：收音机分类（classify/capture）
  * 与待办派发（dispatch_headless/dispatch_interactive）共用 agent_sessions 表，task_id
- * 为空的收音机会话此前无任何 UI 入口——这里按来源筛选拉通展示，不分本地/远程。
+ * 为空的收音机会话此前无任何 UI 入口——这里按来源分组 + 分页拉通展示，不分本地/远程。
+ * 分组过滤与 LIMIT/OFFSET 翻页下沉后端（list_agent_sessions_paged），四档计数随页带回。
  * 回放走 open_recorded_session：按记录里的执行时快照路由（远端 ssh / tmux 重连 /
  * --resume 转录），不依赖 agent 当前配置。
  */
 const { t, te } = useI18n();
 
-const sessions = ref<AgentSession[]>([]);
+/** 每页行数（与后端 list_agent_sessions_paged 的 limit 钳制上限 100 对齐留余量） */
+const PAGE_SIZE = 20;
+
+const items = ref<AgentSession[]>([]);
+const total = ref(0);
+const counts = ref<SessionCounts>({ all: 0, radio: 0, dispatch: 0, other: 0 });
+const page = ref(1); // 1-based；offset = (page-1) * PAGE_SIZE
 const loading = ref(false);
 const loadError = ref("");
 const filter = ref<"all" | "radio" | "dispatch" | "other">("all");
@@ -28,11 +35,23 @@ function showToast(text: string, error = false) {
   toastTimer = setTimeout(() => (toast.value = null), 5000);
 }
 
+const maxPage = computed(() => Math.max(1, Math.ceil(total.value / PAGE_SIZE)));
+
 async function load() {
   loading.value = true;
   loadError.value = "";
   try {
-    sessions.value = await api.listAgentSessions();
+    const p = await api.listAgentSessionsPaged(filter.value, PAGE_SIZE, (page.value - 1) * PAGE_SIZE);
+    items.value = p.items;
+    total.value = p.total;
+    counts.value = p.counts;
+    // 数据在两次加载间收缩（如另一窗口删了记录）导致页码越界：回到末页重拉一次
+    if (page.value > maxPage.value) {
+      page.value = maxPage.value;
+      const again = await api.listAgentSessionsPaged(filter.value, PAGE_SIZE, (page.value - 1) * PAGE_SIZE);
+      items.value = again.items;
+      total.value = again.total;
+    }
   } catch (e) {
     loadError.value = errorMessage(e);
   } finally {
@@ -40,26 +59,20 @@ async function load() {
   }
 }
 
-const RADIO_KINDS = new Set(["classify", "capture"]);
-const DISPATCH_KINDS = new Set(["dispatch_headless", "dispatch_interactive"]);
+/** 筛选切换：分组变了总量也变，回到第 1 页 */
+function setFilter(f: "all" | "radio" | "dispatch" | "other") {
+  if (filter.value === f) return;
+  filter.value = f;
+  page.value = 1;
+  void load();
+}
 
-const filtered = computed(() =>
-  sessions.value.filter((x) => {
-    if (filter.value === "radio") return RADIO_KINDS.has(x.kind ?? "");
-    if (filter.value === "dispatch") return DISPATCH_KINDS.has(x.kind ?? "");
-    if (filter.value === "other") return !RADIO_KINDS.has(x.kind ?? "") && !DISPATCH_KINDS.has(x.kind ?? "");
-    return true;
-  }),
-);
-
-const counts = computed(() => ({
-  all: sessions.value.length,
-  radio: sessions.value.filter((x) => RADIO_KINDS.has(x.kind ?? "")).length,
-  dispatch: sessions.value.filter((x) => DISPATCH_KINDS.has(x.kind ?? "")).length,
-  other:
-    sessions.value.length -
-    sessions.value.filter((x) => RADIO_KINDS.has(x.kind ?? "") || DISPATCH_KINDS.has(x.kind ?? "")).length,
-}));
+function goPage(delta: number) {
+  const next = page.value + delta;
+  if (next < 1 || next > maxPage.value) return;
+  page.value = next;
+  void load();
+}
 
 function kindText(kind: string | undefined): string {
   return te(`sess.kind.${kind || "legacy"}`) ? t(`sess.kind.${kind || "legacy"}`) : kind || "—";
@@ -97,7 +110,7 @@ onMounted(load);
           class="chip"
           :class="{ on: filter === f }"
           type="button"
-          @click="filter = f"
+          @click="setFilter(f)"
         >
           {{ t(`sess.filter_${f}`) }}<span class="chip-n">{{ counts[f] }}</span>
         </button>
@@ -108,10 +121,10 @@ onMounted(load);
     </div>
 
     <p v-if="loadError" class="err">❌ {{ loadError }}</p>
-    <p v-else-if="!loading && !filtered.length" class="sess-empty">{{ t("sess.empty") }}</p>
+    <p v-else-if="!loading && !items.length" class="sess-empty">{{ t("sess.empty") }}</p>
 
     <ul v-else class="sess-list">
-      <li v-for="x in filtered" :key="x.id" class="sess-row" :class="{ err: x.status === 'error' }">
+      <li v-for="x in items" :key="x.id" class="sess-row" :class="{ err: x.status === 'error' }">
         <div class="sess-meta">
           <span class="sess-kind" :class="{ err: x.status === 'error' }">{{ kindText(x.kind) }}</span>
           <span class="sess-agent">{{ x.agentName }}</span>
@@ -137,6 +150,17 @@ onMounted(load);
         <div v-if="x.command" class="sess-cmd">{{ x.command }}</div>
       </li>
     </ul>
+
+    <!-- 翻页：单页放得下（total ≤ PAGE_SIZE）时整条隐藏 -->
+    <div v-if="maxPage > 1" class="sess-pager">
+      <button class="btn ghost mini" type="button" :disabled="page <= 1 || loading" @click="goPage(-1)">
+        ‹ {{ t("sess.prev") }}
+      </button>
+      <span class="sess-pageinfo">{{ t("sess.pageOf", { cur: page, max: maxPage }) }}</span>
+      <button class="btn ghost mini" type="button" :disabled="page >= maxPage || loading" @click="goPage(1)">
+        {{ t("sess.next") }} ›
+      </button>
+    </div>
 
     <p v-if="toast" class="sess-toast" :class="{ error: toast.error }" role="status">{{ toast.text }}</p>
   </div>
@@ -246,6 +270,17 @@ onMounted(load);
   margin-top: 2px;
   overflow: hidden;
   text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.sess-pager {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+}
+.sess-pageinfo {
+  font-size: 12px;
+  opacity: 0.75;
   white-space: nowrap;
 }
 .sess-toast {
