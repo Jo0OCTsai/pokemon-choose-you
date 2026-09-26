@@ -1,10 +1,11 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { mount } from "@vue/test-utils";
 import { createPinia, setActivePinia } from "pinia";
-import TagDispatchCard from "../components/TagDispatchCard.vue";
+import TagDispatchCard from "../components/settings/TagDispatchCard.vue";
 import { api } from "../api";
 import { i18n } from "../i18n";
 import { useTagsStore } from "../stores/tags";
+import { useSettingsStore } from "../stores/settings";
 import type { AgentConfig, Tag } from "../types";
 
 vi.mock("../api", () => ({
@@ -13,6 +14,7 @@ vi.mock("../api", () => ({
     // saveMeta 保存后 tagsStore.load() 会拉取
     listTags: vi.fn(async () => []),
     listTagDimensions: vi.fn(async () => []),
+    openAgentHistory: vi.fn(async () => "已在 Terminal 中启动"),
   },
   errorMessage: vi.fn((e: unknown) => String(e)),
 }));
@@ -40,9 +42,9 @@ const AGENTS: AgentConfig[] = [
   },
   {
     id: "ag-off",
-    name: "Kiro CLI",
-    command: "kiro-cli",
-    args: "chat",
+    name: "OpenCode",
+    command: "opencode",
+    args: "run {prompt}",
     historyArgs: "",
     timeoutSecs: 120,
     enabled: false,
@@ -63,13 +65,14 @@ function tag(partial: Partial<Tag> & { id: number }): Tag {
   };
 }
 
-async function mountCard(seed: Tag[]) {
+async function mountCard(seed: Tag[], settings: Record<string, string> = {}, agents: AgentConfig[] = AGENTS) {
   const pinia = createPinia();
   setActivePinia(pinia);
   const tags = useTagsStore();
   tags.list = seed;
+  Object.assign(useSettingsStore().values, settings);
   const w = mount(TagDispatchCard, {
-    props: { agents: AGENTS },
+    props: { agents },
     global: { plugins: [pinia, i18n] },
   });
   await new Promise((r) => setTimeout(r));
@@ -140,5 +143,40 @@ describe("TagDispatchCard 项目派发卡片", () => {
     const w = await mountCard([tag({ id: 1, dimension: "topic" })]);
     expect(w.find(".dispatch-block").exists()).toBe(false);
     expect(w.get(".hint").text()).toContain("项目");
+  });
+
+  it("历史记录快捷方式：标签指定 agent 时唤起该 agent，结果进 feedback", async () => {
+    const w = await mountCard([tag({ id: 1, meta: { agentId: "ag-remote" } })]);
+    expect(w.get(".db-history").attributes("title")).toContain("Claude Code 2");
+    await w.get(".db-history").trigger("click");
+    await new Promise((r) => setTimeout(r));
+    expect(api.openAgentHistory).toHaveBeenCalledWith("ag-remote", undefined, undefined);
+    const emitted = w.emitted("feedback")!;
+    expect(emitted[emitted.length - 1][0]).toBe("已在 Terminal 中启动");
+  });
+
+  it("历史记录快捷方式：带标签 meta 工作目录时作为覆盖传给后端", async () => {
+    const w = await mountCard([tag({ id: 1, meta: { agentId: "ag-local", workdir: "~/repo" } })]);
+    await w.get(".db-history").trigger("click");
+    await new Promise((r) => setTimeout(r));
+    expect(api.openAgentHistory).toHaveBeenCalledWith("ag-local", undefined, "~/repo");
+  });
+
+  it("历史记录快捷方式：未指定 agent 时回退全局默认（ai_agent_id 优先，否则首个启用的）", async () => {
+    const fallback = await mountCard([tag({ id: 1 })]);
+    await fallback.get(".db-history").trigger("click");
+    await new Promise((r) => setTimeout(r));
+    expect(api.openAgentHistory).toHaveBeenCalledWith("ag-local", undefined, undefined);
+
+    vi.mocked(api.openAgentHistory).mockClear();
+    const preferred = await mountCard([tag({ id: 1 })], { ai_agent_id: "ag-remote" });
+    await preferred.get(".db-history").trigger("click");
+    await new Promise((r) => setTimeout(r));
+    expect(api.openAgentHistory).toHaveBeenCalledWith("ag-remote", undefined, undefined);
+  });
+
+  it("没有任何启用 agent 时历史记录快捷方式置灰", async () => {
+    const w = await mountCard([tag({ id: 1, meta: { workdir: "~/repo" } })], {}, []);
+    expect(w.get(".db-history").attributes("disabled")).toBeDefined();
   });
 });

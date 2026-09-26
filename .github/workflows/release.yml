@@ -2,8 +2,8 @@ name: Release
 
 # 开发版 draft 流：push main（或手动触发）始终构建「当前开发版本」的草稿 Release——
 # 正式发布 = 在 GitHub 上 publish 草稿（publish 时自动创建 v* 标签）；
-# 之后 npm run bump <下一版本> 抬高版本文件，后续构建自然变成下一版的草稿。
-# 版本号唯一来源是 tauri.conf.json 的 version（package.json / Cargo.toml 同步由 npm run bump 维护）。
+# 之后 pnpm bump <下一版本> 抬高版本文件，后续构建自然变成下一版的草稿。
+# 版本号唯一来源是 tauri.conf.json 的 version（package.json / Cargo.toml 同步由 pnpm bump 维护）。
 on:
   push:
     branches: [main]
@@ -34,7 +34,7 @@ jobs:
           if git ls-remote --exit-code --tags origin "v$VERSION" >/dev/null 2>&1; then
             # tag 存在 = 该版本已正式发布过：跳过构建，提示先抬版本
             echo "skip=true" >> "$GITHUB_OUTPUT"
-            echo "::notice::v$VERSION 已正式发布（tag 在位）。运行 npm run bump <下一个版本> 后再构建。"
+            echo "::notice::v$VERSION 已正式发布（tag 在位）。运行 pnpm bump <下一个版本> 后再构建。"
           else
             echo "skip=false" >> "$GITHUB_OUTPUT"
             # 同版本的旧草稿删掉重打，产物不叠加、changelog 不残留
@@ -60,10 +60,11 @@ jobs:
     runs-on: ${{ matrix.platform }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
         with:
           node-version: 24.21.0
-          cache: npm
+          cache: pnpm
       - name: 安装 Tauri 系统依赖 (Linux)
         if: matrix.platform == 'ubuntu-22.04'
         run: |
@@ -75,12 +76,12 @@ jobs:
       - uses: swatinem/rust-cache@49a0bdc70d2e1b713ca9e2869b211fcce03d3c1c # v2
         with:
           workspaces: src-tauri
-      - run: npm install
+      - run: pnpm install --frozen-lockfile
       - uses: tauri-apps/tauri-action@944946e3e4cac6603d1fe8f514171e9ecd3c78aa # v1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           # 自动更新签名（bundle.createUpdaterArtifacts 开启后 tauri-action 会自动产出并上传 latest.json）
-          # 私钥生成：npx tauri signer generate -w ~/.tauri/pokemon-choose-you.key ；须配置为仓库 secret
+          # 私钥生成：pnpm exec tauri signer generate -w ~/.tauri/pokemon-choose-you.key ；须配置为仓库 secret
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
           # macOS 代码签名（自签证书）：给所有 release 一个稳定签名身份，辅助功能等

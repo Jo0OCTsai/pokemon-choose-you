@@ -1,6 +1,6 @@
 # 远程 pk 通道方案（常驻通信与可靠性）
 
-> 状态：**A/B 已落地**（2026-09：shim 连接复用、常驻隧道管理器与设置页开关/状态、PK_* 环境透传；实施时对 §5.4 有一处偏离——无头调用保留按需 `-R` 作断线兜底而非「常驻健康时跳过」，理由见 §5.6）。§8 authorized_keys 加固已落地（2026-09-24：restrict,command= 受限条目 + pk __ssh_entry 语法级校验，旧裸公钥条目重跑一键配置自动升级）；T（Tailscale）经决策不做；C（内嵌服务 + MCP）待定。本文基于 2026-09 对代码现状的评估（`ai.rs` / `commands/remote_pk.rs` / `commands/dispatch.rs` / `bin/pk.rs`）与社区实践调研。落地新条目时按 §10 排序实施，并回写本引言状态。
+> 状态：**A/B 已落地**（2026-09：shim 连接复用、常驻隧道管理器与设置页开关/状态、PK_* 环境透传；实施时对 §5.4 有一处偏离——无头调用保留按需 `-R` 作断线兜底而非「常驻健康时跳过」，理由见 §5.6）。§8 authorized_keys 加固已落地（2026-09-24：restrict,command= 受限条目 + pk __ssh_entry 语法级校验，旧裸公钥条目重跑一键配置自动升级）；T（Tailscale）经决策不做；C（内嵌服务 + MCP）待定。本文基于 2026-09 对代码现状的评估（评估时 `ai.rs` / `commands/remote_pk.rs` / `commands/dispatch.rs` / `bin/pk.rs`，2026-09-26 结构重构后为 `ai/`、`commands/dispatch/`、`bin/pk/` 目录模块，`remote_pk.rs` 不变）与社区实践调研。落地新条目时按 §10 排序实施，并回写本引言状态。
 
 ## 1. 背景与问题
 
@@ -34,7 +34,7 @@ graph TB
     end
 
     subgraph R["远程机器（agent 所在）"]
-        AGENT["agent CLI<br/>claude / opencode / kiro"]
+        AGENT["agent CLI<br/>claude / opencode / pi"]
         TMUX["tmux 会话 pk-任务id<br/>（交互派发，常驻）"]
         SHIM["~/.local/bin/pk<br/>透传 shim 脚本"]
         KEY["~/.ssh/pk_shim<br/>（专用私钥）"]

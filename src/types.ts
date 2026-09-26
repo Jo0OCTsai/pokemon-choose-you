@@ -180,7 +180,32 @@ export interface AgentSession {
   costUsd?: number | null;
   inputTokens?: number | null;
   outputTokens?: number | null;
+  /** 会话来源：classify / capture / dispatch_headless / dispatch_interactive / pk（"" = 早期记录） */
+  kind?: string;
+  /** 执行时工作目录快照（本地绝对路径 / 远端路径串；"" = 早期记录或登录目录） */
+  workdir?: string;
+  /** 远程交互派发的 tmux 会话名（"" = 无；回放走 attach-or-create 重连） */
+  tmuxSession?: string;
+  /** 执行时远端快照（remoteHost 空 = 本地执行） */
+  remoteHost?: string;
+  remotePort?: number;
+  remoteKey?: string;
   createdAt: string;
+}
+
+/** 会话历史四档筛选的全量计数（后端 SessionCounts 镜像；不随分组/翻页变化） */
+export interface SessionCounts {
+  all: number;
+  radio: number;
+  dispatch: number;
+  other: number;
+}
+
+/** 会话历史分页结果（后端 SessionPage 镜像）：当前页行 + 该分组总数 + 四档计数 */
+export interface SessionPage {
+  items: AgentSession[];
+  total: number;
+  counts: SessionCounts;
 }
 
 /** 数据备份快照（VACUUM INTO 产物，设置页展示与恢复） */
@@ -250,11 +275,11 @@ export interface AgentRemote {
   persistent?: boolean | null;
 }
 
-/** AI agent CLI 配置（如 Claude Code / OpenCode / Kiro CLI / pi / Qoder CLI），可配置多个 */
+/** AI agent CLI 配置（如 Claude Code / OpenCode / pi），可配置多个 */
 export interface AgentConfig {
   id: string;
   name: string;
-  /** 可执行文件名或绝对路径，如 claude / opencode / kiro / pi / qoder */
+  /** 可执行文件名或绝对路径，如 claude / opencode / pi */
   command: string;
   /** 附加参数（空白分隔）；{prompt} 占位符替换为提示词，缺省时提示词可经标准输入传入 */
   args: string;
@@ -293,7 +318,7 @@ export interface TunnelStatus {
 /** agent 技能检查结果（本地直读；远程经 ssh 读远端目录） */
 export interface AgentSkillStatus {
   agentId: string;
-  /** 技能目标类型（claude-code / opencode / kiro / pi / qoder） */
+  /** 技能目标类型（claude-code / opencode / pi） */
   kind: string;
   /** 技能目录（本地绝对路径；远程为 $HOME 相对路径） */
   dir: string;

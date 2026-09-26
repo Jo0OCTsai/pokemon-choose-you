@@ -1,5 +1,5 @@
 //! pk 使用技能的分发与版本管理：pk CLI 的 `skill install/show` 与桌面应用的
-//! 「安装/检查技能」共用同一套内容与目录规则（claude-code / opencode / kiro / pi / qoder）。
+//! 「安装/检查技能」共用同一套内容与目录规则（claude-code / opencode / pi）。
 //!
 //! 技能放 agent 的**全局目录**（`~/.claude/skills/` 等）：pk 技能是个人跨项目工具，
 //! 官方建议项目约定进仓库目录、个人工作流进 home 全局目录；且远程 agent 场景下
@@ -19,13 +19,13 @@ pub const SKILL_REFS: &[(&str, &str)] = &[
     ),
 ];
 /// 当前技能版本（与 SKILL.md frontmatter 的 version 保持一致，用于安装时的版本对比）
-pub const SKILL_VERSION: &str = "5";
+pub const SKILL_VERSION: &str = "6";
 
 /// 技能在各 agent 技能目录下的文件夹名（Agent Skills 标准：与 frontmatter name 一致）
 const SKILL_DIR_NAME: &str = "pokemon-choose-you";
 
 /// 从 agent 可执行命令推断技能目标类型：basename 匹配关键词即命中
-/// （claude / kiro-cli / opencode / pi / qoder；绝对路径与自定义包装脚本也能识别）。
+/// （claude / opencode / pi；绝对路径与自定义包装脚本也能识别）。
 /// pi 名字只有两个字母，必须精确等值匹配——子串匹配会把 copilot 之类误判成 pi
 pub fn kind_for_command(command: &str) -> Option<&'static str> {
     let base = command
@@ -35,10 +35,6 @@ pub fn kind_for_command(command: &str) -> Option<&'static str> {
         .to_lowercase();
     if base == "pi" || base.contains("pi-coding-agent") {
         Some("pi")
-    } else if base.contains("qoder") {
-        Some("qoder")
-    } else if base.contains("kiro") {
-        Some("kiro")
     } else if base.contains("claude") {
         Some("claude-code")
     } else if base.contains("opencode") {
@@ -49,8 +45,7 @@ pub fn kind_for_command(command: &str) -> Option<&'static str> {
 }
 
 /// 技能文件所在目录（本机 $HOME 下的绝对路径）：claude-code → ~/.claude/skills；
-/// opencode → ~/.config/opencode/skill；kiro → ~/.kiro/skills；
-/// pi → ~/.pi/agent/skills；qoder → ~/.qoder/skills；
+/// opencode → ~/.config/opencode/skill；pi → ~/.pi/agent/skills；
 /// 其他 agent 用 --dir 显式指定
 pub fn skill_dir_for(agent: &str, dir_flag: Option<&str>) -> Result<std::path::PathBuf, String> {
     if let Some(d) = dir_flag.filter(|d| !d.is_empty()) {
@@ -66,11 +61,9 @@ pub fn skill_dir_rel(agent: &str) -> Result<String, String> {
     match agent {
         "claude-code" | "claude" => Ok(format!(".claude/skills/{SKILL_DIR_NAME}")),
         "opencode" => Ok(format!(".config/opencode/skill/{SKILL_DIR_NAME}")),
-        "kiro" | "kiro-cli" => Ok(format!(".kiro/skills/{SKILL_DIR_NAME}")),
         "pi" => Ok(format!(".pi/agent/skills/{SKILL_DIR_NAME}")),
-        "qoder" => Ok(format!(".qoder/skills/{SKILL_DIR_NAME}")),
         other => Err(format!(
-            "暂不认识 agent「{other}」的技能目录：支持 claude-code / opencode / kiro / pi / qoder，其他 agent 用 --dir <目录> 指定，或 pk skill show 自行粘贴"
+            "暂不认识 agent「{other}」的技能目录：支持 claude-code / opencode / pi，其他 agent 用 --dir <目录> 指定，或 pk skill show 自行粘贴"
         )),
     }
 }
@@ -187,20 +180,17 @@ mod tests {
             kind_for_command("/opt/homebrew/bin/claude"),
             Some("claude-code")
         );
-        assert_eq!(kind_for_command("kiro-cli"), Some("kiro"));
         assert_eq!(kind_for_command("opencode"), Some("opencode"));
         assert_eq!(kind_for_command("my-agent"), None, "未知命令无技能目标");
     }
 
     /// pi 名字太短，只能精确命中（contains 会误伤 copilot 之类）；
-    /// qoder 与既有 kiro/claude 一样走子串
+    /// claude 走子串匹配
     #[test]
-    fn kind_for_command_matches_pi_and_qoder() {
+    fn kind_for_command_matches_pi() {
         assert_eq!(kind_for_command("pi"), Some("pi"));
         assert_eq!(kind_for_command("/usr/local/bin/pi"), Some("pi"));
         assert_eq!(kind_for_command("pi-coding-agent"), Some("pi"));
-        assert_eq!(kind_for_command("qoder"), Some("qoder"));
-        assert_eq!(kind_for_command("/opt/homebrew/bin/qoder"), Some("qoder"));
         assert_eq!(
             kind_for_command("copilot"),
             None,
@@ -217,20 +207,12 @@ mod tests {
             home.join(".claude/skills/pokemon-choose-you")
         );
         assert_eq!(
-            skill_dir_for("kiro", None).unwrap(),
-            home.join(".kiro/skills/pokemon-choose-you")
-        );
-        assert_eq!(
             skill_dir_for("opencode", None).unwrap(),
             home.join(".config/opencode/skill/pokemon-choose-you")
         );
         assert_eq!(
             skill_dir_for("pi", None).unwrap(),
             home.join(".pi/agent/skills/pokemon-choose-you")
-        );
-        assert_eq!(
-            skill_dir_for("qoder", None).unwrap(),
-            home.join(".qoder/skills/pokemon-choose-you")
         );
         assert_eq!(
             skill_dir_for("unknown", Some("/tmp/x")).unwrap(),
@@ -240,8 +222,8 @@ mod tests {
         assert!(skill_dir_for("unknown", None).is_err());
         // 远端相对路径与本地目录尾部一致
         assert_eq!(
-            skill_dir_rel("kiro").unwrap(),
-            ".kiro/skills/pokemon-choose-you"
+            skill_dir_rel("pi").unwrap(),
+            ".pi/agent/skills/pokemon-choose-you"
         );
     }
 
@@ -252,9 +234,9 @@ mod tests {
             status.contains("\"$HOME/.claude/skills/pokemon-choose-you/SKILL.md\""),
             "{status}"
         );
-        let install = remote_install_script("kiro").unwrap();
+        let install = remote_install_script("pi").unwrap();
         assert!(install.starts_with("set -e"), "任一步失败即退出: {install}");
-        assert!(install.contains("dir=\"$HOME/.kiro/skills/pokemon-choose-you\""));
+        assert!(install.contains("dir=\"$HOME/.pi/agent/skills/pokemon-choose-you\""));
         assert!(install.contains("<<'PK_SKILL_HEREDOC_END_7Q4X'"));
         assert!(
             install.contains("references/commands.md"),
@@ -304,7 +286,7 @@ mod tests {
         let home = std::env::temp_dir().join(format!("pk-skill-sh-{}", std::process::id()));
         let _ = std::fs::remove_dir_all(&home);
         std::fs::create_dir_all(&home).unwrap();
-        let script = remote_install_script("kiro").unwrap();
+        let script = remote_install_script("pi").unwrap();
 
         use std::io::Write;
         let mut child = std::process::Command::new("sh")
@@ -335,10 +317,11 @@ mod tests {
             "末行回显哨兵: {stdout}"
         );
         let installed =
-            std::fs::read_to_string(home.join(".kiro/skills/pokemon-choose-you/SKILL.md")).unwrap();
+            std::fs::read_to_string(home.join(".pi/agent/skills/pokemon-choose-you/SKILL.md"))
+                .unwrap();
         assert_eq!(installed, SKILL_MD, "落盘内容与内置一致");
         assert!(home
-            .join(".kiro/skills/pokemon-choose-you/references/commands.md")
+            .join(".pi/agent/skills/pokemon-choose-you/references/commands.md")
             .is_file());
         let _ = std::fs::remove_dir_all(&home);
     }

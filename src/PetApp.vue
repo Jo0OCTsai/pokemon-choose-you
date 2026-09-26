@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, nextTick, onMounted, onUnmounted, ref, watch } from "vue";
+import { computed, onMounted, onUnmounted, ref, watch } from "vue";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 import { currentMonitor, getCurrentWindow } from "@tauri-apps/api/window";
 import { api } from "./api";
@@ -15,7 +15,9 @@ import { usePetClickThrough } from "./composables/usePetClickThrough";
 import { motionReduced, usePetIdle, type PetMicroAction } from "./composables/usePetIdle";
 import { shouldPerch } from "./composables/usePerch";
 import { lineDedupKey, pickTimeLine } from "./composables/useTimeLines";
-import { bubbleDuration } from "./bubbleTiming";
+import { usePetBubble } from "./composables/usePetBubble";
+import { usePetChat } from "./composables/usePetChat";
+import { useCatchScene } from "./composables/useCatchScene";
 import { useInputResponse } from "./composables/useInputResponse";
 import { openContextMenu, type ContextMenuItem } from "./contextMenu";
 import PokemonSprite from "./components/PokemonSprite.vue";
@@ -51,15 +53,32 @@ const anxious = computed(() => {
   if (ringPct.value == null) return false;
   return pomo.remainSec.value <= Math.max(300, pomo.totalSec.value * 0.2);
 });
-// ---- 瞬态台词气泡（VPet 范式）：说完自动淡出，悬停暂停、点击收起；状态不占常驻文字 ----
-const bubble = ref("");
-const bubbleVisible = ref(false);
-const bubbleFading = ref(false);
-/** 钉住态不参与自动倒计时（提醒气泡可操作，等用户处理或 60s 兜底） */
-const bubblePinned = ref(false);
-const bubbleNew = ref(false);
+// ---- 瞬态台词气泡（VPet 范式）：说完自动淡出，悬停暂停、点击收起；状态不占常驻文字（usePetBubble） ----
 const switching = ref(false);
 const quickOpen = ref(false);
+const {
+  bubble,
+  bubbleVisible,
+  bubbleFading,
+  bubbleNew,
+  showBubble,
+  say,
+  flashNew,
+  dismissBubble,
+  pauseBubbleCountdown,
+  resumeBubbleCountdown,
+  hideBubble,
+} = usePetBubble({
+  isChatOpen: () => chatOpen.value,
+  isQuickOpen: () => quickOpen.value,
+  // 点击收起时顺带消化钉住的提醒（提醒域留在组件内）
+  onDismiss: () => {
+    if (reminderTask.value) {
+      reminderTask.value = null;
+      clearTimeout(reminderTimer);
+    }
+  },
+});
 
 const currentCat = computed(() => categories.byId.get(current.value?.categoryId ?? -1) ?? categories.list[0]);
 /** 桌宠当前精灵：进行中用任务分类的宝可梦；空闲用主宝可梦（只换精灵图，不进文案；未设置跟随第一个分类） */
@@ -202,83 +221,6 @@ async function loadQuickList() {
   candidates.value = (await api.listTasks("open")).slice(0, 12);
 }
 const quickSel = ref<number | null>(null);
-
-let bubbleTimer: ReturnType<typeof setTimeout> | null = null;
-let bubbleRemainMs = 0;
-let bubbleDeadline = 0;
-const BUBBLE_FADE_MS = 220;
-
-function stopBubbleTimer() {
-  if (bubbleTimer) {
-    clearTimeout(bubbleTimer);
-    bubbleTimer = null;
-  }
-}
-function startBubbleCountdown() {
-  stopBubbleTimer();
-  // 钉住态（提醒）与快捷屏展开期间（引导台词）不自动消失
-  if (bubblePinned.value || quickOpen.value) return;
-  bubbleRemainMs = bubbleDuration(bubble.value);
-  bubbleDeadline = Date.now() + bubbleRemainMs;
-  bubbleTimer = setTimeout(fadeBubble, bubbleRemainMs);
-}
-function showBubble(text: string, opts: { isNew?: boolean; pinned?: boolean } = {}) {
-  bubble.value = text;
-  bubblePinned.value = opts.pinned ?? false;
-  bubbleFading.value = false;
-  bubbleVisible.value = true;
-  if (opts.isNew) {
-    // ▼ 只在「有新事」时闪 3 次后回归静态（注意力红线：不永久占用闪烁名额）
-    bubbleNew.value = false;
-    requestAnimationFrame(() => {
-      bubbleNew.value = true;
-    });
-  }
-  startBubbleCountdown();
-}
-function say(text: string, isNew = false) {
-  showBubble(text, { isNew });
-}
-/** 到时渐隐：透明度过渡结束后再摘除节点 */
-function fadeBubble() {
-  stopBubbleTimer();
-  if (!bubbleVisible.value || chatOpen.value) return;
-  bubbleFading.value = true;
-  bubbleTimer = setTimeout(
-    () => {
-      bubbleVisible.value = false;
-      bubbleFading.value = false;
-    },
-    motionReduced() ? 0 : BUBBLE_FADE_MS,
-  );
-}
-/** 点击收起（手动关）：顺带消化钉住的提醒 */
-function dismissBubble() {
-  if (chatOpen.value) return;
-  if (reminderTask.value) {
-    reminderTask.value = null;
-    clearTimeout(reminderTimer);
-  }
-  bubblePinned.value = false;
-  fadeBubble();
-}
-/** 悬停暂停倒计时：想细读就停留，移开再续走剩余时间 */
-function pauseBubbleCountdown() {
-  if (!bubbleVisible.value || bubblePinned.value || bubbleFading.value || !bubbleTimer) return;
-  bubbleRemainMs = Math.max(0, bubbleDeadline - Date.now());
-  stopBubbleTimer();
-}
-function resumeBubbleCountdown() {
-  if (!bubbleVisible.value || bubblePinned.value || bubbleFading.value || bubbleTimer) return;
-  bubbleDeadline = Date.now() + bubbleRemainMs;
-  bubbleTimer = setTimeout(fadeBubble, bubbleRemainMs);
-}
-function hideBubble() {
-  stopBubbleTimer();
-  bubbleVisible.value = false;
-  bubbleFading.value = false;
-  bubblePinned.value = false;
-}
 
 async function toggleQuick() {
   quickOpen.value = !quickOpen.value;
@@ -433,7 +375,7 @@ async function checkPerch(announce: boolean) {
 
 /** 演出进行中任意按下 = 跳过（回应不打扰：演出永不绑架用户时间） */
 function onStagePointerDownCapture() {
-  if (sceneBusy.value) skipScene = true;
+  requestSkip();
 }
 
 // ---- 生命感调度器：idle 低频微动作（PET_INTERACTION_DESIGN §3.4） ----
@@ -587,60 +529,17 @@ function onMateLeave() {
   setTimeout(() => (mate.value = null), motionReduced() ? 0 : 620);
 }
 
-// ---- AI 对话（F2）：右键菜单入口（配了 agent 才出现），对话框原位展开 ≤4 行 ----
-const chatOpen = ref(false);
-const chatLog = ref<{ role: "user" | "bot"; text: string }[]>([]);
-const chatThinking = ref(false);
-const chatInput = ref("");
-const chatInputRef = ref<HTMLInputElement | null>(null);
-const agentConfigured = computed(() => {
-  try {
-    return (JSON.parse(settings.sget("ai_agents") || "[]") as unknown[]).length > 0;
-  } catch {
-    return false;
-  }
-});
-function pushChat(role: "user" | "bot", text: string) {
-  chatLog.value.push({ role, text });
-  if (chatLog.value.length > 3) chatLog.value.shift();
-}
-async function resizePetWindow() {
-  const { LogicalSize } = await import("@tauri-apps/api/dpi");
-  const h = quickOpen.value ? 590 : chatOpen.value ? 480 : 330;
-  await petWindow.setSize(new LogicalSize(300, h));
-}
-function openChat() {
-  if (sceneBusy.value || chatOpen.value) return;
-  chatOpen.value = true;
-  void resizePetWindow();
-  if (!chatLog.value.length) pushChat("bot", t("pet.chatGreet"));
-  void nextTick(() => chatInputRef.value?.focus());
-}
-function closeChat() {
-  chatOpen.value = false;
-  void resizePetWindow();
-  hideBubble();
-}
-async function sendChat() {
-  const q = chatInput.value.trim();
-  if (!q || chatThinking.value) return;
-  chatInput.value = "";
-  pushChat("user", q);
-  chatThinking.value = true;
-  try {
-    const answer = await api.petChat(q);
-    pushChat("bot", answer);
-    bubbleNew.value = false; // 回答到达：▼ 闪三下（占位回归规则）
-    requestAnimationFrame(() => {
-      bubbleNew.value = true;
-    });
-    speak(answer);
-  } catch {
-    pushChat("bot", t("pet.chatFail"));
-  } finally {
-    chatThinking.value = false;
-  }
-}
+// ---- AI 对话（F2）：右键菜单入口（配了 agent 才出现），对话框原位展开 ≤4 行（usePetChat） ----
+// 输入行模板 ref 由 usePetChat 内 useTemplateRef("chatInputRef") 接管
+const { chatOpen, chatLog, chatThinking, chatInput, agentConfigured, resizePetWindow, openChat, closeChat, sendChat } =
+  usePetChat({
+    petWindow,
+    isSceneBusy: () => sceneBusy.value,
+    isQuickOpen: () => quickOpen.value,
+    hideBubble,
+    flashNew,
+    speak,
+  });
 
 /** 精灵类：微动作/演出期间替换状态循环动画（JS 层互斥，避免 CSS 优先级缠斗） */
 const spriteClass = computed(() => {
@@ -699,14 +598,7 @@ function onWindowKeydown(e: KeyboardEvent) {
 }
 
 // ---- 捕捉演出（juice 三段式：预备 → 掷球 → 三摇 → 星星，≤1.5s 可跳过；连胜为双球变体 ≤2s） ----
-const sceneBusy = ref(false);
-const catchPhase = ref<null | "prep" | "hide">(null);
-/** 精灵球编队：普通捕捉单球居中；连胜双球左右交替三摇（F7） */
-const catchBalls = ref<{ phase: "fly" | "land" | "shake"; side: -1 | 0 | 1 }[]>([]);
-const streakScene = ref(false);
-let skipScene = false;
 const spriteHitRef = ref<HTMLElement | null>(null);
-const waitMs = (ms: number) => new Promise<void>((r) => setTimeout(r, motionReduced() ? 0 : ms));
 
 function burstStars(n: number) {
   if (motionReduced()) return;
@@ -724,79 +616,14 @@ function burstStars(n: number) {
   }
 }
 
-async function runCatchScene(opts: {
-  pokemon: string;
-  title: string;
-  milestone: number | null;
-  allDone: boolean;
-  streak: number | null;
-}) {
-  sceneBusy.value = true;
-  skipScene = false;
-  streakScene.value = opts.streak != null;
-  catchPhase.value = "prep";
-  say(t("pet.throwing", { p: opts.pokemon }), true);
-  await waitMs(120);
-  const two = opts.streak != null;
-  if (!skipScene) {
-    catchBalls.value = two
-      ? [
-          { phase: "fly", side: -1 },
-          { phase: "fly", side: 1 },
-        ]
-      : [{ phase: "fly", side: 0 }];
-    catchPhase.value = "hide";
-  }
-  await waitMs(300);
-  if (!skipScene) catchBalls.value.forEach((b) => (b.phase = "land"));
-  await waitMs(350);
-  if (!skipScene) {
-    if (two) {
-      // 双球交替三摇（各 350ms × 2 轮；唯一允许超 1.5s 的演出，上限 2s）
-      for (let round = 0; round < 2; round++) {
-        for (const side of [-1, 1] as const) {
-          const ball = catchBalls.value.find((b) => b.side === side);
-          if (ball) ball.phase = "shake";
-          await waitMs(350);
-          if (ball) ball.phase = "land";
-          if (skipScene) break;
-        }
-        if (skipScene) break;
-      }
-    } else {
-      catchBalls.value[0].phase = "shake";
-      await waitMs(600);
-    }
-  }
-  const finish = () => {
-    catchBalls.value = [];
-    catchPhase.value = null;
-    sceneBusy.value = false;
-    streakScene.value = false;
-  };
-  if (skipScene) {
-    finish();
-  } else {
-    burstStars(two ? 14 : opts.milestone ? 12 : 6);
-    if (two && !motionReduced()) setTimeout(() => burstStars(6), 150);
-    finish();
-  }
-  if (opts.allDone) {
-    say(t("pet.allDone", { p: opts.pokemon }), true);
-    runMicro("hop");
-    speak(t("pet.allDone", { p: opts.pokemon }));
-    // 收工即送客：陪跑的客人跟着庆祝后离场（一次会话一位一次的尾声）
-    if (mate.value) setTimeout(() => onMateLeave(), 700);
-  } else if (opts.milestone) {
-    say(t("pet.milestone", { p: opts.pokemon, n: opts.milestone }), true);
-    speak(t("pet.milestone", { p: opts.pokemon, n: opts.milestone }));
-  } else if (opts.streak) {
-    say(t("pet.streakN", { n: opts.streak }), true);
-    speak(t("pet.streakN", { n: opts.streak }));
-  } else {
-    say(t("pet.catchOk", { p: opts.pokemon, t: opts.title }), true);
-  }
-}
+const { sceneBusy, catchPhase, catchBalls, streakScene, runCatchScene, requestSkip } = useCatchScene({
+  say,
+  speak,
+  burstStars,
+  runMicro,
+  hasMate: () => mate.value != null,
+  onMateLeave,
+});
 
 // ---- 桌宠右键菜单：低频操作收纳处（⇄ 切换自药丸移入；💬 对话跟随 agent 配置） ----
 function onPetContextMenu(e: MouseEvent) {
@@ -958,7 +785,6 @@ onUnmounted(() => {
   if (sleepTimer) clearInterval(sleepTimer);
   if (lineTimer) clearInterval(lineTimer);
   if (reminderTimer) clearTimeout(reminderTimer);
-  stopBubbleTimer();
   window.removeEventListener("pointermove", markActivity);
   window.removeEventListener("pointerdown", markActivity);
   window.removeEventListener("keydown", onWindowKeydown);

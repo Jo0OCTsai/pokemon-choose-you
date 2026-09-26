@@ -1,11 +1,11 @@
-// npm run bump <version> —— 抬高开发版本：同步 package.json / tauri.conf.json / Cargo.toml，
+// pnpm bump <version> —— 抬高开发版本：同步 package.json / tauri.conf.json / Cargo.toml，
 // 并把 Cargo.lock 里本包条目的版本一并对齐（免得 lock 落后于 Cargo.toml）。
 // bump 之后 push main，release.yml 自然开始构建新版本的草稿。
 import { readFileSync, writeFileSync } from "node:fs";
 
 const next = process.argv[2];
 if (!/^\d+\.\d+\.\d+(-[\w.]+)?$/.test(next ?? "")) {
-  console.error("用法: npm run bump <version>，如 npm run bump 1.1.0");
+  console.error("用法: pnpm bump <version>，如 pnpm bump 1.1.0");
   process.exit(1);
 }
 

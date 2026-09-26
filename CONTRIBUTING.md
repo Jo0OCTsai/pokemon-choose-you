@@ -22,7 +22,7 @@ cd pokemon-choose-you
 ```
 src/                    前端（Vue 3 + TS + Pinia）
   components/           图鉴风自绘组件（DexSelect / TaskCard / TagDispatchCard…）
-  views/                App.vue 拆出的页（TaskTab / RadioTab / SettingsTab）
+  views/                App.vue 拆出的页（TaskTab / RadioTab / SessionsTab / SettingsTab）
   stores/               Pinia：settings / tasks / categories / tags
   composables/          usePomodoro（番茄钟状态机）/ usePetDrag（手动拖拽）/ useInputResponse（输入响应）等
   events.ts             前后端事件名契约（与 src-tauri/src/events.rs 成对）
@@ -34,7 +34,7 @@ src-tauri/src/
   db.rs                 SQLite + PRAGMA user_version 迁移（改表加新迁移条目，勿改旧条目）
   anonymize.rs          判定链路假名化（送大模型前姓名→代号、落库还原）
   tray.rs / shortcuts.rs 托盘菜单 / 全局快捷键
-  ai.rs / feishu.rs / scheduler.rs
+  ai/（config / invocation / prompts / types / runner） / feishu.rs / scheduler.rs
 ```
 
 几条不成文约定：

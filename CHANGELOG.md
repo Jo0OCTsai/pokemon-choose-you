@@ -6,10 +6,12 @@
 
 ## [Unreleased]
 
-### Features
+## [1.0.0]
 
-- 新增**终端偏好**设置（设置页 → 集成）——交互派发、历史记录与飞书授权唤起哪个终端应用跟选择走：macOS 可选系统内置 Terminal.app / iTerm2（AppleScript 新建窗口）/ Ghostty（`open -na`），Windows 可选系统内置 PowerShell（`powershell -NoExit -ExecutionPolicy Bypass -Command`，会话级放行 npm 垫片 .ps1——默认 Restricted 策略会禁脚本；行格式换 PS 单引号字面量 + 行首 `&` 调用符，cd 串联改 `;` 且 `-ErrorAction Stop` 失败即停——PS 5.1 无 `&&`；不再走 cmd）/ Windows Terminal（wt.exe 跑同一 PowerShell 行，固定 SystemRoot 工作目录规避 reparse 别名静默失败、`\;` 转义防 wt 子命令分隔符截断派发 prompt），Linux 可选自动探测 / Ghostty；下拉按当前平台裁剪，跨平台错配（如迁移库后）显式报错不静默回落
-- Agent CLI 集成新增 **pi**（[pi coding agent](https://github.com/earendil-works/pi)）与 **Qoder CLI** 支持——设置页预设一键添加（无头参数、会话恢复语法预配），pk 技能目录自动识别（pi → `~/.pi/agent/skills/`、qoder → `~/.qoder/skills/`，`pk skill install pi|qoder` 可装），历史入口按 id 恢复（pi 的选择器 `-r` 自动换 `--session <id>`；qoder `--resume <id>`），无头派发会话续接（pi 预生成 `--session-id`，qoder 有上轮 id 才 `--resume`）
+
+### ⚠ BREAKING CHANGES
+
+* **backend:** AppError 统一错误、命令分域与常驻插件接入
 
 ### Security
 
@@ -20,13 +22,6 @@
 - 导出目标校验——自选路径须扩展名匹配且父目录已存在（不再替任意路径 `create_dir_all`），导入列名白名单校验（拒含引号标识符），收紧被入侵渲染层的任意写原语
 - CI 加固——第三方 Actions 全部 pin 到 commit SHA（Renovate 按 `# vX` 注释跟进）、Release 写权限从工作流顶层收敛到具体 job、新增 cargo audit 依赖漏洞扫描
 - 零散注入面收敛——全部 ssh argv 的 host 前置 `--` 保护；`pk remote shim --host/--key` 引用后进脚本；lark-cli 授权终端行引用 bin 路径；生产 CSP 剥离 Vite HMR 的 `ws://localhost:1420` 与死配置 `asset:`（开发态经 `devCsp` 保留）
-
-## [1.0.0](https://github.com/Jo0OCTsai/pokemon-choose-you/compare/pokemon-choose-you-v0.1.0...pokemon-choose-you-v1.0.0) (2026-09-13)
-
-
-### ⚠ BREAKING CHANGES
-
-* **backend:** AppError 统一错误、命令分域与常驻插件接入
 
 ### Features
 
@@ -73,6 +68,21 @@
 * 逾期 fresh start——冒险页折叠羞耻墙，一键/每日自动归草丛 ([bd7073c](https://github.com/Jo0OCTsai/pokemon-choose-you/commit/bd7073c84ac3150c712b6ede1874cb2f6eb6f0d7))
 * 飞书拉取引擎可切换——官方 lark-cli（api --format json，凭证自管）与内置直连并存 ([03518b0](https://github.com/Jo0OCTsai/pokemon-choose-you/commit/03518b0392a906a98b3db67b6c13957b89137a11))
 * 飞书用户身份改版与 AI 动作扩展 ([65edfad](https://github.com/Jo0OCTsai/pokemon-choose-you/commit/65edfad8c77da98eb11da668ea795e8ec221c5ce))
+- **远程 pk 常驻通道（方案 A+B）**：远程 SSH agent 场景下 pk 回传链路的可靠性与可用性升级——① shim 增加 ControlMaster 连接复用（首调建主连接，会话内后续调用毫秒级，弱网失败率大降，重跑「一键配置远程 pk」即升级旧 shim）；② agent 配置新增「常驻隧道」开关：应用驻留期间自持 `ssh -N -R` 长连（ServerAliveInterval 10s×3 自愈、ExitOnForwardFailure 杜绝假隧道、1s→30s 指数退避重连，按主机+端口+密钥+隧道端口去重共享），tmux 常驻会话/手动 ssh 等远程任何进程随时可调 pk，不再受「应用发起调用的存活窗口」限制；设置页实时显示隧道状态（已连通/建立中/重连中，附 ssh 报错尾行）；③ 无头调用注入的 `PK_DISPATCH_TASK`/`PK_LOG_FILE` 经远端命令行 + shim 转发跨过 ssh 边界（派发回传兜底与执行轨迹回写远程照常生效；Windows 本机 sshd 的 cmd shell 无 env 命令，此透传不生效）。设计全貌见 `docs/proposals/REMOTE_PK_CHANNEL_PROPOSAL.md`。
+- **会话过滤偏好**：飞书免打扰从唯一过滤依据降级为默认值——背包 → 飞书 → 「会话过滤」卡片逐会话三态（跟随免打扰（默认）/ 总是拉取 / 总是过滤），手动覆盖后以本应用为准；每轮落拉取快照（含生效状态与来源、免打扰查询失败逐会话降级标示）；偏好即时生效、导出导入可恢复；顺手补上拉取 in-flight 守卫（轮询与「立即拉取」并发防护，既有缺口）。
+- 新增**终端偏好**设置（背包 → Agent）——交互派发、历史记录与飞书授权唤起哪个终端应用跟选择走：macOS 可选系统内置 Terminal.app / iTerm2（AppleScript 新建窗口）/ Ghostty（`open -na`），Windows 可选系统内置 PowerShell（`powershell -NoExit -ExecutionPolicy Bypass -Command`，会话级放行 npm 垫片 .ps1——默认 Restricted 策略会禁脚本；行格式换 PS 单引号字面量 + 行首 `&` 调用符，cd 串联改 `;` 且 `-ErrorAction Stop` 失败即停——PS 5.1 无 `&&`；不再走 cmd）/ Windows Terminal（wt.exe 跑同一 PowerShell 行，固定 SystemRoot 工作目录规避 reparse 别名静默失败、`\;` 转义防 wt 子命令分隔符截断派发 prompt），Linux 可选自动探测 / Ghostty；下拉按当前平台裁剪，跨平台错配（如迁移库后）显式报错不静默回落
+- Agent CLI 集成新增 **pi**（[pi coding agent](https://github.com/earendil-works/pi)）支持——设置页预设一键添加（无头参数、会话恢复语法预配），pk 技能目录自动识别（pi → `~/.pi/agent/skills/`，`pk skill install pi` 可装），历史入口按 id 恢复（pi 的选择器 `-r` 自动换 `--session <id>`），无头派发会话续接（pi 预生成 `--session-id`）
+- **本地状态归一化 `~/.choose-you`**——数据库、日志、agent 工作区各归子目录（`data/` `logs/` `workspace/`），环境变量 `CHOOSE_YOU_HOME` 可整体重定位；旧版散在系统应用数据目录的状态启动时自动迁入新布局，旧目录保留不动、确认无误后可手动删除。
+- **历史记录入口支持项目派发目录覆盖**——`open_agent_history` 加 workdir 参数，项目标签 meta 里的工作目录压过 agent 自身配置，历史会话与派发执行始终同目录。
+- **会话历史升级为「日志」全局视图**——收音机分类、快速捕捉、待办派发的全部会话统一可见，执行时快照可回放；来源分组与分页下沉后端，长历史翻页浏览不刷爆窗口。
+- **菜单体系世界观化**——设置页更名「背包」、项目派发卡归位 Agent 分区，导航词汇与应用世界观（冒险/草丛/路线/图鉴/收音机）全面对齐。
+- **待办详情抽屉加宽一倍（400→800px）**——跟进/Agent 执行/操作历史列表两行化：元数据（徽章+时间+动作钮）一行、内容独占全宽，长摘要不再挤压换行。
+- **设置分区重组为八区**——「集成」拆分为 Agent 与飞书（本地工具管理与外部服务授权分治）、桌宠独立成区、分类与标签合并为任务词表一屏。
+- **常驻应用标配**：系统托盘（打开图鉴机 / 显示隐藏桌宠 / 设置 / 检查更新 / 退出）、单实例保护、窗口位置记忆、全局快捷键（`Ctrl/Cmd+Shift+K` 快速捕捉待办、`Ctrl/Cmd+Shift+D` 显示/隐藏桌宠）、自动更新（minisign 签名，托盘与设置页入口）。
+- **工程链**：ESLint（flat）+ Prettier + lefthook + commitlint + Renovate（release-please 试用后已移除，发布走开发版草稿流）；CI 增加 clippy/fmt/lint 关卡。
+- **架构补强**：命令统一 `AppError`（kind/retryable，前端 api.ts 分层捕获）；SQLite 启用 `PRAGMA user_version` 迁移；事件名前后端契约测试。
+- **目录重构**：前端拆出 `components/ views/ stores(Pinia)/composables/`；后端 `commands/` 按域拆分。
+- **安全合规**：LICENSE（代码 MIT + 素材非商用声明）、CSP、capabilities 按窗口最小权限、`.zcode/` 出库。
 
 
 ### Bug Fixes
@@ -105,28 +115,18 @@
 * 占位 sidecar 的 Windows .exe 判断改用 TARGET 三元组 ([c61e81e](https://github.com/Jo0OCTsai/pokemon-choose-you/commit/c61e81e058fd1b69cd2c8fb1c482b104fe29667a))
 * 日期时间选择器的下拉箭头固定贴选择框右缘 ([0473cbb](https://github.com/Jo0OCTsai/pokemon-choose-you/commit/0473cbb896eab75919d6b433e83bc8fe80af77b8))
 * 调试配置适配 LLVM 官方 lldb-dap 扩展 ([a2ca06d](https://github.com/Jo0OCTsai/pokemon-choose-you/commit/a2ca06d4b7a904638652136187100c028e8dec88))
+- 桌宠右键菜单无法点击——Teleport 到 body 的菜单继承了穿透层 pointer-events:none。
+- 交互派发到未信任目录时 claude 停在信任确认框无响应——派发前预检 claude-code 目录信任状态，未信任时 note 提示按 Enter 确认。
+- 远程工作目录不存在时 cd 短路终端闪退——远端命令行先 `mkdir -p` 再 cd（历史/无头/交互派发与远端预检同构，信任判定不再错位）。
+- 一键配置远程 pk 端到端验证永久挂起——验证后关闭 shim 的 ControlPersist master（`-O exit` + pkill 兜底），ssh_run 增加单步整体超时兜底。
+- 日志文件名固定为 `pokemon-choose-you.log`——不再派生自 productName，诊断指引与实际文件对齐。
 
 
 ### Code Refactoring
 
 * **backend:** AppError 统一错误、命令分域与常驻插件接入 ([3ddedb5](https://github.com/Jo0OCTsai/pokemon-choose-you/commit/3ddedb5e80d043627397caa405f3bd08ebc8bba9))
-
-## [Unreleased]
-
-### Added
-
-- **远程 pk 常驻通道（方案 A+B）**：远程 SSH agent 场景下 pk 回传链路的可靠性与可用性升级——① shim 增加 ControlMaster 连接复用（首调建主连接，会话内后续调用毫秒级，弱网失败率大降，重跑「一键配置远程 pk」即升级旧 shim）；② agent 配置新增「常驻隧道」开关：应用驻留期间自持 `ssh -N -R` 长连（ServerAliveInterval 10s×3 自愈、ExitOnForwardFailure 杜绝假隧道、1s→30s 指数退避重连，按主机+端口+密钥+隧道端口去重共享），tmux 常驻会话/手动 ssh 等远程任何进程随时可调 pk，不再受「应用发起调用的存活窗口」限制；设置页实时显示隧道状态（已连通/建立中/重连中，附 ssh 报错尾行）；③ 无头调用注入的 `PK_DISPATCH_TASK`/`PK_LOG_FILE` 经远端命令行 + shim 转发跨过 ssh 边界（派发回传兜底与执行轨迹回写远程照常生效；Windows 本机 sshd 的 cmd shell 无 env 命令，此透传不生效）。设计全貌见 `docs/proposals/REMOTE_PK_CHANNEL_PROPOSAL.md`。
-- **会话过滤偏好**：飞书免打扰从唯一过滤依据降级为默认值——设置 → 集成 → 「会话过滤」卡片逐会话三态（跟随免打扰（默认）/ 总是拉取 / 总是过滤），手动覆盖后以本应用为准；每轮落拉取快照（含生效状态与来源、免打扰查询失败逐会话降级标示）；偏好即时生效、导出导入可恢复；顺手补上拉取 in-flight 守卫（轮询与「立即拉取」并发防护，既有缺口）。
-- **常驻应用标配**：系统托盘（打开图鉴机 / 显示隐藏桌宠 / 设置 / 检查更新 / 退出）、单实例保护、窗口位置记忆、全局快捷键（`Ctrl/Cmd+Shift+K` 快速捕捉待办、`Ctrl/Cmd+Shift+D` 显示/隐藏桌宠）、自动更新（minisign 签名，托盘与设置页入口）。
-- **工程链**：ESLint（flat）+ Prettier + lefthook + commitlint + release-please + Renovate；CI 增加 clippy/fmt/lint 关卡。
-- **架构补强**：命令统一 `AppError`（kind/retryable，前端 api.ts 分层捕获）；SQLite 启用 `PRAGMA user_version` 迁移；事件名前后端契约测试；wiremock 覆盖 AI/飞书/Todoist 的 HTTP 分支。
-- **目录重构**：前端拆出 `components/ views/ stores(Pinia)/composables/`；后端 `commands/` 按域拆分。
-- **安全合规**：LICENSE（代码 MIT + 素材非商用声明）、CSP、capabilities 按窗口最小权限、`.zcode/` 出库。
-
-### Fixed
-
-- Todoist 同步两个生产缺陷：`ON CONFLICT(external_id)` 未匹配部分唯一索引导致拉取必然失败；关闭远端任务的 SQL 误用 `sync_state.value` 列名（实际为 `cursor`）。
-- 远端关闭任务时非 2xx 响应不再计入成功计数。
+- 前端三大视图结构拆分——SettingsTab 2331→408、RadioTab 1498→637、PetApp 1963→1789 行，职责下沉子组件/composable/store，行为不变（221 单测全绿）。
+- 后端大文件拆分为目录模块——`ai.rs`→`ai/` 五层、`radio.rs`→`radio/` 六域、`dispatch.rs`→`dispatch/` 九域、`pk.rs`→`bin/pk/` 十一子模块，re-export 维持命名空间、行为不变（350 单测全绿）；判定管线 classify/capture 归位消息域，解 ai↔radio 循环依赖。
 
 ## 0.1.0 — 2026-09
 

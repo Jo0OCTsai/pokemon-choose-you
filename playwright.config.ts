@@ -24,7 +24,7 @@ export default defineConfig({
     { name: "webkit", use: { ...devices["Desktop Safari"] } },
   ],
   webServer: {
-    command: "npm run dev",
+    command: "pnpm dev",
     url: "http://localhost:1420",
     reuseExistingServer: !process.env.CI,
     timeout: 120_000,

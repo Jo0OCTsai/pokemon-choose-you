@@ -2,6 +2,7 @@ use crate::ai::{self, AgentConfig};
 use crate::db::Db;
 use crate::error::{AppError, AppResult};
 use crate::events;
+use std::path::PathBuf;
 use tauri::{AppHandle, Emitter, State};
 use tauri_plugin_updater::UpdaterExt;
 
@@ -69,11 +70,14 @@ pub async fn test_ai_config(db: State<'_, Db>, agent_id: Option<String>) -> AppR
 /// 在系统终端里打开 agent 的历史记录界面（claude --resume / opencode 等）。
 /// 历史/会话由 agent 工具自己保存，这里只负责唤起。
 /// session_id 存在时追加为第一个参数（如 claude --resume <session_id>）直接回放该会话转录。
+/// workdir 为显式目录覆盖（项目派发的标签 meta 工作目录）：历史会话与派发同目录，
+/// 空缺时回退 agent 自身解析（本地缺省 ~/.choose-you/workspace）。
 #[tauri::command]
 pub async fn open_agent_history(
     db: State<'_, Db>,
     agent_id: String,
     session_id: Option<String>,
+    workdir: Option<String>,
 ) -> AppResult<String> {
     let (agent, pref) = {
         let conn = db.0.lock().unwrap();
@@ -82,27 +86,116 @@ pub async fn open_agent_history(
             .ok_or_else(|| AppError::Invalid(format!("Agent {agent_id} 不存在，请先保存配置")))?;
         (agent, terminal_pref(&conn))
     };
-    open_agent_in_terminal(&agent, pref, session_id.as_deref()).await
+    open_agent_in_terminal(&agent, pref, session_id.as_deref(), workdir.as_deref()).await
+}
+
+/// 落库会话的回放路由（按记录里的快照决策，纯函数可测）
+#[derive(Debug, PartialEq, Eq)]
+pub(crate) enum ResumeRoute {
+    /// 远程交互派发：重连 tmux 会话（attach-or-create）
+    Tmux,
+    /// 有 agent 工具的会话 id：`claude --resume <id>` 直接回放转录
+    Transcript,
+    /// 无 id（本地交互启动时不可知）：在快照目录打开 agent 自带的历史选择器
+    Picker,
+}
+
+fn resume_route(row: &crate::models::AgentSession) -> ResumeRoute {
+    if !row.tmux_session.trim().is_empty() {
+        ResumeRoute::Tmux
+    } else if row
+        .session_id
+        .as_deref()
+        .map(str::trim)
+        .is_some_and(|s| !s.is_empty())
+    {
+        ResumeRoute::Transcript
+    } else {
+        ResumeRoute::Picker
+    }
+}
+
+/// 把会话记录里的执行时远端快照压进 agent 配置：会话文件在哪台机器，回放就在哪台
+/// 机器——不随 agent 配置后续变更漂移（本地迁移到远程后，旧本地会话仍在本地回放）。
+/// 隧道/常驻开关不带（快照未记）：纯回放只读转录，不依赖 pk shim 回连
+fn apply_session_remote(agent: AgentConfig, row: &crate::models::AgentSession) -> AgentConfig {
+    let mut a = agent;
+    a.remote = crate::commands::sessions::remote_from_snapshot(
+        &row.remote_host,
+        row.remote_port,
+        &row.remote_key,
+    );
+    a
+}
+
+/// 回放一条落库会话（全局会话历史 / 任务抽屉的「打开转录」入口）：
+/// 按执行时快照路由——远端快照非空则 ssh 到当时的机器；session_id 有则直接回放，
+/// 只有 tmux 名则 attach-or-create 重连，都无则在快照目录打开历史选择器。
+/// agent 配置已删除时回落主 agent（命令行/历史参数还在，回放不受影响）
+#[tauri::command]
+pub async fn open_recorded_session(db: State<'_, Db>, id: i64) -> AppResult<String> {
+    let (row, agent, pref) = {
+        let conn = db.0.lock().unwrap();
+        let row = crate::commands::sessions::get_session_conn(&conn, id)?;
+        let get = settings_getter(&conn);
+        let agent = ai::agent_by_id(&get, &row.agent_id)
+            .or_else(|| ai::primary_agent(&get))
+            .ok_or_else(|| {
+                AppError::Invalid("会话所属 agent 已删除且无可用 agent 配置，无法回放".into())
+            })?;
+        (row, agent, terminal_pref(&conn))
+    };
+    let agent = apply_session_remote(agent, &row);
+    let workdir = row.workdir.trim().to_string();
+    let workdir_arg = (!workdir.is_empty()).then_some(workdir.as_str());
+    match resume_route(&row) {
+        ResumeRoute::Tmux => {
+            let remote = agent
+                .remote
+                .as_ref()
+                .filter(|r| !r.host.trim().is_empty())
+                .ok_or_else(|| AppError::Invalid("tmux 会话记录缺少远端端点，无法重连".into()))?;
+            let name = row.tmux_session.trim();
+            let argv = crate::commands::dispatch::tmux_attach_argv(remote, name, &row.workdir);
+            spawn_in_terminal(pref, &ai::ssh_bin(), &argv)
+                .await
+                .map(|term| format!("已在 {term} 中重连 tmux 会话「{name}」"))
+        }
+        ResumeRoute::Transcript | ResumeRoute::Picker => {
+            let sess = matches!(resume_route(&row), ResumeRoute::Transcript)
+                .then(|| {
+                    row.session_id
+                        .as_deref()
+                        .unwrap_or_default()
+                        .trim()
+                        .to_string()
+                })
+                .filter(|s| !s.is_empty());
+            open_agent_in_terminal(&agent, pref, sess.as_deref(), workdir_arg).await
+        }
+    }
 }
 
 async fn open_agent_in_terminal(
     agent: &AgentConfig,
     pref: TerminalPref,
     resume_session: Option<&str>,
+    workdir: Option<&str>,
 ) -> AppResult<String> {
     // 会话 id 的注入（--resume <id> / --resume-id <id>）在 history_invocation 内按
     // agent 级历史参数适配，本地远程同一套规则（回归：旧实现看 ssh argv 首参，
-    // 远程分支永远是 -o，id 从未被注入）
-    let (program, args) = crate::ai::history_invocation(agent, resume_session);
-    // 本地 agent 总是先 cd 到工作目录再启动：与无头调用同一套解析（留空 = ~/.choose-you，
-    // 自动创建），交互会话不能落在终端默认目录；SSH 远程的 cd 由 history_invocation
-    // 前缀在远端命令行里（留空 = 远端登录目录）；目录解析失败（无主目录）退回不 cd 直启
+    // 远程分支永远是 -o，id 从未被注入）；目录覆盖同函数内进本地/远程 cd
+    let (program, args) = crate::ai::history_invocation(agent, resume_session, workdir);
+    // 本地 agent 总是先 cd 到工作目录再启动：显式覆盖（标签 meta）优先，否则与无头调用
+    // 同一套解析（留空 = ~/.choose-you，自动创建），交互会话不能落在终端默认目录；
+    // SSH 远程的 cd 由 history_invocation 前缀在远端命令行里（留空 = 远端登录目录）；
+    // 目录解析失败（无主目录）退回不 cd 直启
     let local = agent
         .remote
         .as_ref()
         .is_none_or(|r| r.host.trim().is_empty());
     let line = local
-        .then(|| crate::ai::agent_workdir(agent))
+        .then(|| history_local_dir(agent, workdir))
         .flatten()
         .map(|dir| local_history_line(&dir.to_string_lossy(), &program, &args));
     match line {
@@ -113,6 +206,16 @@ async fn open_agent_in_terminal(
             .await
             .map(|term| format!("已在 {term} 中启动「{}」", agent.name)),
     }
+}
+
+/// 历史会话本地生效目录：显式覆盖（项目派发的标签 meta 工作目录）优先，
+/// 否则 agent 自身解析（配置目录或 ~/.choose-you/workspace）；纯纯的目录选取，可测
+fn history_local_dir(agent: &AgentConfig, workdir: Option<&str>) -> Option<PathBuf> {
+    workdir
+        .map(str::trim)
+        .filter(|w| !w.is_empty())
+        .map(PathBuf::from)
+        .or_else(|| crate::ai::agent_workdir(agent))
 }
 
 /// 「cd 工作目录 && 命令」整行：目录是 agent_workdir 展开后的绝对路径，
@@ -549,7 +652,7 @@ pub async fn feishu_oauth_login(db: State<'_, Db>) -> AppResult<String> {
         .map(|term| format!("已在 {term} 中启动 lark-cli 登录，完成后回到这里点「测试」"))
 }
 
-// ---- 飞书会话过滤偏好（feishu-chat-filter；契约 = specs/feishu-chat-filter/architecture.md §4）----
+// ---- 飞书会话过滤偏好（feishu-chat-filter；契约 = specs/archive/feishu-chat-filter/architecture.md §4）----
 
 /// 单会话过滤视图：快照观测事实 × 偏好合并；effective / source 读取时现算，不落库。
 #[derive(Debug, serde::Serialize)]
@@ -819,6 +922,7 @@ pub fn spawn_update_check<R: tauri::Runtime>(app: tauri::AppHandle<R>) {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::ai::agent_workdir;
     use crate::commands::windows::PendingMainReopen;
     use crate::db::tests::test_conn;
     use crate::db::Db;
@@ -848,12 +952,113 @@ mod tests {
     fn open_agent_history_rejects_unknown_agent() {
         let app = setup();
         let db = app.state::<Db>();
-        let err = tauri::async_runtime::block_on(open_agent_history(db, "ghost".into(), None))
-            .unwrap_err();
+        let err =
+            tauri::async_runtime::block_on(open_agent_history(db, "ghost".into(), None, None))
+                .unwrap_err();
         assert!(
             matches!(err, AppError::Invalid(_)),
             "未知 agent 给出输入错误: {err}"
         );
+    }
+
+    fn sess_row(tmux: &str, session_id: Option<&str>) -> crate::models::AgentSession {
+        crate::models::AgentSession {
+            id: 1,
+            task_id: None,
+            agent_id: "a".into(),
+            agent_name: "A".into(),
+            session_id: session_id.map(String::from),
+            command: None,
+            exit_code: None,
+            status: "ok".into(),
+            duration_ms: None,
+            cost_usd: None,
+            input_tokens: None,
+            output_tokens: None,
+            kind: "classify".into(),
+            workdir: "/ws".into(),
+            tmux_session: tmux.into(),
+            remote_host: String::new(),
+            remote_port: 0,
+            remote_key: String::new(),
+            created_at: String::new(),
+        }
+    }
+
+    /// 回放路由：tmux 名优先（远程交互重连）> 会话 id（转录回放）> 选择器兜底
+    #[test]
+    fn resume_route_prefers_tmux_then_transcript() {
+        assert_eq!(
+            resume_route(&sess_row("pk-3", Some("sess-1"))),
+            ResumeRoute::Tmux
+        );
+        assert_eq!(
+            resume_route(&sess_row("", Some("sess-1"))),
+            ResumeRoute::Transcript
+        );
+        assert_eq!(resume_route(&sess_row("", Some("  "))), ResumeRoute::Picker);
+        assert_eq!(resume_route(&sess_row("", None)), ResumeRoute::Picker);
+    }
+
+    /// 快照压过当前 agent 配置：本地记录强制 local（agent 后来迁到远程也回本机）、
+    /// 远程记录还原当时的端点（host/port/key）
+    #[test]
+    fn apply_session_remote_routes_by_snapshot() {
+        // agent 现在是远程，但会话记录是本地的 → 回放走本地
+        let now_remote = AgentConfig {
+            command: "claude".into(),
+            remote: Some(crate::ai::AgentRemote {
+                host: "box".into(),
+                port: 2222,
+                ..Default::default()
+            }),
+            ..Default::default()
+        };
+        let local_row = sess_row("", Some("s"));
+        assert!(apply_session_remote(now_remote.clone(), &local_row)
+            .remote
+            .is_none());
+
+        // 会话记录是远程的（当时的端口/密钥），agent 现在是本地 → 回放走当时的远端
+        let mut remote_row = sess_row("", Some("s"));
+        remote_row.remote_host = "vscode@localhost".into();
+        remote_row.remote_port = 1022;
+        remote_row.remote_key = "/keys/pk".into();
+        let local_agent = AgentConfig {
+            command: "claude".into(),
+            ..Default::default()
+        };
+        let routed = apply_session_remote(local_agent, &remote_row);
+        let r = routed.remote.as_ref().expect("快照远端还原");
+        assert_eq!(
+            (r.host.as_str(), r.port, r.key_path.as_deref()),
+            ("vscode@localhost", 1022, Some("/keys/pk"))
+        );
+    }
+
+    #[test]
+    fn history_local_dir_prefers_explicit_override() {
+        let agent = AgentConfig {
+            command: "claude".into(),
+            workdir: "~/agent-ws".into(),
+            ..Default::default()
+        };
+        // 标签 meta 目录压过 agent 自身配置（项目派发的历史与派发同目录）
+        assert_eq!(
+            history_local_dir(&agent, Some("~/projects/my-repo")),
+            Some(PathBuf::from("~/projects/my-repo"))
+        );
+        // 空白覆盖回退 agent 自身解析（~ 展开为主目录）
+        assert_eq!(
+            history_local_dir(&agent, Some("   ")),
+            agent_workdir(&agent)
+        );
+        // agent 无配置且无覆盖 → 缺省 workspace 目录（agent_workdir 兜底）
+        let bare = AgentConfig {
+            command: "claude".into(),
+            ..Default::default()
+        };
+        assert_eq!(history_local_dir(&bare, None), agent_workdir(&bare));
     }
 
     #[test]

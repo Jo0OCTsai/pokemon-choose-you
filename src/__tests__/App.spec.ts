@@ -54,6 +54,7 @@ vi.mock("../api", () => ({
     listAllSettings: vi.fn(),
     testAiConfig: vi.fn(),
     openAgentHistory: vi.fn(),
+    openRecordedSession: vi.fn(async () => "已在 Terminal 中启动"),
     setupRemotePk: vi.fn(),
     tunnelStatus: vi.fn(async () => ({ state: "off", detail: "" })),
     syncTunnels: vi.fn(async () => {}),
@@ -77,6 +78,7 @@ vi.mock("../api", () => ({
     createBackupNow: vi.fn(),
     restoreBackup: vi.fn(),
     listAgentSessions: vi.fn(),
+    listAgentSessionsPaged: vi.fn(),
     exportJson: vi.fn(),
     importJson: vi.fn(),
     exportTasksCsv: vi.fn(),
@@ -164,6 +166,11 @@ function wireBackend() {
   vi.mocked(api.checkUpdate).mockResolvedValue("");
   vi.mocked(api.listBackups).mockResolvedValue([]);
   vi.mocked(api.listAgentSessions).mockResolvedValue([]);
+  vi.mocked(api.listAgentSessionsPaged).mockResolvedValue({
+    items: [],
+    total: 0,
+    counts: { all: 0, radio: 0, dispatch: 0, other: 0 },
+  });
   vi.mocked(api.exportJson).mockResolvedValue("pokemon-choose-you-full-x.json");
   vi.mocked(api.importJson).mockResolvedValue(0);
   vi.mocked(api.exportTasksCsv).mockResolvedValue("pokemon-choose-you-tasks-x.csv");
@@ -229,15 +236,17 @@ beforeEach(() => {
 });
 
 describe("App 图鉴机主面板", () => {
-  it("渲染六个菜单项", async () => {
+  it("渲染七个菜单项", async () => {
     const w = await mountApp();
     const labels = w.findAll(".menu-btn").map((b) => b.text());
-    expect(labels).toHaveLength(6);
+    expect(labels).toHaveLength(7);
     expect(labels[0]).toContain("冒险");
     expect(labels[1]).toContain("路线");
     expect(labels[2]).toContain("草丛");
     expect(labels[3]).toContain("图鉴");
     expect(labels[4]).toContain("收音机");
+    expect(labels[5]).toContain("日志");
+    expect(labels[6]).toContain("背包");
   });
 
   it("列表渲染任务条目：编号、标题、分类徽章", async () => {
@@ -751,8 +760,8 @@ describe("App 图鉴机主面板", () => {
     ]);
     vi.mocked(api.createBackupNow).mockResolvedValue("pokemon-choose-you-20260913-120000.db");
     const w = await mountApp();
-    await w.findAll(".menu-btn")[5].trigger("click"); // 设置
-    await w.findAll(".stab")[6].trigger("click"); // 通用
+    await w.findAll(".menu-btn")[6].trigger("click"); // 设置
+    await w.findAll(".stab")[7].trigger("click"); // 通用
     await new Promise((r) => setTimeout(r)); // 挂载时异步拉取备份列表
     expect(w.text()).toContain("数据备份");
     expect(w.findAll(".backup-row")).toHaveLength(1);
@@ -769,8 +778,8 @@ describe("App 图鉴机主面板", () => {
 
   it("设置页通用区：导出三件套与打开目录", async () => {
     const w = await mountApp();
-    await w.findAll(".menu-btn")[5].trigger("click"); // 设置
-    await w.findAll(".stab")[6].trigger("click"); // 通用
+    await w.findAll(".menu-btn")[6].trigger("click"); // 设置
+    await w.findAll(".stab")[7].trigger("click"); // 通用
     await w
       .findAll(".btn")
       .find((b) => b.text() === "全量 JSON")!
@@ -830,7 +839,8 @@ describe("App 图鉴机主面板", () => {
     expect(w.text()).toContain("$0.12");
     expect(w.text()).toContain("exit 0");
     await w.get(".run-open").trigger("click");
-    expect(api.openAgentHistory).toHaveBeenCalledWith("claude-code", "sess-1");
+    // 回放改按会话记录路由（open_recorded_session）：不再依赖当前 agent 配置
+    expect(api.openRecordedSession).toHaveBeenCalledWith(1);
   });
 
   it("详情抽屉：含跟进记录与操作历史区块，可从抽屉进入全字段编辑", async () => {
@@ -900,24 +910,26 @@ describe("App 图鉴机主面板", () => {
 
   it("设置页飞书：无 App ID/Secret 输入，常驻 lark-cli 指引", async () => {
     const w = await mountApp();
-    await w.findAll(".menu-btn")[5].trigger("click"); // 设置
-    await w.findAll(".stab")[4].trigger("click"); // 集成
+    await w.findAll(".menu-btn")[6].trigger("click"); // 设置
+    await w.findAll(".stab")[5].trigger("click"); // 飞书
     expect(w.text()).not.toContain("App ID");
     expect(w.text()).not.toContain("App Secret");
     expect(w.text()).toContain("npm install -g @larksuite/cli");
     expect(w.text()).toContain("授权登录");
   });
 
-  it("设置页七个分区可选且默认显示专注", async () => {
+  it("设置页八个分区可选且默认显示专注", async () => {
     const w = await mountApp();
-    await w.findAll(".menu-btn")[5].trigger("click");
+    await w.findAll(".menu-btn")[6].trigger("click"); // 设置
     const stabs = w.findAll(".stab");
-    expect(stabs).toHaveLength(7);
+    expect(stabs).toHaveLength(8);
     expect(w.text()).toContain("番茄钟");
     await stabs[3].trigger("click"); // 显示
     expect(w.text()).toContain("日期格式");
-    await stabs[1].trigger("click"); // 分类
+    await stabs[1].trigger("click"); // 分类与标签
     expect(w.text()).toContain("皮卡丘");
+    await stabs[2].trigger("click"); // 桌宠
+    expect(w.text()).toContain("主宝可梦");
   });
 
   it("诊断页展示集成健康与日志，支持报告可复制", async () => {
@@ -954,8 +966,8 @@ describe("App 图鉴机主面板", () => {
       { time: "2026-09-12 09:00:00", level: "warn", target: "app_lib::feishu", message: "feishu poll failed: 500" },
     ]);
     const w = await mountApp();
-    await w.findAll(".menu-btn")[5].trigger("click");
-    await w.findAll(".stab")[5].trigger("click"); // 诊断
+    await w.findAll(".menu-btn")[6].trigger("click"); // 设置
+    await w.findAll(".stab")[6].trigger("click"); // 诊断
     expect(w.text()).toContain("飞书电波");
     expect(w.text()).toContain("降级重试中");
     expect(w.text()).toContain("待确认建议 3");
@@ -969,10 +981,10 @@ describe("App 图鉴机主面板", () => {
     expect(api.buildSupportReport).toHaveBeenCalled();
   });
 
-  it("设置页集成分区：AI agent 配置增删、主 agent 选择与测试链路", async () => {
+  it("设置页 Agent 分区：AI agent 配置增删、主 agent 选择与测试链路", async () => {
     const w = await mountApp();
-    await w.findAll(".menu-btn")[5].trigger("click");
-    await w.findAll(".stab")[4].trigger("click"); // 集成
+    await w.findAll(".menu-btn")[6].trigger("click"); // 设置
+    await w.findAll(".stab")[4].trigger("click"); // Agent
     expect(w.text()).toContain("AI Agent CLI");
 
     // 默认无 agent；按预设添加一个（Claude Code 预设填充命令与参数）
@@ -1007,7 +1019,7 @@ describe("App 图鉴机主面板", () => {
       .trigger("click");
     expect(w.findAll(".agent-block")).toHaveLength(0);
 
-    // pi 预设：下拉切换后添加，命令与无头参数就位（不带 qoder 的权限参数）
+    // pi 预设：下拉切换后添加，命令与无头参数就位
     const addRow = w.find(".btn-row.add-agent");
     await addRow.find(".ds-btn").trigger("click");
     const piOption = addRow.findAll(".ds-list li").find((li) => li.text().trim().endsWith("pi"))!; // li 前缀带 ▶ 游标
@@ -1031,8 +1043,8 @@ describe("App 图鉴机主面板", () => {
 
   it("AI agent 支持配置 SSH 远程执行并序列化进 ai_agents", async () => {
     const w = await mountApp();
-    await w.findAll(".menu-btn")[5].trigger("click"); // 设置
-    await w.findAll(".stab")[4].trigger("click"); // 集成
+    await w.findAll(".menu-btn")[6].trigger("click"); // 设置
+    await w.findAll(".stab")[4].trigger("click"); // Agent
     // 添加一个 Claude Code 预设
     await w
       .findAll(".btn")
@@ -1064,10 +1076,10 @@ describe("App 图鉴机主面板", () => {
     expect(block.find(".ssh-row").exists()).toBe(false);
   });
 
-  it("设置页分类分区：进入即列出内置分类，停用开关调用后端", async () => {
+  it("设置页分类与标签分区：进入即列出内置分类，停用开关调用后端", async () => {
     const w = await mountApp();
-    await w.findAll(".menu-btn")[5].trigger("click");
-    await w.findAll(".stab")[1].trigger("click"); // 分类
+    await w.findAll(".menu-btn")[6].trigger("click"); // 设置
+    await w.findAll(".stab")[1].trigger("click"); // 分类与标签
     const rows = w.findAll(".cat-row");
     expect(rows).toHaveLength(2); // 进入分区即加载分类列表（回归：曾显示为空）
     // 停用第一个分类

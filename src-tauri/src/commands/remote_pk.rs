@@ -13,6 +13,7 @@ use crate::error::{AppError, AppResult};
 use rusqlite::params;
 use std::io::Write;
 use std::path::PathBuf;
+use std::time::{Duration, Instant};
 use tauri::State;
 
 /// 默认反向隧道端口（远程侧 127.0.0.1:10022 ⇄ 本机 sshd）
@@ -40,6 +41,8 @@ pub(crate) struct RemotePkSetup {
     pub key_dir: PathBuf,
     /// 本机用户主目录（authorized_keys 落点，可注入供测试）
     pub local_home: PathBuf,
+    /// 单步 ssh 的整体超时（ConnectTimeout 只管 TCP 握手；认证后远端卡住需整体兜底）
+    pub step_timeout: Duration,
 }
 
 #[derive(Debug, Clone, serde::Serialize)]
@@ -100,7 +103,28 @@ fn ssh_run(
             let _ = handle.write_all(body.as_bytes());
         }
     }
-    match child.wait_with_output() {
+    // 整体超时兜底：ConnectTimeout 只覆盖 TCP 握手，认证后远端卡住（如转发通道悬死）
+    // 会让 wait_with_output 永久阻塞——轮询 try_wait，到期 kill 并报告，UI 不许无限转圈
+    let deadline = Instant::now() + ctx.step_timeout;
+    let out = loop {
+        match child.try_wait() {
+            Ok(Some(_)) => break child.wait_with_output(),
+            Ok(None) if Instant::now() >= deadline => {
+                let _ = child.kill();
+                let _ = child.wait();
+                return (
+                    false,
+                    format!(
+                        "超过 {} 秒未完成——远端 ssh 会话挂起（网络/转发通道可能卡死）",
+                        ctx.step_timeout.as_secs()
+                    ),
+                );
+            }
+            Ok(None) => std::thread::sleep(Duration::from_millis(200)),
+            Err(e) => return (false, format!("等待 ssh 结束失败：{e}")),
+        }
+    };
+    match out {
         Ok(out) if out.status.success() => {
             let text = String::from_utf8_lossy(&out.stdout).trim().to_string();
             (true, text)
@@ -555,12 +579,7 @@ pub(crate) fn run_setup(ctx: &RemotePkSetup) -> SetupReport {
     // 9. 端到端验证：真实开一条带 -R 的 ssh 连接执行 pk --version——
     //    执行期间隧道存活，shim 真回连一次本机 sshd，验证整条链
     let fwd = format!("127.0.0.1:{}:127.0.0.1:22", ctx.tunnel_port);
-    let (ok, out) = ssh_run(
-        ctx,
-        &["-R", &fwd],
-        "exec \"$SHELL\" -lc 'pk --version'",
-        None,
-    );
+    let (ok, out) = ssh_run(ctx, &["-R", &fwd], verify_remote_line(), None);
     let version = out.trim().to_string();
     if ok && !version.is_empty() {
         steps.push(SetupStep {
@@ -596,6 +615,23 @@ fn report_of(steps: Vec<SetupStep>, version: Option<String>) -> SetupReport {
         steps,
         version,
     }
+}
+
+/// 端到端验证的远端命令行：跑 pk --version（经 shim 回连本机）后立刻关闭 shim 的
+/// ControlPersist master。master 是 shim 连接复用的常驻进程，会攥着本条临时 -R 隧道
+/// 的转发通道不放，而外层 ssh 要等所有通道关闭才退出——不关 master 则 setup 永久挂起
+/// （实测 ControlPersist=10m 在通道悬死时不生效，master 可能孤儿化）。先经控制 socket
+/// 优雅 -O exit，socket 已失联时按 [mux] 进程特征兜底清扫；master 下次 shim 调用自动
+/// 重起，常驻隧道场景不受影响
+fn verify_remote_line() -> &'static str {
+    concat!(
+        "\"$SHELL\" -lc 'pk --version'; rc=$?; ",
+        "for s in \"$HOME\"/.ssh/pk-shim-*; do ",
+        "[ -S \"$s\" ] && ssh -o BatchMode=yes -o ConnectTimeout=3 -o \"ControlPath=$s\" ",
+        "-O exit 127.0.0.1 2>/dev/null; done; ",
+        "pkill -f 'pk-shim-.* \\[mux\\]' 2>/dev/null; ",
+        "exit $rc"
+    )
 }
 
 /// 定位随应用分发的 pk。优先 exe 同目录（安装态）；开发态该位置可能是 tauri 拷贝的
@@ -682,6 +718,7 @@ pub async fn setup_remote_pk<R: tauri::Runtime>(
         pk_path: pk_path.to_string_lossy().into_owned(),
         key_dir,
         local_home: dirs::home_dir().unwrap_or_default(),
+        step_timeout: Duration::from_secs(60),
     };
     let report = tauri::async_runtime::spawn_blocking(move || run_setup(&ctx))
         .await
@@ -850,6 +887,7 @@ mod tests {
             pk_path: dir.join("pk").to_string_lossy().into_owned(),
             key_dir: dir.join("keys"),
             local_home: home.to_path_buf(),
+            step_timeout: Duration::from_secs(60),
         }
     }
 
@@ -999,6 +1037,55 @@ mod tests {
         );
         // 幂等细节：authorized_keys 未被触碰
         assert!(!home.join(".ssh/authorized_keys").exists());
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// 验证命令行必须在 pk --version 后关闭 shim 的 ControlPersist master：
+    /// master 攥着临时 -R 隧道的转发通道不放，外层 ssh 等所有通道关闭才退出，
+    /// 不关则端到端验证永久挂起（真机容器拓扑实测）
+    #[test]
+    fn verify_remote_line_closes_mux_master() {
+        let line = verify_remote_line();
+        assert!(line.contains("pk --version"), "{line}");
+        assert!(line.contains("-O exit"), "优雅关闭路径: {line}");
+        assert!(
+            line.contains("pkill -f 'pk-shim-.* \\[mux\\]'"),
+            "失联兜底: {line}"
+        );
+        assert!(
+            line.trim_end().ends_with("exit $rc"),
+            "保留验证退出码: {line}"
+        );
+    }
+
+    /// ssh 会话挂起（远端不退出）时整体超时兜底：到点 kill 并给出可读原因，
+    /// 而不是让 setup 对话框无限转圈
+    #[test]
+    fn ssh_run_times_out_on_hung_session() {
+        use std::os::unix::fs::PermissionsExt;
+        let dir = std::env::temp_dir().join(format!("pk-ssh-hang-{}", std::process::id()));
+        let home = dir.join("home");
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&home).unwrap();
+        let hang = dir.join("hang-ssh.sh");
+        std::fs::write(&hang, "#!/bin/sh\nexec sleep 300\n").unwrap();
+        std::fs::set_permissions(&hang, std::fs::Permissions::from_mode(0o755)).unwrap();
+        let (ssh, keyscan) = fake_bins(&dir);
+        let mut ctx = ctx_with(&dir, &home, &ssh, &keyscan);
+        ctx.ssh_program = hang.to_string_lossy().into_owned();
+        ctx.step_timeout = Duration::from_secs(1);
+
+        let started = Instant::now();
+        let (ok, msg) = ssh_run(&ctx, &[], "true", None);
+        assert!(!ok);
+        assert!(msg.contains("未完成"), "{msg}");
+        assert!(started.elapsed() < Duration::from_secs(10), "及时返回");
+        // 子进程被 kill 而非遗留：再跑一条立即完成的命令不受影响（假 ssh 正常分发；
+        // 超时恢复默认值——全量测试并行抢 CPU 时 1 秒对正常调用太苛刻）
+        ctx.ssh_program = ssh;
+        ctx.step_timeout = Duration::from_secs(60);
+        let (ok, out) = ssh_run(&ctx, &[], "exec \"$SHELL\" -lc 'command -v pk'", None);
+        assert!(ok, "{out}");
         let _ = std::fs::remove_dir_all(&dir);
     }
 }

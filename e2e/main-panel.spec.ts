@@ -14,11 +14,20 @@ function dueToday(): string {
 }
 
 test.describe("图鉴机主面板", () => {
-  test("加载后显示六个菜单与今日捕捉进度", async ({ page }) => {
+  test("加载后显示七个菜单与今日捕捉进度", async ({ page }) => {
     await page.goto("/");
-    await expect(page.locator(".menu-btn")).toHaveCount(6);
+    await expect(page.locator(".menu-btn")).toHaveCount(7);
     await expect(page.locator(".menu-btn").first()).toContainText("冒险");
     await expect(page.locator(".catch-progress .px")).toContainText("CAUGHT 0/0");
+  });
+
+  test("日志页：会话历史抽为顶层菜单，空库渲染空态", async ({ page }) => {
+    await page.goto("/");
+    await page.locator(".menu-btn", { hasText: "日志" }).click();
+    await expect(page.locator(".dex-main-head h1")).toContainText("日志");
+    // 列表分页/过滤/回放行为由 AgentSessionHistory 单测覆盖，这里只钉导航与空态
+    await expect(page.locator(".sess-filters")).toBeVisible();
+    await expect(page.locator(".sess-empty")).toContainText("还没有会话记录");
   });
 
   test("收音机快速捕捉：一句话经 AI 判定建待办，出现在草丛", async ({ page }) => {
@@ -90,7 +99,7 @@ test.describe("图鉴机主面板", () => {
 
   test("设置里切换语言，界面即时切英文", async ({ page }) => {
     await page.goto("/");
-    await page.locator(".menu-btn", { hasText: "设置" }).click();
+    await page.locator(".menu-btn", { hasText: "背包" }).click();
     await page.locator(".stab", { hasText: "显示" }).click();
     // 语言 DexSelect：默认简体中文（SettingRow 渲染为 .set-row > .set-label）
     const langRow = page.locator(".set-card .set-row", { hasText: "语言" });

@@ -16,6 +16,7 @@ import type {
   LogEntry,
   RemotePkReport,
   RetryAiResult,
+  SessionPage,
   Tag,
   TagCheckupReport,
   TagDimension,
@@ -188,9 +189,13 @@ export const api = {
   installUpdate: () => call<void>("install_update"),
   /** 测试一个 AI agent（不传 id 用收音机分类使用的主 agent） */
   testAiConfig: (agentId?: string) => call<string>("test_ai_config", { agentId: agentId ?? null }),
-  /** 在系统终端里打开 agent 的历史记录界面（agent 工具自己保存会话历史） */
-  openAgentHistory: (agentId: string, sessionId?: string) =>
-    call<string>("open_agent_history", { agentId, sessionId: sessionId ?? null }),
+  /** 在系统终端里打开 agent 的历史记录界面（agent 工具自己保存会话历史）；workdir 为目录覆盖（项目派发的标签 meta 工作目录），空缺回退 agent 自身解析 */
+  openAgentHistory: (agentId: string, sessionId?: string, workdir?: string) =>
+    call<string>("open_agent_history", {
+      agentId,
+      sessionId: sessionId ?? null,
+      workdir: workdir ?? null,
+    }),
   /** 一键配置远程 pk：密钥/公钥/指纹/shim/PATH 全自动，成功写回隧道端口 */
   setupRemotePk: (agentId: string, port?: number) =>
     call<RemotePkReport>("setup_remote_pk", { agentId, port: port ?? null }),
@@ -204,6 +209,11 @@ export const api = {
   agentSkillInstall: (agentId: string) => call<AgentSkillInstallResult>("agent_skill_install", { agentId }),
   /** Agent 会话：taskId 查该任务时间线，缺省全局最近 100 条（含收音机分类调用） */
   listAgentSessions: (taskId?: number) => call<AgentSession[]>("list_agent_sessions", { taskId: taskId ?? null }),
+  /** 会话历史分页（全局视图）：group = all/radio/dispatch/other，id 倒序 */
+  listAgentSessionsPaged: (group: string, limit: number, offset: number) =>
+    call<SessionPage>("list_agent_sessions_paged", { group, limit, offset }),
+  /** 回放一条落库会话：按记录里的执行时快照路由（远端 ssh / tmux 重连 / --resume 转录） */
+  openRecordedSession: (id: number) => call<string>("open_recorded_session", { id }),
   /** 解析待办的派发目标（project 标签 meta → 全局默认 agent；弹窗展示用） */
   resolveTaskDispatch: (taskId: number) => call<TaskDispatchTarget>("resolve_task_dispatch", { taskId }),
   /** 派发待发给 agent（channel 缺省交互；无头按退出码/信封自动回传状态） */
