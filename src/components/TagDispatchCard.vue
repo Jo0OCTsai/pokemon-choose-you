@@ -169,7 +169,18 @@ async function openHistory(draft: Draft) {
 </template>
 
 <style scoped>
-/* h3 / set-sub / set-foot 在父页是 scoped 样式，子组件内需自备同款 */
+/* 卡片本体与 h3 / set-sub 需自备同款（宿主 scoped 样式够不到二层子组件，见 src/AGENTS.md） */
+.set-card {
+  width: 100%;
+  max-width: 920px;
+  margin-left: auto;
+  margin-right: auto;
+  background: #fff;
+  border: 3px solid var(--dex-navy);
+  border-radius: 12px;
+  padding: 14px 16px;
+  box-shadow: 4px 4px 0 var(--dex-navy);
+}
 .set-card h3 {
   margin: 0 0 12px;
   font-size: 16px;

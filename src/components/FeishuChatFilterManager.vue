@@ -386,7 +386,22 @@ onUnmounted(() => {
 </template>
 
 <style scoped>
-/* 卡内副标题/脚注（set-card 本体由父级 SettingsTab 的 scoped 样式套用） */
+/* 卡片本体与副标题需自备同款（宿主 scoped 样式够不到二层子组件，见 src/AGENTS.md） */
+.set-card {
+  width: 100%;
+  max-width: 920px;
+  margin-left: auto;
+  margin-right: auto;
+  background: #fff;
+  border: 3px solid var(--dex-navy);
+  border-radius: 12px;
+  padding: 14px 16px;
+  box-shadow: 4px 4px 0 var(--dex-navy);
+}
+.set-card h3 {
+  margin: 0 0 12px;
+  font-size: 16px;
+}
 .set-sub {
   margin: -6px 0 12px;
   font-size: 12px;
