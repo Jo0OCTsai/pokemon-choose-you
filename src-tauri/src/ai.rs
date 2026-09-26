@@ -352,9 +352,12 @@ fn adapt_history_args(args: &mut Vec<String>, session: &str, kind: Option<&str>)
 
 /// 打开历史记录界面的实际命令行（本地直启 / 远程 ssh 转发）。
 /// resume_session 存在时注入到历史参数里（见 adapt_history_args），直接回放该会话转录。
+/// workdir 为显式目录覆盖（项目派发的标签 meta 工作目录）：非空时压过 agent 自身配置，
+/// 使历史会话落在与派发一致的目录；为空/空白时回退 agent 自身解析。
 pub fn history_invocation(
     agent: &AgentConfig,
     resume_session: Option<&str>,
+    workdir: Option<&str>,
 ) -> (String, Vec<String>) {
     let mut args: Vec<String> = agent
         .history_args
@@ -399,13 +402,13 @@ pub fn history_invocation(
                 .map(posix_quote)
                 .collect::<Vec<_>>()
                 .join(" ");
-            // 同 build_invocation：远端命令行前缀 cd 切到配置的工作目录
-            if !agent.workdir.trim().is_empty() {
-                remote_line = format!(
-                    "cd {} && {}",
-                    quote_cd_target(agent.workdir.trim()),
-                    remote_line
-                );
+            // 同 build_invocation：远端命令行前缀 cd 切到生效工作目录（显式覆盖优先）
+            let dir = workdir
+                .map(str::trim)
+                .filter(|w| !w.is_empty())
+                .unwrap_or(agent.workdir.trim());
+            if !dir.is_empty() {
+                remote_line = format!("cd {} && {}", quote_cd_target(dir), remote_line);
             }
             // 同 build_invocation：整行整体引用，防 -lc 只吞第一个词（如 `claude --resume` 丢成裸 `claude`）
             argv.push(posix_quote(&remote_line));
@@ -1450,7 +1453,7 @@ mod tests {
             ]
         );
         // 历史入口也走 ssh
-        let (prog, argv) = history_invocation(&b, None);
+        let (prog, argv) = history_invocation(&b, None, None);
         assert_eq!(prog, "ssh");
         assert!(argv.contains(&"--".to_string()) && argv.contains(&"box".to_string()));
         // 交互式历史不设 BatchMode（允许终端里输密码），但保留连接超时
@@ -1511,7 +1514,7 @@ mod tests {
         assert!(inv.cwd.is_none(), "远程分支不设本地 cwd");
 
         // 历史入口同样带 cd 前缀
-        let (_, argv) = history_invocation(&a, None);
+        let (_, argv) = history_invocation(&a, None, None);
         assert!(
             argv.last().unwrap().contains("cd ~/lab && claude"),
             "历史会话也在配置目录里打开"
@@ -1533,7 +1536,7 @@ mod tests {
             history_args: "--resume".into(),
             ..Default::default()
         };
-        let (_, args) = history_invocation(&claude, Some("sess-9"));
+        let (_, args) = history_invocation(&claude, Some("sess-9"), None);
         assert_eq!(args, vec!["--resume".to_string(), "sess-9".to_string()]);
 
         // kiro：--resume-picker 换成 --resume-id <id>（chat 子命令保留在前）
@@ -1542,7 +1545,7 @@ mod tests {
             history_args: "chat --resume-picker".into(),
             ..Default::default()
         };
-        let (_, args) = history_invocation(&kiro, Some("sess-9"));
+        let (_, args) = history_invocation(&kiro, Some("sess-9"), None);
         assert_eq!(
             args,
             vec![
@@ -1558,7 +1561,7 @@ mod tests {
             history_args: String::new(),
             ..Default::default()
         };
-        let (_, args) = history_invocation(&plain, Some("sess-9"));
+        let (_, args) = history_invocation(&plain, Some("sess-9"), None);
         assert!(args.is_empty());
 
         // pi：-r 是会话选择器（不带 id），按 id 恢复须换成 --session <id>
@@ -1567,7 +1570,7 @@ mod tests {
             history_args: "-r".into(),
             ..Default::default()
         };
-        let (_, args) = history_invocation(&pi, Some("sess-9"));
+        let (_, args) = history_invocation(&pi, Some("sess-9"), None);
         assert_eq!(args, vec!["--session".to_string(), "sess-9".to_string()]);
         // pi 已配 --session（自带 id 位）：id 原位插到其后，不重复换旗标
         let pi2 = AgentConfig {
@@ -1575,7 +1578,7 @@ mod tests {
             history_args: "--session".into(),
             ..Default::default()
         };
-        let (_, args) = history_invocation(&pi2, Some("sess-9"));
+        let (_, args) = history_invocation(&pi2, Some("sess-9"), None);
         assert_eq!(args, vec!["--session".to_string(), "sess-9".to_string()]);
 
         // qoder：--resume [id] 与 claude 同形，id 后插即合法
@@ -1584,7 +1587,7 @@ mod tests {
             history_args: "--resume".into(),
             ..Default::default()
         };
-        let (_, args) = history_invocation(&qoder, Some("sess-9"));
+        let (_, args) = history_invocation(&qoder, Some("sess-9"), None);
         assert_eq!(args, vec!["--resume".to_string(), "sess-9".to_string()]);
 
         // 远程：id 进远端命令行而不是 ssh 的选项区（回归：旧实现误判 ssh argv 首参）
@@ -1598,7 +1601,7 @@ mod tests {
             }),
             ..Default::default()
         };
-        let (_, argv) = history_invocation(&remote, Some("sess-9"));
+        let (_, argv) = history_invocation(&remote, Some("sess-9"), None);
         let line = argv.last().unwrap();
         assert!(
             line.contains("claude --resume sess-9"),
@@ -1618,6 +1621,54 @@ mod tests {
                 .into_iter()
                 .map(String::from)
                 .collect::<Vec<_>>()
+        );
+    }
+
+    #[test]
+    fn history_invocation_workdir_override_wins_for_remote() {
+        // 项目派发的历史快捷方式：标签 meta 目录压过 agent 自身配置，
+        // 历史会话落在与派发一致的目录（回归：旧实现只看 agent.workdir）
+        let remote = AgentConfig {
+            command: "claude".into(),
+            history_args: "--resume".into(),
+            workdir: "~/lab".into(),
+            remote: Some(AgentRemote {
+                host: "box".into(),
+                ..Default::default()
+            }),
+            ..Default::default()
+        };
+        let (_, argv) = history_invocation(&remote, None, Some("~/projects/my-repo"));
+        let line = argv.last().unwrap();
+        assert!(
+            line.contains("cd ~/projects/my-repo && claude"),
+            "显式覆盖进远端 cd 前缀: {line}"
+        );
+        assert!(!line.contains("~/lab"), "agent 自身目录被压过: {line}");
+
+        // 覆盖为空白 → 回退 agent 自身配置（与后端 effective_workdir 的「留空即缺省」同口径）
+        let (_, argv) = history_invocation(&remote, None, Some("   "));
+        assert!(
+            argv.last().unwrap().contains("cd ~/lab"),
+            "空白覆盖回退 agent 目录: {:?}",
+            argv.last().unwrap()
+        );
+
+        // 两处都没有 → 不 cd（远端登录目录）
+        let bare = AgentConfig {
+            command: "claude".into(),
+            workdir: "".into(),
+            remote: Some(AgentRemote {
+                host: "box".into(),
+                ..Default::default()
+            }),
+            ..Default::default()
+        };
+        let (_, argv) = history_invocation(&bare, None, None);
+        assert!(
+            !argv.last().unwrap().contains("cd "),
+            "无目录时远端落登录目录: {:?}",
+            argv.last().unwrap()
         );
     }
 

@@ -354,6 +354,8 @@ export default {
     empty: 'No project-dimension tags yet — switch a tag\'s dimension to "Project" above to configure dispatch here.',
     foot: "Empty agent/dir falls back to the global default.",
     chipHint: "Dispatch configured: manage it in the Project Dispatch card below",
+    historyTip: 'Open "{name}" history in a new terminal (global default when no agent is set)',
+    historyNone: "No agent available yet — set one up and enable it on the Integrations page",
   },
   dim: {
     project: "Project",

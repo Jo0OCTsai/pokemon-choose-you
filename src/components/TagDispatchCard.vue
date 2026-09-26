@@ -4,11 +4,15 @@
  * 全部项目标签的路由一目了然。编辑草稿按标签 id 存，store 刷新时增量同步。
  * 改动即时落库（与应用其余「选中即存」一致）：下拉选中即存，文本失焦（change）即存——
  * 页面顶部「保存设置」只写 settings 表，覆盖不到这里，行内按钮曾造成两套保存心智。
+ * 块头右侧「历史记录 ↗」按生效派发 agent 唤起 open_agent_history（与集成页 agent 块
+ * 同一命令）；生效 agent 与后端 resolve_route 同序：标签指定 → 全局默认，无可用则置灰。
+ * 目录传标签 meta workdir 覆盖（留空后端回退 agent 自身解析），历史与派发同目录。
  */
 import { computed, reactive, watch } from "vue";
 import { useI18n } from "vue-i18n";
 import { api, errorMessage } from "../api";
 import { useTagsStore } from "../stores/tags";
+import { useSettingsStore } from "../stores/settings";
 import type { AgentConfig, Tag } from "../types";
 import DexSelect from "./DexSelect.vue";
 import SettingRow from "./SettingRow.vue";
@@ -18,6 +22,7 @@ const emit = defineEmits<{ feedback: [msg: string] }>();
 
 const { t } = useI18n();
 const tagsStore = useTagsStore();
+const settings = useSettingsStore();
 
 interface Draft {
   agentId: string;
@@ -88,6 +93,36 @@ function pickAgent(tag: Tag, draft: Draft, v: string) {
   draft.agentId = v;
   void saveMeta(tag);
 }
+
+/** 生效派发 agent（与后端 resolve_route 同序）：标签指定（含已停用的已存项）→
+ * 全局默认（ai_agent_id 指向启用项，否则首个启用项）；都落空 = null（快捷方式置灰） */
+function effectiveAgent(draft: Draft): AgentConfig | null {
+  if (draft.agentId) {
+    const picked = props.agents.find((a) => a.id === draft.agentId);
+    if (picked) return picked;
+  }
+  const preferred = settings.sget("ai_agent_id");
+  return props.agents.find((a) => a.enabled && a.id === preferred) ?? props.agents.find((a) => a.enabled) ?? null;
+}
+
+function historyTitle(draft: Draft): string {
+  const agent = effectiveAgent(draft);
+  return agent ? t("tagDispatch.historyTip", { name: agent.name || agent.command }) : t("tagDispatch.historyNone");
+}
+
+/** 历史记录由 agent 工具自带，这里只负责在新终端唤起（同集成页 agent 块）。
+ * 目录传标签 meta 的工作目录覆盖：历史会话与派发落在同一目录，
+ * 留空由后端回退 agent 自身解析（配置目录或缺省 workspace） */
+async function openHistory(draft: Draft) {
+  const agent = effectiveAgent(draft);
+  if (!agent) return;
+  emit("feedback", t("ai.openingHistory"));
+  try {
+    emit("feedback", await api.openAgentHistory(agent.id, undefined, draft.workdir.trim() || undefined));
+  } catch (e) {
+    emit("feedback", `❌ ${errorMessage(e)}`);
+  }
+}
 </script>
 
 <template>
@@ -100,6 +135,14 @@ function pickAgent(tag: Tag, draft: Draft, v: string) {
         <span class="db-state" :class="{ on: configured(row.tag) }">
           {{ configured(row.tag) ? t("tagDispatch.configured") : t("tagDispatch.unconfigured") }}
         </span>
+        <button
+          class="btn mini ghost db-history"
+          :disabled="!effectiveAgent(row.draft)"
+          :title="historyTitle(row.draft)"
+          @click="openHistory(row.draft)"
+        >
+          {{ t("ai.history") }}
+        </button>
       </div>
       <SettingRow :label="t('tagDispatch.agent')" :label-width="128">
         <DexSelect
@@ -189,5 +232,9 @@ function pickAgent(tag: Tag, draft: Draft, v: string) {
   border-color: var(--dex-navy);
   background: var(--ok-soft);
   color: var(--ok-ink);
+}
+/* 历史记录快捷方式贴块右缘：行内密集动作走全站唯一小按钮档（dex.css 的 .btn.mini） */
+.db-history {
+  margin-left: auto;
 }
 </style>

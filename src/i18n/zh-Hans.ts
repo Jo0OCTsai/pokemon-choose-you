@@ -350,6 +350,8 @@ export default {
     empty: "还没有「项目」维度的标签——在上方把标签的维度改为「项目」，就能在这里配置派发。",
     foot: "agent 与目录都留空时按全局默认派发。",
     chipHint: "已配置派发：在下方「项目派发」卡片管理",
+    historyTip: "在新终端打开「{name}」的历史记录（未指定 agent 时为全局默认）",
+    historyNone: "还没有可用的 agent——先在「集成」页配置并启用",
   },
   dim: {
     project: "项目",

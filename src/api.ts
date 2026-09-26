@@ -188,9 +188,13 @@ export const api = {
   installUpdate: () => call<void>("install_update"),
   /** 测试一个 AI agent（不传 id 用收音机分类使用的主 agent） */
   testAiConfig: (agentId?: string) => call<string>("test_ai_config", { agentId: agentId ?? null }),
-  /** 在系统终端里打开 agent 的历史记录界面（agent 工具自己保存会话历史） */
-  openAgentHistory: (agentId: string, sessionId?: string) =>
-    call<string>("open_agent_history", { agentId, sessionId: sessionId ?? null }),
+  /** 在系统终端里打开 agent 的历史记录界面（agent 工具自己保存会话历史）；workdir 为目录覆盖（项目派发的标签 meta 工作目录），空缺回退 agent 自身解析 */
+  openAgentHistory: (agentId: string, sessionId?: string, workdir?: string) =>
+    call<string>("open_agent_history", {
+      agentId,
+      sessionId: sessionId ?? null,
+      workdir: workdir ?? null,
+    }),
   /** 一键配置远程 pk：密钥/公钥/指纹/shim/PATH 全自动，成功写回隧道端口 */
   setupRemotePk: (agentId: string, port?: number) =>
     call<RemotePkReport>("setup_remote_pk", { agentId, port: port ?? null }),

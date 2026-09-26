@@ -2,6 +2,7 @@ use crate::ai::{self, AgentConfig};
 use crate::db::Db;
 use crate::error::{AppError, AppResult};
 use crate::events;
+use std::path::PathBuf;
 use tauri::{AppHandle, Emitter, State};
 use tauri_plugin_updater::UpdaterExt;
 
@@ -69,11 +70,14 @@ pub async fn test_ai_config(db: State<'_, Db>, agent_id: Option<String>) -> AppR
 /// 在系统终端里打开 agent 的历史记录界面（claude --resume / opencode 等）。
 /// 历史/会话由 agent 工具自己保存，这里只负责唤起。
 /// session_id 存在时追加为第一个参数（如 claude --resume <session_id>）直接回放该会话转录。
+/// workdir 为显式目录覆盖（项目派发的标签 meta 工作目录）：历史会话与派发同目录，
+/// 空缺时回退 agent 自身解析（本地缺省 ~/.choose-you/workspace）。
 #[tauri::command]
 pub async fn open_agent_history(
     db: State<'_, Db>,
     agent_id: String,
     session_id: Option<String>,
+    workdir: Option<String>,
 ) -> AppResult<String> {
     let (agent, pref) = {
         let conn = db.0.lock().unwrap();
@@ -82,27 +86,29 @@ pub async fn open_agent_history(
             .ok_or_else(|| AppError::Invalid(format!("Agent {agent_id} 不存在，请先保存配置")))?;
         (agent, terminal_pref(&conn))
     };
-    open_agent_in_terminal(&agent, pref, session_id.as_deref()).await
+    open_agent_in_terminal(&agent, pref, session_id.as_deref(), workdir.as_deref()).await
 }
 
 async fn open_agent_in_terminal(
     agent: &AgentConfig,
     pref: TerminalPref,
     resume_session: Option<&str>,
+    workdir: Option<&str>,
 ) -> AppResult<String> {
     // 会话 id 的注入（--resume <id> / --resume-id <id>）在 history_invocation 内按
     // agent 级历史参数适配，本地远程同一套规则（回归：旧实现看 ssh argv 首参，
-    // 远程分支永远是 -o，id 从未被注入）
-    let (program, args) = crate::ai::history_invocation(agent, resume_session);
-    // 本地 agent 总是先 cd 到工作目录再启动：与无头调用同一套解析（留空 = ~/.choose-you，
-    // 自动创建），交互会话不能落在终端默认目录；SSH 远程的 cd 由 history_invocation
-    // 前缀在远端命令行里（留空 = 远端登录目录）；目录解析失败（无主目录）退回不 cd 直启
+    // 远程分支永远是 -o，id 从未被注入）；目录覆盖同函数内进本地/远程 cd
+    let (program, args) = crate::ai::history_invocation(agent, resume_session, workdir);
+    // 本地 agent 总是先 cd 到工作目录再启动：显式覆盖（标签 meta）优先，否则与无头调用
+    // 同一套解析（留空 = ~/.choose-you，自动创建），交互会话不能落在终端默认目录；
+    // SSH 远程的 cd 由 history_invocation 前缀在远端命令行里（留空 = 远端登录目录）；
+    // 目录解析失败（无主目录）退回不 cd 直启
     let local = agent
         .remote
         .as_ref()
         .is_none_or(|r| r.host.trim().is_empty());
     let line = local
-        .then(|| crate::ai::agent_workdir(agent))
+        .then(|| history_local_dir(agent, workdir))
         .flatten()
         .map(|dir| local_history_line(&dir.to_string_lossy(), &program, &args));
     match line {
@@ -113,6 +119,16 @@ async fn open_agent_in_terminal(
             .await
             .map(|term| format!("已在 {term} 中启动「{}」", agent.name)),
     }
+}
+
+/// 历史会话本地生效目录：显式覆盖（项目派发的标签 meta 工作目录）优先，
+/// 否则 agent 自身解析（配置目录或 ~/.choose-you/workspace）；纯纯的目录选取，可测
+fn history_local_dir(agent: &AgentConfig, workdir: Option<&str>) -> Option<PathBuf> {
+    workdir
+        .map(str::trim)
+        .filter(|w| !w.is_empty())
+        .map(PathBuf::from)
+        .or_else(|| crate::ai::agent_workdir(agent))
 }
 
 /// 「cd 工作目录 && 命令」整行：目录是 agent_workdir 展开后的绝对路径，
@@ -819,6 +835,7 @@ pub fn spawn_update_check<R: tauri::Runtime>(app: tauri::AppHandle<R>) {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::ai::agent_workdir;
     use crate::commands::windows::PendingMainReopen;
     use crate::db::tests::test_conn;
     use crate::db::Db;
@@ -848,12 +865,38 @@ mod tests {
     fn open_agent_history_rejects_unknown_agent() {
         let app = setup();
         let db = app.state::<Db>();
-        let err = tauri::async_runtime::block_on(open_agent_history(db, "ghost".into(), None))
-            .unwrap_err();
+        let err =
+            tauri::async_runtime::block_on(open_agent_history(db, "ghost".into(), None, None))
+                .unwrap_err();
         assert!(
             matches!(err, AppError::Invalid(_)),
             "未知 agent 给出输入错误: {err}"
         );
+    }
+
+    #[test]
+    fn history_local_dir_prefers_explicit_override() {
+        let agent = AgentConfig {
+            command: "claude".into(),
+            workdir: "~/agent-ws".into(),
+            ..Default::default()
+        };
+        // 标签 meta 目录压过 agent 自身配置（项目派发的历史与派发同目录）
+        assert_eq!(
+            history_local_dir(&agent, Some("~/projects/my-repo")),
+            Some(PathBuf::from("~/projects/my-repo"))
+        );
+        // 空白覆盖回退 agent 自身解析（~ 展开为主目录）
+        assert_eq!(
+            history_local_dir(&agent, Some("   ")),
+            agent_workdir(&agent)
+        );
+        // agent 无配置且无覆盖 → 缺省 workspace 目录（agent_workdir 兜底）
+        let bare = AgentConfig {
+            command: "claude".into(),
+            ..Default::default()
+        };
+        assert_eq!(history_local_dir(&bare, None), agent_workdir(&bare));
     }
 
     #[test]

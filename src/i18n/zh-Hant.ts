@@ -348,6 +348,8 @@ export default {
     empty: "還沒有「專案」維度的標籤——在上方把標籤的維度改為「專案」，就能在這裡配置派發。",
     foot: "agent 與目錄都留空時按全域預設派發。",
     chipHint: "已配置派發：在下方「專案派發」卡片管理",
+    historyTip: "在新終端機開啟「{name}」的歷史記錄（未指定 agent 時為全域預設）",
+    historyNone: "還沒有可用的 agent——先在「整合」頁設定並啟用",
   },
   dim: {
     project: "專案",
