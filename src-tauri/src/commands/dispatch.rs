@@ -376,7 +376,13 @@ fn tmux_attach_argv(remote: &AgentRemote, session: &str, workdir: &str) -> Vec<S
     push_ssh_target(remote, &mut argv);
     let mut line = format!("tmux new -A -s {}", posix_quote(session));
     if !workdir.trim().is_empty() {
-        line.push_str(&format!(" -c {}", quote_cd_target(workdir.trim())));
+        // 目录不存在时 tmux -c 起不来会话（注入侧等 10s 超时）：先 mkdir -p 再
+        // attach-or-create，幂等，会话已存在时只是空跑一次 mkdir
+        line = format!(
+            "mkdir -p {} && {line} -c {}",
+            quote_cd_target(workdir.trim()),
+            quote_cd_target(workdir.trim())
+        );
     }
     argv.push(posix_quote(&line));
     argv
@@ -392,7 +398,7 @@ fn direct_ssh_argv(remote: &AgentRemote, workdir: &str, line: &str) -> Vec<Strin
     push_ssh_target(remote, &mut argv);
     let mut remote_line = line.to_string();
     if !workdir.trim().is_empty() {
-        remote_line = format!("cd {} && {}", quote_cd_target(workdir.trim()), remote_line);
+        remote_line = format!("{}{remote_line}", ai::remote_workdir_prefix(workdir.trim()));
     }
     argv.push(posix_quote(&remote_line));
     argv
@@ -422,10 +428,10 @@ fn tmux_probe_line(workdir: &str) -> String {
     let dir_part = if workdir.trim().is_empty() {
         "d=$HOME".to_string()
     } else {
-        format!(
-            "d=$(cd {} 2>/dev/null && pwd) || d=''",
-            quote_cd_target(workdir.trim())
-        )
+        // 与派发落点同构（先建目录再 cd）：目录尚未创建时也解析出真实派发目录，
+        // claude 信任判定的 key 不因目录缺失回落 $HOME 而错位
+        let t = quote_cd_target(workdir.trim());
+        format!("d=$(mkdir -p {t} 2>/dev/null && cd {t} && pwd) || d=''")
     };
     format!(
         "command -v tmux || true; printf '{PROBE_SEP}'; {dir_part}; [ -n \"$d\" ] || d=$HOME; \
@@ -1958,6 +1964,11 @@ mod tests {
             last.contains("~/'\\''lab repo'\\''"),
             "含空格目录经引用进 -c: {last}"
         );
+        // 目录不存在时 tmux -c 起不来会话：先 mkdir -p 再 tmux（幂等，attach 已存在会话时无害）
+        assert!(
+            last.contains("mkdir -p ~/'\\''lab repo'\\'' && tmux new -A -s pk-5"),
+            "attach 前先建目录: {last}"
+        );
         // 工作目录为空时不带 -c（远端登录目录）
         assert!(
             !tmux_attach_argv(&remote, "pk-5", "")
@@ -1966,10 +1977,13 @@ mod tests {
                 .contains(" -c "),
             "空目录省略 -c"
         );
-        // 降级：cd 前缀 + agent 行，整行引用交给远端登录 shell
+        // 降级：mkdir + cd 前缀 + agent 行，整行引用交给远端登录 shell
         let argv = direct_ssh_argv(&remote, "~/lab", "claude-x '处理待办'");
         let last = argv.last().unwrap();
-        assert!(last.contains("cd ~/lab && claude-x"), "{last}");
+        assert!(
+            last.contains("mkdir -p ~/lab && cd ~/lab && claude-x"),
+            "{last}"
+        );
         assert!(
             last.starts_with('\''),
             "整行整体引用（-lc 只吞一个词的回归）: {last}"
@@ -2347,9 +2361,13 @@ mod tests {
     fn tmux_probe_line_shapes_and_parse_roundtrip() {
         // 空 workdir → 直接取远端登录目录
         assert!(tmux_probe_line("").contains("d=$HOME"));
-        // ~/ 前缀保留给远端 shell 展开；含空格的目录段安全引用
+        // ~/ 前缀保留给远端 shell 展开；含空格的目录段安全引用；与派发落点一致先建目录
+        // （mkdir + cd），信任判定的 key 才不会因目录缺失回落 $HOME 错位
         let line = tmux_probe_line("~/my repo");
-        assert!(line.contains("cd ~/'my repo'"), "~ 展开 + 空格引用: {line}");
+        assert!(
+            line.contains("mkdir -p ~/'my repo' 2>/dev/null && cd ~/'my repo'"),
+            "~ 展开 + 空格引用 + 先建目录: {line}"
+        );
         // 解析：tmux 段空 = 无 tmux；目录段原样；json 段完整
         let p = parse_remote_probe(&format!(
             "\n{PROBE_SEP}/home/vscode{PROBE_SEP}{{\"projects\":{{}}}}"

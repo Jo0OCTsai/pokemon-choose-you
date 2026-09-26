@@ -178,12 +178,12 @@ fn build_invocation(agent: &AgentConfig, prompt: &str, envs: &[(String, String)]
                 // cd 之后再前缀，赋值不泄漏进远端登录 shell 的后续会话
                 remote_line = format!("{env_prefix} {remote_line}");
             }
-            // 工作目录是远程机器上的路径：cd 前缀进远端命令行（本地 cwd 管不到远端）
+            // 工作目录是远程机器上的路径：先建目录再 cd 前缀进远端命令行
+            // （本地 cwd 管不到远端；远端无 create_dir_all 兜底，见 remote_workdir_prefix）
             if !agent.workdir.trim().is_empty() {
                 remote_line = format!(
-                    "cd {} && {}",
-                    quote_cd_target(agent.workdir.trim()),
-                    remote_line
+                    "{}{remote_line}",
+                    remote_workdir_prefix(agent.workdir.trim())
                 );
             }
             // 整行再整体引用：ssh 会把 argv 用空格拼接后交远端 shell 重解析，
@@ -250,6 +250,16 @@ pub(crate) fn quote_cd_target(dir: &str) -> String {
     } else {
         posix_quote(dir)
     }
+}
+
+/// 远端命令行的工作目录前缀（含结尾 " && "）：先 mkdir -p 再 cd。远端没有本地
+/// agent_workdir 的 create_dir_all 兜底，目录不存在时 cd 失败 && 短路会让整条
+/// 远端命令瞬间退出——无头派发表现为空输出，历史/交互派发表现为终端一闪而过
+/// （回归：远程 agent 历史记录打不开）。mkdir 失败（路径被文件占用/无权限）时
+/// 与原 cd 失败同构：短路不执行 agent
+pub(crate) fn remote_workdir_prefix(dir: &str) -> String {
+    let t = quote_cd_target(dir);
+    format!("mkdir -p {t} && cd {t} && ")
 }
 
 /// POSIX 单引号引用：ssh 把 argv 拼接后交远端 shell 重解析，含特殊字符的参数须整体引用
@@ -402,13 +412,14 @@ pub fn history_invocation(
                 .map(posix_quote)
                 .collect::<Vec<_>>()
                 .join(" ");
-            // 同 build_invocation：远端命令行前缀 cd 切到生效工作目录（显式覆盖优先）
+            // 同 build_invocation：远端命令行前缀先建目录再 cd 切到生效工作目录
+            // （显式覆盖优先）
             let dir = workdir
                 .map(str::trim)
                 .filter(|w| !w.is_empty())
                 .unwrap_or(agent.workdir.trim());
             if !dir.is_empty() {
-                remote_line = format!("cd {} && {}", quote_cd_target(dir), remote_line);
+                remote_line = format!("{}{remote_line}", remote_workdir_prefix(dir));
             }
             // 同 build_invocation：整行整体引用，防 -lc 只吞第一个词（如 `claude --resume` 丢成裸 `claude`）
             argv.push(posix_quote(&remote_line));
@@ -1298,8 +1309,8 @@ mod tests {
         // 整行被再引用过：还原内层单引号后断言
         let normalized = line.replace("'\\''", "'");
         assert!(
-            normalized.starts_with("'cd ~/lab && PK_DISPATCH_TASK=42 "),
-            "前缀在 cd 后、agent 命令前: {line}"
+            normalized.starts_with("'mkdir -p ~/lab && cd ~/lab && PK_DISPATCH_TASK=42 "),
+            "前缀在建目录与 cd 后、agent 命令前: {line}"
         );
         assert!(
             normalized.contains("PK_LOG_FILE='/tmp/app support/x.log'"),
@@ -1314,10 +1325,10 @@ mod tests {
             "非环境变量键名的条目被丢弃: {line}"
         );
 
-        // 无 envs：远端命令行与旧格式完全一致（回归）
+        // 无 envs：远端命令行仅目录前缀 + agent 命令（回归）
         assert_eq!(
             build_invocation(&a, "x", &[]).argv.last().unwrap(),
-            "'cd ~/lab && claude -p'"
+            "'mkdir -p ~/lab && cd ~/lab && claude -p'"
         );
 
         // 本地分支不吃命令行前缀（由 spawn_and_wait 的 cmd.env 注入）
@@ -1524,6 +1535,49 @@ mod tests {
         assert_eq!(quote_cd_target("~"), "~");
         assert_eq!(quote_cd_target("~/a b"), "~/'a b'");
         assert_eq!(quote_cd_target("/it's"), "'/it'\\''s'");
+    }
+
+    /// 回归：远程工作目录在远端从未被创建（本地默认目录有 create_dir_all 兜底，
+    /// 远程没有），cd 失败 && 短路让整条远端命令瞬间退出——历史记录表现为终端
+    /// 一闪而过、无头派发表现为空输出。远端命令行必须先 mkdir -p 再 cd
+    #[test]
+    fn remote_workdir_is_created_before_cd() {
+        let remote = AgentRemote {
+            host: "box".into(),
+            ..Default::default()
+        };
+        let a = AgentConfig {
+            command: "claude".into(),
+            args: "-p {prompt}".into(),
+            workdir: "~/.choose-you/workspace".into(),
+            remote: Some(remote.clone()),
+            ..Default::default()
+        };
+        let inv = build_invocation(&a, "x", &[]);
+        assert!(
+            inv.argv.last().unwrap().contains(
+                "mkdir -p ~/.choose-you/workspace && cd ~/.choose-you/workspace && claude"
+            ),
+            "无头远端先建目录再 cd: {:?}",
+            inv.argv.last().unwrap()
+        );
+
+        // 历史入口（报错现场：cd 失败终端 120ms 即关）同样先建目录
+        let b = AgentConfig {
+            command: "claude".into(),
+            history_args: "--resume".into(),
+            workdir: "~/.choose-you/workspace".into(),
+            remote: Some(remote),
+            ..Default::default()
+        };
+        let (_, argv) = history_invocation(&b, None, None);
+        assert!(
+            argv.last().unwrap().contains(
+                "mkdir -p ~/.choose-you/workspace && cd ~/.choose-you/workspace && claude --resume"
+            ),
+            "历史会话同样先建目录: {:?}",
+            argv.last().unwrap()
+        );
     }
 
     /// 会话 id 注入历史参数：claude 的 --resume 后插 id；kiro 的 --resume-picker
