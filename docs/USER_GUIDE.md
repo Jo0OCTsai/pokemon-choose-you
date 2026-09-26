@@ -275,17 +275,12 @@ AI 判定时会带上**同会话 30 分钟内的近期上下文**与消息来源
 |---|---|---|---|
 | Claude Code | `claude` | `-p {prompt} --allowedTools Bash(pk:*) --output-format json`（JSON 信封带回 session_id / 成本，会话回链自动落库） | `--resume` |
 | OpenCode | `opencode` | `run {prompt}` | （TUI 自带会话列表） |
-| Kiro CLI | `kiro-cli` | `chat --no-interactive --trust-all-tools --agent-engine v2`（无 `{prompt}`，提示词经标准输入传入；`--agent-engine v2` 使无头会话落盘，classic 引擎不保存） | `chat --resume-picker` |
 | pi | `pi` | `-p {prompt}`（bash 等工具默认可用，无权限弹窗） | `-r`（选择器；按会话 id 恢复时应用自动换成 `--session <id>`） |
-| Qoder CLI | `qoder` | `-p {prompt} --permission-mode auto`（无头放行工具调用） | `--resume` |
 | 其他 | 任意 | 自定义 | 自定义 |
 
 > 会话历史说明：claude 的无头（`-p`）会话**不出现在交互选择器里**，只能按会话 id 恢复——
 > 应用已自动记录每次无头调用的 session_id，任务详情抽屉「Agent 执行」区的回放入口
-> （`claude --resume <id>`）即走此路径。Kiro CLI 无头多轮恢复目前不可靠
-> （kiro 官方 issue #11069），多轮场景建议用交互模式（`chat --resume` / `--resume-picker`）。
-> pi 无头派发按 `--session-id <id>` 续接（该 id 不存在时按 id 新建，首轮由应用预生成）；
-> Qoder CLI 有上一轮会话 id 时按 `--resume <id>` 续接。
+> （`claude --resume <id>`）即走此路径。pi 无头派发按 `--session-id <id>` 续接（该 id 不存在时按 id 新建，首轮由应用预生成）。
 
 **SSH 远程执行**：agent CLI 不在本机时，在 agent 配置里勾选「SSH 远程执行」并填目标（`user@host`，可指定端口与私钥路径）。实际执行的命令是 `ssh -o BatchMode=yes -o ConnectTimeout=10 [-i 密钥] [-p 端口] user@host -- <command> <args...>`：
 
@@ -328,8 +323,8 @@ AI 判定时会带上**同会话 30 分钟内的近期上下文**与消息来源
 **结果回收（经 pk 落库）**：判定结果统一由 agent 通过 pk 命令行写回数据库——先跑 `pk context` 拿判重上下文，再用 `pk suggest batch` 把整批判定一次性提交，应用直接回读，不解析模型输出的文本（判定结果带强校验）。本机调用时应用会把随附 `pk` 所在目录自动注入 agent 子进程的 PATH，无需手动配置；远程 agent 则用上文的「一键配置远程 pk」。要求 agent 无头模式下允许执行 pk 命令：
 
 - Claude Code：应用预设已带 `--allowedTools Bash(pk:*)`（`:*` 为前缀匹配语法；参数按空白切分，**不要加引号**——引号会变成值的一部分），自定义参数时记得保留
-- OpenCode：在其权限配置中允许执行 `pk` 命令；Kiro CLI 预设已带 `--trust-all-tools`
-- pi：工具执行默认无权限弹窗，无需额外参数；Qoder CLI 预设已带 `--permission-mode auto`（无头放行）
+- OpenCode：在其权限配置中允许执行 `pk` 命令
+- pi：工具执行默认无权限弹窗，无需额外参数
 - 工具循环比单轮输出慢，建议把超时调大到 300 秒左右
 
 ## 待办派发给 Agent（按项目标签路由）
@@ -344,7 +339,7 @@ AI 判定时会带上**同会话 30 分钟内的近期上下文**与消息来源
 
 **派发**：打开待办的详情抽屉（点任务卡片），「⚡ Agent 派发」区显示路由结果（agent · 本机/SSH · 目录 · 来源），可临时改选其他 agent，点「⚡ 派发」即在新终端窗口启动：
 
-- **本地 agent**：终端里 `cd 工作目录` 后启动 agent，任务提示词作为首条输入（claude 交互模式支持首条消息参数；kiro/opencode 的 TUI 若不接受首条参数，命令会显示在终端里可手动粘贴）
+- **本地 agent**：终端里 `cd 工作目录` 后启动 agent，任务提示词作为首条输入（claude 交互模式支持首条消息参数；opencode 等的 TUI 若不接受首条参数，命令会显示在终端里可手动粘贴）
 - **SSH 远程 agent**：终端跑 `ssh -tt <host> "tmux new -A -s pk-<任务id> -c <工作目录>"`（attach-or-create，**断开重连会话不丢**，随时重开终端接回），应用另起一条 ssh 把任务命令经 `tmux send-keys -l` 字面注入并回车；远端没装 tmux 时降级为直接启动（断开即结束，会提示安装 tmux）
 - 每次派发都会在「Agent 执行」时间线落一条记录（命令摘要 + tmux 会话名）；全部会话（含收音机分类）集中在「冒险日志」页，可按来源过滤、翻页回放；任务提示词里的标题/详情/跟进记录/项目上下文做了**定界隔离**（声明为数据非指令），防止待办正文里的注入内容指挥 agent
 
@@ -362,7 +357,7 @@ AI 判定时会带上**同会话 30 分钟内的近期上下文**与消息来源
 
 ## pk 命令行（供 AI agent 与终端使用）
 
-应用随包分发 `pk` CLI，全部输出 JSON，可直接给 AI agent 工具（claude code / opencode / kiro / pi / qoder…）当工具用，也可自己在终端操作：
+应用随包分发 `pk` CLI，全部输出 JSON，可直接给 AI agent 工具（claude code / opencode / pi…）当工具用，也可自己在终端操作：
 
 ```bash
 pk task list [open|done|today|all]   # 任务列表（默认 open）
@@ -385,7 +380,7 @@ pk help --json                       # 机器可读的命令目录（供 agent �
 pk help                              # 完整命令说明
 ```
 
-- **技能一键分发**：`pk skill install claude-code` 把 pk 使用技能装进 agent 的技能目录（claude-code → `~/.claude/skills/`，opencode → `~/.config/opencode/skill/`，kiro → `~/.kiro/skills/`，pi → `~/.pi/agent/skills/`，qoder → `~/.qoder/skills/`），含主文件 SKILL.md 与 references/ 引用文件（完整参数表、无头分类工作流），带版本标记、跨版本重装会提示更新；其他 agent 用 `--dir <目录>` 指定落点，或 `pk skill show` 打印全部内容自行粘贴。背包页 agent 配置里的「pk 技能 · 检查 / 安装同步」按钮走同一套逻辑，且远程 agent 会经 ssh 装到远端机器的对应目录
+- **技能一键分发**：`pk skill install claude-code` 把 pk 使用技能装进 agent 的技能目录（claude-code → `~/.claude/skills/`，opencode → `~/.config/opencode/skill/`，pi → `~/.pi/agent/skills/`），含主文件 SKILL.md 与 references/ 引用文件（完整参数表、无头分类工作流），带版本标记、跨版本重装会提示更新；其他 agent 用 `--dir <目录>` 指定落点，或 `pk skill show` 打印全部内容自行粘贴。背包页 agent 配置里的「pk 技能 · 检查 / 安装同步」按钮走同一套逻辑，且远程 agent 会经 ssh 装到远端机器的对应目录
 - **agent 友好性**：`--dry-run`（task create/update/delete 只校验回显不落库）、`task list --limit`（默认 50 条，`truncated` 提示用 search 收窄）、`help --json`（机器可读命令目录）、`doctor` 环境自检——检查数据库存在性、schema 版本、完整性、WAL 并发、context 读链路与技能安装版本，每项 ok/warn/fail 并附 `fix` 修复建议（有 fail 退出码 1）；远程部署排障加 `pk doctor --ssh <user@host>`，端到端验证 ssh 免密 → shim 在 PATH → 回连本机整条链
 - **会话回链与成本记录**：agent 代办后 `pk session log --task 3 --agent claude-code --session <id> --cost 0.12 --duration-ms 61000` 落一条会话；任务编辑弹窗的「Agent 执行」区展示每次的时长 / 成本 / 退出码（含收音机分类调用），有会话 id 的可一键在终端回放转录（`claude --resume <id>`）
 - 与桌面应用共用同一个 SQLite 库（WAL 并发安全），操作同样写入审计日志；

@@ -42,9 +42,9 @@ const AGENTS: AgentConfig[] = [
   },
   {
     id: "ag-off",
-    name: "Kiro CLI",
-    command: "kiro-cli",
-    args: "chat",
+    name: "OpenCode",
+    command: "opencode",
+    args: "run {prompt}",
     historyArgs: "",
     timeoutSecs: 120,
     enabled: false,

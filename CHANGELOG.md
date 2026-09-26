@@ -9,7 +9,7 @@
 ### Features
 
 - 新增**终端偏好**设置（设置页 → 集成）——交互派发、历史记录与飞书授权唤起哪个终端应用跟选择走：macOS 可选系统内置 Terminal.app / iTerm2（AppleScript 新建窗口）/ Ghostty（`open -na`），Windows 可选系统内置 PowerShell（`powershell -NoExit -ExecutionPolicy Bypass -Command`，会话级放行 npm 垫片 .ps1——默认 Restricted 策略会禁脚本；行格式换 PS 单引号字面量 + 行首 `&` 调用符，cd 串联改 `;` 且 `-ErrorAction Stop` 失败即停——PS 5.1 无 `&&`；不再走 cmd）/ Windows Terminal（wt.exe 跑同一 PowerShell 行，固定 SystemRoot 工作目录规避 reparse 别名静默失败、`\;` 转义防 wt 子命令分隔符截断派发 prompt），Linux 可选自动探测 / Ghostty；下拉按当前平台裁剪，跨平台错配（如迁移库后）显式报错不静默回落
-- Agent CLI 集成新增 **pi**（[pi coding agent](https://github.com/earendil-works/pi)）与 **Qoder CLI** 支持——设置页预设一键添加（无头参数、会话恢复语法预配），pk 技能目录自动识别（pi → `~/.pi/agent/skills/`、qoder → `~/.qoder/skills/`，`pk skill install pi|qoder` 可装），历史入口按 id 恢复（pi 的选择器 `-r` 自动换 `--session <id>`；qoder `--resume <id>`），无头派发会话续接（pi 预生成 `--session-id`，qoder 有上轮 id 才 `--resume`）
+- Agent CLI 集成新增 **pi**（[pi coding agent](https://github.com/earendil-works/pi)）支持——设置页预设一键添加（无头参数、会话恢复语法预配），pk 技能目录自动识别（pi → `~/.pi/agent/skills/`，`pk skill install pi` 可装），历史入口按 id 恢复（pi 的选择器 `-r` 自动换 `--session <id>`），无头派发会话续接（pi 预生成 `--session-id`）
 
 ### Security
 

@@ -1,6 +1,6 @@
 //! pk — 就决定是你了命令行工具。
 //!
-//! 供 AI agent CLI（claude code / opencode / kiro …）与终端用户直接读写待办库：
+//! 供 AI agent CLI（claude code / opencode / pi …）与终端用户直接读写待办库：
 //! - 全部输出为 UTF-8 JSON（stdout），错误输出 JSON 到 stderr 并以非零码退出；
 //! - 与桌面应用共用同一套数据逻辑（conn 层函数），保证状态机不变量与操作日志一致；
 //! - 通过 WAL 与运行中的应用并发读写，PK_DB 环境变量可覆盖数据库路径。
@@ -56,7 +56,7 @@ const HELP: &str = r#"pk — 就决定是你了命令行（供 AI agent 与终�
                                       提交一条 AI 判定建议（todo/update 写建议列待用户确认；follow-up 直接挂跟进）
   suggest batch [--agent <agent-id>]
                                       批量提交建议：stdin 传 {"results":[...]}（与应用文本协议同构），整批校验失败则全部不落库
-  skill install <claude-code|opencode|kiro|pi|qoder> [--dir <目录>]
+  skill install <claude-code|opencode|pi> [--dir <目录>]
                                       一键安装 pk 使用技能到 agent 的技能目录（对标 td skill install）
   skill show                         打印技能内容（Markdown 原文，可重定向给任意 agent）
   remote shim --host <本机地址> [--port <n>] [--key <私钥>] [--write <路径>]
@@ -751,8 +751,7 @@ fn run_skill(rest: &[String]) -> Result<serde_json::Value, CliError> {
             std::process::exit(0);
         }
         "install" => {
-            let agent =
-                p.positional(0, "agent 名（claude-code / opencode / kiro / pi / qoder）")?;
+            let agent = p.positional(0, "agent 名（claude-code / opencode / pi）")?;
             let dir = skill_dir_for(&agent, dir_flag.as_deref()).map_err(|m| CliError(m, 2))?;
             let (previous, path) = local_install(&dir).map_err(|m| CliError(m, 1))?;
             Ok(json!({
@@ -1682,7 +1681,7 @@ fn context_check(conn: &Connection) -> serde_json::Value {
 /// 技能安装状态：未安装提示可选安装（warn），旧版本提示更新
 fn skill_doctor_checks() -> Vec<serde_json::Value> {
     let mut out = vec![];
-    for agent in ["claude-code", "opencode", "kiro", "pi", "qoder"] {
+    for agent in ["claude-code", "opencode", "pi"] {
         let entry = match skill_dir_for(agent, None) {
             Ok(dir) => dir.join("SKILL.md"),
             Err(_) => {
@@ -1810,7 +1809,7 @@ const COMMAND_INDEX: &[(&str, &str)] = &[
     ),
     (
         "skill install <agent>",
-        "安装技能（claude-code|opencode|kiro|pi|qoder，或 --dir 指定）",
+        "安装技能（claude-code|opencode|pi，或 --dir 指定）",
     ),
     ("skill show", "打印技能全文"),
     ("remote shim", "生成远程 pk 透传脚本（--host 必填）"),
@@ -2453,25 +2452,19 @@ mod tests {
         assert_eq!(out["updated"], true, "跨版本提示更新");
         assert_eq!(out["previousVersion"], "1");
 
-        // 未知 agent 给出 --dir 出路（kiro 已是内置目标，用未知名验证）
+        // 未知 agent 给出 --dir 出路（pi 已是内置目标，用未知名验证）
         let err = run_err(&mut conn, &["skill", "install", "cursor"]);
         assert_eq!(err.1, 2);
         assert!(err.0.contains("--dir"), "{}", err.0);
 
-        // kiro 现为内置目标：--dir 下可正常安装（不写默认目录）
-        let kiro_dir = dir.join("kiro");
+        // 内置目标 + --dir：正常安装（不写默认目录）
+        let pi_dir = dir.join("pi");
         let out = run_ok(
             &mut conn,
-            &[
-                "skill",
-                "install",
-                "kiro",
-                "--dir",
-                &kiro_dir.to_string_lossy(),
-            ],
+            &["skill", "install", "pi", "--dir", &pi_dir.to_string_lossy()],
         );
         assert_eq!(out["installed"], true);
-        assert!(kiro_dir.join("SKILL.md").is_file());
+        assert!(pi_dir.join("SKILL.md").is_file());
 
         // 目录规则：claude-code / opencode 的落点结构正确（不实际写）
         let claude = skill_dir_for("claude-code", None).unwrap_or_else(|e| panic!("{e}"));
@@ -2487,11 +2480,6 @@ mod tests {
         );
         let pi = skill_dir_for("pi", None).unwrap_or_else(|e| panic!("{e}"));
         assert!(pi.to_string_lossy().contains(".pi/agent/skills"), "{pi:?}");
-        let qoder = skill_dir_for("qoder", None).unwrap_or_else(|e| panic!("{e}"));
-        assert!(
-            qoder.to_string_lossy().contains(".qoder/skills"),
-            "{qoder:?}"
-        );
         let _ = std::fs::remove_dir_all(&dir);
     }
 

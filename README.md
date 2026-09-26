@@ -48,7 +48,7 @@
 - 日期时间格式、新任务默认值、开机自启（LaunchAgent / 注册表）
 
 ### 集成
-- **AI Agent CLI**：收音机消息分类由本地 AI agent 命令行工具无头完成（Claude Code / OpenCode / Kiro CLI…），可配置多个、随时切换；判定经 pk 命令行写回数据库，应用不解析模型输出文本；调用历史由 agent 工具自带，设置页提供快捷入口
+- **AI Agent CLI**：收音机消息分类由本地 AI agent 命令行工具无头完成（Claude Code / OpenCode / pi…），可配置多个、随时切换；判定经 pk 命令行写回数据库，应用不解析模型输出文本；调用历史由 agent 工具自带，设置页提供快捷入口
 - **pk 命令行**：随应用分发的 `pk` CLI，供 AI agent 与终端直接读写待办（`pk task list` / `pk task get` / `pk context`…，全 JSON 输出）
 - **待办派发**：项目标签可绑定 agent 与工作目录，待办一键派发到指定 git 仓库执行——交互通道（新终端 / ssh+tmux）或无头通道（自动回传状态与成本），支持会话续接、自动派发、并发上限与 worktree 隔离
 - **飞书**：经官方 lark-cli 以个人身份增量轮询私聊/群聊（无需拉机器人进会话，凭证由 lark-cli 保管、不进本应用），富文本渲染、按聊天语境过滤并附带同会话上下文送 AI

@@ -427,7 +427,7 @@ export default {
     args: "Extra args",
     argsPh: "-p {'{prompt}'}",
     namePh: "Claude Code",
-    cmdPh: "claude / opencode / kiro-cli / pi / qoder",
+    cmdPh: "claude / opencode / pi",
     workdir: "Working directory",
     workdirPh: "empty = ~/.choose-you/workspace",
     historyArgs: "History args",

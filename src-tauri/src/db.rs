@@ -480,10 +480,6 @@ pub(crate) fn is_internal_setting_key(key: &str) -> bool {
 /// 存量 agent 配置的一次性预设升级（幂等，完成即写标记位，用户改回旧值也不会再升级）：
 /// - claude 旧默认参数补 `--output-format json`：无头调用的 stdout 变为 JSON 信封
 ///   （含 session_id / 成本），应用解信封后会话回链自动落库；result 内文照常解析
-/// - kiro-cli 旧默认参数补 `--agent-engine v2`：`--no-interactive` 默认回落 classic
-///   引擎、会话不落盘（kirodotdev/Kiro#9461），显式 v2 才持久化
-/// - kiro-cli 历史参数 `--resume` 缺 `chat` 子命令（`kiro-cli --resume` 是非法调用），
-///   修正为 `chat --resume-picker`
 ///
 /// 只动「与旧默认值完全一致」的字段：用户改过参数的配置不碰。
 fn normalize_legacy_agent_presets(conn: &Connection) {
@@ -518,24 +514,11 @@ fn normalize_legacy_agent_presets(conn: &Connection) {
     };
     const OLD_CLAUDE_ARGS: &str = "-p {prompt} --allowedTools Bash(pk:*)";
     const NEW_CLAUDE_ARGS: &str = "-p {prompt} --allowedTools Bash(pk:*) --output-format json";
-    const OLD_KIRO_ARGS: &str = "chat --no-interactive --trust-all-tools";
-    const NEW_KIRO_ARGS: &str = "chat --no-interactive --trust-all-tools --agent-engine v2";
     let mut changed = false;
     for a in agents.iter_mut() {
-        let is_kiro = a.command.contains("kiro");
         if a.command.contains("claude") && a.args == OLD_CLAUDE_ARGS {
             a.args = NEW_CLAUDE_ARGS.into();
             changed = true;
-        }
-        if is_kiro {
-            if a.args == OLD_KIRO_ARGS {
-                a.args = NEW_KIRO_ARGS.into();
-                changed = true;
-            }
-            if a.history_args == "--resume" {
-                a.history_args = "chat --resume-picker".into();
-                changed = true;
-            }
         }
     }
     if changed {
@@ -544,9 +527,7 @@ fn normalize_legacy_agent_presets(conn: &Connection) {
                 "INSERT OR REPLACE INTO settings (key, value) VALUES ('ai_agents', ?1)",
                 rusqlite::params![encoded],
             ) {
-                Ok(_) => log::info!(
-                    "db: 存量 agent 预设已升级（claude 会话信封 / kiro v2 引擎与历史参数）"
-                ),
+                Ok(_) => log::info!("db: 存量 agent 预设已升级（claude 会话信封）"),
                 Err(e) => log::warn!("db: agent 预设升级写回失败（下次启动重试）: {e}"),
             }
         }
@@ -664,16 +645,15 @@ pub(crate) mod tests {
         assert_eq!(dim, "topic");
     }
 
-    /// 存量 agent 预设升级：旧默认参数补齐（claude 会话信封 / kiro v2 引擎与历史
-    /// 参数修正），用户改过参数的不碰，标记位写入后不再重复升级
+    /// 存量 agent 预设升级：旧默认参数补齐（claude 会话信封），用户改过参数的不碰，
+    /// 标记位写入后不再重复升级
     #[test]
     fn legacy_agent_presets_upgraded_once_and_only_exact_defaults() {
         let conn = Connection::open_in_memory().unwrap();
         migrate(&conn).unwrap();
         let legacy = r#"[
             {"id":"a1","name":"Claude Code","command":"claude","args":"-p {prompt} --allowedTools Bash(pk:*)","historyArgs":"--resume","timeoutSecs":120,"enabled":true},
-            {"id":"a2","name":"Kiro CLI","command":"kiro-cli","args":"chat --no-interactive --trust-all-tools","historyArgs":"--resume","timeoutSecs":120,"enabled":true},
-            {"id":"a3","name":"自定义参数","command":"claude","args":"-p {prompt}","historyArgs":"--resume","timeoutSecs":120,"enabled":true}
+            {"id":"a2","name":"自定义参数","command":"claude","args":"-p {prompt}","historyArgs":"--resume","timeoutSecs":120,"enabled":true}
         ]"#;
         conn.execute(
             "INSERT INTO settings (key, value) VALUES ('ai_agents', ?1)",
@@ -692,14 +672,6 @@ pub(crate) mod tests {
         assert!(
             upgraded.contains("--output-format json"),
             "claude 补会话信封: {upgraded}"
-        );
-        assert!(
-            upgraded.contains("--agent-engine v2"),
-            "kiro 补 v2 引擎: {upgraded}"
-        );
-        assert!(
-            upgraded.matches("chat --resume-picker").count() == 1,
-            "kiro 历史参数修正（claude 的 --resume 保留）: {upgraded}"
         );
         assert!(
             upgraded.contains(r#""args":"-p {prompt}""#),

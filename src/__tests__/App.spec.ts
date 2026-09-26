@@ -1019,7 +1019,7 @@ describe("App 图鉴机主面板", () => {
       .trigger("click");
     expect(w.findAll(".agent-block")).toHaveLength(0);
 
-    // pi 预设：下拉切换后添加，命令与无头参数就位（不带 qoder 的权限参数）
+    // pi 预设：下拉切换后添加，命令与无头参数就位
     const addRow = w.find(".btn-row.add-agent");
     await addRow.find(".ds-btn").trigger("click");
     const piOption = addRow.findAll(".ds-list li").find((li) => li.text().trim().endsWith("pi"))!; // li 前缀带 ▶ 游标

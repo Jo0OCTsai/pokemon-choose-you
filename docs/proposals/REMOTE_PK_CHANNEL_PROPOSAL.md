@@ -34,7 +34,7 @@ graph TB
     end
 
     subgraph R["远程机器（agent 所在）"]
-        AGENT["agent CLI<br/>claude / opencode / kiro"]
+        AGENT["agent CLI<br/>claude / opencode / pi"]
         TMUX["tmux 会话 pk-任务id<br/>（交互派发，常驻）"]
         SHIM["~/.local/bin/pk<br/>透传 shim 脚本"]
         KEY["~/.ssh/pk_shim<br/>（专用私钥）"]

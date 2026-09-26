@@ -422,7 +422,7 @@ export default {
     args: "附加参数",
     argsPh: "-p {'{prompt}'}",
     namePh: "Claude Code",
-    cmdPh: "claude / opencode / kiro-cli / pi / qoder",
+    cmdPh: "claude / opencode / pi",
     workdir: "工作目录",
     workdirPh: "留空 = ~/.choose-you/workspace",
     historyArgs: "历史参数",

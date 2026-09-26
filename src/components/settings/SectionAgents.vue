@@ -27,9 +27,7 @@ const { flash } = inject(ACTION_TOAST)!;
 const presetOptions = [
   { value: "claude", label: "Claude Code" },
   { value: "opencode", label: "OpenCode" },
-  { value: "kiro", label: "Kiro CLI" },
   { value: "pi", label: "pi" },
-  { value: "qoder", label: "Qoder CLI" },
   { value: "custom", label: "Custom" },
 ];
 const agentPreset = ref("claude");

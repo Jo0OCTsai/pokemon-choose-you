@@ -275,9 +275,8 @@ fn dispatch_prompt(
 // ---- 命令行组装（纯函数，独立测试） ----
 
 /// 交互启动参数：历史参数去掉会话恢复类开关——派发开新会话，不是回放历史
-/// （claude 的 --resume / kiro 的 --resume-picker 都不进派发命令行；
-/// --resume-id 后跟的会话 id 一并剔除；pi 的 --session/--session-id 与 qoder 的
-/// --session-id 同为带值恢复旗标，值一并剔除）
+/// （claude 的 --resume 不进派发命令行；--resume-id 后跟的会话 id 一并剔除；
+/// pi 的 --session/--session-id 同为带值恢复旗标，值一并剔除）
 fn interactive_args(history_args: &str) -> Vec<String> {
     let mut out = Vec::new();
     let mut skip_value = false;
@@ -717,8 +716,7 @@ pub(crate) fn dispatch_args(args: &str) -> String {
 /// 会话续接参数（按 agent 语法，§5.3）：claude 上一轮有会话 id → `--resume` 续接上下文，
 /// 否则预生成 `--session-id <uuid v4>`（应用侧落 dispatched_session，真实 id 由信封回填）。
 /// pi 的 `--session-id` 不存在则按该 id 创建，预生成续接与 claude 同型。
-/// qoder 只有 `--resume <id>` 续接（无 create-if-absent 语义，首轮不预生成）。
-/// 其他 agent 无可靠续接（kiro #11069），每轮新会话
+/// 其他 agent 无可靠续接，每轮新会话
 pub(crate) fn session_flags(
     kind: Option<&str>,
     prev_session: Option<&str>,
@@ -738,10 +736,6 @@ pub(crate) fn session_flags(
                 let id = uuid::Uuid::new_v4().to_string();
                 (format!("--session-id {id}"), Some(id))
             }
-        },
-        Some("qoder") => match prev {
-            Some(id) => (format!("--resume {id}"), None),
-            None => (String::new(), None),
         },
         _ => (String::new(), None),
     }
@@ -1877,11 +1871,6 @@ mod tests {
             "claude 的 --resume 剔除（派发开新会话）"
         );
         assert_eq!(
-            interactive_args("chat --resume-picker"),
-            vec!["chat".to_string()],
-            "kiro 保留 chat 子命令、剔除 picker"
-        );
-        assert_eq!(
             interactive_args("--model opus --resume-id x"),
             vec!["--model".to_string(), "opus".to_string()],
             "其他开关原样保留"
@@ -2174,8 +2163,8 @@ mod tests {
         let (flags, pre) = session_flags(Some("claude-code"), Some(" sess-9 "));
         assert_eq!(flags, "--resume sess-9");
         assert!(pre.is_none());
-        // 其他 agent：无续接（kiro #11069），每轮新会话
-        let (flags, pre) = session_flags(Some("kiro"), Some("sess-9"));
+        // 其他 agent：无续接，每轮新会话
+        let (flags, pre) = session_flags(Some("opencode"), Some("sess-9"));
         assert_eq!(flags, "");
         assert!(pre.is_none());
         let (flags, _) = session_flags(None, Some("sess-9"));
@@ -2186,13 +2175,6 @@ mod tests {
         assert!(pre.is_some(), "首轮预生成 id 落库");
         let (flags, pre) = session_flags(Some("pi"), Some("sess-9"));
         assert_eq!(flags, "--session-id sess-9");
-        assert!(pre.is_none());
-        // qoder：有上一轮会话才 --resume <id>；首轮不预生成（无 create-if-absent 语义）
-        let (flags, pre) = session_flags(Some("qoder"), Some("sess-9"));
-        assert_eq!(flags, "--resume sess-9");
-        assert!(pre.is_none());
-        let (flags, pre) = session_flags(Some("qoder"), None);
-        assert_eq!(flags, "");
         assert!(pre.is_none());
     }
 
