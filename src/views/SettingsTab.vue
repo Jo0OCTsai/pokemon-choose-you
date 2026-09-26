@@ -714,18 +714,24 @@ function loadTunnelStatuses() {
   agents.value.filter((a) => a.remote?.persistent).forEach(refreshTunnelStatus);
 }
 
-/** 隧道状态一行字（● 与配色由 data-state class 控制） */
+/** 隧道状态短文案（● 与配色由 data-state class 控制；报错原文只进悬浮提示，不进可见行） */
 function tunnelText(ag: AgentConfig): string {
   const s = tunnelStates.value[ag.id];
   if (!s) return t("ai.tunnelUnknown");
-  const base =
+  return (
     {
       healthy: t("ai.tunnelHealthy"),
       connecting: t("ai.tunnelConnecting"),
       retrying: t("ai.tunnelRetrying"),
-    }[s.state] ?? t("ai.tunnelOff");
-  // 重试态附上后端给的 ssh 报错尾行（端口占用/认证失败等），定位不用进日志
-  return s.state === "retrying" && s.detail ? `${base}：${s.detail}` : base;
+    }[s.state] ?? t("ai.tunnelOff")
+  );
+}
+
+/** 悬浮提示：状态全文 + 后端给的 ssh 报错尾行（端口占用/认证失败等），定位不用进日志 */
+function tunnelTitle(ag: AgentConfig): string {
+  const s = tunnelStates.value[ag.id];
+  const text = tunnelText(ag);
+  return s?.detail ? `${text}：${s.detail}` : text;
 }
 
 /** 预设名已被占用时加序号后缀（如 Claude Code 2）：同类型配多个（本地 + 远程）时列表仍可辨 */
@@ -1360,17 +1366,18 @@ onUnmounted(() => {
               </SettingRow>
               <SettingRow :label="t('ai.sshKeepAlive')" :desc="t('ai.sshKeepAliveDesc')">
                 <div class="tunnel-cell">
-                  <DexToggle
-                    :model-value="!!ag.remote.persistent"
-                    @update:model-value="(v) => togglePersistent(ag, Boolean(v))"
-                  />
+                  <!-- 状态字在开关左侧：与 pk 技能行「状态→控件」同序，开关贴卡片右缘轴线 -->
                   <span
                     v-if="ag.remote.persistent"
                     class="tunnel-state"
                     :class="tunnelStates[ag.id]?.state || 'off'"
-                    :title="tunnelStates[ag.id]?.detail"
+                    :title="tunnelTitle(ag)"
                     >● {{ tunnelText(ag) }}</span
                   >
+                  <DexToggle
+                    :model-value="!!ag.remote.persistent"
+                    @update:model-value="(v) => togglePersistent(ag, Boolean(v))"
+                  />
                 </div>
               </SettingRow>
             </template>
@@ -1510,11 +1517,13 @@ onUnmounted(() => {
               :class="'lv-' + e.level"
               @contextmenu.prevent.stop="onLogContextMenu($event, e)"
             >
-              <span class="log-time">{{ e.time }}</span>
-              <span class="log-lv">{{ e.level.toUpperCase() }}</span>
-              <span class="log-target">{{ e.target }}</span>
-              <span class="log-msg">{{ e.message }}</span>
-              <button class="log-copy" :title="t('ctx.copyLine')" @click.stop="copyLogLine(e)">⧉</button>
+              <div class="log-meta">
+                <span class="log-time">{{ e.time }}</span>
+                <span class="log-lv">{{ e.level.toUpperCase() }}</span>
+                <span class="log-target">{{ e.target }}</span>
+                <button class="log-copy" :title="t('ctx.copyLine')" @click.stop="copyLogLine(e)">⧉</button>
+              </div>
+              <div class="log-msg">{{ e.message }}</div>
             </div>
           </div>
         </section>
@@ -1952,6 +1961,8 @@ onUnmounted(() => {
 .tunnel-state {
   font-size: 12px;
   color: var(--ink-soft);
+  /* 状态列钳宽：异常长内容（如未收口的报错）省略号截断，不把整行撑爆 */
+  max-width: 340px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -2152,13 +2163,25 @@ onUnmounted(() => {
   padding: 18px 0;
 }
 .log-line {
+  /* 元数据一行（时间/级别/来源/复制钮）+ 消息独占一行全宽；行距收紧让两行贴成一组，条目间留缝防串行 */
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  line-height: 1.5;
+}
+.log-line + .log-line {
+  margin-top: 6px;
+}
+.log-meta {
   display: flex;
   gap: 8px;
   align-items: baseline;
+  min-width: 0;
 }
 /* 行内复制按钮：悬停行时出现，不挤占日志文本 */
 .log-copy {
   flex: none;
+  margin-left: auto; /* 复制钮贴行右缘，悬停行时出现 */
   border: 2px solid var(--lcd-text);
   border-radius: 4px;
   background: transparent;
@@ -2195,8 +2218,6 @@ onUnmounted(() => {
   word-break: break-all;
 }
 .log-msg {
-  flex: 1;
-  min-width: 0;
   white-space: pre-wrap;
   word-break: break-word;
 }
