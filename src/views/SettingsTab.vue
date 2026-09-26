@@ -12,13 +12,13 @@ import type { BackupInfo, FeishuOauthStatus } from "../types";
 import { ACTION_TOAST, SKILL_TOAST, useActionToast } from "../composables/useActionToast";
 import { useSettingToggle } from "../composables/useSettingToggle";
 import SectionAgents from "../components/settings/SectionAgents.vue";
-import SectionCats from "../components/settings/SectionCats.vue";
 import SectionDiag from "../components/settings/SectionDiag.vue";
 import SectionDisplay from "../components/settings/SectionDisplay.vue";
 import SectionFeishu from "../components/settings/SectionFeishu.vue";
 import SectionFocus from "../components/settings/SectionFocus.vue";
 import SectionGeneral from "../components/settings/SectionGeneral.vue";
-import SectionTags from "../components/settings/SectionTags.vue";
+import SectionPets from "../components/settings/SectionPets.vue";
+import SectionTaxonomy from "../components/settings/SectionTaxonomy.vue";
 
 /** App 壳监听到 update-available 后传入的版本号（空串 = 无新版本） */
 defineProps<{ latestVersion?: string }>();
@@ -92,8 +92,8 @@ defineExpose({ save: saveSettings });
 // 设置分区选单（初代选项界面：上选单下内容）
 const settingsTabs = [
   { key: "focus", labelKey: "stabs.focus" },
-  { key: "cats", labelKey: "stabs.cats" },
-  { key: "tags", labelKey: "stabs.tags" },
+  { key: "taxonomy", labelKey: "stabs.taxonomy" },
+  { key: "pets", labelKey: "stabs.pets" },
   { key: "display", labelKey: "stabs.display" },
   { key: "agents", labelKey: "stabs.agents" },
   { key: "feishu", labelKey: "stabs.feishu" },
@@ -209,11 +209,11 @@ async function installUpdate() {
 }
 
 /** 分区懒加载：进入分区才拉对应数据。
- *  cats 分类/台词与 diag 健康/日志原实现每次进入都无条件重拉（无未保存保留语义），
- *  随各分区组件 onMounted 等价承接（v-if 装配下每次进入都重新挂载）；tags 缓冲有
+ *  taxonomy 分类与 diag 健康/日志原实现每次进入都无条件重拉（无未保存保留语义），
+ *  随各分区组件 onMounted 等价承接（v-if 装配下每次进入都重新挂载）；标签/维度缓冲有
  *  !length 守卫（保留未保存编辑）、agents 数据在 store——这两处留在父级 watch。 */
 watch(settingsTab, (tab) => {
-  if (tab === "tags") {
+  if (tab === "taxonomy") {
     if (!editingTags.value.length) startEditTags();
     if (!editingDims.value.length) startEditDims();
     if (!agentsStore.list.length) agentsStore.load(); // 项目派发卡片的 agent 下拉要用
@@ -282,15 +282,15 @@ onUnmounted(() => {
         </button>
       </nav>
 
-      <SectionFocus v-if="settingsTab === 'focus'" :input-perm="inputPerm" :input-exe="inputExe" />
-      <SectionCats v-if="settingsTab === 'cats'" />
-      <SectionTags
-        v-if="settingsTab === 'tags'"
+      <SectionFocus v-if="settingsTab === 'focus'" />
+      <SectionTaxonomy
+        v-if="settingsTab === 'taxonomy'"
         :editing-tags="editingTags"
         :editing-dims="editingDims"
         :reload-tags="startEditTags"
         :reload-dims="startEditDims"
       />
+      <SectionPets v-if="settingsTab === 'pets'" :input-perm="inputPerm" :input-exe="inputExe" />
       <SectionDisplay v-if="settingsTab === 'display'" />
       <SectionAgents v-if="settingsTab === 'agents'" />
       <SectionFeishu

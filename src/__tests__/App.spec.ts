@@ -918,8 +918,10 @@ describe("App 图鉴机主面板", () => {
     expect(w.text()).toContain("番茄钟");
     await stabs[3].trigger("click"); // 显示
     expect(w.text()).toContain("日期格式");
-    await stabs[1].trigger("click"); // 分类
+    await stabs[1].trigger("click"); // 分类与标签
     expect(w.text()).toContain("皮卡丘");
+    await stabs[2].trigger("click"); // 桌宠
+    expect(w.text()).toContain("主宝可梦");
   });
 
   it("诊断页展示集成健康与日志，支持报告可复制", async () => {
@@ -1066,10 +1068,10 @@ describe("App 图鉴机主面板", () => {
     expect(block.find(".ssh-row").exists()).toBe(false);
   });
 
-  it("设置页分类分区：进入即列出内置分类，停用开关调用后端", async () => {
+  it("设置页分类与标签分区：进入即列出内置分类，停用开关调用后端", async () => {
     const w = await mountApp();
     await w.findAll(".menu-btn")[5].trigger("click");
-    await w.findAll(".stab")[1].trigger("click"); // 分类
+    await w.findAll(".stab")[1].trigger("click"); // 分类与标签
     const rows = w.findAll(".cat-row");
     expect(rows).toHaveLength(2); // 进入分区即加载分类列表（回归：曾显示为空）
     // 停用第一个分类

@@ -2,7 +2,7 @@ import { expect, test, type Locator, type Page } from "@playwright/test";
 import { installTauriMock, task } from "./tauri-mock";
 
 /**
- * 设置 → 标签：标签编辑 / 维度迁移与项目派发卡片的联动 / 维度管理。
+ * 设置 → 分类与标签：标签编辑 / 维度迁移与项目派发卡片的联动 / 维度管理。
  * 后端状态断言直接经 mock 的 invoke 读回（与 Rust 命令语义对齐，见 tauri-mock.ts）。
  */
 
@@ -80,7 +80,7 @@ const SETTINGS = { ai_agents: JSON.stringify(AGENTS), ai_agent_id: "ag-local" };
 async function openTagsSettings(page: Page) {
   await page.goto("/");
   await page.locator(".menu-btn", { hasText: "设置" }).click();
-  await page.locator(".stab", { hasText: "标签" }).click();
+  await page.locator(".stab", { hasText: "分类与标签" }).click();
   // 标签与维度由同一个 store.load 带回，分组渲染齐即就绪
   await expect(page.locator(".tag-dim-group")).toHaveCount(4);
 }

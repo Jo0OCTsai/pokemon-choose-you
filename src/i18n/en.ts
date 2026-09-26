@@ -177,7 +177,7 @@ export default {
     due: "Due",
     remind: "Remind",
     tags: "Tags",
-    noTags: "No tags yet—add some in Settings → Tags",
+    noTags: "No tags yet—add some in Settings → Categories & Tags",
     followUps: "Follow-ups",
     noFollowUps: "No follow-ups yet",
     followUpPlaceholder: "Add a follow-up… (Enter)",
@@ -201,7 +201,7 @@ export default {
   },
   dispatch: {
     title: "⚡ Dispatch to Agent",
-    needTag: "Add a Project-dimension tag first — dispatch routes by project tag (Settings → Tags).",
+    needTag: "Add a Project-dimension tag first — dispatch routes by project tag (Settings → Categories & Tags).",
     noAgent: "No agent available yet: add and enable one in Settings → AI Agents first.",
     go: "Dispatch",
     working: "Dispatching…",
@@ -246,8 +246,8 @@ export default {
   },
   stabs: {
     focus: "Focus",
-    cats: "Categories",
-    tags: "Tags",
+    taxonomy: "Categories & Tags",
+    pets: "Pet",
     display: "Display",
     agents: "AI Agents",
     feishu: "Feishu",
@@ -273,7 +273,7 @@ export default {
     petInputPerm:
       'macOS needs Accessibility permission: click "Grant" to open the panel, add the binary at the path below to the list and enable it; returning to this page applies it immediately. Remove stale entries with the same name first.',
     petInputPermToast:
-      'Settings saved. Input response still needs the Accessibility permission — use the "Grant" button under the toggle in the Focus tab',
+      'Settings saved. Input response still needs the Accessibility permission — use the "Grant" button under the toggle in the Pet tab',
     petInputGrant: "Grant",
     petInputExeCopy: "Click to copy path",
     petInputGranted: "Accessibility granted — input response is now active",

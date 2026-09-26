@@ -3,13 +3,15 @@ import { inject } from "vue";
 import { ACTION_TOAST } from "../../composables/useActionToast";
 import { useAgentsStore } from "../../stores/agents";
 import TagDispatchCard from "../TagDispatchCard.vue";
+import CategoriesCard from "./CategoriesCard.vue";
 import DimensionsCard from "./DimensionsCard.vue";
 import TagsManagerCard from "./TagsManagerCard.vue";
 
 /**
- * 「标签」分区壳（自 SettingsTab 拆出）：标签管理 / 项目派发配置 / 维度管理三段。
- * 编辑缓冲 editingTags/editingDims 由父级 SettingsTab 持有（懒加载 watch 的 !length 守卫
- * 依赖缓冲跨分区存活以保留未保存的行内编辑），经 props 下发、reload 回调重拉。
+ * 「分类与标签」分区壳（原 cats/tags 两分区合并）：任务词表一屏管理——
+ * 分类（宝可梦换装）、标签、项目派发、维度。标签/维度编辑缓冲 editingTags/editingDims
+ * 由父级 SettingsTab 持有（懒加载 watch 的 !length 守卫依赖缓冲跨分区存活以保留未保存的
+ * 行内编辑），经 props 下发、reload 回调重拉。
  */
 defineProps<{
   editingTags: { id: number; name: string; description: string; dimension: string }[];
@@ -29,6 +31,7 @@ function onDispatchFeedback(msg: string) {
 </script>
 
 <template>
+  <CategoriesCard />
   <TagsManagerCard :rows="editingTags" :reload="reloadTags" />
   <TagDispatchCard :agents="agentsStore.list" @feedback="onDispatchFeedback" />
   <DimensionsCard :rows="editingDims" :reload-tags="reloadTags" :reload-dims="reloadDims" />

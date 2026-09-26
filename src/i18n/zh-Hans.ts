@@ -179,7 +179,7 @@ export default {
     due: "截止",
     remind: "提醒",
     tags: "标签",
-    noTags: "还没有标签，去 设置 → 标签 里添加",
+    noTags: "还没有标签，去 设置 → 分类与标签 里添加",
     followUps: "跟进记录",
     noFollowUps: "暂无跟进记录",
     followUpPlaceholder: "补充跟进记录…（回车添加）",
@@ -203,7 +203,7 @@ export default {
   },
   dispatch: {
     title: "⚡ Agent 派发",
-    needTag: "先给待办挂上「项目」维度标签，才能按项目路由派发（设置 → 标签）。",
+    needTag: "先给待办挂上「项目」维度标签，才能按项目路由派发（设置 → 分类与标签）。",
     noAgent: "还没有可用的 Agent：去 设置 → Agent 添加并启用后，再来派发。",
     go: "派发",
     working: "派发中…",
@@ -245,8 +245,8 @@ export default {
   },
   stabs: {
     focus: "专注",
-    cats: "分类",
-    tags: "标签",
+    taxonomy: "分类与标签",
+    pets: "桌宠",
     display: "显示",
     agents: "Agent",
     feishu: "飞书",
@@ -271,7 +271,7 @@ export default {
     petInputWorkingDesc: "专注中蹦跳节奏轻随打字快慢",
     petInputPerm:
       "macOS 需要辅助功能授权：点「去授权」直达设置面板，把下方路径加入列表并勾选；回到本页即自动生效。同名的旧条目先移除（−）再重新添加。",
-    petInputPermToast: "设置已保存。输入响应还差辅助功能授权——到「专注」页开关下方点「去授权」完成勾选",
+    petInputPermToast: "设置已保存。输入响应还差辅助功能授权——到「桌宠」页开关下方点「去授权」完成勾选",
     petInputGrant: "去授权",
     petInputExeCopy: "点击复制路径",
     petInputGranted: "辅助功能已授权，输入响应开始工作",

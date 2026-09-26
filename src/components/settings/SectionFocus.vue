@@ -1,8 +1,6 @@
 <script setup lang="ts">
 import { computed } from "vue";
 import { useI18n } from "vue-i18n";
-import { api } from "../../api";
-import { clipWrite } from "../../contextMenu";
 import { useSettingToggle } from "../../composables/useSettingToggle";
 import { useSettingsStore } from "../../stores/settings";
 import DexSelect from "../DexSelect.vue";
@@ -10,12 +8,8 @@ import DexToggle from "../DexToggle.vue";
 import SettingRow from "../SettingRow.vue";
 
 /**
- * 「专注」分区（自 SettingsTab 拆出）：番茄钟 / 提醒与勿扰 / 桌宠陪伴开关。
- * 输入授权状态 inputPerm/inputExe 由父级持有（save 契约的 petInputSetEnabled 同步与
- * 窗口聚焦复查都要读写），经 props 传入；这里只渲染未授权指引块与一键直达授权按钮。
+ * 「专注」分区（自 SettingsTab 拆出，桌宠行为卡已移至「桌宠」分区）：番茄钟 / 提醒与勿扰。
  */
-defineProps<{ inputPerm: boolean; inputExe: string }>();
-
 const { t } = useI18n();
 const settings = useSettingsStore();
 const pomoOn = useSettingToggle("pomodoro_enabled");
@@ -23,10 +17,6 @@ const pomoNotify = useSettingToggle("pomodoro_notify");
 const notifyOn = useSettingToggle("notifications_enabled");
 const chimeOn = useSettingToggle("pomodoro_chime");
 const quietOn = useSettingToggle("quiet_hours_enabled");
-const petInputOn = useSettingToggle("pet_input_response");
-const petInputWorkOn = useSettingToggle("pet_input_response_working");
-const petVoiceOn = useSettingToggle("pet_voice");
-const petMateOn = useSettingToggle("pet_mate");
 
 // ---- 下拉选项（computed 保证语言切换后刷新） ----
 const pomoMinutesOptions = computed(() =>
@@ -48,16 +38,6 @@ const quietTimeOptions = Array.from({ length: 24 }, (_, h) => {
   const hh = String(h).padStart(2, "0");
   return { value: `${hh}:00`, label: hh };
 });
-
-/** 一键授权引导：Finder 定位当前二进制 + 直达 系统设置→辅助功能 面板
- *  （这版 macOS 禁止了 AX 官方弹窗，只能把用户送到正确的面板） */
-async function grantInputPerm() {
-  try {
-    await api.petInputGrant();
-  } catch {
-    /* 非桌面环境静默 */
-  }
-}
 </script>
 
 <template>
@@ -98,34 +78,6 @@ async function grantInputPerm() {
       <DexSelect v-model="settings.values.quiet_end" :options="quietTimeOptions" />
     </SettingRow>
   </section>
-
-  <section class="set-card">
-    <h3>{{ t("focus.petTitle") }}</h3>
-    <SettingRow :label="t('focus.petInput')" :desc="t('focus.petInputDesc')">
-      <DexToggle v-model="petInputOn" />
-    </SettingRow>
-    <SettingRow v-if="petInputOn" :label="t('focus.petInputWorking')" :desc="t('focus.petInputWorkingDesc')">
-      <DexToggle v-model="petInputWorkOn" />
-    </SettingRow>
-    <!-- 未授权指引：一键直达辅助功能面板 + 当前二进制路径（可拖进列表/复制后 ⌘⇧G） -->
-    <div v-if="petInputOn && !inputPerm" class="perm-hint">
-      <p>{{ t("focus.petInputPerm") }}</p>
-      <p class="perm-exe-row">
-        <code class="perm-exe" :title="t('focus.petInputExeCopy')" @click="void clipWrite(inputExe)">{{
-          inputExe || "…"
-        }}</code>
-        <button class="btn ghost mini" @click="grantInputPerm">
-          {{ t("focus.petInputGrant") }}
-        </button>
-      </p>
-    </div>
-    <SettingRow :label="t('focus.petVoice')" :desc="t('focus.petVoiceDesc')">
-      <DexToggle v-model="petVoiceOn" />
-    </SettingRow>
-    <SettingRow :label="t('focus.petMate')" :desc="t('focus.petMateDesc')">
-      <DexToggle v-model="petMateOn" />
-    </SettingRow>
-  </section>
 </template>
 
 <style scoped>
@@ -144,30 +96,5 @@ async function grantInputPerm() {
 .set-card h3 {
   margin: 0 0 12px;
   font-size: 16px;
-}
-/* 输入响应未授权指引：说明 + 当前二进制路径（点击复制）+ 去授权按钮 */
-.perm-hint {
-  margin: 12px 0 0;
-  padding-top: 10px;
-  border-top: 2px dashed var(--ink-faint);
-  font-size: 12px;
-  color: var(--ink-soft);
-  line-height: 1.7;
-}
-.perm-exe-row {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  flex-wrap: wrap;
-}
-.perm-exe {
-  max-width: 100%;
-  overflow-wrap: anywhere;
-  cursor: copy;
-  font-size: 11px;
-  padding: 2px 6px;
-  border: 2px solid var(--ink-faint);
-  border-radius: 6px;
-  background: var(--dex-body);
 }
 </style>

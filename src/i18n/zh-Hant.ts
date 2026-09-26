@@ -177,7 +177,7 @@ export default {
     due: "截止",
     remind: "提醒",
     tags: "標籤",
-    noTags: "還沒有標籤，去 設定 → 標籤 裡新增",
+    noTags: "還沒有標籤，去 設定 → 分類與標籤 裡新增",
     followUps: "跟進記錄",
     noFollowUps: "暫無跟進記錄",
     followUpPlaceholder: "補充跟進記錄…（按 Enter 新增）",
@@ -201,7 +201,7 @@ export default {
   },
   dispatch: {
     title: "⚡ Agent 派發",
-    needTag: "先給待辦掛上「專案」維度標籤，才能按專案路由派發（設定 → 標籤）。",
+    needTag: "先給待辦掛上「專案」維度標籤，才能按專案路由派發（設定 → 分類與標籤）。",
     noAgent: "還沒有可用的 Agent：去 設定 → Agent 新增並啟用後，再來派發。",
     go: "派發",
     working: "派發中…",
@@ -243,8 +243,8 @@ export default {
   },
   stabs: {
     focus: "專注",
-    cats: "分類",
-    tags: "標籤",
+    taxonomy: "分類與標籤",
+    pets: "桌寵",
     display: "顯示",
     agents: "Agent",
     feishu: "飛書",
@@ -269,7 +269,7 @@ export default {
     petInputWorkingDesc: "專注中蹦跳節奏輕隨打字快慢",
     petInputPerm:
       "macOS 需要輔助使用授權：點「去授權」直達設定面板，把下方路徑加入列表並勾選；回到本頁即自動生效。同名的舊條目先移除（−）再重新加入。",
-    petInputPermToast: "設定已儲存。輸入回應還差輔助使用權限——到「專注」頁開關下方點「去授權」完成勾選",
+    petInputPermToast: "設定已儲存。輸入回應還差輔助使用權限——到「桌寵」頁開關下方點「去授權」完成勾選",
     petInputGrant: "去授權",
     petInputExeCopy: "點擊複製路徑",
     petInputGranted: "輔助使用已授權，輸入回應開始工作",
