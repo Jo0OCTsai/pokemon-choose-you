@@ -8,8 +8,8 @@
     {
       "label": "vite: dev",
       "type": "shell",
-      "command": "npm",
-      "args": ["run", "dev"],
+      "command": "pnpm",
+      "args": ["dev"],
       "isBackground": true,
       "problemMatcher": {
         "owner": "vite",

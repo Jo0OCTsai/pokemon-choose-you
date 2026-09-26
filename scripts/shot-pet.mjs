@@ -2,7 +2,7 @@
  * 桌宠瞬态台词效果截图（开发工具，不入测试链路）：
  * 起 vite 后用 Playwright 打开 pet.html，注入 Tauri API mock（任务/设置/事件），
  * 按场景截图验证：瞬态气泡、悬停 ☰ 钮、快捷屏、状态播报、提醒钉住。
- * 用法：node scripts/shot-pet.mjs （需先 npx vite --port 5199 --strictPort）
+ * 用法：node scripts/shot-pet.mjs （需先 pnpm exec vite --port 5199 --strictPort）
  */
 import { mkdirSync } from "node:fs";
 import { chromium } from "@playwright/test";
