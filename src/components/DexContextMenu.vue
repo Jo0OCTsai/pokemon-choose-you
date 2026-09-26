@@ -71,6 +71,10 @@ onUnmounted(() => {
 .ctx-menu {
   position: fixed;
   z-index: 95;
+  /* pet 窗为透明区点击穿透把 html/body/#app 全设 pointer-events:none，菜单 Teleport 到 body
+     不在舞台树里，必须自行恢复 auto：否则收不到点击，elementFromPoint 也会跳过菜单
+     让 usePetClickThrough 视其为空白、穿透常开 */
+  pointer-events: auto;
   margin: 0;
   padding: 4px;
   list-style: none;
