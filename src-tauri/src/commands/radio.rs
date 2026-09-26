@@ -1057,26 +1057,23 @@ pub(crate) async fn classify_and_apply<R: tauri::Runtime>(
 ) -> AppResult<usize> {
     let ids: Vec<String> = batch.iter().map(|m| m.message_id.clone()).collect();
     let started = std::time::Instant::now();
-    let classified = ai::classify_with_session(agent, batch, db).await;
+    // 预生成会话 id + 执行时快照：失败路径也保住回链（id 落库可回看现场），
+    // 历史回放按当时的目录/端点路由，不随 agent 配置后续变更漂移
+    let pregen = ai::pregen_session_id(agent);
+    let workdir_snapshot = ai::session_workdir_snapshot(agent, &agent.workdir);
+    let classified = ai::classify_with_session(agent, batch, db, pregen.as_deref()).await;
     let duration_ms = started.elapsed().as_millis() as i64;
     let suggestions = match classified {
         Ok((s, session_id)) => {
             let conn = db.0.lock().unwrap();
-            let _ = crate::commands::sessions::log_session_conn(
-                &conn,
-                &crate::commands::sessions::NewAgentSession {
-                    task_id: None,
-                    agent_id: agent.id.clone(),
-                    session_id,
-                    command: None,
-                    exit_code: Some(0),
-                    status: "ok".into(),
-                    duration_ms: Some(duration_ms),
-                    cost_usd: None,
-                    input_tokens: None,
-                    output_tokens: None,
-                },
+            let mut rec = crate::commands::sessions::NewAgentSession::for_run(
+                "classify",
+                agent,
+                &workdir_snapshot,
             );
+            rec.session_id = session_id.or(pregen.clone());
+            rec.duration_ms = Some(duration_ms);
+            let _ = crate::commands::sessions::log_session_conn(&conn, &rec);
             s
         }
         Err(e) => {
@@ -1088,21 +1085,15 @@ pub(crate) async fn classify_and_apply<R: tauri::Runtime>(
             );
             {
                 let conn = db.0.lock().unwrap();
-                let _ = crate::commands::sessions::log_session_conn(
-                    &conn,
-                    &crate::commands::sessions::NewAgentSession {
-                        task_id: None,
-                        agent_id: agent.id.clone(),
-                        session_id: None,
-                        command: None,
-                        exit_code: None,
-                        status: "error".into(),
-                        duration_ms: Some(duration_ms),
-                        cost_usd: None,
-                        input_tokens: None,
-                        output_tokens: None,
-                    },
+                let mut rec = crate::commands::sessions::NewAgentSession::for_run(
+                    "classify",
+                    agent,
+                    &workdir_snapshot,
                 );
+                rec.session_id = pregen.clone();
+                rec.status = "error".into();
+                rec.duration_ms = Some(duration_ms);
+                let _ = crate::commands::sessions::log_session_conn(&conn, &rec);
                 // 失败回读挽救：已落库的判定保留（pk 已写入，无需重放），
                 // 未落库的标 error 待重判；迟到的孤儿回调交给延迟回看
                 let loaded = load_suggestions_conn(&conn, &ids)?;
@@ -1411,8 +1402,10 @@ pub async fn capture_todo<R: tauri::Runtime>(
         (conn.last_insert_rowid(), anon)
     };
 
-    // 会话回链与健康记录与飞书轮询同口径：时长 / session_id / 成败
+    // 会话回链与健康记录与飞书轮询同口径：时长 / session_id / 成败（预生成 id 失败也落库）
     let started = std::time::Instant::now();
+    let pregen = ai::pregen_session_id(&agent);
+    let workdir_snapshot = ai::session_workdir_snapshot(&agent, &agent.workdir);
     let judged = ai::capture_with_session(
         &agent,
         &AiMessage {
@@ -1424,6 +1417,7 @@ pub async fn capture_todo<R: tauri::Runtime>(
             mention_note: String::new(),
         },
         &db,
+        pregen.as_deref(),
     )
     .await;
     let duration_ms = started.elapsed().as_millis() as i64;
@@ -1434,21 +1428,15 @@ pub async fn capture_todo<R: tauri::Runtime>(
             {
                 let conn = db.0.lock().unwrap();
                 let _ = mark_ai_error_conn(&conn, std::slice::from_ref(&message_id));
-                let _ = crate::commands::sessions::log_session_conn(
-                    &conn,
-                    &crate::commands::sessions::NewAgentSession {
-                        task_id: None,
-                        agent_id: agent.id.clone(),
-                        session_id: None,
-                        command: None,
-                        exit_code: None,
-                        status: "error".into(),
-                        duration_ms: Some(duration_ms),
-                        cost_usd: None,
-                        input_tokens: None,
-                        output_tokens: None,
-                    },
+                let mut rec = crate::commands::sessions::NewAgentSession::for_run(
+                    "capture",
+                    &agent,
+                    &workdir_snapshot,
                 );
+                rec.session_id = pregen.clone();
+                rec.status = "error".into();
+                rec.duration_ms = Some(duration_ms);
+                let _ = crate::commands::sessions::log_session_conn(&conn, &rec);
             }
             app.state::<crate::health::HealthState>().record_failure(
                 &app,
@@ -1463,21 +1451,14 @@ pub async fn capture_todo<R: tauri::Runtime>(
         .record_success(&app, crate::health::AI);
     {
         let conn = db.0.lock().unwrap();
-        let _ = crate::commands::sessions::log_session_conn(
-            &conn,
-            &crate::commands::sessions::NewAgentSession {
-                task_id: None,
-                agent_id: agent.id.clone(),
-                session_id,
-                command: None,
-                exit_code: Some(0),
-                status: "ok".into(),
-                duration_ms: Some(duration_ms),
-                cost_usd: None,
-                input_tokens: None,
-                output_tokens: None,
-            },
+        let mut rec = crate::commands::sessions::NewAgentSession::for_run(
+            "capture",
+            &agent,
+            &workdir_snapshot,
         );
+        rec.session_id = session_id.or(pregen.clone());
+        rec.duration_ms = Some(duration_ms);
+        let _ = crate::commands::sessions::log_session_conn(&conn, &rec);
     }
     log::info!(
         "capture: 快速捕捉「{text}」判定为 {}（{}）",

@@ -133,6 +133,7 @@ pub fn run() {
             commands::open_exports_dir,
             commands::log_agent_session,
             commands::list_agent_sessions,
+            commands::open_recorded_session,
             commands::list_backups,
             commands::create_backup_now,
             commands::restore_backup,

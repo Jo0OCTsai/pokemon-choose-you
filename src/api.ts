@@ -208,6 +208,8 @@ export const api = {
   agentSkillInstall: (agentId: string) => call<AgentSkillInstallResult>("agent_skill_install", { agentId }),
   /** Agent 会话：taskId 查该任务时间线，缺省全局最近 100 条（含收音机分类调用） */
   listAgentSessions: (taskId?: number) => call<AgentSession[]>("list_agent_sessions", { taskId: taskId ?? null }),
+  /** 回放一条落库会话：按记录里的执行时快照路由（远端 ssh / tmux 重连 / --resume 转录） */
+  openRecordedSession: (id: number) => call<string>("open_recorded_session", { id }),
   /** 解析待办的派发目标（project 标签 meta → 全局默认 agent；弹窗展示用） */
   resolveTaskDispatch: (taskId: number) => call<TaskDispatchTarget>("resolve_task_dispatch", { taskId }),
   /** 派发待发给 agent（channel 缺省交互；无头按退出码/信封自动回传状态） */

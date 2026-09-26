@@ -713,18 +713,53 @@ pub async fn classify(
     batch: &[AiMessage],
     db: &crate::db::Db,
 ) -> AppResult<Vec<AiSuggestion>> {
-    classify_with_session(agent, batch, db)
+    classify_with_session(agent, batch, db, None)
         .await
         .map(|(s, _)| s)
 }
 
+/// 预生成会话 id（收音机分类 / 快速捕捉用）：claude 与 pi 的 `--session-id` 都是
+/// create-if-absent 语义，id 由应用先行确定——进程超时/出错被杀时信封拿不回 id，
+/// 落库侧仍可凭预生成 id 回看现场（agent 工具的转录按 id 保存，与进程退出无关）。
+/// 其他 agent（qoder 只能 --resume 续接、kiro 无可靠续接）不预生成
+pub fn pregen_session_id(agent: &AgentConfig) -> Option<String> {
+    let kind = crate::skills::kind_for_command(&agent.command);
+    matches!(kind, Some("claude-code") | Some("pi")).then(|| uuid::Uuid::new_v4().to_string())
+}
+
+/// 会话记录的工作目录快照：与 build_invocation 的实际落点同构——
+/// 远程保留配置串原样（`~` 只有远端能展开；空 = 远端登录目录）；
+/// 本地解析成绝对路径（覆盖目录展开 `~`，缺省回落 agent_workdir 语义）
+pub fn session_workdir_snapshot(agent: &AgentConfig, effective: &str) -> String {
+    let e = effective.trim();
+    if agent
+        .remote
+        .as_ref()
+        .is_some_and(|r| !r.host.trim().is_empty())
+    {
+        return e.to_string();
+    }
+    let resolved = if e.is_empty() {
+        agent_workdir(agent)
+    } else if let Some(rest) = e.strip_prefix("~/") {
+        dirs::home_dir().map(|h| h.join(rest))
+    } else {
+        Some(PathBuf::from(e))
+    };
+    resolved
+        .map(|p| p.to_string_lossy().into_owned())
+        .unwrap_or_default()
+}
+
 /// 分类一批消息并带回会话元信息（session_id）：agent 经 pk CLI 把判定写回数据库，
 /// 应用不解析其文本输出，跑完后从库回读该批消息的判定结果；
-/// stdout 仅提取 session_id 供遥测回链
+/// pregen 为预生成会话 id（见 pregen_session_id）——成功时信封 id 与之一致，
+/// 失败时调用方仍可凭它落库回链
 pub async fn classify_with_session(
     agent: &AgentConfig,
     batch: &[AiMessage],
     db: &crate::db::Db,
+    pregen: Option<&str>,
 ) -> AppResult<(Vec<AiSuggestion>, Option<String>)> {
     let prompt = build_tools_prompt(agent, batch);
     log::debug!(
@@ -734,7 +769,7 @@ pub async fn classify_with_session(
         trunc(&prompt, 500)
     );
     let ids: Vec<String> = batch.iter().map(|m| m.message_id.clone()).collect();
-    run_and_collect(agent, &prompt, &ids, db).await
+    run_and_collect(agent, &prompt, &ids, db, pregen).await
 }
 
 /// 手动快速捕捉：把用户在收音机输入的一条自然语言待办交给 agent 判定结构化属性。
@@ -744,6 +779,7 @@ pub async fn capture_with_session(
     agent: &AgentConfig,
     input: &AiMessage,
     db: &crate::db::Db,
+    pregen: Option<&str>,
 ) -> AppResult<(AiSuggestion, Option<String>)> {
     let prompt = build_capture_prompt(agent, input);
     log::debug!(
@@ -751,23 +787,42 @@ pub async fn capture_with_session(
         agent.name,
         trunc(&prompt, 500)
     );
-    let (mut list, session_id) =
-        run_and_collect(agent, &prompt, std::slice::from_ref(&input.message_id), db).await?;
+    let (mut list, session_id) = run_and_collect(
+        agent,
+        &prompt,
+        std::slice::from_ref(&input.message_id),
+        db,
+        pregen,
+    )
+    .await?;
     let s = list
         .pop()
         .ok_or_else(|| AppError::External("agent 未返回捕捉判定".into()))?;
     Ok((s, session_id))
 }
 
+/// 预生成 id 注入 agent 参数（克隆后追加 `--session-id <id>`，不动调用方配置）
+fn inject_pregen_args(agent: &AgentConfig, pregen: Option<&str>) -> AgentConfig {
+    let mut a = agent.clone();
+    if let Some(id) = pregen.map(str::trim).filter(|s| !s.is_empty()) {
+        a.args.push_str(" --session-id ");
+        a.args.push_str(id);
+    }
+    a
+}
+
 /// 无头跑一次 agent 并从库回读该批消息的判定（分类 / 快速捕捉共用）：
-/// 回读后做批内判重兜底，整批遗漏判失败（见各调用方的错误处理约定）
+/// 回读后做批内判重兜底，整批遗漏判失败（见各调用方的错误处理约定）。
+/// pregen 预生成 id 注入为 `--session-id`（agent 参数克隆后追加，不动调用方配置）
 async fn run_and_collect(
     agent: &AgentConfig,
     prompt: &str,
     ids: &[String],
     db: &crate::db::Db,
+    pregen: Option<&str>,
 ) -> AppResult<(Vec<AiSuggestion>, Option<String>)> {
-    let out = run_agent(agent, prompt).await?;
+    let a = inject_pregen_args(agent, pregen);
+    let out = run_agent(&a, prompt).await?;
     log::debug!("ai: agent 原始输出: {}", trunc(&out, 800));
     let (_, session_id) = extract_payload(&out);
     // agent 进程已结束才拿锁，回读期间不跨 await 持锁
@@ -800,6 +855,8 @@ async fn run_and_collect(
             agent.name, missed
         )));
     }
+    // 信封 id 优先（与预生成一致）；拿不回时回退预生成 id（进程异常退出也保住回链）
+    let session_id = session_id.or_else(|| pregen.map(str::to_string));
     Ok((suggestions, session_id))
 }
 
@@ -1105,6 +1162,103 @@ pub async fn test(agent: &AgentConfig) -> AppResult<String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// 预生成会话 id 只给 create-if-absent 语义的 agent（claude / pi）；
+    /// qoder 只能 --resume 续接、kiro 无可靠续接，都不预生成
+    #[test]
+    fn pregen_session_id_gates_by_agent_kind() {
+        let claude = AgentConfig {
+            command: "claude".into(),
+            ..Default::default()
+        };
+        let pi = AgentConfig {
+            command: "pi".into(),
+            ..Default::default()
+        };
+        let qoder = AgentConfig {
+            command: "qoder".into(),
+            ..Default::default()
+        };
+        assert!(pregen_session_id(&claude).is_some());
+        assert!(pregen_session_id(&pi).is_some());
+        let id = pregen_session_id(&claude).unwrap();
+        assert!(uuid::Uuid::parse_str(&id).is_ok(), "uuid v4: {id}");
+        assert!(
+            pregen_session_id(&qoder).is_none(),
+            "qoder 无 create-if-absent 语义"
+        );
+    }
+
+    /// 预生成 id 注入：追加 `--session-id <id>`，原配置不动，空/空白不注入
+    #[test]
+    fn inject_pregen_args_appends_session_flag() {
+        let agent = AgentConfig {
+            args: "-p {prompt} --allowedTools Bash(pk:*) --output-format json".into(),
+            ..Default::default()
+        };
+        let injected = inject_pregen_args(&agent, Some("0b0ae984-x"));
+        assert!(
+            injected
+                .args
+                .ends_with("--output-format json --session-id 0b0ae984-x"),
+            "追加在原参数之后: {}",
+            injected.args
+        );
+        assert_eq!(
+            agent.args, "-p {prompt} --allowedTools Bash(pk:*) --output-format json",
+            "原配置不动"
+        );
+        assert_eq!(inject_pregen_args(&agent, None).args, agent.args);
+        assert_eq!(inject_pregen_args(&agent, Some("  ")).args, agent.args);
+    }
+
+    /// 工作目录快照与 build_invocation 落点同构：远程原样保留（~ 留给远端展开、
+    /// 空串 = 登录目录）；本地展开 ~/ 与缺省 workspace
+    #[test]
+    fn session_workdir_snapshot_matches_invocation_cwd() {
+        let home = dirs::home_dir().unwrap();
+        // 远程：配置串原样
+        let remote = AgentConfig {
+            command: "claude".into(),
+            workdir: "~/.choose-you/workspace".into(),
+            remote: Some(AgentRemote {
+                host: "vscode@localhost".into(),
+                ..Default::default()
+            }),
+            ..Default::default()
+        };
+        assert_eq!(
+            session_workdir_snapshot(&remote, &remote.workdir),
+            "~/.choose-you/workspace",
+            "远程保留原串（~ 由远端展开）"
+        );
+        assert_eq!(
+            session_workdir_snapshot(&remote, ""),
+            "",
+            "远程空 = 登录目录"
+        );
+        // 本地：~/ 展开
+        let local = AgentConfig {
+            command: "claude".into(),
+            workdir: "~/proj".into(),
+            ..Default::default()
+        };
+        assert_eq!(
+            session_workdir_snapshot(&local, "~/proj"),
+            home.join("proj").to_string_lossy(),
+            "本地 ~ 展开"
+        );
+        // 本地缺省 = agent_workdir 兜底（~/.choose-you/workspace）
+        let bare = AgentConfig {
+            command: "claude".into(),
+            ..Default::default()
+        };
+        assert_eq!(
+            session_workdir_snapshot(&bare, ""),
+            agent_workdir(&bare).unwrap().to_string_lossy(),
+            "本地空 = 默认 workspace"
+        );
+    }
 
     /// Windows cmd 引用：`"`（关引用）与 `%`（环境展开）无转义方案，必须中和为全角；
     /// 其余元字符交由整参双引号包裹防护（M1 cmd /C 回退路径的回归用例）

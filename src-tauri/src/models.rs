@@ -242,6 +242,22 @@ pub struct AgentSession {
     pub input_tokens: Option<i64>,
     #[serde(default)]
     pub output_tokens: Option<i64>,
+    /// 会话来源：classify / capture / dispatch_headless / dispatch_interactive / pk（'' = 早期记录）
+    #[serde(default)]
+    pub kind: String,
+    /// 执行时工作目录快照（本地绝对路径 / 远端路径串；'' = 早期记录或远端登录目录）
+    #[serde(default)]
+    pub workdir: String,
+    /// 远程交互派发的 tmux 会话名（'' = 无；回放走 attach-or-create 重连）
+    #[serde(default)]
+    pub tmux_session: String,
+    /// 执行时远端快照（remote_host 空 = 本地执行）
+    #[serde(default)]
+    pub remote_host: String,
+    #[serde(default)]
+    pub remote_port: i64,
+    #[serde(default)]
+    pub remote_key: String,
     pub created_at: String,
 }
 
@@ -500,6 +516,12 @@ mod tests {
             cost_usd: Some(0.12),
             input_tokens: Some(1000),
             output_tokens: Some(2000),
+            kind: "classify".into(),
+            workdir: "/Users/x/.choose-you/workspace".into(),
+            tmux_session: String::new(),
+            remote_host: "vscode@localhost".into(),
+            remote_port: 1022,
+            remote_key: String::new(),
             created_at: "2026-09-13T00:00:00Z".into(),
         };
         assert_eq!(
@@ -514,10 +536,16 @@ mod tests {
                 "exitCode",
                 "id",
                 "inputTokens",
+                "kind",
                 "outputTokens",
+                "remoteHost",
+                "remoteKey",
+                "remotePort",
                 "sessionId",
                 "status",
                 "taskId",
+                "tmuxSession",
+                "workdir",
             ]
         );
     }

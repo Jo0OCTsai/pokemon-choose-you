@@ -338,6 +338,18 @@ CREATE TABLE IF NOT EXISTS agent_sessions (
     cost_usd REAL,
     input_tokens INTEGER,
     output_tokens INTEGER,
+    -- 会话来源（'' = 早期记录 / 未标注）：classify 收音机分类 / capture 快速捕捉 /
+    -- dispatch_headless 无头派发 / dispatch_interactive 交互派发 / pk agent 侧补录
+    kind TEXT NOT NULL DEFAULT '',
+    -- 执行时工作目录快照：本地 = 展开后的绝对路径；远程 = 远端路径串（'' = 登录目录）。
+    -- 回放按此目录路由，不随 agent 配置后续变更漂移
+    workdir TEXT NOT NULL DEFAULT '',
+    -- 远程交互派发的 tmux 会话名（重连用）；无头 / 本地交互为空串
+    tmux_session TEXT NOT NULL DEFAULT '',
+    -- 执行时 agent 远端快照（remote_host 空 = 本地执行）：回放到当时的机器，不受配置变更影响
+    remote_host TEXT NOT NULL DEFAULT '',
+    remote_port INTEGER NOT NULL DEFAULT 0,
+    remote_key TEXT NOT NULL DEFAULT '',
     created_at TEXT NOT NULL DEFAULT ''
 );
 CREATE INDEX IF NOT EXISTS idx_agent_sessions_task ON agent_sessions(task_id);
@@ -805,6 +817,29 @@ pub(crate) mod tests {
             )
             .unwrap();
         assert_eq!(note.as_deref(), Some("家里还有半只"));
+    }
+
+    /// 基线自带 agent_sessions 的执行上下文列（kind/workdir/tmux/远端快照）：
+    /// 回放按记录里的快照路由，不随 agent 配置漂移（正式库手动 ALTER 对齐，见迁移约定）
+    #[test]
+    fn baseline_creates_agent_sessions_with_context_columns() {
+        let conn = test_conn();
+        conn.execute(
+            "INSERT INTO agent_sessions (agent_id, kind, workdir, tmux_session,
+                                         remote_host, remote_port, remote_key, created_at)
+             VALUES ('ag', 'classify', '/ws', '', 'vscode@localhost', 1022, '', '2026-09-26T00:00:00Z')",
+            [],
+        )
+        .unwrap();
+        let (kind, workdir, host, port): (String, String, String, i64) = conn
+            .query_row(
+                "SELECT kind, workdir, remote_host, remote_port FROM agent_sessions WHERE agent_id='ag'",
+                [],
+                |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?, r.get(3)?)),
+            )
+            .unwrap();
+        assert_eq!((kind.as_str(), workdir.as_str()), ("classify", "/ws"));
+        assert_eq!((host.as_str(), port), ("vscode@localhost", 1022));
     }
 
     /// 基线自带会话过滤两张表（feishu-chat-filter）：偏好表 CHECK 只收

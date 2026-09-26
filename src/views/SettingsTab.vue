@@ -24,6 +24,7 @@ import { BUNDLED_POKEMON, POKEMON_BY_KEY, mergePokemonQuotes, pokemonQuotesFor }
 import { clipWrite, openContextMenu } from "../contextMenu";
 import DexSelect from "../components/DexSelect.vue";
 import DexToggle from "../components/DexToggle.vue";
+import AgentSessionHistory from "../components/AgentSessionHistory.vue";
 import FeishuChatFilterManager from "../components/FeishuChatFilterManager.vue";
 import SettingRow from "../components/SettingRow.vue";
 import TagDispatchCard from "../components/TagDispatchCard.vue";
@@ -1399,6 +1400,13 @@ onUnmounted(() => {
             <button class="btn ghost" @click="addAgent">{{ t("ai.add") }}</button>
           </div>
           <p class="set-foot">{{ t("ai.cliHint") }}</p>
+        </section>
+
+        <!-- 会话历史：收音机分类 + 待办派发共用 agent_sessions，按执行时快照回放（不分本地/远程） -->
+        <section class="set-card">
+          <h3>{{ t("sess.title") }}</h3>
+          <p class="set-sub">{{ t("sess.hint") }}</p>
+          <AgentSessionHistory />
         </section>
 
         <!-- 待办派发：M3 自动化与隔离（默认全关；手动派发不受这些开关影响） -->

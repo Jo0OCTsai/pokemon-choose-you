@@ -809,6 +809,8 @@ fn run_session(conn: &Connection, rest: &[String]) -> Result<serde_json::Value, 
                 &NewAgentSession {
                     task_id,
                     agent_id,
+                    // agent 侧补录：pk 在哪跑，会话就在哪个目录（agent 的 cwd）
+                    kind: "pk".into(),
                     session_id: flag("--session").filter(|v| !v.is_empty()),
                     command: flag("--command").filter(|v| !v.is_empty()),
                     exit_code: num_flag("--exit-code")?,
@@ -817,6 +819,13 @@ fn run_session(conn: &Connection, rest: &[String]) -> Result<serde_json::Value, 
                     cost_usd,
                     input_tokens: num_flag("--in-tokens")?,
                     output_tokens: num_flag("--out-tokens")?,
+                    workdir: std::env::current_dir()
+                        .map(|p| p.to_string_lossy().into_owned())
+                        .unwrap_or_default(),
+                    tmux_session: String::new(),
+                    remote_host: String::new(),
+                    remote_port: 0,
+                    remote_key: String::new(),
                 },
             )
             .map_err(db_err)?;

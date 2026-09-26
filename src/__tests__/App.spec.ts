@@ -54,6 +54,7 @@ vi.mock("../api", () => ({
     listAllSettings: vi.fn(),
     testAiConfig: vi.fn(),
     openAgentHistory: vi.fn(),
+    openRecordedSession: vi.fn(async () => "已在 Terminal 中启动"),
     setupRemotePk: vi.fn(),
     tunnelStatus: vi.fn(async () => ({ state: "off", detail: "" })),
     syncTunnels: vi.fn(async () => {}),
@@ -830,7 +831,8 @@ describe("App 图鉴机主面板", () => {
     expect(w.text()).toContain("$0.12");
     expect(w.text()).toContain("exit 0");
     await w.get(".run-open").trigger("click");
-    expect(api.openAgentHistory).toHaveBeenCalledWith("claude-code", "sess-1");
+    // 回放改按会话记录路由（open_recorded_session）：不再依赖当前 agent 配置
+    expect(api.openRecordedSession).toHaveBeenCalledWith(1);
   });
 
   it("详情抽屉：含跟进记录与操作历史区块，可从抽屉进入全字段编辑", async () => {

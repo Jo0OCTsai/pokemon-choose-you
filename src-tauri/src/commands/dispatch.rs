@@ -366,8 +366,9 @@ fn push_ssh_target(remote: &AgentRemote, argv: &mut Vec<String>) {
 }
 
 /// 终端里跑的 ssh（交互式，不设 BatchMode：密钥未就绪允许在终端里输密码）：
-/// 远端登录 shell 里 tmux attach-or-create，-c 指定工作目录（空则远端登录目录）
-fn tmux_attach_argv(remote: &AgentRemote, session: &str, workdir: &str) -> Vec<String> {
+/// 远端登录 shell 里 tmux attach-or-create，-c 指定工作目录（空则远端登录目录）。
+/// 会话历史回连远程交互派发共用此 argv
+pub(crate) fn tmux_attach_argv(remote: &AgentRemote, session: &str, workdir: &str) -> Vec<String> {
     let mut argv = vec![
         "-tt".to_string(),
         "-o".to_string(),
@@ -1094,8 +1095,8 @@ pub async fn dispatch_task<R: tauri::Runtime>(
     };
 
     match launched {
-        Ok((terminal, launch_note, session_id)) => {
-            let session = log_dispatch(&db, task_id, &prep.agent, session_id, &summary)?;
+        Ok((terminal, launch_note, tmux_name)) => {
+            let session = log_dispatch(&db, task_id, &prep.agent, &workdir, tmux_name, &summary)?;
             let note = [wt_note, launch_note]
                 .into_iter()
                 .flatten()
@@ -1183,6 +1184,8 @@ async fn run_headless_dispatch(
     let envs = [("PK_DISPATCH_TASK", task_id_str.as_str())];
     let run = ai::run_agent_env(&a, &prompt, &envs).await;
     let duration_ms = started.elapsed().as_millis() as i64;
+    // 执行时快照（a.workdir = 生效目录：worktree 或标签 meta/agent 配置）：历史回放按此路由
+    let workdir_snapshot = ai::session_workdir_snapshot(&a, &a.workdir);
 
     let mut note = wt_note;
     let state: &str;
@@ -1208,22 +1211,17 @@ async fn run_headless_dispatch(
             if envelope.is_error {
                 note = Some("agent 信封标记 is_error（处理失败）".into()).or(note);
             }
-            log_session_conn(
-                &db.0.lock().unwrap(),
-                &NewAgentSession {
-                    task_id: Some(prep.task.id),
-                    agent_id: agent.id.clone(),
-                    session_id,
-                    command: Some(summary.clone()),
-                    exit_code: Some(0),
-                    status: if envelope.is_error { "error" } else { "ok" }.into(),
-                    duration_ms: Some(duration_ms),
-                    cost_usd: envelope.cost_usd,
-                    input_tokens: envelope.input_tokens,
-                    output_tokens: envelope.output_tokens,
-                },
-            )
-            .unwrap_or_else(|e| {
+            let mut rec = NewAgentSession::for_run("dispatch_headless", agent, &workdir_snapshot);
+            rec.task_id = Some(prep.task.id);
+            rec.session_id = session_id;
+            rec.command = Some(summary.clone());
+            rec.exit_code = Some(0);
+            rec.status = if envelope.is_error { "error" } else { "ok" }.into();
+            rec.duration_ms = Some(duration_ms);
+            rec.cost_usd = envelope.cost_usd;
+            rec.input_tokens = envelope.input_tokens;
+            rec.output_tokens = envelope.output_tokens;
+            log_session_conn(&db.0.lock().unwrap(), &rec).unwrap_or_else(|e| {
                 log::warn!("dispatch: 会话记录落库失败: {e}");
                 fallback_session(prep, &summary)
             })
@@ -1232,22 +1230,14 @@ async fn run_headless_dispatch(
             state = DS_FAILED;
             let reason: String = e.to_string().chars().take(200).collect();
             note = Some(reason).or(note);
-            log_session_conn(
-                &db.0.lock().unwrap(),
-                &NewAgentSession {
-                    task_id: Some(prep.task.id),
-                    agent_id: agent.id.clone(),
-                    session_id: prep.prev_session.clone(),
-                    command: Some(summary.clone()),
-                    exit_code: None,
-                    status: "error".into(),
-                    duration_ms: Some(duration_ms),
-                    cost_usd: None,
-                    input_tokens: None,
-                    output_tokens: None,
-                },
-            )
-            .unwrap_or_else(|_| fallback_session(prep, &summary))
+            let mut rec = NewAgentSession::for_run("dispatch_headless", agent, &workdir_snapshot);
+            rec.task_id = Some(prep.task.id);
+            rec.session_id = prep.prev_session.clone().or(pre_session);
+            rec.command = Some(summary.clone());
+            rec.status = "error".into();
+            rec.duration_ms = Some(duration_ms);
+            log_session_conn(&db.0.lock().unwrap(), &rec)
+                .unwrap_or_else(|_| fallback_session(prep, &summary))
         }
     };
     if let Err(e) = transition_or_already(db, prep.task.id, state, "dispatch-headless") {
@@ -1262,6 +1252,8 @@ async fn run_headless_dispatch(
 
 /// 会话落库失败时的兜底记录（时间线不因落库故障缺整行）
 fn fallback_session(prep: &DispatchPrep, summary: &str) -> AgentSession {
+    let (remote_host, remote_port, remote_key) =
+        crate::commands::sessions::remote_snapshot(&prep.agent);
     AgentSession {
         id: 0,
         task_id: Some(prep.task.id),
@@ -1275,35 +1267,35 @@ fn fallback_session(prep: &DispatchPrep, summary: &str) -> AgentSession {
         cost_usd: None,
         input_tokens: None,
         output_tokens: None,
+        kind: "dispatch_headless".into(),
+        workdir: ai::session_workdir_snapshot(&prep.agent, &prep.workdir),
+        tmux_session: String::new(),
+        remote_host,
+        remote_port,
+        remote_key,
         created_at: crate::db::now(),
     }
 }
 
-/// 落一条派发会话记录（§5.4）：command 记命令行摘要（prompt 截断），
-/// session_id 记 tmux 会话名（远程交互），任务抽屉时间线自然可见
+/// 落一条交互派发会话记录（§5.4）：command 记命令行摘要（prompt 截断）。
+/// tmux_name 为远程交互的 tmux 会话名（独立成列，回放走 attach-or-create 重连）；
+/// claude 会话 id 启动时不可知，session_id 留空（终端里可用 agent 自带历史回看）
 fn log_dispatch(
     db: &Db,
     task_id: i64,
     agent: &AgentConfig,
-    session_id: Option<String>,
+    workdir: &str,
+    tmux_name: Option<String>,
     summary: &str,
 ) -> AppResult<AgentSession> {
     let conn = db.0.lock().unwrap();
-    log_session_conn(
-        &conn,
-        &NewAgentSession {
-            task_id: Some(task_id),
-            agent_id: agent.id.clone(),
-            session_id,
-            command: Some(summary.to_string()),
-            exit_code: None,
-            status: "ok".into(),
-            duration_ms: None,
-            cost_usd: None,
-            input_tokens: None,
-            output_tokens: None,
-        },
-    )
+    let snapshot = ai::session_workdir_snapshot(agent, workdir);
+    let mut rec = NewAgentSession::for_run("dispatch_interactive", agent, &snapshot);
+    rec.task_id = Some(task_id);
+    rec.session_id = None;
+    rec.command = Some(summary.to_string());
+    rec.tmux_session = tmux_name.unwrap_or_default();
+    log_session_conn(&conn, &rec)
 }
 
 // ---- 自动派发（M3，§10）：到期未开始的 project 待办排队 → 按每机器并发上限领取 → 无头执行 ----

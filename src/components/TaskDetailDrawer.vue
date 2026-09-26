@@ -73,7 +73,12 @@ function fmtDuration(ms: number | null | undefined): string {
   return `${Math.round(ms / 60_000)}m`;
 }
 function openTranscript(x: AgentSession) {
-  Promise.resolve(api.openAgentHistory(x.agentId, x.sessionId ?? undefined)).catch(() => {});
+  // 按记录里的执行时快照路由（远端 ssh / tmux 重连 / --resume 转录），不再依赖当前 agent 配置
+  Promise.resolve(api.openRecordedSession(x.id)).catch(() => {});
+}
+/** 会话来源徽章（kind 列；'' = 早期记录） */
+function kindText(kind: string | undefined): string {
+  return te(`sess.kind.${kind || "legacy"}`) ? t(`sess.kind.${kind || "legacy"}`) : kind || "—";
 }
 
 // ---- Agent 派发（交互/无头双通道）：project 标签路由 → 终端唤起 / 无头执行回传 ----
@@ -342,9 +347,10 @@ onMounted(async () => {
           <li v-for="x in sessions" :key="x.id" class="note-item">
             <div class="note-meta">
               <span class="note-src" :class="{ err: x.status === 'error' }">{{ x.agentName }}</span>
+              <span v-if="x.kind" class="px">{{ kindText(x.kind) }}</span>
               <span class="note-time px">{{ fmtDateTime(x.createdAt) }}</span>
               <button
-                v-if="x.sessionId"
+                v-if="x.sessionId || x.tmuxSession"
                 class="note-del run-open"
                 type="button"
                 :title="t('edit.openTranscript')"

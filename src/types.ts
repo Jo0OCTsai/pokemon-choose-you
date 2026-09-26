@@ -180,6 +180,16 @@ export interface AgentSession {
   costUsd?: number | null;
   inputTokens?: number | null;
   outputTokens?: number | null;
+  /** 会话来源：classify / capture / dispatch_headless / dispatch_interactive / pk（"" = 早期记录） */
+  kind?: string;
+  /** 执行时工作目录快照（本地绝对路径 / 远端路径串；"" = 早期记录或登录目录） */
+  workdir?: string;
+  /** 远程交互派发的 tmux 会话名（"" = 无；回放走 attach-or-create 重连） */
+  tmuxSession?: string;
+  /** 执行时远端快照（remoteHost 空 = 本地执行） */
+  remoteHost?: string;
+  remotePort?: number;
+  remoteKey?: string;
   createdAt: string;
 }
 
