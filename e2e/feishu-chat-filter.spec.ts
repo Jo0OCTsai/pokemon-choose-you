@@ -29,7 +29,7 @@ const CHATS = [
 
 async function openFilterCard(page: Page, expectedRows = 3): Promise<Locator> {
   await page.goto("/");
-  await page.locator(".menu-btn", { hasText: "设置" }).click();
+  await page.locator(".menu-btn", { hasText: "背包" }).click();
   await page.locator(".stab", { hasText: "飞书" }).click();
   const card = page.locator(".cf-card");
   await expect(card.locator(".cf-row")).toHaveCount(expectedRows);

@@ -236,15 +236,17 @@ beforeEach(() => {
 });
 
 describe("App 图鉴机主面板", () => {
-  it("渲染六个菜单项", async () => {
+  it("渲染七个菜单项", async () => {
     const w = await mountApp();
     const labels = w.findAll(".menu-btn").map((b) => b.text());
-    expect(labels).toHaveLength(6);
+    expect(labels).toHaveLength(7);
     expect(labels[0]).toContain("冒险");
     expect(labels[1]).toContain("路线");
     expect(labels[2]).toContain("草丛");
     expect(labels[3]).toContain("图鉴");
     expect(labels[4]).toContain("收音机");
+    expect(labels[5]).toContain("冒险日志");
+    expect(labels[6]).toContain("背包");
   });
 
   it("列表渲染任务条目：编号、标题、分类徽章", async () => {
@@ -758,7 +760,7 @@ describe("App 图鉴机主面板", () => {
     ]);
     vi.mocked(api.createBackupNow).mockResolvedValue("pokemon-choose-you-20260913-120000.db");
     const w = await mountApp();
-    await w.findAll(".menu-btn")[5].trigger("click"); // 设置
+    await w.findAll(".menu-btn")[6].trigger("click"); // 设置
     await w.findAll(".stab")[7].trigger("click"); // 通用
     await new Promise((r) => setTimeout(r)); // 挂载时异步拉取备份列表
     expect(w.text()).toContain("数据备份");
@@ -776,7 +778,7 @@ describe("App 图鉴机主面板", () => {
 
   it("设置页通用区：导出三件套与打开目录", async () => {
     const w = await mountApp();
-    await w.findAll(".menu-btn")[5].trigger("click"); // 设置
+    await w.findAll(".menu-btn")[6].trigger("click"); // 设置
     await w.findAll(".stab")[7].trigger("click"); // 通用
     await w
       .findAll(".btn")
@@ -908,7 +910,7 @@ describe("App 图鉴机主面板", () => {
 
   it("设置页飞书：无 App ID/Secret 输入，常驻 lark-cli 指引", async () => {
     const w = await mountApp();
-    await w.findAll(".menu-btn")[5].trigger("click"); // 设置
+    await w.findAll(".menu-btn")[6].trigger("click"); // 设置
     await w.findAll(".stab")[5].trigger("click"); // 飞书
     expect(w.text()).not.toContain("App ID");
     expect(w.text()).not.toContain("App Secret");
@@ -918,7 +920,7 @@ describe("App 图鉴机主面板", () => {
 
   it("设置页八个分区可选且默认显示专注", async () => {
     const w = await mountApp();
-    await w.findAll(".menu-btn")[5].trigger("click");
+    await w.findAll(".menu-btn")[6].trigger("click"); // 设置
     const stabs = w.findAll(".stab");
     expect(stabs).toHaveLength(8);
     expect(w.text()).toContain("番茄钟");
@@ -964,7 +966,7 @@ describe("App 图鉴机主面板", () => {
       { time: "2026-09-12 09:00:00", level: "warn", target: "app_lib::feishu", message: "feishu poll failed: 500" },
     ]);
     const w = await mountApp();
-    await w.findAll(".menu-btn")[5].trigger("click");
+    await w.findAll(".menu-btn")[6].trigger("click"); // 设置
     await w.findAll(".stab")[6].trigger("click"); // 诊断
     expect(w.text()).toContain("飞书电波");
     expect(w.text()).toContain("降级重试中");
@@ -981,7 +983,7 @@ describe("App 图鉴机主面板", () => {
 
   it("设置页 Agent 分区：AI agent 配置增删、主 agent 选择与测试链路", async () => {
     const w = await mountApp();
-    await w.findAll(".menu-btn")[5].trigger("click");
+    await w.findAll(".menu-btn")[6].trigger("click"); // 设置
     await w.findAll(".stab")[4].trigger("click"); // Agent
     expect(w.text()).toContain("AI Agent CLI");
 
@@ -1041,7 +1043,7 @@ describe("App 图鉴机主面板", () => {
 
   it("AI agent 支持配置 SSH 远程执行并序列化进 ai_agents", async () => {
     const w = await mountApp();
-    await w.findAll(".menu-btn")[5].trigger("click"); // 设置
+    await w.findAll(".menu-btn")[6].trigger("click"); // 设置
     await w.findAll(".stab")[4].trigger("click"); // Agent
     // 添加一个 Claude Code 预设
     await w
@@ -1076,7 +1078,7 @@ describe("App 图鉴机主面板", () => {
 
   it("设置页分类与标签分区：进入即列出内置分类，停用开关调用后端", async () => {
     const w = await mountApp();
-    await w.findAll(".menu-btn")[5].trigger("click");
+    await w.findAll(".menu-btn")[6].trigger("click"); // 设置
     await w.findAll(".stab")[1].trigger("click"); // 分类与标签
     const rows = w.findAll(".cat-row");
     expect(rows).toHaveLength(2); // 进入分区即加载分类列表（回归：曾显示为空）

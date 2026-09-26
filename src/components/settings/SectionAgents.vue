@@ -1,23 +1,26 @@
 <script setup lang="ts">
-import { computed, ref } from "vue";
+import { computed, inject, ref } from "vue";
 import { useI18n } from "vue-i18n";
+import { ACTION_TOAST } from "../../composables/useActionToast";
 import { useSettingToggle } from "../../composables/useSettingToggle";
 import { useSettingsStore } from "../../stores/settings";
 import { useAgentsStore } from "../../stores/agents";
-import AgentSessionHistory from "../AgentSessionHistory.vue";
 import DexSelect from "../DexSelect.vue";
 import DexToggle from "../DexToggle.vue";
 import SettingRow from "../SettingRow.vue";
 import AgentConfigCard from "./AgentConfigCard.vue";
+import TagDispatchCard from "./TagDispatchCard.vue";
 
 /**
- * 「Agent」分区（自 SectionIntegrations 拆出）：AI agent 管理（列表/CRUD/隧道与技能状态在
- * agents store + AgentConfigCard，这里只剩分区级预设下拉与主 agent 单选）、待办派发自动化、
- * 会话历史（待办派发卡下方，「配好自动化 → 回看跑过的会话」同屏动线）。
+ * 「Agent」分区（自 SectionIntegrations 拆出）：一切与派发有关聚齐——AI agent 管理
+ * （列表/CRUD/隧道与技能状态在 agents store + AgentConfigCard，这里只剩分区级预设下拉
+ * 与主 agent 单选）、项目派发路由（TagDispatchCard，project 标签 → agent/目录/上下文，
+ * 2026-09 自「分类与标签」分区移入）、待办派发自动化。会话历史已抽为顶层「冒险日志」页。
  */
 const { t } = useI18n();
 const settings = useSettingsStore();
 const agentsStore = useAgentsStore();
+const { flash } = inject(ACTION_TOAST)!;
 
 // ---- AI agent CLI 管理：列表/CRUD/隧道与技能状态上移 agents store（预设 AGENT_PRESETS 也在那），
 //      单个 agent 的编辑卡抽到 AgentConfigCard，这里只剩分区级的预设下拉与主 agent 单选 ----
@@ -69,6 +72,11 @@ const dispatchWorktreeOn = useSettingToggle("dispatch_worktree");
 const maxConcurrentOptions = computed(() =>
   [1, 2, 3].map((n) => ({ value: String(n), label: t("dispatchCfg.mcN", { n }) })),
 );
+
+/** 项目派发卡的保存结果借用页面底部状态条反馈 */
+function onDispatchFeedback(msg: string) {
+  flash(msg);
+}
 </script>
 
 <template>
@@ -90,6 +98,10 @@ const maxConcurrentOptions = computed(() =>
     <p class="set-foot">{{ t("ai.cliHint") }}</p>
   </section>
 
+  <!-- 项目派发路由：project 标签 → agent / 工作目录 / 项目上下文（2026-09 自「分类与标签」分区移入，
+       词表管理归分类与标签、派发归这里；改动即时落库，不经「保存设置」） -->
+  <TagDispatchCard :agents="agentsStore.list" @feedback="onDispatchFeedback" />
+
   <!-- 待办派发：M3 自动化与隔离（默认全关；手动派发不受这些开关影响） -->
   <section class="set-card">
     <h3>{{ t("dispatchCfg.title") }}</h3>
@@ -104,13 +116,6 @@ const maxConcurrentOptions = computed(() =>
       <DexToggle v-model="dispatchWorktreeOn" />
     </SettingRow>
     <p class="set-foot">{{ t("dispatchCfg.foot") }}</p>
-  </section>
-
-  <!-- 会话历史：收音机分类 + 待办派发共用 agent_sessions，按执行时快照回放（不分本地/远程） -->
-  <section class="set-card">
-    <h3>{{ t("sess.title") }}</h3>
-    <p class="set-sub">{{ t("sess.hint") }}</p>
-    <AgentSessionHistory />
   </section>
 </template>
 

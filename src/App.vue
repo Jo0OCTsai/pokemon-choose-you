@@ -11,6 +11,7 @@ import { useTagsStore } from "./stores/tags";
 import { useTasksStore, type TaskTabKey } from "./stores/tasks";
 import TaskTab from "./views/TaskTab.vue";
 import RadioTab from "./views/RadioTab.vue";
+import SessionsTab from "./views/SessionsTab.vue";
 import SettingsTab from "./views/SettingsTab.vue";
 import DexContextMenu from "./components/DexContextMenu.vue";
 import { openEditableContextMenu } from "./contextMenu";
@@ -21,14 +22,15 @@ const categoriesStore = useCategoriesStore();
 const tagsStore = useTagsStore();
 const tasksStore = useTasksStore();
 
-type Tab = TaskTabKey | "im" | "settings";
-// 菜单命名体系统一为"训练家旅程"：冒险/路线/草丛/图鉴/收音机
+type Tab = TaskTabKey | "im" | "sessions" | "settings";
+// 菜单命名体系统一为"训练家旅程"：冒险/路线/草丛/图鉴/收音机/冒险日志
 const tabs: { key: Tab; labelKey: string; descKey: string }[] = [
   { key: "today", labelKey: "tabs.today", descKey: "tabs.todayDesc" },
   { key: "scheduled", labelKey: "tabs.scheduled", descKey: "tabs.scheduledDesc" },
   { key: "inbox", labelKey: "tabs.inbox", descKey: "tabs.inboxDesc" },
   { key: "done", labelKey: "tabs.done", descKey: "tabs.doneDesc" },
   { key: "im", labelKey: "tabs.im", descKey: "tabs.imDesc" },
+  { key: "sessions", labelKey: "tabs.sessions", descKey: "tabs.sessionsDesc" },
   { key: "settings", labelKey: "tabs.settings", descKey: "tabs.settingsDesc" },
 ];
 
@@ -145,6 +147,7 @@ onUnmounted(() => {
 
       <TaskTab v-if="isTaskTab" :tab="activeTaskTab" />
       <RadioTab v-else-if="tab === 'im'" ref="radioTab" />
+      <SessionsTab v-else-if="tab === 'sessions'" />
       <SettingsTab v-else ref="settingsTab" :latest-version="latestVersion" />
     </main>
 

@@ -216,8 +216,8 @@ watch(settingsTab, (tab) => {
   if (tab === "taxonomy") {
     if (!editingTags.value.length) startEditTags();
     if (!editingDims.value.length) startEditDims();
-    if (!agentsStore.list.length) agentsStore.load(); // 项目派发卡片的 agent 下拉要用
   }
+  // 项目派发卡片随 TagDispatchCard 移入 Agent 分区：agents store 只在这里拉
   if (tab === "agents" && !agentsStore.list.length) agentsStore.load();
   if (tab === "agents") agentsStore.loadTunnelStatuses();
 });

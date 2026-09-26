@@ -1,21 +1,22 @@
 <script setup lang="ts">
 /**
- * 项目派发卡片：project 维度标签 → agent / 工作目录 / 项目上下文 的路由表。
- * 全部项目标签的路由一目了然。编辑草稿按标签 id 存，store 刷新时增量同步。
- * 改动即时落库（与应用其余「选中即存」一致）：下拉选中即存，文本失焦（change）即存——
- * 页面顶部「保存设置」只写 settings 表，覆盖不到这里，行内按钮曾造成两套保存心智。
- * 块头右侧「历史记录 ↗」按生效派发 agent 唤起 open_agent_history（与集成页 agent 块
- * 同一命令）；生效 agent 与后端 resolve_route 同序：标签指定 → 全局默认，无可用则置灰。
- * 目录传标签 meta workdir 覆盖（留空后端回退 agent 自身解析），历史与派发同目录。
+ * 项目派发卡片（2026-09 自「分类与标签」分区移入 Agent 分区）：project 维度标签 →
+ * agent / 工作目录 / 项目上下文 的路由表。全部项目标签的路由一目了然。编辑草稿按标签
+ * id 存，store 刷新时增量同步。改动即时落库（与应用其余「选中即存」一致）：下拉选中即存，
+ * 文本失焦（change）即存——页面顶部「保存设置」只写 settings 表，覆盖不到这里，
+ * 行内按钮曾造成两套保存心智。块头右侧「历史记录 ↗」按生效派发 agent 唤起
+ * open_agent_history（与 Agent 分区 agent 卡同一命令）；生效 agent 与后端 resolve_route
+ * 同序：标签指定 → 全局默认，无可用则置灰。目录传标签 meta workdir 覆盖（留空后端回退
+ * agent 自身解析），历史与派发同目录。
  */
 import { computed, reactive, watch } from "vue";
 import { useI18n } from "vue-i18n";
-import { api, errorMessage } from "../api";
-import { useTagsStore } from "../stores/tags";
-import { useSettingsStore } from "../stores/settings";
-import type { AgentConfig, Tag } from "../types";
-import DexSelect from "./DexSelect.vue";
-import SettingRow from "./SettingRow.vue";
+import { api, errorMessage } from "../../api";
+import { useTagsStore } from "../../stores/tags";
+import { useSettingsStore } from "../../stores/settings";
+import type { AgentConfig, Tag } from "../../types";
+import DexSelect from "../DexSelect.vue";
+import SettingRow from "../SettingRow.vue";
 
 const props = defineProps<{ agents: AgentConfig[] }>();
 const emit = defineEmits<{ feedback: [msg: string] }>();
@@ -110,7 +111,7 @@ function historyTitle(draft: Draft): string {
   return agent ? t("tagDispatch.historyTip", { name: agent.name || agent.command }) : t("tagDispatch.historyNone");
 }
 
-/** 历史记录由 agent 工具自带，这里只负责在新终端唤起（同集成页 agent 块）。
+/** 历史记录由 agent 工具自带，这里只负责在新终端唤起（同 Agent 分区 agent 卡）。
  * 目录传标签 meta 的工作目录覆盖：历史会话与派发落在同一目录，
  * 留空由后端回退 agent 自身解析（配置目录或缺省 workspace） */
 async function openHistory(draft: Draft) {

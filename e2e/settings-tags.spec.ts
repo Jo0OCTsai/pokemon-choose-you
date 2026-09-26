@@ -2,8 +2,9 @@ import { expect, test, type Locator, type Page } from "@playwright/test";
 import { installTauriMock, task } from "./tauri-mock";
 
 /**
- * 设置 → 分类与标签：标签编辑 / 维度迁移与项目派发卡片的联动 / 维度管理。
- * 后端状态断言直接经 mock 的 invoke 读回（与 Rust 命令语义对齐，见 tauri-mock.ts）。
+ * 设置 → 分类与标签：标签编辑 / 维度迁移与维度管理；项目派发卡片 2026-09 移入
+ * 设置 → Agent 分区，相关用例跨分区导航断言联动。后端状态断言直接经 mock 的
+ * invoke 读回（与 Rust 命令语义对齐，见 tauri-mock.ts）。
  */
 
 const AGENTS = [
@@ -79,10 +80,15 @@ const SETTINGS = { ai_agents: JSON.stringify(AGENTS), ai_agent_id: "ag-local" };
 
 async function openTagsSettings(page: Page) {
   await page.goto("/");
-  await page.locator(".menu-btn", { hasText: "设置" }).click();
+  await page.locator(".menu-btn", { hasText: "背包" }).click();
   await page.locator(".stab", { hasText: "分类与标签" }).click();
   // 标签与维度由同一个 store.load 带回，分组渲染齐即就绪
   await expect(page.locator(".tag-dim-group")).toHaveCount(4);
+}
+
+/** 项目派发卡片在 Agent 分区：切过去（agent 列表就绪即卡片可断言） */
+async function openAgentsStab(page: Page) {
+  await page.locator(".stab", { hasText: "Agent" }).click();
 }
 
 function dispatchCard(page: Page): Locator {
@@ -124,7 +130,8 @@ test.describe("设置 · 标签与项目派发", () => {
     const unconfigured = await findTagRow(page, "lark-mcp");
     await expect(unconfigured.locator(".tag-meta-chip")).toHaveCount(0);
 
-    // 派发卡片：一标签一节，配置状态与 meta 预填跟随种子数据
+    // 派发卡片在 Agent 分区：一标签一节，配置状态与 meta 预填跟随种子数据
+    await openAgentsStab(page);
     const card = dispatchCard(page);
     await expect(card.locator(".dispatch-block")).toHaveCount(2);
     const block = card.locator(".dispatch-block", { hasText: "pokemon-choose-you" });
@@ -154,7 +161,7 @@ test.describe("设置 · 标签与项目派发", () => {
     await expect(renamed.locator(".tag-desc")).toHaveValue("每周读一章");
   });
 
-  test("把标签从主题挪到项目维度并保存后，进入项目派发卡片", async ({ page }) => {
+  test("把标签从主题挪到项目维度并保存后，Agent 分区的项目派发卡片出现该标签", async ({ page }) => {
     await installTauriMock(page, { settings: SETTINGS, tags: TAGS });
     await openTagsSettings(page);
     const row = await findTagRow(page, "读书");
@@ -168,14 +175,17 @@ test.describe("设置 · 标签与项目派发", () => {
       .poll(async () => ((await mockInvoke(page, "list_tags")) as any[]).find((t) => t.id === 3)?.dimension)
       .toBe("project");
 
+    // 派发卡片在 Agent 分区：新挪入的项目标签随 store 刷新出现在路由表
+    await openAgentsStab(page);
     const block = dispatchCard(page).locator(".dispatch-block", { hasText: "读书" });
     await expect(block).toHaveCount(1);
     await expect(block.locator(".db-state")).toContainText("未配置");
   });
 
-  test("项目派发卡片保存 agent 与目录后落库，点亮徽标与 ⚡", async ({ page }) => {
+  test("Agent 分区的项目派发卡片保存 agent 与目录后落库，回分类与标签点亮 ⚡", async ({ page }) => {
     await installTauriMock(page, { settings: SETTINGS, tags: TAGS });
     await openTagsSettings(page);
+    await openAgentsStab(page);
     const block = dispatchCard(page).locator(".dispatch-block", { hasText: "lark-mcp" });
     await block.locator(".ds-btn").click();
     await block
@@ -191,11 +201,13 @@ test.describe("设置 · 标签与项目派发", () => {
       .toEqual({ workdir: "~/projects/lark-mcp", agentId: "ag-local", context: null });
 
     await expect(block.locator(".db-state")).toContainText("已配置");
+    // ⚡ 徽标跟随 tagsStore（即时保存后即点亮）：回分类与标签分区核对
+    await page.locator(".stab", { hasText: "分类与标签" }).click();
     const row = await findTagRow(page, "lark-mcp");
     await expect(row.locator(".tag-meta-chip")).toBeVisible();
   });
 
-  test("删除项目标签后，行与派发小节一起消失，任务关联同步清理", async ({ page }) => {
+  test("删除项目标签后，行与 Agent 分区的派发小节一起消失，任务关联同步清理", async ({ page }) => {
     await installTauriMock(page, {
       settings: SETTINGS,
       tags: TAGS,
@@ -205,8 +217,9 @@ test.describe("设置 · 标签与项目派发", () => {
     const row = await findTagRow(page, "pokemon-choose-you");
     await row.locator(".btn.del").click();
 
-    // 行内 ⚡ 与派发小节同步消失
+    // 行内 ⚡ 同步消失；派发小节在 Agent 分区，切换后按 store 现量断言
     await expect(page.locator(".tag-meta-chip")).toHaveCount(0);
+    await openAgentsStab(page);
     await expect(dispatchCard(page).locator(".dispatch-block")).toHaveCount(1);
     await expect.poll(async () => ((await mockInvoke(page, "list_tags")) as any[]).map((t) => t.id)).toEqual([2, 3]);
     // 任务上的标签引用随删除级联清理

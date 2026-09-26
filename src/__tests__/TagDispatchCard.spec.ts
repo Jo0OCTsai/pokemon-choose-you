@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { mount } from "@vue/test-utils";
 import { createPinia, setActivePinia } from "pinia";
-import TagDispatchCard from "../components/TagDispatchCard.vue";
+import TagDispatchCard from "../components/settings/TagDispatchCard.vue";
 import { api } from "../api";
 import { i18n } from "../i18n";
 import { useTagsStore } from "../stores/tags";

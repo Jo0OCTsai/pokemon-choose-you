@@ -166,7 +166,7 @@ async function addTag(dimKey: string) {
   min-height: 38px;
   font-size: 13px;
 }
-/* 标签行内 ⚡ 徽标：已配置派发的项目标签（配置入口在下方「项目派发」卡片） */
+/* 标签行内 ⚡ 徽标：已配置派发的项目标签（配置入口在「Agent」分区的「项目派发」卡片） */
 .tag-meta-chip {
   flex: none;
   font-size: 13px;

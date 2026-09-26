@@ -6,12 +6,12 @@ import { fmtDateTime } from "../stores/settings";
 import type { AgentSession, SessionCounts } from "../types";
 
 /**
- * 全局会话历史卡（设置 · Agent stab，待办派发卡下方）：收音机分类（classify/capture）
- * 与待办派发（dispatch_headless/dispatch_interactive）共用 agent_sessions 表，task_id
- * 为空的收音机会话此前无任何 UI 入口——这里按来源分组 + 分页拉通展示，不分本地/远程。
- * 分组过滤与 LIMIT/OFFSET 翻页下沉后端（list_agent_sessions_paged），四档计数随页带回。
- * 回放走 open_recorded_session：按记录里的执行时快照路由（远端 ssh / tmux 重连 /
- * --resume 转录），不依赖 agent 当前配置。
+ * 全局会话历史列表（顶层「冒险日志」页，2026-09 自设置 · Agent 分区抽为独立菜单）：
+ * 收音机分类（classify/capture）与待办派发（dispatch_headless/dispatch_interactive）
+ * 共用 agent_sessions 表，task_id 为空的收音机会话此前无任何 UI 入口——这里按来源
+ * 分组 + 分页拉通展示，不分本地/远程。分组过滤与 LIMIT/OFFSET 翻页下沉后端
+ * （list_agent_sessions_paged），四档计数随页带回。回放走 open_recorded_session：
+ * 按记录里的执行时快照路由（远端 ssh / tmux 重连 / --resume 转录），不依赖 agent 当前配置。
  */
 const { t, te } = useI18n();
 
@@ -201,8 +201,11 @@ onMounted(load);
   margin-left: 4px;
 }
 .sess-empty {
-  opacity: 0.6;
-  font-size: 13px;
+  color: var(--ink-soft);
+  text-align: center;
+  padding: 48px 0;
+  font-size: 14px;
+  line-height: 2;
 }
 .sess-list {
   list-style: none;
@@ -210,16 +213,19 @@ onMounted(load);
   padding: 0;
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 12px;
 }
+/* 行卡与任务页 .entry 同档（白底描边硬阴影），整页宽度跟随内容区 */
 .sess-row {
-  border: 1px solid var(--border, #e4e4e4);
-  border-radius: 8px;
-  padding: 6px 10px;
+  background: #fff;
+  border: 3px solid var(--dex-navy);
+  border-radius: 12px;
+  box-shadow: 4px 4px 0 var(--dex-navy);
+  padding: 10px 14px;
   font-size: 13px;
 }
 .sess-row.err {
-  border-color: #e2a4a4;
+  border-color: #c66;
 }
 .sess-meta {
   display: flex;
