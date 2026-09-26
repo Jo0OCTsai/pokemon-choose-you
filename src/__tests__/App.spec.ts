@@ -753,7 +753,7 @@ describe("App 图鉴机主面板", () => {
     vi.mocked(api.createBackupNow).mockResolvedValue("pokemon-choose-you-20260913-120000.db");
     const w = await mountApp();
     await w.findAll(".menu-btn")[5].trigger("click"); // 设置
-    await w.findAll(".stab")[6].trigger("click"); // 通用
+    await w.findAll(".stab")[7].trigger("click"); // 通用
     await new Promise((r) => setTimeout(r)); // 挂载时异步拉取备份列表
     expect(w.text()).toContain("数据备份");
     expect(w.findAll(".backup-row")).toHaveLength(1);
@@ -771,7 +771,7 @@ describe("App 图鉴机主面板", () => {
   it("设置页通用区：导出三件套与打开目录", async () => {
     const w = await mountApp();
     await w.findAll(".menu-btn")[5].trigger("click"); // 设置
-    await w.findAll(".stab")[6].trigger("click"); // 通用
+    await w.findAll(".stab")[7].trigger("click"); // 通用
     await w
       .findAll(".btn")
       .find((b) => b.text() === "全量 JSON")!
@@ -903,18 +903,18 @@ describe("App 图鉴机主面板", () => {
   it("设置页飞书：无 App ID/Secret 输入，常驻 lark-cli 指引", async () => {
     const w = await mountApp();
     await w.findAll(".menu-btn")[5].trigger("click"); // 设置
-    await w.findAll(".stab")[4].trigger("click"); // 集成
+    await w.findAll(".stab")[5].trigger("click"); // 飞书
     expect(w.text()).not.toContain("App ID");
     expect(w.text()).not.toContain("App Secret");
     expect(w.text()).toContain("npm install -g @larksuite/cli");
     expect(w.text()).toContain("授权登录");
   });
 
-  it("设置页七个分区可选且默认显示专注", async () => {
+  it("设置页八个分区可选且默认显示专注", async () => {
     const w = await mountApp();
     await w.findAll(".menu-btn")[5].trigger("click");
     const stabs = w.findAll(".stab");
-    expect(stabs).toHaveLength(7);
+    expect(stabs).toHaveLength(8);
     expect(w.text()).toContain("番茄钟");
     await stabs[3].trigger("click"); // 显示
     expect(w.text()).toContain("日期格式");
@@ -957,7 +957,7 @@ describe("App 图鉴机主面板", () => {
     ]);
     const w = await mountApp();
     await w.findAll(".menu-btn")[5].trigger("click");
-    await w.findAll(".stab")[5].trigger("click"); // 诊断
+    await w.findAll(".stab")[6].trigger("click"); // 诊断
     expect(w.text()).toContain("飞书电波");
     expect(w.text()).toContain("降级重试中");
     expect(w.text()).toContain("待确认建议 3");
@@ -971,10 +971,10 @@ describe("App 图鉴机主面板", () => {
     expect(api.buildSupportReport).toHaveBeenCalled();
   });
 
-  it("设置页集成分区：AI agent 配置增删、主 agent 选择与测试链路", async () => {
+  it("设置页 Agent 分区：AI agent 配置增删、主 agent 选择与测试链路", async () => {
     const w = await mountApp();
     await w.findAll(".menu-btn")[5].trigger("click");
-    await w.findAll(".stab")[4].trigger("click"); // 集成
+    await w.findAll(".stab")[4].trigger("click"); // Agent
     expect(w.text()).toContain("AI Agent CLI");
 
     // 默认无 agent；按预设添加一个（Claude Code 预设填充命令与参数）
@@ -1034,7 +1034,7 @@ describe("App 图鉴机主面板", () => {
   it("AI agent 支持配置 SSH 远程执行并序列化进 ai_agents", async () => {
     const w = await mountApp();
     await w.findAll(".menu-btn")[5].trigger("click"); // 设置
-    await w.findAll(".stab")[4].trigger("click"); // 集成
+    await w.findAll(".stab")[4].trigger("click"); // Agent
     // 添加一个 Claude Code 预设
     await w
       .findAll(".btn")

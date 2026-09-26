@@ -11,12 +11,13 @@ import { useTagsStore } from "../stores/tags";
 import type { BackupInfo, FeishuOauthStatus } from "../types";
 import { ACTION_TOAST, SKILL_TOAST, useActionToast } from "../composables/useActionToast";
 import { useSettingToggle } from "../composables/useSettingToggle";
+import SectionAgents from "../components/settings/SectionAgents.vue";
 import SectionCats from "../components/settings/SectionCats.vue";
 import SectionDiag from "../components/settings/SectionDiag.vue";
 import SectionDisplay from "../components/settings/SectionDisplay.vue";
+import SectionFeishu from "../components/settings/SectionFeishu.vue";
 import SectionFocus from "../components/settings/SectionFocus.vue";
 import SectionGeneral from "../components/settings/SectionGeneral.vue";
-import SectionIntegrations from "../components/settings/SectionIntegrations.vue";
 import SectionTags from "../components/settings/SectionTags.vue";
 
 /** App 壳监听到 update-available 后传入的版本号（空串 = 无新版本） */
@@ -94,7 +95,8 @@ const settingsTabs = [
   { key: "cats", labelKey: "stabs.cats" },
   { key: "tags", labelKey: "stabs.tags" },
   { key: "display", labelKey: "stabs.display" },
-  { key: "integrations", labelKey: "stabs.integrations" },
+  { key: "agents", labelKey: "stabs.agents" },
+  { key: "feishu", labelKey: "stabs.feishu" },
   { key: "diag", labelKey: "stabs.diag" },
   { key: "general", labelKey: "stabs.general" },
 ] as const;
@@ -129,7 +131,7 @@ function startEditDims() {
 }
 
 // ---- 飞书用户授权（lark-cli 登录态，凭证由 lark-cli 保管）：页面挂载即预取，
-//      进入 integrations 分区时状态已就绪不闪「未授权」；授权忙位独立于 testing，文案共用底部状态条 ----
+//      进入 feishu 分区时状态已就绪不闪「未授权」；授权忙位独立于 testing，文案共用底部状态条 ----
 const feishuAuth = ref<FeishuOauthStatus | null>(null);
 const oauthToast = useActionToast({ msg: toast.msg });
 const oauthBusy = oauthToast.busy;
@@ -216,8 +218,8 @@ watch(settingsTab, (tab) => {
     if (!editingDims.value.length) startEditDims();
     if (!agentsStore.list.length) agentsStore.load(); // 项目派发卡片的 agent 下拉要用
   }
-  if (tab === "integrations" && !agentsStore.list.length) agentsStore.load();
-  if (tab === "integrations") agentsStore.loadTunnelStatuses();
+  if (tab === "agents" && !agentsStore.list.length) agentsStore.load();
+  if (tab === "agents") agentsStore.loadTunnelStatuses();
 });
 
 // 诊断分区引用：链路健康变化事件到达时若停在诊断页，经分区壳转发刷新健康面板
@@ -290,8 +292,9 @@ onUnmounted(() => {
         :reload-dims="startEditDims"
       />
       <SectionDisplay v-if="settingsTab === 'display'" />
-      <SectionIntegrations
-        v-if="settingsTab === 'integrations'"
+      <SectionAgents v-if="settingsTab === 'agents'" />
+      <SectionFeishu
+        v-if="settingsTab === 'feishu'"
         :feishu-auth="feishuAuth"
         :oauth-busy="oauthBusy"
         @login="feishuLogin"

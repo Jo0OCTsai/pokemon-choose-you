@@ -204,7 +204,7 @@ export default {
   dispatch: {
     title: "⚡ Agent 派发",
     needTag: "先给待办挂上「项目」维度标签，才能按项目路由派发（设置 → 标签）。",
-    noAgent: "还没有可用的 Agent：去 设置 → 集成 添加并启用后，再来派发。",
+    noAgent: "还没有可用的 Agent：去 设置 → Agent 添加并启用后，再来派发。",
     go: "派发",
     working: "派发中…",
     launched: "已在 {term} 中启动「{agent}」，任务命令会自动注入；完成后用 pk 写回待办状态。",
@@ -248,7 +248,8 @@ export default {
     cats: "分类",
     tags: "标签",
     display: "显示",
-    integrations: "集成",
+    agents: "Agent",
+    feishu: "飞书",
     diag: "诊断",
     general: "通用",
   },

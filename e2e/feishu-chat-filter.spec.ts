@@ -2,7 +2,7 @@ import { expect, test, type Locator, type Page } from "@playwright/test";
 import { chatFilter, installTauriMock } from "./tauri-mock";
 
 /**
- * 设置 · 集成 → 会话过滤卡：渲染 / 三段切换（乐观 + mock set 返回合并视图）/ 搜索筛选 / 布局无横向滚动。
+ * 设置 · 飞书 → 会话过滤卡：渲染 / 三段切换（乐观 + mock set 返回合并视图）/ 搜索筛选 / 布局无横向滚动。
  * 后端状态断言直接经 mock 的 invoke 读回（合并规则镜像 Rust filter_decision，见 tauri-mock.ts）。
  * 部分用例顺带产出验收截图到 specs/feishu-chat-filter/reports/raw/screenshots/（机器产物，与手工报告分离）。
  */
@@ -30,7 +30,7 @@ const CHATS = [
 async function openFilterCard(page: Page, expectedRows = 3): Promise<Locator> {
   await page.goto("/");
   await page.locator(".menu-btn", { hasText: "设置" }).click();
-  await page.locator(".stab", { hasText: "集成" }).click();
+  await page.locator(".stab", { hasText: "飞书" }).click();
   const card = page.locator(".cf-card");
   await expect(card.locator(".cf-row")).toHaveCount(expectedRows);
   return card;
@@ -40,7 +40,7 @@ function mockInvoke(page: Page, cmd: string, args: Record<string, unknown> = {})
   return page.evaluate(([c, a]) => (window as any).__TAURI_INTERNALS__.invoke(c, a), [cmd, args]);
 }
 
-test.describe("设置 · 集成：会话过滤卡", () => {
+test.describe("设置 · 飞书：会话过滤卡", () => {
   test("飞书卡下方渲染会话过滤卡：手动置顶排序、摘要计数、降级标示", async ({ page }) => {
     await installTauriMock(page, { settings: { feishu_enabled: "true" }, chatFilter: CHATS });
     const card = await openFilterCard(page);

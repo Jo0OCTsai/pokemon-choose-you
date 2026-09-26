@@ -202,7 +202,7 @@ export default {
   dispatch: {
     title: "⚡ Dispatch to Agent",
     needTag: "Add a Project-dimension tag first — dispatch routes by project tag (Settings → Tags).",
-    noAgent: "No agent available yet: add and enable one in Settings → Integrations first.",
+    noAgent: "No agent available yet: add and enable one in Settings → AI Agents first.",
     go: "Dispatch",
     working: "Dispatching…",
     launched:
@@ -249,7 +249,8 @@ export default {
     cats: "Categories",
     tags: "Tags",
     display: "Display",
-    integrations: "Integrations",
+    agents: "AI Agents",
+    feishu: "Feishu",
     diag: "Diagnostics",
     general: "General",
   },

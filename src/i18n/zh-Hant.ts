@@ -202,7 +202,7 @@ export default {
   dispatch: {
     title: "⚡ Agent 派發",
     needTag: "先給待辦掛上「專案」維度標籤，才能按專案路由派發（設定 → 標籤）。",
-    noAgent: "還沒有可用的 Agent：去 設定 → 整合 新增並啟用後，再來派發。",
+    noAgent: "還沒有可用的 Agent：去 設定 → Agent 新增並啟用後，再來派發。",
     go: "派發",
     working: "派發中…",
     launched: "已在 {term} 中啟動「{agent}」，任務命令會自動注入；完成後用 pk 寫回待辦狀態。",
@@ -246,7 +246,8 @@ export default {
     cats: "分類",
     tags: "標籤",
     display: "顯示",
-    integrations: "整合",
+    agents: "Agent",
+    feishu: "飛書",
     diag: "診斷",
     general: "一般",
   },

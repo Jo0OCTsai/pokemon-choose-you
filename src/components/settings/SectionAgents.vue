@@ -4,23 +4,18 @@ import { useI18n } from "vue-i18n";
 import { useSettingToggle } from "../../composables/useSettingToggle";
 import { useSettingsStore } from "../../stores/settings";
 import { useAgentsStore } from "../../stores/agents";
-import type { FeishuOauthStatus } from "../../types";
 import AgentSessionHistory from "../AgentSessionHistory.vue";
-import FeishuChatFilterManager from "../FeishuChatFilterManager.vue";
 import DexSelect from "../DexSelect.vue";
 import DexToggle from "../DexToggle.vue";
 import SettingRow from "../SettingRow.vue";
 import AgentConfigCard from "./AgentConfigCard.vue";
-import FeishuCard from "./FeishuCard.vue";
 
 /**
- * 「集成」分区（自 SettingsTab 拆出）：AI agent 管理（列表/CRUD/隧道与技能状态在
+ * 「Agent」分区（自 SectionIntegrations 拆出）：AI agent 管理（列表/CRUD/隧道与技能状态在
  * agents store + AgentConfigCard，这里只剩分区级预设下拉与主 agent 单选）、会话历史、
- * 待办派发自动化、飞书（授权状态与登录动作由父级持有——页面挂载即预取，经 props/emit 接线）。
+ * 待办派发自动化。会话历史按执行时快照回放（收音机分类/快速捕捉/派发共用 agent_sessions），
+ * 数据流全指向 agent 执行域，故随本分区不随飞书。
  */
-defineProps<{ feishuAuth: FeishuOauthStatus | null; oauthBusy: boolean }>();
-const emit = defineEmits<{ login: [] }>();
-
 const { t } = useI18n();
 const settings = useSettingsStore();
 const agentsStore = useAgentsStore();
@@ -118,11 +113,6 @@ const maxConcurrentOptions = computed(() =>
     </SettingRow>
     <p class="set-foot">{{ t("dispatchCfg.foot") }}</p>
   </section>
-
-  <FeishuCard :feishu-auth="feishuAuth" :oauth-busy="oauthBusy" @login="emit('login')" />
-
-  <!-- 会话过滤：逐会话三态偏好（组件自取数，点击即写库即时生效，不进 save 缓冲） -->
-  <FeishuChatFilterManager />
 </template>
 
 <style scoped>
