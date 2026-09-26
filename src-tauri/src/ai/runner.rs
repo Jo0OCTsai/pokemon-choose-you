@@ -1,5 +1,5 @@
-//! 进程执行与会话收集：agent 无头调用（超时/ETXTBSY 重试/cmd 回退）、
-//! 分类与快速捕捉的「pk 写回 → 库回读」链路、连接测试工具探针。
+//! 进程执行：agent 无头调用（超时/ETXTBSY 重试/cmd 回退）与连接测试工具探针。
+
 use crate::error::{AppError, AppResult};
 use std::path::PathBuf;
 use std::time::Duration;
@@ -9,140 +9,9 @@ use super::config::AgentConfig;
 use super::invocation::build_invocation;
 #[cfg(windows)]
 use super::invocation::windows_cmd_quote;
-use super::prompts::{build_capture_prompt, build_tools_prompt};
-use super::types::{dedup_batch_todos, AiMessage, AiSuggestion};
 
 /// 单次 agent 调用的超时下限（秒）：agent CLI 启动 + 推理普遍慢于直连 API
 const MIN_TIMEOUT_SECS: u64 = 10;
-
-/// 分类一批消息（便捷入口）
-pub async fn classify(
-    agent: &AgentConfig,
-    batch: &[AiMessage],
-    db: &crate::db::Db,
-) -> AppResult<Vec<AiSuggestion>> {
-    classify_with_session(agent, batch, db, None)
-        .await
-        .map(|(s, _)| s)
-}
-
-/// 预生成会话 id（收音机分类 / 快速捕捉用）：claude 与 pi 的 `--session-id` 都是
-/// create-if-absent 语义，id 由应用先行确定——进程超时/出错被杀时信封拿不回 id，
-/// 落库侧仍可凭预生成 id 回看现场（agent 工具的转录按 id 保存，与进程退出无关）。
-/// 其他 agent 不预生成
-pub fn pregen_session_id(agent: &AgentConfig) -> Option<String> {
-    let kind = crate::skills::kind_for_command(&agent.command);
-    matches!(kind, Some("claude-code") | Some("pi")).then(|| uuid::Uuid::new_v4().to_string())
-}
-
-/// 分类一批消息并带回会话元信息（session_id）：agent 经 pk CLI 把判定写回数据库，
-/// 应用不解析其文本输出，跑完后从库回读该批消息的判定结果；
-/// pregen 为预生成会话 id（见 pregen_session_id）——成功时信封 id 与之一致，
-/// 失败时调用方仍可凭它落库回链
-pub async fn classify_with_session(
-    agent: &AgentConfig,
-    batch: &[AiMessage],
-    db: &crate::db::Db,
-    pregen: Option<&str>,
-) -> AppResult<(Vec<AiSuggestion>, Option<String>)> {
-    let prompt = build_tools_prompt(agent, batch);
-    log::debug!(
-        "ai: 经 agent「{}」分类 {} 条消息，prompt: {}",
-        agent.name,
-        batch.len(),
-        trunc(&prompt, 500)
-    );
-    let ids: Vec<String> = batch.iter().map(|m| m.message_id.clone()).collect();
-    run_and_collect(agent, &prompt, &ids, db, pregen).await
-}
-
-/// 手动快速捕捉：把用户在收音机输入的一条自然语言待办交给 agent 判定结构化属性。
-/// 与 IM 分类共用「pk 写回 → 库回读」链路，但提示词不同——输入本身就是用户要建的待办，
-/// 不做任务归属判断，重点在抽属性与判重。
-pub async fn capture_with_session(
-    agent: &AgentConfig,
-    input: &AiMessage,
-    db: &crate::db::Db,
-    pregen: Option<&str>,
-) -> AppResult<(AiSuggestion, Option<String>)> {
-    let prompt = build_capture_prompt(agent, input);
-    log::debug!(
-        "ai: 经 agent「{}」快速捕捉，prompt: {}",
-        agent.name,
-        trunc(&prompt, 500)
-    );
-    let (mut list, session_id) = run_and_collect(
-        agent,
-        &prompt,
-        std::slice::from_ref(&input.message_id),
-        db,
-        pregen,
-    )
-    .await?;
-    let s = list
-        .pop()
-        .ok_or_else(|| AppError::External("agent 未返回捕捉判定".into()))?;
-    Ok((s, session_id))
-}
-
-/// 预生成 id 注入 agent 参数（克隆后追加 `--session-id <id>`，不动调用方配置）
-fn inject_pregen_args(agent: &AgentConfig, pregen: Option<&str>) -> AgentConfig {
-    let mut a = agent.clone();
-    if let Some(id) = pregen.map(str::trim).filter(|s| !s.is_empty()) {
-        a.args.push_str(" --session-id ");
-        a.args.push_str(id);
-    }
-    a
-}
-
-/// 无头跑一次 agent 并从库回读该批消息的判定（分类 / 快速捕捉共用）：
-/// 回读后做批内判重兜底，整批遗漏判失败（见各调用方的错误处理约定）。
-/// pregen 预生成 id 注入为 `--session-id`（agent 参数克隆后追加，不动调用方配置）
-async fn run_and_collect(
-    agent: &AgentConfig,
-    prompt: &str,
-    ids: &[String],
-    db: &crate::db::Db,
-    pregen: Option<&str>,
-) -> AppResult<(Vec<AiSuggestion>, Option<String>)> {
-    let a = inject_pregen_args(agent, pregen);
-    let out = run_agent(&a, prompt).await?;
-    log::debug!("ai: agent 原始输出: {}", trunc(&out, 800));
-    let (_, session_id) = extract_payload(&out);
-    // agent 进程已结束才拿锁，回读期间不跨 await 持锁
-    let suggestions = {
-        let conn = db.0.lock().unwrap();
-        let mut loaded = crate::commands::radio::load_suggestions_conn(&conn, ids)?;
-        let demoted = dedup_batch_todos(&mut loaded);
-        for s in loaded.iter().filter(|s| demoted.contains(&s.message_id)) {
-            // agent 已把重复 todo 写进建议列：清掉建议载荷并置 none，
-            // 收音机里不再出现第二张建议卡
-            let _ = conn.execute(
-                "UPDATE chat_messages SET ai_status='none', suggested_title=NULL, suggested_note=NULL,
-                        suggested_category=NULL, suggested_due=NULL, suggested_priority=NULL,
-                        suggested_tags='[]', suggested_reason=?2
-                 WHERE message_id=?1",
-                rusqlite::params![s.message_id, s.reason],
-            );
-        }
-        if !demoted.is_empty() {
-            log::info!("ai: 批内判重兜底，降级 {} 条重复待办", demoted.len());
-        }
-        loaded
-    };
-    // agent 退出 0 但一条都没落库（pk 不在 PATH / 工具白名单没放行等）→ 判失败，
-    // 让调用方按错误路径标记，避免整批被静默标 none；部分遗漏由调用方按 none 兜底
-    let missed = suggestions.iter().filter(|s| s.action == "pending").count();
-    if missed == ids.len() {
-        return Err(AppError::External(format!(
-            "agent「{}」执行完成但没有任何判定落库（{} 条全部遗漏）——请确认其无头模式允许执行 pk 命令（工具白名单，本机 pk 目录已随调用注入 PATH）；可用「测试」按钮跑一次工具探针",
-            agent.name, missed
-        )));
-    }
-    // 信封 id 优先（与预生成一致）；拿不回时回退预生成 id（进程异常退出也保住回链）
-    let session_id = session_id.or_else(|| pregen.map(str::to_string));
-    Ok((suggestions, session_id))
-}
 
 /// 无头调用 agent：本地执行或 SSH 远程执行（见 build_invocation 的组装规则）
 pub async fn run_agent(agent: &AgentConfig, prompt: &str) -> AppResult<String> {
@@ -361,7 +230,7 @@ fn spawn_error(program: &str, e: std::io::Error) -> AppError {
 
 /// agent 的输出风格各异：`claude --output-format json` 会把回答再包一层 {"result":"..."}，
 /// 先解出内层文本再走常规解析
-fn extract_payload(content: &str) -> (String, Option<String>) {
+pub(crate) fn extract_payload(content: &str) -> (String, Option<String>) {
     let trimmed = content.trim();
     if let Ok(v) = serde_json::from_str::<serde_json::Value>(trimmed) {
         if let Some(inner) = v.get("result").and_then(|r| r.as_str()) {
@@ -376,7 +245,7 @@ fn extract_payload(content: &str) -> (String, Option<String>) {
 }
 
 /// 日志截断：按字符数截断（中文安全），避免长消息刷爆 512KB 轮转日志
-fn trunc(s: &str, n: usize) -> String {
+pub(crate) fn trunc(s: &str, n: usize) -> String {
     s.chars().take(n).collect()
 }
 
@@ -406,55 +275,6 @@ mod tests {
 
     use crate::ai::AgentRemote;
 
-    /// 预生成会话 id 只给 create-if-absent 语义的 agent（claude / pi），其他不预生成
-    #[test]
-    fn pregen_session_id_gates_by_agent_kind() {
-        let claude = AgentConfig {
-            command: "claude".into(),
-            ..Default::default()
-        };
-        let pi = AgentConfig {
-            command: "pi".into(),
-            ..Default::default()
-        };
-        let opencode = AgentConfig {
-            command: "opencode".into(),
-            ..Default::default()
-        };
-        assert!(pregen_session_id(&claude).is_some());
-        assert!(pregen_session_id(&pi).is_some());
-        let id = pregen_session_id(&claude).unwrap();
-        assert!(uuid::Uuid::parse_str(&id).is_ok(), "uuid v4: {id}");
-        assert!(
-            pregen_session_id(&opencode).is_none(),
-            "无 create-if-absent 语义的 agent 不预生成"
-        );
-    }
-
-    /// 预生成 id 注入：追加 `--session-id <id>`，原配置不动，空/空白不注入
-    #[test]
-    fn inject_pregen_args_appends_session_flag() {
-        let agent = AgentConfig {
-            args: "-p {prompt} --allowedTools Bash(pk:*) --output-format json".into(),
-            ..Default::default()
-        };
-        let injected = inject_pregen_args(&agent, Some("0b0ae984-x"));
-        assert!(
-            injected
-                .args
-                .ends_with("--output-format json --session-id 0b0ae984-x"),
-            "追加在原参数之后: {}",
-            injected.args
-        );
-        assert_eq!(
-            agent.args, "-p {prompt} --allowedTools Bash(pk:*) --output-format json",
-            "原配置不动"
-        );
-        assert_eq!(inject_pregen_args(&agent, None).args, agent.args);
-        assert_eq!(inject_pregen_args(&agent, Some("  ")).args, agent.args);
-    }
-
-    #[cfg(unix)]
     #[test]
     fn spawn_respects_and_validates_workdir() {
         use std::os::unix::fs::PermissionsExt;
@@ -573,6 +393,8 @@ mod tests {
     #[cfg(unix)]
     mod process_tests {
         use super::*;
+        use crate::ai::build_tools_prompt;
+        use crate::ai::AiMessage;
         use std::io::Write as _;
 
         /// 写一个临时 agent 脚本：extra_shell 在输出 payload 前执行（sleep / 记录 stdin / 退出非零…）
