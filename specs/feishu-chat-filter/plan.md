@@ -50,7 +50,7 @@
 ## 集成与验收（主会话）
 
 1. 全量门槛：`npm test`（vitest + cargo test）+ lint/format/build/clippy 全绿。
-2. 报告产出 `specs/feishu-chat-filter/reports/`：`raw/`（测试日志与 playwright-report）、`api-summary.md`（读 raw 解读）、`e2e-summary.md`、`acceptance-report.md`（用户场景叙事 + 截图到 `screenshots/`）。
+2. 报告产出 `specs/feishu-chat-filter/reports/`：`raw/`（测试日志与 playwright-report）、`api-summary.md`（读 raw 解读）、`e2e-summary.md`、`acceptance-report.md`（用户场景叙事 + 截图到 `reports/raw/screenshots/`）。
 3. 文档同步：`docs/USER_GUIDE.md` 免打扰引导改写指向会话过滤卡、`docs/ROADMAP.md`、`docs/proposals/FEISHU_MESSAGE_ANALYSIS.md` §9.2/§9.3 落地标注。
 4. 提交：conventional commit（feat: …），lefthook 兜底；不 push，等用户验收。
 

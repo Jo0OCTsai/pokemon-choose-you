@@ -4,10 +4,10 @@ import { chatFilter, installTauriMock } from "./tauri-mock";
 /**
  * 设置 · 集成 → 会话过滤卡：渲染 / 三段切换（乐观 + mock set 返回合并视图）/ 搜索筛选 / 布局无横向滚动。
  * 后端状态断言直接经 mock 的 invoke 读回（合并规则镜像 Rust filter_decision，见 tauri-mock.ts）。
- * 部分用例顺带产出验收截图到 specs/feishu-chat-filter/reports/screenshots/。
+ * 部分用例顺带产出验收截图到 specs/feishu-chat-filter/reports/raw/screenshots/（机器产物，与手工报告分离）。
  */
 
-const SHOTS = "specs/feishu-chat-filter/reports/screenshots";
+const SHOTS = "specs/feishu-chat-filter/reports/raw/screenshots";
 
 const CHATS = [
   chatFilter({ chatId: "oc_team", chatName: "团队群" }),

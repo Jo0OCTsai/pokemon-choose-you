@@ -37,3 +37,6 @@ coverage/
 
 # pk CLI sidecar（构建时由 scripts/prepare-pk-cli.mjs 生成）
 src-tauri/binaries/
+
+# 验收截图（e2e 机器产物，本地再生成，不入库）
+specs/*/reports/raw/screenshots/
