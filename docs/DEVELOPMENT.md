@@ -2,7 +2,7 @@
 
 面向开发者的环境搭建、常用命令、测试与发布流程。安装与日常使用见 [操作说明](USER_GUIDE.md)；提交规范与贡献流程见 [贡献指南](../CONTRIBUTING.md)；跨平台已知坑位见 [平台注意事项](PLATFORM_NOTES.md)。
 
-技术栈 Tauri 2 + Vue 3 + Rust：常驻仅桌宠窗口，网络/同步跑在 tokio 后台任务，UI 卡死不影响提醒；数据为 SQLite（WAL）本地存储，日志滚动记录于 `~/.local/share/com.jotsai.pokemonchooseyou/logs/`。
+技术栈 Tauri 2 + Vue 3 + Rust：常驻仅桌宠窗口，网络/同步跑在 tokio 后台任务，UI 卡死不影响提醒；数据为 SQLite（WAL）本地存储，日志滚动记录于 `~/.choose-you/logs/`（`CHOOSE_YOU_HOME` 可重定位归一化根）。
 
 ## 环境搭建
 
@@ -83,8 +83,8 @@ src/                    前端（Vue 3 + TS + Pinia）
   App.vue               图鉴机主面板
   PetApp.vue            桌宠窗口（气泡/番茄钟/状态机/快捷图鉴屏）
   components/           图鉴风自绘组件（DexSelect / DexToggle / DexDateTime / TaskCard…）
-  views/                主面板分页（TaskTab / RadioTab / SettingsTab）
-  stores/               Pinia 状态（settings / tasks / categories / tags）
+  views/                主面板分页（TaskTab / RadioTab / SessionsTab（日志）/ SettingsTab）
+  stores/               Pinia 状态（settings / tasks / categories / tags / agents）
   composables/          组合逻辑：usePomodoro（番茄钟状态机）/ usePetDrag（手动拖拽）/
                         usePetIdle（微动作调度）/ useInputResponse（输入响应）等
   api.ts                IPC 封装 + 错误分层
@@ -98,11 +98,12 @@ scripts/
 src-tauri/src/
   db.rs                 SQLite 初始化 + 版本迁移 + 默认分类
   commands/             IPC 命令按域拆分：tasks / categories / tags / tag_health（标签体检）/
-                        settings / integrations / sessions / skills / remote_pk / backup /
-                        export / diagnostics / pet（桌宠）/ windows（conn 层供 pk CLI 复用）；
-                        radio/（收音机：store / suggest / review / context / judge / capture）与
-                        dispatch/（待办派发：meta / route / prompt / cmdline / probe / state /
-                        headless / exec / auto）为目录模块，mod.rs 平铺 re-export
+                        settings / integrations / sessions / skills / remote_pk（远程执行）/ tunnel
+                        （常驻反向隧道）/ backup / export / diagnostics / pet（桌宠）/
+                        windows（conn 层供 pk CLI 复用）；radio/（收音机：store / suggest /
+                        review / context / judge / capture）与 dispatch/（待办派发：meta /
+                        route / prompt / cmdline / probe / state / headless / exec / auto）
+                        为目录模块，mod.rs 平铺 re-export
   ai/                   AI agent 无头调用：config（多 Agent 配置）/ invocation（命令行组装与
                         shell 引用规则）/ prompts（判定提示词）/ types（协议类型）/
                         runner（进程执行与连接测试）

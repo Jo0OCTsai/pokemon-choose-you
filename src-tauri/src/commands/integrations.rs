@@ -652,7 +652,7 @@ pub async fn feishu_oauth_login(db: State<'_, Db>) -> AppResult<String> {
         .map(|term| format!("已在 {term} 中启动 lark-cli 登录，完成后回到这里点「测试」"))
 }
 
-// ---- 飞书会话过滤偏好（feishu-chat-filter；契约 = specs/feishu-chat-filter/architecture.md §4）----
+// ---- 飞书会话过滤偏好（feishu-chat-filter；契约 = specs/archive/feishu-chat-filter/architecture.md §4）----
 
 /// 单会话过滤视图：快照观测事实 × 偏好合并；effective / source 读取时现算，不落库。
 #[derive(Debug, serde::Serialize)]
