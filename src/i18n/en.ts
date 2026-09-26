@@ -10,7 +10,7 @@ export default {
     doneDesc: "Hall of caught achievements",
     im: "Radio",
     imDesc: "Tune in to Feishu waves and catch todos",
-    sessions: "Journal",
+    sessions: "Log",
     sessionsDesc: "Your agent pals' battle records—replay any session",
     settings: "Bag",
     settingsDesc: "Trainer gear & Dex tuning",

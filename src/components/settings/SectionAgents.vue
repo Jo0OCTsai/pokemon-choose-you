@@ -15,7 +15,7 @@ import TagDispatchCard from "./TagDispatchCard.vue";
  * 「Agent」分区（自 SectionIntegrations 拆出）：一切与派发有关聚齐——AI agent 管理
  * （列表/CRUD/隧道与技能状态在 agents store + AgentConfigCard，这里只剩分区级预设下拉
  * 与主 agent 单选）、项目派发路由（TagDispatchCard，project 标签 → agent/目录/上下文，
- * 2026-09 自「分类与标签」分区移入）、待办派发自动化。会话历史已抽为顶层「冒险日志」页。
+ * 2026-09 自「分类与标签」分区移入）、待办派发自动化。会话历史已抽为顶层「日志」页。
  */
 const { t } = useI18n();
 const settings = useSettingsStore();

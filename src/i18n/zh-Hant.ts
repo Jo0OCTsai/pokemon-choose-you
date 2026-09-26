@@ -10,7 +10,7 @@ export default {
     doneDesc: "已捕捉登錄的成就記錄",
     im: "收音機",
     imDesc: "收聽飛書傳來的電波，從中捕捉待辦",
-    sessions: "冒險日誌",
+    sessions: "日誌",
     sessionsDesc: "Agent 夥伴的戰鬥實錄，每場會話都可回放",
     settings: "背包",
     settingsDesc: "訓練家的裝備與圖鑑機調校",

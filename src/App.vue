@@ -23,7 +23,7 @@ const tagsStore = useTagsStore();
 const tasksStore = useTasksStore();
 
 type Tab = TaskTabKey | "im" | "sessions" | "settings";
-// 菜单命名体系统一为"训练家旅程"：冒险/路线/草丛/图鉴/收音机/冒险日志
+// 菜单命名体系统一为"训练家旅程"：冒险/路线/草丛/图鉴/收音机/日志
 const tabs: { key: Tab; labelKey: string; descKey: string }[] = [
   { key: "today", labelKey: "tabs.today", descKey: "tabs.todayDesc" },
   { key: "scheduled", labelKey: "tabs.scheduled", descKey: "tabs.scheduledDesc" },

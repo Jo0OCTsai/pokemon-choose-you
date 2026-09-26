@@ -6,7 +6,7 @@ import { fmtDateTime } from "../stores/settings";
 import type { AgentSession, SessionCounts } from "../types";
 
 /**
- * 全局会话历史列表（顶层「冒险日志」页，2026-09 自设置 · Agent 分区抽为独立菜单）：
+ * 全局会话历史列表（顶层「日志」页，2026-09 自设置 · Agent 分区抽为独立菜单）：
  * 收音机分类（classify/capture）与待办派发（dispatch_headless/dispatch_interactive）
  * 共用 agent_sessions 表，task_id 为空的收音机会话此前无任何 UI 入口——这里按来源
  * 分组 + 分页拉通展示，不分本地/远程。分组过滤与 LIMIT/OFFSET 翻页下沉后端

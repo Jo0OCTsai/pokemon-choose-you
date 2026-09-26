@@ -10,7 +10,7 @@ export default {
     doneDesc: "已捕捉登录的成就记录",
     im: "收音机",
     imDesc: "收听飞书传来的电波，从中捕捉待办",
-    sessions: "冒险日志",
+    sessions: "日志",
     sessionsDesc: "Agent 伙伴的战斗实录，每场会话都可回放",
     settings: "背包",
     settingsDesc: "训练家的装备与图鉴机调校",

@@ -245,7 +245,7 @@ describe("App 图鉴机主面板", () => {
     expect(labels[2]).toContain("草丛");
     expect(labels[3]).toContain("图鉴");
     expect(labels[4]).toContain("收音机");
-    expect(labels[5]).toContain("冒险日志");
+    expect(labels[5]).toContain("日志");
     expect(labels[6]).toContain("背包");
   });
 
