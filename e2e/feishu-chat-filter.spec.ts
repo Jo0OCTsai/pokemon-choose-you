@@ -4,10 +4,7 @@ import { chatFilter, installTauriMock } from "./tauri-mock";
 /**
  * 设置 · 飞书 → 会话过滤卡：渲染 / 三段切换（乐观 + mock set 返回合并视图）/ 搜索筛选 / 布局无横向滚动。
  * 后端状态断言直接经 mock 的 invoke 读回（合并规则镜像 Rust filter_decision，见 tauri-mock.ts）。
- * 部分用例顺带产出截图到 test-results/screenshots/（机器产物；特性验收报告已归档 specs/archive/feishu-chat-filter/）。
  */
-
-const SHOTS = "test-results/screenshots/feishu-chat-filter";
 
 const CHATS = [
   chatFilter({ chatId: "oc_team", chatName: "团队群" }),
@@ -62,8 +59,6 @@ test.describe("设置 · 飞书：会话过滤卡", () => {
     await expect(degraded.locator(".cf-eff.degraded")).toContainText("降级");
     await expect(degraded.locator(".sr-only")).toHaveText(/免打扰查询失败/);
     await expect(degraded.locator(".cf-seg")).toHaveAttribute("aria-describedby", "cf-dg-oc_bot");
-
-    await page.screenshot({ path: `${SHOTS}/01-card-overview.png`, fullPage: false });
   });
 
   test("三段切换：乐观切换 → mock set 返回合并行视图 → chip/计数即时校正并落库", async ({ page }) => {
@@ -91,7 +86,6 @@ test.describe("设置 · 飞书：会话过滤卡", () => {
       .toContainEqual(
         expect.objectContaining({ chatId: "oc_team", preference: "always_pull", effective: "pull", source: "manual" }),
       );
-    await page.screenshot({ path: `${SHOTS}/02-after-toggle.png`, fullPage: false });
 
     // 键盘处方：Tab 单停点落在选中段，ArrowLeft 即选即写（与点击同一路径）
     await btns.nth(1).focus();
@@ -114,7 +108,6 @@ test.describe("设置 · 飞书：会话过滤卡", () => {
     await chips.nth(1).click();
     await expect(chips.nth(1)).toHaveAttribute("aria-pressed", "true");
     await expect(card.locator(".cf-name")).toHaveText(["灌水群"]);
-    await page.screenshot({ path: `${SHOTS}/03-filtered-chip.png`, fullPage: false });
     // 摘要计数不被筛选改写
     await expect(card.locator(".cf-counts")).toContainText("共 3 个会话：2 拉取 · 1 过滤 · 手动 1");
 
@@ -143,7 +136,6 @@ test.describe("设置 · 飞书：会话过滤卡", () => {
       expect(noOverflow, `scrollWidth 应不超出 clientWidth`).toBe(true);
     }
     await expect(card.locator(".cf-name").first()).toHaveCSS("text-overflow", "ellipsis");
-    await page.screenshot({ path: `${SHOTS}/05-narrow-480.png`, fullPage: false });
   });
 
   test("陈旧横幅：快照龄超阈值（max(5min, 2.5×interval)）时升级为 warn 提示", async ({ page }) => {
@@ -155,6 +147,5 @@ test.describe("设置 · 飞书：会话过滤卡", () => {
     });
     const card = await openFilterCard(page);
     await expect(card.locator(".cf-stale-banner")).toContainText("距上一轮拉取已");
-    await page.screenshot({ path: `${SHOTS}/04-stale-banner.png`, fullPage: false });
   });
 });

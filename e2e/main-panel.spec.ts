@@ -21,10 +21,10 @@ test.describe("图鉴机主面板", () => {
     await expect(page.locator(".catch-progress .px")).toContainText("CAUGHT 0/0");
   });
 
-  test("冒险日志页：会话历史抽为顶层菜单，空库渲染空态", async ({ page }) => {
+  test("日志页：会话历史抽为顶层菜单，空库渲染空态", async ({ page }) => {
     await page.goto("/");
-    await page.locator(".menu-btn", { hasText: "冒险日志" }).click();
-    await expect(page.locator(".dex-main-head h1")).toContainText("冒险日志");
+    await page.locator(".menu-btn", { hasText: "日志" }).click();
+    await expect(page.locator(".dex-main-head h1")).toContainText("日志");
     // 列表分页/过滤/回放行为由 AgentSessionHistory 单测覆盖，这里只钉导航与空态
     await expect(page.locator(".sess-filters")).toBeVisible();
     await expect(page.locator(".sess-empty")).toContainText("还没有会话记录");
