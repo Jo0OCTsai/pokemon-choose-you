@@ -2,7 +2,7 @@
   "name": "pokemon-choose-you",
   "private": true,
   "version": "1.0.0",
-  "packageManager": "pnpm@9.15.9",
+  "packageManager": "pnpm@12.6.0",
   "type": "module",
   "scripts": {
     "dev": "vite",
