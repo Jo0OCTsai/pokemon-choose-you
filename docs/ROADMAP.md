@@ -2,7 +2,7 @@
 
 > 这份路线图描述「就决定是你了」的**方向与优先级，是方向声明而非交付承诺**——0.x 阶段排序会随反馈调整，Later 的事项尤其可能变化。
 >
-> 组织方式参考社区通行实践（Now / Next / Later 分层 + 状态图例，不绑定日期）。最后更新：2026-09-25，随版本滚动更新。
+> 组织方式参考社区通行实践（Now / Next / Later 分层 + 状态图例，不绑定日期）。最后更新：2026-09-27，随版本滚动更新。
 
 ## 如何阅读
 
@@ -90,7 +90,7 @@
 - **AI**：agent CLI 多配置（Claude Code / OpenCode / pi + 自定义）、`pk` CLI 供 agent 调用（task / note / log / category / tag / context，全 JSON 输出）、会话历史快捷入口
 - **Agent SSH 远程执行**：agent 配置可指定 SSH 目标（host/端口/私钥），无头调用与历史入口均经 `ssh --` 以登录 shell（`$SHELL -lc`）转发——非交互会话也能找到 brew/nvm 安装的 CLI；提示词走 stdin 免遭远端 shell 重解析，BatchMode 免交互、连接超时 10 秒；远端找不到命令（退出码 127）时附 PATH 修复指引
 - **会话回链与成本记录**：agent_sessions 表按次落库（session_id / 命令 / 退出码 / 成本 / 时长 / token），分类调用自动记录，`pk session log` 关联任务；任务详情抽屉展示并可回放转录
-- **配套 skill 分发**：`pk skill install claude-code|opencode [--dir]` 一键装 SKILL.md（含 pk 命令速查与 agent 建议流程），`pk skill show` 输出原文
+- **配套 skill 分发**：`pk skill install claude-code|opencode|pi [--dir]` 一键装 SKILL.md（含 pk 命令速查与 agent 建议流程），`pk skill show` 输出原文
 - **Agent 工具调用模式（pk suggest，现为唯一回收方式）**：agent 先 `pk context` 拿判重上下文、`pk suggest batch` 一次性把整批判定写回数据库，应用直接回读、不解析 agent 输出文本（早期的 text 文本解析模式已下线）；`pk suggest todo|update|follow-up|none|batch` 全套提交命令（todo/update 写建议列保留人工确认、follow-up 自动挂跟进，整批校验一损俱损、同消息幂等覆盖），建议落库收敛为 conn 层单一实现；技能改为渐进披露多文件（SKILL.md + references/ 参数表与批处理工作流，带版本标记、跨版本重装提示更新）；连接测试为工具探针（真跑一次 pk context，验证白名单/PATH/数据库整条链路）
 - **远程 agent 用 pk（反向隧道 + 一键配置）**：`pk remote shim --host <本机> [--port] [--key] [--write]` 生成远程透传脚本，pk 命令经 ssh 回本机执行、数据始终留在本机；agent 的 SSH 配置填反向隧道端口（`-R` 把远程侧 127.0.0.1:端口 转回本机 sshd），本机零入站。设置页「一键配置远程 pk」按钮全自动完成部署——密钥生成/公钥装配/私钥推送/主机指纹预信任/shim 安装与 PATH 保障/端口写回/真实隧道端到端验证，全程幂等逐步报告（用户前置仅需开启本机 sshd）
 - **pk 的 agent 友好性四件套**：`pk doctor` 环境自检（数据库存在性/schema 版本/quick_check 完整性/WAL 并发/context 读链路/技能安装版本，每项带 fix 修复建议，有 fail 退出码 1；`--ssh <host>` 端到端验证远程 shim 链路）；`task create/update/delete --dry-run` 只校验回显不落库；`task list --limit`（默认 50，truncated 时提示用 search 收窄——token 瘦身）；`pk help --json` 机器可读命令目录

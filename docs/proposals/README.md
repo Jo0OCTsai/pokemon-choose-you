@@ -10,6 +10,6 @@
 | [MEMORY_KNOWLEDGE_PROPOSAL.md](MEMORY_KNOWLEDGE_PROPOSAL.md) | 分层记忆 + 本地知识检索 | 方案（未实施） |
 | [AGENT_DISPATCH_PROPOSAL.md](AGENT_DISPATCH_PROPOSAL.md) | 待办驱动的 Agent 调度 | M1–M3 已全部落地 |
 | [PET_EXPERIENCE_PROPOSAL.md](PET_EXPERIENCE_PROPOSAL.md) | 桌宠体验升级（输入响应/对话/时间与空间感知） | M1–M3 已落地（EdgeTTS 云引擎档未做） |
-| [REMOTE_PK_CHANNEL_PROPOSAL.md](REMOTE_PK_CHANNEL_PROPOSAL.md) | 远程 pk 通道（常驻通信与可靠性） | A/B 已落地（§8 加固未做；T 决定不做，C 待定） |
+| [REMOTE_PK_CHANNEL_PROPOSAL.md](REMOTE_PK_CHANNEL_PROPOSAL.md) | 远程 pk 通道（常驻通信与可靠性） | A/B 与 §8 加固已落地（T 决定不做，C 待定） |
 
 约定：新提案放本目录，命名 `TOPIC_PROPOSAL.md`（分析类用 `_ANALYSIS.md`）；实施状态写在文首引言，随落地更新；互引与 README.md 中的引用使用 `docs/proposals/` 前缀路径。

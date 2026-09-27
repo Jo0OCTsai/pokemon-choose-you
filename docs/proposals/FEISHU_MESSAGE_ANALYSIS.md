@@ -8,9 +8,9 @@
 |---|---|---|
 | 拉取与语境规则 | `src-tauri/src/feishu.rs` | 轮询循环、会话/消息分页、免打扰过滤、富文本渲染、入库与 AI 分发 |
 | lark-cli 封装 | `src-tauri/src/lark_cli.rs` | 子进程调用 `lark-cli api`，OAuth 凭证由 lark-cli 自管 |
-| AI 判定 | `src-tauri/src/ai.rs` | 提示词、text/tools 双模式调用、输出解析、批内判重兜底 |
-| 建议落库与分诊 | `src-tauri/src/commands/radio.rs` | `apply_suggestion_conn` 单一落库出口、捕捉/逃走/撤销、反馈记录 |
-| pk CLI（tools 模式回写） | `src-tauri/src/bin/pk.rs` | `pk context` 取判重上下文、`pk suggest batch` 提交判定 |
+| AI 判定 | `src-tauri/src/ai/` | 提示词（tools 模式）、agent 调用与会话管理、批内判重兜底 |
+| 建议落库与分诊 | `src-tauri/src/commands/radio/` | `apply_suggestion_conn` 单一落库出口、捕捉/逃走/撤销、反馈记录 |
+| pk CLI（tools 模式回写） | `src-tauri/src/bin/pk/` | `pk context` 取判重上下文、`pk suggest batch` 提交判定 |
 
 ---
 
@@ -43,9 +43,9 @@ flowchart TD
         GATE -- 仅上下文 --> INS_S["入库 ai_status=skipped<br/>（自己发的、bot 回复、纯媒体）"]
     end
 
-    subgraph AI["AI 判定（按 20 条/批）"]
-        INS_P --> CTX["组装：来源标签 + 发送者 + 内容<br/>+ 同会话上下文（30min/10 条）<br/>+ 判重上下文（待办/分类/标签）"]
-        CTX --> AGENT["agent CLI 无头调用<br/>text：解析 stdout JSON<br/>tools：pk context + pk suggest batch 回读"]
+    subgraph AI["AI 判定（按 20 条/批，tools 模式）"]
+        INS_P --> CTX["组装：来源标签 + 发送者 + 内容<br/>+ 同会话上下文（30min/10 条）"]
+        CTX --> AGENT["agent CLI 无头调用<br/>agent 自行 pk context 取判重上下文<br/>pk suggest batch 回写、应用从库回读"]
         AGENT --> DEDUP["两层判重<br/>① prompt 两步判重 ② 标题规范化兜底"]
     end
 
@@ -105,7 +105,7 @@ flowchart TD
     MEDIA -- 是 --> CTX4["占位符仅作上下文"]
 ```
 
-规则出处：`feishu.rs::pull_new_messages`（needs_ai 计算）与 `feishu.rs:372-376` 的语境注释。lark-cli 用它自己的内置应用身份，没有「本应用机器人」概念，所以群里的应用消息按普通消息送 AI，bot 单聊靠会话级 `p2p_target_type=bot` 识别。
+规则出处：`feishu.rs::pull_new_messages`（needs_ai 计算及其语境注释）。lark-cli 用它自己的内置应用身份，没有「本应用机器人」概念，所以群里的应用消息按普通消息送 AI，bot 单聊靠会话级 `p2p_target_type=bot` 识别。
 
 ## 5. 阶段三：AI 判定
 
@@ -116,26 +116,20 @@ flowchart TD
 1. **来源标签**（`chat_label`）：`飞书·私聊「李四」` / `飞书·群聊「项目群」` / `飞书·机器人私聊`——告诉模型谁在什么场合说话；
 2. **发送者**与渲染后的内容；
 3. **同会话上下文**（`chat_context_lines`）：同 chat_id、时间在 `[t−30min, t)` 的最近 10 条，格式 `HH:MM 发送者: 内容`，**自己说的标注为「我」**（且不暴露原始显示名，防模型混淆），每条截 200 字，仅供理解指代，明确告知「最终判断只针对消息本身」；
-4. **判重上下文**（`ClassifyContext`）：现有未完成待办（id+标题）、启用中的分类、标签（名+描述）。
+4. **判重上下文**（agent 经 `pk context` 自取）：现有未完成待办（id+标题）、启用中的分类、标签（名+描述）与标签负反馈（用户多次移除的标签）。
 
-### 5.2 双模式
+### 5.2 tools 单模式（text 解析模式已下线）
 
 ```mermaid
 flowchart LR
-    subgraph TEXT["text 模式（旧）"]
-        B1["prompt = 规则 +<br/>判重上下文 + 消息"] --> C1["agent CLI 无头跑<br/>本地 / SSH 远程"]
-        C1 --> D1["stdout 宽容解析 JSON<br/>剥信封/代码围栏/闲聊<br/>提取 session_id"]
-    end
-    subgraph TOOLS["tools 模式（新）"]
-        B2["prompt = 规则 + 消息"] --> C2["agent 自行执行<br/>pk context 拿判重上下文"]
-        C2 --> E2["pk suggest batch --agent id<br/>stdin 提交整批 JSON"]
-        E2 --> F2["应用从库回读判定<br/>全批遗漏 → 判失败报错<br/>部分遗漏 → 按 none 兜底"]
-    end
+    B2["prompt = 规则 + 消息"] --> C2["agent 自行执行<br/>pk context 拿判重上下文"]
+    C2 --> E2["pk suggest batch --agent id<br/>stdin 提交整批 JSON"]
+    E2 --> F2["应用从库回读判定<br/>全批遗漏 → 判失败报错<br/>部分遗漏 → 按 none 兜底"]
 ```
 
-tools 模式的优势：无文本解析环节，agent 落库前经 `pk` 统一校验（消息存在且 pending、action/枚举合法、分类/标签存在、目标待办存在），**错误信息带序号与 messageId，agent 可自纠整批重试**；整批单事务落库，一损俱损。
+tools 模式的优势：无文本解析环节，agent 落库前经 `pk` 统一校验（消息存在且 pending、action/枚举合法、分类/标签存在、目标待办存在），**错误信息带序号与 messageId，agent 可自纠整批重试**；整批单事务落库，一损俱损。早期的 text 模式（agent 无头跑、应用宽容解析 stdout JSON）已于 2026-09 下线。
 
-### 5.3 提示词策略要点（`ai.rs::SYSTEM_PROMPT` / `TOOLS_SYSTEM_PROMPT`，测试保证两份规则同步）
+### 5.3 提示词策略要点（`ai/prompts.rs::TOOLS_SYSTEM_PROMPT`）
 
 - **归属先行**：群聊先判断任务归属，只提取明确指派给用户的（@我 / 点名 / 接我的话头向我提请求）；@他人或点名他人的是别人的任务，内容再像待办也判 none 并在 reason 注明。
 - **宁漏勿滥**：判 none 用户仍能看到、可手动捕捉；误报污染清单。
@@ -146,7 +140,7 @@ tools 模式的优势：无文本解析环节，agent 落库前经 `pk` 统一�
 
 ## 6. 阶段四：建议落库与消息生命周期
 
-`apply_suggestion_conn`（`radio.rs:390`）是**单一落库出口**——后台轮询、强制捕捉、`pk suggest` 三路共用，语义幂等。
+`apply_suggestion_conn`（`commands/radio/suggest.rs`）是**单一落库出口**——后台轮询、强制捕捉、`pk suggest` 三路共用，语义幂等。
 
 ```mermaid
 stateDiagram-v2
@@ -156,7 +150,8 @@ stateDiagram-v2
     pending --> update : AI 判定变更建议
     pending --> followup : AI 判定跟进（直接挂记录）
     pending --> none : AI 判定无关 / 批内判重降级
-    pending --> error : 分类调用失败（无自动重试）
+    pending --> error : 分类调用失败
+    error --> pending : 一键批量重判（收音机）
     todo --> accepted : 用户捕捉（建待办 task_id）
     todo --> dismissed : 用户逃走
     update --> accepted : 用户应用更新
@@ -178,7 +173,7 @@ stateDiagram-v2
 
 ## 8. 可靠性与可观测性
 
-- **健康三链路**（飞书/AI/Todoist）：成功/失败次数、下次预计轮询时间，诊断页可视 + 一键重试。
+- **健康双链路**（飞书/AI）：成功/失败次数、下次预计轮询时间，诊断页可视 + 一键重试。
 - **成本遥测**：每次分类调用按次落 `agent_sessions`（时长、session id、成败），支持回链 agent 自带的历史界面。
 - **并发**：应用与 `pk` CLI 并发读写同一 SQLite（WAL + busy_timeout 5000ms）。
 - **失败语义**：拉取失败→游标不推进、指数退避后重拉；分类失败→该批标 error、健康登记、后续批次继续；tools 模式全批遗漏→整次判失败给出可操作指引（工具白名单/PATH）。
@@ -198,16 +193,16 @@ stateDiagram-v2
 
 ### 9.2 风险与改进建议（按影响排序）
 
-1. **followUp 未经确认直接生效，且不可撤销**（`radio.rs` attach_followup）。它是唯一绕过人工确认的写操作：AI 误判会把无关消息原文挂到某个待办的跟进记录里，并把消息标 accepted——用户不会在收音机里再看到它。建议：低置信度的 followUp 降级为待确认卡；或跟进记录也提供撤销（删 note + 回 pending，数据上都可定位）。
-2. **分类失败的消息没有自动重试**（`feishu.rs:685`）。error 状态的消息停在原地，游标已推进，下一轮不会重新拉到；用户只能逐条强制捕捉。建议：下一轮把 `ai_status='error'` 的消息重新送判（限次数），或收音机提供「重判」入口。
+1. **followUp 未经确认直接生效，且不可撤销**（`commands/radio/suggest.rs` 的 attach_followup）。它是唯一绕过人工确认的写操作：AI 误判会把无关消息原文挂到某个待办的跟进记录里，并把消息标 accepted——用户不会在收音机里再看到它。建议：低置信度的 followUp 降级为待确认卡；或跟进记录也提供撤销（删 note + 回 pending，数据上都可定位）。
+2. **分类失败的消息没有自动重试**。error 状态的消息停在原地，游标已推进，下一轮不会重新拉到。（✅ 已落地 2026-09：收音机一键批量重判 error 消息——重置 pending 重送 AI，入口挂在无信号分组头部）
 3. **免打扰 = 整会话跳过，代理信号有假阳性**。用户为了免通知而 mute 一个重要单聊/群（常见），消息就静默消失——连上下文都不留，后续同会话消息的判定质量也受影响。建议：单聊与群聊区别对待（mute 的单聊很少是「噪音源」），或提供显式的会话黑名单设置，把「免打扰≈折叠」的启发式留作默认。（✅ 已落地 2026-09：会话过滤偏好——免打扰降为默认值，逐会话三态覆盖（跟随/总是拉取/总是过滤），含单聊；见 `specs/archive/feishu-chat-filter/`）
-4. **判重上下文无上限**（`radio.rs::classify_context`）。`pk task list` 都知道截断 50 条防刷爆上下文（`pk.rs:426`），而 open_tasks 全量进 prompt——待办积压几百条时 token 成本上升、模型判重注意力被稀释，反而更容易漏判重复。建议：加上限（如 100 条），优先保留近活跃/有 due 的条目。
+4. **判重上下文无上限**（`pk context` 的 openTasks，`bin/pk/context.rs`）。`pk task list` 都知道截断 50 条防刷爆上下文（`bin/pk/task.rs`），而 open_tasks 全量返回——待办积压几百条时 agent 端 token 成本上升、判重注意力被稀释，反而更容易漏判重复。建议：加上限（如 100 条），优先保留近活跃/有 due 的条目。
 5. **群内应用消息（机器人卡片）是误报高发源**。CI 失败、审批提醒的卡片摘要（`[卡片] 构建失败…`）非常「像待办」。宁漏勿滥的 prompt 有缓解，但更省的做法是：群内 interactive 卡片默认不送 AI（或仅 @我 的卡片送），能砍掉一大块噪音与 agent 调用成本。
 6. **上下文窗口只向后看**。30min/10 条覆盖了「前因」，但「改口/撤销」往往发生在目标消息之后——当前依赖后续轮次的 update 判定兜住；若改口消息落在另一批/另一轮，指代链就断了。窗口参数（30/10）目前是经验值，可基于会话活跃度自适应，或对含时间指代的消息扩大窗口。
-7. **批内判重兜底「保留第一条」与 prompt「保留最完整一条」语义冲突**（`ai.rs::dedup_batch_todos`）。模型若正确保留了更完整的后一条，兜底仍会把先到的重复项留下、把模型选中的降级（仅规范化标题相同时触发，影响小但方向相反）。建议：兜底保留模型给出 confidence 更高 / reason 标记为「保留」的那条。
+7. **批内判重兜底「保留第一条」与 prompt「保留最完整一条」语义冲突**（`ai/types.rs::dedup_batch_todos`）。模型若正确保留了更完整的后一条，兜底仍会把先到的重复项留下、把模型选中的降级（仅规范化标题相同时触发，影响小但方向相反）。建议：兜底保留模型给出 confidence 更高 / reason 标记为「保留」的那条。
 8. **大群发送者退化为短 id**。成员名单只拉 3 页（300 人），超出后 AI 看到 `ou_ab12cd34` 说的话——归属判定（「点名让用户做」）质量下降。可对活跃群放宽上限，或按 sender_id 惰性单查。
 9. **串行逐会话拉取，每个 API 一次 lark-cli（node）子进程**。会话多的用户单轮耗时可观，叠加上限 ×8 的退避，最长可能 16 分钟盲区。可小并发拉取（注意飞书限流），或评估 lark-cli 常驻进程/批量接口。
-10. **观察**：text 模式的「截首尾花括号」宽容解析在极端输出下可能切错 JSON；tools 模式从根上规避了它——新用户引导与默认值可以向 tools 模式倾斜。另外值得在用户文档明示：消息全文会送至所配置的 agent（本地或 SSH 远程 + 云模型），隐私边界取决于 agent 配置，而非本应用。
+10. **观察**：早期 text 模式的「截首尾花括号」宽容解析在极端输出下可能切错 JSON——该风险已随 text 模式下线消除，tools 模式从根上规避了它。另外值得在用户文档明示：消息全文会送至所配置的 agent（本地或 SSH 远程 + 云模型），隐私边界取决于 agent 配置，而非本应用。
 
 ### 9.3 演进方向（供参考）
 

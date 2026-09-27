@@ -23,7 +23,7 @@ cd pokemon-choose-you
 src/                    前端（Vue 3 + TS + Pinia）
   components/           图鉴风自绘组件（DexSelect / TaskCard / TagDispatchCard…）
   views/                App.vue 拆出的页（TaskTab / RadioTab / SessionsTab / SettingsTab）
-  stores/               Pinia：settings / tasks / categories / tags
+  stores/               Pinia：settings / tasks / categories / tags / agents
   composables/          usePomodoro（番茄钟状态机）/ usePetDrag（手动拖拽）/ useInputResponse（输入响应）等
   events.ts             前后端事件名契约（与 src-tauri/src/events.rs 成对）
   api.ts                IPC 封装 + ApiError 错误分层
