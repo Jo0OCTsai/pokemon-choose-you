@@ -672,6 +672,9 @@ pub struct FeishuChatFilterView {
     pub source: String,
     /// 快照时间 RFC3339（与信封 snapshotAt 同源 = settings.feishu_snapshot_at；沉睡行空串）
     pub updated_at: String,
+    /// 该会话最近一条已拉取消息的 sent_at 毫秒（None = 从未拉到消息，被过滤/死会话；
+    /// 前端「最近活跃」排序依据，与列表展示层共享 chat_messages 单源）
+    pub last_message_at: Option<i64>,
 }
 
 /// 摘要行与筛选 chip 的计数
@@ -706,7 +709,8 @@ pub fn get_feishu_chat_filter_overview(db: State<'_, Db>) -> AppResult<FeishuCha
         )
         .ok();
     let mut stmt = conn.prepare(
-        "SELECT c.chat_id, c.chat_name, c.chat_type, c.mute_outcome, p.preference
+        "SELECT c.chat_id, c.chat_name, c.chat_type, c.mute_outcome, p.preference,
+                (SELECT MAX(m.sent_at) FROM chat_messages m WHERE m.chat_id = c.chat_id)
          FROM feishu_chats c LEFT JOIN chat_filter_prefs p ON p.chat_id = c.chat_id
          ORDER BY c.chat_id",
     )?;
@@ -717,6 +721,7 @@ pub fn get_feishu_chat_filter_overview(db: State<'_, Db>) -> AppResult<FeishuCha
             r.get::<_, String>(2)?,
             r.get::<_, String>(3)?,
             r.get::<_, Option<String>>(4)?,
+            r.get::<_, Option<i64>>(5)?,
         ))
     })?;
     let mut chats = vec![];
@@ -727,7 +732,7 @@ pub fn get_feishu_chat_filter_overview(db: State<'_, Db>) -> AppResult<FeishuCha
         manual: 0,
     };
     for row in rows {
-        let (chat_id, chat_name, chat_type, mute_outcome, pref_raw) = row?;
+        let (chat_id, chat_name, chat_type, mute_outcome, pref_raw, last_message_at) = row?;
         let outcome = crate::feishu::MuteOutcome::parse(&mute_outcome);
         let pref = pref_raw
             .as_deref()
@@ -752,6 +757,7 @@ pub fn get_feishu_chat_filter_overview(db: State<'_, Db>) -> AppResult<FeishuCha
             effective: effect.as_str().to_string(),
             source: source.as_str().to_string(),
             updated_at: snapshot_at.clone().unwrap_or_default(),
+            last_message_at,
         });
     }
     Ok(FeishuChatFilterOverview {
@@ -801,6 +807,14 @@ fn feishu_chat_filter_merged_view(
         ),
     };
     let (effect, source) = crate::feishu::filter_decision(pref, outcome);
+    // 最近活跃与总览同源（消息表单源；沉睡行零消息 → None，与快照缺行无关）
+    let last_message_at: Option<i64> = conn
+        .query_row(
+            "SELECT MAX(sent_at) FROM chat_messages WHERE chat_id=?1",
+            rusqlite::params![chat_id],
+            |r| r.get(0),
+        )
+        .unwrap_or(None);
     Ok(FeishuChatFilterView {
         chat_id: chat_id.to_string(),
         chat_name,
@@ -810,6 +824,7 @@ fn feishu_chat_filter_merged_view(
         effective: effect.as_str().to_string(),
         source: source.as_str().to_string(),
         updated_at,
+        last_message_at,
     })
 }
 
@@ -959,6 +974,58 @@ mod tests {
             matches!(err, AppError::Invalid(_)),
             "未知 agent 给出输入错误: {err}"
         );
+    }
+
+    /// 过滤视图携带 lastMessageAt（chat_messages 内该会话最近消息的 sent_at 毫秒；
+    /// 无消息会话为 None——前端「最近活跃」排序与沉底依据）。总览与 set 合并视图同源。
+    #[test]
+    fn feishu_filter_views_carry_last_message_at() {
+        let app = setup();
+        let db = app.state::<Db>();
+        {
+            let conn = db.0.lock().unwrap();
+            for (id, name) in [("oc_a", "群A"), ("oc_b", "群B")] {
+                conn.execute(
+                    "INSERT INTO feishu_chats (chat_id, chat_name, chat_type, mute_outcome)
+                     VALUES (?1, ?2, 'group', 'unmuted')",
+                    rusqlite::params![id, name],
+                )
+                .unwrap();
+            }
+            // 群A 两条消息（1000 / 3000）→ 最近 = 3000；群B 零消息 → None
+            for (mid, at) in [("m1", 1000i64), ("m2", 3000)] {
+                conn.execute(
+                    "INSERT INTO chat_messages (message_id, content, chat_id, sent_at)
+                     VALUES (?1, 'c', 'oc_a', ?2)",
+                    rusqlite::params![mid, at],
+                )
+                .unwrap();
+            }
+        }
+        let overview = get_feishu_chat_filter_overview(db.clone()).unwrap();
+        let find = |id: &str| {
+            overview
+                .chats
+                .iter()
+                .find(|c| c.chat_id == id)
+                .unwrap_or_else(|| panic!("缺 {id} 行"))
+        };
+        assert_eq!(find("oc_a").last_message_at, Some(3000));
+        assert_eq!(find("oc_b").last_message_at, None);
+
+        // set 返回的合并视图同样携带（前端 Object.assign 校正不丢字段）；沉睡行（快照无行）零消息
+        let conn = db.0.lock().unwrap();
+        let view =
+            feishu_chat_filter_merged_view(&conn, "oc_a", crate::feishu::FilterPref::AlwaysPull)
+                .unwrap();
+        assert_eq!(view.last_message_at, Some(3000));
+        let sleeping = feishu_chat_filter_merged_view(
+            &conn,
+            "oc_ghost",
+            crate::feishu::FilterPref::AlwaysFilter,
+        )
+        .unwrap();
+        assert_eq!(sleeping.last_message_at, None);
     }
 
     fn sess_row(tmux: &str, session_id: Option<&str>) -> crate::models::AgentSession {

@@ -42,6 +42,7 @@ function view(partial: Partial<FeishuChatFilterView> & { chatId: string; chatNam
     effective: "pull",
     source: "follow",
     updatedAt: "2026-09-23T08:00:00+00:00",
+    lastMessageAt: null,
     ...partial,
   };
 }
@@ -59,11 +60,18 @@ function overview(chats: FeishuChatFilterView[], ageMin = 1): FeishuChatFilterOv
   };
 }
 
-/** 默认种子：1 手动过滤群 + 1 跟随群 + 1 降级 bot */
+/** 默认种子：1 手动过滤群（2 天前活跃）+ 1 跟随群（1 小时前活跃）+ 1 降级 bot（从未拉到消息） */
 function seedChats(): FeishuChatFilterView[] {
   return [
-    view({ chatId: "c1", chatName: "团队群" }),
-    view({ chatId: "c2", chatName: "灌水群", preference: "always_filter", effective: "filter", source: "manual" }),
+    view({ chatId: "c1", chatName: "团队群", lastMessageAt: Date.now() - 3600_000 }),
+    view({
+      chatId: "c2",
+      chatName: "灌水群",
+      preference: "always_filter",
+      effective: "filter",
+      source: "manual",
+      lastMessageAt: Date.now() - 2 * 86400_000,
+    }),
     view({ chatId: "c3", chatName: "告警机器人", chatType: "bot", muteOutcome: "unknown", source: "followDegraded" }),
   ];
 }
@@ -81,6 +89,16 @@ async function mountManager(opts: { enabled?: boolean; intervalSec?: number } = 
   const w = mount(FeishuChatFilterManager, { global: { plugins: [pinia, i18n] } });
   await flush();
   return w;
+}
+
+/** DexSelect 操作：展开下拉取选项列表（保持展开）；选择第 index 项后自动收起 */
+async function openOptions(w: VueWrapper, sel: string) {
+  await w.get(`${sel} .ds-btn`).trigger("click");
+  return w.findAll(`${sel} .ds-list li`);
+}
+async function pick(w: VueWrapper, sel: string, index: number) {
+  if (!w.find(`${sel} .ds-list`).exists()) await w.get(`${sel} .ds-btn`).trigger("click");
+  await w.findAll(`${sel} .ds-list li`)[index].trigger("click");
 }
 
 beforeEach(() => {
@@ -107,7 +125,7 @@ describe("FeishuChatFilterManager 会话过滤卡", () => {
     expect(api.getFeishuChatFilterOverview).toHaveBeenCalledTimes(1);
     const rows = w.findAll(".cf-row");
     expect(rows).toHaveLength(3);
-    // 排序：手动设置置顶 → 其余按类型（群 → bot）
+    // 排序：手动设置置顶 → 跟随行按最近活跃倒序 → 从未拉到消息的沉底
     expect(rows[0].get(".cf-name").text()).toBe("灌水群");
     expect(rows[1].get(".cf-name").text()).toBe("团队群");
     expect(rows[2].get(".cf-name").text()).toBe("告警机器人");
@@ -124,6 +142,21 @@ describe("FeishuChatFilterManager 会话过滤卡", () => {
     // 摘要计数 + 新鲜时间戳
     expect(w.get(".cf-counts").text()).toBe("共 3 个会话：2 拉取 · 1 过滤 · 手动 1");
     expect(w.get(".cf-snaptime").text()).toContain("以上一轮拉取为准");
+  });
+
+  it("排序：手动置顶 → 最近活跃倒序 → 无消息沉底（按名称）→ 名称兜底；类型不参与排序", async () => {
+    vi.mocked(api.getFeishuChatFilterOverview).mockResolvedValue(
+      overview([
+        view({ chatId: "a", chatName: "旧群", lastMessageAt: 1000 }),
+        view({ chatId: "b", chatName: "新群", chatType: "p2p", lastMessageAt: 9000 }),
+        view({ chatId: "c", chatName: "乙死群" }),
+        view({ chatId: "d", chatName: "甲死群", chatType: "p2p" }),
+        view({ chatId: "e", chatName: "手动群", preference: "always_pull", source: "manual" }),
+      ]),
+    );
+    const w = await mountManager();
+    // 手动群置顶（无消息也置顶）→ 9000 > 1000 活跃倒序（跨类型，类型分组归筛选 chips）→ 死群沉底按名称
+    expect(w.findAll(".cf-name").map((n) => n.text())).toEqual(["手动群", "新群", "旧群", "甲死群", "乙死群"]);
   });
 
   it("降级行：chip title 完整说明 + sr-only 节点经同行三段 aria-describedby 键盘可达", async () => {
@@ -200,44 +233,110 @@ describe("FeishuChatFilterManager 会话过滤卡", () => {
     expect(toast.text()).toContain("db locked");
   });
 
-  it("搜索与筛选 chips：本地过滤即时生效，摘要计数保持全量统计", async () => {
+  it("搜索与状态筛选 chips（生效/偏好两组）：本地过滤正交组合，摘要计数保持全量统计", async () => {
     const w = await mountManager();
     // 搜索：名称子串（团队群 / 灌水群 命中「群」，告警机器人不命中）
     await w.get(".cf-search").setValue("群");
     expect(w.findAll(".cf-row")).toHaveLength(2);
-    await w.get(".cf-search").setValue("团队");
-    expect(w.findAll(".cf-row")).toHaveLength(1);
-    expect(w.get(".cf-counts").text()).toBe("共 3 个会话：2 拉取 · 1 过滤 · 手动 1");
     await w.get(".cf-search").setValue("");
-    // 筛选 chip：被过滤（覆盖手动 + 跟随两种过滤来源）
-    const chips = w.findAll(".cf-chip");
-    expect(chips.map((c) => c.text())).toEqual(["全部 3", "被过滤 1", "手动设置 1"]);
-    await chips[1].trigger("click");
-    expect(chips[1].attributes("aria-pressed")).toBe("true");
+    expect(w.get(".cf-counts").text()).toBe("共 3 个会话：2 拉取 · 1 过滤 · 手动 1");
+    // 生效状态下拉：全部 / 拉取 / 被过滤
+    const effLis = await openOptions(w, ".cf-sel-eff");
+    expect(effLis.map((c) => c.text().replace("▶", ""))).toEqual(["全部 3", "拉取 2", "被过滤 1"]);
+    await effLis[1].trigger("click"); // 拉取
+    expect(w.get(".cf-sel-eff .ds-btn").text()).toContain("拉取 2"); // 关闭态显示选中项
+    expect(w.findAll(".cf-row").map((r) => r.get(".cf-name").text())).toEqual(["团队群", "告警机器人"]);
+    // 偏好设置下拉（与生效正交）：全部偏好 / 跟随 / 手动设置
+    const prefLis = await openOptions(w, ".cf-sel-pref");
+    expect(prefLis.map((c) => c.text().replace("▶", ""))).toEqual(["全部偏好 3", "跟随 2", "手动设置 1"]);
+    await prefLis[1].trigger("click"); // 跟随 ∩ 拉取 → 团队群 + 告警机器人
+    expect(w.findAll(".cf-row")).toHaveLength(2);
+    await pick(w, ".cf-sel-eff", 2); // 被过滤 ∩ 跟随 → 交集空（灌水群是手动）
+    expect(w.get(".cf-statebox").text()).toContain("当前筛选组合下没有会话");
+    await pick(w, ".cf-sel-pref", 2); // 被过滤 ∩ 手动设置 → 灌水群
     expect(w.findAll(".cf-row")).toHaveLength(1);
     expect(w.findAll(".cf-row")[0].get(".cf-name").text()).toBe("灌水群");
-    // 手动设置档
-    await w.findAll(".cf-chip")[2].trigger("click");
-    expect(w.findAll(".cf-row")).toHaveLength(1);
   });
 
-  it("计数为 0 的 chip 禁用；选中档计数降 0 自动回退「全部」", async () => {
+  it("类型筛选下拉：按会话类型本地过滤，0 计数档禁用，与生效/偏好/搜索正交组合", async () => {
+    const w = await mountManager();
+    const tLis = await openOptions(w, ".cf-sel-type");
+    expect(tLis.map((c) => c.text().replace("▶", ""))).toEqual(["全部类型 3", "群聊 2", "私聊 0", "机器人 1"]);
+    expect(tLis[2].classes()).toContain("disabled"); // 种子无私聊 → 禁用
+    await tLis[2].trigger("click"); // 禁用项不可选
+    expect(w.get(".cf-sel-type .ds-btn").text()).toContain("全部类型"); // 选中值未变
+    await pick(w, ".cf-sel-type", 1); // 群聊
+    expect(w.findAll(".cf-row")).toHaveLength(2);
+    expect(w.findAll(".cf-badge").map((b) => b.text())).toEqual(["群聊", "群聊"]); // 手动置顶的灌水群在前
+    // 与生效档组合：群聊 ∩ 被过滤 → 灌水群
+    await pick(w, ".cf-sel-eff", 2);
+    expect(w.findAll(".cf-row")).toHaveLength(1);
+    expect(w.findAll(".cf-row")[0].get(".cf-name").text()).toBe("灌水群");
+    // 搜索叠加：机器人档下搜「团队」→ 组合无匹配走搜索空态文案
+    await pick(w, ".cf-sel-type", 3);
+    await w.get(".cf-search").setValue("团队");
+    expect(w.get(".cf-statebox").text()).toContain("没有匹配「团队」的会话");
+    // 摘要计数保持全量统计
+    expect(w.get(".cf-counts").text()).toBe("共 3 个会话：2 拉取 · 1 过滤 · 手动 1");
+  });
+
+  it("类型与偏好档交集为空：显示筛选组合空态（非搜索空态），清空筛选恢复", async () => {
+    const w = await mountManager();
+    await pick(w, ".cf-sel-type", 3); // 机器人
+    await pick(w, ".cf-sel-pref", 2); // 手动设置（告警机器人为跟随降级 → 交集 0）
+    expect(w.get(".cf-statebox").text()).toContain("当前筛选组合下没有会话");
+    await pick(w, ".cf-sel-pref", 0); // 回全部偏好 → 只剩机器人
+    expect(w.findAll(".cf-row")).toHaveLength(1);
+    expect(w.findAll(".cf-row")[0].get(".cf-name").text()).toBe("告警机器人");
+  });
+
+  it("选中类型档计数降 0（快照刷新后该类型消失）自动回退「全部类型」", async () => {
+    const w = await mountManager();
+    await pick(w, ".cf-sel-type", 3); // 机器人
+    expect(w.findAll(".cf-row")).toHaveLength(1);
+    // 事件刷新：新一轮快照已无 bot 会话
+    vi.mocked(api.getFeishuChatFilterOverview).mockResolvedValue(
+      overview([
+        view({ chatId: "c1", chatName: "团队群" }),
+        view({ chatId: "c2", chatName: "灌水群", preference: "always_filter", effective: "filter", source: "manual" }),
+      ]),
+    );
+    broadcast("feishu-chat-filter-changed");
+    await flush();
+    const after = await openOptions(w, ".cf-sel-type");
+    expect(after[3].classes()).toContain("disabled"); // 机器人 0 → 禁用
+    expect(w.get(".cf-sel-type .ds-btn").text()).toContain("全部类型 2"); // 回退全部类型（新计数）
+    expect(w.findAll(".cf-row")).toHaveLength(2);
+  });
+
+  it("选中档计数降 0 自动回退「全部」（生效/偏好两下拉同守卫）", async () => {
     const w = await mountManager({ intervalSec: 120 });
-    // 快照内无跟随态被过滤行时「被过滤」=1；构造 manual=0 场景：把唯一手动行改回跟随
+    // 偏好：把唯一手动行（灌水群）改回跟随 → manual 降 0
     vi.mocked(api.setFeishuChatFilter).mockResolvedValue(
       view({ chatId: "c2", chatName: "灌水群", preference: "follow", effective: "filter", source: "follow" }),
     );
-    const chips = w.findAll(".cf-chip");
-    // 手动档当前 1 条 → 选中
-    await chips[2].trigger("click");
+    await pick(w, ".cf-sel-pref", 2); // 手动设置当前 1 条 → 选中
     expect(w.findAll(".cf-row")).toHaveLength(1);
-    // 唯一手动行点回「跟随」→ manual 降 0 → 选中档自动回退「全部」，列表非空无空态
     const btns = w.findAll(".cf-row")[0].findAll(".cf-seg button");
-    await btns[0].trigger("click");
+    await btns[0].trigger("click"); // 唯一手动行点回「跟随」
     await flush();
-    const after = w.findAll(".cf-chip");
-    expect(after[2].attributes("disabled")).toBeDefined(); // 手动设置 0 → 禁用
-    expect(after[0].attributes("aria-pressed")).toBe("true"); // 回退全部
+    const afterPref = await openOptions(w, ".cf-sel-pref");
+    expect(afterPref[2].classes()).toContain("disabled"); // 手动设置 0 → 禁用
+    expect(w.get(".cf-sel-pref .ds-btn").text()).toContain("全部偏好 3"); // 回退全部偏好
+    expect(w.findAll(".cf-row")).toHaveLength(3);
+
+    // 生效同守卫：唯一被过滤行（灌水群）改「总是拉取」→ filtered 降 0
+    vi.mocked(api.setFeishuChatFilter).mockResolvedValue(
+      view({ chatId: "c2", chatName: "灌水群", preference: "always_pull", effective: "pull", source: "manual" }),
+    );
+    await pick(w, ".cf-sel-eff", 2); // 被过滤当前 1 条 → 选中
+    expect(w.findAll(".cf-row")).toHaveLength(1);
+    const segBtns = w.findAll(".cf-row")[0].findAll(".cf-seg button");
+    await segBtns[1].trigger("click"); // → 总是拉取
+    await flush();
+    const afterEff = await openOptions(w, ".cf-sel-eff");
+    expect(afterEff[2].classes()).toContain("disabled"); // 被过滤 0 → 禁用
+    expect(w.get(".cf-sel-eff .ds-btn").text()).toContain("全部 3"); // 回退全部
     expect(w.findAll(".cf-row")).toHaveLength(3);
   });
 
@@ -329,7 +428,7 @@ describe("FeishuChatFilterManager 会话过滤卡", () => {
   it("事件刷新：feishu-chat-filter-changed 重拉数据且保留当前搜索词与筛选档", async () => {
     const w = await mountManager();
     await w.get(".cf-search").setValue("团队");
-    await w.findAll(".cf-chip")[0].trigger("click"); // 全部
+    await pick(w, ".cf-sel-eff", 0); // 全部
     // 新一轮快照：灌水群被解禁、新增一群
     vi.mocked(api.getFeishuChatFilterOverview).mockResolvedValue(
       overview([
@@ -342,7 +441,7 @@ describe("FeishuChatFilterManager 会话过滤卡", () => {
     await flush();
     // 工具行状态保留：搜索词未重置
     expect((w.get(".cf-search").element as HTMLInputElement).value).toBe("团队");
-    expect(w.findAll(".cf-chip")[0].attributes("aria-pressed")).toBe("true");
+    expect(w.get(".cf-sel-eff .ds-btn").text()).toContain("全部 3");
     // 数据已刷新（仍只剩团队群命中搜索）
     expect(w.findAll(".cf-row")).toHaveLength(1);
     expect(w.get(".cf-counts").text()).toBe("共 3 个会话：3 拉取 · 0 过滤 · 手动 1");

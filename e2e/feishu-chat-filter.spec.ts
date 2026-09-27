@@ -7,13 +7,14 @@ import { chatFilter, installTauriMock } from "./tauri-mock";
  */
 
 const CHATS = [
-  chatFilter({ chatId: "oc_team", chatName: "团队群" }),
+  chatFilter({ chatId: "oc_team", chatName: "团队群", lastMessageAt: Date.now() - 3600_000 }),
   chatFilter({
     chatId: "oc_noisy",
     chatName: "灌水群",
     preference: "always_filter",
     effective: "filter",
     source: "manual",
+    lastMessageAt: Date.now() - 2 * 86400_000,
   }),
   chatFilter({
     chatId: "oc_bot",
@@ -37,6 +38,12 @@ function mockInvoke(page: Page, cmd: string, args: Record<string, unknown> = {})
   return page.evaluate(([c, a]) => (window as any).__TAURI_INTERNALS__.invoke(c, a), [cmd, args]);
 }
 
+/** DexSelect 下拉选择：展开后点第 index 项（index 含 0 = 全部档） */
+async function pickSel(card: Locator, sel: string, index: number) {
+  await card.locator(`${sel} .ds-btn`).click();
+  await card.locator(`${sel} .ds-list li`).nth(index).click();
+}
+
 test.describe("设置 · 飞书：会话过滤卡", () => {
   test("飞书卡下方渲染会话过滤卡：手动置顶排序、摘要计数、降级标示", async ({ page }) => {
     await installTauriMock(page, { settings: { feishu_enabled: "true" }, chatFilter: CHATS });
@@ -49,7 +56,7 @@ test.describe("设置 · 飞书：会话过滤卡", () => {
     expect(feishuIdx).toBeGreaterThanOrEqual(0);
     expect(filterIdx).toBe(feishuIdx + 1);
 
-    // 排序：手动置顶（灌水群）→ 群（团队群）→ bot
+    // 排序：手动置顶（灌水群）→ 跟随行按最近活跃倒序（团队群 1h 前）→ 从未拉到消息沉底（bot）
     await expect(card.locator(".cf-name")).toHaveText(["灌水群", "团队群", "告警机器人"]);
     // 摘要计数 + 新鲜时间戳
     await expect(card.locator(".cf-counts")).toContainText("共 3 个会话：2 拉取 · 1 过滤 · 手动 1");
@@ -98,25 +105,67 @@ test.describe("设置 · 飞书：会话过滤卡", () => {
       );
   });
 
-  test("筛选 chips 与搜索本地过滤即时生效，摘要保持全量统计", async ({ page }) => {
+  test("状态筛选下拉（生效/偏好）与搜索本地过滤即时生效，摘要保持全量统计", async ({ page }) => {
     await installTauriMock(page, { settings: { feishu_enabled: "true" }, chatFilter: CHATS });
     const card = await openFilterCard(page);
 
-    // 「被过滤」档：只余灌水群（覆盖手动 + 跟随两种过滤来源）
-    const chips = card.locator(".cf-chip");
-    await expect(chips).toHaveCount(3);
-    await chips.nth(1).click();
-    await expect(chips.nth(1)).toHaveAttribute("aria-pressed", "true");
+    // 生效状态下拉：全部 / 拉取 / 被过滤（展开断言选项与计数）
+    const effBtn = card.locator(".cf-sel-eff .ds-btn");
+    await effBtn.click();
+    await expect(card.locator(".cf-sel-eff .ds-list li")).toHaveText(
+      ["全部 3", "拉取 2", "被过滤 1"].map((t) => `▶${t}`),
+    );
+    await card.locator(".cf-sel-eff .ds-list li").nth(2).click(); // 被过滤：只余灌水群
+    await expect(effBtn).toContainText("被过滤 1");
     await expect(card.locator(".cf-name")).toHaveText(["灌水群"]);
     // 摘要计数不被筛选改写
     await expect(card.locator(".cf-counts")).toContainText("共 3 个会话：2 拉取 · 1 过滤 · 手动 1");
 
-    // 搜索叠加：被过滤 ∩ 名称
+    // 偏好设置下拉（与生效正交）：全部偏好 / 跟随 / 手动设置
+    const prefBtn = card.locator(".cf-sel-pref .ds-btn");
+    await prefBtn.click();
+    await expect(card.locator(".cf-sel-pref .ds-list li")).toHaveText(
+      ["全部偏好 3", "跟随 2", "手动设置 1"].map((t) => `▶${t}`),
+    );
+    await card.locator(".cf-sel-pref .ds-list li").nth(1).click(); // 被过滤 ∩ 跟随 → 交集空（灌水群是手动）
+    await expect(card.locator(".cf-statebox")).toContainText("当前筛选组合下没有会话");
+    await pickSel(card, ".cf-sel-pref", 2); // 被过滤 ∩ 手动设置 → 灌水群
+    await expect(card.locator(".cf-name")).toHaveText(["灌水群"]);
+
+    // 搜索叠加：手动设置 ∩ 名称
     await card.locator(".cf-search").fill("团队");
     await expect(card.locator(".cf-statebox")).toContainText("没有匹配「团队」的会话");
-    // 清空搜索 + 切回全部：列表恢复
+    // 清空搜索 + 两下拉切回全部：列表恢复
     await card.locator(".cf-search").fill("");
-    await chips.nth(0).click();
+    await pickSel(card, ".cf-sel-eff", 0);
+    await pickSel(card, ".cf-sel-pref", 0);
+    await expect(card.locator(".cf-row")).toHaveCount(3);
+  });
+
+  test("类型筛选下拉：按会话类型过滤，0 计数档禁用，与偏好档正交组合、交集空走组合空态", async ({ page }) => {
+    await installTauriMock(page, { settings: { feishu_enabled: "true" }, chatFilter: CHATS });
+    const card = await openFilterCard(page);
+
+    const typeBtn = card.locator(".cf-sel-type .ds-btn");
+    await typeBtn.click();
+    const tItems = card.locator(".cf-sel-type .ds-list li");
+    await expect(tItems).toHaveText(["全部类型 3", "群聊 2", "私聊 0", "机器人 1"].map((t) => `▶${t}`));
+    await expect(tItems.nth(2)).toHaveClass(/disabled/); // 种子无私聊 → 0 计数禁用
+
+    // 群聊档：只余两个群（手动置顶的灌水群在前）
+    await tItems.nth(1).click();
+    await expect(typeBtn).toContainText("群聊 2");
+    await expect(card.locator(".cf-name")).toHaveText(["灌水群", "团队群"]);
+
+    // 机器人 ∩ 手动设置：交集为空 → 组合筛选空态（非搜索空态）
+    await pickSel(card, ".cf-sel-type", 3);
+    await pickSel(card, ".cf-sel-pref", 2);
+    await expect(card.locator(".cf-statebox")).toContainText("当前筛选组合下没有会话");
+
+    // 回全部类型：手动设置档只剩灌水群；再回全部档恢复
+    await pickSel(card, ".cf-sel-type", 0);
+    await expect(card.locator(".cf-name")).toHaveText(["灌水群"]);
+    await pickSel(card, ".cf-sel-pref", 0);
     await expect(card.locator(".cf-row")).toHaveCount(3);
   });
 

@@ -64,6 +64,8 @@ export interface MockChatFilterView {
   /** manual / follow / followDegraded */
   source: string;
   updatedAt: string;
+  /** 最近一条已拉取消息的 sent_at 毫秒（null = 从未拉到，排序沉底） */
+  lastMessageAt: number | null;
 }
 
 export function chatFilter(
@@ -76,6 +78,7 @@ export function chatFilter(
     effective: "pull",
     source: "follow",
     updatedAt: "2026-09-23T08:00:00Z",
+    lastMessageAt: null,
     ...partial,
   };
 }

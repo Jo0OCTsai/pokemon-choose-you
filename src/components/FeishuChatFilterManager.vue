@@ -2,6 +2,7 @@
 import { computed, nextTick, onMounted, onUnmounted, ref, watch } from "vue";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 import { useI18n } from "vue-i18n";
+import DexSelect, { type DexOption } from "./DexSelect.vue";
 import { api, errorMessage } from "../api";
 import { EVENTS } from "../events";
 import { fmtDateTime, useSettingsStore } from "../stores/settings";
@@ -24,7 +25,11 @@ const loading = ref(false);
 const loadedOnce = ref(false);
 const loadError = ref("");
 const query = ref("");
-const filter = ref<"all" | "filtered" | "manual">("all");
+/** 状态筛选双维（均与彼此及类型正交）：生效状态 = 系统决策拉取/被过滤；偏好 = 手动/跟随 */
+const filter = ref<"all" | "pull" | "filter">("all");
+const prefFilter = ref<"all" | "follow" | "manual">("all");
+/** 类型筛选档（与偏好档正交：群聊/私聊/机器人词表同 im.type.*） */
+const typeFilter = ref<"all" | "group" | "p2p" | "bot">("all");
 /** 写入中的行（防连点：三段 busy 视觉 + 点击/键盘守卫） */
 const writingIds = ref(new Set<string>());
 const polling = ref(false);
@@ -104,45 +109,115 @@ const counts = computed(() => {
   };
 });
 
-// ---- 筛选 chips（全部/被过滤/手动设置；计数为 0 禁用；选中档降 0 自动回退全部） ----
-const chipCounts = computed(() => ({
-  all: counts.value.total,
-  filtered: counts.value.filtered,
-  manual: counts.value.manual,
-}));
+// ---- 状态筛选下拉（生效/偏好/类型三维；全量计数口径，0 计数档禁用 + 选中档降 0 回退） ----
+const chipCounts = computed(() => {
+  const c = counts.value;
+  return { all: c.total, pull: c.pulling, filter: c.filtered };
+});
 watch(chipCounts, (c) => {
   if (filter.value !== "all" && c[filter.value] === 0) filter.value = "all";
 });
-const chipDefs = computed(() => [
-  { key: "all" as const, labelKey: "feishu.filter.fAll", count: chipCounts.value.all },
-  { key: "filtered" as const, labelKey: "feishu.filter.fFiltered", count: chipCounts.value.filtered },
-  { key: "manual" as const, labelKey: "feishu.filter.fManual", count: chipCounts.value.manual },
-]);
 
-// ---- 列表：搜索（名称子串本地过滤）+ 筛选 + 排序（手动置顶 → 类型 → 名称） ----
-const TYPE_ORDER: Record<string, number> = { group: 0, p2p: 1, bot: 2 };
+const prefChipCounts = computed(() => {
+  const c = counts.value;
+  return { all: c.total, follow: c.total - c.manual, manual: c.manual };
+});
+watch(prefChipCounts, (c) => {
+  if (prefFilter.value !== "all" && c[prefFilter.value] === 0) prefFilter.value = "all";
+});
+
+const typeChipCounts = computed(() => {
+  const chats = overview.value?.chats ?? [];
+  return {
+    all: chats.length,
+    group: chats.filter((c) => c.chatType === "group").length,
+    p2p: chats.filter((c) => c.chatType === "p2p").length,
+    bot: chats.filter((c) => c.chatType === "bot").length,
+  };
+});
+watch(typeChipCounts, (c) => {
+  if (typeFilter.value !== "all" && c[typeFilter.value] === 0) typeFilter.value = "all";
+});
+
+/** 选项构造：label 带全量计数；0 计数禁用（all 档恒可选） */
+function opts(entries: [string, string, number][]): DexOption[] {
+  return entries.map(([value, key, n]) => ({
+    value,
+    label: t(key, { n }),
+    disabled: n === 0 && value !== "all",
+  }));
+}
+const effOptions = computed<DexOption[]>(() => {
+  const c = chipCounts.value;
+  return opts([
+    ["all", "feishu.filter.fAll", c.all],
+    ["pull", "feishu.filter.fPull", c.pull],
+    ["filter", "feishu.filter.fFiltered", c.filter],
+  ]);
+});
+const prefOptions = computed<DexOption[]>(() => {
+  const c = prefChipCounts.value;
+  return opts([
+    ["all", "feishu.filter.pAll", c.all],
+    ["follow", "feishu.filter.fFollow", c.follow],
+    ["manual", "feishu.filter.fManual", c.manual],
+  ]);
+});
+const typeOptions = computed<DexOption[]>(() => {
+  const c = typeChipCounts.value;
+  return opts([
+    ["all", "feishu.filter.tAll", c.all],
+    ["group", "feishu.filter.tGroup", c.group],
+    ["p2p", "feishu.filter.tP2p", c.p2p],
+    ["bot", "feishu.filter.tBot", c.bot],
+  ]);
+});
+
+// DexSelect 的 model 是 string：联合类型 ref 经中转 computed 保持类型安全
+const effSel = computed({ get: () => filter.value, set: (v: string) => (filter.value = v as typeof filter.value) });
+const prefSel = computed({
+  get: () => prefFilter.value,
+  set: (v: string) => (prefFilter.value = v as typeof prefFilter.value),
+});
+const typeSel = computed({
+  get: () => typeFilter.value,
+  set: (v: string) => (typeFilter.value = v as typeof typeFilter.value),
+});
+
+// ---- 列表：搜索（名称子串本地过滤）+ 生效/偏好/类型三维筛选 + 排序（手动置顶 → 最近活跃 → 名称） ----
 const visibleRows = computed(() => {
   const q = query.value.trim().toLowerCase();
   const chats = overview.value?.chats ?? [];
   return [...chats]
     .filter((c) => {
       if (q && !c.chatName.toLowerCase().includes(q)) return false;
-      if (filter.value === "filtered") return c.effective === "filter";
-      if (filter.value === "manual") return c.preference !== "follow";
+      if (filter.value !== "all" && c.effective !== filter.value) return false;
+      if (prefFilter.value === "follow" && c.preference !== "follow") return false;
+      if (prefFilter.value === "manual" && c.preference === "follow") return false;
+      if (typeFilter.value !== "all" && c.chatType !== typeFilter.value) return false;
       return true;
     })
     .sort((a, b) => {
       const am = a.preference === "follow" ? 1 : 0;
       const bm = b.preference === "follow" ? 1 : 0;
       if (am !== bm) return am - bm;
-      const at = TYPE_ORDER[a.chatType] ?? 3;
-      const bt = TYPE_ORDER[b.chatType] ?? 3;
-      if (at !== bt) return at - bt;
+      // 最近活跃倒序（lastMessageAt = 最近已拉取消息毫秒；null = 从未拉到 → 沉底；类型分组归筛选 chips）
+      const { lastMessageAt: aa } = a;
+      const { lastMessageAt: bb } = b;
+      if (aa === null && bb !== null) return 1;
+      if (aa !== null && bb === null) return -1;
+      if (aa !== null && bb !== null && aa !== bb) return bb - aa;
       return a.chatName.localeCompare(b.chatName, "zh");
     });
 });
-/** 空·无匹配仅由搜索词触发（0 计数筛选档已禁用 + 选中档降 0 回退，uiux §3.2） */
-const noMatch = computed(() => state.value === "ready" && visibleRows.value.length === 0 && !!query.value.trim());
+/** 空·无匹配：搜索词触发走搜索文案；三维筛选各自非 0 但交集为 0 时走组合筛选文案
+ *  （单维 0 计数档已禁用 + 选中档降 0 回退，uiux §3.2） */
+const noMatch = computed(
+  () =>
+    state.value === "ready" &&
+    visibleRows.value.length === 0 &&
+    (!!query.value.trim() || filter.value !== "all" || prefFilter.value !== "all" || typeFilter.value !== "all"),
+);
 
 // ---- 快照新鲜度（阈值 = max(5 分钟, 2.5 × 轮询间隔)，uiux §3.2 陈旧度呈现） ----
 const snapTime = computed(() => overview.value?.snapshotAt ?? null);
@@ -288,19 +363,14 @@ onUnmounted(() => {
           :placeholder="t('feishu.filter.searchPh')"
           :aria-label="t('feishu.filter.searchLabel')"
         />
-        <div class="cf-chips" role="group" :aria-label="t('feishu.filter.chipsLabel')">
-          <button
-            v-for="def in chipDefs"
-            :key="def.key"
-            type="button"
-            class="cf-chip"
-            :class="{ on: filter === def.key }"
-            :aria-pressed="filter === def.key"
-            :disabled="def.count === 0"
-            @click="filter = def.key"
-          >
-            {{ t(def.labelKey, { n: def.count }) }}
-          </button>
+        <div class="cf-sel cf-sel-eff">
+          <DexSelect v-model="effSel" :options="effOptions" :aria-label="t('feishu.filter.chipsLabel')" />
+        </div>
+        <div class="cf-sel cf-sel-pref">
+          <DexSelect v-model="prefSel" :options="prefOptions" :aria-label="t('feishu.filter.prefChipsLabel')" />
+        </div>
+        <div class="cf-sel cf-sel-type">
+          <DexSelect v-model="typeSel" :options="typeOptions" :aria-label="t('feishu.filter.typeChipsLabel')" />
         </div>
       </div>
 
@@ -337,7 +407,8 @@ onUnmounted(() => {
         </div>
       </div>
       <div v-else-if="noMatch" class="cf-statebox">
-        <span>{{ t("feishu.filter.emptySearch", { q: query.trim() }) }}</span>
+        <span v-if="query.trim()">{{ t("feishu.filter.emptySearch", { q: query.trim() }) }}</span>
+        <span v-else>{{ t("feishu.filter.emptyFiltered") }}</span>
       </div>
     </template>
 
@@ -478,11 +549,12 @@ onUnmounted(() => {
   min-height: 32px;
 }
 
-/* 工具行：搜索 + 筛选 chips */
+/* 工具行：搜索 + 生效/偏好/类型三个筛选下拉 */
 .cf-toolbar {
   display: flex;
   gap: 8px;
   flex-wrap: wrap;
+  align-items: center;
   margin-bottom: 10px;
 }
 .cf-search {
@@ -497,43 +569,9 @@ onUnmounted(() => {
   font-size: 13px;
   font-family: inherit;
 }
-.cf-chips {
-  display: flex;
-  gap: 6px;
-  flex-wrap: wrap;
-}
-.cf-chip {
-  border: 2px solid var(--dex-navy);
-  border-radius: 4px;
-  background: #fff;
-  color: var(--dex-navy);
-  font-size: 11px;
-  font-weight: 800;
-  font-family: inherit;
-  padding: 6px 10px;
-  min-height: 32px;
-  cursor: pointer;
-  box-shadow: 2px 2px 0 var(--dex-navy);
-  transition:
-    transform var(--t-tap),
-    box-shadow var(--t-tap),
-    background var(--t-tap);
-}
-.cf-chip:active:not(:disabled) {
-  transform: translate(1px, 1px);
-  box-shadow: 1px 1px 0 var(--dex-navy);
-}
-.cf-chip:not(.on):not(:disabled):hover {
-  background: var(--hover);
-}
-.cf-chip:disabled {
-  opacity: 0.55;
-  cursor: default;
-  box-shadow: 2px 2px 0 var(--ink-faint);
-  border-color: var(--ink-faint);
-}
-.cf-chip.on {
-  background: var(--poke-yellow);
+/* 筛选下拉收窄最小宽（三维并列时省工具行空间；DexSelect 自带 38px 高与 navy 描边） */
+.cf-sel :deep(.ds-btn) {
+  min-width: 120px;
 }
 
 /* 列表容器（max-height 内滚，与收音机列表同模式） */
@@ -685,7 +723,6 @@ onUnmounted(() => {
 }
 
 /* 黄底上下文焦点环改 navy 描边（黄环在黄底上近乎不可见；uiux §6.2 焦点环对比度注记） */
-.cf-chip.on:focus-visible,
 .cf-seg button[aria-checked="true"]:focus-visible {
   outline-color: var(--dex-navy);
 }
@@ -703,9 +740,13 @@ onUnmounted(() => {
 @media (max-width: 480px) {
   .cf-toolbar {
     flex-direction: column;
+    align-items: stretch;
   }
   .cf-search {
     flex: 1 1 auto;
+  }
+  .cf-sel {
+    width: 100%;
   }
 }
 </style>
