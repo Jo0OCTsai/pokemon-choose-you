@@ -23,7 +23,7 @@
 
 ## 通用
 
-- **CSP**：非 null。图片允许 `asset:`/`data:`，样式允许 `'unsafe-inline'`（Vue 运行时注入）与 Google Fonts（Press Start 2P 像素字体，离线时回退系统字体），`connect-src` 放行 IPC 与 dev-server HMR（`ws://localhost:1420`）。
+- **CSP**：非 null。图片允许 `data:` 与三个 CDN 域（`cdn.jsdelivr.net` / `fastly.jsdelivr.net` / `raw.githubusercontent.com`——运行时加载 PokeAPI 精灵图），样式允许 `'unsafe-inline'`（Vue 运行时注入）；字体本地打包（`@fontsource`，`font-src 'self'` 不放行字体域），`connect-src` 放行 IPC；dev-server HMR（`ws://localhost:1420`）仅限 `devCsp`。
 - **窗口状态记忆**：window-state 插件只记 **位置** 不记尺寸——桌宠快捷屏展开时会把透明窗口临时调高，记忆尺寸会把透明空区带到下次启动挡住点击。
 - **单实例**：tauri-plugin-single-instance 必须最先注册；二次启动唤起已有实例主窗口后退出，避免两只桌宠与 SQLite 争抢。
 - **E2E 的浏览器矩阵**：Playwright 注入 `window.__TAURI_INTERNALS__` 模拟 IPC（`e2e/tauri-mock.ts`）。注意 mock 的读取命令必须返回**深拷贝**（真实 IPC 每次返回反序列化新对象；返回同引用会让子组件 props 更新被 Vue 跳过）。

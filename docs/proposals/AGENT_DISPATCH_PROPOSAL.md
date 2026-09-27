@@ -2,7 +2,7 @@
 
 > 状态：**M1 / M2 / M3 全部已实施**。
 > - M1 手动派发：标签 meta（方案 A）、路由解析、交互通道（本地终端 / ssh+tmux 注入与降级）、agent_sessions 记录、prompt 定界隔离
-> - M2 无头与回传：无头通道（per-call workdir、claude --session-id/--resume 续接、信封解析、≥600s 超时）、dispatch_state 状态机 + 原子 claim、`pk dispatch start/done/fail` 子命令（PK_DISPATCH_TASK 环境变量 + Stop hook 模板在技能 v3）、抽屉手动标记救援
+> - M2 无头与回传：无头通道（per-call workdir、claude --session-id/--resume 续接、信封解析、≥600s 超时）、dispatch_state 状态机 + 原子 claim、`pk dispatch start/done/fail` 子命令（PK_DISPATCH_TASK 环境变量 + Stop hook 模板在技能模板（当前 v6））、抽屉手动标记救援
 > - M3 自动化：到期未开始的 project 待办自动排队（默认关，仅标签 meta 显式指定 agent 者）、每机器并发上限、worktree 隔离（opt-in）、完成/失败系统通知
 > 使用说明见 [USER_GUIDE.md](../USER_GUIDE.md) 的「待办派发给 Agent」一节；规则引擎按计划永不做。
 > 前置调研结论见文末「附录：调研摘要」。

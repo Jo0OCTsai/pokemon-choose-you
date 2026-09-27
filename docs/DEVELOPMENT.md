@@ -115,7 +115,7 @@ src-tauri/src/
   anonymize.rs          判定链路假名化：送大模型前姓名→稳定代号（锚定 open_id）、落库前还原
   health.rs             集成链路健康状态（诊断中心）
                         （各文件内 #[cfg(test)] 为 Rust 单元测试与契约测试）
-src-tauri/skills/       pk 技能源文件（SKILL.md + references/，`pk skill install` 分发到各 agent 技能目录）
+src-tauri/skills/       pk 技能源文件（pokemon-choose-you.md + references/，`pk skill install` 安装为各 agent 技能目录的 SKILL.md）
 public/pokemon/         内置宝可梦素材 (PokeAPI sprites；全量名录的其余精灵图运行时从 CDN 加载)
 ```
 

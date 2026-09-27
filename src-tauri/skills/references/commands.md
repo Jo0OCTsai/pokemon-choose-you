@@ -9,7 +9,7 @@
 | `pk task list [open\|done\|today\|all]` | `--limit N\|all`（默认 50） | 任务列表；`total`/`truncated` 标记是否截断，截断时用 `task search` 收窄 |
 | `pk task get <id>` | | 任务详情（含跟进记录） |
 | `pk task search <关键词>` | | 搜标题/备注/跟进/标签 |
-| `pk task create` | `--title <t>`（必填）`--note <n>` `--category <分类名>` `--priority low\|normal\|high\|urgent` `--due <YYYY-MM-DD\|YYYY-MM-DDTHH:MM>` `--tags <a,b>` `--dry-run` | 建任务；带 --due 自动进路线（scheduled）；`--dry-run` 只校验回显不落库 |
+| `pk task create` | `--title <t>`（必填）`--note <n>` `--category <分类名>` `--priority low\|normal\|high\|urgent` `--due <YYYY-MM-DD\|YYYY-MM-DDTHH:MM>` `--scheduled` `--remind <时间>` `--tags <a,b>` `--dry-run` | 建任务；带 --due 自动进路线（scheduled），`--scheduled` 无 due 时也强制进路线；`--remind` 设提醒时刻；`--dry-run` 只校验回显不落库 |
 | `pk task update <id>` | `--title` `--note` `--category` `--priority` `--due`（空串清空）`--remind` `--status <状态>` `--tags <a,b>` `--dry-run` | 只改传入的字段；`--dry-run` 只校验回显将变更的字段 |
 | `pk task done <id>` | | 完成任务（写完成时间） |
 | `pk task start <id>` / `pk task pause` | | 开始（全局唯一进行中，原进行中顶回 scheduled）/ 暂停 |
@@ -72,7 +72,7 @@
 | `pk category list` | 分类列表 |
 | `pk tag list` | 标签列表：`tags`（含 dimension/origin/usage）+ `dimensions`（维度 key/单多选/上限） |
 | `pk tag create <名字> [--dimension <维度key>] [--description <描述>]` | 新建标签（缺省 topic 维度；agent 自助扩词表用） |
-| `pk context` | 当前时间 + 未完成待办（id+标题）+ 启用分类 + 标签（含 dimension）+ 维度（含 remaining 剩余可新建名额）；判定与建任务的判重上下文 |
+| `pk context` | 当前时间 + 未完成待办（id+标题）+ 启用分类 + 标签（含 dimension）+ 维度（含 remaining 剩余可新建名额）+ 标签负反馈（tagFeedback：用户多次移除的标签，不要再建议）；判定与建任务的判重上下文 |
 
 ## 技能与远程部署（skill / remote / init-db）
 

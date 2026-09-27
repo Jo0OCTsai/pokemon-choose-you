@@ -2,7 +2,7 @@
 
 ## 视图组织
 
-- `views/*.vue` 与 `PetApp.vue` 只做装配与页面级编排（事件接线、懒加载、页面生命周期），重 UI 一律下沉 `components/<domain>/`（现有 `components/settings/`、`components/radio/`，新领域照此开目录）。参照：TaskTab 445 行、SettingsTab 408 行。
+- `views/*.vue` 与 `PetApp.vue` 只做装配与页面级编排（事件接线、懒加载、页面生命周期），重 UI 一律下沉 `components/<domain>/`（现有 `components/settings/`、`components/radio/`，新领域照此开目录）。参照：TaskTab 445 行、SettingsTab 411 行。
 - 组件超过约 600 行、或 template 出现第二处复制粘贴时，先拆再续写。
 - 自治逻辑提取走 `composables/useXxx(opts)`：opts 传谓词/回调（`isBusy`/`onDismiss`），返回 ref 集 + 控制句柄；**必须**配套 `__tests__/useXxx.spec.ts`（fake timers 钉时序 + unmount 无泄漏断言）。参照 `usePomodoro.ts`、`usePetBubble.ts`。
 
