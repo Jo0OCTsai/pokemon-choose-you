@@ -1,0 +1,5 @@
+# 质量棘轮复杂度阈值（.devcontainer/scripts/quality_ratchet_check.py 消费——complexity 基线的计数口径）
+# 值 = clippy 默认（cognitive-complexity 25 / too-many-lines 100）显式化：基线已按此口径建账，调整须跑 --prune 收缩配合
+# 指南：apply-dev-env 技能 templates/stacks/rust.md「复杂度棘轮」节
+cognitive-complexity-threshold = 25
+too-many-lines-threshold = 100

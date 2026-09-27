@@ -4,6 +4,8 @@
 pre-commit:
   parallel: true
   jobs:
+    - name: lint-gate 质量门禁（scaffold 注入；按 .devcontainer/stack.json 路由全量检查）
+      run: CLAUDE_PROJECT_DIR="$(git rev-parse --show-toplevel)" bash .claude/hooks/lint-gate.sh
     - name: frontend lint + format
       glob: "*.{ts,vue,json,css,html}"
       run: pnpm exec prettier --write --ignore-unknown {staged_files} && pnpm exec eslint --fix {staged_files}
