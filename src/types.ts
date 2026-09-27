@@ -251,6 +251,8 @@ export interface FeishuChatFilterView {
   source: "manual" | "follow" | "followDegraded";
   /** 快照时间 RFC3339（与信封 snapshotAt 同源；沉睡行视图为空串） */
   updatedAt: string;
+  /** 该会话最近一条已拉取消息的 sent_at 毫秒（null = 从未拉到消息；「最近活跃」排序依据） */
+  lastMessageAt: number | null;
 }
 
 /** 会话过滤总览（设置页「会话过滤」卡）：最近一轮拉取快照 + 偏好合并后的全部会话 */

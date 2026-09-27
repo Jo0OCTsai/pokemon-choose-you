@@ -4,11 +4,13 @@ import { onBeforeUnmount, onMounted, ref } from "vue";
 export interface DexOption {
   value: string;
   label: string;
+  /** 禁用项（如 0 计数档）：不可选、视觉弱化 */
+  disabled?: boolean;
 }
 
 /** 图鉴风自绘下拉：原生 select 的弹层在 WebKitGTK 会被滚动容器裁剪 */
 const model = defineModel<string>({ required: true });
-const { options } = defineProps<{ options: DexOption[] }>();
+const { options, ariaLabel = "" } = defineProps<{ options: DexOption[]; ariaLabel?: string }>();
 
 const open = ref(false);
 const root = ref<HTMLElement | null>(null);
@@ -20,8 +22,9 @@ function onDocClick(e: MouseEvent) {
     open.value = false;
   }
 }
-function pick(v: string) {
-  model.value = v;
+function pick(o: DexOption) {
+  if (o.disabled) return;
+  model.value = o.value;
   open.value = false;
 }
 
@@ -31,12 +34,20 @@ onBeforeUnmount(() => document.removeEventListener("mousedown", onDocClick));
 
 <template>
   <div ref="root" class="dex-select">
-    <button type="button" class="ds-btn" :class="{ open }" @click="open = !open">
+    <button type="button" class="ds-btn" :class="{ open }" :aria-label="ariaLabel" @click="open = !open">
       <span class="ds-label">{{ currentLabel() }}</span>
       <span class="ds-arrow">▼</span>
     </button>
-    <ul v-if="open" class="ds-list">
-      <li v-for="o in options" :key="o.value" :class="{ sel: o.value === model }" @click="pick(o.value)">
+    <ul v-if="open" class="ds-list" role="listbox" :aria-label="ariaLabel">
+      <li
+        v-for="o in options"
+        :key="o.value"
+        role="option"
+        :class="{ sel: o.value === model, disabled: o.disabled }"
+        :aria-selected="o.value === model"
+        :aria-disabled="o.disabled ? 'true' : undefined"
+        @click="pick(o)"
+      >
         <span class="ds-cursor">▶</span>{{ o.label }}
       </li>
     </ul>
@@ -118,6 +129,13 @@ onBeforeUnmount(() => document.removeEventListener("mousedown", onDocClick));
 }
 .ds-list li.sel {
   background: var(--poke-yellow);
+}
+.ds-list li.disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+.ds-list li.disabled:hover {
+  background: none;
 }
 .ds-cursor {
   width: 10px;
