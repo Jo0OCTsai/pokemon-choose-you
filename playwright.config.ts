@@ -24,7 +24,9 @@ export default defineConfig({
     { name: "webkit", use: { ...devices["Desktop Safari"] } },
   ],
   webServer: {
-    command: "pnpm dev",
+    // 直接 node 启动 vite（不经 pnpm run 包装）：pnpm 11 的包装器不向孙进程转发 SIGTERM，
+    // teardown 后孤儿 vite 攥住继承的 stdout 管道，playwright 等 stdio 关闭会永久挂起
+    command: "node node_modules/vite/bin/vite.js",
     url: "http://localhost:1420",
     reuseExistingServer: !process.env.CI,
     timeout: 120_000,
