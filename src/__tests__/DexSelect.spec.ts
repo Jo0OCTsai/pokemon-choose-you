@@ -50,7 +50,9 @@ describe("DexSelect", () => {
     const w = mount(DexSelect, { props: { modelValue: "zzz", options } });
     expect(w.get(".ds-btn").text()).toContain("zzz");
   });
+});
 
+describe("DexSelect 扩展（disabled 选项 / 读屏语义）", () => {
   it("disabled 选项不可选：点击不更新 model 且列表不收起", async () => {
     const w = mount(DexSelect, { props: { modelValue: "a", options } });
     await w.get(".ds-btn").trigger("click");

@@ -185,30 +185,37 @@ const typeSel = computed({
 });
 
 // ---- 列表：搜索（名称子串本地过滤）+ 生效/偏好/类型三维筛选 + 排序（手动置顶 → 最近活跃 → 名称） ----
+/** 三维筛选谓词（生效/偏好/类型 × 搜索词，全条件与即命中；在 computed 内调用以保持响应式追踪） */
+function matchesFilters(c: FeishuChatFilterView, q: string): boolean {
+  if (q && !c.chatName.toLowerCase().includes(q)) return false;
+  if (filter.value !== "all" && c.effective !== filter.value) return false;
+  const pref = prefFilter.value;
+  if (pref === "follow" && c.preference !== "follow") return false;
+  if (pref === "manual" && c.preference === "follow") return false;
+  return typeFilter.value === "all" || c.chatType === typeFilter.value;
+}
+
+/** 手动置顶权重（follow 行靠后）；活跃键（lastMessageAt = 最近已拉取消息毫秒，null=-1 沉底） */
+function manualRank(c: FeishuChatFilterView): number {
+  return c.preference === "follow" ? 1 : 0;
+}
+function activityRank(c: FeishuChatFilterView): number {
+  return c.lastMessageAt ?? -1;
+}
+
+/** 排序：手动置顶 → 最近活跃倒序（从未拉到消息的沉底）→ 名称兜底（类型分组归筛选下拉，不参与排序） */
+function compareRows(a: FeishuChatFilterView, b: FeishuChatFilterView): number {
+  const manual = manualRank(a) - manualRank(b);
+  if (manual !== 0) return manual;
+  const activity = activityRank(b) - activityRank(a);
+  if (activity !== 0) return activity;
+  return a.chatName.localeCompare(b.chatName, "zh");
+}
+
 const visibleRows = computed(() => {
   const q = query.value.trim().toLowerCase();
   const chats = overview.value?.chats ?? [];
-  return [...chats]
-    .filter((c) => {
-      if (q && !c.chatName.toLowerCase().includes(q)) return false;
-      if (filter.value !== "all" && c.effective !== filter.value) return false;
-      if (prefFilter.value === "follow" && c.preference !== "follow") return false;
-      if (prefFilter.value === "manual" && c.preference === "follow") return false;
-      if (typeFilter.value !== "all" && c.chatType !== typeFilter.value) return false;
-      return true;
-    })
-    .sort((a, b) => {
-      const am = a.preference === "follow" ? 1 : 0;
-      const bm = b.preference === "follow" ? 1 : 0;
-      if (am !== bm) return am - bm;
-      // 最近活跃倒序（lastMessageAt = 最近已拉取消息毫秒；null = 从未拉到 → 沉底；类型分组归筛选 chips）
-      const { lastMessageAt: aa } = a;
-      const { lastMessageAt: bb } = b;
-      if (aa === null && bb !== null) return 1;
-      if (aa !== null && bb === null) return -1;
-      if (aa !== null && bb !== null && aa !== bb) return bb - aa;
-      return a.chatName.localeCompare(b.chatName, "zh");
-    });
+  return [...chats].filter((c) => matchesFilters(c, q)).sort(compareRows);
 });
 /** 空·无匹配：搜索词触发走搜索文案；三维筛选各自非 0 但交集为 0 时走组合筛选文案
  *  （单维 0 计数档已禁用 + 选中档降 0 回退，uiux §3.2） */
