@@ -27,6 +27,8 @@ jobs:
         run: pnpm build
       - name: 单元测试
         run: pnpm test:unit
+      - name: 质量棘轮（复杂度基线只准收缩；基线 = .devcontainer/scripts/quality-ratchet-baseline.json）
+        run: python3 .devcontainer/scripts/quality_ratchet_check.py --service pokemon-choose-you
       - name: 安装 Playwright 浏览器
         run: pnpm exec playwright install --with-deps chromium firefox webkit
       - name: E2E（chromium / firefox / webkit 兼容性矩阵）
@@ -58,6 +60,8 @@ jobs:
         run: cargo fmt --manifest-path src-tauri/Cargo.toml --check
       - name: cargo clippy
         run: cargo clippy --manifest-path src-tauri/Cargo.toml --all-targets -- -D warnings
+      - name: 质量棘轮（复杂度基线只准收缩；阈值 = src-tauri/clippy.toml）
+        run: python3 .devcontainer/scripts/quality_ratchet_check.py --service src-tauri
       - name: cargo test
         run: cargo test --manifest-path src-tauri/Cargo.toml
 
