@@ -188,14 +188,27 @@ impl FilterSource {
     }
 }
 
+/// 私聊（p2p）固定跟随免打扰：手动偏好仅对群聊/机器人开放。
+/// 决策入口（filter_decision）与视图报告（总览/合并视图的 preference 字段）共用此归一；
+/// 沉睡行 chat_type 为空串（类型未知）不归一，回到快照后自然纳入。
+pub(crate) fn pref_for_chat_type(chat_type: &str, pref: FilterPref) -> FilterPref {
+    if chat_type == "p2p" {
+        FilterPref::Follow
+    } else {
+        pref
+    }
+}
+
 /// 过滤决策纯函数（单一决策源：拉取侧 retain 与管理界面总览共用）。
-/// 优先级：手动覆盖不读免打扰结果；跟随态 muted→过滤 / unmuted→拉取 /
+/// 先按 chat_type 归一手动偏好（私聊一律跟随），再按优先级决策：
+/// 手动覆盖不读免打扰结果；跟随态 muted→过滤 / unmuted→拉取 /
 /// unknown（所在批次查询失败）→降级为拉取（独立来源值 FollowDegraded）。
 pub(crate) fn filter_decision(
     pref: FilterPref,
     outcome: MuteOutcome,
+    chat_type: &str,
 ) -> (FilterEffect, FilterSource) {
-    match pref {
+    match pref_for_chat_type(chat_type, pref) {
         FilterPref::AlwaysFilter => (FilterEffect::Filter, FilterSource::Manual),
         FilterPref::AlwaysPull => (FilterEffect::Pull, FilterSource::Manual),
         FilterPref::Follow => match outcome {
@@ -374,6 +387,12 @@ pub(crate) struct Rendered {
     pub at_me: bool,
 }
 
+/// mention 条目的 open_id：list 接口（GET /im/v1/messages）id 是字符串，
+/// 事件推送 v2 是 {open_id} 对象——两种形态都认。
+fn mention_open_id(m: &serde_json::Value) -> Option<&str> {
+    m["id"].as_str().or_else(|| m["id"]["open_id"].as_str())
+}
+
 /// 把消息 body.content 渲染成可读文本（用户版 + 大模型匿名版）。
 /// text/post/卡片保留语义结构（@人、链接），媒体类给占位符，无法理解的返回 None 跳过。
 /// mentions：消息级 @ 映射（key "@_user_1" → name/open_id），text 占位符与 post 的 user_key 都靠它还原。
@@ -394,11 +413,11 @@ fn render_content(
             .iter()
             .find(|m| m["key"].as_str() == Some(key))
             .and_then(|m| {
-                if m["id"]["open_id"].as_str() == Some(my_open_id) && !my_open_id.is_empty() {
+                if mention_open_id(m) == Some(my_open_id) && !my_open_id.is_empty() {
                     return Some("我".into());
                 }
                 let named = m["name"].as_str().map(String::from);
-                named.or_else(|| m["id"]["open_id"].as_str().and_then(resolve_name))
+                named.or_else(|| mention_open_id(m).and_then(resolve_name))
             })
     };
     // user_key（@_user_N）→ open_id：匿名版 at 段定位代号用
@@ -407,16 +426,13 @@ fn render_content(
             .as_array()?
             .iter()
             .find(|m| m["key"].as_str() == Some(key))
-            .and_then(|m| m["id"]["open_id"].as_str().map(String::from))
+            .and_then(|m| mention_open_id(m).map(String::from))
     };
     // 显式 @到我：消息级 mentions 命中即算（text 占位符与 post 的 at 段同源）
     let at_me = !my_open_id.is_empty()
         && mentions
             .as_array()
-            .map(|arr| {
-                arr.iter()
-                    .any(|m| m["id"]["open_id"].as_str() == Some(my_open_id))
-            })
+            .map(|arr| arr.iter().any(|m| mention_open_id(m) == Some(my_open_id)))
             .unwrap_or(false);
     match msg_type {
         "text" => {
@@ -428,7 +444,7 @@ fn render_content(
                     let Some(key) = m["key"].as_str() else {
                         continue;
                     };
-                    let oid = m["id"]["open_id"].as_str().unwrap_or_default();
+                    let oid = mention_open_id(m).unwrap_or_default();
                     let display_name = if oid == my_open_id && !my_open_id.is_empty() {
                         "我".to_string()
                     } else {
@@ -716,7 +732,8 @@ async fn pull_new_messages(
     }
     let before = chats.len();
     chats.retain(|c| {
-        filter_decision(pref_of(&c.chat_id), outcome_of(&c.chat_id)).0 == FilterEffect::Pull
+        filter_decision(pref_of(&c.chat_id), outcome_of(&c.chat_id), chat_type_of(c)).0
+            == FilterEffect::Pull
     });
     let filtered_out = before - chats.len();
     if filtered_out > 0 {
@@ -759,7 +776,7 @@ async fn pull_new_messages(
                 {
                     let conn = db.0.lock().unwrap();
                     for mm in mentions.as_array().into_iter().flatten() {
-                        if let Some(oid) = mm["id"]["open_id"].as_str() {
+                        if let Some(oid) = mention_open_id(mm) {
                             rules.alias_of(&conn, oid);
                         }
                     }
@@ -1177,6 +1194,30 @@ mod tests {
         assert_eq!(r.display, "@_user_1 看一下这个");
     }
 
+    /// 回归：list 接口（GET /im/v1/messages）的 mentions 真实形态——id 是字符串 open_id
+    /// （非事件推送 v2 的 {open_id} 对象）。历史上按对象形态读取导致真实数据上
+    /// 匿名版 @ 丢名字、at_me 永不触发（见 2026-09 修复）。
+    #[test]
+    fn render_text_message_with_list_api_string_id_mentions() {
+        let rules = render_rules("");
+        let content = r#"{"text":"@_user_1 看一下这个"}"#;
+        let mentions = serde_json::json!([
+            {"key": "@_user_1", "id": "ou_z", "id_type": "open_id", "name": "张三"}
+        ]);
+        let r = render_content("text", content, &mentions, "", &|_| None, &rules).unwrap();
+        assert_eq!(r.display, "@张三 看一下这个");
+        assert_eq!(r.anon, "@成员_00aa 看一下这个", "匿名版用代号而非裸 @");
+        assert!(!r.at_me);
+        // @到我：display/anon 都是「@我」，at_me 显式标注在 list 形态下同样生效
+        let to_me = serde_json::json!([
+            {"key": "@_user_1", "id": "ou_me", "id_type": "open_id", "name": "本大爷"}
+        ]);
+        let r = render_content("text", content, &to_me, "ou_me", &|_| None, &rules).unwrap();
+        assert_eq!(r.display, "@我 看一下这个");
+        assert_eq!(r.anon, "@我 看一下这个");
+        assert!(r.at_me);
+    }
+
     #[test]
     fn render_text_without_mention_marks_my_typed_name() {
         // 手打文本提及（无 mention 结构）：display 原样，anon 里我的称呼 → 疑似@我，
@@ -1404,11 +1445,11 @@ case "$3" in
           ],"has_more":false}}' ;;
       *'"container_id":"oc_group"'*)
         printf '%s' '{"ok":true,"data":{"items":[
-            {"message_id":"om_g1","msg_type":"text","create_time":"1789200000000","sender":{"id":"ou_z","sender_type":"user"},"body":{"content":"{\"text\":\"@_user_1 周会改到周四10点\"}"},"mentions":[{"key":"@_user_1","name":"乔老板","id":{"open_id":"ou_me"}}]},
+            {"message_id":"om_g1","msg_type":"text","create_time":"1789200000000","sender":{"id":"ou_z","sender_type":"user"},"body":{"content":"{\"text\":\"@_user_1 周会改到周四10点\"}"},"mentions":[{"key":"@_user_1","name":"乔老板","id":"ou_me","id_type":"open_id"}]},
             {"message_id":"om_g2","msg_type":"text","create_time":"1789200001000","sender":{"id":"ou_me","sender_type":"user"},"body":{"content":"{\"text\":\"收到\"}"}},
             {"message_id":"om_g3","msg_type":"text","create_time":"1789200002000","sender":{"id":"ou_bot","sender_type":"app"},"body":{"content":"{\"text\":\"每日站会提醒\"}"}},
             {"message_id":"om_g4","msg_type":"image","create_time":"1789200003000","sender":{"id":"ou_z","sender_type":"user"},"body":{"content":"{\"image_key\":\"k\"}"}},
-            {"message_id":"om_g5","msg_type":"text","create_time":"1789200004000","sender":{"id":"ou_z","sender_type":"user"},"body":{"content":"{\"text\":\"@_user_2 你来写周报\"}"},"mentions":[{"key":"@_user_2","name":"王五","id":{"open_id":"ou_wang"}}]},
+            {"message_id":"om_g5","msg_type":"text","create_time":"1789200004000","sender":{"id":"ou_z","sender_type":"user"},"body":{"content":"{\"text\":\"@_user_2 你来写周报\"}"},"mentions":[{"key":"@_user_2","name":"王五","id":"ou_wang","id_type":"open_id"}]},
             {"message_id":"om_g6","msg_type":"text","create_time":"1789200005000","sender":{"id":"ou_z","sender_type":"user"},"body":{"content":"{\"text\":\"乔老板帮我看下发布单\"}"}}
           ],"has_more":false}}' ;;
       *)
@@ -1969,71 +2010,145 @@ esac
 
     // ---- 会话过滤决策（feishu-chat-filter）----
 
-    /// 3 preference × 3 outcome 全组合（AD §8 测试 1；断言值 = plan 速览表）
+    /// 过滤决策用例行：(偏好, 免打扰结果, chat_type, 期望(效果,来源), 失败说明)。
+    /// 具名别名压住 clippy type_complexity（5 元组内嵌二元组超复杂度阈值）。
+    type FilterCase = (
+        FilterPref,
+        MuteOutcome,
+        &'static str,
+        (FilterEffect, FilterSource),
+        &'static str,
+    );
+
+    /// 3 preference × 3 outcome 全组合（AD §8 测试 1；断言值 = plan 速览表；矩阵主体固定 group）
     #[test]
     fn filter_decision_covers_pref_x_outcome_matrix() {
         use FilterEffect as E;
         use FilterPref as P;
         use FilterSource as S;
-        let cases: [(FilterPref, MuteOutcome, (FilterEffect, FilterSource), &str); 9] = [
+        let cases: [FilterCase; 9] = [
             (
                 P::AlwaysFilter,
                 MuteOutcome::Muted,
+                "group",
                 (E::Filter, S::Manual),
                 "手动总是过滤不受免打扰影响",
             ),
             (
                 P::AlwaysFilter,
                 MuteOutcome::Unmuted,
+                "group",
                 (E::Filter, S::Manual),
                 "未免打扰的噪音会话也被过滤",
             ),
             (
                 P::AlwaysFilter,
                 MuteOutcome::Unknown,
+                "group",
                 (E::Filter, S::Manual),
                 "查询失败不影响手动覆盖",
             ),
             (
                 P::AlwaysPull,
                 MuteOutcome::Muted,
+                "group",
                 (E::Pull, S::Manual),
                 "被免打扰误杀的会话手动拯救",
             ),
             (
                 P::AlwaysPull,
                 MuteOutcome::Unmuted,
+                "group",
                 (E::Pull, S::Manual),
                 "总是拉取",
             ),
             (
                 P::AlwaysPull,
                 MuteOutcome::Unknown,
+                "group",
                 (E::Pull, S::Manual),
                 "查询失败不影响手动覆盖",
             ),
             (
                 P::Follow,
                 MuteOutcome::Muted,
+                "group",
                 (E::Filter, S::Follow),
                 "跟随：免打扰→过滤",
             ),
             (
                 P::Follow,
                 MuteOutcome::Unmuted,
+                "group",
                 (E::Pull, S::Follow),
                 "跟随：未免打扰→拉取",
             ),
             (
                 P::Follow,
                 MuteOutcome::Unknown,
+                "group",
                 (E::Pull, S::FollowDegraded),
                 "跟随：批次失败→降级拉取（独立来源值）",
             ),
         ];
-        for (pref, outcome, want, why) in cases {
-            assert_eq!(filter_decision(pref, outcome), want, "{why}");
+        for (pref, outcome, chat_type, want, why) in cases {
+            assert_eq!(filter_decision(pref, outcome, chat_type), want, "{why}");
         }
+    }
+
+    /// chat_type 维度：私聊手动偏好归一为跟随（决策与呈现同规则）、bot / 沉睡空串不受影响
+    #[test]
+    fn filter_decision_normalizes_p2p_to_follow() {
+        use FilterEffect as E;
+        use FilterPref as P;
+        use FilterSource as S;
+        let cases: [FilterCase; 5] = [
+            (
+                P::AlwaysFilter,
+                MuteOutcome::Muted,
+                "p2p",
+                (E::Filter, S::Follow),
+                "私聊手动偏好归一为跟随：免打扰→过滤",
+            ),
+            (
+                P::AlwaysPull,
+                MuteOutcome::Unmuted,
+                "p2p",
+                (E::Pull, S::Follow),
+                "私聊手动拉取同样归一：未免打扰→拉取",
+            ),
+            (
+                P::AlwaysPull,
+                MuteOutcome::Unknown,
+                "p2p",
+                (E::Pull, S::FollowDegraded),
+                "私聊归一后走跟随降级",
+            ),
+            (
+                P::AlwaysFilter,
+                MuteOutcome::Muted,
+                "bot",
+                (E::Filter, S::Manual),
+                "机器人单聊不受私聊归一影响",
+            ),
+            (
+                P::AlwaysFilter,
+                MuteOutcome::Muted,
+                "",
+                (E::Filter, S::Manual),
+                "沉睡行类型未知不归一",
+            ),
+        ];
+        for (pref, outcome, chat_type, want, why) in cases {
+            assert_eq!(filter_decision(pref, outcome, chat_type), want, "{why}");
+        }
+        // 归一函数直测：p2p 归一、其余类型原样
+        assert_eq!(pref_for_chat_type("p2p", P::AlwaysFilter), P::Follow);
+        assert_eq!(
+            pref_for_chat_type("group", P::AlwaysFilter),
+            P::AlwaysFilter
+        );
+        assert_eq!(pref_for_chat_type("bot", P::AlwaysPull), P::AlwaysPull);
     }
 
     /// 枚举字面值是跨层契约（SQL CHECK / command 出参 / 前端 types.ts），

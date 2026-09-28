@@ -697,7 +697,9 @@ pub struct FeishuChatFilterOverview {
     pub snapshot_at: Option<String>,
 }
 
-/// 过滤总览（纯本地 SQLite 读，不触发任何飞书 API——快照数据源是轮询副产物）
+/// 过滤总览（纯本地 SQLite 读，不触发任何飞书 API——快照数据源是轮询副产物）。
+/// 私聊（p2p）不进管理面：列表与计数均排除（固定跟随免打扰，无处可设）；
+/// 拉取侧行为由 filter_decision 的 chat_type 归一保证，与本排除无关。
 #[tauri::command]
 pub fn get_feishu_chat_filter_overview(db: State<'_, Db>) -> AppResult<FeishuChatFilterOverview> {
     let conn = db.0.lock().unwrap();
@@ -712,6 +714,7 @@ pub fn get_feishu_chat_filter_overview(db: State<'_, Db>) -> AppResult<FeishuCha
         "SELECT c.chat_id, c.chat_name, c.chat_type, c.mute_outcome, p.preference,
                 (SELECT MAX(m.sent_at) FROM chat_messages m WHERE m.chat_id = c.chat_id)
          FROM feishu_chats c LEFT JOIN chat_filter_prefs p ON p.chat_id = c.chat_id
+         WHERE c.chat_type != 'p2p'
          ORDER BY c.chat_id",
     )?;
     let rows = stmt.query_map([], |r| {
@@ -734,11 +737,15 @@ pub fn get_feishu_chat_filter_overview(db: State<'_, Db>) -> AppResult<FeishuCha
     for row in rows {
         let (chat_id, chat_name, chat_type, mute_outcome, pref_raw, last_message_at) = row?;
         let outcome = crate::feishu::MuteOutcome::parse(&mute_outcome);
-        let pref = pref_raw
-            .as_deref()
-            .and_then(crate::feishu::FilterPref::parse)
-            .unwrap_or(crate::feishu::FilterPref::Follow);
-        let (effect, source) = crate::feishu::filter_decision(pref, outcome);
+        // p2p 固定跟随：报告偏好先归一（存量手动行也呈现跟随，manual 计数随之排除）
+        let pref = crate::feishu::pref_for_chat_type(
+            &chat_type,
+            pref_raw
+                .as_deref()
+                .and_then(crate::feishu::FilterPref::parse)
+                .unwrap_or(crate::feishu::FilterPref::Follow),
+        );
+        let (effect, source) = crate::feishu::filter_decision(pref, outcome, &chat_type);
         if effect == crate::feishu::FilterEffect::Pull {
             counts.pulling += 1;
         } else {
@@ -806,7 +813,9 @@ fn feishu_chat_filter_merged_view(
             String::new(),
         ),
     };
-    let (effect, source) = crate::feishu::filter_decision(pref, outcome);
+    // p2p 固定跟随：沉睡行（类型未知）不归一，回到快照后自然纳入
+    let pref = crate::feishu::pref_for_chat_type(&chat_type, pref);
+    let (effect, source) = crate::feishu::filter_decision(pref, outcome, &chat_type);
     // 最近活跃与总览同源（消息表单源；沉睡行零消息 → None，与快照缺行无关）
     let last_message_at: Option<i64> = conn
         .query_row(
@@ -829,6 +838,7 @@ fn feishu_chat_filter_merged_view(
 }
 
 /// 设置单会话三态过滤偏好；follow = 删除偏好行（回到跟随免打扰）。
+/// 私聊（快照 chat_type=p2p）固定跟随，手动偏好被拒绝（pref_for_chat_type 同一规则）。
 /// 不校验会话是否在快照中（孤儿沉睡偏好，SDD 规则）、不校验 feishu_enabled（本地数据，
 /// 停用期设置无害）。成功后广播 feishu-chat-filter-changed（两窗口重拉）。
 #[tauri::command]
@@ -850,6 +860,22 @@ pub fn set_feishu_chat_filter<R: tauri::Runtime>(
     })?;
     let view = {
         let conn = db.0.lock().unwrap();
+        // p2p 固定跟随：快照行是私聊时拒绝手动偏好写入（UI 已不渲染选择器，此处拦 API 误用）；
+        // 沉睡行（快照无行、类型未知）不拦截——读取侧 pref_for_chat_type 归一兜底
+        if pref != crate::feishu::FilterPref::Follow {
+            let chat_type: Option<String> = conn
+                .query_row(
+                    "SELECT chat_type FROM feishu_chats WHERE chat_id=?1",
+                    rusqlite::params![chat_id],
+                    |r| r.get(0),
+                )
+                .ok();
+            if chat_type.as_deref() == Some("p2p") {
+                return Err(AppError::Invalid(
+                    "私聊会话固定跟随免打扰，不支持手动设置".into(),
+                ));
+            }
+        }
         match pref {
             crate::feishu::FilterPref::Follow => {
                 conn.execute(
@@ -1026,6 +1052,90 @@ mod tests {
         )
         .unwrap();
         assert_eq!(sleeping.last_message_at, None);
+    }
+
+    /// 私聊固定跟随：存量手动行在总览/合并视图归一呈现跟随（manual 计数排除），
+    /// set 拒绝私聊手动偏好、群/机器人不受影响、沉睡行类型未知不拦截
+    #[test]
+    fn p2p_chats_always_follow_regardless_of_stored_pref() {
+        let app = setup();
+        let db = app.state::<Db>();
+        {
+            let conn = db.0.lock().unwrap();
+            // oc_p 私聊（未免打扰）+ 存量手动行；oc_g 群聊（免打扰）+ 手动拉取；oc_bot 未免打扰
+            for (id, name, ctype, outcome) in [
+                ("oc_p", "张三", "p2p", "unmuted"),
+                ("oc_g", "项目群", "group", "muted"),
+                ("oc_bot", "告警机器人", "bot", "unmuted"),
+            ] {
+                conn.execute(
+                    "INSERT INTO feishu_chats (chat_id, chat_name, chat_type, mute_outcome)
+                     VALUES (?1, ?2, ?3, ?4)",
+                    rusqlite::params![id, name, ctype, outcome],
+                )
+                .unwrap();
+            }
+            for (id, pref) in [("oc_p", "always_filter"), ("oc_g", "always_pull")] {
+                conn.execute(
+                    "INSERT INTO chat_filter_prefs (chat_id, preference, updated_at)
+                     VALUES (?1, ?2, ?3)",
+                    rusqlite::params![id, pref, "2026-09-28T00:00:00Z"],
+                )
+                .unwrap();
+            }
+        }
+
+        // 总览：私聊不进管理面（列表与计数均排除），手动计数只含群聊
+        let overview = get_feishu_chat_filter_overview(db.clone()).unwrap();
+        assert!(
+            !overview.chats.iter().any(|c| c.chat_id == "oc_p"),
+            "私聊行不出现在总览"
+        );
+        assert_eq!(overview.counts.total, 2);
+        assert_eq!(overview.counts.manual, 1, "私聊手动行不计入 manual");
+
+        // 合并视图（set 返回值）对私聊仍归一：手动偏好进、跟随视图出（API 直调防线）
+        let conn = db.0.lock().unwrap();
+        let view =
+            feishu_chat_filter_merged_view(&conn, "oc_p", crate::feishu::FilterPref::AlwaysFilter)
+                .unwrap();
+        assert_eq!(view.preference, "follow");
+        assert_eq!(view.source, "follow");
+        drop(conn);
+
+        // set：私聊手动偏好被拒（follow 删除行仍可）；群聊手动可写；沉睡行类型未知不拦截
+        let err = set_feishu_chat_filter(
+            app.handle().clone(),
+            db.clone(),
+            "oc_p".into(),
+            "always_filter".into(),
+        )
+        .unwrap_err();
+        assert!(
+            matches!(err, crate::error::AppError::Invalid(_)),
+            "got {err:?}"
+        );
+        set_feishu_chat_filter(
+            app.handle().clone(),
+            db.clone(),
+            "oc_p".into(),
+            "follow".into(),
+        )
+        .unwrap();
+        set_feishu_chat_filter(
+            app.handle().clone(),
+            db.clone(),
+            "oc_g".into(),
+            "always_filter".into(),
+        )
+        .unwrap();
+        set_feishu_chat_filter(
+            app.handle().clone(),
+            db.clone(),
+            "oc_ghost".into(),
+            "always_pull".into(),
+        )
+        .unwrap();
     }
 
     fn sess_row(tmux: &str, session_id: Option<&str>) -> crate::models::AgentSession {

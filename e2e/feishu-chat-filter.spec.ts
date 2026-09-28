@@ -142,15 +142,17 @@ test.describe("设置 · 飞书：会话过滤卡", () => {
     await expect(card.locator(".cf-row")).toHaveCount(3);
   });
 
-  test("类型筛选下拉：按会话类型过滤，0 计数档禁用，与偏好档正交组合、交集空走组合空态", async ({ page }) => {
+  test("类型筛选下拉：按会话类型过滤（全部/群聊/机器人，无私聊档），与偏好档正交组合、交集空走组合空态", async ({
+    page,
+  }) => {
     await installTauriMock(page, { settings: { feishu_enabled: "true" }, chatFilter: CHATS });
     const card = await openFilterCard(page);
 
     const typeBtn = card.locator(".cf-sel-type .ds-btn");
     await typeBtn.click();
     const tItems = card.locator(".cf-sel-type .ds-list li");
-    await expect(tItems).toHaveText(["全部类型 3", "群聊 2", "私聊 0", "机器人 1"].map((t) => `▶${t}`));
-    await expect(tItems.nth(2)).toHaveClass(/disabled/); // 种子无私聊 → 0 计数禁用
+    // 私聊不进管理面（mock 镜像后端排除）→ 无「私聊」选项
+    await expect(tItems).toHaveText(["全部类型 3", "群聊 2", "机器人 1"].map((t) => `▶${t}`));
 
     // 群聊档：只余两个群（手动置顶的灌水群在前）
     await tItems.nth(1).click();
@@ -158,7 +160,7 @@ test.describe("设置 · 飞书：会话过滤卡", () => {
     await expect(card.locator(".cf-name")).toHaveText(["灌水群", "团队群"]);
 
     // 机器人 ∩ 手动设置：交集为空 → 组合筛选空态（非搜索空态）
-    await pickSel(card, ".cf-sel-type", 3);
+    await pickSel(card, ".cf-sel-type", 2);
     await pickSel(card, ".cf-sel-pref", 2);
     await expect(card.locator(".cf-statebox")).toContainText("当前筛选组合下没有会话");
 
@@ -167,6 +169,30 @@ test.describe("设置 · 飞书：会话过滤卡", () => {
     await expect(card.locator(".cf-name")).toHaveText(["灌水群"]);
     await pickSel(card, ".cf-sel-pref", 0);
     await expect(card.locator(".cf-row")).toHaveCount(3);
+  });
+
+  test("私聊不进管理面：种子含私聊行也不渲染（总览排除），API 误用被拒；筛选激活显示匹配计数", async ({ page }) => {
+    await installTauriMock(page, {
+      settings: { feishu_enabled: "true" },
+      chatFilter: [
+        ...CHATS,
+        chatFilter({ chatId: "oc_dm", chatName: "张三", chatType: "p2p", lastMessageAt: Date.now() - 7200_000 }),
+      ],
+    });
+    // mock 镜像后端 WHERE chat_type != 'p2p'：仍 3 行，张三不出现
+    const card = await openFilterCard(page, 3);
+    await expect(card.locator(".cf-row", { hasText: "张三" })).toHaveCount(0);
+    await expect(card.locator(".cf-seg-fixed")).toHaveCount(0);
+    // mock 镜像后端守卫：私聊手动偏好被拒
+    await expect(
+      mockInvoke(page, "set_feishu_chat_filter", { chatId: "oc_dm", preference: "always_filter" }),
+    ).rejects.toThrow(/私聊/);
+
+    // 匹配计数：默认隐藏 → 机器人档激活显示 n / total（分母不含被排除的私聊）
+    await expect(card.locator(".cf-match")).toHaveCount(0);
+    await pickSel(card, ".cf-sel-type", 2); // 机器人 1 / 全部 3
+    await expect(card.locator(".cf-match")).toHaveText("符合筛选条件：1 / 3 个会话");
+    await expect(card.locator(".cf-name")).toHaveText(["告警机器人"]);
   });
 
   test("任何宽度不出现横向滚动（480px 窄窗行内折行）", async ({ page }) => {

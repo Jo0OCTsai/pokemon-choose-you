@@ -28,8 +28,8 @@ const query = ref("");
 /** 状态筛选双维（均与彼此及类型正交）：生效状态 = 系统决策拉取/被过滤；偏好 = 手动/跟随 */
 const filter = ref<"all" | "pull" | "filter">("all");
 const prefFilter = ref<"all" | "follow" | "manual">("all");
-/** 类型筛选档（与偏好档正交：群聊/私聊/机器人词表同 im.type.*） */
-const typeFilter = ref<"all" | "group" | "p2p" | "bot">("all");
+/** 类型筛选档（与偏好档正交：群聊/机器人词表同 im.type.*；私聊不进总览，无此档） */
+const typeFilter = ref<"all" | "group" | "bot">("all");
 /** 写入中的行（防连点：三段 busy 视觉 + 点击/键盘守卫） */
 const writingIds = ref(new Set<string>());
 const polling = ref(false);
@@ -131,7 +131,6 @@ const typeChipCounts = computed(() => {
   return {
     all: chats.length,
     group: chats.filter((c) => c.chatType === "group").length,
-    p2p: chats.filter((c) => c.chatType === "p2p").length,
     bot: chats.filter((c) => c.chatType === "bot").length,
   };
 });
@@ -168,7 +167,6 @@ const typeOptions = computed<DexOption[]>(() => {
   return opts([
     ["all", "feishu.filter.tAll", c.all],
     ["group", "feishu.filter.tGroup", c.group],
-    ["p2p", "feishu.filter.tP2p", c.p2p],
     ["bot", "feishu.filter.tBot", c.bot],
   ]);
 });
@@ -217,14 +215,13 @@ const visibleRows = computed(() => {
   const chats = overview.value?.chats ?? [];
   return [...chats].filter((c) => matchesFilters(c, q)).sort(compareRows);
 });
+/** 筛选激活（搜索词或任一筛选维度非默认）：匹配计数行显隐条件，空态文案 noMatch 复用 */
+const filtersActive = computed(
+  () => !!query.value.trim() || filter.value !== "all" || prefFilter.value !== "all" || typeFilter.value !== "all",
+);
 /** 空·无匹配：搜索词触发走搜索文案；三维筛选各自非 0 但交集为 0 时走组合筛选文案
  *  （单维 0 计数档已禁用 + 选中档降 0 回退，uiux §3.2） */
-const noMatch = computed(
-  () =>
-    state.value === "ready" &&
-    visibleRows.value.length === 0 &&
-    (!!query.value.trim() || filter.value !== "all" || prefFilter.value !== "all" || typeFilter.value !== "all"),
-);
+const noMatch = computed(() => state.value === "ready" && visibleRows.value.length === 0 && filtersActive.value);
 
 // ---- 快照新鲜度（阈值 = max(5 分钟, 2.5 × 轮询间隔)，uiux §3.2 陈旧度呈现） ----
 const snapTime = computed(() => overview.value?.snapshotAt ?? null);
@@ -380,6 +377,11 @@ onUnmounted(() => {
           <DexSelect v-model="typeSel" :options="typeOptions" :aria-label="t('feishu.filter.typeChipsLabel')" />
         </div>
       </div>
+
+      <!-- 筛选激活时的匹配计数（n / 全量 total；0 命中时与空态文案并存） -->
+      <p v-if="filtersActive" class="cf-match">
+        {{ t("feishu.filter.matchCount", { n: visibleRows.length, total: counts.total }) }}
+      </p>
 
       <div v-if="visibleRows.length" class="cf-list-box">
         <div v-for="row in visibleRows" :key="row.chatId" class="cf-row" :data-id="row.chatId">
@@ -579,6 +581,14 @@ onUnmounted(() => {
 /* 筛选下拉收窄最小宽（三维并列时省工具行空间；DexSelect 自带 38px 高与 navy 描边） */
 .cf-sel :deep(.ds-btn) {
   min-width: 120px;
+}
+
+/* 筛选匹配计数行（筛选激活时工具行下方；n / 全量 total） */
+.cf-match {
+  margin: 0 0 8px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--ink-soft);
 }
 
 /* 列表容器（max-height 内滚，与收音机列表同模式） */

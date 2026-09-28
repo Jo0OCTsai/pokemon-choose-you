@@ -16,5 +16,6 @@
 
 ## 已完成
 
+- [x] 2026-09-28 **本地 lint-gate 的 clippy 口径已对齐 CI**（来源：PR #111 CI 失败复盘，当日收口）：stack.json `src-tauri.lint_check` 补上 `--all-targets`（tests 模块进本地门禁范围，此前 `tmp_root` 死代码与 5 元组 `type_complexity` 均因此漏检）；拦截条件（会话过滤测试 5 元组 cases）已在 PR #111 以 `FilterCase` 类型别名收敛，本地 `--all-targets` 全绿。注：`feat/feishu-chat-filter-refine` 分支上另有未合并的 4 元组收账提交（09607ca），与别名方案语义等价，合流时取其一即可。
 - [x] 2026-09-26 后端四大文件结构重构（ai.rs 2364→ai/ 五模块、radio.rs 3201→radio/ 六域+testsupport、dispatch.rs 2394→dispatch/ 九域、pk.rs 3162→bin/pk/ 十一子模块），行为保持不变、350 单测全绿；顺带解掉 ai↔radio 循环依赖（判定管线 classify/capture 与库回读归位消息域 radio/judge）。
 - [x] 2026-09-26 前端三大文件结构重构（RadioTab 1498→637、SettingsTab 2331→408、PetApp 1963→1789），行为保持不变，221 单测全绿——详见 `specs/archive/frontend-component-split/reports/refactor-summary.md`。
