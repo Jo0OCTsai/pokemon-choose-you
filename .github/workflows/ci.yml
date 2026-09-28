@@ -27,6 +27,21 @@ jobs:
         run: pnpm build
       - name: 单元测试（v8 覆盖率 + 阈值门禁，阈值 = vite.config.ts coverage.thresholds）
         run: pnpm test:coverage
+      - name: 覆盖率摘要写 job summary
+        run: |
+          node -e '
+            const t = require("./coverage/coverage-summary.json").total;
+            const dims = ["lines", "branches", "functions", "statements"];
+            const fs = require("node:fs");
+            const md = [
+              "## 前端覆盖率（vitest v8；api.ts invoke 封装与 i18n 字典不入口径，阈值 65）",
+              "",
+              `| ${dims.join(" | ")} |`,
+              `| ${dims.map(() => "---").join(" | ")} |`,
+              `| ${dims.map((k) => `${t[k].pct}%`).join(" | ")} |`,
+            ].join("\n");
+            fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY, md + "\n");
+          '
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: coverage-frontend
@@ -76,6 +91,15 @@ jobs:
           cd src-tauri
           CARGO_TARGET_DIR=target/llvm-cov cargo llvm-cov --fail-under-lines 85 --ignore-filename-regex '(input|tray|shortcuts|lib|main)\.rs$' --lcov --output-path target/llvm-cov/lcov.info
           CARGO_TARGET_DIR=target/llvm-cov cargo llvm-cov report --html --output-dir target/llvm-cov/report
+      - name: 覆盖率摘要写 job summary（复用 profdata，秒级）
+        run: |
+          {
+            echo "## Rust 覆盖率（cargo-llvm-cov；input/tray/shortcuts/lib/main GUI 胶水不入口径，lines 阈值 85）"
+            echo ""
+            echo '```'
+            cd src-tauri && CARGO_TARGET_DIR=target/llvm-cov cargo llvm-cov report --summary-only --ignore-filename-regex '(input|tray|shortcuts|lib|main)\.rs$' 2>/dev/null | grep -E "^(Filename|TOTAL)"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         if: always()
         with:
