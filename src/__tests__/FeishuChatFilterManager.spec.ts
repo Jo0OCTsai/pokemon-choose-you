@@ -258,13 +258,11 @@ describe("FeishuChatFilterManager 会话过滤卡", () => {
     expect(w.findAll(".cf-row")[0].get(".cf-name").text()).toBe("灌水群");
   });
 
-  it("类型筛选下拉：按会话类型本地过滤，0 计数档禁用，与生效/偏好/搜索正交组合", async () => {
+  it("类型筛选下拉：按会话类型本地过滤（全部/群聊/机器人，无私聊档），与生效/偏好/搜索正交组合", async () => {
     const w = await mountManager();
     const tLis = await openOptions(w, ".cf-sel-type");
-    expect(tLis.map((c) => c.text().replace("▶", ""))).toEqual(["全部类型 3", "群聊 2", "私聊 0", "机器人 1"]);
-    expect(tLis[2].classes()).toContain("disabled"); // 种子无私聊 → 禁用
-    await tLis[2].trigger("click"); // 禁用项不可选
-    expect(w.get(".cf-sel-type .ds-btn").text()).toContain("全部类型"); // 选中值未变
+    // 私聊不进管理面（后端总览排除）→ 类型档无「私聊」选项
+    expect(tLis.map((c) => c.text().replace("▶", ""))).toEqual(["全部类型 3", "群聊 2", "机器人 1"]);
     await pick(w, ".cf-sel-type", 1); // 群聊
     expect(w.findAll(".cf-row")).toHaveLength(2);
     expect(w.findAll(".cf-badge").map((b) => b.text())).toEqual(["群聊", "群聊"]); // 手动置顶的灌水群在前
@@ -273,7 +271,7 @@ describe("FeishuChatFilterManager 会话过滤卡", () => {
     expect(w.findAll(".cf-row")).toHaveLength(1);
     expect(w.findAll(".cf-row")[0].get(".cf-name").text()).toBe("灌水群");
     // 搜索叠加：机器人档下搜「团队」→ 组合无匹配走搜索空态文案
-    await pick(w, ".cf-sel-type", 3);
+    await pick(w, ".cf-sel-type", 2);
     await w.get(".cf-search").setValue("团队");
     expect(w.get(".cf-statebox").text()).toContain("没有匹配「团队」的会话");
     // 摘要计数保持全量统计
@@ -282,7 +280,7 @@ describe("FeishuChatFilterManager 会话过滤卡", () => {
 
   it("类型与偏好档交集为空：显示筛选组合空态（非搜索空态），清空筛选恢复", async () => {
     const w = await mountManager();
-    await pick(w, ".cf-sel-type", 3); // 机器人
+    await pick(w, ".cf-sel-type", 2); // 机器人
     await pick(w, ".cf-sel-pref", 2); // 手动设置（告警机器人为跟随降级 → 交集 0）
     expect(w.get(".cf-statebox").text()).toContain("当前筛选组合下没有会话");
     await pick(w, ".cf-sel-pref", 0); // 回全部偏好 → 只剩机器人
@@ -290,25 +288,11 @@ describe("FeishuChatFilterManager 会话过滤卡", () => {
     expect(w.findAll(".cf-row")[0].get(".cf-name").text()).toBe("告警机器人");
   });
 
-  it("私聊行固定跟随：静态 chip 替代三段选择器（无写入通道），群/机器人保持三段", async () => {
-    vi.mocked(api.getFeishuChatFilterOverview).mockResolvedValue(
-      overview([
-        view({ chatId: "c1", chatName: "团队群" }),
-        view({ chatId: "c2", chatName: "张三", chatType: "p2p" }),
-        view({ chatId: "c3", chatName: "告警机器人", chatType: "bot" }),
-      ]),
-    );
+  it("私聊不进管理面：列表只含群聊/机器人行，每行均为三段选择器（无 p2p 渲染分支）", async () => {
     const w = await mountManager();
-    const rowOf = (name: string) => w.findAll(".cf-row").find((r) => r.get(".cf-name").text() === name)!;
-    // 私聊行：静态 chip（title 说明规则），无 radiogroup / 按钮 / 写入
-    const fixed = rowOf("张三").get(".cf-seg-fixed");
-    expect(fixed.text()).toBe("跟随");
-    expect(fixed.attributes("title")).toContain("私聊固定跟随");
-    expect(rowOf("张三").find(".cf-seg[role='radiogroup']").exists()).toBe(false);
-    expect(rowOf("张三").findAll("button")).toHaveLength(0);
-    // 群/机器人行不受影响：仍渲染三段选择器
-    expect(rowOf("团队群").findAll(".cf-seg button")).toHaveLength(3);
-    expect(rowOf("告警机器人").findAll(".cf-seg button")).toHaveLength(3);
+    expect(w.findAll(".cf-badge").map((b) => b.text())).toEqual(["群聊", "群聊", "机器人"]);
+    expect(w.findAll(".cf-seg[role='radiogroup']")).toHaveLength(3);
+    expect(w.find(".cf-seg-fixed").exists()).toBe(false);
     expect(api.setFeishuChatFilter).not.toHaveBeenCalled();
   });
 
@@ -329,7 +313,7 @@ describe("FeishuChatFilterManager 会话过滤卡", () => {
 
   it("选中类型档计数降 0（快照刷新后该类型消失）自动回退「全部类型」", async () => {
     const w = await mountManager();
-    await pick(w, ".cf-sel-type", 3); // 机器人
+    await pick(w, ".cf-sel-type", 2); // 机器人
     expect(w.findAll(".cf-row")).toHaveLength(1);
     // 事件刷新：新一轮快照已无 bot 会话
     vi.mocked(api.getFeishuChatFilterOverview).mockResolvedValue(
@@ -341,7 +325,7 @@ describe("FeishuChatFilterManager 会话过滤卡", () => {
     broadcast("feishu-chat-filter-changed");
     await flush();
     const after = await openOptions(w, ".cf-sel-type");
-    expect(after[3].classes()).toContain("disabled"); // 机器人 0 → 禁用
+    expect(after[2].classes()).toContain("disabled"); // 机器人 0 → 禁用
     expect(w.get(".cf-sel-type .ds-btn").text()).toContain("全部类型 2"); // 回退全部类型（新计数）
     expect(w.findAll(".cf-row")).toHaveLength(2);
   });

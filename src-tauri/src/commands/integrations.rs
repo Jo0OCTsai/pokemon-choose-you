@@ -697,7 +697,9 @@ pub struct FeishuChatFilterOverview {
     pub snapshot_at: Option<String>,
 }
 
-/// 过滤总览（纯本地 SQLite 读，不触发任何飞书 API——快照数据源是轮询副产物）
+/// 过滤总览（纯本地 SQLite 读，不触发任何飞书 API——快照数据源是轮询副产物）。
+/// 私聊（p2p）不进管理面：列表与计数均排除（固定跟随免打扰，无处可设）；
+/// 拉取侧行为由 filter_decision 的 chat_type 归一保证，与本排除无关。
 #[tauri::command]
 pub fn get_feishu_chat_filter_overview(db: State<'_, Db>) -> AppResult<FeishuChatFilterOverview> {
     let conn = db.0.lock().unwrap();
@@ -712,6 +714,7 @@ pub fn get_feishu_chat_filter_overview(db: State<'_, Db>) -> AppResult<FeishuCha
         "SELECT c.chat_id, c.chat_name, c.chat_type, c.mute_outcome, p.preference,
                 (SELECT MAX(m.sent_at) FROM chat_messages m WHERE m.chat_id = c.chat_id)
          FROM feishu_chats c LEFT JOIN chat_filter_prefs p ON p.chat_id = c.chat_id
+         WHERE c.chat_type != 'p2p'
          ORDER BY c.chat_id",
     )?;
     let rows = stmt.query_map([], |r| {
@@ -1082,22 +1085,16 @@ mod tests {
             }
         }
 
-        // 总览：私聊行 preference 归一为 follow、按未免打扰推导拉取；手动计数只含群聊
+        // 总览：私聊不进管理面（列表与计数均排除），手动计数只含群聊
         let overview = get_feishu_chat_filter_overview(db.clone()).unwrap();
-        let find = |id: &str| {
-            overview
-                .chats
-                .iter()
-                .find(|c| c.chat_id == id)
-                .unwrap_or_else(|| panic!("缺 {id} 行"))
-        };
-        let p = find("oc_p");
-        assert_eq!(p.preference, "follow");
-        assert_eq!(p.effective, "pull");
-        assert_eq!(p.source, "follow");
+        assert!(
+            !overview.chats.iter().any(|c| c.chat_id == "oc_p"),
+            "私聊行不出现在总览"
+        );
+        assert_eq!(overview.counts.total, 2);
         assert_eq!(overview.counts.manual, 1, "私聊手动行不计入 manual");
 
-        // 合并视图（set 返回值）同样归一：手动偏好进、跟随视图出
+        // 合并视图（set 返回值）对私聊仍归一：手动偏好进、跟随视图出（API 直调防线）
         let conn = db.0.lock().unwrap();
         let view =
             feishu_chat_filter_merged_view(&conn, "oc_p", crate::feishu::FilterPref::AlwaysFilter)

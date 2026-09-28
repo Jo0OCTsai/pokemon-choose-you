@@ -28,8 +28,8 @@ const query = ref("");
 /** 状态筛选双维（均与彼此及类型正交）：生效状态 = 系统决策拉取/被过滤；偏好 = 手动/跟随 */
 const filter = ref<"all" | "pull" | "filter">("all");
 const prefFilter = ref<"all" | "follow" | "manual">("all");
-/** 类型筛选档（与偏好档正交：群聊/私聊/机器人词表同 im.type.*） */
-const typeFilter = ref<"all" | "group" | "p2p" | "bot">("all");
+/** 类型筛选档（与偏好档正交：群聊/机器人词表同 im.type.*；私聊不进总览，无此档） */
+const typeFilter = ref<"all" | "group" | "bot">("all");
 /** 写入中的行（防连点：三段 busy 视觉 + 点击/键盘守卫） */
 const writingIds = ref(new Set<string>());
 const polling = ref(false);
@@ -131,7 +131,6 @@ const typeChipCounts = computed(() => {
   return {
     all: chats.length,
     group: chats.filter((c) => c.chatType === "group").length,
-    p2p: chats.filter((c) => c.chatType === "p2p").length,
     bot: chats.filter((c) => c.chatType === "bot").length,
   };
 });
@@ -168,7 +167,6 @@ const typeOptions = computed<DexOption[]>(() => {
   return opts([
     ["all", "feishu.filter.tAll", c.all],
     ["group", "feishu.filter.tGroup", c.group],
-    ["p2p", "feishu.filter.tP2p", c.p2p],
     ["bot", "feishu.filter.tBot", c.bot],
   ]);
 });
@@ -394,16 +392,7 @@ onUnmounted(() => {
           <span v-if="row.source === 'followDegraded'" :id="`cf-dg-${row.chatId}`" class="sr-only">
             {{ t("feishu.filter.srcDegradedTitle") }}
           </span>
-          <!-- 私聊固定跟随（不可手动覆盖）：静态 chip 替代三段选择器，title 说明规则 -->
           <div
-            v-if="row.chatType === 'p2p'"
-            class="cf-seg cf-seg-fixed"
-            :title="t('feishu.filter.prefFollowFixedTitle')"
-          >
-            <span>{{ t("feishu.filter.prefFollowFixed") }}</span>
-          </div>
-          <div
-            v-else
             class="cf-seg"
             :class="{ busy: writingIds.has(row.chatId) }"
             role="radiogroup"
@@ -708,21 +697,6 @@ onUnmounted(() => {
 .cf-seg.busy {
   opacity: 0.55;
   pointer-events: none;
-}
-
-/* 私聊固定跟随 chip（非交互）：muted 底 + 默认光标，与可选三段在视觉上区分 */
-.cf-seg-fixed {
-  background: var(--conf-low-soft);
-}
-.cf-seg-fixed span {
-  display: inline-flex;
-  align-items: center;
-  padding: 0 12px;
-  min-height: 38px;
-  font-size: 12px;
-  font-weight: 700;
-  color: var(--ink-soft);
-  cursor: default;
 }
 
 /* 空 / loading / 错误态盒子 */

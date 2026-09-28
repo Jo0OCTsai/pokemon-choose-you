@@ -696,7 +696,8 @@ export async function installTauriMock(page: Page, state: Partial<MockState> = {
             return { authorized: true, userName: "测试用户" };
           // ---- 会话过滤（合并规则镜像后端 filter_decision；set 后广播事件供两窗口重拉） ----
           case "get_feishu_chat_filter_overview": {
-            const chats = db.chatFilter.map((c: any) => ({ ...c }));
+            // 私聊不进管理面（镜像后端 SQL WHERE chat_type != 'p2p'）
+            const chats = db.chatFilter.filter((c: any) => c.chatType !== "p2p").map((c: any) => ({ ...c }));
             const pulling = chats.filter((c: any) => c.effective === "pull").length;
             const manual = chats.filter((c: any) => c.preference !== "follow").length;
             return {
