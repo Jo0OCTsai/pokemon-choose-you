@@ -36,7 +36,7 @@
 
 建议第一件事：打开图鉴机 → 背包 → 通用 → 打开「开机自动启动」，以后登录系统桌宠自动出现。
 
-> 数据全部存在本地，集中在归一化根目录 `~/.choose-you/`（agent 工作区在 `workspace/` 子目录，数据库在 `data/`、日志在 `logs/`；可用环境变量 `CHOOSE_YOU_HOME` 整体重定位），卸载重装不丢任务。旧版本数据在系统应用数据目录（macOS: `~/Library/Application Support/com.jotsai.pokemonchooseyou/` 等），新版启动时自动迁入新布局，旧目录保留不动，确认无误后可手动删除。
+> 数据全部存在本地，集中在归一化根目录 `~/.choose-you/`（agent 工作区在 `workspace/` 子目录，数据库在 `data/`、日志在 `logs/`；可用环境变量 `CHOOSE_YOU_HOME` 整体重定位），卸载重装不丢任务。
 >
 > **自动备份**：每天第一份快照存在 `~/.choose-you/data/backups/` 下（`VACUUM INTO` 压缩产物），默认滚动保留 7 份，可在 背包 → 通用 → 数据备份 调整份数、立即备份或从任意一份恢复（恢复立即生效、无需重启，会覆盖当前全部数据；秘钥在系统钥匙串不受影响）。
 >
