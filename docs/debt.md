@@ -13,6 +13,7 @@
 - [ ] **flash 状态条语义微差**（来源：同上，useActionToast 重构）：多条 flash 消息重叠时由「先到先清」改为「最新重置」（用户不可感知级别）；备份/导出卡内 flash 消息在有效期内切走 general 分区再回来会清空。若日后做多区域 toast 需求可一并重设计。
 - [ ] **SettingsTab script 内仍留页面级胶水**：autostart/feishuAuth/backups/appVersion 的 onMounted 预取与两个 tauri listen 留在父级经 props/emit/ref 转发（行为保持所需）；若后续做 feishu/update 域 store 可下沉。
 - [ ] **ai 引用工具仍被跨域直用**（来源：2026-09-26 后端大文件拆分评估）：dispatch/cmdline、skills、tunnel 仍直接用 `ai::posix_quote` / `ai::windows_ps_quote` / `ai::ssh_bin` 等底层零件自拼 SSH / tmux 命令行。本次拆分已把它们集中到 `ai/invocation.rs`（路径不变），后续可在其上提供统一的远端 argv 构造接口收编各处手拼。
+- [ ] **本地 lint-gate 的 clippy 口径弱于 CI**（来源：2026-09-28 PR #111 CI 失败复盘）：stack.json `src-tauri.lint_check` 为 `cargo clippy -- -D warnings`（缺 `--all-targets`），tests 模块内的死代码不在本地门禁范围（本次 `tmp_root` 漏检根因）；CI 侧为 `--all-targets`。直接对齐会被 main 上 `src/feishu.rs` 会话过滤测试的 5 元组 cases 触发 clippy 1.98.1 `type_complexity` 拦下（CI 端 stable 判定暂未收紧，昨夜 main CI 仍绿）——feat/feishu-chat-filter-refine 的复杂度收账已重构为 4 元组，待其合入 main 后再对齐 `--all-targets` 并本地验证。
 
 ## 已完成
 

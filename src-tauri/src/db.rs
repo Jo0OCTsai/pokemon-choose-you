@@ -788,13 +788,6 @@ pub(crate) mod tests {
         assert_eq!(v, "en");
     }
 
-    fn tmp_root(name: &str) -> PathBuf {
-        let dir = std::env::temp_dir().join(format!("pk-db-{}-{name}", std::process::id()));
-        let _ = std::fs::remove_dir_all(&dir);
-        std::fs::create_dir_all(&dir).unwrap();
-        dir
-    }
-
     /// 归一化根：CHOOSE_YOU_HOME 覆盖优先，缺省 <主目录>/.choose-you，空串视同未设置
     #[test]
     fn app_home_resolves_env_override_then_default() {
