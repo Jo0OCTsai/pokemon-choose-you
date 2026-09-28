@@ -387,6 +387,12 @@ pub(crate) struct Rendered {
     pub at_me: bool,
 }
 
+/// mention 条目的 open_id：list 接口（GET /im/v1/messages）id 是字符串，
+/// 事件推送 v2 是 {open_id} 对象——两种形态都认。
+fn mention_open_id(m: &serde_json::Value) -> Option<&str> {
+    m["id"].as_str().or_else(|| m["id"]["open_id"].as_str())
+}
+
 /// 把消息 body.content 渲染成可读文本（用户版 + 大模型匿名版）。
 /// text/post/卡片保留语义结构（@人、链接），媒体类给占位符，无法理解的返回 None 跳过。
 /// mentions：消息级 @ 映射（key "@_user_1" → name/open_id），text 占位符与 post 的 user_key 都靠它还原。
@@ -407,11 +413,11 @@ fn render_content(
             .iter()
             .find(|m| m["key"].as_str() == Some(key))
             .and_then(|m| {
-                if m["id"]["open_id"].as_str() == Some(my_open_id) && !my_open_id.is_empty() {
+                if mention_open_id(m) == Some(my_open_id) && !my_open_id.is_empty() {
                     return Some("我".into());
                 }
                 let named = m["name"].as_str().map(String::from);
-                named.or_else(|| m["id"]["open_id"].as_str().and_then(resolve_name))
+                named.or_else(|| mention_open_id(m).and_then(resolve_name))
             })
     };
     // user_key（@_user_N）→ open_id：匿名版 at 段定位代号用
@@ -420,16 +426,13 @@ fn render_content(
             .as_array()?
             .iter()
             .find(|m| m["key"].as_str() == Some(key))
-            .and_then(|m| m["id"]["open_id"].as_str().map(String::from))
+            .and_then(|m| mention_open_id(m).map(String::from))
     };
     // 显式 @到我：消息级 mentions 命中即算（text 占位符与 post 的 at 段同源）
     let at_me = !my_open_id.is_empty()
         && mentions
             .as_array()
-            .map(|arr| {
-                arr.iter()
-                    .any(|m| m["id"]["open_id"].as_str() == Some(my_open_id))
-            })
+            .map(|arr| arr.iter().any(|m| mention_open_id(m) == Some(my_open_id)))
             .unwrap_or(false);
     match msg_type {
         "text" => {
@@ -441,7 +444,7 @@ fn render_content(
                     let Some(key) = m["key"].as_str() else {
                         continue;
                     };
-                    let oid = m["id"]["open_id"].as_str().unwrap_or_default();
+                    let oid = mention_open_id(m).unwrap_or_default();
                     let display_name = if oid == my_open_id && !my_open_id.is_empty() {
                         "我".to_string()
                     } else {
@@ -773,7 +776,7 @@ async fn pull_new_messages(
                 {
                     let conn = db.0.lock().unwrap();
                     for mm in mentions.as_array().into_iter().flatten() {
-                        if let Some(oid) = mm["id"]["open_id"].as_str() {
+                        if let Some(oid) = mention_open_id(mm) {
                             rules.alias_of(&conn, oid);
                         }
                     }
@@ -1191,6 +1194,30 @@ mod tests {
         assert_eq!(r.display, "@_user_1 看一下这个");
     }
 
+    /// 回归：list 接口（GET /im/v1/messages）的 mentions 真实形态——id 是字符串 open_id
+    /// （非事件推送 v2 的 {open_id} 对象）。历史上按对象形态读取导致真实数据上
+    /// 匿名版 @ 丢名字、at_me 永不触发（见 2026-09 修复）。
+    #[test]
+    fn render_text_message_with_list_api_string_id_mentions() {
+        let rules = render_rules("");
+        let content = r#"{"text":"@_user_1 看一下这个"}"#;
+        let mentions = serde_json::json!([
+            {"key": "@_user_1", "id": "ou_z", "id_type": "open_id", "name": "张三"}
+        ]);
+        let r = render_content("text", content, &mentions, "", &|_| None, &rules).unwrap();
+        assert_eq!(r.display, "@张三 看一下这个");
+        assert_eq!(r.anon, "@成员_00aa 看一下这个", "匿名版用代号而非裸 @");
+        assert!(!r.at_me);
+        // @到我：display/anon 都是「@我」，at_me 显式标注在 list 形态下同样生效
+        let to_me = serde_json::json!([
+            {"key": "@_user_1", "id": "ou_me", "id_type": "open_id", "name": "本大爷"}
+        ]);
+        let r = render_content("text", content, &to_me, "ou_me", &|_| None, &rules).unwrap();
+        assert_eq!(r.display, "@我 看一下这个");
+        assert_eq!(r.anon, "@我 看一下这个");
+        assert!(r.at_me);
+    }
+
     #[test]
     fn render_text_without_mention_marks_my_typed_name() {
         // 手打文本提及（无 mention 结构）：display 原样，anon 里我的称呼 → 疑似@我，
@@ -1418,11 +1445,11 @@ case "$3" in
           ],"has_more":false}}' ;;
       *'"container_id":"oc_group"'*)
         printf '%s' '{"ok":true,"data":{"items":[
-            {"message_id":"om_g1","msg_type":"text","create_time":"1789200000000","sender":{"id":"ou_z","sender_type":"user"},"body":{"content":"{\"text\":\"@_user_1 周会改到周四10点\"}"},"mentions":[{"key":"@_user_1","name":"乔老板","id":{"open_id":"ou_me"}}]},
+            {"message_id":"om_g1","msg_type":"text","create_time":"1789200000000","sender":{"id":"ou_z","sender_type":"user"},"body":{"content":"{\"text\":\"@_user_1 周会改到周四10点\"}"},"mentions":[{"key":"@_user_1","name":"乔老板","id":"ou_me","id_type":"open_id"}]},
             {"message_id":"om_g2","msg_type":"text","create_time":"1789200001000","sender":{"id":"ou_me","sender_type":"user"},"body":{"content":"{\"text\":\"收到\"}"}},
             {"message_id":"om_g3","msg_type":"text","create_time":"1789200002000","sender":{"id":"ou_bot","sender_type":"app"},"body":{"content":"{\"text\":\"每日站会提醒\"}"}},
             {"message_id":"om_g4","msg_type":"image","create_time":"1789200003000","sender":{"id":"ou_z","sender_type":"user"},"body":{"content":"{\"image_key\":\"k\"}"}},
-            {"message_id":"om_g5","msg_type":"text","create_time":"1789200004000","sender":{"id":"ou_z","sender_type":"user"},"body":{"content":"{\"text\":\"@_user_2 你来写周报\"}"},"mentions":[{"key":"@_user_2","name":"王五","id":{"open_id":"ou_wang"}}]},
+            {"message_id":"om_g5","msg_type":"text","create_time":"1789200004000","sender":{"id":"ou_z","sender_type":"user"},"body":{"content":"{\"text\":\"@_user_2 你来写周报\"}"},"mentions":[{"key":"@_user_2","name":"王五","id":"ou_wang","id_type":"open_id"}]},
             {"message_id":"om_g6","msg_type":"text","create_time":"1789200005000","sender":{"id":"ou_z","sender_type":"user"},"body":{"content":"{\"text\":\"乔老板帮我看下发布单\"}"}}
           ],"has_more":false}}' ;;
       *)
