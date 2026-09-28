@@ -2010,19 +2010,23 @@ esac
 
     // ---- 会话过滤决策（feishu-chat-filter）----
 
+    /// 过滤决策用例行：(偏好, 免打扰结果, chat_type, 期望(效果,来源), 失败说明)。
+    /// 具名别名压住 clippy type_complexity（5 元组内嵌二元组超复杂度阈值）。
+    type FilterCase = (
+        FilterPref,
+        MuteOutcome,
+        &'static str,
+        (FilterEffect, FilterSource),
+        &'static str,
+    );
+
     /// 3 preference × 3 outcome 全组合（AD §8 测试 1；断言值 = plan 速览表；矩阵主体固定 group）
     #[test]
     fn filter_decision_covers_pref_x_outcome_matrix() {
         use FilterEffect as E;
         use FilterPref as P;
         use FilterSource as S;
-        let cases: [(
-            FilterPref,
-            MuteOutcome,
-            &str,
-            (FilterEffect, FilterSource),
-            &str,
-        ); 9] = [
+        let cases: [FilterCase; 9] = [
             (
                 P::AlwaysFilter,
                 MuteOutcome::Muted,
@@ -2098,13 +2102,7 @@ esac
         use FilterEffect as E;
         use FilterPref as P;
         use FilterSource as S;
-        let cases: [(
-            FilterPref,
-            MuteOutcome,
-            &str,
-            (FilterEffect, FilterSource),
-            &str,
-        ); 5] = [
+        let cases: [FilterCase; 5] = [
             (
                 P::AlwaysFilter,
                 MuteOutcome::Muted,
