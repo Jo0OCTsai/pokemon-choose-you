@@ -188,14 +188,27 @@ impl FilterSource {
     }
 }
 
+/// 私聊（p2p）固定跟随免打扰：手动偏好仅对群聊/机器人开放。
+/// 决策入口（filter_decision）与视图报告（总览/合并视图的 preference 字段）共用此归一；
+/// 沉睡行 chat_type 为空串（类型未知）不归一，回到快照后自然纳入。
+pub(crate) fn pref_for_chat_type(chat_type: &str, pref: FilterPref) -> FilterPref {
+    if chat_type == "p2p" {
+        FilterPref::Follow
+    } else {
+        pref
+    }
+}
+
 /// 过滤决策纯函数（单一决策源：拉取侧 retain 与管理界面总览共用）。
-/// 优先级：手动覆盖不读免打扰结果；跟随态 muted→过滤 / unmuted→拉取 /
+/// 先按 chat_type 归一手动偏好（私聊一律跟随），再按优先级决策：
+/// 手动覆盖不读免打扰结果；跟随态 muted→过滤 / unmuted→拉取 /
 /// unknown（所在批次查询失败）→降级为拉取（独立来源值 FollowDegraded）。
 pub(crate) fn filter_decision(
     pref: FilterPref,
     outcome: MuteOutcome,
+    chat_type: &str,
 ) -> (FilterEffect, FilterSource) {
-    match pref {
+    match pref_for_chat_type(chat_type, pref) {
         FilterPref::AlwaysFilter => (FilterEffect::Filter, FilterSource::Manual),
         FilterPref::AlwaysPull => (FilterEffect::Pull, FilterSource::Manual),
         FilterPref::Follow => match outcome {
@@ -716,7 +729,8 @@ async fn pull_new_messages(
     }
     let before = chats.len();
     chats.retain(|c| {
-        filter_decision(pref_of(&c.chat_id), outcome_of(&c.chat_id)).0 == FilterEffect::Pull
+        filter_decision(pref_of(&c.chat_id), outcome_of(&c.chat_id), chat_type_of(c)).0
+            == FilterEffect::Pull
     });
     let filtered_out = before - chats.len();
     if filtered_out > 0 {
@@ -1969,71 +1983,147 @@ esac
 
     // ---- 会话过滤决策（feishu-chat-filter）----
 
-    /// 3 preference × 3 outcome 全组合（AD §8 测试 1；断言值 = plan 速览表）
+    /// 3 preference × 3 outcome 全组合（AD §8 测试 1；断言值 = plan 速览表；矩阵主体固定 group）
     #[test]
     fn filter_decision_covers_pref_x_outcome_matrix() {
         use FilterEffect as E;
         use FilterPref as P;
         use FilterSource as S;
-        let cases: [(FilterPref, MuteOutcome, (FilterEffect, FilterSource), &str); 9] = [
+        let cases: [(
+            FilterPref,
+            MuteOutcome,
+            &str,
+            (FilterEffect, FilterSource),
+            &str,
+        ); 9] = [
             (
                 P::AlwaysFilter,
                 MuteOutcome::Muted,
+                "group",
                 (E::Filter, S::Manual),
                 "手动总是过滤不受免打扰影响",
             ),
             (
                 P::AlwaysFilter,
                 MuteOutcome::Unmuted,
+                "group",
                 (E::Filter, S::Manual),
                 "未免打扰的噪音会话也被过滤",
             ),
             (
                 P::AlwaysFilter,
                 MuteOutcome::Unknown,
+                "group",
                 (E::Filter, S::Manual),
                 "查询失败不影响手动覆盖",
             ),
             (
                 P::AlwaysPull,
                 MuteOutcome::Muted,
+                "group",
                 (E::Pull, S::Manual),
                 "被免打扰误杀的会话手动拯救",
             ),
             (
                 P::AlwaysPull,
                 MuteOutcome::Unmuted,
+                "group",
                 (E::Pull, S::Manual),
                 "总是拉取",
             ),
             (
                 P::AlwaysPull,
                 MuteOutcome::Unknown,
+                "group",
                 (E::Pull, S::Manual),
                 "查询失败不影响手动覆盖",
             ),
             (
                 P::Follow,
                 MuteOutcome::Muted,
+                "group",
                 (E::Filter, S::Follow),
                 "跟随：免打扰→过滤",
             ),
             (
                 P::Follow,
                 MuteOutcome::Unmuted,
+                "group",
                 (E::Pull, S::Follow),
                 "跟随：未免打扰→拉取",
             ),
             (
                 P::Follow,
                 MuteOutcome::Unknown,
+                "group",
                 (E::Pull, S::FollowDegraded),
                 "跟随：批次失败→降级拉取（独立来源值）",
             ),
         ];
-        for (pref, outcome, want, why) in cases {
-            assert_eq!(filter_decision(pref, outcome), want, "{why}");
+        for (pref, outcome, chat_type, want, why) in cases {
+            assert_eq!(filter_decision(pref, outcome, chat_type), want, "{why}");
         }
+    }
+
+    /// chat_type 维度：私聊手动偏好归一为跟随（决策与呈现同规则）、bot / 沉睡空串不受影响
+    #[test]
+    fn filter_decision_normalizes_p2p_to_follow() {
+        use FilterEffect as E;
+        use FilterPref as P;
+        use FilterSource as S;
+        let cases: [(
+            FilterPref,
+            MuteOutcome,
+            &str,
+            (FilterEffect, FilterSource),
+            &str,
+        ); 5] = [
+            (
+                P::AlwaysFilter,
+                MuteOutcome::Muted,
+                "p2p",
+                (E::Filter, S::Follow),
+                "私聊手动偏好归一为跟随：免打扰→过滤",
+            ),
+            (
+                P::AlwaysPull,
+                MuteOutcome::Unmuted,
+                "p2p",
+                (E::Pull, S::Follow),
+                "私聊手动拉取同样归一：未免打扰→拉取",
+            ),
+            (
+                P::AlwaysPull,
+                MuteOutcome::Unknown,
+                "p2p",
+                (E::Pull, S::FollowDegraded),
+                "私聊归一后走跟随降级",
+            ),
+            (
+                P::AlwaysFilter,
+                MuteOutcome::Muted,
+                "bot",
+                (E::Filter, S::Manual),
+                "机器人单聊不受私聊归一影响",
+            ),
+            (
+                P::AlwaysFilter,
+                MuteOutcome::Muted,
+                "",
+                (E::Filter, S::Manual),
+                "沉睡行类型未知不归一",
+            ),
+        ];
+        for (pref, outcome, chat_type, want, why) in cases {
+            assert_eq!(filter_decision(pref, outcome, chat_type), want, "{why}");
+        }
+        // 归一函数直测：p2p 归一、其余类型原样
+        assert_eq!(pref_for_chat_type("p2p", P::AlwaysFilter), P::Follow);
+        assert_eq!(
+            pref_for_chat_type("group", P::AlwaysFilter),
+            P::AlwaysFilter
+        );
+        assert_eq!(pref_for_chat_type("bot", P::AlwaysPull), P::AlwaysPull);
     }
 
     /// 枚举字面值是跨层契约（SQL CHECK / command 出参 / 前端 types.ts），

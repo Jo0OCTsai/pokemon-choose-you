@@ -217,14 +217,13 @@ const visibleRows = computed(() => {
   const chats = overview.value?.chats ?? [];
   return [...chats].filter((c) => matchesFilters(c, q)).sort(compareRows);
 });
+/** 筛选激活（搜索词或任一筛选维度非默认）：匹配计数行显隐条件，空态文案 noMatch 复用 */
+const filtersActive = computed(
+  () => !!query.value.trim() || filter.value !== "all" || prefFilter.value !== "all" || typeFilter.value !== "all",
+);
 /** 空·无匹配：搜索词触发走搜索文案；三维筛选各自非 0 但交集为 0 时走组合筛选文案
  *  （单维 0 计数档已禁用 + 选中档降 0 回退，uiux §3.2） */
-const noMatch = computed(
-  () =>
-    state.value === "ready" &&
-    visibleRows.value.length === 0 &&
-    (!!query.value.trim() || filter.value !== "all" || prefFilter.value !== "all" || typeFilter.value !== "all"),
-);
+const noMatch = computed(() => state.value === "ready" && visibleRows.value.length === 0 && filtersActive.value);
 
 // ---- 快照新鲜度（阈值 = max(5 分钟, 2.5 × 轮询间隔)，uiux §3.2 陈旧度呈现） ----
 const snapTime = computed(() => overview.value?.snapshotAt ?? null);
@@ -381,6 +380,11 @@ onUnmounted(() => {
         </div>
       </div>
 
+      <!-- 筛选激活时的匹配计数（n / 全量 total；0 命中时与空态文案并存） -->
+      <p v-if="filtersActive" class="cf-match">
+        {{ t("feishu.filter.matchCount", { n: visibleRows.length, total: counts.total }) }}
+      </p>
+
       <div v-if="visibleRows.length" class="cf-list-box">
         <div v-for="row in visibleRows" :key="row.chatId" class="cf-row" :data-id="row.chatId">
           <span class="cf-badge">{{ t(`im.type.${row.chatType}`) }}</span>
@@ -390,7 +394,16 @@ onUnmounted(() => {
           <span v-if="row.source === 'followDegraded'" :id="`cf-dg-${row.chatId}`" class="sr-only">
             {{ t("feishu.filter.srcDegradedTitle") }}
           </span>
+          <!-- 私聊固定跟随（不可手动覆盖）：静态 chip 替代三段选择器，title 说明规则 -->
           <div
+            v-if="row.chatType === 'p2p'"
+            class="cf-seg cf-seg-fixed"
+            :title="t('feishu.filter.prefFollowFixedTitle')"
+          >
+            <span>{{ t("feishu.filter.prefFollowFixed") }}</span>
+          </div>
+          <div
+            v-else
             class="cf-seg"
             :class="{ busy: writingIds.has(row.chatId) }"
             role="radiogroup"
@@ -581,6 +594,14 @@ onUnmounted(() => {
   min-width: 120px;
 }
 
+/* 筛选匹配计数行（筛选激活时工具行下方；n / 全量 total） */
+.cf-match {
+  margin: 0 0 8px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--ink-soft);
+}
+
 /* 列表容器（max-height 内滚，与收音机列表同模式） */
 .cf-list-box {
   border: 3px solid var(--dex-navy);
@@ -687,6 +708,21 @@ onUnmounted(() => {
 .cf-seg.busy {
   opacity: 0.55;
   pointer-events: none;
+}
+
+/* 私聊固定跟随 chip（非交互）：muted 底 + 默认光标，与可选三段在视觉上区分 */
+.cf-seg-fixed {
+  background: var(--conf-low-soft);
+}
+.cf-seg-fixed span {
+  display: inline-flex;
+  align-items: center;
+  padding: 0 12px;
+  min-height: 38px;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--ink-soft);
+  cursor: default;
 }
 
 /* 空 / loading / 错误态盒子 */

@@ -169,6 +169,34 @@ test.describe("设置 · 飞书：会话过滤卡", () => {
     await expect(card.locator(".cf-row")).toHaveCount(3);
   });
 
+  test("私聊行固定跟随（静态 chip 无三段选择器，API 误用被拒）+ 筛选激活显示匹配计数", async ({ page }) => {
+    await installTauriMock(page, {
+      settings: { feishu_enabled: "true" },
+      chatFilter: [
+        ...CHATS,
+        chatFilter({ chatId: "oc_dm", chatName: "张三", chatType: "p2p", lastMessageAt: Date.now() - 7200_000 }),
+      ],
+    });
+    const card = await openFilterCard(page, 4);
+
+    // 私聊行：静态「跟随」chip（title 说明规则）、无三段选择器；群/机器人行不受影响
+    const dm = card.locator(".cf-row", { hasText: "张三" });
+    await expect(dm.locator(".cf-seg-fixed")).toHaveText("跟随");
+    await expect(dm.locator(".cf-seg-fixed")).toHaveAttribute("title", /私聊固定跟随/);
+    await expect(dm.locator(".cf-seg[role='radiogroup']")).toHaveCount(0);
+    await expect(card.locator(".cf-row", { hasText: "团队群" }).locator(".cf-seg button")).toHaveCount(3);
+    // mock 镜像后端守卫：私聊手动偏好被拒
+    await expect(
+      mockInvoke(page, "set_feishu_chat_filter", { chatId: "oc_dm", preference: "always_filter" }),
+    ).rejects.toThrow(/私聊/);
+
+    // 匹配计数：默认隐藏 → 私聊档激活显示 n / total
+    await expect(card.locator(".cf-match")).toHaveCount(0);
+    await pickSel(card, ".cf-sel-type", 2); // 私聊 1 / 全部 4
+    await expect(card.locator(".cf-match")).toHaveText("符合筛选条件：1 / 4 个会话");
+    await expect(card.locator(".cf-name")).toHaveText(["张三"]);
+  });
+
   test("任何宽度不出现横向滚动（480px 窄窗行内折行）", async ({ page }) => {
     await installTauriMock(page, {
       settings: { feishu_enabled: "true" },

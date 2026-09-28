@@ -290,6 +290,43 @@ describe("FeishuChatFilterManager 会话过滤卡", () => {
     expect(w.findAll(".cf-row")[0].get(".cf-name").text()).toBe("告警机器人");
   });
 
+  it("私聊行固定跟随：静态 chip 替代三段选择器（无写入通道），群/机器人保持三段", async () => {
+    vi.mocked(api.getFeishuChatFilterOverview).mockResolvedValue(
+      overview([
+        view({ chatId: "c1", chatName: "团队群" }),
+        view({ chatId: "c2", chatName: "张三", chatType: "p2p" }),
+        view({ chatId: "c3", chatName: "告警机器人", chatType: "bot" }),
+      ]),
+    );
+    const w = await mountManager();
+    const rowOf = (name: string) => w.findAll(".cf-row").find((r) => r.get(".cf-name").text() === name)!;
+    // 私聊行：静态 chip（title 说明规则），无 radiogroup / 按钮 / 写入
+    const fixed = rowOf("张三").get(".cf-seg-fixed");
+    expect(fixed.text()).toBe("跟随");
+    expect(fixed.attributes("title")).toContain("私聊固定跟随");
+    expect(rowOf("张三").find(".cf-seg[role='radiogroup']").exists()).toBe(false);
+    expect(rowOf("张三").findAll("button")).toHaveLength(0);
+    // 群/机器人行不受影响：仍渲染三段选择器
+    expect(rowOf("团队群").findAll(".cf-seg button")).toHaveLength(3);
+    expect(rowOf("告警机器人").findAll(".cf-seg button")).toHaveLength(3);
+    expect(api.setFeishuChatFilter).not.toHaveBeenCalled();
+  });
+
+  it("筛选激活时显示匹配计数行（n / 全量 total），默认隐藏，0 命中时与空态并存", async () => {
+    const w = await mountManager();
+    expect(w.find(".cf-match").exists()).toBe(false); // 全维 all + 空搜索 → 不显示
+    await pick(w, ".cf-sel-type", 1); // 群聊 → 2 / 3
+    expect(w.get(".cf-match").text()).toBe("符合筛选条件：2 / 3 个会话");
+    await w.get(".cf-search").setValue("灌水"); // 群聊 ∩ 名称 → 1 / 3
+    expect(w.get(".cf-match").text()).toBe("符合筛选条件：1 / 3 个会话");
+    await w.get(".cf-search").setValue("不存在"); // 0 命中：计数行与搜索空态并存
+    expect(w.get(".cf-match").text()).toBe("符合筛选条件：0 / 3 个会话");
+    expect(w.get(".cf-statebox").text()).toContain("没有匹配「不存在」的会话");
+    await w.get(".cf-search").setValue(""); // 清空 + 回全部类型 → 隐藏
+    await pick(w, ".cf-sel-type", 0);
+    expect(w.find(".cf-match").exists()).toBe(false);
+  });
+
   it("选中类型档计数降 0（快照刷新后该类型消失）自动回退「全部类型」", async () => {
     const w = await mountManager();
     await pick(w, ".cf-sel-type", 3); // 机器人

@@ -710,6 +710,9 @@ export async function installTauriMock(page: Page, state: Partial<MockState> = {
               throw new Error(`非法 preference：${args.preference}`);
             const row = db.chatFilter.find((c: any) => c.chatId === args.chatId);
             if (!row) throw new Error(`会话不存在：${args.chatId}`);
+            // 私聊固定跟随（镜像后端 pref_for_chat_type：手动偏好被拒）
+            if (row.chatType === "p2p" && args.preference !== "follow")
+              throw new Error("私聊会话固定跟随免打扰，不支持手动设置");
             row.preference = args.preference;
             if (args.preference === "always_filter") {
               row.effective = "filter";
