@@ -42,6 +42,11 @@ jobs:
             ].join("\n");
             fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY, md + "\n");
           '
+      - name: 上传覆盖率到 Codecov（frontend flag；公开仓库 tokenless）
+        uses: codecov/codecov-action@0b35c9ecc4f0529d0eb674914510c22f85b196b4 # v7.1.1
+        with:
+          files: coverage/clover.xml
+          flags: frontend
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: coverage-frontend
@@ -100,6 +105,11 @@ jobs:
             cd src-tauri && CARGO_TARGET_DIR=target/llvm-cov cargo llvm-cov report --summary-only --ignore-filename-regex '(input|tray|shortcuts|lib|main)\.rs$' 2>/dev/null | grep -E "^(Filename|TOTAL)"
             echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
+      - name: 上传覆盖率到 Codecov（rust flag；公开仓库 tokenless）
+        uses: codecov/codecov-action@0b35c9ecc4f0529d0eb674914510c22f85b196b4 # v7.1.1
+        with:
+          files: src-tauri/target/llvm-cov/lcov.info
+          flags: rust
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         if: always()
         with:
