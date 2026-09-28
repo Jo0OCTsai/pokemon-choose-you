@@ -1,0 +1,45 @@
+# cargo-deny 配置（CI supply-chain job 消费；本地 `cargo deny check` 同口径）
+# license 白名单 = 依赖树实际 SPDX 清单（cargo deny list 建账 2026-09-28）：
+# 全部为宽松或文件级弱 copyleft，无 GPL/AGPL 强传染项。
+# r-efi 的 LGPL-2.1 仅 UEFI target 编译路径（getrandom 可选依赖），桌面/移动构建不链接，义务不触发。
+
+[advisories]
+version = 2
+yanked = "deny"
+
+[licenses]
+version = 2
+allow = [
+  "MIT",
+  "MIT-0",
+  "Apache-2.0",
+  "Apache-2.0 WITH LLVM-exception",
+  "BSD-2-Clause",
+  "BSD-3-Clause",
+  "0BSD",
+  "BSL-1.0",
+  "CC0-1.0",
+  "CDLA-Permissive-2.0",
+  "ISC",
+  "MPL-2.0",
+  "Unicode-3.0",
+  "Unlicense",
+  "Zlib",
+]
+
+# UEFI 专用 crate（getrandom 可选依赖），LGPL 仅 UEFI target 编译路径，
+# 桌面/移动构建不链接，传染义务不触发
+[[licenses.exceptions]]
+crate = "r-efi"
+allow = ["LGPL-2.1-or-later"]
+
+[bans]
+# 多版本重复只警告（Tauri 生态 windows-sys 等多版本普遍，deny 会常年红）
+multiple-versions = "warn"
+wildcards = "deny"
+
+[sources]
+unknown-registry = "deny"
+unknown-git = "deny"
+allow-registry = ["https://github.com/rust-lang/crates.io-index"]
+allow-git = []

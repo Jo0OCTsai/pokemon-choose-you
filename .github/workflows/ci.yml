@@ -25,8 +25,13 @@ jobs:
         run: pnpm format:check
       - name: 类型检查 + 构建
         run: pnpm build
-      - name: 单元测试
-        run: pnpm test:unit
+      - name: 单元测试（v8 覆盖率 + 阈值门禁，阈值 = vite.config.ts coverage.thresholds）
+        run: pnpm test:coverage
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: coverage-frontend
+          path: coverage/
+          retention-days: 7
       - name: 质量棘轮（复杂度基线只准收缩；基线 = .devcontainer/scripts/quality-ratchet-baseline.json）
         run: python3 .devcontainer/scripts/quality_ratchet_check.py --service pokemon-choose-you
       - name: 安装 Playwright 浏览器
@@ -41,14 +46,14 @@ jobs:
           retention-days: 7
 
   rust:
-    name: Rust（fmt + clippy + 单元/契约/wiremock 集成测试）
+    name: Rust（fmt + clippy + 单元/契约/wiremock 集成测试 + 覆盖率门禁）
     runs-on: ubuntu-latest
-    timeout-minutes: 20 # 冷缓存全量编译的余量（热缓存实测 ~1.7m）
+    timeout-minutes: 25 # 冷缓存双轮编译余量（clippy 主 target + llvm-cov 插桩独立 target；热缓存实测 ~2m）
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
       - uses: dtolnay/rust-toolchain@6bed0761d98439e5a578e2877258200ad565ba87 # stable
         with:
-          components: rustfmt, clippy
+          components: rustfmt, clippy, llvm-tools-preview
       - uses: swatinem/rust-cache@49a0bdc70d2e1b713ca9e2869b211fcce03d3c1c # v2
         with:
           workspaces: src-tauri
@@ -56,23 +61,47 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y libwebkit2gtk-4.1-dev build-essential curl wget file libxdo-dev libssl-dev libayatana-appindicator3-dev librsvg2-dev
+      - name: 安装 cargo-llvm-cov
+        uses: taiki-e/install-action@7623a79cdfecb99d681017af368ca353d9f49bb5 # v2
+        with:
+          tool: cargo-llvm-cov
       - name: cargo fmt --check
         run: cargo fmt --manifest-path src-tauri/Cargo.toml --check
       - name: cargo clippy
         run: cargo clippy --manifest-path src-tauri/Cargo.toml --all-targets -- -D warnings
       - name: 质量棘轮（复杂度基线只准收缩；阈值 = src-tauri/clippy.toml）
         run: python3 .devcontainer/scripts/quality_ratchet_check.py --service src-tauri
-      - name: cargo test
-        run: cargo test --manifest-path src-tauri/Cargo.toml
+      - name: cargo llvm-cov（全量测试 + 覆盖率门禁，声明与 stack.json test_cmd 一致：GUI 胶水不入口径）
+        run: |
+          cd src-tauri
+          CARGO_TARGET_DIR=target/llvm-cov cargo llvm-cov --fail-under-lines 85 --ignore-filename-regex '(input|tray|shortcuts|lib|main)\.rs$' --lcov --output-path target/llvm-cov/lcov.info
+          CARGO_TARGET_DIR=target/llvm-cov cargo llvm-cov report --html --output-dir target/llvm-cov/report
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        if: always()
+        with:
+          name: coverage-rust
+          path: |
+            src-tauri/target/llvm-cov/lcov.info
+            src-tauri/target/llvm-cov/report/
+          retention-days: 7
 
-  audit:
-    name: Rust 依赖漏洞扫描（cargo audit）
+  supply-chain:
+    name: 供应链扫描（pnpm audit + cargo-deny + gitleaks）
     runs-on: ubuntu-latest
-    timeout-minutes: 10 # 实测 ~13s，余量给 advisory DB 拉取的网络抖动
+    timeout-minutes: 10 # 实测各步秒级~1m，余量给 advisory DB 拉取的网络抖动
     steps:
+      # gitleaks 全历史扫描需要完整提交历史（默认浅克隆 1 条会漏）
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          fetch-depth: 0
+      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+      - name: pnpm audit（npm 依赖漏洞，high 及以上）
+        run: pnpm audit --audit-level=high
       - uses: taiki-e/install-action@7623a79cdfecb99d681017af368ca353d9f49bb5 # v2
         with:
-          tool: cargo-audit
-      - name: cargo audit（RustSEC 已知漏洞）
-        run: cargo audit --file src-tauri/Cargo.lock
+          tool: cargo-deny,gitleaks
+      - name: cargo deny（Rust 依赖 license / 漏洞 / ban；配置 = src-tauri/deny.toml）
+        run: cargo deny --log-level error check
+        working-directory: src-tauri
+      - name: gitleaks（全历史秘密扫描；豁免 = .gitleaks.toml）
+        run: gitleaks detect --source . --redact

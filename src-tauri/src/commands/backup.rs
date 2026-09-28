@@ -68,3 +68,94 @@ pub fn restore_backup<R: tauri::Runtime>(
     events::broadcast(&app, events::CHAT_MESSAGES_CHANGED);
     Ok(())
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::commands::windows::PendingMainReopen;
+    use crate::db::tests::test_conn;
+    use std::sync::Mutex;
+    use tauri::Manager;
+
+    fn setup() -> tauri::App<tauri::test::MockRuntime> {
+        let app = tauri::test::mock_app();
+        app.manage(Db(Mutex::new(test_conn())));
+        app.manage(PendingMainReopen(std::sync::atomic::AtomicBool::new(false)));
+        app
+    }
+
+    /// 注入独立 CHOOSE_YOU_HOME（进程级，一个测试一个窗口，用完即还）
+    fn inject_home(name: &str) -> std::path::PathBuf {
+        let home =
+            std::env::temp_dir().join(format!("pk-cmd-backup-{}-{name}", std::process::id()));
+        std::fs::create_dir_all(home.join("data")).unwrap();
+        std::env::set_var(crate::db::HOME_ENV, &home);
+        home
+    }
+
+    /// 命令层往返（create/list 的滚动保留 + restore 灌回与当日标记），共用一个注入窗口：
+    /// backup_keep=2 下建 3 份只留最新 2 份；恢复后数据回来且补写 last_backup_date
+    #[test]
+    fn create_list_prune_and_restore_via_command_layer() {
+        let app = setup();
+        {
+            let db = app.state::<Db>();
+            let conn = db.0.lock().unwrap();
+            conn.execute(
+                "INSERT INTO settings (key, value) VALUES ('backup_keep', '2')",
+                [],
+            )
+            .unwrap();
+            conn.execute(
+                "INSERT INTO tasks (title, status, created_at) VALUES ('恢复我', 'inbox', '2026-09-13T00:00:00Z')",
+                [],
+            )
+            .unwrap();
+        }
+        let home = inject_home("roundtrip");
+
+        let mut file = String::new();
+        for _ in 0..3 {
+            let db = app.state::<Db>();
+            file = create_backup_now(app.handle().clone(), db).unwrap();
+        }
+        let list = list_backups(app.handle().clone()).unwrap();
+        assert_eq!(list.len(), 2, "backup_keep=2 滚动只留最新两份");
+        assert!(
+            list.iter().any(|b| b.file == file),
+            "最新一份保留: {file} vs {list:?}"
+        );
+
+        {
+            let db = app.state::<Db>();
+            let conn = db.0.lock().unwrap();
+            conn.execute("DELETE FROM tasks", []).unwrap();
+        }
+        {
+            let db = app.state::<Db>();
+            restore_backup(app.handle().clone(), db, file).unwrap();
+        }
+        std::env::remove_var(crate::db::HOME_ENV);
+        let (n, last_backup) = {
+            let db = app.state::<Db>();
+            let conn = db.0.lock().unwrap();
+            let n: i64 = conn
+                .query_row("SELECT COUNT(*) FROM tasks", [], |r| r.get(0))
+                .unwrap();
+            let lb: Option<String> = conn
+                .query_row(
+                    "SELECT value FROM settings WHERE key='last_backup_date'",
+                    [],
+                    |r| r.get(0),
+                )
+                .ok();
+            (n, lb)
+        };
+        assert_eq!(n, 1, "恢复后任务回来");
+        assert!(
+            last_backup.is_some(),
+            "恢复后补当日备份标记，避免再触发一轮"
+        );
+        let _ = std::fs::remove_dir_all(&home);
+    }
+}

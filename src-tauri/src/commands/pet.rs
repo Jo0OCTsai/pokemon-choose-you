@@ -225,6 +225,7 @@ mod tests {
     use super::*;
     use crate::db::tests::test_conn;
     use chrono::Duration;
+    use tauri::Manager;
 
     /// 插一条 done 任务（completed_at 为相对今天的偏移天数，UTC 时刻取正午避开边界）
     fn seed_done(conn: &Connection, title: &str, offset_days: i64) {
@@ -294,5 +295,106 @@ mod tests {
             "一句话没有句读结尾"
         );
         assert_eq!(trim_sentences("  前后空白。  ", 2), "前后空白。");
+    }
+
+    // ---- pet_chat：输入校验 + 假 agent 往返（command 指向假脚本，prompt 走 stdin） ----
+
+    fn setup() -> tauri::App<tauri::test::MockRuntime> {
+        let app = tauri::test::mock_app();
+        app.manage(Db(std::sync::Mutex::new(test_conn())));
+        app
+    }
+
+    fn seed_primary_agent(conn: &Connection, command: &str) {
+        let agent = crate::ai::AgentConfig {
+            id: "a1".into(),
+            name: "主力".into(),
+            command: command.into(),
+            ..Default::default()
+        };
+        conn.execute(
+            "INSERT INTO settings (key, value) VALUES ('ai_agents', ?1)",
+            params![serde_json::to_string(&[agent]).unwrap()],
+        )
+        .unwrap();
+    }
+
+    #[test]
+    fn pet_chat_validates_input_and_needs_agent() {
+        let app = setup();
+        {
+            let db = app.state::<Db>();
+            let err = tauri::async_runtime::block_on(pet_chat(db, "   ".into())).unwrap_err();
+            assert!(matches!(err, AppError::Invalid(_)), "{err}");
+        }
+        {
+            let db = app.state::<Db>();
+            let long = "很长".repeat(101);
+            let err = tauri::async_runtime::block_on(pet_chat(db, long)).unwrap_err();
+            assert!(err.to_string().contains("太长"), "{err}");
+        }
+        {
+            let db = app.state::<Db>();
+            let err = tauri::async_runtime::block_on(pet_chat(db, "在吗".into())).unwrap_err();
+            assert!(err.to_string().contains("还没有配置"), "{err}");
+        }
+    }
+
+    /// 假 agent 往返：任务上下文经 stdin 送进 prompt（进行中/图鉴计数/截止标注），
+    /// agent 多句输出被收敛到两句
+    #[test]
+    fn pet_chat_sends_context_and_trims_reply() {
+        let app = setup();
+        let dir = std::env::temp_dir().join(format!("pk-pet-chat-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let agent_bin = dir.join("fake-agent.sh");
+        let stdin_marker = dir.join("prompt.txt");
+        std::fs::write(
+            &agent_bin,
+            format!(
+                "#!/bin/sh\ncat > {m}\nprintf '%s' '第一句。第二句！第三句？'",
+                m = stdin_marker.to_string_lossy()
+            ),
+        )
+        .unwrap();
+        {
+            use std::os::unix::fs::PermissionsExt;
+            std::fs::set_permissions(&agent_bin, std::fs::Permissions::from_mode(0o755)).unwrap();
+        }
+        {
+            let db = app.state::<Db>();
+            let conn = db.0.lock().unwrap();
+            seed_primary_agent(&conn, &agent_bin.to_string_lossy());
+            conn.execute(
+                "INSERT INTO tasks (title, category_id, status, priority, source, created_at, started_at)
+                 VALUES ('进行中的周报', 1, 'active', 'normal', 'local', '2026-09-13T00:00:00Z', '2026-09-13T01:00:00Z')",
+                [],
+            )
+            .unwrap();
+            conn.execute(
+                "INSERT INTO tasks (title, category_id, status, priority, source, created_at, due_at)
+                 VALUES ('带截止的待办', 1, 'inbox', 'normal', 'local', '2026-09-13T00:00:00Z', '2026-09-14T09:00:00Z')",
+                [],
+            )
+            .unwrap();
+            seed_done(&conn, "抓到了", 0);
+            conn.execute(
+                "INSERT INTO tasks (title, category_id, status, priority, source, created_at, completed_at)
+                 VALUES ('逃走了', 1, 'cancelled', 'normal', 'local', '2026-09-12T00:00:00Z', '2026-09-12T00:00:00Z')",
+                [],
+            )
+            .unwrap();
+        }
+        let reply = {
+            let db = app.state::<Db>();
+            tauri::async_runtime::block_on(pet_chat(db, "今天战绩如何".into())).unwrap()
+        };
+        assert_eq!(reply, "第一句。第二句！", "多句回答收敛到两句");
+        let prompt = std::fs::read_to_string(&stdin_marker).unwrap();
+        assert!(prompt.contains("进行中任务：「进行中的周报」"), "{prompt}");
+        assert!(prompt.contains("（截止 2026-09-14"), "{prompt}");
+        assert!(prompt.contains("图鉴累计捕捉 1 只、逃走 1 只"), "{prompt}");
+        assert!(prompt.contains("训练家问：今天战绩如何"), "{prompt}");
+        let _ = std::fs::remove_dir_all(&dir);
     }
 }

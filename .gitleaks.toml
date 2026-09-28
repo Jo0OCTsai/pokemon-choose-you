@@ -1,0 +1,13 @@
+# gitleaks 配置：默认规则集 + 已知误报的精准豁免（CI 与 pre-commit 消费）
+# 豁免只针对具体假凭证串（不按文件排除——文件级豁免会漏掉该文件未来的真实泄漏）
+[extend]
+useDefault = true
+
+[allowlist]
+description = "diagnostics.rs 脱敏函数 redact_values/redact_line 的测试 fixture：手写假凭证形态（键盘序列 / AWS 官方示例 key / 假 feishu secret），公开无风险"
+regexTarget = "match"
+regexes = [
+  '''AKIAIOSFODNN7EXAMPLE''',
+  '''sk-proj-AbCd1234EfGh5678''',
+  '''abcd1234efgh''',
+]

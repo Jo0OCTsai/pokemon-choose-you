@@ -6,6 +6,8 @@ pre-commit:
   jobs:
     - name: lint-gate 质量门禁（scaffold 注入；按 .devcontainer/stack.json 路由全量检查）
       run: CLAUDE_PROJECT_DIR="$(git rev-parse --show-toplevel)" bash .claude/hooks/lint-gate.sh
+    - name: gitleaks 秘密扫描（暂存内容；豁免 = .gitleaks.toml；本机未装时跳过，CI 兜底）
+      run: command -v gitleaks >/dev/null && gitleaks protect --staged --redact || echo "gitleaks 未安装，跳过（CI 供应链 job 兜底）"
     - name: frontend lint + format
       glob: "*.{ts,vue,json,css,html}"
       run: pnpm exec prettier --write --ignore-unknown {staged_files} && pnpm exec eslint --fix {staged_files}
