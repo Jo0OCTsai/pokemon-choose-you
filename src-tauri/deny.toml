@@ -6,6 +6,9 @@
 [advisories]
 version = 2
 yanked = "deny"
+# 传递依赖的 unmaintained 告警不阻断（proc-macro-error / unic-* 系全来自 tao/wry/servo
+# 上游链，上游迁移前无解；直接依赖的 unmaintained 仍报错）
+unmaintained = "transitive"
 
 [licenses]
 version = 2
