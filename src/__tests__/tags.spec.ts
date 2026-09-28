@@ -19,8 +19,6 @@ function dim(partial: Partial<TagDimension> & { key: string }): TagDimension {
     maxTags: 6,
     sort: 0,
     enabled: true,
-    builtin: false,
-    createdAt: "2026-09-01T00:00:00Z",
     ...partial,
   };
 }
@@ -64,10 +62,10 @@ describe("tags store", () => {
       tag({ id: 2, name: "随便聊", dimension: "" }), // 老数据无维度 → topic
       tag({ id: 3, name: "张三", dimension: "person" }),
     ];
-    expect(s.enabledDimensions.map((d) => d.key)).toEqual(["project", "person"], "只过滤停用，保持声明序");
+    expect(s.enabledDimensions.map((d) => d.key)).toEqual(["project", "person"]); // 只过滤停用，保持声明序;
     expect(s.dimByKey.get("project")?.name).toBe("project");
     expect(s.tagsByDimension.get("project")).toHaveLength(1);
-    expect(s.tagsByDimension.get("topic")?.[0].name).toBe("随便聊", "无维度归 topic");
+    expect(s.tagsByDimension.get("topic")?.[0].name).toBe("随便聊"); // 无维度归 topic;
   });
 
   it("refToId：先精确维度命中，同名跨维度回落第一个同名", async () => {
@@ -75,7 +73,7 @@ describe("tags store", () => {
     s.list = [tag({ id: 1, name: "重名", dimension: "project" }), tag({ id: 2, name: "重名", dimension: "topic" })];
     expect(s.refToId("重名", "project")).toBe(1);
     expect(s.refToId("重名", "topic")).toBe(2);
-    expect(s.refToId("重名", "person")).toBe(1, "维度不匹配回落第一个同名");
+    expect(s.refToId("重名", "person")).toBe(1); // 维度不匹配回落第一个同名;
     expect(s.refToId("没有", "project")).toBeUndefined();
   });
 });

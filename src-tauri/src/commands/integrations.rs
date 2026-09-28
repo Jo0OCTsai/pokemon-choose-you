@@ -1363,6 +1363,7 @@ mod tests {
     }
 
     #[test]
+    #[serial_test::serial] // 读 app_home（CHOOSE_YOU_HOME 进程级 env），须与写该 env 的测试互斥
     fn history_line_cds_into_default_workdir() {
         // 留空的工作目录 = ~/.choose-you：历史记录终端会话与无头调用同一基准
         let agent = AgentConfig {

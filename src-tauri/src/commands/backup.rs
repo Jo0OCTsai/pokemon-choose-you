@@ -94,8 +94,10 @@ mod tests {
     }
 
     /// 命令层往返（create/list 的滚动保留 + restore 灌回与当日标记），共用一个注入窗口：
-    /// backup_keep=2 下建 3 份只留最新 2 份；恢复后数据回来且补写 last_backup_date
+    /// backup_keep=2 下建 3 份只留最新 2 份；恢复后数据回来且补写 last_backup_date。
+    /// #[serial]：CHOOSE_YOU_HOME 是进程级 env，须与读 app_home 的测试互斥（CI 实证过竞态）
     #[test]
+    #[serial_test::serial]
     fn create_list_prune_and_restore_via_command_layer() {
         let app = setup();
         {

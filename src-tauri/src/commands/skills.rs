@@ -394,8 +394,10 @@ mod tests {
     }
 
     /// 远程链路经假 ssh：status 解析远端 frontmatter 旧版本；install 先查旧版、
-    /// 送脚本后以哨兵回显确认；哨兵缺失时报外部错误（三个场景共用一个注入窗口）
+    /// 送脚本后以哨兵回显确认；哨兵缺失时报外部错误（三个场景共用一个注入窗口）。
+    /// #[serial]：PK_SSH_BIN 是进程级 env，须与 runner.rs 的假 ssh 测试互斥
     #[test]
+    #[serial_test::serial]
     fn remote_status_install_and_sentinel_via_fake_ssh() {
         let app = setup();
         {

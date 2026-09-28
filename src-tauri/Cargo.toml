@@ -53,6 +53,7 @@ uuid = { version = "1.26.1", features = ["v4"] }
 rdev = "0.5.3"
 
 [dev-dependencies]
+serial_test = "4.0.1"
 # 仅测试构建启用 mock 运行时，不影响正常编译与发布产物
 tauri = { version = "2.11.6", features = ["test"] }
 

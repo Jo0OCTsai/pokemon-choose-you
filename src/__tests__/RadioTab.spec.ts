@@ -34,6 +34,7 @@ function msg(partial: Partial<ChatMessage> & { id: number }): ChatMessage {
     reviewStatus: "pending",
     aiStatus: "todo",
     suggestedConfidence: "high",
+    suggestedTags: [], // 类型必填（其余 suggested* 均可选的定义怪点）
     createdAt: "2026-09-13T00:00:00Z",
     chatId: "oc-1",
     chatType: "group",
@@ -121,12 +122,7 @@ describe("RadioTab 逃走与强制", () => {
     await flush();
     expect(api.dismissChatMessage).toHaveBeenCalledWith(11, undefined);
     expect(w.text()).toContain(i18n.global.t("im.released"));
-    await w
-      .get(".undo-btn, [class*=undo] button, .toast button")
-      .trigger("click")
-      .catch(async () => {
-        await w.get("button", { multiple: false });
-      });
+    await w.get(".toast button").trigger("click"); // UndoToast 的撤销按钮
     expect(api.undoChatReview).toHaveBeenCalledWith(11);
   });
 
@@ -145,20 +141,20 @@ describe("RadioTab 批量勾选", () => {
     const rows = w.findAllComponents(ImMessageRow);
     rows[0].vm.$emit("toggle-check", 11);
     await flush();
-    expect(w.text()).toContain("（1）", "批量按钮显示勾选数");
+    expect(w.text()).toContain("（1）"); // 批量按钮显示勾选数;
     await w.get(".hi-conf-btn").trigger("click"); // 只勾高置信（11 是 high，12 是 low）
     await flush();
     await w.findAll(".batch-bar .btn")[0].trigger("click");
     await flush();
     expect(api.batchReviewChatMessages).toHaveBeenCalledWith([11], "accept");
-    expect(w.text()).toContain(i18n.global.t("im.batchDone", { n: 2 }), "ok 数取回传值");
+    expect(w.text()).toContain(i18n.global.t("im.batchDone", { n: 2 })); // ok 数取回传值;
   });
 
   it("全选切换：一次全勾再点全清", async () => {
     const w = await mountRadio();
     await w.get(".batch-check input").trigger("change"); // 全选
     await flush();
-    expect(w.text()).toContain("（2）", "信号区两条全选");
+    expect(w.text()).toContain("（2）"); // 信号区两条全选;
     await w.get(".batch-check input").trigger("change"); // 再点全清
     await flush();
     expect(w.text()).not.toContain("（2）");
@@ -199,7 +195,7 @@ describe("RadioTab 键盘流", () => {
     expect(api.acceptChatMessage).toHaveBeenCalledWith(12);
 
     // 焦点在输入框时按键不劫持（不触发捕捉）
-    api.acceptChatMessage.mockClear();
+    vi.mocked(api.acceptChatMessage).mockClear();
     key("c", w.get(".search-input").element as HTMLElement);
     await flush();
     expect(api.acceptChatMessage).not.toHaveBeenCalled();

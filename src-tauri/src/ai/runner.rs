@@ -427,8 +427,10 @@ mod tests {
         }
 
         /// SSH 远程执行：经假 ssh 程序（PK_SSH_BIN 注入）组装 BatchMode/--、提示词走 stdin、
-        /// stdout 的 JSON 照常解析
+        /// stdout 的 JSON 照常解析。
+        /// #[serial]：PK_SSH_BIN 是进程级 env，须与 commands/skills.rs 的假 ssh 测试互斥
         #[test]
+        #[serial_test::serial]
         fn remote_agent_runs_via_ssh_with_stdin_prompt() {
             let dir = std::env::temp_dir().join(format!("pk-agent-test-{}", std::process::id()));
             std::fs::create_dir_all(&dir).unwrap();

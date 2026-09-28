@@ -69,7 +69,7 @@ function target(partial: Partial<TaskDispatchTarget> = {}): TaskDispatchTarget {
 async function mountDrawer(t: Task = task()) {
   const pinia = createPinia();
   setActivePinia(pinia);
-  useCategoriesStore().list = [{ id: 1, name: "工作", pokemon: "", sprite: "", focusColor: "" }];
+  useCategoriesStore().list = [{ id: 1, name: "工作", pokemon: "", sprite: "", enabled: true }];
   const w = mount(TaskDetailDrawer, { props: { task: t }, global: { plugins: [pinia, i18n] } });
   await new Promise((r) => setTimeout(r));
   return w;
@@ -79,7 +79,8 @@ beforeEach(() => {
   vi.mocked(api.listTaskNotes).mockResolvedValue([]);
   vi.mocked(api.listAgentSessions).mockResolvedValue([]);
   vi.mocked(api.listTaskLogs).mockResolvedValue([]);
-  vi.mocked(api.resolveTaskDispatch).mockResolvedValue(null);
+  // 无 project 标签用例的默认（null 在真实类型外，见 loadDispatch 的 catch 静默分支）
+  vi.mocked(api.resolveTaskDispatch).mockResolvedValue(null as unknown as TaskDispatchTarget);
 });
 
 describe("TaskDetailDrawer 总览与历史", () => {
@@ -95,7 +96,7 @@ describe("TaskDetailDrawer 总览与历史", () => {
     expect(w.text()).toContain("工作");
     expect(w.text()).toContain("⛳ pkm");
     expect(w.text()).toContain("# 晚间");
-    expect(w.text()).toContain("—", "无截止时间显示占位");
+    expect(w.text()).toContain("—"); // 无截止时间显示占位
   });
 
   it("操作历史：字段值空显示占位，状态字段走翻译", async () => {
@@ -113,7 +114,7 @@ describe("TaskDetailDrawer 总览与历史", () => {
     ]);
     const w = await mountDrawer();
     expect(w.text()).toContain(i18n.global.t("status.done"));
-    expect(w.text()).toContain("→", "新旧值同行展示");
+    expect(w.text()).toContain("→"); // 新旧值同行展示
   });
 });
 
@@ -174,7 +175,13 @@ describe("TaskDetailDrawer 派发执行", () => {
       terminal: "iTerm",
       note: null,
       state: "running",
-      session: { id: 5, agentId: "ag-1", agentName: "Claude Code", status: "ok" },
+      session: {
+        id: 5,
+        agentId: "ag-1",
+        agentName: "Claude Code",
+        status: "ok",
+        createdAt: "2026-09-13T00:00:00Z",
+      },
     });
     const w = await mountDrawer(task({ tags: [{ name: "pkm", dimension: "project" }] }));
     await w.get(".dsp-row .btn").trigger("click");
@@ -203,7 +210,7 @@ describe("TaskDetailDrawer 手动标记", () => {
     await new Promise((r) => setTimeout(r));
     expect(api.markDispatch).toHaveBeenCalledWith(1, "done");
     expect(w.find(".dsp-state").classes()).toContain("done");
-    expect(w.find(".dsp-mark").exists()).toBe(false, "done 后救援行收起");
+    expect(w.find(".dsp-mark").exists()).toBe(false); // done 后救援行收起
   });
 
   it("重置：queued 起点标记 idle 后徽章消失", async () => {
@@ -233,8 +240,8 @@ describe("TaskDetailDrawer Agent 执行区", () => {
     ]);
     const w = await mountDrawer();
     expect(w.text()).toContain(i18n.global.t("sess.kind.classify"));
-    expect(w.text()).toContain("2m", "90 秒收敛到分钟");
-    expect(w.text()).toContain("$0.50", "成本合计展示");
+    expect(w.text()).toContain("2m"); // 90 秒收敛到分钟
+    expect(w.text()).toContain("$0.50"); // 成本合计展示
     await w.get("button.run-open").trigger("click");
     expect(api.openRecordedSession).toHaveBeenCalledWith(5);
   });
