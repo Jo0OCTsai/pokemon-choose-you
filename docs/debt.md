@@ -4,6 +4,7 @@
 
 ## 待处理
 
+- [ ] **pub API 文档缺失 271 处**（来源：2026-09-28 质量指标扩展，missing_docs 接入时建账）：lib crate 公开项（commands / bin/pk 消费面等）缺 `///` 文档。数量已被质量棘轮 `hygiene.missing_docs` 锁定（只降不升），渐进清理——优先补 `bin/pk` agent 消费面（协议地位，见 AGENTS.md SKILL_VERSION 同步义务），内部实现项可随重构顺带补。计数口径：`cargo rustc --lib -- -W missing_docs`（独立 target 目录）。
 - [ ] **PetApp.vue 剩余可拆功能域**（来源：2026-09 前端大文件拆分，`specs/archive/frontend-component-split/`）：script 仍有 ~795 行。可继续按 `useXxx(opts)` 模式提取：reminder 就近提醒（~38 行）、睡眠/唤醒（~32 行）、时刻台词+每日问候（~74 行，两块同构可合并）、陪跑精灵 mate（~40 行）、手势三分+拖拽+栖息（~110 行）、快捷图鉴屏（~40 行）。提取后 script 预计可到 ~450。模板侧 ChatBox/QuickDex 两个区域（~86 行 template + 样式）也可 SFC 化。
 - [ ] **跨文件重复样式未令牌化**（来源：同上，属重构范围外登记）：
   - RadioTab 与 TaskTab 逐字雷同的 `.search-input` / `.empty`，应下沉公共样式；

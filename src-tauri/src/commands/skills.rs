@@ -373,4 +373,87 @@ mod tests {
         };
         assert!(matches!(err, AppError::Invalid(_)), "{err}");
     }
+
+    /// 写假 ssh 并注入 PK_SSH_BIN（进程级，调用方独占窗口内用完即还）：
+    /// status 查询（cat 行）回旧版 frontmatter，install（sh -s）回 install_out；
+    /// 每次调用的 argv 追加落盘供断言
+    fn inject_fake_ssh(dir: &std::path::Path, install_out: &str) {
+        let ssh = dir.join("fake-ssh.sh");
+        let argv_marker = dir.join("ssh-argv.txt");
+        let script = format!(
+            "#!/bin/sh\nprintf '%s\\n' \"$@\" >> {argv}\ncase \"$*\" in\n*\"'sh -s'\"*) printf '%s\\n' '{out}' ;;\n*) printf '%s\\n' --- 'name: pokemon-choose-you' 'version: 5' --- '# body' ;;\nesac\n",
+            argv = argv_marker.to_string_lossy(),
+            out = install_out,
+        );
+        std::fs::write(&ssh, script).unwrap();
+        {
+            use std::os::unix::fs::PermissionsExt;
+            std::fs::set_permissions(&ssh, std::fs::Permissions::from_mode(0o755)).unwrap();
+        }
+        std::env::set_var("PK_SSH_BIN", &ssh);
+    }
+
+    /// 远程链路经假 ssh：status 解析远端 frontmatter 旧版本；install 先查旧版、
+    /// 送脚本后以哨兵回显确认；哨兵缺失时报外部错误（三个场景共用一个注入窗口）。
+    /// #[serial]：PK_SSH_BIN 是进程级 env，须与 runner.rs 的假 ssh 测试互斥
+    #[test]
+    #[serial_test::serial]
+    fn remote_status_install_and_sentinel_via_fake_ssh() {
+        let app = setup();
+        {
+            let db = app.state::<Db>();
+            let conn = db.0.lock().unwrap();
+            seed_agent(&conn, "r1", "claude", Some("dev@box"));
+        }
+        let tmp = std::env::temp_dir().join(format!("pk-skill-ssh-{}", std::process::id()));
+        std::fs::create_dir_all(&tmp).unwrap();
+        let sentinel = format!("PK_SKILL_INSTALLED {v}", v = skills::SKILL_VERSION);
+        inject_fake_ssh(&tmp, &sentinel);
+        let status = {
+            let db = app.state::<Db>();
+            tauri::async_runtime::block_on(agent_skill_status(db, "r1".into())).unwrap()
+        };
+        assert_eq!(status.remote_host.as_deref(), Some("dev@box"));
+        assert_eq!(status.installed_version.as_deref(), Some("5"));
+        assert!(status.installed, "有 frontmatter 即视为已安装");
+        assert!(
+            !status.up_to_date,
+            "远端 5 旧于内置 {}",
+            skills::SKILL_VERSION
+        );
+        assert!(
+            status.dir.starts_with("$HOME/.claude/skills/"),
+            "远程目录 $HOME 相对: {}",
+            status.dir
+        );
+
+        let result = {
+            let db = app.state::<Db>();
+            tauri::async_runtime::block_on(agent_skill_install(db, "r1".into())).unwrap()
+        };
+        assert_eq!(
+            result.previous_version.as_deref(),
+            Some("5"),
+            "升级前先查到旧版"
+        );
+        assert!(result.updated);
+        assert_eq!(result.version, skills::SKILL_VERSION);
+        assert_eq!(result.remote_host.as_deref(), Some("dev@box"));
+
+        // 换一个不回哨兵的假 ssh（同一路径重写脚本，变量仍指向它）→ 哨兵校验兜底
+        inject_fake_ssh(&tmp, "profile 噪音，没有确认回显");
+        let err = {
+            let db = app.state::<Db>();
+            tauri::async_runtime::block_on(agent_skill_install(db, "r1".into())).unwrap_err()
+        };
+        std::env::remove_var("PK_SSH_BIN");
+        assert!(matches!(err, AppError::External(_)), "{err}");
+        assert!(err.to_string().contains("未确认"), "{err}");
+
+        let argv = std::fs::read_to_string(tmp.join("ssh-argv.txt")).unwrap();
+        assert!(argv.contains("BatchMode=yes"), "免交互开关进 argv: {argv}");
+        assert!(argv.contains("dev@box"), "目标主机进 argv: {argv}");
+        assert!(argv.contains("--"), "命令分隔符进 argv: {argv}");
+        let _ = std::fs::remove_dir_all(&tmp);
+    }
 }

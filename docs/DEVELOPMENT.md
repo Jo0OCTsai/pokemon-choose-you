@@ -1,6 +1,6 @@
 # 开发指南
 
-面向开发者的环境搭建、常用命令、测试与发布流程。安装与日常使用见 [操作说明](USER_GUIDE.md)；提交规范与贡献流程见 [贡献指南](../CONTRIBUTING.md)；跨平台已知坑位见 [平台注意事项](PLATFORM_NOTES.md)。
+面向开发者的环境搭建、常用命令、测试与发布流程。安装与日常使用见 [操作说明](USER_GUIDE.md)；提交规范与贡献流程见 [贡献指南](../CONTRIBUTING.md)；分支管理与 worktree 并行开发规范见 [Git 工作流](GIT_WORKFLOW.md)；跨平台已知坑位见 [平台注意事项](PLATFORM_NOTES.md)。
 
 技术栈 Tauri 2 + Vue 3 + Rust：常驻仅桌宠窗口，网络/同步跑在 tokio 后台任务，UI 卡死不影响提醒；数据为 SQLite（WAL）本地存储，日志滚动记录于 `~/.choose-you/logs/`（`CHOOSE_YOU_HOME` 可重定位归一化根）。
 
@@ -30,7 +30,13 @@ pnpm tauri build   # 打包 (macOS: dmg / Windows: NSIS / Linux: deb·rpm·AppIm
 | `pnpm test:unit` | Vitest 单元测试（`src/__tests__/`） |
 | `pnpm test:rust` | cargo test（单元 + serde↔TS 契约） |
 | `pnpm test:e2e` | Playwright 三引擎（chromium / firefox / webkit） |
+| `pnpm test:coverage` | 前端覆盖率（v8 provider，阈值 = vite.config.ts `coverage.thresholds`） |
+| `pnpm test:rust:coverage` | Rust 覆盖率（cargo-llvm-cov，`--fail-under-lines` 门禁；需 `rustup component add llvm-tools-preview` + `cargo install cargo-llvm-cov`） |
 | `pnpm clippy` | cargo clippy `-D warnings` |
+| `pnpm audit:npm` | npm 依赖漏洞扫描（显式官方 registry，本地镜像源无 audit 端点） |
+| `cargo deny check` | Rust 依赖 license / 漏洞 / ban（配置 = `src-tauri/deny.toml`） |
+| `gitleaks detect` | 秘密扫描（豁免 = `.gitleaks.toml`；`brew install gitleaks`） |
+| `pnpm check:duplicates` | jscpd 重复代码率门禁（>2.5% 红，现状 ~2%） |
 | `pnpm test` | 单元 + Rust 全套 |
 
 ## macOS 开发签名（辅助功能授权）

@@ -3,7 +3,7 @@
 
 复杂度与覆盖率阈值只紧不松——对准 AI 屎山（迭代残留 + 过度清理）的机检兜底。
 
-两项校验（出现回退 = 非零退出）：
+三项校验（出现回退 = 非零退出）：
   ① 复杂度棘轮：python-uv 服务 ruff（C901 复杂度 / PLR0911 返回数 / PLR0912 分支数 / PLR0915 语句数，
      显式 --select，独立于主 lint 配置）+ node-pnpm 服务 eslint（complexity / max-lines-per-function /
      max-lines，需服务目录有 eslint.ratchet.config.js——内容见 apply-dev-env 技能
@@ -13,6 +13,9 @@
      <svc>/pyproject.toml fail_under / <svc>/vite.config.ts 四阈值）——发现到的声明须彼此一致，
      且 ≥ 基线 coverage_floor（声明下调即红）；上调后 --prune 抬升地板（只抬不降）。
      未发现任何声明且地板 > 0 = 失败（地板悬空）；两者皆无 = 提示可选接入
+  ③ 代码卫生棘轮：git 跟踪的源码文件计数 TODO/FIXME（全仓）与 unsafe 块（rust 源码），
+     与基线 hygiene 段比对——超基线即红（存量债先还或入账），下降后 --prune 收缩（只降不升）。
+     基线无 hygiene 段 = 未启用（提示可选接入）；键缺省 0（新增键从严）
 
 落位：<项目根>/.devcontainer/scripts/（读 ../stack.json；python3 标准库，零三方依赖）。
 
@@ -26,6 +29,7 @@
 from __future__ import annotations
 
 import json
+import os
 import re
 import shutil
 import subprocess
@@ -257,6 +261,75 @@ def prune_floor(floor: int, declared: int) -> int:
     return max(floor, declared)
 
 
+# ── ③ 代码卫生：TODO/FIXME 与 unsafe 计数（git 跟踪文件，避开生成物） ─────────
+
+HYGIENE_SOURCE_SUFFIXES = {".ts", ".tsx", ".vue", ".js", ".mjs", ".rs", ".py"}
+RE_TODO = re.compile(r"\b(TODO|FIXME)\b")
+RE_UNSAFE = re.compile(r"unsafe\s*(?:\{|extern|impl|fn)")
+
+
+def git_tracked_sources() -> list[Path]:
+    """git ls-files 的源码文件（untracked / node_modules / target 等天然排除）。
+    .devcontainer/ 基建文件豁免：守卫脚本自身docstring/正则必含 TODO/FIXME 字面量（自指）。"""
+    out = subprocess.run(
+        ["git", "ls-files"], cwd=ROOT, capture_output=True, text=True, check=False
+    )
+    if out.returncode != 0:
+        return []
+    return [
+        ROOT / line
+        for line in out.stdout.splitlines()
+        if Path(line).suffix in HYGIENE_SOURCE_SUFFIXES and not line.startswith(".devcontainer/")
+    ]
+
+
+def scan_hygiene() -> dict[str, int]:
+    counts = {"todo": 0, "rust_unsafe": 0, "missing_docs": 0}
+    for path in git_tracked_sources():
+        try:
+            text = path.read_text(encoding="utf-8")
+        except (OSError, UnicodeDecodeError):
+            continue  # 二进制 / 编码异常文件不入口径
+        counts["todo"] += len(RE_TODO.findall(text))
+        if path.suffix == ".rs":
+            counts["rust_unsafe"] += len(RE_UNSAFE.findall(text))
+    counts["missing_docs"] = count_missing_docs()
+    return counts
+
+
+def count_missing_docs() -> int:
+    """rust 服务 pub API 文档缺失告警数。crate 不挂 #![warn]（会被 clippy -D warnings 硬升
+    error 且 crate 属性优先于命令行 -A），由本检查显式 -W 开启；独立 target 目录隔离
+    fingerprint（首次全量后增量秒级，不污染主编译缓存）。编译失败 / cargo 不可用 = 0 计。"""
+    out = subprocess.run(
+        ["cargo", "rustc", "--lib", "--message-format=short", "--", "-W", "missing_docs"],
+        cwd=ROOT / "src-tauri",
+        capture_output=True,
+        text=True,
+        check=False,
+        env={**os.environ, "CARGO_TARGET_DIR": "target/ratchet"},
+    )
+    return sum(
+        1
+        for line in (out.stdout + out.stderr).splitlines()
+        if "missing documentation" in line and "warning" in line
+    )
+
+
+def compare_hygiene(counts: dict[str, int], baseline: dict[str, int]) -> tuple[list[str], list[str]]:
+    failures: list[str] = []
+    notes: list[str] = []
+    for key, actual in sorted(counts.items()):
+        allowed = baseline.get(key, 0)
+        if actual > allowed:
+            failures.append(
+                f"③ 代码卫生 {key} = {actual} 超基线 {allowed}——清掉新增；确属存量建账：基线入账后跑 --prune 收缩"
+            )
+        elif actual < allowed:
+            notes.append(f"③ {key} 收缩 {allowed} → {actual}（--prune 回写锁定）")
+    return failures, notes
+
+
 # ── 编排 ─────────────────────────────────────────────────────────────────────
 
 
@@ -287,7 +360,17 @@ def run_checks(only_service: str | None) -> tuple[list[str], list[str], dict]:
         f, s = compare_complexity(svc["name"], counts, baseline["complexity"].get(svc["name"], {}))
         failures += f
         notes += s
-    return failures, notes, {"baseline": baseline, "scanned": scanned, "declared": declared_by_service}
+    hygiene_baseline = baseline.get("hygiene")
+    ctx_hygiene: dict[str, int] | None = None
+    if hygiene_baseline is None:
+        notes.append("SKIP: ③ 代码卫生未入账（可选接入：基线加 hygiene 段后生效）")
+    else:
+        hygiene_counts = scan_hygiene()
+        f, n = compare_hygiene(hygiene_counts, hygiene_baseline)
+        failures += f
+        notes += n
+        ctx_hygiene = hygiene_counts
+    return failures, notes, {"baseline": baseline, "scanned": scanned, "declared": declared_by_service, "hygiene": ctx_hygiene}
 
 
 def prune(only_service: str | None) -> int:
@@ -302,6 +385,9 @@ def prune(only_service: str | None) -> int:
         baseline["complexity"][svc] = dict(sorted(counts.items()))
     for svc, declared in ctx["declared"].items():
         baseline["coverage_floor"][svc] = prune_floor(baseline["coverage_floor"].get(svc, 0), declared)
+    if ctx["hygiene"] is not None and baseline.get("hygiene") is not None:
+        for key, actual in ctx["hygiene"].items():
+            baseline["hygiene"][key] = min(baseline["hygiene"].get(key, 0), actual)
     path = ROOT / BASELINE_REL
     path.write_text(json.dumps(baseline, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
     print(f"quality ratchet baseline pruned → {BASELINE_REL}")
@@ -371,6 +457,15 @@ def run_selftest() -> int:
 
     case("prune 地板抬升", prune_floor(95, 97) == 97)
     case("prune 地板不降", prune_floor(96, 90) == 96)
+
+    f, _ = compare_hygiene({"todo": 1, "rust_unsafe": 0}, {"todo": 0, "rust_unsafe": 4})
+    case("卫生计数超基线被检出", any("todo" in x for x in f), str(f))
+    f, n = compare_hygiene({"todo": 0, "rust_unsafe": 3}, {"todo": 0, "rust_unsafe": 4})
+    case("卫生收缩放行并记收缩", not f and any("收缩" in x for x in n), f"{f} | {n}")
+    f, _ = compare_hygiene({"todo": 1, "rust_unsafe": 4}, {"rust_unsafe": 4})
+    case("卫生键缺省从严（todo 无基线=0，非零即红）", any("todo" in x for x in f), str(f))
+    f, _ = compare_hygiene({"todo": 0, "rust_unsafe": 4}, {"rust_unsafe": 4})
+    case("卫生缺省键为 0 合规", not f, str(f))
 
     m = RE_VITE_THRESHOLDS.search("thresholds: { lines: 90, branches: 90, functions: 90, statements: 90 },")
     case("vite 四阈值解析", bool(m) and len(set(m.groups())) == 1, str(m and m.groups()))

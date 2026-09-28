@@ -1,5 +1,10 @@
 {
-  "$comment": "质量棘轮基线（.devcontainer/scripts/quality_ratchet_check.py 消费，勿手改数值）：complexity.<service> 键 = 文件:规则，值 = 违规计数——新增键或计数回涨即红；改善后 --prune 回写收缩。coverage_floor.<service> = 覆盖率阈值地板（0 = 未启用）——声明值下调或地板悬空即红，上调 --prune 抬升（只紧不松）。首跑流程：接入覆盖率门禁（test_cmd --cov-fail-under / pyproject fail_under / vite thresholds 任一）→ 跑一次扫描确认无回退 → --prune 物化地板。键名 = stack.json services[].name。",
+  "$comment": "质量棘轮基线（.devcontainer/scripts/quality_ratchet_check.py 消费，勿手改数值）：complexity.<service> 键 = 文件:规则，值 = 违规计数——新增键或计数回涨即红；改善后 --prune 回写收缩。coverage_floor.<service> = 覆盖率阈值地板（0 = 未启用）——声明值下调或地板悬空即红，上调 --prune 抬升（只紧不松）。首跑流程：接入覆盖率门禁（test_cmd --cov-fail-under / pyproject fail_under / vite thresholds 任一）→ 跑一次扫描确认无回退 → --prune 物化地板。键名 = stack.json services[].name。hygiene = ③ 代码卫生计数（todo 全仓 / rust_unsafe 仅 rust 源码；超基线即红，下降 --prune 收缩）——2026-09-28 建账：todo 存量 0，unsafe 存量 4 全部在 input.rs（macOS 辅助功能 FFI，不可避免的unsafe 收口单文件）。",
+  "hygiene": {
+    "todo": 0,
+    "rust_unsafe": 4,
+    "missing_docs": 271
+  },
   "complexity": {
     "pokemon-choose-you": {
       "e2e/feishu-chat-filter.spec.ts:max-lines-per-function": 1,
@@ -81,5 +86,8 @@
       "src/scheduler.rs:clippy::too_many_lines": 2
     }
   },
-  "coverage_floor": {}
+  "coverage_floor": {
+    "pokemon-choose-you": 65,
+    "src-tauri": 85
+  }
 }
