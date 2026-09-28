@@ -13,6 +13,7 @@
 - [ ] **flash 状态条语义微差**（来源：同上，useActionToast 重构）：多条 flash 消息重叠时由「先到先清」改为「最新重置」（用户不可感知级别）；备份/导出卡内 flash 消息在有效期内切走 general 分区再回来会清空。若日后做多区域 toast 需求可一并重设计。
 - [ ] **SettingsTab script 内仍留页面级胶水**：autostart/feishuAuth/backups/appVersion 的 onMounted 预取与两个 tauri listen 留在父级经 props/emit/ref 转发（行为保持所需）；若后续做 feishu/update 域 store 可下沉。
 - [ ] **ai 引用工具仍被跨域直用**（来源：2026-09-26 后端大文件拆分评估）：dispatch/cmdline、skills、tunnel 仍直接用 `ai::posix_quote` / `ai::windows_ps_quote` / `ai::ssh_bin` 等底层零件自拼 SSH / tmux 命令行。本次拆分已把它们集中到 `ai/invocation.rs`（路径不变），后续可在其上提供统一的远端 argv 构造接口收编各处手拼。
+- [ ] **schema 基线漂移对存量 v1 库不可见**（来源：2026-09-28 群代号标签事故复盘）：迁移策略是「schema 变更直接改 SCHEMA_V1 基线、不加迁移项」，但已有 v1 库 `migrate()` 是 no-op——基线新增的表/列永远补不到存量库，且 `pk doctor` 只比对 user_version（1==1 判健康），漂移完全静默。当日实例：真实库缺 `feishu_chat_aliases`（手动对齐漏了表）→ 群代号分配 64 探测耗尽 → 模型编造 群_xxxx 标签 + restore 整体失效；已随「群名不脱敏」改造移除该表根治此例。遗留建议：启动时对 SCHEMA_V1 的幂等 CREATE 段做基线自愈重放，或 doctor 增加关键表存在性抽检，防下次基线变更再踩同类坑。
 
 ## 已完成
 

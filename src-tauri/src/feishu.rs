@@ -1022,9 +1022,7 @@ async fn poll_once_inner<R: tauri::Runtime>(app: &tauri::AppHandle<R>) -> AppRes
                             rules.alias_of(&conn, &m.sender_id)
                         },
                         chat_label: crate::commands::radio::chat_label_anon(
-                            &conn,
-                            &mut rules,
-                            &m.chat_id,
+                            &rules,
                             &m.chat_type,
                             &m.chat_name,
                         ),

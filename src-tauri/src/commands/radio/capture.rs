@@ -37,17 +37,11 @@ pub async fn force_create_todo<R: tauri::Runtime>(
     let agent = agent.ok_or_else(|| AppError::Invalid("请先在设置中配置 AI Agent".into()))?;
 
     // 判定对象带上来源标签与同会话近期上下文，和后台轮询的语境一致
-    // （判重上下文由 agent 执行 pk context 自取）；送 AI 的文本全部匿名化
+    // （判重上下文由 agent 执行 pk context 自取）；送 AI 的文本人名匿名化（群聊名不脱敏）
     let (label, context, sender_anon, content_anon, note) = {
         let conn = db.0.lock().unwrap();
         let mut rules = crate::anonymize::AnonRules::build(&conn);
-        let label = chat_label_anon(
-            &conn,
-            &mut rules,
-            &msg.chat_id,
-            &msg.chat_type,
-            &msg.chat_name,
-        );
+        let label = chat_label_anon(&rules, &msg.chat_type, &msg.chat_name);
         let (anon, at_me): (String, String) = conn
             .query_row(
                 "SELECT content_anon, at_me FROM chat_messages WHERE message_id=?1",

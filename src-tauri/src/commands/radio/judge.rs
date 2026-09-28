@@ -357,7 +357,7 @@ pub async fn retry_ai_judgment<R: tauri::Runtime>(
         failed: vec![],
     };
     // 锁内校验并重置 pending；判定对象带上来源标签与同会话上下文（与轮询同语境），
-    // 送 AI 的文本全部匿名化（老数据无匿名列时现场 scrub 兜底）
+    // 送 AI 的文本人名匿名化（群聊名不脱敏；老数据无匿名列时现场 scrub 兜底）
     let mut targets: Vec<(i64, AiMessage)> = vec![];
     {
         let conn = db.0.lock().unwrap();
@@ -434,13 +434,7 @@ pub async fn retry_ai_judgment<R: tauri::Runtime>(
                 AiMessage {
                     message_id: msg.message_id.clone(),
                     sender,
-                    chat_label: chat_label_anon(
-                        &conn,
-                        &mut rules,
-                        &msg.chat_id,
-                        &msg.chat_type,
-                        &msg.chat_name,
-                    ),
+                    chat_label: chat_label_anon(&rules, &msg.chat_type, &msg.chat_name),
                     content,
                     context,
                     mention_note: ai::mention_note(&at_me, "", rules.same_name_risk),
