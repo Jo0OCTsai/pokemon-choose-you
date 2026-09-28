@@ -12,7 +12,8 @@ use tauri::State;
 const APP_SLUG: &str = "pokemon-choose-you";
 
 /// 全量导出包含的表（顺序即导入顺序：被引用表在前）。
-/// feishu_chats 不导出：派生缓存，下一轮成功拉取即重建（与 chat_feedback/agent_sessions 不导出先例一致）
+/// feishu_chats 不导出：派生缓存，下一轮成功拉取即重建（与 chat_feedback/agent_sessions 不导出先例一致）。
+/// 旧导出文件里多余的表键（如已退役的 feishu_chat_aliases）导入时直接忽略
 const DUMP_TABLES: &[&str] = &[
     "categories",
     "tasks",
@@ -22,16 +23,15 @@ const DUMP_TABLES: &[&str] = &[
     "task_logs",
     "chat_messages",
     "feishu_users",
-    "feishu_chat_aliases",
     "sync_state",
     "settings",
     "chat_filter_prefs",
 ];
 
-/// 导入时可缺键的表（缺键按空数组容忍）：chat_filter_prefs 与 feishu_chat_aliases
-/// 是后加表，本特性合入前导出的旧备份文件没有它们——按格式版本分派校验集复杂且要
+/// 导入时可缺键的表（缺键按空数组容忍）：chat_filter_prefs 是后加表，
+/// 本特性合入前导出的旧备份文件没有它——按格式版本分派校验集复杂且要
 /// 维护版本映射，容忍缺键天然向后兼容
-const IMPORT_OPTIONAL_TABLES: &[&str] = &["chat_filter_prefs", "feishu_chat_aliases"];
+const IMPORT_OPTIONAL_TABLES: &[&str] = &["chat_filter_prefs"];
 
 fn exports_dir(data_dir: &Path) -> PathBuf {
     data_dir.join("exports")

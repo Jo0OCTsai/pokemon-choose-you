@@ -298,7 +298,8 @@ fn redact_names(names: &[String], line: &str) -> String {
 }
 
 /// 汇集本库里的敏感名词表：成员真名（feishu_users）、我的称呼（settings）、
-/// 群名（feishu_chats 快照 + feishu_chat_aliases），长名优先替换
+/// 群名（feishu_chats 快照——群名进 prompt 不脱敏，但支持报告贴到公开 issue 时仍遮蔽），
+/// 长名优先替换
 fn collect_sensitive_names(conn: &rusqlite::Connection) -> Vec<String> {
     let mut names: Vec<String> = vec![];
     let _ = conn
@@ -310,13 +311,6 @@ fn collect_sensitive_names(conn: &rusqlite::Connection) -> Vec<String> {
         });
     let _ = conn
         .prepare("SELECT chat_name FROM feishu_chats WHERE length(chat_name) >= 2")
-        .map(|mut s| {
-            let _ = s
-                .query_map([], |r| r.get::<_, String>(0))
-                .map(|rows| names.extend(rows.flatten()));
-        });
-    let _ = conn
-        .prepare("SELECT chat_name FROM feishu_chat_aliases WHERE length(chat_name) >= 2")
         .map(|mut s| {
             let _ = s
                 .query_map([], |r| r.get::<_, String>(0))
@@ -570,8 +564,8 @@ mod tests {
         )
         .unwrap();
         conn.execute(
-            "INSERT INTO feishu_chat_aliases (chat_id, chat_name, alias)
-             VALUES ('oc_g', '项目攻坚群', '群_00aa')",
+            "INSERT INTO feishu_chats (chat_id, chat_name, chat_type, mute_outcome)
+             VALUES ('oc_g', '项目攻坚群', 'group', 'unknown')",
             rusqlite::params![],
         )
         .unwrap();
