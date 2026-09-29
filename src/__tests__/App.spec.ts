@@ -112,8 +112,8 @@ function broadcast(event: string, payload: unknown = null) {
 }
 
 const categories = [
-  { id: 1, name: "工作", pokemon: "皮卡丘", sprite: "pikachu", enabled: true },
-  { id: 2, name: "学习", pokemon: "可达鸭", sprite: "psyduck", enabled: true },
+  { id: 1, name: "工作", pokemon: "皮卡丘", sprite: "pikachu", enabled: true, description: "" },
+  { id: 2, name: "学习", pokemon: "可达鸭", sprite: "psyduck", enabled: true, description: "" },
 ];
 
 /** 测试内维护的迷你任务库 */

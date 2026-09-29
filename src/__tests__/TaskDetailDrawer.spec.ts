@@ -69,7 +69,7 @@ function target(partial: Partial<TaskDispatchTarget> = {}): TaskDispatchTarget {
 async function mountDrawer(t: Task = task()) {
   const pinia = createPinia();
   setActivePinia(pinia);
-  useCategoriesStore().list = [{ id: 1, name: "工作", pokemon: "", sprite: "", enabled: true }];
+  useCategoriesStore().list = [{ id: 1, name: "工作", pokemon: "", sprite: "", enabled: true, description: "" }];
   const w = mount(TaskDetailDrawer, { props: { task: t }, global: { plugins: [pinia, i18n] } });
   await new Promise((r) => setTimeout(r));
   return w;

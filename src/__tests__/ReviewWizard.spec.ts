@@ -63,7 +63,9 @@ async function mountWizard(open: Partial<Task>[] = [], done: Partial<Task>[] = [
 beforeEach(() => {
   vi.clearAllMocks();
   setActivePinia(createPinia());
-  useCategoriesStore().list = [{ id: 1, name: "工作", pokemon: "皮卡丘", sprite: "pikachu", enabled: true }];
+  useCategoriesStore().list = [
+    { id: 1, name: "工作", pokemon: "皮卡丘", sprite: "pikachu", enabled: true, description: "" },
+  ];
 });
 
 describe("ReviewWizard 训练家复盘", () => {
