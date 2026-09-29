@@ -69,10 +69,10 @@
 
 | 命令 | 说明 |
 |---|---|
-| `pk category list` | 分类列表 |
+| `pk category list` | 分类列表（含 description 判定提示） |
 | `pk tag list` | 标签列表：`tags`（含 dimension/origin/usage）+ `dimensions`（维度 key/单多选/上限） |
 | `pk tag create <名字> [--dimension <维度key>] [--description <描述>]` | 新建标签（缺省 topic 维度；agent 自助扩词表用） |
-| `pk context` | 当前时间 + 未完成待办（id+标题）+ 启用分类 + 标签（含 dimension）+ 维度（含 remaining 剩余可新建名额）+ 标签负反馈（tagFeedback：用户多次移除的标签，不要再建议）；判定与建任务的判重上下文 |
+| `pk context` | 当前时间 + 未完成待办（id+标题）+ 启用分类（含 description 判定提示）+ 标签（含 dimension）+ 维度（含 remaining 剩余可新建名额）+ 标签负反馈（tagFeedback：用户多次移除的标签，不要再建议）；判定与建任务的判重上下文 |
 
 ## 技能与远程部署（skill / remote / init-db）
 

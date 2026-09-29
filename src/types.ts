@@ -40,6 +40,8 @@ export interface Category {
   sprite: string;
   /** 停用后不出现在新建/编辑与 AI 分类选项中，已有任务不受影响 */
   enabled: boolean;
+  /** 判定提示（pk context 喂给 AI；空串 = 无提示） */
+  description: string;
 }
 
 /** project 标签的派发元数据（后端 tags.meta 列，JSON）：标签 → agent / 工作目录 / 项目上下文 */

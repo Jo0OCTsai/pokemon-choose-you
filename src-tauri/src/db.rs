@@ -101,7 +101,8 @@ CREATE TABLE IF NOT EXISTS categories (
     name TEXT NOT NULL UNIQUE,
     pokemon TEXT NOT NULL,
     sprite TEXT NOT NULL,
-    enabled INTEGER NOT NULL DEFAULT 1
+    enabled INTEGER NOT NULL DEFAULT 1,
+    description TEXT NOT NULL DEFAULT ''
 );
 
 CREATE TABLE IF NOT EXISTS settings (
@@ -312,12 +313,28 @@ pub fn migrate(conn: &Connection) -> Result<(), MigrateError> {
     Ok(())
 }
 
-const DEFAULT_CATEGORIES: &[(&str, &str, &str)] = &[
-    ("工作", "皮卡丘", "pikachu"),
-    ("学习", "可达鸭", "psyduck"),
-    ("生活", "妙蛙种子", "bulbasaur"),
-    ("健康", "吉利蛋", "chansey"),
-    ("兴趣", "伊布", "eevee"),
+/// (name, pokemon, sprite, description)：描述喂给 AI 判定（pk context），空串 = 无提示
+const DEFAULT_CATEGORIES: &[(&str, &str, &str, &str)] = &[
+    (
+        "工作",
+        "皮卡丘",
+        "pikachu",
+        "职业与产出相关的任务，如写代码、修 bug、写文档",
+    ),
+    (
+        "学习",
+        "可达鸭",
+        "psyduck",
+        "学习、调研与技能提升，如读文档、看课程",
+    ),
+    (
+        "生活",
+        "妙蛙种子",
+        "bulbasaur",
+        "日常生活事务，如购物、家务、缴费",
+    ),
+    ("健康", "吉利蛋", "chansey", "健康、运动与就医相关"),
+    ("兴趣", "伊布", "eevee", "兴趣与娱乐活动"),
 ];
 
 /// 内置标签维度（固定 id 1~4）：项目单选，其余多选；
@@ -351,12 +368,12 @@ pub fn init(app: &tauri::AppHandle) -> Result<(), Box<dyn std::error::Error>> {
 /// 迁移已补过的分类（id 不在默认位）也不会重复插入。
 pub fn init_conn(conn: &Connection) -> Result<(), MigrateError> {
     migrate(conn)?;
-    for (i, (name, pokemon, sprite)) in DEFAULT_CATEGORIES.iter().enumerate() {
+    for (i, (name, pokemon, sprite, description)) in DEFAULT_CATEGORIES.iter().enumerate() {
         conn.execute(
-            "INSERT INTO categories (id, name, pokemon, sprite)
-             SELECT ?1, ?2, ?3, ?4
+            "INSERT INTO categories (id, name, pokemon, sprite, description)
+             SELECT ?1, ?2, ?3, ?4, ?5
              WHERE NOT EXISTS (SELECT 1 FROM categories WHERE id=?1 OR name=?2)",
-            rusqlite::params![i as i64 + 1, name, pokemon, sprite],
+            rusqlite::params![i as i64 + 1, name, pokemon, sprite, description],
         )?;
     }
     // 维度种子同策略：id 或 key 已存在都跳过，改名不影响
@@ -485,20 +502,23 @@ pub(crate) mod tests {
         assert_eq!(n, DEFAULT_CATEGORIES.len() as i64);
     }
 
-    /// v1 基线即当前阵容：新库默认分类不含社交/紧急、含兴趣（伊布）
+    /// v1 基线即当前阵容：新库默认分类不含社交/紧急、含兴趣（伊布）；
+    /// 每只带非空描述（AI 判定提示）
     #[test]
     fn baseline_seeds_current_category_lineup() {
         let conn = test_conn();
-        let names: Vec<String> = {
+        let rows: Vec<(String, String)> = {
             let mut stmt = conn
-                .prepare("SELECT name FROM categories ORDER BY id")
+                .prepare("SELECT name, description FROM categories ORDER BY id")
                 .unwrap();
-            stmt.query_map([], |r| r.get::<_, String>(0))
+            stmt.query_map([], |r| Ok((r.get(0)?, r.get(1)?)))
                 .unwrap()
                 .collect::<Result<Vec<_>, _>>()
                 .unwrap()
         };
+        let names: Vec<&str> = rows.iter().map(|(n, _)| n.as_str()).collect();
         assert_eq!(names, vec!["工作", "学习", "生活", "健康", "兴趣"]);
+        assert!(rows.iter().all(|(_, d)| !d.is_empty()));
     }
 
     /// 维度种子：固定 id 1~4、项目单选；重复 init 不重复插入；

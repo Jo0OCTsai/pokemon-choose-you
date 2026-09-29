@@ -474,6 +474,12 @@ fn category_tag_list_and_context() {
         Some(5),
         "context 只列启用分类"
     );
+    assert!(
+        ctx["categories"][0]["description"]
+            .as_str()
+            .is_some_and(|d| !d.is_empty()),
+        "context 携带分类描述（AI 判定提示）"
+    );
     assert_eq!(ctx["openTasks"].as_array().map(Vec::len), Some(0));
 
     let id = create(&mut conn, "上下文任务");

@@ -13,8 +13,9 @@ pub fn list_categories(db: State<Db>) -> AppResult<Vec<Category>> {
 
 /// conn 版分类列表（pk CLI 复用）
 pub fn list_categories_conn(conn: &rusqlite::Connection) -> AppResult<Vec<Category>> {
-    let mut stmt =
-        conn.prepare("SELECT id, name, pokemon, sprite, enabled FROM categories ORDER BY id")?;
+    let mut stmt = conn.prepare(
+        "SELECT id, name, pokemon, sprite, enabled, description FROM categories ORDER BY id",
+    )?;
     let rows = stmt
         .query_map([], |r| {
             Ok(Category {
@@ -23,6 +24,7 @@ pub fn list_categories_conn(conn: &rusqlite::Connection) -> AppResult<Vec<Catego
                 pokemon: r.get(2)?,
                 sprite: r.get(3)?,
                 enabled: r.get::<_, i64>(4)? != 0,
+                description: r.get(5)?,
             })
         })?
         .collect::<Result<Vec<_>, _>>()?;
@@ -63,15 +65,17 @@ pub fn create_category<R: tauri::Runtime>(
     name: String,
     pokemon: String,
     sprite: String,
+    description: String,
 ) -> AppResult<Category> {
     let name = name.trim().to_string();
     if name.is_empty() {
         return Err(AppError::Invalid("分类名不能为空".into()));
     }
+    let description = description.trim().to_string();
     let conn = db.0.lock().unwrap();
     conn.execute(
-        "INSERT INTO categories (name, pokemon, sprite) VALUES (?1, ?2, ?3)",
-        params![name, pokemon, sprite],
+        "INSERT INTO categories (name, pokemon, sprite, description) VALUES (?1, ?2, ?3, ?4)",
+        params![name, pokemon, sprite, description],
     )?;
     let id = conn.last_insert_rowid();
     drop(conn);
@@ -82,6 +86,7 @@ pub fn create_category<R: tauri::Runtime>(
         pokemon,
         sprite,
         enabled: true,
+        description,
     })
 }
 
@@ -93,10 +98,11 @@ pub fn update_category<R: tauri::Runtime>(
     name: String,
     pokemon: String,
     sprite: String,
+    description: String,
 ) -> AppResult<()> {
     db.0.lock().unwrap().execute(
-        "UPDATE categories SET name=?2, pokemon=?3, sprite=?4 WHERE id=?1",
-        params![id, name, pokemon, sprite],
+        "UPDATE categories SET name=?2, pokemon=?3, sprite=?4, description=?5 WHERE id=?1",
+        params![id, name.trim(), pokemon, sprite, description.trim()],
     )?;
     events::broadcast(&app, events::CATEGORIES_CHANGED);
     Ok(())
@@ -197,6 +203,7 @@ mod tests {
                 "新分类".into(),
                 "伊布".into(),
                 "eevee".into(),
+                "杂项兜底".into(),
             )
             .unwrap()
         };
@@ -211,6 +218,7 @@ mod tests {
                 "改名".into(),
                 "卡比兽".into(),
                 "snorlax".into(),
+                "  专注产出  ".into(),
             )
             .unwrap();
             set_category_pokemon(
@@ -221,6 +229,14 @@ mod tests {
                 "pikachu".into(),
             )
             .unwrap();
+        }
+        // 描述随改名落库并去首尾空白
+        {
+            let db = app.state::<Db>();
+            let cats = list_categories(db).unwrap();
+            let me = cats.iter().find(|c| c.id == cat.id).unwrap();
+            assert_eq!(me.name, "改名");
+            assert_eq!(me.description, "专注产出");
         }
         // 直接改库挂一个任务到新分类（任务命令的测试在 tasks.rs）
         {
@@ -282,6 +298,7 @@ mod tests {
             "  ".into(),
             "伊布".into(),
             "eevee".into(),
+            String::new(),
         )
         .unwrap_err();
         assert!(matches!(err, AppError::Invalid(_)));

@@ -9,31 +9,32 @@ import PokemonPicker from "../PokemonPicker.vue";
 import DexToggle from "../DexToggle.vue";
 
 /**
- * 分类管理卡（自 SettingsTab 拆出）：分类改名 / 换宝可梦 / 停用启用 / 释放。
- * 编辑缓冲 editingCats 为本卡私有；原实现在切到 cats 分区时无条件重拉，
- * 由 onMounted 等价承接（v-if 装配下每次进入分区都会重新挂载）。
+ * 分类管理卡（自 SettingsTab 拆出）：分类改名 / 描述 / 换宝可梦 / 停用启用 / 释放。
+ * 描述喂给 AI 判定（pk context），编辑缓冲 editingCats 为本卡私有；原实现在切到 cats
+ * 分区时无条件重拉，由 onMounted 等价承接（v-if 装配下每次进入分区都会重新挂载）。
  */
 const { t } = useI18n();
 const categories = useCategoriesStore();
 const { msg: testMsg, flash } = inject(ACTION_TOAST)!;
 
 // ---- 分类管理 ----
-const editingCats = ref<{ id: number; name: string; pokemonKey: string; enabled: boolean }[]>([]);
+const editingCats = ref<{ id: number; name: string; pokemonKey: string; enabled: boolean; description: string }[]>([]);
 function startEditCats() {
   editingCats.value = categories.list.map((c) => ({
     id: c.id,
     name: c.name,
     pokemonKey: c.sprite,
     enabled: c.enabled,
+    description: c.description,
   }));
 }
 onMounted(startEditCats);
 
-async function saveCat(row: { id: number; name: string; pokemonKey: string }) {
+async function saveCat(row: { id: number; name: string; pokemonKey: string; description: string }) {
   // 全量名录里挑的宝可梦：库存简中名（显示层按语言本地化），未知 key 回退内置第一位
   const entry = POKEMON_BY_KEY.get(row.pokemonKey);
   const fallback = BUNDLED_POKEMON[0];
-  await api.updateCategory(row.id, row.name, entry?.hans ?? fallback.name, entry?.key ?? fallback.key);
+  await api.updateCategory(row.id, row.name, entry?.hans ?? fallback.name, entry?.key ?? fallback.key, row.description);
   await categories.load();
   flash(t("catSaved"));
 }
@@ -59,7 +60,7 @@ async function removeCat(row: { id: number; name: string }) {
   }
 }
 async function addCat() {
-  await api.createCategory(t("cats.newName"), BUNDLED_POKEMON[0].name, BUNDLED_POKEMON[0].key);
+  await api.createCategory(t("cats.newName"), BUNDLED_POKEMON[0].name, BUNDLED_POKEMON[0].key, "");
   await categories.load();
   startEditCats();
 }
@@ -69,11 +70,18 @@ async function addCat() {
   <section class="set-card">
     <h3>{{ t("cats.title") }}</h3>
     <div v-for="row in editingCats" :key="row.id" class="cat-row" :class="{ off: !row.enabled }">
-      <input v-model="row.name" class="cat-name" />
-      <PokemonPicker v-model="row.pokemonKey" />
-      <DexToggle :model-value="row.enabled" :title="t('cats.toggle')" @update:model-value="(v) => toggleCat(row, v)" />
-      <button class="btn ghost" @click="saveCat(row)">{{ t("cats.save") }}</button>
-      <button class="btn ghost del" @click="removeCat(row)">{{ t("cats.release") }}</button>
+      <div class="cat-line">
+        <input v-model="row.name" class="cat-name" />
+        <PokemonPicker v-model="row.pokemonKey" />
+        <DexToggle
+          :model-value="row.enabled"
+          :title="t('cats.toggle')"
+          @update:model-value="(v) => toggleCat(row, v)"
+        />
+        <button class="btn ghost" @click="saveCat(row)">{{ t("cats.save") }}</button>
+        <button class="btn ghost del" @click="removeCat(row)">{{ t("cats.release") }}</button>
+      </div>
+      <input v-model="row.description" class="cat-desc" :placeholder="t('cats.descPlaceholder')" />
     </div>
     <div class="btn-row">
       <button class="btn ghost" @click="addCat">{{ t("cats.new") }}</button>
@@ -114,15 +122,20 @@ async function addCat() {
 .set-card .btn.del {
   color: var(--danger);
 }
-/* 分类编辑行 */
+/* 分类编辑行：上行名字/换装/开关/操作，下行描述通栏（低频、AI 消费） */
 .cat-row {
   display: flex;
-  align-items: center;
-  gap: 8px;
+  flex-direction: column;
+  gap: 6px;
   margin-bottom: 10px;
 }
 .cat-row.off {
   opacity: 0.5;
+}
+.cat-line {
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
 .cat-name {
   width: 110px;
@@ -133,6 +146,16 @@ async function addCat() {
   font-family: inherit;
   min-height: 38px;
   box-shadow: 3px 3px 0 var(--dex-navy);
+}
+.cat-desc {
+  width: 100%;
+  padding: 6px 9px;
+  border: 2px dashed var(--ink-faint);
+  border-radius: 8px;
+  font-size: 12px;
+  font-family: inherit;
+  min-height: 32px;
+  color: var(--ink-soft);
 }
 .cat-row .btn {
   padding: 7px 10px;
