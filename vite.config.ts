@@ -14,8 +14,9 @@ export default defineConfig(() => ({
     coverage: {
       // 胶水排除（口径修正非放水）：api.ts 是 Tauri invoke 薄封装（真实通路由 E2E mock 覆盖）、
       // i18n 三字典是纯数据——均无单测价值；exclude 与 provider 默认排除项合并。
-      // json-summary 供 CI 写 job summary（coverage-summary.json）
-      reporter: ["text", "html", "clover", "json-summary"],
+      // json-summary 供 CI 写 job summary；lcov 供 Codecov（行级数据的第一公民格式，
+      // 与 Rust 侧上传同构，Codecov lines 口径对齐本地）
+      reporter: ["text", "html", "lcov", "json-summary"],
       exclude: ["src/api.ts", "src/i18n/en.ts", "src/i18n/zh-Hans.ts", "src/i18n/zh-Hant.ts"],
       // 阈值四维同值（quality_ratchet_check.py ② 覆盖率地板发现口径）；下调须先改棘轮基线
       thresholds: { lines: 65, branches: 65, functions: 65, statements: 65 },
