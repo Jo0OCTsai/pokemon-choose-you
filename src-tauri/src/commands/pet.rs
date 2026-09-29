@@ -120,7 +120,7 @@ pub async fn pet_chat(db: State<'_, Db>, message: String) -> AppResult<String> {
     if q.chars().count() > 200 {
         return Err(AppError::Invalid("问题太长了，精灵记不住～".into()));
     }
-    let (agent, ctx) = {
+    let (agent, ctx, system) = {
         let conn = db.0.lock().unwrap();
         let get = |k: &str| -> Option<String> {
             conn.query_row("SELECT value FROM settings WHERE key=?1", params![k], |r| {
@@ -130,17 +130,13 @@ pub async fn pet_chat(db: State<'_, Db>, message: String) -> AppResult<String> {
         };
         let agent = ai::primary_agent(&get)
             .ok_or_else(|| AppError::Invalid("还没有配置 AI agent（设置 → AI 集成）".into()))?;
-        (agent, build_context(&conn)?)
+        // 覆盖行与 agent 配置同一锁窗口点查（微秒级），渲染与调用在锁外
+        let resolved = ai::effective_system_prompt(&get, ai::PromptFeature::PetChat);
+        (agent, build_context(&conn)?, resolved.text)
     };
-    let prompt = format!(
-        "你是一只桌面宝可梦桌宠，训练家正在问你任务的情况。规则：\
-         1. 用与提问相同的语言回答，最多两句话，不用 Markdown 列表和标题；\
-         2. 语气是陪伴、鼓励，永远不指责、不催促、不说教；\
-         3. 只聊任务/图鉴/专注这些应用内的话题，别的话题温柔拉回；\
-         4. 你不能执行任何操作，涉及操作就建议训练家去主面板确认；\
-         5. 词汇表：完成任务=捕捉，取消=逃走，待办收件箱=草丛，日程=路线，已完成列表=图鉴，用户=训练家。\n\
-         当前上下文：\n{ctx}\n训练家问：{q}"
-    );
+    // 默认模板 = PET_CHAT_SYSTEM_PROMPT（prompts.rs 单源），单遍替换与迁移前
+    // format! 输出逐字节相同；自定义覆盖经同一渲染路径注入 ctx/q
+    let prompt = ai::render_template(&system, &[("<CONTEXT>", ctx.as_str()), ("<QUESTION>", q)]);
     let out = ai::run_agent(&agent, &prompt).await?;
     Ok(trim_sentences(&out, 2))
 }
@@ -396,5 +392,100 @@ mod tests {
         assert!(prompt.contains("图鉴累计捕捉 1 只、逃走 1 只"), "{prompt}");
         assert!(prompt.contains("训练家问：今天战绩如何"), "{prompt}");
         let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    // ---- 提示词覆盖 → 调用载荷（editable-prompts） ----
+
+    /// 假 agent 落盘 stdin（与上面往返测试同款装置；返回 prompt 落盘路径）
+    fn setup_echo_agent(name: &str) -> (std::path::PathBuf, std::path::PathBuf) {
+        let dir = std::env::temp_dir().join(format!("pk-pet-{name}-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let agent_bin = dir.join("fake-agent.sh");
+        let stdin_marker = dir.join("prompt.txt");
+        std::fs::write(
+            &agent_bin,
+            format!(
+                "#!/bin/sh\ncat > {m}\nprintf '%s' '好的。'",
+                m = stdin_marker.to_string_lossy()
+            ),
+        )
+        .unwrap();
+        {
+            use std::os::unix::fs::PermissionsExt;
+            std::fs::set_permissions(&agent_bin, std::fs::Permissions::from_mode(0o755)).unwrap();
+        }
+        (agent_bin, stdin_marker)
+    }
+
+    fn seed_prompt_override(conn: &Connection, value: &str) {
+        conn.execute(
+            "INSERT INTO settings (key, value) VALUES ('ai_prompt_pet_chat', ?1)",
+            params![value],
+        )
+        .unwrap();
+    }
+
+    /// 自定义覆盖进 stdin 载荷：含占位符的覆盖经 render_template 注入 ctx/q 后送达
+    /// agent（SDD：保存后下一次调用即用新提示词）
+    #[test]
+    fn pet_chat_custom_override_reaches_agent_payload() {
+        let app = setup();
+        let (agent_bin, stdin_marker) = setup_echo_agent("custom");
+        let custom = format!(
+            "{}\n补充：回答里带一句宝可梦口癖。",
+            crate::ai::PET_CHAT_SYSTEM_PROMPT
+        );
+        {
+            let db = app.state::<Db>();
+            let conn = db.0.lock().unwrap();
+            seed_primary_agent(&conn, &agent_bin.to_string_lossy());
+            seed_prompt_override(&conn, &custom);
+        }
+        {
+            let db = app.state::<Db>();
+            tauri::async_runtime::block_on(pet_chat(db, "连胜几天了".into())).unwrap();
+        }
+        let prompt = std::fs::read_to_string(&stdin_marker).unwrap();
+        assert!(
+            prompt.contains("补充：回答里带一句宝可梦口癖。"),
+            "{prompt}"
+        );
+        assert!(
+            prompt.contains("训练家问：连胜几天了"),
+            "占位符注入提问: {prompt}"
+        );
+        assert!(
+            prompt.contains("当前上下文："),
+            "占位符注入上下文: {prompt}"
+        );
+        assert!(!prompt.contains("<QUESTION>"), "占位符不残留: {prompt}");
+        let _ = std::fs::remove_dir_all(stdin_marker.parent().unwrap());
+    }
+
+    /// 缺占位符的坏覆盖回落默认：载荷用内置默认渲染完成（不挂调用），坏覆盖文本不出现在载荷
+    #[test]
+    fn pet_chat_broken_override_falls_back_to_default_payload() {
+        let app = setup();
+        let (agent_bin, stdin_marker) = setup_echo_agent("broken");
+        let broken = crate::ai::PET_CHAT_SYSTEM_PROMPT.replace("<QUESTION>", "");
+        {
+            let db = app.state::<Db>();
+            let conn = db.0.lock().unwrap();
+            seed_primary_agent(&conn, &agent_bin.to_string_lossy());
+            seed_prompt_override(&conn, &broken);
+        }
+        {
+            let db = app.state::<Db>();
+            tauri::async_runtime::block_on(pet_chat(db, "在吗".into())).unwrap();
+        }
+        let prompt = std::fs::read_to_string(&stdin_marker).unwrap();
+        assert!(
+            prompt.starts_with("你是一只桌面宝可梦桌宠"),
+            "默认文本生效: {prompt}"
+        );
+        assert!(prompt.contains("训练家问：在吗"), "{prompt}");
+        // 坏覆盖的残缺形态（缺 <QUESTION> 导致上下文段错位）不在载荷里
+        assert!(prompt.contains("当前上下文：\n"), "默认框架完整: {prompt}");
+        let _ = std::fs::remove_dir_all(stdin_marker.parent().unwrap());
     }
 }

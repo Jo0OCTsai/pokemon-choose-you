@@ -41,12 +41,23 @@ async fn classify_with_session(
     db: &crate::db::Db,
     pregen: Option<&str>,
 ) -> AppResult<(Vec<AiSuggestion>, Option<String>)> {
-    let prompt = ai::build_tools_prompt(agent, batch);
+    // 锁内点查覆盖行并解析（微秒级点查，不跨 await），释锁后再拼装与调用
+    let resolved = {
+        let conn = db.0.lock().unwrap();
+        let get = |k: &str| -> Option<String> {
+            conn.query_row("SELECT value FROM settings WHERE key=?1", params![k], |r| {
+                r.get::<_, String>(0)
+            })
+            .ok()
+        };
+        ai::effective_system_prompt(&get, ai::PromptFeature::ImClassify)
+    };
+    let prompt = ai::build_tools_prompt(&resolved.text, agent, batch);
     log::debug!(
         "ai: 经 agent「{}」分类 {} 条消息，prompt: {}",
         agent.name,
         batch.len(),
-        ai::trunc(&prompt, 500)
+        prompt_debug_preview(&resolved, &prompt)
     );
     let ids: Vec<String> = batch.iter().map(|m| m.message_id.clone()).collect();
     run_and_collect(agent, &prompt, &ids, db, pregen).await
@@ -61,11 +72,21 @@ pub(crate) async fn capture_with_session(
     db: &crate::db::Db,
     pregen: Option<&str>,
 ) -> AppResult<(AiSuggestion, Option<String>)> {
-    let prompt = ai::build_capture_prompt(agent, input);
+    let resolved = {
+        let conn = db.0.lock().unwrap();
+        let get = |k: &str| -> Option<String> {
+            conn.query_row("SELECT value FROM settings WHERE key=?1", params![k], |r| {
+                r.get::<_, String>(0)
+            })
+            .ok()
+        };
+        ai::effective_system_prompt(&get, ai::PromptFeature::Capture)
+    };
+    let prompt = ai::build_capture_prompt(&resolved.text, agent, input);
     log::debug!(
         "ai: 经 agent「{}」快速捕捉，prompt: {}",
         agent.name,
-        ai::trunc(&prompt, 500)
+        prompt_debug_preview(&resolved, &prompt)
     );
     let (mut list, session_id) = run_and_collect(
         agent,
@@ -79,6 +100,19 @@ pub(crate) async fn capture_with_session(
         .pop()
         .ok_or_else(|| AppError::External("agent 未返回捕捉判定".into()))?;
     Ok((s, session_id))
+}
+
+/// debug 日志的 prompt 回显（隐私 NFR）：自定义覆盖不回显内容（用户手输文本可能含
+/// 个人信息），默认/回落文本是编译常量照常截断回显
+fn prompt_debug_preview(resolved: &ai::ResolvedPrompt, prompt: &str) -> String {
+    if resolved.source == ai::PromptSource::Custom {
+        format!(
+            "[自定义覆盖 {} 字符，内容不回显]",
+            resolved.text.chars().count()
+        )
+    } else {
+        ai::trunc(prompt, 500)
+    }
 }
 
 /// 预生成 id 注入 agent 参数（克隆后追加 `--session-id <id>`，不动调用方配置）
@@ -665,5 +699,98 @@ mod tests {
         );
         assert_eq!(inject_pregen_args(&agent, None).args, agent.args);
         assert_eq!(inject_pregen_args(&agent, Some("  ")).args, agent.args);
+    }
+
+    /// debug 回显纪律（隐私 NFR）：custom 来源不回显内容（只报字符数），
+    /// 默认/回落文本是编译常量照常截断回显
+    #[test]
+    fn prompt_debug_preview_masks_custom_content() {
+        let custom = ai::ResolvedPrompt {
+            text: "自定义覆盖内容".into(),
+            source: ai::PromptSource::Custom,
+            missing: vec![],
+            overlong: false,
+        };
+        let p = prompt_debug_preview(&custom, "自定义覆盖内容 + 消息正文");
+        assert_eq!(
+            p,
+            format!(
+                "[自定义覆盖 {} 字符，内容不回显]",
+                "自定义覆盖内容".chars().count()
+            )
+        );
+        assert!(!p.contains("消息正文"), "整条 prompt 不回显: {p}");
+        for source in [ai::PromptSource::Default, ai::PromptSource::DefaultWarned] {
+            let r = ai::ResolvedPrompt {
+                text: "默认文本".into(),
+                source,
+                missing: vec![],
+                overlong: false,
+            };
+            assert_eq!(
+                prompt_debug_preview(&r, "默认文本 + 消息正文"),
+                "默认文本 + 消息正文"
+            );
+        }
+    }
+
+    /// 分类自定义覆盖生效（fake-agent 装置）：ai_prompt_im_classify 行经解析后拼进
+    /// agent stdin 载荷，<AGENT_ID> 替换为 agent id（SDD：保存后下一次调用即生效）
+    #[test]
+    #[cfg(unix)]
+    fn classify_custom_override_reaches_agent_payload() {
+        let app = setup();
+        let dir = std::env::temp_dir().join(format!("pk-judge-ov-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let agent_bin = dir.join("fake-agent.sh");
+        let stdin_marker = dir.join("prompt.txt");
+        std::fs::write(
+            &agent_bin,
+            format!(
+                "#!/bin/sh\ncat > {m}\nprintf '%s' ''",
+                m = stdin_marker.to_string_lossy()
+            ),
+        )
+        .unwrap();
+        {
+            use std::os::unix::fs::PermissionsExt;
+            std::fs::set_permissions(&agent_bin, std::fs::Permissions::from_mode(0o755)).unwrap();
+        }
+        // 预置一条已落库判定：fake agent 不写库，run_and_collect 须有存量才不判失败
+        seed_status_message(&app, "om_ov", "todo", "pending");
+        {
+            let db = app.state::<Db>();
+            let conn = db.0.lock().unwrap();
+            conn.execute(
+                "INSERT INTO settings (key, value) VALUES ('ai_prompt_im_classify', ?1)",
+                params!["我的自定义分类规则，agent 是 <AGENT_ID>。"],
+            )
+            .unwrap();
+        }
+        let agent = AgentConfig {
+            id: "ag9".into(),
+            name: "假 agent".into(),
+            command: agent_bin.to_string_lossy().into_owned(),
+            timeout_secs: 10,
+            ..Default::default()
+        };
+        let batch = vec![AiMessage::simple("om_ov", "张三", "明天 10 点开周会")];
+        {
+            let db = app.state::<Db>();
+            tauri::async_runtime::block_on(classify_with_session(&agent, &batch, &db, None))
+                .unwrap();
+        }
+        let prompt = std::fs::read_to_string(&stdin_marker).unwrap();
+        assert!(
+            prompt.contains("我的自定义分类规则，agent 是 ag9"),
+            "{prompt}"
+        );
+        assert!(!prompt.contains("<AGENT_ID>"), "占位符已替换: {prompt}");
+        assert!(prompt.contains("[om_ov]"), "消息正文照常拼接: {prompt}");
+        assert!(
+            !prompt.contains("你是待办事项提取助手"),
+            "默认系统提示词不出现（覆盖生效）: {prompt}"
+        );
+        let _ = std::fs::remove_dir_all(&dir);
     }
 }

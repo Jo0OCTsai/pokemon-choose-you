@@ -64,10 +64,11 @@ pub struct TagCheckupReport {
     pub judged: bool,
 }
 
-/// 体检：词表快照 + agent 配置在锁内取，LLM 判定在锁外跑（run_agent 是 await）
+/// 体检：词表快照 + agent 配置 + 提示词覆盖在锁内取（微秒级点查），
+/// LLM 判定在锁外跑（run_agent 是 await）
 #[tauri::command]
 pub async fn tag_checkup(db: State<'_, Db>) -> AppResult<TagCheckupReport> {
-    let (tags, agent) = {
+    let (tags, agent, system) = {
         let conn = db.0.lock().unwrap();
         let get = |k: &str| -> Option<String> {
             conn.query_row("SELECT value FROM settings WHERE key=?1", params![k], |r| {
@@ -75,11 +76,16 @@ pub async fn tag_checkup(db: State<'_, Db>) -> AppResult<TagCheckupReport> {
             })
             .ok()
         };
-        (list_tags_conn(&conn)?, ai::primary_agent(&get))
+        let resolved = ai::effective_system_prompt(&get, ai::PromptFeature::TagHealth);
+        (
+            list_tags_conn(&conn)?,
+            ai::primary_agent(&get),
+            resolved.text,
+        )
     };
     let mut report = local_report(&tags);
     if let Some(agent) = agent {
-        match judge_with_agent(&agent, &tags, &mut report).await {
+        match judge_with_agent(&agent, &system, &tags, &mut report).await {
             Ok(()) => report.judged = true,
             Err(e) => log::warn!("tag_health: LLM 判定失败，按本地预筛结果展示: {e}"),
         }
@@ -215,15 +221,16 @@ struct JudgeNewDim {
 }
 
 /// LLM 复核：确认/否决本地候选并补充理由，另可建议新维度。
+/// system 为解析后的生效提示词（默认单源 TAG_HEALTH_SYSTEM_PROMPT 或自定义覆盖，
+/// 含尾部「词表：\n」框架，词表与候选对在下方追加）。
 /// 判定失败不致命——调用方保留本地预筛结果（judged=false）
 async fn judge_with_agent(
     agent: &AgentConfig,
+    system: &str,
     tags: &[Tag],
     report: &mut TagCheckupReport,
 ) -> AppResult<()> {
-    let mut prompt = String::from(
-        "你是待办应用的标签词表治理助手。下面是当前标签词表（按维度分组，含使用次数）与一组「近义合并候选对」（本地字符串相似度预筛，可能有误报）。请复核并只输出一个 JSON 对象（不要解释、不要 Markdown）。\n任务：\n1. merges：逐对判断是否真的同义/重复——只有表达同一含义才 merge=true，给出 into（应保留的规范名，优先使用次数多的）与不超过 20 字的理由；字面相似但含义不同的判 false。\n2. newDimensions：如果发现 >=3 个标签语义上同属一个现有维度之外的新分类面（如「精力」「渠道」），建议最多 2 个新维度（name 用 2~4 字中文，tags 列出应归入的既有标签名）；没有就给空数组。\n输出格式：{\"merges\":[{\"from\":\"名\",\"into\":\"名\",\"merge\":true,\"reason\":\"...\"}],\"newDimensions\":[{\"name\":\"名\",\"tags\":[\"名\"],\"reason\":\"...\"}]}\n\n词表：\n",
-    );
+    let mut prompt = String::from(system);
     let mut dim = String::new();
     for t in tags {
         if t.dimension != dim {
@@ -663,5 +670,61 @@ mod tests {
         }
         let extra = seed(&conn, "挤不进", 4, "manual", 1, false);
         assert!(move_tags_to_dimension_conn(&conn, &[extra], "context", "场景").is_err());
+    }
+
+    /// judge_with_agent 载荷使用传入的 system（editable-prompts 加参锚点）：
+    /// 假 agent 落盘 stdin 并回空判定 JSON——自定义覆盖经 tag_checkup 解析后
+    /// 从本函数进入调用载荷，词表与候选对在其后追加
+    #[test]
+    #[cfg(unix)]
+    fn judge_with_agent_sends_system_prompt_in_payload() {
+        let conn = test_conn();
+        seed(&conn, "周报", 4, "manual", 1, false);
+        let tags = list_tags_conn(&conn).unwrap();
+        let dir = std::env::temp_dir().join(format!("pk-tag-ov-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let agent_bin = dir.join("fake-agent.sh");
+        let stdin_marker = dir.join("prompt.txt");
+        std::fs::write(
+            &agent_bin,
+            format!(
+                "#!/bin/sh\ncat > {m}\nprintf '%s' '{{\"merges\":[],\"newDimensions\":[]}}'",
+                m = stdin_marker.to_string_lossy()
+            ),
+        )
+        .unwrap();
+        {
+            use std::os::unix::fs::PermissionsExt;
+            std::fs::set_permissions(&agent_bin, std::fs::Permissions::from_mode(0o755)).unwrap();
+        }
+        let agent = AgentConfig {
+            id: "a1".into(),
+            name: "假 agent".into(),
+            command: agent_bin.to_string_lossy().into_owned(),
+            timeout_secs: 10,
+            ..Default::default()
+        };
+        let mut report = local_report(&tags);
+        tauri::async_runtime::block_on(judge_with_agent(
+            &agent,
+            "我的自定义治理规则。\n\n词表：\n",
+            &tags,
+            &mut report,
+        ))
+        .unwrap();
+        let prompt = std::fs::read_to_string(&stdin_marker).unwrap();
+        assert!(
+            prompt.starts_with("我的自定义治理规则。\n\n词表：\n"),
+            "{prompt}"
+        );
+        assert!(
+            prompt.contains("- 维度"),
+            "词表行在 system 之后追加: {prompt}"
+        );
+        assert!(
+            report.merges.iter().all(|m| !m.judged),
+            "空判定不产生确认合并"
+        );
+        let _ = std::fs::remove_dir_all(&dir);
     }
 }

@@ -1,0 +1,726 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<testsuites name="vitest tests" tests="292" failures="0" errors="0" time="6.182355292">
+    <testsuite name="src/__tests__/AgentSessionHistory.spec.ts" timestamp="2026-09-29T17:18:02.467Z" hostname="MacBookPro" tests="4" failures="0" errors="0" skipped="0" time="0.108661208">
+        <testcase classname="src/__tests__/AgentSessionHistory.spec.ts" name="AgentSessionHistory &gt; 分页拉取：首页 20 行、第 2 页收尾、边界按钮禁用" time="0.047935958">
+        </testcase>
+        <testcase classname="src/__tests__/AgentSessionHistory.spec.ts" name="AgentSessionHistory &gt; 分组过滤下沉后端且切组重置页码；计数 chip 展示四档全量" time="0.02953875">
+        </testcase>
+        <testcase classname="src/__tests__/AgentSessionHistory.spec.ts" name="AgentSessionHistory &gt; 回放按钮走 open_recorded_session（含 tmux 行）" time="0.024153416">
+        </testcase>
+        <testcase classname="src/__tests__/AgentSessionHistory.spec.ts" name="AgentSessionHistory &gt; 空分组显示空态" time="0.005470083">
+        </testcase>
+    </testsuite>
+    <testsuite name="src/__tests__/App.spec.ts" timestamp="2026-09-29T17:18:02.470Z" hostname="MacBookPro" tests="35" failures="0" errors="0" skipped="0" time="0.791215791">
+        <testcase classname="src/__tests__/App.spec.ts" name="App 图鉴机主面板 &gt; 渲染七个菜单项" time="0.03762775">
+        </testcase>
+        <testcase classname="src/__tests__/App.spec.ts" name="App 图鉴机主面板 &gt; 列表渲染任务条目：编号、标题、分类徽章" time="0.013966291">
+        </testcase>
+        <testcase classname="src/__tests__/App.spec.ts" name="App 图鉴机主面板 &gt; 任务页不再有创建表单：新增待办的唯一入口是收音机的 AI 快速捕捉" time="0.013591041">
+        </testcase>
+        <testcase classname="src/__tests__/App.spec.ts" name="App 图鉴机主面板 &gt; 「加入路线」仅在草丛页出现：冒险/路线页卡片无 📅 按钮" time="0.018876042">
+        </testcase>
+        <testcase classname="src/__tests__/App.spec.ts" name="App 图鉴机主面板 &gt; 完成/撤销任务：✔ 置 done 并写 completedAt，图鉴页可撤销" time="0.0143185">
+        </testcase>
+        <testcase classname="src/__tests__/App.spec.ts" name="App 图鉴机主面板 &gt; 出发/暂停：调用专注模式命令" time="0.008671292">
+        </testcase>
+        <testcase classname="src/__tests__/App.spec.ts" name="App 图鉴机主面板 &gt; 删除任务（放生）" time="0.016434125">
+        </testcase>
+        <testcase classname="src/__tests__/App.spec.ts" name="App 图鉴机主面板 &gt; 搜索待办：输入关键词切换为跨库搜索结果" time="0.025943709">
+        </testcase>
+        <testcase classname="src/__tests__/App.spec.ts" name="App 图鉴机主面板 &gt; 编辑弹窗：全字段编辑并保存" time="0.026050625">
+        </testcase>
+        <testcase classname="src/__tests__/App.spec.ts" name="App 图鉴机主面板 &gt; 收音机两栏分诊：待办信号与无信号分区展示，默认选中信号可捕捉" time="0.019005292">
+        </testcase>
+        <testcase classname="src/__tests__/App.spec.ts" name="App 图鉴机主面板 &gt; 按频道分组可折叠：点组头收起该频道，再点展开" time="0.016211416">
+        </testcase>
+        <testcase classname="src/__tests__/App.spec.ts" name="App 图鉴机主面板 &gt; 收音机建议显示置信档位与理由；逃走可选原因码落反馈" time="0.023477584">
+        </testcase>
+        <testcase classname="src/__tests__/App.spec.ts" name="App 图鉴机主面板 &gt; 键盘流：C 捕捉选中信号并自动前进，X 逃走无信号" time="0.019553625">
+        </testcase>
+        <testcase classname="src/__tests__/App.spec.ts" name="App 图鉴机主面板 &gt; 一键清空无信号：整组批量逃走并落噪音原因" time="0.007993125">
+        </testcase>
+        <testcase classname="src/__tests__/App.spec.ts" name="App 图鉴机主面板 &gt; 逃走后 5 秒撤销窗口：toast 撤销调 undoChatReview 恢复消息" time="0.017771333">
+        </testcase>
+        <testcase classname="src/__tests__/App.spec.ts" name="App 图鉴机主面板 &gt; 已逃走区区分 AI 原判与人工否决：否决 chip + 详情亮出 AI 原判与原因" time="0.020903667">
+        </testcase>
+        <testcase classname="src/__tests__/App.spec.ts" name="App 图鉴机主面板 &gt; 无信号组头 tooltip 点明边界：AI 判定、未经人工确认" time="0.021494375">
+        </testcase>
+        <testcase classname="src/__tests__/App.spec.ts" name="App 图鉴机主面板 &gt; 收音机快速捕捉：一句话交给 AI，todo 自动建待办并在撤销窗口内可回滚" time="0.010572042">
+        </testcase>
+        <testcase classname="src/__tests__/App.spec.ts" name="App 图鉴机主面板 &gt; 收音机快速捕捉：判重类判定（更新建议）不自动建待办，留在收音机等确认" time="0.012153875">
+        </testcase>
+        <testcase classname="src/__tests__/App.spec.ts" name="App 图鉴机主面板 &gt; 设置页通用区：数据备份卡片可立即备份并展示列表" time="0.019812">
+        </testcase>
+        <testcase classname="src/__tests__/App.spec.ts" name="App 图鉴机主面板 &gt; 设置页通用区：导出三件套与打开目录" time="0.028833667">
+        </testcase>
+        <testcase classname="src/__tests__/App.spec.ts" name="App 图鉴机主面板 &gt; 收音机快速捕捉：AI 判定失败提示错误，输入保留可重试" time="0.018043375">
+        </testcase>
+        <testcase classname="src/__tests__/App.spec.ts" name="App 图鉴机主面板 &gt; 点击任务卡片打开详情抽屉：展示 Agent 执行记录（时长/成本/退出码）并可跳转会话" time="0.016228333">
+        </testcase>
+        <testcase classname="src/__tests__/App.spec.ts" name="App 图鉴机主面板 &gt; 详情抽屉：含跟进记录与操作历史区块，可从抽屉进入全字段编辑" time="0.02160075">
+        </testcase>
+        <testcase classname="src/__tests__/App.spec.ts" name="App 图鉴机主面板 &gt; 逾期 fresh start：冒险页折叠为一行，可展开，一键归草丛清截止时间" time="0.030190458">
+        </testcase>
+        <testcase classname="src/__tests__/App.spec.ts" name="App 图鉴机主面板 &gt; 任务卡截止时间显示相对距离并按临近程度变色" time="0.0506015">
+        </testcase>
+        <testcase classname="src/__tests__/App.spec.ts" name="App 图鉴机主面板 &gt; 设置页飞书：无 App ID/Secret 输入，常驻 lark-cli 指引" time="0.026820541">
+        </testcase>
+        <testcase classname="src/__tests__/App.spec.ts" name="App 图鉴机主面板 &gt; 设置页八个分区可选且默认显示专注" time="0.056271916">
+        </testcase>
+        <testcase classname="src/__tests__/App.spec.ts" name="App 图鉴机主面板 &gt; 诊断页展示集成健康与日志，支持报告可复制" time="0.019705458">
+        </testcase>
+        <testcase classname="src/__tests__/App.spec.ts" name="App 图鉴机主面板 &gt; 设置页 Agent 分区：AI agent 配置增删、主 agent 选择与测试链路" time="0.067252708">
+        </testcase>
+        <testcase classname="src/__tests__/App.spec.ts" name="App 图鉴机主面板 &gt; AI agent 支持配置 SSH 远程执行并序列化进 ai_agents" time="0.02626475">
+        </testcase>
+        <testcase classname="src/__tests__/App.spec.ts" name="App 图鉴机主面板 &gt; 设置页分类与标签分区：进入即列出内置分类，停用开关调用后端" time="0.015370208">
+        </testcase>
+        <testcase classname="src/__tests__/App.spec.ts" name="App 图鉴机主面板 &gt; 桌宠侧改动广播 tasks-changed 后，主面板列表与进度同步刷新" time="0.010146083">
+        </testcase>
+        <testcase classname="src/__tests__/App.spec.ts" name="App 图鉴机主面板 &gt; 冒险页只显示进行中与当天（含逾期）到期；路线页显示全部未完任务" time="0.014228584">
+        </testcase>
+        <testcase classname="src/__tests__/App.spec.ts" name="App 图鉴机主面板 &gt; 逃走流程：取消后只在图鉴页出现，可筛选，可撤销恢复" time="0.020799958">
+        </testcase>
+    </testsuite>
+    <testsuite name="src/__tests__/DexContextMenu.spec.ts" timestamp="2026-09-29T17:18:02.474Z" hostname="MacBookPro" tests="6" failures="0" errors="0" skipped="0" time="0.036864042">
+        <testcase classname="src/__tests__/DexContextMenu.spec.ts" name="DexContextMenu 桌宠右键菜单 &gt; 回归：.ctx-menu 自身恢复 pointer-events（body:none 下可点击、可被命中检测识别）" time="0.0016705">
+        </testcase>
+        <testcase classname="src/__tests__/DexContextMenu.spec.ts" name="DexContextMenu 桌宠右键菜单 &gt; 打开后 Teleport 到 body 并按光标坐标落位" time="0.020919584">
+        </testcase>
+        <testcase classname="src/__tests__/DexContextMenu.spec.ts" name="DexContextMenu 桌宠右键菜单 &gt; 点击菜单项：先收起菜单再执行 action" time="0.007813084">
+        </testcase>
+        <testcase classname="src/__tests__/DexContextMenu.spec.ts" name="DexContextMenu 桌宠右键菜单 &gt; 禁用项不收起也不执行" time="0.002249417">
+        </testcase>
+        <testcase classname="src/__tests__/DexContextMenu.spec.ts" name="DexContextMenu 桌宠右键菜单 &gt; 菜单外 mousedown 立即收起（捕获阶段判外点）" time="0.001109125">
+        </testcase>
+        <testcase classname="src/__tests__/DexContextMenu.spec.ts" name="DexContextMenu 桌宠右键菜单 &gt; Esc 收起菜单" time="0.001032042">
+        </testcase>
+    </testsuite>
+    <testsuite name="src/__tests__/DexDateTime.spec.ts" timestamp="2026-09-29T17:18:02.475Z" hostname="MacBookPro" tests="6" failures="0" errors="0" skipped="0" time="0.080178625">
+        <testcase classname="src/__tests__/DexDateTime.spec.ts" name="DexDateTime &gt; 未设置时显示占位文案" time="0.014823375">
+        </testcase>
+        <testcase classname="src/__tests__/DexDateTime.spec.ts" name="DexDateTime &gt; 已设置时按钮显示格式化的日期时间" time="0.00244675">
+        </testcase>
+        <testcase classname="src/__tests__/DexDateTime.spec.ts" name="DexDateTime &gt; 弹出日历：当前月、周一开头、今日高亮" time="0.023866125">
+        </testcase>
+        <testcase classname="src/__tests__/DexDateTime.spec.ts" name="DexDateTime &gt; 选日期：未选过时间默认 09:00，已选过时间保留" time="0.011098209">
+        </testcase>
+        <testcase classname="src/__tests__/DexDateTime.spec.ts" name="DexDateTime &gt; 月份导航跨年回绕" time="0.019957333">
+        </testcase>
+        <testcase classname="src/__tests__/DexDateTime.spec.ts" name="DexDateTime &gt; 清空按钮置空并收起弹层" time="0.007115208">
+        </testcase>
+    </testsuite>
+    <testsuite name="src/__tests__/DexSelect.spec.ts" timestamp="2026-09-29T17:18:02.476Z" hostname="MacBookPro" tests="7" failures="0" errors="0" skipped="0" time="0.043160875">
+        <testcase classname="src/__tests__/DexSelect.spec.ts" name="DexSelect &gt; 按钮显示当前选中项的 label" time="0.020906417">
+        </testcase>
+        <testcase classname="src/__tests__/DexSelect.spec.ts" name="DexSelect &gt; 点击按钮展开/收起选项列表" time="0.011859625">
+        </testcase>
+        <testcase classname="src/__tests__/DexSelect.spec.ts" name="DexSelect &gt; 选择选项后更新 model 并收起" time="0.002588958">
+        </testcase>
+        <testcase classname="src/__tests__/DexSelect.spec.ts" name="DexSelect &gt; 组件外 mousedown 关闭列表" time="0.001829083">
+        </testcase>
+        <testcase classname="src/__tests__/DexSelect.spec.ts" name="DexSelect &gt; 未知值回退显示原始值" time="0.000767292">
+        </testcase>
+        <testcase classname="src/__tests__/DexSelect.spec.ts" name="DexSelect 扩展（disabled 选项 / 读屏语义） &gt; disabled 选项不可选：点击不更新 model 且列表不收起" time="0.001323334">
+        </testcase>
+        <testcase classname="src/__tests__/DexSelect.spec.ts" name="DexSelect 扩展（disabled 选项 / 读屏语义） &gt; ariaLabel 透传到触发按钮；列表带 listbox/option 语义" time="0.001113958">
+        </testcase>
+    </testsuite>
+    <testsuite name="src/__tests__/DexToggle.spec.ts" timestamp="2026-09-29T17:18:02.476Z" hostname="MacBookPro" tests="4" failures="0" errors="0" skipped="0" time="0.016269875">
+        <testcase classname="src/__tests__/DexToggle.spec.ts" name="DexToggle &gt; ON 状态显示默认文案并带 aria-pressed" time="0.010443792">
+        </testcase>
+        <testcase classname="src/__tests__/DexToggle.spec.ts" name="DexToggle &gt; OFF 状态显示 OFF 文案" time="0.001176667">
+        </testcase>
+        <testcase classname="src/__tests__/DexToggle.spec.ts" name="DexToggle &gt; 点击发出反向 update:modelValue" time="0.003022">
+        </testcase>
+        <testcase classname="src/__tests__/DexToggle.spec.ts" name="DexToggle &gt; 支持自定义状态文案（草丛/路线）" time="0.000767291">
+        </testcase>
+    </testsuite>
+    <testsuite name="src/__tests__/FeishuChatFilterManager.spec.ts" timestamp="2026-09-29T17:18:02.477Z" hostname="MacBookPro" tests="19" failures="0" errors="0" skipped="0" time="0.280855667">
+        <testcase classname="src/__tests__/FeishuChatFilterManager.spec.ts" name="FeishuChatFilterManager 会话过滤卡 &gt; 挂载即本地读取并渲染：手动置顶排序、类型徽章、双信息行、摘要计数" time="0.030975209">
+        </testcase>
+        <testcase classname="src/__tests__/FeishuChatFilterManager.spec.ts" name="FeishuChatFilterManager 会话过滤卡 &gt; 排序：手动置顶 → 最近活跃倒序 → 无消息沉底（按名称）→ 名称兜底；类型不参与排序" time="0.01912125">
+        </testcase>
+        <testcase classname="src/__tests__/FeishuChatFilterManager.spec.ts" name="FeishuChatFilterManager 会话过滤卡 &gt; 降级行：chip title 完整说明 + sr-only 节点经同行三段 aria-describedby 键盘可达" time="0.008794958">
+        </testcase>
+        <testcase classname="src/__tests__/FeishuChatFilterManager.spec.ts" name="FeishuChatFilterManager 会话过滤卡 &gt; 三段选择器：radiogroup 语义 + roving tabindex 单停点 + 方向键/Home/End 即选即写" time="0.03036075">
+        </testcase>
+        <testcase classname="src/__tests__/FeishuChatFilterManager.spec.ts" name="FeishuChatFilterManager 会话过滤卡 &gt; 乐观写入：三段即时切换，成功后用返回行视图校正 chip 与计数" time="0.013107542">
+        </testcase>
+        <testcase classname="src/__tests__/FeishuChatFilterManager.spec.ts" name="FeishuChatFilterManager 会话过滤卡 &gt; 写入失败：该行回滚为原选中态 + role=status 错误 toast（技术原文不吞）" time="0.011346334">
+        </testcase>
+        <testcase classname="src/__tests__/FeishuChatFilterManager.spec.ts" name="FeishuChatFilterManager 会话过滤卡 &gt; 搜索与状态筛选 chips（生效/偏好两组）：本地过滤正交组合，摘要计数保持全量统计" time="0.016093375">
+        </testcase>
+        <testcase classname="src/__tests__/FeishuChatFilterManager.spec.ts" name="FeishuChatFilterManager 会话过滤卡 &gt; 类型筛选下拉：按会话类型本地过滤（全部/群聊/机器人，无私聊档），与生效/偏好/搜索正交组合" time="0.010246791">
+        </testcase>
+        <testcase classname="src/__tests__/FeishuChatFilterManager.spec.ts" name="FeishuChatFilterManager 会话过滤卡 &gt; 类型与偏好档交集为空：显示筛选组合空态（非搜索空态），清空筛选恢复" time="0.01355325">
+        </testcase>
+        <testcase classname="src/__tests__/FeishuChatFilterManager.spec.ts" name="FeishuChatFilterManager 会话过滤卡 &gt; 私聊不进管理面：列表只含群聊/机器人行，每行均为三段选择器（无 p2p 渲染分支）" time="0.0033865">
+        </testcase>
+        <testcase classname="src/__tests__/FeishuChatFilterManager.spec.ts" name="FeishuChatFilterManager 会话过滤卡 &gt; 筛选激活时显示匹配计数行（n / 全量 total），默认隐藏，0 命中时与空态并存" time="0.009005417">
+        </testcase>
+        <testcase classname="src/__tests__/FeishuChatFilterManager.spec.ts" name="FeishuChatFilterManager 会话过滤卡 &gt; 选中类型档计数降 0（快照刷新后该类型消失）自动回退「全部类型」" time="0.01372425">
+        </testcase>
+        <testcase classname="src/__tests__/FeishuChatFilterManager.spec.ts" name="FeishuChatFilterManager 会话过滤卡 &gt; 选中档计数降 0 自动回退「全部」（生效/偏好两下拉同守卫）" time="0.021136834">
+        </testcase>
+        <testcase classname="src/__tests__/FeishuChatFilterManager.spec.ts" name="FeishuChatFilterManager 会话过滤卡 &gt; 四种空态可区分：未启用 / 无快照（带立即拉取）/ 快照为空 / 搜索无匹配" time="0.013786375">
+        </testcase>
+        <testcase classname="src/__tests__/FeishuChatFilterManager.spec.ts" name="FeishuChatFilterManager 会话过滤卡 &gt; 无快照空态点「立即拉取一次」：触发拉取并重读总览回就绪" time="0.005120459">
+        </testcase>
+        <testcase classname="src/__tests__/FeishuChatFilterManager.spec.ts" name="FeishuChatFilterManager 会话过滤卡 &gt; 读取失败：错误行 + 技术原文 + 重试按钮，重试成功回就绪" time="0.012356792">
+        </testcase>
+        <testcase classname="src/__tests__/FeishuChatFilterManager.spec.ts" name="FeishuChatFilterManager 会话过滤卡 &gt; 陈旧阈值随轮询间隔推导：max(5min, 2.5×interval)，15 分钟档不误报" time="0.01694375">
+        </testcase>
+        <testcase classname="src/__tests__/FeishuChatFilterManager.spec.ts" name="FeishuChatFilterManager 会话过滤卡 &gt; 事件刷新：feishu-chat-filter-changed 重拉数据且保留当前搜索词与筛选档" time="0.016758667">
+        </testcase>
+        <testcase classname="src/__tests__/FeishuChatFilterManager.spec.ts" name="FeishuChatFilterManager 会话过滤卡 &gt; 停用联动：feishu_enabled 关闭立即转空·未启用，重新启用经事件回就绪" time="0.01378025">
+        </testcase>
+    </testsuite>
+    <testsuite name="src/__tests__/PetApp.spec.ts" timestamp="2026-09-29T17:18:02.479Z" hostname="MacBookPro" tests="22" failures="0" errors="0" skipped="0" time="3.819269125">
+        <testcase classname="src/__tests__/PetApp.spec.ts" name="PetApp 桌宠 &gt; 无任务时显示欢迎气泡与默认精灵，无常驻状态文字" time="0.094268083">
+        </testcase>
+        <testcase classname="src/__tests__/PetApp.spec.ts" name="PetApp 桌宠 &gt; 台词瞬态：悬停暂停倒计时，移开续走剩余时间" time="0.072542625">
+        </testcase>
+        <testcase classname="src/__tests__/PetApp.spec.ts" name="PetApp 桌宠 &gt; 台词瞬态：点击气泡立即收起" time="0.009782375">
+        </testcase>
+        <testcase classname="src/__tests__/PetApp.spec.ts" name="PetApp 桌宠 &gt; 单击精灵：随机搭话，不再展开快捷屏" time="0.007182042">
+        </testcase>
+        <testcase classname="src/__tests__/PetApp.spec.ts" name="PetApp 桌宠 &gt; 设置主宝可梦后：空闲只换精灵图，气泡与名牌不带它的名字" time="0.003726708">
+        </testcase>
+        <testcase classname="src/__tests__/PetApp.spec.ts" name="PetApp 桌宠 &gt; 主宝可梦设置即时生效：settings-changed 后空闲精灵切换" time="0.007776584">
+        </testcase>
+        <testcase classname="src/__tests__/PetApp.spec.ts" name="PetApp 桌宠 &gt; 有进行中任务且番茄钟开启时自动倒计时并上报专注时长" time="0.208748791">
+        </testcase>
+        <testcase classname="src/__tests__/PetApp.spec.ts" name="PetApp 桌宠 &gt; 环境化倒计时：色环随剩余比例出现、尾段精灵焦急、长番茄钟中点与剩 5 分钟轻提示音" time="2.475029542">
+        </testcase>
+        <testcase classname="src/__tests__/PetApp.spec.ts" name="PetApp 桌宠 &gt; 「先试 5 分钟」：超短场启动、到期不接休息且零挫败文案" time="0.328407208">
+        </testcase>
+        <testcase classname="src/__tests__/PetApp.spec.ts" name="PetApp 桌宠 &gt; 短番茄钟不响提示音" time="0.512480834">
+        </testcase>
+        <testcase classname="src/__tests__/PetApp.spec.ts" name="PetApp 桌宠 &gt; 暂停按钮：停表并调用 pauseCurrentTask" time="0.008864666">
+        </testcase>
+        <testcase classname="src/__tests__/PetApp.spec.ts" name="PetApp 桌宠 &gt; 完成按钮：置 done 并刷新" time="0.003101667">
+        </testcase>
+        <testcase classname="src/__tests__/PetApp.spec.ts" name="PetApp 桌宠 &gt; 点悬停浮现的 ☰ 钮展开快捷图鉴屏，列出候选任务" time="0.00524975">
+        </testcase>
+        <testcase classname="src/__tests__/PetApp.spec.ts" name="PetApp 桌宠 &gt; 快捷屏选择后出发：调用 startTask 并显示就决定是你了" time="0.0114305">
+        </testcase>
+        <testcase classname="src/__tests__/PetApp.spec.ts" name="PetApp 桌宠 &gt; 快捷屏未选目标点出发：气泡提示先选目标，不调用 startTask" time="0.002812333">
+        </testcase>
+        <testcase classname="src/__tests__/PetApp.spec.ts" name="PetApp 桌宠 &gt; 双击精灵：请求打开主窗口且不弹出快捷屏" time="0.002059375">
+        </testcase>
+        <testcase classname="src/__tests__/PetApp.spec.ts" name="PetApp 桌宠 &gt; 就近可操作提醒：气泡钉住不自动倒计时，带完成/推迟动作直接消化" time="0.021444">
+        </testcase>
+        <testcase classname="src/__tests__/PetApp.spec.ts" name="PetApp 桌宠 &gt; 番茄钟关闭时不自动倒计时" time="0.001543833">
+        </testcase>
+        <testcase classname="src/__tests__/PetApp.spec.ts" name="PetApp 桌宠 &gt; 主程序开始任务后广播 tasks-changed，桌宠同步并开始倒计时" time="0.02892225">
+        </testcase>
+        <testcase classname="src/__tests__/PetApp.spec.ts" name="PetApp 桌宠 &gt; 主程序完成任务后广播 tasks-changed，桌宠收起番茄钟回待机" time="0.004349542">
+        </testcase>
+        <testcase classname="src/__tests__/PetApp.spec.ts" name="PetApp 桌宠 &gt; 主程序保存设置后广播 settings-changed，桌宠去抖重载：番茄钟开关即时生效" time="0.00478125">
+        </testcase>
+        <testcase classname="src/__tests__/PetApp.spec.ts" name="PetApp 桌宠 &gt; 主程序换分类精灵后广播 categories-changed，桌宠精灵跟着换" time="0.003544667">
+        </testcase>
+    </testsuite>
+    <testsuite name="src/__tests__/PromptsCard.spec.ts" timestamp="2026-09-29T17:18:02.482Z" hostname="MacBookPro" tests="12" failures="0" errors="0" skipped="0" time="0.161700792">
+        <testcase classname="src/__tests__/PromptsCard.spec.ts" name="PromptsCard AI 提示词卡 &gt; 装载后渲染 5 个功能折叠面板（目录顺序），默认全部折叠" time="0.024837916">
+        </testcase>
+        <testcase classname="src/__tests__/PromptsCard.spec.ts" name="PromptsCard AI 提示词卡 &gt; 读取失败显示错误行与重试，重试成功后面板呈现" time="0.021654958">
+        </testcase>
+        <testcase classname="src/__tests__/PromptsCard.spec.ts" name="PromptsCard AI 提示词卡 &gt; 徽章与生效标签：default「内置默认/当前生效」，custom「自定义/当前生效 · 自定义」+ 恢复默认与对照入口，派发「只读」无编辑钮" time="0.028648541">
+        </testcase>
+        <testcase classname="src/__tests__/PromptsCard.spec.ts" name="PromptsCard AI 提示词卡 &gt; 警示态：default_warned 带警示徽章、警示行列缺失占位符、查看屏回落默认、编辑预填覆盖原文" time="0.012237916">
+        </testcase>
+        <testcase classname="src/__tests__/PromptsCard.spec.ts" name="PromptsCard AI 提示词卡 &gt; 编辑会话：进入编辑预填 + aria-label，修改亮未保存徽章，取消丢弃回查看态" time="0.008201792">
+        </testcase>
+        <testcase classname="src/__tests__/PromptsCard.spec.ts" name="PromptsCard AI 提示词卡 &gt; 校验阻断：删占位符出现红色阻断文案且保存禁用，chip 插入后恢复可用" time="0.007349625">
+        </testcase>
+        <testcase classname="src/__tests__/PromptsCard.spec.ts" name="PromptsCard AI 提示词卡 &gt; 中性预告不阻断：空白给恢复默认预告，保存走 save(key, value)" time="0.009959333">
+        </testcase>
+        <testcase classname="src/__tests__/PromptsCard.spec.ts" name="PromptsCard AI 提示词卡 &gt; 保存成功：徽章随响应切换，成功提示行 + 未知占位符警告，面板回查看态" time="0.008866167">
+        </testcase>
+        <testcase classname="src/__tests__/PromptsCard.spec.ts" name="PromptsCard AI 提示词卡 &gt; 保存失败：编辑态与缓冲保留，错误文案进校验区" time="0.008393625">
+        </testcase>
+        <testcase classname="src/__tests__/PromptsCard.spec.ts" name="PromptsCard AI 提示词卡 &gt; 恢复默认两步确认：确认条 role=group 原位展开，取消收起，确认后清覆盖回默认态" time="0.01501425">
+        </testcase>
+        <testcase classname="src/__tests__/PromptsCard.spec.ts" name="PromptsCard AI 提示词卡 &gt; 编辑期间面板折叠再展开：缓冲与未保存徽章保留（面板级缓冲）" time="0.00602475">
+        </testcase>
+        <testcase classname="src/__tests__/PromptsCard.spec.ts" name="PromptsCard AI 提示词卡 &gt; 复制全文：点击查看屏复制钮走剪贴板" time="0.009387708">
+        </testcase>
+    </testsuite>
+    <testsuite name="src/__tests__/RadioTab.spec.ts" timestamp="2026-09-29T17:18:02.483Z" hostname="MacBookPro" tests="12" failures="0" errors="0" skipped="0" time="0.2055105">
+        <testcase classname="src/__tests__/RadioTab.spec.ts" name="RadioTab 列表分组与聚焦 &gt; 分区分组：信号/无信号分列，已处理分区默认收起" time="0.036106917">
+        </testcase>
+        <testcase classname="src/__tests__/RadioTab.spec.ts" name="RadioTab 列表分组与聚焦 &gt; focusCapture：暴露的快捷聚焦把焦点给捕捉输入框" time="0.017582959">
+        </testcase>
+        <testcase classname="src/__tests__/RadioTab.spec.ts" name="RadioTab 单条分诊 &gt; 详情面板捕捉信号：建待办 + toast 提示任务号" time="0.018003542">
+        </testcase>
+        <testcase classname="src/__tests__/RadioTab.spec.ts" name="RadioTab 单条分诊 &gt; 更新类信号走补丁通道而非新建" time="0.011673584">
+        </testcase>
+        <testcase classname="src/__tests__/RadioTab.spec.ts" name="RadioTab 单条分诊 &gt; 已逃走分区的恢复把消息拉回待处理" time="0.010058416">
+        </testcase>
+        <testcase classname="src/__tests__/RadioTab.spec.ts" name="RadioTab 逃走与强制 &gt; 逃走后 5 秒撤销窗口内可反悔" time="0.009694875">
+        </testcase>
+        <testcase classname="src/__tests__/RadioTab.spec.ts" name="RadioTab 逃走与强制 &gt; 强制捕捉：error 消息绕过判定直接建待办" time="0.012040583">
+        </testcase>
+        <testcase classname="src/__tests__/RadioTab.spec.ts" name="RadioTab 批量勾选 &gt; 勾选、高置信筛选，一键捕捉调批量接口" time="0.020582875">
+            <system-err>
+[Vue warn]: Component emitted event &quot;toggle-check&quot; but it is neither declared in the emits option nor as an &quot;onToggleCheck&quot; prop.
+
+            </system-err>
+        </testcase>
+        <testcase classname="src/__tests__/RadioTab.spec.ts" name="RadioTab 批量勾选 &gt; 全选切换：一次全勾再点全清" time="0.020734416">
+        </testcase>
+        <testcase classname="src/__tests__/RadioTab.spec.ts" name="RadioTab 噪音清扫 &gt; 一键清空无信号：整组 dismiss 落 noise 原因" time="0.008171667">
+        </testcase>
+        <testcase classname="src/__tests__/RadioTab.spec.ts" name="RadioTab 噪音清扫 &gt; 判定失败一键重判" time="0.012084709">
+        </testcase>
+        <testcase classname="src/__tests__/RadioTab.spec.ts" name="RadioTab 键盘流 &gt; J 下移选中，C 捕捉当前信号；输入框焦点时不劫持" time="0.025875375">
+        </testcase>
+    </testsuite>
+    <testsuite name="src/__tests__/ReviewWizard.spec.ts" timestamp="2026-09-29T17:18:02.483Z" hostname="MacBookPro" tests="5" failures="0" errors="0" skipped="0" time="0.096846834">
+        <testcase classname="src/__tests__/ReviewWizard.spec.ts" name="ReviewWizard 训练家复盘 &gt; 总览统计本周捕捉/专注/路线/草丛" time="0.024907083">
+        </testcase>
+        <testcase classname="src/__tests__/ReviewWizard.spec.ts" name="ReviewWizard 训练家复盘 &gt; 路线逐站复盘：完成/归草丛/逃走就地处置" time="0.023036791">
+        </testcase>
+        <testcase classname="src/__tests__/ReviewWizard.spec.ts" name="ReviewWizard 训练家复盘 &gt; 草丛批量归位：全选放生逐条删除" time="0.010635917">
+        </testcase>
+        <testcase classname="src/__tests__/ReviewWizard.spec.ts" name="ReviewWizard 训练家复盘 &gt; 收尾标记本周已复盘" time="0.018034">
+        </testcase>
+        <testcase classname="src/__tests__/ReviewWizard.spec.ts" name="ReviewWizard 训练家复盘 &gt; 标签体检：合并建议与僵尸标签逐条处置" time="0.017920292">
+            <system-err>
+[intlify] Not found &apos;review.tagOrigin.ai&apos; key in &apos;zh&apos; locale messages.
+
+[intlify] Not found &apos;review.tagOrigin.ai&apos; key in &apos;zh&apos; locale messages.
+
+[intlify] Not found &apos;review.tagOrigin.ai&apos; key in &apos;zh&apos; locale messages.
+
+[intlify] Not found &apos;review.tagOrigin.ai&apos; key in &apos;zh&apos; locale messages.
+
+[intlify] Not found &apos;review.tagOrigin.ai&apos; key in &apos;zh&apos; locale messages.
+
+[intlify] Not found &apos;review.tagOrigin.ai&apos; key in &apos;zh&apos; locale messages.
+
+            </system-err>
+        </testcase>
+    </testsuite>
+    <testsuite name="src/__tests__/TagDispatchCard.spec.ts" timestamp="2026-09-29T17:18:02.484Z" hostname="MacBookPro" tests="10" failures="0" errors="0" skipped="0" time="0.105801875">
+        <testcase classname="src/__tests__/TagDispatchCard.spec.ts" name="TagDispatchCard 项目派发卡片 &gt; 只渲染 project 维度的标签，一标签一节，带配置状态徽标" time="0.028150833">
+        </testcase>
+        <testcase classname="src/__tests__/TagDispatchCard.spec.ts" name="TagDispatchCard 项目派发卡片 &gt; meta 预填草稿，agent 下拉显示已选 agent（含 SSH 徽标）" time="0.006240625">
+        </testcase>
+        <testcase classname="src/__tests__/TagDispatchCard.spec.ts" name="TagDispatchCard 项目派发卡片 &gt; 已保存但停用的 agent 保留在下拉里，避免退化成裸 id" time="0.007867417">
+        </testcase>
+        <testcase classname="src/__tests__/TagDispatchCard.spec.ts" name="TagDispatchCard 项目派发卡片 &gt; 改动即时把空串归一成 null 落库，成功后发出 feedback" time="0.011306875">
+        </testcase>
+        <testcase classname="src/__tests__/TagDispatchCard.spec.ts" name="TagDispatchCard 项目派发卡片 &gt; 落库失败时 feedback 带错误信息" time="0.007882375">
+        </testcase>
+        <testcase classname="src/__tests__/TagDispatchCard.spec.ts" name="TagDispatchCard 项目派发卡片 &gt; 没有 project 标签时显示空态指引" time="0.003721166">
+        </testcase>
+        <testcase classname="src/__tests__/TagDispatchCard.spec.ts" name="TagDispatchCard 项目派发卡片 &gt; 历史记录快捷方式：标签指定 agent 时唤起该 agent，结果进 feedback" time="0.006691791">
+        </testcase>
+        <testcase classname="src/__tests__/TagDispatchCard.spec.ts" name="TagDispatchCard 项目派发卡片 &gt; 历史记录快捷方式：带标签 meta 工作目录时作为覆盖传给后端" time="0.008454875">
+        </testcase>
+        <testcase classname="src/__tests__/TagDispatchCard.spec.ts" name="TagDispatchCard 项目派发卡片 &gt; 历史记录快捷方式：未指定 agent 时回退全局默认（ai_agent_id 优先，否则首个启用的）" time="0.015608375">
+        </testcase>
+        <testcase classname="src/__tests__/TagDispatchCard.spec.ts" name="TagDispatchCard 项目派发卡片 &gt; 没有任何启用 agent 时历史记录快捷方式置灰" time="0.008802958">
+        </testcase>
+    </testsuite>
+    <testsuite name="src/__tests__/TaskDetailDrawer.spec.ts" timestamp="2026-09-29T17:18:02.485Z" hostname="MacBookPro" tests="11" failures="0" errors="0" skipped="0" time="0.138891875">
+        <testcase classname="src/__tests__/TaskDetailDrawer.spec.ts" name="TaskDetailDrawer 总览与历史 &gt; 渲染总览：分类名、空值占位、标签维度前缀" time="0.021866542">
+        </testcase>
+        <testcase classname="src/__tests__/TaskDetailDrawer.spec.ts" name="TaskDetailDrawer 总览与历史 &gt; 操作历史：字段值空显示占位，状态字段走翻译" time="0.006219875">
+        </testcase>
+        <testcase classname="src/__tests__/TaskDetailDrawer.spec.ts" name="TaskDetailDrawer 跟进记录 &gt; 提交新增、空内容跳过、失败显示错误" time="0.015922084">
+        </testcase>
+        <testcase classname="src/__tests__/TaskDetailDrawer.spec.ts" name="TaskDetailDrawer 跟进记录 &gt; 删除走两段式确认：第一次变确认态，第二次才删" time="0.018783">
+        </testcase>
+        <testcase classname="src/__tests__/TaskDetailDrawer.spec.ts" name="TaskDetailDrawer 派发解析 &gt; 无 project 标签时提示需要标签，且不解析派发目标" time="0.006908416">
+        </testcase>
+        <testcase classname="src/__tests__/TaskDetailDrawer.spec.ts" name="TaskDetailDrawer 派发解析 &gt; 解析目标后显示 agent 徽章与工作目录" time="0.007090459">
+        </testcase>
+        <testcase classname="src/__tests__/TaskDetailDrawer.spec.ts" name="TaskDetailDrawer 派发执行 &gt; 交互派发成功：消息含终端名，状态徽章随回传更新" time="0.0214345">
+        </testcase>
+        <testcase classname="src/__tests__/TaskDetailDrawer.spec.ts" name="TaskDetailDrawer 派发执行 &gt; 派发失败：错误文案展示" time="0.012178792">
+        </testcase>
+        <testcase classname="src/__tests__/TaskDetailDrawer.spec.ts" name="TaskDetailDrawer 手动标记 &gt; 完成收口变 done 且救援行收起；重置后徽章消失" time="0.011457292">
+        </testcase>
+        <testcase classname="src/__tests__/TaskDetailDrawer.spec.ts" name="TaskDetailDrawer 手动标记 &gt; 重置：queued 起点标记 idle 后徽章消失" time="0.008397125">
+        </testcase>
+        <testcase classname="src/__tests__/TaskDetailDrawer.spec.ts" name="TaskDetailDrawer Agent 执行区 &gt; 来源徽章、时长收敛、成本合计、跳转会话" time="0.004501375">
+        </testcase>
+    </testsuite>
+    <testsuite name="src/__tests__/agents.spec.ts" timestamp="2026-09-29T17:18:02.485Z" hostname="MacBookPro" tests="10" failures="0" errors="0" skipped="0" time="0.0174725">
+        <testcase classname="src/__tests__/agents.spec.ts" name="agents store：与设置键 ai_agents 双向同步 &gt; load 解析设置键，旧配置缺 workdir 归一成空串" time="0.00288175">
+        </testcase>
+        <testcase classname="src/__tests__/agents.spec.ts" name="agents store：与设置键 ai_agents 双向同步 &gt; load 容错：非法 JSON / 非数组归一成空列表" time="0.000646916">
+        </testcase>
+        <testcase classname="src/__tests__/agents.spec.ts" name="agents store：与设置键 ai_agents 双向同步 &gt; save 序列化写回 values.ai_agents 并落库：隧道端口空值归一 null、persistent 归一 false、remote 缺省 null" time="0.001964708">
+        </testcase>
+        <testcase classname="src/__tests__/agents.spec.ts" name="agents store：与设置键 ai_agents 双向同步 &gt; save → load 往返：字段不丢、端口归一结果稳定" time="0.000688208">
+        </testcase>
+        <testcase classname="src/__tests__/agents.spec.ts" name="agents store：CRUD 与去重 &gt; add 按预设新增：command/args/historyArgs 就位，超时 120 秒且默认启用" time="0.000673792">
+        </testcase>
+        <testcase classname="src/__tests__/agents.spec.ts" name="agents store：CRUD 与去重 &gt; add 未知预设键回落 custom；同名预设自动编号去重" time="0.000328459">
+        </testcase>
+        <testcase classname="src/__tests__/agents.spec.ts" name="agents store：CRUD 与去重 &gt; dedupeName：无冲突原样返回，冲突加序号后缀" time="0.000196583">
+        </testcase>
+        <testcase classname="src/__tests__/agents.spec.ts" name="agents store：CRUD 与去重 &gt; remove 删除条目；「用于收音机分类」正指向它时清空，指向他人时保留" time="0.000274916">
+        </testcase>
+        <testcase classname="src/__tests__/agents.spec.ts" name="agents store：常驻隧道状态 &gt; save/loadTunnelStatuses 只刷新开了常驻隧道的 agent，成功写入状态" time="0.006476584">
+        </testcase>
+        <testcase classname="src/__tests__/agents.spec.ts" name="agents store：常驻隧道状态 &gt; refreshTunnel 失败清掉旧状态（回退「未知」）" time="0.001816042">
+        </testcase>
+    </testsuite>
+    <testsuite name="src/__tests__/api.spec.ts" timestamp="2026-09-29T17:18:02.486Z" hostname="MacBookPro" tests="5" failures="0" errors="0" skipped="0" time="0.006218958">
+        <testcase classname="src/__tests__/api.spec.ts" name="api 错误分层（Rust AppError → ApiError） &gt; 后端 AppError 对象归一化：保留 kind/message/retryable" time="0.004107834">
+        </testcase>
+        <testcase classname="src/__tests__/api.spec.ts" name="api 错误分层（Rust AppError → ApiError） &gt; 网络类错误标记可重试" time="0.00023925">
+        </testcase>
+        <testcase classname="src/__tests__/api.spec.ts" name="api 错误分层（Rust AppError → ApiError） &gt; 旧式纯字符串错误归为 external 且不可重试" time="0.000227458">
+        </testcase>
+        <testcase classname="src/__tests__/api.spec.ts" name="api 错误分层（Rust AppError → ApiError） &gt; IPC 传输层 JS 异常归为可重试网络错误" time="0.000161375">
+        </testcase>
+        <testcase classname="src/__tests__/api.spec.ts" name="api 错误分层（Rust AppError → ApiError） &gt; 成功路径透传返回值" time="0.000695875">
+        </testcase>
+    </testsuite>
+    <testsuite name="src/__tests__/bubbleTiming.spec.ts" timestamp="2026-09-29T17:18:02.487Z" hostname="MacBookPro" tests="4" failures="0" errors="0" skipped="0" time="0.001909333">
+        <testcase classname="src/__tests__/bubbleTiming.spec.ts" name="bubbleDuration 瞬态台词时长 &gt; 空文案给基础时长" time="0.000826875">
+        </testcase>
+        <testcase classname="src/__tests__/bubbleTiming.spec.ts" name="bubbleDuration 瞬态台词时长 &gt; 时长随长度线性递增" time="0.000138833">
+        </testcase>
+        <testcase classname="src/__tests__/bubbleTiming.spec.ts" name="bubbleDuration 瞬态台词时长 &gt; 超长文案封顶" time="0.000086041">
+        </testcase>
+        <testcase classname="src/__tests__/bubbleTiming.spec.ts" name="bubbleDuration 瞬态台词时长 &gt; 按 Unicode 码点计数，emoji 不折半" time="0.000066">
+        </testcase>
+    </testsuite>
+    <testsuite name="src/__tests__/events.spec.ts" timestamp="2026-09-29T17:18:02.487Z" hostname="MacBookPro" tests="2" failures="0" errors="0" skipped="0" time="0.002327417">
+        <testcase classname="src/__tests__/events.spec.ts" name="前后端事件契约 &gt; 事件名全集与 Rust events.rs 一致" time="0.001087708">
+        </testcase>
+        <testcase classname="src/__tests__/events.spec.ts" name="前后端事件契约 &gt; 事件名为 kebab-case 常量" time="0.000472375">
+        </testcase>
+    </testsuite>
+    <testsuite name="src/__tests__/i18n.spec.ts" timestamp="2026-09-29T17:18:02.487Z" hostname="MacBookPro" tests="8" failures="0" errors="0" skipped="0" time="0.042865458">
+        <testcase classname="src/__tests__/i18n.spec.ts" name="i18n 兼容性：三语语言包 &gt; 繁体与英文的键集合与简体完全一致" time="0.002591542">
+        </testcase>
+        <testcase classname="src/__tests__/i18n.spec.ts" name="i18n 兼容性：三语语言包 &gt; 同键插值占位符三语一致（缺参数会在运行时渲染出 {n} 字面量）" time="0.018476084">
+        </testcase>
+        <testcase classname="src/__tests__/i18n.spec.ts" name="i18n 兼容性：三语语言包 &gt; 所有文案均为非空字符串（数组除外）" time="0.019225459">
+        </testcase>
+        <testcase classname="src/__tests__/i18n.spec.ts" name="i18n 兼容性：三语语言包 &gt; i18n 实例注册了全部语言，默认语言在支持列表内" time="0.000722041">
+        </testcase>
+        <testcase classname="src/__tests__/i18n.spec.ts" name="素材兼容性：图鉴换装 &gt; 内置宝可梦在 public/pokemon 下有 gif 或 png 素材" time="0.000191167">
+        </testcase>
+        <testcase classname="src/__tests__/i18n.spec.ts" name="设置兼容性：默认值 &gt; 布尔型设置取值合法" time="0.000179041">
+        </testcase>
+        <testcase classname="src/__tests__/i18n.spec.ts" name="设置兼容性：默认值 &gt; 番茄时长默认值在产品档位内" time="0.000090791">
+        </testcase>
+        <testcase classname="src/__tests__/i18n.spec.ts" name="设置兼容性：默认值 &gt; 默认日期/时间格式是被支持的格式" time="0.000069708">
+        </testcase>
+    </testsuite>
+    <testsuite name="src/__tests__/pokemon.spec.ts" timestamp="2026-09-29T17:18:02.488Z" hostname="MacBookPro" tests="15" failures="0" errors="0" skipped="0" time="0.02806325">
+        <testcase classname="src/__tests__/pokemon.spec.ts" name="全量宝可梦名录 &gt; 覆盖 pokeapi 全部 1025 只，编号连续且 key 唯一" time="0.001958667">
+        </testcase>
+        <testcase classname="src/__tests__/pokemon.spec.ts" name="全量宝可梦名录 &gt; 三语名非空且 key 为小写（与 PokeAPI 素材路径一致）" time="0.016916542">
+        </testcase>
+        <testcase classname="src/__tests__/pokemon.spec.ts" name="全量宝可梦名录 &gt; 内置 6 只在名录中且随包附带素材" time="0.000481125">
+        </testcase>
+        <testcase classname="src/__tests__/pokemon.spec.ts" name="精灵图候选链（本地优先，联网回退 CDN） &gt; 内置宝可梦用本地素材，动图优先" time="0.000185">
+        </testcase>
+        <testcase classname="src/__tests__/pokemon.spec.ts" name="精灵图候选链（本地优先，联网回退 CDN） &gt; 名录内非内置：≤#649 走 gen-5 动图 → 静态图，&gt;#649 只有静态图" time="0.000177083">
+        </testcase>
+        <testcase classname="src/__tests__/pokemon.spec.ts" name="精灵图候选链（本地优先，联网回退 CDN） &gt; CDN / fastly / raw 三源互备，断一处还有一处" time="0.000132875">
+        </testcase>
+        <testcase classname="src/__tests__/pokemon.spec.ts" name="精灵图候选链（本地优先，联网回退 CDN） &gt; 未知 key 回退本地素材路径（兼容旧数据）" time="0.000062167">
+        </testcase>
+        <testcase classname="src/__tests__/pokemon.spec.ts" name="pokemonName 本地化 &gt; 按当前语言取名，key 不在名录时回退传入名" time="0.000360958">
+        </testcase>
+        <testcase classname="src/__tests__/pokemon.spec.ts" name="searchPokemon 名录搜索 &gt; 简中/繁中/英文/key/编号均可命中" time="0.001698625">
+        </testcase>
+        <testcase classname="src/__tests__/pokemon.spec.ts" name="searchPokemon 名录搜索 &gt; 空查询：内置 6 只置顶；结果条数受 limit 约束" time="0.001421333">
+        </testcase>
+        <testcase classname="src/__tests__/pokemon.spec.ts" name="每宝可梦自定义台词 &gt; 逐行拆分并去空白，未配置返回空数组" time="0.0007445">
+        </testcase>
+        <testcase classname="src/__tests__/pokemon.spec.ts" name="每宝可梦自定义台词 &gt; 损坏的 JSON 容错返回空数组" time="0.000115625">
+        </testcase>
+        <testcase classname="src/__tests__/pokemon.spec.ts" name="每宝可梦自定义台词 &gt; merge 保留其他宝可梦的台词，清空即删除该条目" time="0.000135292">
+        </testcase>
+        <testcase classname="src/__tests__/pokemon.spec.ts" name="randomQuote：自定义台词优先 &gt; 配置了自定义台词的宝可梦只从自定义池里取" time="0.001269542">
+        </testcase>
+        <testcase classname="src/__tests__/pokemon.spec.ts" name="randomQuote：自定义台词优先 &gt; 未配置时回默认语录池" time="0.001272625">
+        </testcase>
+    </testsuite>
+    <testsuite name="src/__tests__/relativeTime.spec.ts" timestamp="2026-09-29T17:18:02.489Z" hostname="MacBookPro" tests="5" failures="0" errors="0" skipped="0" time="0.006354625">
+        <testcase classname="src/__tests__/relativeTime.spec.ts" name="relativeDue 相对截止时间 &gt; 已逾期分档：分钟 / 小时 / 天" time="0.003584041">
+        </testcase>
+        <testcase classname="src/__tests__/relativeTime.spec.ts" name="relativeDue 相对截止时间 &gt; 临近分档：分钟级紧急、当天小时级" time="0.00046725">
+        </testcase>
+        <testcase classname="src/__tests__/relativeTime.spec.ts" name="relativeDue 相对截止时间 &gt; 跨天：明天/后天带具体钟点" time="0.001149083">
+        </testcase>
+        <testcase classname="src/__tests__/relativeTime.spec.ts" name="relativeDue 相对截止时间 &gt; 一周内显示星期，更远显示天数" time="0.000261417">
+        </testcase>
+        <testcase classname="src/__tests__/relativeTime.spec.ts" name="relativeDue 相对截止时间 &gt; 非法输入安全退化" time="0.000132916">
+        </testcase>
+    </testsuite>
+    <testsuite name="src/__tests__/settings.spec.ts" timestamp="2026-09-29T17:18:02.489Z" hostname="MacBookPro" tests="13" failures="0" errors="0" skipped="0" time="0.01342275">
+        <testcase classname="src/__tests__/settings.spec.ts" name="sget / sgetNum &gt; 未设置时返回内置默认值" time="0.002288667">
+        </testcase>
+        <testcase classname="src/__tests__/settings.spec.ts" name="sget / sgetNum &gt; 已设置的值优先于默认值" time="0.000265958">
+        </testcase>
+        <testcase classname="src/__tests__/settings.spec.ts" name="sget / sgetNum &gt; sgetNum 解析数字，非法值回退" time="0.000347208">
+        </testcase>
+        <testcase classname="src/__tests__/settings.spec.ts" name="sget / sgetNum &gt; bool 读取字符串开关" time="0.00021075">
+        </testcase>
+        <testcase classname="src/__tests__/settings.spec.ts" name="load &gt; 合并库中设置与默认值，空串回退默认" time="0.0008535">
+        </testcase>
+        <testcase classname="src/__tests__/settings.spec.ts" name="日期时间格式化 &gt; 默认 YYYY-MM-DD + 24 小时制" time="0.0015585">
+        </testcase>
+        <testcase classname="src/__tests__/settings.spec.ts" name="日期时间格式化 &gt; MM/DD/YYYY 与 DD/MM/YYYY" time="0.00056075">
+        </testcase>
+        <testcase classname="src/__tests__/settings.spec.ts" name="日期时间格式化 &gt; 12 小时制：下午/上午/午夜" time="0.000940834">
+        </testcase>
+        <testcase classname="src/__tests__/settings.spec.ts" name="日期时间格式化 &gt; RFC3339 输入可解析（转本地时区）" time="0.000238458">
+        </testcase>
+        <testcase classname="src/__tests__/settings.spec.ts" name="日期时间格式化 &gt; 空值与非法输入返回空串" time="0.0002545">
+        </testcase>
+        <testcase classname="src/__tests__/settings.spec.ts" name="save：秘钥占位值跳过 &gt; 占位值原样保存时跳过该键，普通值与改动过的值正常提交" time="0.000823042">
+        </testcase>
+        <testcase classname="src/__tests__/settings.spec.ts" name="默认设置健全性 &gt; 数值型默认值均可解析为数字" time="0.000095333">
+        </testcase>
+        <testcase classname="src/__tests__/settings.spec.ts" name="默认设置健全性 &gt; 个性化键默认值合法：主宝可梦为空、台词表为空 JSON" time="0.000124042">
+        </testcase>
+    </testsuite>
+    <testsuite name="src/__tests__/tags.spec.ts" timestamp="2026-09-29T17:18:02.490Z" hostname="MacBookPro" tests="3" failures="0" errors="0" skipped="0" time="0.00489425">
+        <testcase classname="src/__tests__/tags.spec.ts" name="tags store &gt; load 一次拉齐标签与维度" time="0.002671709">
+        </testcase>
+        <testcase classname="src/__tests__/tags.spec.ts" name="tags store &gt; getters：启用维度过滤、按 key 索引、无维度标签归 topic 分组" time="0.001018542">
+        </testcase>
+        <testcase classname="src/__tests__/tags.spec.ts" name="tags store &gt; refToId：先精确维度命中，同名跨维度回落第一个同名" time="0.0003845">
+        </testcase>
+    </testsuite>
+    <testsuite name="src/__tests__/useActionToast.spec.ts" timestamp="2026-09-29T17:18:02.490Z" hostname="MacBookPro" tests="7" failures="0" errors="0" skipped="0" time="0.045349792">
+        <testcase classname="src/__tests__/useActionToast.spec.ts" name="useActionToast 动作反馈条 &gt; run 成功路径：忙位置位期间文案为提示语，fn 返回值进状态条，完成后忙位恢复" time="0.002376">
+        </testcase>
+        <testcase classname="src/__tests__/useActionToast.spec.ts" name="useActionToast 动作反馈条 &gt; run 失败路径：错误带 ❌ 前缀进状态条，忙位恢复" time="0.002035916">
+        </testcase>
+        <testcase classname="src/__tests__/useActionToast.spec.ts" name="useActionToast 动作反馈条 &gt; run 空提示语不动文案；fn 返回 void 时成功路径也不动文案" time="0.000269416">
+        </testcase>
+        <testcase classname="src/__tests__/useActionToast.spec.ts" name="useActionToast 动作反馈条 &gt; flash 默认 2000ms 后清除，自定义时长生效" time="0.00077725">
+        </testcase>
+        <testcase classname="src/__tests__/useActionToast.spec.ts" name="useActionToast 动作反馈条 &gt; flash 重复调用重置清除定时器：后设置的文案存活完整时长" time="0.00023025">
+        </testcase>
+        <testcase classname="src/__tests__/useActionToast.spec.ts" name="useActionToast 动作反馈条 &gt; 组件卸载后清理清除定时器（无泄漏）" time="0.038518667">
+        </testcase>
+        <testcase classname="src/__tests__/useActionToast.spec.ts" name="useActionToast 动作反馈条 &gt; 传入外部 msg 时与其他实例共享同一条状态条，忙位各自独立" time="0.000261417">
+        </testcase>
+    </testsuite>
+    <testsuite name="src/__tests__/useCatchScene.spec.ts" timestamp="2026-09-29T17:18:02.490Z" hostname="MacBookPro" tests="6" failures="0" errors="0" skipped="0" time="0.034924083">
+        <testcase classname="src/__tests__/useCatchScene.spec.ts" name="useCatchScene 捕捉演出 &gt; 三段式时序：prep → 掷球(hide) → land → shake(600ms) → 星星 + 收尾台词，总长 1370ms 后释放 busy" time="0.013215833">
+        </testcase>
+        <testcase classname="src/__tests__/useCatchScene.spec.ts" name="useCatchScene 捕捉演出 &gt; 演出中任意按下可跳过：不掷球不造星，直接收尾但台词仍播报" time="0.003042375">
+        </testcase>
+        <testcase classname="src/__tests__/useCatchScene.spec.ts" name="useCatchScene 捕捉演出 &gt; 非演出期 requestSkip 不生效：下一场演出照常进行（skipScene 在开场重置）" time="0.002764375">
+        </testcase>
+        <testcase classname="src/__tests__/useCatchScene.spec.ts" name="useCatchScene 捕捉演出 &gt; 连胜双球变体：左右交替三摇、14+6 双份星星、streak 台词（总长 ≤2.2s）" time="0.007357625">
+        </testcase>
+        <testcase classname="src/__tests__/useCatchScene.spec.ts" name="useCatchScene 捕捉演出 &gt; 里程碑：12 星 + 里程碑台词与语音" time="0.004675292">
+        </testcase>
+        <testcase classname="src/__tests__/useCatchScene.spec.ts" name="useCatchScene 捕捉演出 &gt; 收工（allDone）：hop 庆祝 + 语音，陪跑精灵 700ms 后离场" time="0.002372375">
+        </testcase>
+    </testsuite>
+    <testsuite name="src/__tests__/useInputResponse.spec.ts" timestamp="2026-09-29T17:18:02.491Z" hostname="MacBookPro" tests="8" failures="0" errors="0" skipped="0" time="0.007909875">
+        <testcase classname="src/__tests__/useInputResponse.spec.ts" name="useInputResponse 输入响应 &gt; 纯函数分档 &gt; bandOf：&lt;2 静默 · 2~5 轻打字 · ≥5 密集" time="0.002498125">
+        </testcase>
+        <testcase classname="src/__tests__/useInputResponse.spec.ts" name="useInputResponse 输入响应 &gt; 纯函数分档 &gt; hopScaleFor：静默恢复默认；耦合上限 +10%" time="0.000438084">
+        </testcase>
+        <testcase classname="src/__tests__/useInputResponse.spec.ts" name="useInputResponse 输入响应 &gt; 跟随反应（有冷却，互斥让路） &gt; 轻打字触发微抖，冷却内不重复（持续打字场景）" time="0.002464584">
+        </testcase>
+        <testcase classname="src/__tests__/useInputResponse.spec.ts" name="useInputResponse 输入响应 &gt; 跟随反应（有冷却，互斥让路） &gt; 密集档偶尔认真看（6s 冷却，持续打字场景）" time="0.000518917">
+        </testcase>
+        <testcase classname="src/__tests__/useInputResponse.spec.ts" name="useInputResponse 输入响应 &gt; 跟随反应（有冷却，互斥让路） &gt; 停顿 &gt;3s 后来一次哈欠/看你，再打字重置" time="0.000333583">
+        </testcase>
+        <testcase classname="src/__tests__/useInputResponse.spec.ts" name="useInputResponse 输入响应 &gt; 跟随反应（有冷却，互斥让路） &gt; 忙时（演出中）不做小反应，但节奏耦合继续" time="0.000302792">
+        </testcase>
+        <testcase classname="src/__tests__/useInputResponse.spec.ts" name="useInputResponse 输入响应 &gt; 跟随反应（有冷却，互斥让路） &gt; working 但子开关关：不耦合" time="0.000242041">
+        </testcase>
+        <testcase classname="src/__tests__/useInputResponse.spec.ts" name="useInputResponse 输入响应 &gt; 跟随反应（有冷却，互斥让路） &gt; 事件断流 &gt;1.5s 按静默处理" time="0.000236667">
+        </testcase>
+    </testsuite>
+    <testsuite name="src/__tests__/usePerch.spec.ts" timestamp="2026-09-29T17:18:02.492Z" hostname="MacBookPro" tests="3" failures="0" errors="0" skipped="0" time="0.001695667">
+        <testcase classname="src/__tests__/usePerch.spec.ts" name="usePerch 边缘栖息判定 &gt; 窗口底边贴到工作区底缘 ≤72px 判栖息" time="0.000864625">
+        </testcase>
+        <testcase classname="src/__tests__/usePerch.spec.ts" name="usePerch 边缘栖息判定 &gt; 压进任务栏区域也算栖息（拖过头松手）" time="0.000080792">
+        </testcase>
+        <testcase classname="src/__tests__/usePerch.spec.ts" name="usePerch 边缘栖息判定 &gt; 阈值可随缩放放大（物理像素判定）" time="0.000075292">
+        </testcase>
+    </testsuite>
+    <testsuite name="src/__tests__/usePetBubble.spec.ts" timestamp="2026-09-29T17:18:02.492Z" hostname="MacBookPro" tests="8" failures="0" errors="0" skipped="0" time="0.014051125">
+        <testcase classname="src/__tests__/usePetBubble.spec.ts" name="usePetBubble 瞬态台词气泡 &gt; say 后按字符数倒计时，到点渐隐 220ms 再摘除" time="0.004519125">
+            <system-err>
+[Vue warn]: onUnmounted is called when there is no active component instance to be associated with. Lifecycle injection APIs can only be used during execution of setup(). If you are using async setup(), make sure to register lifecycle hooks before the first await statement.
+
+            </system-err>
+        </testcase>
+        <testcase classname="src/__tests__/usePetBubble.spec.ts" name="usePetBubble 瞬态台词气泡 &gt; 悬停暂停倒计时，移开续走剩余时间" time="0.000718958">
+            <system-err>
+[Vue warn]: onUnmounted is called when there is no active component instance to be associated with. Lifecycle injection APIs can only be used during execution of setup(). If you are using async setup(), make sure to register lifecycle hooks before the first await statement.
+
+            </system-err>
+        </testcase>
+        <testcase classname="src/__tests__/usePetBubble.spec.ts" name="usePetBubble 瞬态台词气泡 &gt; 钉住态（提醒）与快捷屏展开期间不自动消失" time="0.000455667">
+            <system-err>
+[Vue warn]: onUnmounted is called when there is no active component instance to be associated with. Lifecycle injection APIs can only be used during execution of setup(). If you are using async setup(), make sure to register lifecycle hooks before the first await statement.
+[Vue warn]: onUnmounted is called when there is no active component instance to be associated with. Lifecycle injection APIs can only be used during execution of setup(). If you are using async setup(), make sure to register lifecycle hooks before the first await statement.
+
+            </system-err>
+        </testcase>
+        <testcase classname="src/__tests__/usePetBubble.spec.ts" name="usePetBubble 瞬态台词气泡 &gt; 点击收起：消化钉住态、回调 onDismiss 后渐隐" time="0.000487417">
+            <system-err>
+[Vue warn]: onUnmounted is called when there is no active component instance to be associated with. Lifecycle injection APIs can only be used during execution of setup(). If you are using async setup(), make sure to register lifecycle hooks before the first await statement.
+
+            </system-err>
+        </testcase>
+        <testcase classname="src/__tests__/usePetBubble.spec.ts" name="usePetBubble 瞬态台词气泡 &gt; 对话态让位：不渐隐、不收起（onDismiss 不触发）" time="0.0004405">
+            <system-err>
+[Vue warn]: onUnmounted is called when there is no active component instance to be associated with. Lifecycle injection APIs can only be used during execution of setup(). If you are using async setup(), make sure to register lifecycle hooks before the first await statement.
+
+            </system-err>
+        </testcase>
+        <testcase classname="src/__tests__/usePetBubble.spec.ts" name="usePetBubble 瞬态台词气泡 &gt; hideBubble 立即清场（含钉住态）" time="0.000317584">
+            <system-err>
+[Vue warn]: onUnmounted is called when there is no active component instance to be associated with. Lifecycle injection APIs can only be used during execution of setup(). If you are using async setup(), make sure to register lifecycle hooks before the first await statement.
+
+            </system-err>
+        </testcase>
+        <testcase classname="src/__tests__/usePetBubble.spec.ts" name="usePetBubble 瞬态台词气泡 &gt; isNew 闪三下：bubbleNew 经 rAF 置真（flashNew 供回答到达复用）" time="0.000296416">
+            <system-err>
+[Vue warn]: onUnmounted is called when there is no active component instance to be associated with. Lifecycle injection APIs can only be used during execution of setup(). If you are using async setup(), make sure to register lifecycle hooks before the first await statement.
+
+            </system-err>
+        </testcase>
+        <testcase classname="src/__tests__/usePetBubble.spec.ts" name="usePetBubble 瞬态台词气泡 &gt; unmount 清理倒计时定时器，无泄漏" time="0.006018833">
+        </testcase>
+    </testsuite>
+    <testsuite name="src/__tests__/usePetChat.spec.ts" timestamp="2026-09-29T17:18:02.494Z" hostname="MacBookPro" tests="7" failures="0" errors="0" skipped="0" time="0.02226425">
+        <testcase classname="src/__tests__/usePetChat.spec.ts" name="usePetChat AI 对话 &gt; openChat：首次问候、聚焦输入行、窗口调高到 300×480" time="0.009840291">
+            <system-err>
+[Vue warn]: useTemplateRef() is called when there is no active component instance to be associated with.
+
+            </system-err>
+        </testcase>
+        <testcase classname="src/__tests__/usePetChat.spec.ts" name="usePetChat AI 对话 &gt; openChat 互斥：演出进行中不展开；再次 openChat 不重复问候" time="0.001054042">
+            <system-err>
+[Vue warn]: useTemplateRef() is called when there is no active component instance to be associated with.
+
+            </system-err>
+        </testcase>
+        <testcase classname="src/__tests__/usePetChat.spec.ts" name="usePetChat AI 对话 &gt; 窗口高度分档：快捷屏 590 优先于对话 480；两者都收起回 330" time="0.000715875">
+            <system-err>
+[Vue warn]: useTemplateRef() is called when there is no active component instance to be associated with.
+
+            </system-err>
+        </testcase>
+        <testcase classname="src/__tests__/usePetChat.spec.ts" name="usePetChat AI 对话 &gt; sendChat 时序：思考中不再发第二条；回答到达闪 ▼ + 语音；空输入不发" time="0.001267917">
+            <system-err>
+[Vue warn]: useTemplateRef() is called when there is no active component instance to be associated with.
+
+            </system-err>
+        </testcase>
+        <testcase classname="src/__tests__/usePetChat.spec.ts" name="usePetChat AI 对话 &gt; sendChat 失败：兜底文案入列、不闪不语音、thinking 复位" time="0.002707792">
+            <system-err>
+[Vue warn]: useTemplateRef() is called when there is no active component instance to be associated with.
+
+            </system-err>
+        </testcase>
+        <testcase classname="src/__tests__/usePetChat.spec.ts" name="usePetChat AI 对话 &gt; 历史 ≤3 条：超出滚动淘汰最旧一条" time="0.002958208">
+            <system-err>
+[Vue warn]: useTemplateRef() is called when there is no active component instance to be associated with.
+
+            </system-err>
+        </testcase>
+        <testcase classname="src/__tests__/usePetChat.spec.ts" name="usePetChat AI 对话 &gt; agentConfigured：ai_agents 配置了才为真；对话域不持有定时器（无泄漏）" time="0.001511542">
+            <system-err>
+[Vue warn]: useTemplateRef() is called when there is no active component instance to be associated with.
+
+            </system-err>
+        </testcase>
+    </testsuite>
+    <testsuite name="src/__tests__/usePetClickThrough.spec.ts" timestamp="2026-09-29T17:18:02.495Z" hostname="MacBookPro" tests="7" failures="0" errors="0" skipped="0" time="0.012130792">
+        <testcase classname="src/__tests__/usePetClickThrough.spec.ts" name="usePetClickThrough 桌宠透明区点击穿透 &gt; 光标在空白处开启穿透，轮询发现回到实体内容后恢复" time="0.004979084">
+        </testcase>
+        <testcase classname="src/__tests__/usePetClickThrough.spec.ts" name="usePetClickThrough 桌宠透明区点击穿透 &gt; 回归：舞台外包装层（#app 等）不算实体内容，不阻断穿透" time="0.000685833">
+        </testcase>
+        <testcase classname="src/__tests__/usePetClickThrough.spec.ts" name="usePetClickThrough 桌宠透明区点击穿透 &gt; Teleport 到 body 的右键菜单算实体内容" time="0.000702333">
+        </testcase>
+        <testcase classname="src/__tests__/usePetClickThrough.spec.ts" name="usePetClickThrough 桌宠透明区点击穿透 &gt; 光标在实体内容上不穿透" time="0.000492458">
+        </testcase>
+        <testcase classname="src/__tests__/usePetClickThrough.spec.ts" name="usePetClickThrough 桌宠透明区点击穿透 &gt; 按住鼠标（拖拽窗口期）不开启穿透" time="0.000320916">
+        </testcase>
+        <testcase classname="src/__tests__/usePetClickThrough.spec.ts" name="usePetClickThrough 桌宠透明区点击穿透 &gt; 卸载时恢复接收事件并停轮询" time="0.001449125">
+        </testcase>
+        <testcase classname="src/__tests__/usePetClickThrough.spec.ts" name="usePetClickThrough 桌宠透明区点击穿透 &gt; 轮询换算坐标基于窗口位置与缩放（高分屏 factor=2）" time="0.002386541">
+        </testcase>
+    </testsuite>
+    <testsuite name="src/__tests__/usePetIdle.spec.ts" timestamp="2026-09-29T17:18:02.495Z" hostname="MacBookPro" tests="5" failures="0" errors="0" skipped="0" time="0.006108917">
+        <testcase classname="src/__tests__/usePetIdle.spec.ts" name="usePetIdle 生命感调度器 &gt; 空闲态按随机间隔派发微动作，且同一时间只有一个" time="0.003349416">
+        </testcase>
+        <testcase classname="src/__tests__/usePetIdle.spec.ts" name="usePetIdle 生命感调度器 &gt; working 态只派发眨眼（专注时不打扰）" time="0.000580041">
+        </testcase>
+        <testcase classname="src/__tests__/usePetIdle.spec.ts" name="usePetIdle 生命感调度器 &gt; 忙时跳过但不中断调度" time="0.000716667">
+        </testcase>
+        <testcase classname="src/__tests__/usePetIdle.spec.ts" name="usePetIdle 生命感调度器 &gt; 减弱动效时调度器不启动" time="0.000370208">
+        </testcase>
+        <testcase classname="src/__tests__/usePetIdle.spec.ts" name="usePetIdle 生命感调度器 &gt; motionReduced 跟随 html.reduce-motion 类" time="0.000295834">
+        </testcase>
+    </testsuite>
+    <testsuite name="src/__tests__/usePromptEditor.spec.ts" timestamp="2026-09-29T17:18:02.495Z" hostname="MacBookPro" tests="18" failures="0" errors="0" skipped="0" time="0.025846208">
+        <testcase classname="src/__tests__/usePromptEditor.spec.ts" name="usePromptEditor 装载与三态映射 &gt; 装载成功后面板按目录顺序就绪，loading 复位，无错误" time="0.003568083">
+        </testcase>
+        <testcase classname="src/__tests__/usePromptEditor.spec.ts" name="usePromptEditor 装载与三态映射 &gt; 三态映射：default 生效文本=内置默认；custom 生效文本=覆盖原文并标记有覆盖" time="0.000636875">
+        </testcase>
+        <testcase classname="src/__tests__/usePromptEditor.spec.ts" name="usePromptEditor 装载与三态映射 &gt; default_warned 生效文本回落内置默认，但编辑预填覆盖原文供修复" time="0.000355666">
+        </testcase>
+        <testcase classname="src/__tests__/usePromptEditor.spec.ts" name="usePromptEditor 装载与三态映射 &gt; 装载失败：loadError 呈现原始错误文本，面板清空；重试成功后恢复" time="0.000819125">
+        </testcase>
+        <testcase classname="src/__tests__/usePromptEditor.spec.ts" name="usePromptEditor 编辑缓冲与脏检查 &gt; 进入编辑：预填覆盖原文（无覆盖时预填内置默认），初始不脏；修改后脏" time="0.000397541">
+        </testcase>
+        <testcase classname="src/__tests__/usePromptEditor.spec.ts" name="usePromptEditor 编辑缓冲与脏检查 &gt; 取消编辑：退出编辑态、丢弃缓冲、回看已保存状态" time="0.000286125">
+        </testcase>
+        <testcase classname="src/__tests__/usePromptEditor.spec.ts" name="usePromptEditor 编辑缓冲与脏检查 &gt; 派发只读面板 startEdit 是 no-op（安全结构不可编辑）" time="0.000203833">
+        </testcase>
+        <testcase classname="src/__tests__/usePromptEditor.spec.ts" name="usePromptEditor 前端预校验 &gt; 缺少必要占位符：列出全部缺失名（阻断级，保存禁用）" time="0.000556208">
+        </testcase>
+        <testcase classname="src/__tests__/usePromptEditor.spec.ts" name="usePromptEditor 前端预校验 &gt; 超长：字符数按 code point 计（[...str] 口径），超限阻断" time="0.000858833">
+        </testcase>
+        <testcase classname="src/__tests__/usePromptEditor.spec.ts" name="usePromptEditor 前端预校验 &gt; 空白与同默认是中性预告（不阻断保存）" time="0.000442208">
+        </testcase>
+        <testcase classname="src/__tests__/usePromptEditor.spec.ts" name="usePromptEditor 前端预校验 &gt; 分级映射：missing/overlong/saveFailed 阻断红、unknown 警告黄、blank/sameDefault 中性" time="0.000178416">
+        </testcase>
+        <testcase classname="src/__tests__/usePromptEditor.spec.ts" name="usePromptEditor 保存与恢复状态机 &gt; 保存成功：以响应 spec 直接替换面板数据（前端零推导），退出编辑并留 4s 提示" time="0.001593166">
+        </testcase>
+        <testcase classname="src/__tests__/usePromptEditor.spec.ts" name="usePromptEditor 保存与恢复状态机 &gt; 保存失败：编辑态与缓冲保留，后端 Invalid 文案进校验区，修正后可再存" time="0.003186833">
+        </testcase>
+        <testcase classname="src/__tests__/usePromptEditor.spec.ts" name="usePromptEditor 保存与恢复状态机 &gt; 阻断级校验未过时 save 直接拒绝，不发起后端调用" time="0.000416791">
+        </testcase>
+        <testcase classname="src/__tests__/usePromptEditor.spec.ts" name="usePromptEditor 保存与恢复状态机 &gt; 空白保存走同一保存路径（= 恢复默认语义）" time="0.000274542">
+        </testcase>
+        <testcase classname="src/__tests__/usePromptEditor.spec.ts" name="usePromptEditor 保存与恢复状态机 &gt; 恢复默认两步：确认后经 save(key, &quot;&quot;) 删行，spec 回 default 并提示" time="0.000411167">
+        </testcase>
+        <testcase classname="src/__tests__/usePromptEditor.spec.ts" name="usePromptEditor 保存与恢复状态机 &gt; 恢复失败（后端拒绝）：确认条保持，错误文案可见" time="0.000290167">
+        </testcase>
+        <testcase classname="src/__tests__/usePromptEditor.spec.ts" name="usePromptEditor 提示行生命周期 &gt; 组件卸载后清理 4s 提示定时器（无泄漏）" time="0.010352">
+        </testcase>
+    </testsuite>
+    <testsuite name="src/__tests__/useTimeLines.spec.ts" timestamp="2026-09-29T17:18:02.497Z" hostname="MacBookPro" tests="5" failures="0" errors="0" skipped="0" time="0.003318958">
+        <testcase classname="src/__tests__/useTimeLines.spec.ts" name="useTimeLines 时刻台词 &gt; 工作时段（9~18 点）eligible 整点台词" time="0.001818708">
+        </testcase>
+        <testcase classname="src/__tests__/useTimeLines.spec.ts" name="useTimeLines 时刻台词 &gt; 深夜（≥23 点或 &lt;5 点）eligible 深夜台词" time="0.000136958">
+        </testcase>
+        <testcase classname="src/__tests__/useTimeLines.spec.ts" name="useTimeLines 时刻台词 &gt; 周五 18 点后 eligible 周五晚台词（18 点前还是整点台词）" time="0.000096292">
+        </testcase>
+        <testcase classname="src/__tests__/useTimeLines.spec.ts" name="useTimeLines 时刻台词 &gt; 精灵生日优先级最高（即使撞上深夜时段）" time="0.000082291">
+        </testcase>
+        <testcase classname="src/__tests__/useTimeLines.spec.ts" name="useTimeLines 时刻台词 &gt; 去重键：整点按小时分桶，其余按天" time="0.000432417">
+        </testcase>
+    </testsuite>
+</testsuites>

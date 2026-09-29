@@ -20,5 +20,6 @@ pub use auto::*;
 pub(crate) use cmdline::*;
 pub use exec::*;
 pub use meta::*;
+pub(crate) use prompt::dispatch_prompt_example;
 pub use route::*;
 pub use state::*;

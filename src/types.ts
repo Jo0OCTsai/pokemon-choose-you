@@ -423,6 +423,37 @@ export interface DispatchResult {
   state: string;
 }
 
+/** AI 提示词生效来源（后端解析器产出；查看面与调用面同一函数，状态展示与实际生效按构造一致） */
+export type PromptSource = "default" | "custom" | "default_warned";
+
+/** 单个 AI 功能的提示词视图（list_ai_prompt_specs 载荷；dispatch 项 editable=false、storageKey=null） */
+export interface PromptSpecInfo {
+  /** 功能标识：im_classify / capture / pet_chat / tag_health / dispatch（前端据此映射 i18n 名称） */
+  id: string;
+  /** 覆盖存储键（settings 表 ai_prompt_*；dispatch 为 null） */
+  storageKey: string | null;
+  editable: boolean;
+  /** 当前版本编译内置默认全文（dispatch = 示例渲染） */
+  defaultText: string;
+  /** 必要占位符 token 字面量（tag_health 为空集；dispatch 不适用） */
+  requiredPlaceholders: string[];
+  /** 长度上限（Unicode code points；后端最终权威） */
+  lengthLimit: number;
+  /** 已存覆盖原文（default_warned 时也回传供修复；未存为 null） */
+  overrideText: string | null;
+  source: PromptSource;
+  /** 仅 default_warned 非空 */
+  missingPlaceholders: string[];
+  /** 仅 default_warned 可为 true */
+  overlong: boolean;
+}
+
+/** save_ai_prompt 成功响应：保存后的完整最新状态（前端直接替换面板数据、零推导）+ 未知占位符警告（非阻断） */
+export interface SavePromptResult {
+  spec: PromptSpecInfo;
+  unknownPlaceholders: string[];
+}
+
 /** 标签体检（复盘向导）：相似度预筛 + 僵尸标签 + LLM 复核与新维度建议 */
 export interface TagCheckupReport {
   merges: {

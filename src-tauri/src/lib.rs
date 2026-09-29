@@ -172,6 +172,8 @@ pub fn run() {
             commands::get_setting,
             commands::set_setting,
             commands::list_all_settings,
+            commands::list_ai_prompt_specs,
+            commands::save_ai_prompt,
             commands::list_chat_messages,
             commands::accept_chat_message,
             commands::dismiss_chat_message,
