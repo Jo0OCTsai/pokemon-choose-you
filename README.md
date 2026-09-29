@@ -2,6 +2,8 @@
 
 [![CI](https://github.com/Jo0OCTsai/pokemon-choose-you/actions/workflows/ci.yml/badge.svg)](https://github.com/Jo0OCTsai/pokemon-choose-you/actions/workflows/ci.yml)
 [![Release](https://github.com/Jo0OCTsai/pokemon-choose-you/actions/workflows/release.yml/badge.svg)](https://github.com/Jo0OCTsai/pokemon-choose-you/actions/workflows/release.yml)
+[![codecov frontend](https://codecov.io/gh/Jo0OCTsai/pokemon-choose-you/branch/main/graph/badge.svg?flag=frontend)](https://codecov.io/gh/Jo0OCTsai/pokemon-choose-you/tree/main/src)
+[![codecov rust](https://codecov.io/gh/Jo0OCTsai/pokemon-choose-you/branch/main/graph/badge.svg?flag=rust)](https://codecov.io/gh/Jo0OCTsai/pokemon-choose-you/tree/main/src-tauri)
 
 一只宝可梦桌宠，陪你捕捉每一天的待办。跨平台（macOS / Windows / Linux），本地优先，轻量常驻，注意力友好。
 
