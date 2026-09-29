@@ -20,6 +20,16 @@
 - macos 载体：lint-gate / pre-commit 在宿主 shell 执行（依赖工具经 host-bootstrap dev-tools 模块供给——
   `host-setup.sh check` 体检；python3 来自 Xcode CLT）
 
+## 分支与 Worktree 约定
+
+- 分支模型：短生命周期 feature 分支（GitHub Flow 风格），命名 `<type>/<desc>`（feat / fix / chore…）；
+  合并用 squash 保线性历史；main 分支保护（require PR + status checks + linear history）为平台侧手动配置
+- 提交信息：Conventional Commits（`feat(scope): xxx`；lefthook commit-msg 跑 commitlint 本地校验 + CI 兜底）
+- 功能开发隔离用 worktree：用 `create-repo-worktree` 技能（放置分流 sibling/容器 `.worktrees/`、
+  运行时隔离、清理规范见该技能，此处不复制）；服务与栈配置单源 = `.devcontainer/stack.json` `services[]`
+- worktree 并行端口策略：与主仓 dev server（Tauri/vite 1420）错开（固定偏移 + strictPort，
+  见 create-repo-worktree「运行时隔离」节）
+
 ## 模块不变量
 
 - `src/` —— 前端 Vue 3（views / stores / composables）：composable 必须配套 `__tests__/useXxx.spec.ts`、

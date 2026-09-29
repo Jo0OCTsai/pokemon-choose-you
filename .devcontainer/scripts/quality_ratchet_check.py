@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""质量棘轮守卫（通用版，carrier 模板分发；源流：devcontainer-settings 仓库守卫 2026-09-26 批次）。
+"""质量棘轮守卫（通用版，carrier 模板分发；源流：dev-env-settings 仓库守卫 2026-09-26 批次）。
 
 复杂度与覆盖率阈值只紧不松——对准 AI 屎山（迭代残留 + 过度清理）的机检兜底。
 
@@ -13,9 +13,12 @@
      <svc>/pyproject.toml fail_under / <svc>/vite.config.ts 四阈值）——发现到的声明须彼此一致，
      且 ≥ 基线 coverage_floor（声明下调即红）；上调后 --prune 抬升地板（只抬不降）。
      未发现任何声明且地板 > 0 = 失败（地板悬空）；两者皆无 = 提示可选接入
-  ③ 代码卫生棘轮：git 跟踪的源码文件计数 TODO/FIXME（全仓）与 unsafe 块（rust 源码），
-     与基线 hygiene 段比对——超基线即红（存量债先还或入账），下降后 --prune 收缩（只降不升）。
-     基线无 hygiene 段 = 未启用（提示可选接入）；键缺省 0（新增键从严）
+  ③ 代码卫生棘轮（2026-09-28 pokemon-choose-you 消费侧实践回流，rust 目录经 stack.json 泛化）：
+     git 跟踪的源码文件计数 TODO/FIXME（全仓）与 unsafe 块（rust 源码），rust 服务另计
+     pub API missing_docs 告警（cargo rustc -W missing_docs，服务目录取自 stack.json；
+     无 rust 服务 / cargo 不可用 / 编译失败 = 0 计）——与基线 hygiene 段比对：超基线即红
+     （存量债先还或入账），下降后 --prune 收缩（只降不升）。基线无 hygiene 段 = 未启用
+     （提示可选接入；接入 = 基线加空 "hygiene": {} 后跑 --bootstrap 建账）；键缺省 0（新增键从严）
 
 落位：<项目根>/.devcontainer/scripts/（读 ../stack.json；python3 标准库，零三方依赖）。
 
@@ -283,7 +286,37 @@ def git_tracked_sources() -> list[Path]:
     ]
 
 
-def scan_hygiene() -> dict[str, int]:
+def rust_service_dirs(services: list[dict], root: Path = ROOT) -> list[Path]:
+    """stack.json services[] 的 rust 服务目录（missing_docs 的扫描落点；纯函数供 selftest）。"""
+    return [root / s["dir"] for s in services if s["stack"] == "rust"]
+
+
+def count_missing_docs(rust_dirs: list[Path]) -> int:
+    """rust 服务 pub API 文档缺失告警数（各 rust 服务目录求和）。crate 不挂 #![warn]（会被
+    clippy -D warnings 硬升 error 且 crate 属性优先于命令行 -A），由本检查显式 -W 开启；
+    独立 target 目录隔离 fingerprint（首次全量后增量秒级，不污染主编译缓存）。
+    无 rust 服务 / cargo 不可用 / 编译失败 = 0 计。"""
+    if not rust_dirs or shutil.which("cargo") is None:
+        return 0
+    total = 0
+    for d in rust_dirs:
+        out = subprocess.run(
+            ["cargo", "rustc", "--lib", "--message-format=short", "--", "-W", "missing_docs"],
+            cwd=d,
+            capture_output=True,
+            text=True,
+            check=False,
+            env={**os.environ, "CARGO_TARGET_DIR": "target/ratchet"},
+        )
+        total += sum(
+            1
+            for line in (out.stdout + out.stderr).splitlines()
+            if "missing documentation" in line and "warning" in line
+        )
+    return total
+
+
+def scan_hygiene(services: list[dict]) -> dict[str, int]:
     counts = {"todo": 0, "rust_unsafe": 0, "missing_docs": 0}
     for path in git_tracked_sources():
         try:
@@ -293,27 +326,8 @@ def scan_hygiene() -> dict[str, int]:
         counts["todo"] += len(RE_TODO.findall(text))
         if path.suffix == ".rs":
             counts["rust_unsafe"] += len(RE_UNSAFE.findall(text))
-    counts["missing_docs"] = count_missing_docs()
+    counts["missing_docs"] = count_missing_docs(rust_service_dirs(services))
     return counts
-
-
-def count_missing_docs() -> int:
-    """rust 服务 pub API 文档缺失告警数。crate 不挂 #![warn]（会被 clippy -D warnings 硬升
-    error 且 crate 属性优先于命令行 -A），由本检查显式 -W 开启；独立 target 目录隔离
-    fingerprint（首次全量后增量秒级，不污染主编译缓存）。编译失败 / cargo 不可用 = 0 计。"""
-    out = subprocess.run(
-        ["cargo", "rustc", "--lib", "--message-format=short", "--", "-W", "missing_docs"],
-        cwd=ROOT / "src-tauri",
-        capture_output=True,
-        text=True,
-        check=False,
-        env={**os.environ, "CARGO_TARGET_DIR": "target/ratchet"},
-    )
-    return sum(
-        1
-        for line in (out.stdout + out.stderr).splitlines()
-        if "missing documentation" in line and "warning" in line
-    )
 
 
 def compare_hygiene(counts: dict[str, int], baseline: dict[str, int]) -> tuple[list[str], list[str]]:
@@ -339,7 +353,8 @@ def run_checks(only_service: str | None) -> tuple[list[str], list[str], dict]:
     notes: list[str] = []
     scanned: dict[str, dict[str, int]] = {}
     declared_by_service: dict[str, int] = {}
-    for svc in services_from_stack():
+    services = services_from_stack()
+    for svc in services:
         if only_service and svc["name"] != only_service:
             continue
         spots = discover_coverage_spots(svc)
@@ -360,12 +375,13 @@ def run_checks(only_service: str | None) -> tuple[list[str], list[str], dict]:
         f, s = compare_complexity(svc["name"], counts, baseline["complexity"].get(svc["name"], {}))
         failures += f
         notes += s
+    # ③ 全仓口径（不随 --service 收窄）：CI 每 matrix job 各跑一遍全仓卫生，幂等
     hygiene_baseline = baseline.get("hygiene")
     ctx_hygiene: dict[str, int] | None = None
     if hygiene_baseline is None:
-        notes.append("SKIP: ③ 代码卫生未入账（可选接入：基线加 hygiene 段后生效）")
+        notes.append("SKIP: ③ 代码卫生未入账（可选接入：基线加空 \"hygiene\": {} 后跑 --bootstrap 建账）")
     else:
-        hygiene_counts = scan_hygiene()
+        hygiene_counts = scan_hygiene(services)
         f, n = compare_hygiene(hygiene_counts, hygiene_baseline)
         failures += f
         notes += n
@@ -399,13 +415,20 @@ def bootstrap(only_service: str | None) -> int:
 
     仅当该服务复杂度基线为空时允许——bootstrap 不是 prune 的宽松版，
     重开账 = 塞债通道（确需重建：手改 baseline 并在项目 debt/决策记录留档）。
-    覆盖率地板复用 prune 口径（声明值抬升）。tolerate 的失败仅限
-    「新增复杂度违规 / 回涨」（对空基线这是建账前的预期输出），其余照常拒绝。
+    覆盖率地板复用 prune 口径（声明值抬升）。③ 卫生段采纳同语义：基线含空 hygiene 段
+    （{} = 采纳意图）时物化当前计数，非空 hygiene 段不重开账。tolerate 的失败仅限
+    「新增复杂度违规 / 回涨」与空 hygiene 段采纳期的「③ 超基线」（对空基线这是
+    建账前的预期输出），其余照常拒绝。
     """
     failures, _notes, ctx = run_checks(only_service)
     baseline = ctx["baseline"]
+    hygiene_adopting = baseline.get("hygiene") == {}
     blocked = [s for s in ctx["scanned"] if baseline["complexity"].get(s)]
-    real_failures = [f for f in failures if ("新增复杂度违规" not in f and "回涨" not in f)]
+    real_failures = [
+        f for f in failures
+        if ("新增复杂度违规" not in f and "回涨" not in f
+            and not (hygiene_adopting and f.startswith("③ ")))
+    ]
     if blocked or real_failures:
         print("quality ratchet bootstrap 拒绝:", file=sys.stderr)
         for s in blocked:
@@ -417,9 +440,12 @@ def bootstrap(only_service: str | None) -> int:
         baseline["complexity"][svc] = dict(sorted(counts.items()))
     for svc, declared in ctx["declared"].items():
         baseline["coverage_floor"][svc] = prune_floor(baseline["coverage_floor"].get(svc, 0), declared)
+    if hygiene_adopting and ctx["hygiene"] is not None:
+        baseline["hygiene"] = dict(sorted(ctx["hygiene"].items()))
     (ROOT / BASELINE_REL).write_text(json.dumps(baseline, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
     names = ", ".join(ctx["scanned"]) or "无（检查扫描是否可用）"
-    print(f"quality ratchet baseline bootstrapped → {BASELINE_REL}（服务: {names}）")
+    suffix = "；hygiene 段已建账" if hygiene_adopting and ctx["hygiene"] is not None else ""
+    print(f"quality ratchet baseline bootstrapped → {BASELINE_REL}（服务: {names}{suffix}）")
     return 0
 
 
@@ -466,6 +492,13 @@ def run_selftest() -> int:
     case("卫生键缺省从严（todo 无基线=0，非零即红）", any("todo" in x for x in f), str(f))
     f, _ = compare_hygiene({"todo": 0, "rust_unsafe": 4}, {"rust_unsafe": 4})
     case("卫生缺省键为 0 合规", not f, str(f))
+
+    case("TODO 正则命中且不误伤复数", RE_TODO.findall("// TODO fix / see FIXME / todos") == ["TODO", "FIXME"])
+    case("unsafe 正则命中块/impl/fn 且不误伤标识符", RE_UNSAFE.findall("unsafe { } unsafe impl {} unsafe fn x() unsafe_mode") ==
+         ["unsafe {", "unsafe impl", "unsafe fn"])
+    case("rust 服务目录推导（stack.json 泛化；非 rust 不入）",
+         rust_service_dirs([{"dir": ".", "stack": "node-pnpm"}, {"dir": "src-tauri", "stack": "rust"}], root=Path("/repo"))
+         == [Path("/repo/src-tauri")])
 
     m = RE_VITE_THRESHOLDS.search("thresholds: { lines: 90, branches: 90, functions: 90, statements: 90 },")
     case("vite 四阈值解析", bool(m) and len(set(m.groups())) == 1, str(m and m.groups()))
@@ -532,7 +565,7 @@ def main() -> int:
         print("quality ratchet check failed:", file=sys.stderr)
         for f in failures:
             print(f"- {f}", file=sys.stderr)
-        print("→ 修复方向：复杂度违规改代码；覆盖率阈值对齐声明面；"
+        print("→ 修复方向：复杂度/卫生违规改代码（存量债走建账入账）；覆盖率阈值对齐声明面；"
               "收紧后的新地板用 --prune 回写基线（只紧不松）", file=sys.stderr)
         return 1
     for n in notes:
