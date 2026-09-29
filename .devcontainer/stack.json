@@ -7,7 +7,7 @@
       "dir": ".",
       "stack": "node-pnpm",
       "lint_fix": "pnpm exec eslint --fix '{file}' && pnpm exec prettier --write '{file}'",
-      "lint_check": "pnpm exec eslint . && pnpm exec prettier --check .",
+      "lint_check": "pnpm exec eslint . && pnpm exec prettier --check . && pnpm exec vue-tsc --noEmit",
       "test_cmd": "pnpm test",
       "dev_cmd": "pnpm dev",
       "port": 1420
