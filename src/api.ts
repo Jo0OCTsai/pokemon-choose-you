@@ -239,10 +239,10 @@ export const api = {
     call<LogEntry[]>("list_log_entries", { tail: tail ?? null, minLevel: minLevel ?? null }),
   /** 生成支持报告：版本 + 健康快照 + 最近日志（后端已脱敏） */
   buildSupportReport: () => call<string>("build_support_report"),
-  createCategory: (name: string, pokemon: string, sprite: string) =>
-    call<Category>("create_category", { name, pokemon, sprite }),
-  updateCategory: (id: number, name: string, pokemon: string, sprite: string) =>
-    call<void>("update_category", { id, name, pokemon, sprite }),
+  createCategory: (name: string, pokemon: string, sprite: string, description: string) =>
+    call<Category>("create_category", { name, pokemon, sprite, description }),
+  updateCategory: (id: number, name: string, pokemon: string, sprite: string, description: string) =>
+    call<void>("update_category", { id, name, pokemon, sprite, description }),
   deleteCategory: (id: number) => call<void>("delete_category", { id }),
   /** 连胜天数（连续有捕捉的日历日，含一个宽容日）+ 今日已捕捉数 */
   taskStreak: () => call<{ days: number; todayCount: number }>("task_streak"),

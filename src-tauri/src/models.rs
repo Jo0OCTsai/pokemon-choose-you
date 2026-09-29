@@ -59,6 +59,9 @@ pub struct Category {
     /// 停用后不出现在新建/编辑与 AI 分类选项中，已有任务不受影响
     #[serde(default = "default_true")]
     pub enabled: bool,
+    /// 判定提示（喂给 AI 的 pk context；空串 = 无提示，老载荷缺字段时同）
+    #[serde(default)]
+    pub description: String,
 }
 
 fn default_true() -> bool {
@@ -349,17 +352,19 @@ mod tests {
             pokemon: "皮卡丘".into(),
             sprite: "pikachu".into(),
             enabled: true,
+            description: "职业与产出相关的任务".into(),
         };
         assert_eq!(
             keys_of(serde_json::to_value(&c).unwrap()),
-            vec!["enabled", "id", "name", "pokemon", "sprite"]
+            vec!["description", "enabled", "id", "name", "pokemon", "sprite"]
         );
-        // enabled 缺失时容忍（老载荷按启用处理）
+        // enabled / description 缺失时容忍（老载荷：按启用、无描述处理）
         let old: Category = serde_json::from_value(serde_json::json!({
             "id": 1, "name": "工作", "pokemon": "皮卡丘", "sprite": "pikachu"
         }))
         .unwrap();
         assert!(old.enabled);
+        assert_eq!(old.description, "");
     }
 
     #[test]

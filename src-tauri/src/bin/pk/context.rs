@@ -25,7 +25,7 @@ pub(crate) fn run_context(conn: &Connection) -> Result<serde_json::Value, CliErr
         .map_err(db_err)?
         .into_iter()
         .filter(|c| c.enabled)
-        .map(|c| json!({ "id": c.id, "name": c.name }))
+        .map(|c| json!({ "id": c.id, "name": c.name, "description": c.description }))
         .collect::<Vec<_>>();
     let tag_list = tags::list_tags_conn(conn)
         .map_err(db_err)?
