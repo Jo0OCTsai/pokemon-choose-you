@@ -107,12 +107,12 @@ onMounted(load);
         <button
           v-for="f in ['all', 'radio', 'dispatch', 'other'] as const"
           :key="f"
-          class="chip"
+          class="filter-chip"
           :class="{ on: filter === f }"
           type="button"
           @click="setFilter(f)"
         >
-          <span class="cursor">▶</span>{{ t(`sess.filter_${f}`) }}<span class="chip-n">{{ counts[f] }}</span>
+          <span class="cursor">▶</span>{{ t(`sess.filter_${f}`) }}<span class="count">{{ counts[f] }}</span>
         </button>
       </div>
       <button class="btn ghost" type="button" :disabled="loading" @click="load">
@@ -183,53 +183,7 @@ onMounted(load);
   gap: 6px;
   flex-wrap: wrap;
 }
-/* 过滤 chips：与任务页 .dex-filter（全部/已捕捉/已逃走）同一套图鉴控件语言——navy 描边硬阴影 + ▶ 光标 + 黄色选中 */
-.chip {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  border: 3px solid var(--dex-navy);
-  border-radius: 8px;
-  background: var(--dex-body);
-  color: var(--dex-navy);
-  font-size: 13px;
-  font-weight: 700;
-  font-family: inherit;
-  padding: 6px 12px;
-  min-height: 38px;
-  cursor: pointer;
-  box-shadow: 3px 3px 0 var(--dex-navy);
-  transition:
-    transform var(--t-tap),
-    box-shadow var(--t-tap),
-    background var(--t-tap);
-}
-.chip .cursor {
-  width: 10px;
-  flex: none;
-  opacity: 0;
-  font-size: 10px;
-}
-.chip.on {
-  background: var(--poke-yellow);
-}
-.chip.on .cursor {
-  opacity: 1;
-}
-.chip:hover {
-  background: var(--hover);
-}
-.chip.on:hover {
-  background: var(--poke-yellow);
-}
-.chip:active {
-  transform: translate(2px, 2px);
-  box-shadow: 1px 1px 0 var(--dex-navy);
-}
-.chip-n {
-  opacity: 0.6;
-  font-size: 11px;
-}
+/* 过滤件样式 = 全局 .filter-chip（dex.css 公共控件语言，与任务页图鉴筛选一致） */
 .sess-empty {
   color: var(--ink-soft);
   text-align: center;
