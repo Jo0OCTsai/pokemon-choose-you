@@ -42,7 +42,7 @@ fn render_messages(batch: &[AiMessage]) -> String {
 /// tools 模式系统提示词：判定规则与 SYSTEM_PROMPT 一致，但结果经 pk 工具写回数据库。
 /// 判重上下文（待办清单/分类/标签）由 agent 自行 `pk context` 获取；
 /// <AGENT_ID> 占位符替换为该 agent 的 id（pk 侧记录建议来源）。
-const TOOLS_SYSTEM_PROMPT: &str = r#"你是待办事项提取助手，通过 pk 命令行工具工作。给你一组 IM 消息（含来源、发送者、内容与同会话上下文），找出其中隐含的、需要用户本人行动的待办事项、承诺、或对方希望你完成/参加的事情，并把判定结果用 pk 工具写回数据库。
+pub(crate) const TOOLS_SYSTEM_PROMPT: &str = r#"你是待办事项提取助手，通过 pk 命令行工具工作。给你一组 IM 消息（含来源、发送者、内容与同会话上下文），找出其中隐含的、需要用户本人行动的待办事项、承诺、或对方希望你完成/参加的事情，并把判定结果用 pk 工具写回数据库。
 规则：
 - 每条消息带「来源」标签：单聊是对方直接对你说的，语气常更直接；「与机器人的私聊」是用户发给助手 bot 的，是用户给自己记的备忘/指令，同样要提取。上下文里标注为「我」的是用户自己说的话，只用于理解指代与时间，不是待办来源。
 - 人名已代号化：消息内容、发送者与上下文里的真实姓名都已替换成稳定代号（如 成员_a1b2），同一代号始终是同一人；「我」/「@我」指用户本人。不要猜测或还原真实姓名，生成 title/note/reason 时沿用原文代号（保存前会自动还原成真实姓名）。群聊名不代号化：来源标签里的群名就是真实群名，可直接引用。
@@ -76,15 +76,18 @@ const TOOLS_SYSTEM_PROMPT: &str = r#"你是待办事项提取助手，通过 pk 
 4. 输出含 "submitted" 即成功，回复一行总结即可。校验失败会报明第几条、什么问题——修正后整批重试，已提示「已人工确认」的消息剔除即可。
 禁止：不要用 pk task create 直接建任务（分类结果的出口是 pk suggest，用户需要确认后生效）；不要输出 JSON 建议文本；不要编造消息 id 或待办 id。"#;
 
-/// tools 模式提示词：规则 + 消息列表（无判重上下文，agent 自行 pk context）
-pub(crate) fn build_tools_prompt(agent: &AgentConfig, batch: &[AiMessage]) -> String {
-    format!("{TOOLS_SYSTEM_PROMPT}\n\n{}", render_messages(batch)).replace("<AGENT_ID>", &agent.id)
+/// tools 模式提示词：规则 + 消息列表（无判重上下文，agent 自行 pk context）。
+/// system 由调用方先行解析（覆盖 → 可用性校验 → 回落默认，见 prompt_overrides）；
+/// `<AGENT_ID>` 替换在拼接后的整串上做（保留现状边界行为——与 pet_chat 的单遍
+/// render_template 是有意的不对称，前者为兼容既有行为，后者为新占位符协议）
+pub(crate) fn build_tools_prompt(system: &str, agent: &AgentConfig, batch: &[AiMessage]) -> String {
+    format!("{system}\n\n{}", render_messages(batch)).replace("<AGENT_ID>", &agent.id)
 }
 
 /// 快速捕捉提示词：输入是用户在收音机手动敲的一条自然语言待办，判定结构化属性。
 /// 与 IM 分类共用字段协议与 pk 出口，但语义不同——用户自己记的待办不存在
 /// 「是不是给我的任务」的归属判断，默认 action=todo，重点在抽字段与判重。
-const CAPTURE_SYSTEM_PROMPT: &str = r#"你是待办事项录入助手，通过 pk 命令行工具工作。用户在应用里手动输入了一条自然语言快速捕捉（自己要做的待办），把它的结构化属性判定出来，并用 pk 工具写回数据库。
+pub(crate) const CAPTURE_SYSTEM_PROMPT: &str = r#"你是待办事项录入助手，通过 pk 命令行工具工作。用户在应用里手动输入了一条自然语言快速捕捉（自己要做的待办），把它的结构化属性判定出来，并用 pk 工具写回数据库。
 规则：
 - 输入一定是用户要为自己创建的待办：默认 action="todo"，不要判断任务归属，不要因为内容像闲聊而判 none。
 - 人名已代号化：输入里的真实姓名已替换成稳定代号（如 成员_a1b2），生成 title/note 时沿用代号，不要还原或猜测真实姓名。
@@ -110,14 +113,34 @@ const CAPTURE_SYSTEM_PROMPT: &str = r#"你是待办事项录入助手，通过 p
 4. 输出含 "submitted" 即成功，回复一行总结即可。校验失败会报明问题——修正后重试。
 禁止：不要用 pk task create 直接建任务（录入结果的出口是 pk suggest，用户确认后生效）；不要输出 JSON 建议文本；不要编造消息 id 或待办 id。"#;
 
-/// 快速捕捉提示词：规则 + 单条输入（sender 恒为用户本人，无同会话上下文）
-pub(crate) fn build_capture_prompt(agent: &AgentConfig, input: &AiMessage) -> String {
+/// 快速捕捉提示词：规则 + 单条输入（sender 恒为用户本人，无同会话上下文）。
+/// system 语义同 build_tools_prompt（调用方解析后传入）
+pub(crate) fn build_capture_prompt(system: &str, agent: &AgentConfig, input: &AiMessage) -> String {
     format!(
-        "{CAPTURE_SYSTEM_PROMPT}\n\n{}",
+        "{system}\n\n{}",
         render_messages(std::slice::from_ref(input))
     )
     .replace("<AGENT_ID>", &agent.id)
 }
+
+/// 桌宠对话系统提示词（pet_chat）：行为规则 + 上下文/提问两个动态注入点。
+/// 自 pet.rs 的 format! 内联文本迁入（文案逐字节不变，仅 {ctx}/{q} 改为
+/// <CONTEXT>/<QUESTION> 占位符）；拼装走 prompt_overrides::render_template
+/// （单遍替换、与 format! 语义一致——无覆盖时输出与迁移前逐字节相同，
+/// pet.rs 既有 stdin 断言测试是锚点）。
+pub(crate) const PET_CHAT_SYSTEM_PROMPT: &str =
+    "你是一只桌面宝可梦桌宠，训练家正在问你任务的情况。规则：\
+1. 用与提问相同的语言回答，最多两句话，不用 Markdown 列表和标题；\
+2. 语气是陪伴、鼓励，永远不指责、不催促、不说教；\
+3. 只聊任务/图鉴/专注这些应用内的话题，别的话题温柔拉回；\
+4. 你不能执行任何操作，涉及操作就建议训练家去主面板确认；\
+5. 词汇表：完成任务=捕捉，取消=逃走，待办收件箱=草丛，日程=路线，已完成列表=图鉴，用户=训练家。\n\
+当前上下文：\n<CONTEXT>\n训练家问：<QUESTION>";
+
+/// 标签治理系统提示词（tag_health）：LLM 复核的指令正文，含尾部「词表：\n」框架，
+/// 词表行与候选对由 tag_health.rs 代码追加（必要占位符为空集，无动态注入点）。
+/// 自 tag_health.rs 内联文本迁入，文案逐字节不变。
+pub(crate) const TAG_HEALTH_SYSTEM_PROMPT: &str = "你是待办应用的标签词表治理助手。下面是当前标签词表（按维度分组，含使用次数）与一组「近义合并候选对」（本地字符串相似度预筛，可能有误报）。请复核并只输出一个 JSON 对象（不要解释、不要 Markdown）。\n任务：\n1. merges：逐对判断是否真的同义/重复——只有表达同一含义才 merge=true，给出 into（应保留的规范名，优先使用次数多的）与不超过 20 字的理由；字面相似但含义不同的判 false。\n2. newDimensions：如果发现 >=3 个标签语义上同属一个现有维度之外的新分类面（如「精力」「渠道」），建议最多 2 个新维度（name 用 2~4 字中文，tags 列出应归入的既有标签名）；没有就给空数组。\n输出格式：{\"merges\":[{\"from\":\"名\",\"into\":\"名\",\"merge\":true,\"reason\":\"...\"}],\"newDimensions\":[{\"name\":\"名\",\"tags\":[\"名\"],\"reason\":\"...\"}]}\n\n词表：\n";
 
 #[cfg(test)]
 mod tests {
@@ -139,6 +162,7 @@ mod tests {
             ..Default::default()
         };
         let prompt = build_tools_prompt(
+            TOOLS_SYSTEM_PROMPT,
             &agent,
             &[AiMessage::simple("om_9", "老板", "明天 10 点开周会")],
         );

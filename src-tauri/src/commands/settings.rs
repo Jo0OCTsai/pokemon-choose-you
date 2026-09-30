@@ -49,7 +49,9 @@ pub fn set_setting<R: tauri::Runtime>(
     Ok(())
 }
 
-/// 全量设置：秘钥类键以占位值返回（已保存）或不返回（未保存），明文不出后端
+/// 全量设置：秘钥类键以占位值返回（已保存）或不返回（未保存），明文不出后端；
+/// 提示词覆盖（ai_prompt_*）不出通用设置面——专用命令 list_ai_prompt_specs 是
+/// 唯一受校验的读写口（get_setting/set_setting 通用原语仍可旁路，运行时解析校验兜底）
 #[tauri::command]
 pub fn list_all_settings(db: State<Db>) -> AppResult<std::collections::HashMap<String, String>> {
     let conn = db.0.lock().unwrap();
@@ -57,6 +59,7 @@ pub fn list_all_settings(db: State<Db>) -> AppResult<std::collections::HashMap<S
     let mut rows = stmt
         .query_map([], |r| Ok((r.get::<_, String>(0)?, r.get::<_, String>(1)?)))?
         .collect::<Result<std::collections::HashMap<_, _>, _>>()?;
+    rows.retain(|k, _| !crate::ai::is_prompt_override_key(k));
     // 秘钥可能已全部迁入钥匙串（settings 表无行），从秘钥层补占位
     for key in secrets::SECRET_KEYS {
         if secrets::secret_get(&conn, key).is_some() {
@@ -96,6 +99,35 @@ mod tests {
             let db = app.state::<Db>();
             list_all_settings(db).unwrap()
         };
+        assert_eq!(all.get("language").map(String::as_str), Some("en"));
+    }
+
+    /// 提示词覆盖键不出通用设置面（隐私：含用户手输明文）；普通设置不受影响
+    #[test]
+    fn list_all_settings_filters_prompt_overrides() {
+        let app = setup();
+        {
+            let db = app.state::<Db>();
+            set_setting(
+                app.handle().clone(),
+                db.clone(),
+                "language".into(),
+                "en".into(),
+            )
+            .unwrap();
+            // 模拟 set_setting 旁路直插的覆盖行（save 命令有校验，这里绕过）
+            let conn = db.0.lock().unwrap();
+            conn.execute(
+                "INSERT INTO settings (key, value) VALUES ('ai_prompt_pet_chat', '我的桌宠规则')",
+                [],
+            )
+            .unwrap();
+        }
+        let all = {
+            let db = app.state::<Db>();
+            list_all_settings(db).unwrap()
+        };
+        assert!(!all.contains_key("ai_prompt_pet_chat"), "覆盖键被过滤");
         assert_eq!(all.get("language").map(String::as_str), Some("en"));
     }
 }

@@ -420,6 +420,7 @@ mod tests {
         /// 用分类提示词跑一次 agent（验证提示词经 stdin/argv 送达）
         fn run_classify_prompt(agent: &AgentConfig) {
             let prompt = build_tools_prompt(
+                crate::ai::TOOLS_SYSTEM_PROMPT,
                 agent,
                 &[AiMessage::simple("m1", "张三", "明天上午10点开周会")],
             );

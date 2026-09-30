@@ -9,13 +9,15 @@ import DexSelect from "../DexSelect.vue";
 import DexToggle from "../DexToggle.vue";
 import SettingRow from "../SettingRow.vue";
 import AgentConfigCard from "./AgentConfigCard.vue";
+import PromptsCard from "./PromptsCard.vue";
 import TagDispatchCard from "./TagDispatchCard.vue";
 
 /**
  * 「Agent」分区（自 SectionIntegrations 拆出）：一切与派发有关聚齐——AI agent 管理
  * （列表/CRUD/隧道与技能状态在 agents store + AgentConfigCard，这里只剩分区级预设下拉
- * 与主 agent 单选）、项目派发路由（TagDispatchCard，project 标签 → agent/目录/上下文，
- * 2026-09 自「分类与标签」分区移入）、待办派发自动化。会话历史已抽为顶层「日志」页。
+ * 与主 agent 单选）、AI 提示词（PromptsCard，第 2 卡）、项目派发路由（TagDispatchCard，
+ * project 标签 → agent/目录/上下文，2026-09 自「分类与标签」分区移入）、待办派发自动化。
+ * 会话历史已抽为顶层「日志」页。
  */
 const { t } = useI18n();
 const settings = useSettingsStore();
@@ -95,6 +97,10 @@ function onDispatchFeedback(msg: string) {
     </div>
     <p class="set-foot">{{ t("ai.cliHint") }}</p>
   </section>
+
+  <!-- AI 提示词：5 处系统提示词的查看/编辑/恢复默认（分区叙事「谁执行→怎么判→怎么派」的第 2 卡；
+       数据自装载不依赖 agent 配置，卡内即时落库不经「保存设置」） -->
+  <PromptsCard />
 
   <!-- 项目派发路由：project 标签 → agent / 工作目录 / 项目上下文（2026-09 自「分类与标签」分区移入，
        词表管理归分类与标签、派发归这里；改动即时落库，不经「保存设置」） -->

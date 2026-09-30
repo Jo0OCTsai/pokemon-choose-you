@@ -228,19 +228,22 @@ fn json_to_sql(v: &serde_json::Value) -> SqlValue {
     }
 }
 
-/// 导出全量 JSON：任务/分类/标签/跟进/日志/收音机/设置（秘钥除外，绝不落文件）
+/// 导出全量 JSON：任务/分类/标签/跟进/日志/收音机/设置
+/// （秘钥与提示词覆盖除外，绝不落文件——覆盖是用户手输文本，可能含个人信息）
 pub fn export_json_to(data_dir: &Path, conn: &Connection, dest: Option<&str>) -> AppResult<String> {
     let mut data = serde_json::Map::new();
     for table in DUMP_TABLES {
         let mut rows = dump_table(conn, table)?;
         if *table == "settings" {
             // 秘钥不出文件（在系统钥匙串）；内部标记位（迁移完成标记）也不随库走；
-            // 导入端同样跳过
+            // 提示词覆盖（ai_prompt_*）与秘钥同策略排除；导入端同样跳过
             rows.retain(|r| {
                 r.get("key")
                     .and_then(|v| v.as_str())
                     .map(|k| {
-                        !crate::secrets::is_secret_key(k) && !crate::db::is_internal_setting_key(k)
+                        !crate::secrets::is_secret_key(k)
+                            && !crate::db::is_internal_setting_key(k)
+                            && !crate::ai::is_prompt_override_key(k)
                     })
                     .unwrap_or(true)
             });
@@ -296,6 +299,17 @@ pub fn import_json_from(content: &str, conn: &mut Connection) -> AppResult<usize
             .collect();
         rows
     };
+    // 提示词覆盖行同款 stash-and-restore（M-1）：整体替换导入（含同机回滚旧 JSON 备份）
+    // 不清空本机覆盖——排除面限定为「随文件出机」的 JSON 通道
+    let prompt_rows: Vec<(String, String)> = {
+        let mut stmt = tx.prepare("SELECT key, value FROM settings")?;
+        let rows = stmt
+            .query_map([], |r| Ok((r.get::<_, String>(0)?, r.get::<_, String>(1)?)))?
+            .flatten()
+            .filter(|(k, _)| crate::ai::is_prompt_override_key(k))
+            .collect();
+        rows
+    };
     for table in DUMP_TABLES {
         tx.execute(&format!("DELETE FROM {table}"), [])?;
         let rows: Vec<serde_json::Map<String, serde_json::Value>> = match data.get(*table) {
@@ -316,6 +330,7 @@ pub fn import_json_from(content: &str, conn: &mut Connection) -> AppResult<usize
                         .map(|k| {
                             !crate::secrets::is_secret_key(k)
                                 && !crate::db::is_internal_setting_key(k)
+                                && !crate::ai::is_prompt_override_key(k)
                         })
                         .unwrap_or(true)
                 })
@@ -326,7 +341,7 @@ pub fn import_json_from(content: &str, conn: &mut Connection) -> AppResult<usize
         total += rows.len();
         restore_table(&tx, table, &rows)?;
     }
-    for (k, v) in secret_rows {
+    for (k, v) in secret_rows.into_iter().chain(prompt_rows) {
         tx.execute(
             "INSERT INTO settings (key, value) VALUES (?1, ?2)",
             rusqlite::params![k, v],
@@ -974,6 +989,67 @@ mod tests {
             .query_row("SELECT COUNT(*) FROM tasks", [], |r| r.get(0))
             .unwrap();
         assert_eq!(tasks, 2, "其余表照常导入");
+    }
+
+    /// 提示词覆盖键双向排除（隐私 NFR / M-1 回归）：导出文件不含 ai_prompt_* 行；
+    /// 整体替换导入（含同机回滚旧 JSON 备份）不清空本机覆盖行；文件内夹带的
+    /// 该前缀行照谓词过滤不导入
+    #[test]
+    fn prompt_override_rows_excluded_and_preserved_across_import() {
+        let dir = tmp_dir("prompt-privacy");
+        let conn = test_conn();
+        seed(&conn);
+        conn.execute(
+            "INSERT INTO settings (key, value) VALUES ('ai_prompt_pet_chat', '我的桌宠规则')",
+            [],
+        )
+        .unwrap();
+        let file = export_json_to(&dir, &conn, None).unwrap();
+        let content = read_export(&dir, &file);
+        assert!(!content.contains("ai_prompt_"), "覆盖键不出导出文件");
+        assert!(!content.contains("我的桌宠规则"), "覆盖明文不出文件");
+
+        // 本机已有覆盖 → 导入整体替换后原样保留
+        let mut fresh = test_conn();
+        fresh
+            .execute(
+                "INSERT INTO settings (key, value) VALUES ('ai_prompt_im_classify', '我的分类规则')",
+                [],
+            )
+            .unwrap();
+        import_json_from(&content, &mut fresh).unwrap();
+        let v: String = fresh
+            .query_row(
+                "SELECT value FROM settings WHERE key='ai_prompt_im_classify'",
+                [],
+                |r| r.get(0),
+            )
+            .unwrap();
+        assert_eq!(v, "我的分类规则", "本机覆盖不被导入清空");
+        let lang: String = fresh
+            .query_row("SELECT value FROM settings WHERE key='language'", [], |r| {
+                r.get(0)
+            })
+            .unwrap();
+        assert_eq!(lang, "en", "普通设置照常整体替换");
+
+        // 文件里夹带的 ai_prompt_* 行（手工构造）不导入
+        let mut parsed: serde_json::Value = serde_json::from_str(&content).unwrap();
+        parsed["data"]["settings"]
+            .as_array_mut()
+            .unwrap()
+            .push(serde_json::json!({"key": "ai_prompt_capture", "value": "夹带行"}));
+        let crafted = serde_json::to_string(&parsed).unwrap();
+        let mut other = test_conn();
+        import_json_from(&crafted, &mut other).unwrap();
+        let n: i64 = other
+            .query_row(
+                "SELECT COUNT(*) FROM settings WHERE key LIKE 'ai_prompt_%'",
+                [],
+                |r| r.get(0),
+            )
+            .unwrap();
+        assert_eq!(n, 0, "文件内提示词行不导入");
     }
 
     /// 全量导入成功后广播 feishu-chat-filter-changed（偏好被整体替换，管理器立即刷新）

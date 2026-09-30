@@ -14,8 +14,10 @@ import type {
   FeishuOauthStatus,
   IntegrationHealth,
   LogEntry,
+  PromptSpecInfo,
   RemotePkReport,
   RetryAiResult,
+  SavePromptResult,
   SessionPage,
   Tag,
   TagCheckupReport,
@@ -248,6 +250,10 @@ export const api = {
   taskStreak: () => call<{ days: number; todayCount: number }>("task_streak"),
   /** 桌宠 AI 对话：接主 agent + 任务上下文，单轮问答（≤2 句，只答不执行） */
   petChat: (message: string) => call<string>("pet_chat", { message }),
+  /** AI 提示词查看面：5 功能目录顺序的视图数据（生效来源/默认全文/必要占位符/覆盖原文） */
+  listAiPromptSpecs: () => call<PromptSpecInfo[]>("list_ai_prompt_specs"),
+  /** 保存提示词覆盖（空白/与默认一致 = 删行恢复默认）；成功响应含保存后完整最新状态 */
+  saveAiPrompt: (key: string, value: string) => call<SavePromptResult>("save_ai_prompt", { key, value }),
   /** 系统语音播报一句（pet_voice 开启时调用；失败静默） */
   petSpeak: (text: string) => call<void>("pet_speak", { text }),
   /** 输入响应总开关同步到后端监听线程；返回 "ok" | "permission"（macOS 未授权辅助功能） */
