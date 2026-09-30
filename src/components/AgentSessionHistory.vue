@@ -112,7 +112,7 @@ onMounted(load);
           type="button"
           @click="setFilter(f)"
         >
-          {{ t(`sess.filter_${f}`) }}<span class="chip-n">{{ counts[f] }}</span>
+          <span class="cursor">▶</span>{{ t(`sess.filter_${f}`) }}<span class="chip-n">{{ counts[f] }}</span>
         </button>
       </div>
       <button class="btn ghost" type="button" :disabled="loading" @click="load">
@@ -183,22 +183,52 @@ onMounted(load);
   gap: 6px;
   flex-wrap: wrap;
 }
+/* 过滤 chips：与任务页 .dex-filter（全部/已捕捉/已逃走）同一套图鉴控件语言——navy 描边硬阴影 + ▶ 光标 + 黄色选中 */
 .chip {
-  border: 1px solid var(--border, #d8d8d8);
-  border-radius: 999px;
-  background: transparent;
-  padding: 2px 10px;
-  font-size: 12px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  border: 3px solid var(--dex-navy);
+  border-radius: 8px;
+  background: var(--dex-body);
+  color: var(--dex-navy);
+  font-size: 13px;
+  font-weight: 700;
+  font-family: inherit;
+  padding: 6px 12px;
+  min-height: 38px;
   cursor: pointer;
-  color: inherit;
+  box-shadow: 3px 3px 0 var(--dex-navy);
+  transition:
+    transform var(--t-tap),
+    box-shadow var(--t-tap),
+    background var(--t-tap);
+}
+.chip .cursor {
+  width: 10px;
+  flex: none;
+  opacity: 0;
+  font-size: 10px;
 }
 .chip.on {
-  background: var(--accent-soft, #e8f0fe);
-  border-color: var(--accent, #4a7dff);
+  background: var(--poke-yellow);
+}
+.chip.on .cursor {
+  opacity: 1;
+}
+.chip:hover {
+  background: var(--hover);
+}
+.chip.on:hover {
+  background: var(--poke-yellow);
+}
+.chip:active {
+  transform: translate(2px, 2px);
+  box-shadow: 1px 1px 0 var(--dex-navy);
 }
 .chip-n {
   opacity: 0.6;
-  margin-left: 4px;
+  font-size: 11px;
 }
 .sess-empty {
   color: var(--ink-soft);
