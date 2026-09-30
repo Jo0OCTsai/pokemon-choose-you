@@ -246,10 +246,12 @@ onMounted(reload);
     <div v-if="scheduling" class="sched-mask" @click.self="closeSchedule">
       <div class="sched-card">
         <h3>📅 {{ t("promptSchedule") }}</h3>
-        <DexDateTime v-model="editDue" />
-        <div class="btn-row">
-          <button class="btn" @click="saveSchedule">{{ t("save") }}</button>
-          <button class="btn ghost" @click="closeSchedule">{{ t("cancel") }}</button>
+        <div class="sched-row">
+          <DexDateTime v-model="editDue" />
+          <div class="btn-row">
+            <button class="btn" @click="saveSchedule">{{ t("save") }}</button>
+            <button class="btn ghost" @click="closeSchedule">{{ t("cancel") }}</button>
+          </div>
         </div>
       </div>
     </div>
@@ -407,6 +409,15 @@ onMounted(reload);
 .sched-card h3 {
   margin: 0;
   font-size: 16px;
+}
+/* 日期选择器与动作按钮同行：按钮贴选择器右侧，日历弹层向下悬浮不占布局 */
+.sched-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.sched-row .btn-row {
+  margin-left: auto;
 }
 .sched-card .btn-row {
   display: flex;

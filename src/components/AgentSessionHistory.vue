@@ -107,12 +107,12 @@ onMounted(load);
         <button
           v-for="f in ['all', 'radio', 'dispatch', 'other'] as const"
           :key="f"
-          class="chip"
+          class="filter-chip"
           :class="{ on: filter === f }"
           type="button"
           @click="setFilter(f)"
         >
-          {{ t(`sess.filter_${f}`) }}<span class="chip-n">{{ counts[f] }}</span>
+          <span class="cursor">▶</span>{{ t(`sess.filter_${f}`) }}<span class="count">{{ counts[f] }}</span>
         </button>
       </div>
       <button class="btn ghost" type="button" :disabled="loading" @click="load">
@@ -183,23 +183,7 @@ onMounted(load);
   gap: 6px;
   flex-wrap: wrap;
 }
-.chip {
-  border: 1px solid var(--border, #d8d8d8);
-  border-radius: 999px;
-  background: transparent;
-  padding: 2px 10px;
-  font-size: 12px;
-  cursor: pointer;
-  color: inherit;
-}
-.chip.on {
-  background: var(--accent-soft, #e8f0fe);
-  border-color: var(--accent, #4a7dff);
-}
-.chip-n {
-  opacity: 0.6;
-  margin-left: 4px;
-}
+/* 过滤件样式 = 全局 .filter-chip（dex.css 公共控件语言，与任务页图鉴筛选一致） */
 .sess-empty {
   color: var(--ink-soft);
   text-align: center;

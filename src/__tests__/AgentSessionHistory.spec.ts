@@ -103,7 +103,7 @@ describe("AgentSessionHistory", () => {
   it("分组过滤下沉后端且切组重置页码；计数 chip 展示四档全量", async () => {
     const w = await mounted();
     // 四档计数不随分组/翻页变化
-    const chips = w.findAll(".chip");
+    const chips = w.findAll(".filter-chip");
     expect(chips[0].text()).toContain("22"); // 全部
     expect(chips[1].text()).toContain("20"); // 收音机
     expect(chips[2].text()).toContain("1"); // 派发

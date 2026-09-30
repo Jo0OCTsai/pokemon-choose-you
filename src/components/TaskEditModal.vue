@@ -189,10 +189,9 @@ async function save() {
   display: flex;
   flex-direction: column;
   gap: 12px;
-  width: 460px;
+  width: 920px;
   max-width: calc(100vw - 32px);
-  max-height: calc(100vh - 40px);
-  overflow-y: auto;
+  /* 不设 max-height/overflow：滚动容器会裁剪并撑出滚动条，日期弹层须像加入路线弹窗一样悬浮覆盖 */
 }
 .card h3 {
   margin: 0;
