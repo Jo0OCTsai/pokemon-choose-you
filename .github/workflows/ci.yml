@@ -43,7 +43,7 @@ jobs:
             fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY, md + "\n");
           '
       - name: 上传覆盖率到 Codecov（frontend flag；公开仓库 tokenless）
-        uses: codecov/codecov-action@0b35c9ecc4f0529d0eb674914510c22f85b196b4 # v7.1.1
+        uses: codecov/codecov-action@303a32d7a59b442fa8d48b6a1cc6825c09c847a5 # v7.1.1
         with:
           files: coverage/lcov.info
           flags: frontend
@@ -106,7 +106,7 @@ jobs:
             echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
       - name: 上传覆盖率到 Codecov（rust flag；公开仓库 tokenless）
-        uses: codecov/codecov-action@0b35c9ecc4f0529d0eb674914510c22f85b196b4 # v7.1.1
+        uses: codecov/codecov-action@303a32d7a59b442fa8d48b6a1cc6825c09c847a5 # v7.1.1
         with:
           files: src-tauri/target/llvm-cov/lcov.info
           flags: rust
