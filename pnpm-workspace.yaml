@@ -1,4 +1,7 @@
 allowBuilds:
   lefthook: true
+auditConfig:
+  ignoreGhsas:
+    - GHSA-vfj7-8cjw-p6xm
 overrides:
   "brace-expansion@^5.0.0": ^5.0.11

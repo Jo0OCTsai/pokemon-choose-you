@@ -4,7 +4,7 @@
 
 ## 待处理
 
-- [ ] **pnpm audit 豁免 GHSA-vfj7-8cjw-p6xm（braces 栈耗尽 DoS）**（来源：2026-10-10 PR #126 供应链扫描失败）：官方无修复版（最新 3.0.3 即受影响，Patched: None），落点纯 dev 链（`@vue/eslint-config-typescript>fast-glob>micromatch>braces`），触发需恶意嵌套 glob 而本项目只扫静态路径，风险可控故 `audit:npm` 与 CI 同步 `--ignore` 精确豁免。上游发布补丁后：两处移除 ignore 旗标、本条勾销。
+- [ ] **pnpm audit 豁免 GHSA-vfj7-8cjw-p6xm（braces 栈耗尽 DoS）**（来源：2026-10-10 PR #126 供应链扫描失败）：官方无修复版（最新 3.0.3 即受影响，Patched: None），落点纯 dev 链（`@vue/eslint-config-typescript>fast-glob>micromatch>braces`），触发需恶意嵌套 glob 而本项目只扫静态路径，风险可控。豁免两处记录：CI（ci.yml 供应链步）与 `audit:npm` 脚本的 `--ignore` 旗标（**退出码关键**，缺即红）+ `pnpm-workspace.yaml` 的 `auditConfig.ignoreGhsas`（pnpm 带 `--ignore` 跑 audit 时自动持久化的声明记录，仅影响展示）。上游发布补丁后：旗标与配置段一并移除、本条勾销。
 - [ ] **pub API 文档缺失 271 处**（来源：2026-09-28 质量指标扩展，missing_docs 接入时建账）：lib crate 公开项（commands / bin/pk 消费面等）缺 `///` 文档。数量已被质量棘轮 `hygiene.missing_docs` 锁定（只降不升），渐进清理——优先补 `bin/pk` agent 消费面（协议地位，见 AGENTS.md SKILL_VERSION 同步义务），内部实现项可随重构顺带补。计数口径：`cargo rustc --lib -- -W missing_docs`（独立 target 目录）。
 - [ ] **PetApp.vue 剩余可拆功能域**（来源：2026-09 前端大文件拆分，`specs/archive/frontend-component-split/`）：script 仍有 ~795 行。可继续按 `useXxx(opts)` 模式提取：reminder 就近提醒（~38 行）、睡眠/唤醒（~32 行）、时刻台词+每日问候（~74 行，两块同构可合并）、陪跑精灵 mate（~40 行）、手势三分+拖拽+栖息（~110 行）、快捷图鉴屏（~40 行）。提取后 script 预计可到 ~450。模板侧 ChatBox/QuickDex 两个区域（~86 行 template + 样式）也可 SFC 化。
 - [ ] **跨文件重复样式未令牌化**（来源：同上，属重构范围外登记）：

@@ -130,10 +130,11 @@ jobs:
           fetch-depth: 0
       - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
       - name: pnpm audit（npm 依赖漏洞，high 及以上）
-        # GHSA-vfj7-8cjw-p6xm（braces 栈耗尽 DoS）：官方无修复版（最新 3.0.3 即受影响），
-        # 落点纯 dev 链（@vue/eslint-config-typescript>fast-glob>micromatch>braces），
-        # 且触发需恶意嵌套 glob——本项目只扫自家静态路径，风险可控；上游出补丁后移除
-        # （豁免同步记于 docs/debt.md）
+        # GHSA-vfj7-8cjw-p6xm（braces 栈耗尽 DoS）豁免：官方无修复版（最新 3.0.3 即
+        # 受影响），落点纯 dev 链（eslint 转译），触发需恶意嵌套 glob——本项目只扫
+        # 自家静态路径。--ignore 旗标是关键：pnpm-workspace.yaml 的 auditConfig 只影响
+        # 展示归类、不改退出码（实测 11.27），删旗标 CI 即红；上游出补丁后旗标与
+        # 配置段一并移除（docs/debt.md）
         run: pnpm audit --audit-level=high --ignore GHSA-vfj7-8cjw-p6xm
       - uses: taiki-e/install-action@7623a79cdfecb99d681017af368ca353d9f49bb5 # v2
         with:
