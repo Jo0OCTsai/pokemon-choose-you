@@ -50,7 +50,7 @@ impl Default for AgentRemote {
 pub struct AgentConfig {
     pub id: String,
     pub name: String,
-    /// 可执行文件名或绝对路径，如 claude / opencode / pi
+    /// 可执行文件名或绝对路径，如 claude / opencode / pi / dsh
     pub command: String,
     /// 附加参数（按空白切分）。{prompt} 占位符替换为提示词；未出现时提示词经标准输入传入；
     /// SSH 远程模式下占位符元素被剔除、提示词一律走标准输入

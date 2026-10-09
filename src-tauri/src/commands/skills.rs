@@ -16,7 +16,7 @@ use tokio::io::AsyncWriteExt;
 #[serde(rename_all = "camelCase")]
 pub struct AgentSkillStatus {
     pub agent_id: String,
-    /// 技能目标类型（claude-code / opencode / pi）
+    /// 技能目标类型（claude-code / opencode / pi / dsh）
     pub kind: String,
     /// 技能目录（本地绝对路径；远程为 $HOME 相对路径）
     pub dir: String,
@@ -75,7 +75,7 @@ fn skill_kind(agent: &AgentConfig) -> AppResult<String> {
         })
         .ok_or_else(|| {
             AppError::Invalid(format!(
-            "无法识别「{}」对应的技能目录（支持 claude / opencode / pi）。可在下方「技能根目录」填自定义技能根（技能装进 <根>/pokemon-choose-you），或终端执行 `pk skill install <claude-code|opencode|pi> --dir <技能根目录>`，或 `pk skill show` 打印全文自行粘贴",
+            "无法识别「{}」对应的技能目录（支持 claude / opencode / pi / dsh）。可在下方「技能根目录」填自定义技能根（技能装进 <根>/pokemon-choose-you），或终端执行 `pk skill install <claude-code|opencode|pi|dsh> --dir <技能根目录>`，或 `pk skill show` 打印全文自行粘贴",
             agent.command
         ))
         })
@@ -349,6 +349,14 @@ mod tests {
             })
             .unwrap(),
             "pi"
+        );
+        assert_eq!(
+            skill_kind(&AgentConfig {
+                command: "dsh".into(),
+                ..Default::default()
+            })
+            .unwrap(),
+            "dsh"
         );
         let err = skill_kind(&AgentConfig {
             command: "my-agent".into(),

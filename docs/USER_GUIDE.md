@@ -278,6 +278,7 @@ AI 判定时会带上**同会话 30 分钟内的近期上下文**与消息来源
 | Claude Code | `claude` | `-p {prompt} --allowedTools Bash(pk:*) --output-format json`（JSON 信封带回 session_id / 成本，会话回链自动落库） | `--resume` |
 | OpenCode | `opencode` | `run {prompt}` | （TUI 自带会话列表） |
 | pi | `pi` | `-p {prompt}`（bash 等工具默认可用，无权限弹窗） | `-r`（选择器；按会话 id 恢复时应用自动换成 `--session <id>`） |
+| DeepSeek Harness | `dsh` | `--profile headless`（无 `{prompt}` 占位符，提示词经标准输入传入——本地与 SSH 远程同构） | （desktop / web profile 自带会话列表，直接启动） |
 | 其他 | 任意 | 自定义 | 自定义 |
 
 > 会话历史说明：claude 的无头（`-p`）会话**不出现在交互选择器里**，只能按会话 id 恢复——
@@ -386,7 +387,7 @@ pk help --json                       # 机器可读的命令目录（供 agent �
 pk help                              # 完整命令说明
 ```
 
-- **技能一键分发**：`pk skill install claude-code` 把 pk 使用技能装进 agent 的技能目录（claude-code → `~/.claude/skills/`，opencode → `~/.config/opencode/skill/`，pi → `~/.pi/agent/skills/`），含主文件 SKILL.md 与 references/ 引用文件（完整参数表、无头分类工作流），带版本标记、跨版本重装会提示更新；其他 agent 用 `--dir <技能根目录>` 指定根（技能落 `<根>/pokemon-choose-you`），或 `pk skill show` 打印全部内容自行粘贴。背包页 agent 配置里的「pk 技能 · 检查 / 安装同步」按钮走同一套逻辑（「技能根目录」字段即 `--dir` 的设置页形态），且远程 agent 会经 ssh 装到远端机器的对应目录
+- **技能一键分发**：`pk skill install claude-code` 把 pk 使用技能装进 agent 的技能目录（claude-code → `~/.claude/skills/`，opencode → `~/.config/opencode/skill/`，pi → `~/.pi/agent/skills/`，dsh → `~/.dsh/skills/`），含主文件 SKILL.md 与 references/ 引用文件（完整参数表、无头分类工作流），带版本标记、跨版本重装会提示更新；其他 agent 用 `--dir <技能根目录>` 指定根（技能落 `<根>/pokemon-choose-you`），或 `pk skill show` 打印全部内容自行粘贴。背包页 agent 配置里的「pk 技能 · 检查 / 安装同步」按钮走同一套逻辑（「技能根目录」字段即 `--dir` 的设置页形态），且远程 agent 会经 ssh 装到远端机器的对应目录
 - **agent 友好性**：`--dry-run`（task create/update/delete 只校验回显不落库）、`task list --limit`（默认 50 条，`truncated` 提示用 search 收窄）、`help --json`（机器可读命令目录）、`doctor` 环境自检——检查数据库存在性、schema 版本、完整性、WAL 并发、context 读链路与技能安装版本，每项 ok/warn/fail 并附 `fix` 修复建议（有 fail 退出码 1）；远程部署排障加 `pk doctor --ssh <user@host>`，端到端验证 ssh 免密 → shim 在 PATH → 回连本机整条链
 - **会话回链与成本记录**：agent 代办后 `pk session log --task 3 --agent claude-code --session <id> --cost 0.12 --duration-ms 61000` 落一条会话；任务编辑弹窗的「Agent 执行」区展示每次的时长 / 成本 / 退出码（含收音机分类调用），有会话 id 的可一键在终端回放转录（`claude --resume <id>`）
 - 与桌面应用共用同一个 SQLite 库（WAL 并发安全），操作同样写入审计日志；

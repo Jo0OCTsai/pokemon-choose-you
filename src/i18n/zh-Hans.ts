@@ -423,7 +423,7 @@ export default {
     args: "附加参数",
     argsPh: "-p {'{prompt}'}",
     namePh: "Claude Code",
-    cmdPh: "claude / opencode / pi",
+    cmdPh: "claude / opencode / pi / dsh",
     workdir: "工作目录",
     workdirPh: "留空 = ~/.choose-you/workspace",
     historyArgs: "历史参数",

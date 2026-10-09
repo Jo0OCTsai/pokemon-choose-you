@@ -17,6 +17,9 @@ export const AGENT_PRESETS: Record<string, Omit<AgentConfig, "id" | "timeoutSecs
   },
   opencode: { name: "OpenCode", command: "opencode", args: "run {prompt}", historyArgs: "" },
   pi: { name: "pi", command: "pi", args: "-p {prompt}", historyArgs: "-r" },
+  // DeepSeek Harness：无头走 headless profile（不带 {prompt}，提示词经 stdin——本地与
+  // SSH 远程同构）；交互入口由 desktop/web profile 自带会话列表，历史参数留空直接启动
+  dsh: { name: "DeepSeek Harness", command: "dsh", args: "--profile headless", historyArgs: "" },
   custom: { name: "", command: "", args: "{prompt}", historyArgs: "" },
 };
 

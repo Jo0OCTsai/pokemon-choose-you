@@ -577,7 +577,7 @@ fn skill_install_show_and_unknown_agent() {
     assert_eq!(out["installed"], true);
     assert!(pi_dir.join("pokemon-choose-you").join("SKILL.md").is_file());
 
-    // 目录规则：claude-code / opencode 的落点结构正确（不实际写）
+    // 目录规则：claude-code / opencode / dsh 的落点结构正确（不实际写）
     let claude = skill_dir_for("claude-code", None).unwrap_or_else(|e| panic!("{e}"));
     assert!(
         claude.ends_with(".claude/skills/pokemon-choose-you")
@@ -591,6 +591,8 @@ fn skill_install_show_and_unknown_agent() {
     );
     let pi = skill_dir_for("pi", None).unwrap_or_else(|e| panic!("{e}"));
     assert!(pi.to_string_lossy().contains(".pi/agent/skills"), "{pi:?}");
+    let dsh = skill_dir_for("dsh", None).unwrap_or_else(|e| panic!("{e}"));
+    assert!(dsh.to_string_lossy().contains(".dsh/skills"), "{dsh:?}");
     let _ = std::fs::remove_dir_all(&dir);
 }
 

@@ -1,5 +1,5 @@
 //! pk 使用技能的分发与版本管理：pk CLI 的 `skill install/show` 与桌面应用的
-//! 「安装/检查技能」共用同一套内容与目录规则（claude-code / opencode / pi）。
+//! 「安装/检查技能」共用同一套内容与目录规则（claude-code / opencode / pi / dsh）。
 //!
 //! 技能放 agent 的**全局目录**（`~/.claude/skills/` 等）：pk 技能是个人跨项目工具，
 //! 官方建议项目约定进仓库目录、个人工作流进 home 全局目录；且远程 agent 场景下
@@ -19,14 +19,15 @@ pub const SKILL_REFS: &[(&str, &str)] = &[
     ),
 ];
 /// 当前技能版本（与 SKILL.md frontmatter 的 version 保持一致，用于安装时的版本对比）
-pub const SKILL_VERSION: &str = "8";
+pub const SKILL_VERSION: &str = "9";
 
 /// 技能在各 agent 技能目录下的文件夹名（Agent Skills 标准：与 frontmatter name 一致）
 pub const SKILL_DIR_NAME: &str = "pokemon-choose-you";
 
 /// 从 agent 可执行命令推断技能目标类型：basename 匹配关键词即命中
-/// （claude / opencode / pi；绝对路径与自定义包装脚本也能识别）。
-/// pi 名字只有两个字母，必须精确等值匹配——子串匹配会把 copilot 之类误判成 pi
+/// （claude / opencode / pi / dsh；绝对路径与自定义包装脚本也能识别）。
+/// pi 名字只有两个字母，必须精确等值匹配——子串匹配会把 copilot 之类误判成 pi；
+/// dsh 同理（dash/winssh 之类含 dsh 子串的无关命令不能误报）
 pub fn kind_for_command(command: &str) -> Option<&'static str> {
     let base = command
         .rsplit(['/', '\\'])
@@ -35,6 +36,8 @@ pub fn kind_for_command(command: &str) -> Option<&'static str> {
         .to_lowercase();
     if base == "pi" || base.contains("pi-coding-agent") {
         Some("pi")
+    } else if base == "dsh" || base.contains("deepseek") {
+        Some("dsh")
     } else if base.contains("claude") {
         Some("claude-code")
     } else if base.contains("opencode") {
@@ -46,6 +49,7 @@ pub fn kind_for_command(command: &str) -> Option<&'static str> {
 
 /// 技能文件所在目录（本机 $HOME 下的绝对路径）：claude-code → ~/.claude/skills；
 /// opencode → ~/.config/opencode/skill；pi → ~/.pi/agent/skills；
+/// dsh（DeepSeek Harness）→ ~/.dsh/skills；
 /// 其他 agent 用 --dir 显式指定（或设置页的技能根目录字段，同一参数）。
 /// 目录覆盖指的是**技能根目录**（如 ~/.claude/skills）：技能本体落在
 /// <根>/pokemon-choose-you——与各 agent 默认目录同构，根下一技能一目录，
@@ -115,8 +119,9 @@ pub fn skill_dir_rel(agent: &str) -> Result<String, String> {
         "claude-code" | "claude" => Ok(format!(".claude/skills/{SKILL_DIR_NAME}")),
         "opencode" => Ok(format!(".config/opencode/skill/{SKILL_DIR_NAME}")),
         "pi" => Ok(format!(".pi/agent/skills/{SKILL_DIR_NAME}")),
+        "dsh" | "deepseek-harness" => Ok(format!(".dsh/skills/{SKILL_DIR_NAME}")),
         other => Err(format!(
-            "暂不认识 agent「{other}」的技能目录：支持 claude-code / opencode / pi，其他 agent 用 --dir <目录> 指定，或 pk skill show 自行粘贴"
+            "暂不认识 agent「{other}」的技能目录：支持 claude-code / opencode / pi / dsh，其他 agent 用 --dir <目录> 指定，或 pk skill show 自行粘贴"
         )),
     }
 }
@@ -241,6 +246,7 @@ mod tests {
     }
 
     /// pi 名字太短，只能精确命中（contains 会误伤 copilot 之类）；
+    /// dsh 同样短，精确命中（dash 之类含 dsh 子串的不误报）；
     /// claude 走子串匹配
     #[test]
     fn kind_for_command_matches_pi() {
@@ -255,8 +261,22 @@ mod tests {
         assert_eq!(kind_for_command("ping-agent"), None);
     }
 
+    /// dsh（DeepSeek Harness）：命令名精确等值；产品名包装脚本（deepseek-harness）
+    /// 走子串；含 dsh 子串的无关命令不误报
     #[test]
-    fn skill_dirs_cover_three_agents() {
+    fn kind_for_command_matches_dsh() {
+        assert_eq!(kind_for_command("dsh"), Some("dsh"));
+        assert_eq!(kind_for_command("/usr/local/bin/dsh"), Some("dsh"));
+        assert_eq!(kind_for_command("deepseek-harness"), Some("dsh"));
+        assert_eq!(
+            kind_for_command("dash"),
+            None,
+            "含 dsh 子串的无关命令不误报"
+        );
+    }
+
+    #[test]
+    fn skill_dirs_cover_four_agents() {
         let home = dirs::home_dir().unwrap();
         assert_eq!(
             skill_dir_for("claude-code", None).unwrap(),
@@ -269,6 +289,11 @@ mod tests {
         assert_eq!(
             skill_dir_for("pi", None).unwrap(),
             home.join(".pi/agent/skills/pokemon-choose-you")
+        );
+        assert_eq!(
+            skill_dir_for("dsh", None).unwrap(),
+            home.join(".dsh/skills/pokemon-choose-you"),
+            "DeepSeek Harness 技能落 ~/.dsh/skills"
         );
         assert_eq!(
             skill_dir_for("unknown", Some("/tmp/x")).unwrap(),

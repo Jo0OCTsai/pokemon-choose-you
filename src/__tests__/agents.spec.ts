@@ -95,7 +95,7 @@ describe("agents store：与设置键 ai_agents 双向同步", () => {
   });
 });
 
-describe("agents store：CRUD 与去重", () => {
+describe("agents store：按预设新增", () => {
   it("add 按预设新增：command/args/historyArgs 就位，超时 120 秒且默认启用", () => {
     const store = useAgentsStore();
     store.add("claude");
@@ -112,6 +112,18 @@ describe("agents store：CRUD 与去重", () => {
     expect(store.list[0].id).toBeTruthy();
   });
 
+  it("add dsh 预设：DeepSeek Harness 无头走 headless profile，提示词经 stdin（无 {prompt} 占位符）", () => {
+    const store = useAgentsStore();
+    store.add("dsh");
+    expect(store.list[0]).toMatchObject({
+      name: "DeepSeek Harness",
+      command: "dsh",
+      args: "--profile headless",
+      historyArgs: "",
+    });
+    expect(store.list[0].args).not.toContain("{prompt}");
+  });
+
   it("add 未知预设键回落 custom；同名预设自动编号去重", () => {
     const store = useAgentsStore();
     store.add("nonexistent");
@@ -121,7 +133,9 @@ describe("agents store：CRUD 与去重", () => {
     expect(store.list.map((a) => a.name)).toEqual(["", "Claude Code", "Claude Code 2", "Claude Code 3"]);
     expect(store.list[0]).toMatchObject({ command: "", args: "{prompt}" });
   });
+});
 
+describe("agents store：CRUD 与去重", () => {
   it("dedupeName：无冲突原样返回，冲突加序号后缀", () => {
     const store = useAgentsStore();
     expect(store.dedupeName("")).toBe("");
