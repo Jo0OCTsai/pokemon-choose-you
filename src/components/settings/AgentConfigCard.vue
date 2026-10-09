@@ -158,6 +158,9 @@ function renderSetupReport(r: RemotePkReport): string {
     <SettingRow :label="t('ai.historyArgs')" wide :label-width="128">
       <input v-model="ag.historyArgs" placeholder="--resume" />
     </SettingRow>
+    <SettingRow :label="t('ai.skillDir')" wide :label-width="128">
+      <input v-model="ag.skillDir" :placeholder="t('ai.skillDirPh')" />
+    </SettingRow>
     <SettingRow :label="t('ai.skill')" wide :label-width="128">
       <div class="skill-line">
         <span

@@ -487,7 +487,8 @@ fn category_tag_list_and_context() {
     assert_eq!(ctx["openTasks"][0]["id"], json!(id));
 }
 
-/// 技能分发：--dir 安装到任意目录、重复安装标记 updated、未知 agent 报用法错误并给 --dir 出路
+/// 技能分发：--dir 指定技能根目录（技能落 <根>/pokemon-choose-you）、重复安装标记
+/// updated、未知 agent 报用法错误并给 --dir 出路
 #[test]
 fn skill_install_show_and_unknown_agent() {
     let mut conn = test_db();
@@ -511,16 +512,22 @@ fn skill_install_show_and_unknown_agent() {
         out["version"],
         pokemon_choose_you_lib::skills::SKILL_VERSION
     );
-    let md = std::fs::read_to_string(dir.join("SKILL.md")).unwrap();
+    let md = std::fs::read_to_string(dir.join("pokemon-choose-you").join("SKILL.md")).unwrap();
     assert!(md.contains("pk task create"), "技能内容含命令速查");
     assert!(md.contains("name: pokemon-choose-you"), "带 frontmatter");
     assert!(md.contains("pk suggest"), "含建议提交通道");
     assert!(
-        dir.join("references").join("commands.md").exists(),
-        "引用文件一并安装"
+        dir.join("pokemon-choose-you")
+            .join("references")
+            .join("commands.md")
+            .exists(),
+        "引用文件一并装进名称子目录"
     );
     assert!(
-        dir.join("references").join("suggest-workflow.md").exists(),
+        dir.join("pokemon-choose-you")
+            .join("references")
+            .join("suggest-workflow.md")
+            .exists(),
         "批处理工作流一并安装"
     );
 
@@ -539,7 +546,7 @@ fn skill_install_show_and_unknown_agent() {
 
     // 旧版本在位 → 提示更新
     std::fs::write(
-        dir.join("SKILL.md"),
+        dir.join("pokemon-choose-you").join("SKILL.md"),
         "---\nname: pokemon-choose-you\nversion: \"1\"\n---\n旧内容",
     )
     .unwrap();
@@ -561,14 +568,14 @@ fn skill_install_show_and_unknown_agent() {
     assert_eq!(err.1, 2);
     assert!(err.0.contains("--dir"), "{}", err.0);
 
-    // 内置目标 + --dir：正常安装（不写默认目录）
+    // 内置目标 + --dir：正常安装（不写默认目录，落点同样是 <根>/pokemon-choose-you）
     let pi_dir = dir.join("pi");
     let out = run_ok(
         &mut conn,
         &["skill", "install", "pi", "--dir", &pi_dir.to_string_lossy()],
     );
     assert_eq!(out["installed"], true);
-    assert!(pi_dir.join("SKILL.md").is_file());
+    assert!(pi_dir.join("pokemon-choose-you").join("SKILL.md").is_file());
 
     // 目录规则：claude-code / opencode 的落点结构正确（不实际写）
     let claude = skill_dir_for("claude-code", None).unwrap_or_else(|e| panic!("{e}"));

@@ -71,8 +71,8 @@ const HELP: &str = r#"pk — 就决定是你了命令行（供 AI agent 与终�
                                       提交一条 AI 判定建议（todo/update 写建议列待用户确认；follow-up 直接挂跟进）
   suggest batch [--agent <agent-id>]
                                       批量提交建议：stdin 传 {"results":[...]}（与应用文本协议同构），整批校验失败则全部不落库
-  skill install <claude-code|opencode|pi> [--dir <目录>]
-                                      一键安装 pk 使用技能到 agent 的技能目录（对标 td skill install）
+  skill install <claude-code|opencode|pi> [--dir <技能根目录>]
+                                      一键安装 pk 使用技能到 agent 的技能目录（--dir 为技能根目录，技能落 <根>/pokemon-choose-you）
   skill show                         打印技能内容（Markdown 原文，可重定向给任意 agent）
   remote shim --host <本机地址> [--port <n>] [--key <私钥>] [--write <路径>]
                                       生成远程主机上的 pk 透传脚本（agent 在远程、数据在本机时，命令经 ssh 回本机执行）
@@ -257,7 +257,7 @@ const COMMAND_INDEX: &[(&str, &str)] = &[
     ),
     (
         "skill install <agent>",
-        "安装技能（claude-code|opencode|pi，或 --dir 指定）",
+        "安装技能（claude-code|opencode|pi，或 --dir 指定技能根目录）",
     ),
     ("skill show", "打印技能全文"),
     ("remote shim", "生成远程 pk 透传脚本（--host 必填）"),

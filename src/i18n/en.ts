@@ -432,6 +432,8 @@ export default {
     workdir: "Working directory",
     workdirPh: "empty = ~/.choose-you/workspace",
     historyArgs: "History args",
+    skillDir: "Skill root dir",
+    skillDirPh: "e.g. ~/.claude/skills; installs to <dir>/pokemon-choose-you, ~ prefix supported",
     timeout: "Timeout (s)",
     enabled: "Enabled",
     primary: "Use for radio classification",

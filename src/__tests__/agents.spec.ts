@@ -35,13 +35,14 @@ beforeEach(() => {
 });
 
 describe("agents store：与设置键 ai_agents 双向同步", () => {
-  it("load 解析设置键，旧配置缺 workdir 归一成空串", () => {
+  it("load 解析设置键，旧配置缺 workdir 归一成空串、缺 skillDir 归一成 null", () => {
     const settings = useSettingsStore();
     settings.values.ai_agents = JSON.stringify([agent({ id: "a1", workdir: undefined }), { legacy: true }]);
     const store = useAgentsStore();
     store.load();
     expect(store.list).toHaveLength(2);
     expect(store.list[0].workdir).toBe("");
+    expect(store.list[0].skillDir).toBeNull();
   });
 
   it("load 容错：非法 JSON / 非数组归一成空列表", () => {
@@ -55,17 +56,21 @@ describe("agents store：与设置键 ai_agents 双向同步", () => {
     expect(store.list).toEqual([]);
   });
 
-  it("save 序列化写回 values.ai_agents 并落库：隧道端口空值归一 null、persistent 归一 false、remote 缺省 null", async () => {
+  it("save 序列化写回 values.ai_agents 并落库：隧道端口空值归一 null、persistent 归一 false、remote 缺省 null、技能目录空白归一 null", async () => {
     const store = useAgentsStore();
     store.list = [
       agent({ id: "a1", remote: { host: "dev@box", port: 22, keyPath: "", tunnel: 0, persistent: undefined } }),
       agent({ id: "a2" }),
+      agent({ id: "a3", skillDir: "  " }),
+      agent({ id: "a4", skillDir: "~/my-skills" }),
     ];
     await store.save();
     const settings = useSettingsStore();
     const saved = JSON.parse(settings.values.ai_agents);
     expect(saved[0].remote).toMatchObject({ host: "dev@box", tunnel: null, persistent: false });
     expect(saved[1].remote).toBeNull();
+    expect(saved[2].skillDir).toBeNull();
+    expect(saved[3].skillDir).toBe("~/my-skills");
     expect(api.setSetting).toHaveBeenCalledWith("ai_agents", settings.values.ai_agents);
     expect(api.setSetting).toHaveBeenCalledWith("ai_agent_id", "");
     expect(api.syncTunnels).toHaveBeenCalled();

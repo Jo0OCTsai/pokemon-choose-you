@@ -291,6 +291,8 @@ export interface AgentConfig {
   historyArgs: string;
   /** 工作目录：agent 及其工具的相对路径基准，支持 ~ 前缀；空 = ~/.choose-you/workspace（远程模式为远程机器上的路径，留空时落在远端登录目录） */
   workdir?: string;
+  /** pk 技能根目录覆盖：技能装进 <目录>/pokemon-choose-you，支持 ~ 前缀；空 = 按 agent 类型推断全局根目录（远程模式为远程机器上的路径） */
+  skillDir?: string | null;
   /** 单次调用超时（秒） */
   timeoutSecs: number;
   enabled: boolean;

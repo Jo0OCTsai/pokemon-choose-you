@@ -425,6 +425,8 @@ export default {
     workdir: "工作目錄",
     workdirPh: "留空 = ~/.choose-you/workspace",
     historyArgs: "歷史參數",
+    skillDir: "技能根目錄",
+    skillDirPh: "如 ~/.claude/skills；技能裝進 <目錄>/pokemon-choose-you，支援 ~ 前綴",
     timeout: "逾時（秒）",
     enabled: "啟用",
     primary: "用於收音機分類",
