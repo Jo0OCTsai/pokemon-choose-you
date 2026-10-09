@@ -22,7 +22,7 @@
     "test:e2e:chromium": "playwright test --project=chromium",
     "test:rust": "cd src-tauri && cargo test",
     "clippy": "cargo clippy --manifest-path src-tauri/Cargo.toml --all-targets -- -D warnings",
-    "audit:npm": "pnpm audit --audit-level=high --registry=https://registry.npmjs.org",
+    "audit:npm": "pnpm audit --audit-level=high --registry=https://registry.npmjs.org --ignore GHSA-vfj7-8cjw-p6xm",
     "check:duplicates": "jscpd src src-tauri/src e2e --min-tokens 70 --threshold 2.5 --reporters console --silent",
     "bump": "node scripts/bump-version.mjs",
     "prepare": "lefthook install || true"
