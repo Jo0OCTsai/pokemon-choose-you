@@ -748,6 +748,15 @@ fn remote_shim_writes_forwarding_script() {
     );
     // 连接复用三件套 + PK_* 透传段 + 命令透传（unix 本机走 $fwd 前缀）
     assert!(script.contains("ControlMaster=auto"), "{script}");
+    // socket 落 /tmp（带 uid）：远程 agent 的 bash 沙箱对 ~/.ssh 只读，bind 即被拒
+    assert!(
+        script.contains("ControlPath=\"/tmp/pk-ctl-$(id -u)-%C\""),
+        "{script}"
+    );
+    assert!(
+        !script.contains("ControlPath=\"$HOME"),
+        "socket 不得落 ~/.ssh: {script}"
+    );
     assert!(script.contains("ControlPersist=10m"), "{script}");
     assert!(script.contains("[ -n \"$PK_DISPATCH_TASK\" ]"), "{script}");
     #[cfg(unix)]

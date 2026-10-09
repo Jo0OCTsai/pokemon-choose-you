@@ -177,9 +177,11 @@ pub(crate) fn run_remote(rest: &[String]) -> Result<serde_json::Value, CliError>
     let key = p.flag("key").filter(|k| !k.is_empty());
     // host/key 引用后再进脚本：脚本经 /bin/sh 执行，含空格/特殊字符的值不引用会被拆词
     let mut fwd = String::from("ssh -o BatchMode=yes -o ConnectTimeout=10");
-    // 连接复用：首调建 ControlMaster，后续调用毫秒级（脚本运行在远程 unix，与本机系统无关）
+    // 连接复用：首调建 ControlMaster，后续调用毫秒级（脚本运行在远程 unix，与本机系统无关）。
+    // socket 落 /tmp（带 uid 防多用户碰撞）：远程 agent 的 bash 沙箱（如 dsh workspace-write）
+    // 对家目录只读，落 ~/.ssh 会在 bind 一步被拒（unix_listener: Permission denied）
     fwd.push_str(
-        " -o ControlMaster=auto -o ControlPath=\"$HOME/.ssh/pk-ctl-%C\" -o ControlPersist=10m",
+        " -o ControlMaster=auto -o ControlPath=\"/tmp/pk-ctl-$(id -u)-%C\" -o ControlPersist=10m",
     );
     if let Some(k) = key {
         fwd.push_str(&format!(" -i {}", sh_quote(k)));
