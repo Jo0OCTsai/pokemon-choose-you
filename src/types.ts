@@ -283,7 +283,7 @@ export interface AgentRemote {
 export interface AgentConfig {
   id: string;
   name: string;
-  /** 可执行文件名或绝对路径，如 claude / opencode / pi */
+  /** 可执行文件名或绝对路径，如 claude / opencode / pi / dsh */
   command: string;
   /** 附加参数（空白分隔）；{prompt} 占位符替换为提示词，缺省时提示词可经标准输入传入 */
   args: string;
@@ -291,6 +291,8 @@ export interface AgentConfig {
   historyArgs: string;
   /** 工作目录：agent 及其工具的相对路径基准，支持 ~ 前缀；空 = ~/.choose-you/workspace（远程模式为远程机器上的路径，留空时落在远端登录目录） */
   workdir?: string;
+  /** pk 技能根目录覆盖：技能装进 <目录>/pokemon-choose-you，支持 ~ 前缀；空 = 按 agent 类型推断全局根目录（远程模式为远程机器上的路径） */
+  skillDir?: string | null;
   /** 单次调用超时（秒） */
   timeoutSecs: number;
   enabled: boolean;
@@ -322,7 +324,7 @@ export interface TunnelStatus {
 /** agent 技能检查结果（本地直读；远程经 ssh 读远端目录） */
 export interface AgentSkillStatus {
   agentId: string;
-  /** 技能目标类型（claude-code / opencode / pi） */
+  /** 技能目标类型（claude-code / opencode / pi / dsh） */
   kind: string;
   /** 技能目录（本地绝对路径；远程为 $HOME 相对路径） */
   dir: string;

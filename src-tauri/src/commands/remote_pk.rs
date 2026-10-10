@@ -147,7 +147,9 @@ fn ssh_run(
 /// shim 脚本内容：命令经应用建立的反向隧道（远程 127.0.0.1:端口 ⇄ 本机 sshd）回本机执行。
 /// pk 用绝对路径内嵌（本机 sshd 的非交互 PATH 通常找不到应用目录里的 pk）。
 /// - 连接复用（方案 A）：ControlMaster 让首调后的每次调用免握手，ControlPersist 保活；
-///   复用发生在远程侧 ssh 客户端（远程必为 unix），与本机系统无关
+///   复用发生在远程侧 ssh 客户端（远程必为 unix），与本机系统无关。socket 落 /tmp
+///   （带 uid 防多用户碰撞）：远程 agent 的 bash 沙箱（如 dsh workspace-write）对家目录
+///   只读，落 ~/.ssh 会在 bind 一步被拒（unix_listener: Permission denied）
 /// - 环境透传（方案 B 的 ④ 修复）：PK_LOG_FILE / PK_DISPATCH_TASK 在远端求值并内联进
 ///   回连命令，本机侧 pk 照常拿到（值内含双引号/反斜杠不支持，实际只有日志路径与任务 id）。
 ///   仅 unix 本机——Windows 本机 sshd 默认 shell 是 cmd，没有 env 命令，保持直呼 pk
@@ -179,7 +181,7 @@ pub(crate) fn shim_script(pk_path: &str, tunnel_port: u16, local_user: &str) -> 
          # 连接复用：首调建 ControlMaster，后续调用毫秒级；环境透传见下方 fwd 段。\n\
          {env_fwd}\
          exec ssh -o BatchMode=yes -o ConnectTimeout=10 \\\n\
-         -o ControlMaster=auto -o ControlPath=\"$HOME/.ssh/pk-shim-%C\" -o ControlPersist=10m \\\n\
+         -o ControlMaster=auto -o ControlPath=\"/tmp/pk-shim-$(id -u)-%C\" -o ControlPersist=10m \\\n\
          -i \"$HOME/.ssh/pk_shim\" -p {port} {user} {tail}\n",
         port = tunnel_port,
         user = posix_quote(&format!("{local_user}@127.0.0.1")),
@@ -621,12 +623,14 @@ fn report_of(steps: Vec<SetupStep>, version: Option<String>) -> SetupReport {
 /// ControlPersist master。master 是 shim 连接复用的常驻进程，会攥着本条临时 -R 隧道
 /// 的转发通道不放，而外层 ssh 要等所有通道关闭才退出——不关 master 则 setup 永久挂起
 /// （实测 ControlPersist=10m 在通道悬死时不生效，master 可能孤儿化）。先经控制 socket
-/// 优雅 -O exit，socket 已失联时按 [mux] 进程特征兜底清扫；master 下次 shim 调用自动
-/// 重起，常驻隧道场景不受影响
+/// 优雅 -O exit（现行落点 /tmp，旧版 shim 的 ~/.ssh 遗留 socket 一并扫；匹配交给
+/// find -name 而非 shell glob——zsh 对无匹配 glob 报错并中断整段脚本，exit $rc 会被
+/// 吞掉，非 socket 命中由 [ -S ] 过滤），socket 已失联时按 [mux] 进程特征兜底清扫；
+/// master 下次 shim 调用自动重起，常驻隧道场景不受影响
 fn verify_remote_line() -> &'static str {
     concat!(
         "\"$SHELL\" -lc 'pk --version'; rc=$?; ",
-        "for s in \"$HOME\"/.ssh/pk-shim-*; do ",
+        "for s in $(find \"$HOME/.ssh\" /tmp -maxdepth 1 -name 'pk-shim-*' 2>/dev/null); do ",
         "[ -S \"$s\" ] && ssh -o BatchMode=yes -o ConnectTimeout=3 -o \"ControlPath=$s\" ",
         "-O exit 127.0.0.1 2>/dev/null; done; ",
         "pkill -f 'pk-shim-.* \\[mux\\]' 2>/dev/null; ",
@@ -771,7 +775,16 @@ mod tests {
         assert!(s.contains("\"$@\""), "透传全部参数: {s}");
         // 方案 A：连接复用三件套（远程侧 ssh 客户端生效，与本机系统无关）
         assert!(s.contains("ControlMaster=auto"), "{s}");
-        assert!(s.contains("ControlPath=\"$HOME/.ssh/pk-shim-%C\""), "{s}");
+        // 复用 socket 落 /tmp（带 uid 防多用户碰撞）：远程 agent 的 bash 沙箱
+        // （workspace-write，bwrap/Seatbelt）对家目录只读，落 ~/.ssh 会在 bind 一步被拒
+        assert!(
+            s.contains("ControlPath=\"/tmp/pk-shim-$(id -u)-%C\""),
+            "{s}"
+        );
+        assert!(
+            !s.contains("ControlPath=\"$HOME"),
+            "socket 不得落 ~/.ssh（沙箱内只读，bind 即 Permission denied）: {s}"
+        );
         assert!(s.contains("ControlPersist=10m"), "{s}");
         // 方案 B ④：PK_* 在远端求值并带回本机侧 pk（值加引号，路径含空格安全）
         #[cfg(unix)]
@@ -1048,6 +1061,17 @@ mod tests {
         let line = verify_remote_line();
         assert!(line.contains("pk --version"), "{line}");
         assert!(line.contains("-O exit"), "优雅关闭路径: {line}");
+        // 清扫覆盖现行 /tmp 与旧版 ~/.ssh 两个落点，且匹配交给 find（-name）而不是
+        // shell glob：zsh 对无匹配 glob 直接报错并中断整段脚本，exit $rc 会被吞掉、
+        // pk --version 即使成功也报失败（zsh 远端实测）
+        assert!(
+            line.contains("find \"$HOME/.ssh\" /tmp -maxdepth 1 -name 'pk-shim-*'"),
+            "find 匹配两个落点: {line}"
+        );
+        assert!(
+            !line.contains("\"$HOME\"/.ssh/pk-shim-*"),
+            "for 列表不得用裸 glob（zsh no matches found 会中断脚本）: {line}"
+        );
         assert!(
             line.contains("pkill -f 'pk-shim-.* \\[mux\\]'"),
             "失联兜底: {line}"

@@ -228,7 +228,7 @@ fn context_check(conn: &Connection) -> serde_json::Value {
 /// 技能安装状态：未安装提示可选安装（warn），旧版本提示更新
 fn skill_doctor_checks() -> Vec<serde_json::Value> {
     let mut out = vec![];
-    for agent in ["claude-code", "opencode", "pi"] {
+    for agent in ["claude-code", "opencode", "pi", "dsh"] {
         let entry = match skill_dir_for(agent, None) {
             Ok(dir) => dir.join("SKILL.md"),
             Err(_) => {

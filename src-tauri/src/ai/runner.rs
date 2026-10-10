@@ -461,6 +461,7 @@ mod tests {
                 timeout_secs: 30,
                 enabled: true,
                 workdir: String::new(),
+                skill_dir: None,
                 remote: Some(AgentRemote {
                     host: "dev@box".into(),
                     ..Default::default()

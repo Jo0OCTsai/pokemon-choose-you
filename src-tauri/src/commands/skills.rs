@@ -16,7 +16,7 @@ use tokio::io::AsyncWriteExt;
 #[serde(rename_all = "camelCase")]
 pub struct AgentSkillStatus {
     pub agent_id: String,
-    /// 技能目标类型（claude-code / opencode / pi）
+    /// 技能目标类型（claude-code / opencode / pi / dsh）
     pub kind: String,
     /// 技能目录（本地绝对路径；远程为 $HOME 相对路径）
     pub dir: String,
@@ -56,13 +56,26 @@ fn effective_remote(agent: &AgentConfig) -> Option<&AgentRemote> {
     agent.remote.as_ref().filter(|r| !r.host.trim().is_empty())
 }
 
-/// 从 agent 命令推断技能目标；识别不了给出可操作指引（自定义 agent 走 pk CLI）
+/// agent 的技能根目录覆盖（trim 后非空才算），本地与远程同源
+fn skill_dir_override(agent: &AgentConfig) -> Option<&str> {
+    agent
+        .skill_dir
+        .as_deref()
+        .map(str::trim)
+        .filter(|d| !d.is_empty())
+}
+
+/// 从 agent 命令推断技能目标；识别不了但指定了技能根目录时回落 custom
+/// （根目录即落点基准，技能落 <根>/pokemon-choose-you），两者都没有给出可操作指引
 fn skill_kind(agent: &AgentConfig) -> AppResult<String> {
     skills::kind_for_command(&agent.command)
         .map(str::to_string)
+        .or_else(|| {
+            skill_dir_override(agent).map(|_| "custom".to_string())
+        })
         .ok_or_else(|| {
             AppError::Invalid(format!(
-            "无法识别「{}」对应的技能目录（支持 claude / opencode / pi）。自定义 agent 可在终端执行 `pk skill install <claude-code|opencode|pi> --dir <目录>` 指定落点，或 `pk skill show` 打印全文自行粘贴",
+            "无法识别「{}」对应的技能目录（支持 claude / opencode / pi / dsh）。可在下方「技能根目录」填自定义技能根（技能装进 <根>/pokemon-choose-you），或终端执行 `pk skill install <claude-code|opencode|pi|dsh> --dir <技能根目录>`，或 `pk skill show` 打印全文自行粘贴",
             agent.command
         ))
         })
@@ -151,9 +164,10 @@ pub async fn agent_skill_status(
     let agent = load_agent(&db, &agent_id)?;
     let kind = skill_kind(&agent)?;
     let bundled = skills::SKILL_VERSION.to_string();
+    let dir_override = skill_dir_override(&agent);
     match effective_remote(&agent) {
         None => {
-            let dir = skills::skill_dir_for(&kind, None).map_err(AppError::Invalid)?;
+            let dir = skills::skill_dir_for(&kind, dir_override).map_err(AppError::Invalid)?;
             let (installed, installed_version) = skills::local_status(&dir);
             Ok(AgentSkillStatus {
                 agent_id,
@@ -167,15 +181,21 @@ pub async fn agent_skill_status(
             })
         }
         Some(remote) => {
-            let line = skills::remote_status_line(&kind).map_err(AppError::Invalid)?;
+            let line =
+                skills::remote_status_line(&kind, dir_override).map_err(AppError::Invalid)?;
             let wrapped = format!("exec \"$SHELL\" -lc {}", ai::posix_quote(&line));
             let out = ssh_run(remote, &wrapped, None).await?;
             let installed_version = skills::frontmatter_version(out.trim());
             let installed = installed_version.is_some() || out.trim_start().starts_with("---");
-            let dir = format!(
-                "$HOME/{}",
-                skills::skill_dir_rel(&kind).map_err(AppError::Invalid)?
-            );
+            // 自定义根目录展示实际落点（<根>/pokemon-choose-you，远端机器上的路径）；
+            // 缺省展示 $HOME 相对
+            let dir = match dir_override {
+                Some(d) => format!("{d}/{}", skills::SKILL_DIR_NAME),
+                None => format!(
+                    "$HOME/{}",
+                    skills::skill_dir_rel(&kind).map_err(AppError::Invalid)?
+                ),
+            };
             Ok(AgentSkillStatus {
                 agent_id,
                 kind,
@@ -200,9 +220,10 @@ pub async fn agent_skill_install(
     let agent = load_agent(&db, &agent_id)?;
     let kind = skill_kind(&agent)?;
     let version = skills::SKILL_VERSION.to_string();
+    let dir_override = skill_dir_override(&agent);
     match effective_remote(&agent) {
         None => {
-            let dir = skills::skill_dir_for(&kind, None).map_err(AppError::Invalid)?;
+            let dir = skills::skill_dir_for(&kind, dir_override).map_err(AppError::Invalid)?;
             let (previous, path) = skills::local_install(&dir).map_err(AppError::External)?;
             let updated = previous.as_deref().is_none_or(|v| v != version);
             Ok(AgentSkillInstallResult {
@@ -217,7 +238,8 @@ pub async fn agent_skill_install(
         }
         Some(remote) => {
             // 先查旧版本（供「升级/首装」提示），再送安装脚本
-            let status_line = skills::remote_status_line(&kind).map_err(AppError::Invalid)?;
+            let status_line =
+                skills::remote_status_line(&kind, dir_override).map_err(AppError::Invalid)?;
             let out = ssh_run(
                 remote,
                 &format!("exec \"$SHELL\" -lc {}", ai::posix_quote(&status_line)),
@@ -225,7 +247,8 @@ pub async fn agent_skill_install(
             )
             .await?;
             let previous = skills::frontmatter_version(out.trim());
-            let script = skills::remote_install_script(&kind).map_err(AppError::Invalid)?;
+            let script =
+                skills::remote_install_script(&kind, dir_override).map_err(AppError::Invalid)?;
             let result = ssh_run(remote, "exec \"$SHELL\" -lc 'sh -s'", Some(&script)).await?;
             // 哨兵校验：远端脚本全部落盘成功才会回显（profile 输出可能混入，按整行匹配）
             let expected = format!("{REMOTE_INSTALL_SENTINEL} {version}");
@@ -235,10 +258,13 @@ pub async fn agent_skill_install(
                     result.trim()
                 )));
             }
-            let dir = format!(
-                "$HOME/{}",
-                skills::skill_dir_rel(&kind).map_err(AppError::Invalid)?
-            );
+            let dir = match dir_override {
+                Some(d) => format!("{d}/{}", skills::SKILL_DIR_NAME),
+                None => format!(
+                    "$HOME/{}",
+                    skills::skill_dir_rel(&kind).map_err(AppError::Invalid)?
+                ),
+            };
             let updated = previous.as_deref() != Some(version.as_str());
             Ok(AgentSkillInstallResult {
                 agent_id,
@@ -269,6 +295,16 @@ mod tests {
     }
 
     fn seed_agent(conn: &rusqlite::Connection, id: &str, command: &str, host: Option<&str>) {
+        seed_agent_with(conn, id, command, host, None)
+    }
+
+    fn seed_agent_with(
+        conn: &rusqlite::Connection,
+        id: &str,
+        command: &str,
+        host: Option<&str>,
+        skill_dir: Option<&str>,
+    ) {
         let agent = AgentConfig {
             id: id.into(),
             name: id.into(),
@@ -277,6 +313,7 @@ mod tests {
                 host: h.into(),
                 ..Default::default()
             }),
+            skill_dir: skill_dir.map(str::to_string),
             ..Default::default()
         };
         conn.execute(
@@ -313,6 +350,14 @@ mod tests {
             .unwrap(),
             "pi"
         );
+        assert_eq!(
+            skill_kind(&AgentConfig {
+                command: "dsh".into(),
+                ..Default::default()
+            })
+            .unwrap(),
+            "dsh"
+        );
         let err = skill_kind(&AgentConfig {
             command: "my-agent".into(),
             ..Default::default()
@@ -322,6 +367,59 @@ mod tests {
             err.to_string().contains("pk skill"),
             "给手动同步指引: {err}"
         );
+        // 指定了技能根目录的未知命令回落 custom：根目录即落点基准，照常检查/安装
+        assert_eq!(
+            skill_kind(&AgentConfig {
+                command: "my-agent".into(),
+                skill_dir: Some("~/my-skills".into()),
+                ..Default::default()
+            })
+            .unwrap(),
+            "custom"
+        );
+    }
+
+    /// 自定义技能目录的本机往返：未知命令 + skillDir 指到临时目录，经 IPC 命令层
+    /// 检查/安装/复查全通，不污染真实 agent 全局目录
+    #[test]
+    fn status_and_install_with_custom_dir() {
+        let app = setup();
+        let dir = std::env::temp_dir().join(format!("pk-skill-cfg-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        {
+            let db = app.state::<Db>();
+            let conn = db.0.lock().unwrap();
+            seed_agent_with(&conn, "c1", "my-agent", None, Some(dir.to_str().unwrap()));
+        }
+        let before = {
+            let db = app.state::<Db>();
+            tauri::async_runtime::block_on(agent_skill_status(db, "c1".into())).unwrap()
+        };
+        assert_eq!(before.kind, "custom");
+        assert!(!before.installed, "空目录首查未装");
+        assert_eq!(
+            before.dir,
+            dir.join("pokemon-choose-you").to_string_lossy(),
+            "展示根目录下的名称子目录落点"
+        );
+
+        let result = {
+            let db = app.state::<Db>();
+            tauri::async_runtime::block_on(agent_skill_install(db, "c1".into())).unwrap()
+        };
+        assert!(result.dir.contains("pk-skill-cfg"), "装进自定义根目录");
+        assert!(
+            dir.join("pokemon-choose-you/SKILL.md").is_file(),
+            "技能落名称子目录，不铺在根上"
+        );
+
+        let after = {
+            let db = app.state::<Db>();
+            tauri::async_runtime::block_on(agent_skill_status(db, "c1".into())).unwrap()
+        };
+        assert!(after.installed);
+        assert!(after.up_to_date);
+        let _ = std::fs::remove_dir_all(&dir);
     }
 
     /// 本机检查/安装往返：经 IPC 命令层跑通（装的是 --dir 之外的正式目录，
@@ -454,6 +552,46 @@ mod tests {
         assert!(argv.contains("BatchMode=yes"), "免交互开关进 argv: {argv}");
         assert!(argv.contains("dev@box"), "目标主机进 argv: {argv}");
         assert!(argv.contains("--"), "命令分隔符进 argv: {argv}");
+        let _ = std::fs::remove_dir_all(&tmp);
+    }
+
+    /// 远程 + 自定义技能根目录：status 的 cat 行带 $HOME 展开的根目录路径
+    /// （空格安全）+ 名称子目录，展示目录为实际落点。
+    /// #[serial]：PK_SSH_BIN 进程级 env，与上面假 ssh 测试互斥
+    #[test]
+    #[serial_test::serial]
+    fn remote_custom_dir_via_fake_ssh() {
+        let app = setup();
+        {
+            let db = app.state::<Db>();
+            let conn = db.0.lock().unwrap();
+            seed_agent_with(
+                &conn,
+                "rc",
+                "my-agent",
+                Some("dev@box"),
+                Some("~/my skills"),
+            );
+        }
+        let tmp = std::env::temp_dir().join(format!("pk-skill-sshc-{}", std::process::id()));
+        std::fs::create_dir_all(&tmp).unwrap();
+        inject_fake_ssh(&tmp, "");
+        let status = {
+            let db = app.state::<Db>();
+            tauri::async_runtime::block_on(agent_skill_status(db, "rc".into())).unwrap()
+        };
+        std::env::remove_var("PK_SSH_BIN");
+        assert_eq!(status.kind, "custom", "未知命令 + 目录覆盖回落 custom");
+        assert_eq!(
+            status.dir, "~/my skills/pokemon-choose-you",
+            "展示根目录下名称子目录的实际落点"
+        );
+        assert!(status.remote_host.is_some());
+        let argv = std::fs::read_to_string(tmp.join("ssh-argv.txt")).unwrap();
+        assert!(
+            argv.contains("cat \"${HOME}/my skills/pokemon-choose-you\"/SKILL.md"),
+            "自定义根目录 + 名称子目录进远端 cat 行: {argv}"
+        );
         let _ = std::fs::remove_dir_all(&tmp);
     }
 }

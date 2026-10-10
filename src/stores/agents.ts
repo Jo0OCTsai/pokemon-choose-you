@@ -17,6 +17,9 @@ export const AGENT_PRESETS: Record<string, Omit<AgentConfig, "id" | "timeoutSecs
   },
   opencode: { name: "OpenCode", command: "opencode", args: "run {prompt}", historyArgs: "" },
   pi: { name: "pi", command: "pi", args: "-p {prompt}", historyArgs: "-r" },
+  // DeepSeek Harness：无头走 headless profile（不带 {prompt}，提示词经 stdin——本地与
+  // SSH 远程同构）；交互入口由 desktop/web profile 自带会话列表，历史参数留空直接启动
+  dsh: { name: "DeepSeek Harness", command: "dsh", args: "--profile headless", historyArgs: "" },
   custom: { name: "", command: "", args: "{prompt}", historyArgs: "" },
 };
 
@@ -39,13 +42,17 @@ export const useAgentsStore = defineStore("agents", {
     tunnelStates: {} as Record<string, TunnelStatus>,
   }),
   actions: {
-    /** 从设置键解析 agent 列表（旧配置无 workdir 字段归一成空串，输入框受控；残留的 mode 字段（对接方式已下线）忽略） */
+    /** 从设置键解析 agent 列表（旧配置无 workdir 字段归一成空串、skillDir 归一成 null，输入框受控；残留的 mode 字段（对接方式已下线）忽略） */
     load() {
       const settings = useSettingsStore();
       try {
         const parsed = JSON.parse(settings.sget("ai_agents") || "[]");
         this.list = Array.isArray(parsed)
-          ? parsed.map((a: AgentConfig): AgentConfig => ({ ...a, workdir: a.workdir ?? "" }))
+          ? parsed.map((a: AgentConfig): AgentConfig => ({
+              ...a,
+              workdir: a.workdir ?? "",
+              skillDir: a.skillDir ?? null,
+            }))
           : [];
       } catch {
         this.list = [];
@@ -60,6 +67,8 @@ export const useAgentsStore = defineStore("agents", {
       settings.values.ai_agents = JSON.stringify(
         this.list.map((a) => ({
           ...a,
+          // 技能目录空串归一成 null（后端空白视为未指定，落库前先清干净）
+          skillDir: a.skillDir?.trim() || null,
           remote: a.remote
             ? { ...a.remote, tunnel: a.remote.tunnel || null, persistent: a.remote.persistent || false }
             : null,

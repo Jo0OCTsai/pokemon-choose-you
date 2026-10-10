@@ -50,7 +50,7 @@ impl Default for AgentRemote {
 pub struct AgentConfig {
     pub id: String,
     pub name: String,
-    /// 可执行文件名或绝对路径，如 claude / opencode / pi
+    /// 可执行文件名或绝对路径，如 claude / opencode / pi / dsh
     pub command: String,
     /// 附加参数（按空白切分）。{prompt} 占位符替换为提示词；未出现时提示词经标准输入传入；
     /// SSH 远程模式下占位符元素被剔除、提示词一律走标准输入
@@ -60,6 +60,11 @@ pub struct AgentConfig {
     /// 工作目录（空 = ~/.choose-you/workspace，支持 ~ 前缀）：
     /// agent 及其工具的相对路径基准；远程模式下是远程机器上的路径
     pub workdir: String,
+    /// pk 技能根目录覆盖（空 = 按 command 推断的 agent 全局根目录，支持 ~ 前缀）：
+    /// 技能落 <根>/pokemon-choose-you；自定义 agent 或非标准落点时指定；
+    /// 远程模式下是远程机器上的路径
+    #[serde(default)]
+    pub skill_dir: Option<String>,
     /// 单次调用超时（秒）
     pub timeout_secs: u64,
     pub enabled: bool,
@@ -77,6 +82,7 @@ impl Default for AgentConfig {
             args: String::new(),
             history_args: String::new(),
             workdir: String::new(),
+            skill_dir: None,
             timeout_secs: 120,
             enabled: true,
             remote: None,
@@ -212,5 +218,19 @@ mod tests {
         let raw3 = r#"[{"id":"r3","name":"本地","command":"claude"}]"#;
         let get3 = getter(&[("ai_agents", raw3)]);
         assert!(load_agents(&get3)[0].remote.is_none());
+    }
+
+    /// skillDir（camelCase）解析往返：自定义目录覆盖与缺省 None 都兼容老配置
+    #[test]
+    fn load_agents_parses_skill_dir() {
+        let raw = r#"[{"id":"c1","name":"自定义","command":"my-agent","skillDir":"~/my-skills"}]"#;
+        let get = getter(&[("ai_agents", raw)]);
+        assert_eq!(
+            load_agents(&get)[0].skill_dir.as_deref(),
+            Some("~/my-skills")
+        );
+        let raw2 = r#"[{"id":"c2","name":"老配置","command":"claude"}]"#;
+        let get2 = getter(&[("ai_agents", raw2)]);
+        assert!(load_agents(&get2)[0].skill_dir.is_none(), "缺省无覆盖");
     }
 }

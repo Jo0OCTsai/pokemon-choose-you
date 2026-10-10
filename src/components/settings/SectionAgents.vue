@@ -30,6 +30,7 @@ const presetOptions = [
   { value: "claude", label: "Claude Code" },
   { value: "opencode", label: "OpenCode" },
   { value: "pi", label: "pi" },
+  { value: "dsh", label: "DeepSeek Harness" },
   { value: "custom", label: "Custom" },
 ];
 const agentPreset = ref("claude");

@@ -21,7 +21,7 @@ pub(crate) fn run_skill(rest: &[String]) -> Result<serde_json::Value, CliError> 
             std::process::exit(0);
         }
         "install" => {
-            let agent = p.positional(0, "agent 名（claude-code / opencode / pi）")?;
+            let agent = p.positional(0, "agent 名（claude-code / opencode / pi / dsh）")?;
             let dir = skill_dir_for(&agent, dir_flag.as_deref()).map_err(|m| CliError(m, 2))?;
             let (previous, path) = local_install(&dir).map_err(|m| CliError(m, 1))?;
             Ok(json!({

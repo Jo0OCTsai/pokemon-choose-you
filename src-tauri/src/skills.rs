@@ -1,5 +1,5 @@
 //! pk 使用技能的分发与版本管理：pk CLI 的 `skill install/show` 与桌面应用的
-//! 「安装/检查技能」共用同一套内容与目录规则（claude-code / opencode / pi）。
+//! 「安装/检查技能」共用同一套内容与目录规则（claude-code / opencode / pi / dsh）。
 //!
 //! 技能放 agent 的**全局目录**（`~/.claude/skills/` 等）：pk 技能是个人跨项目工具，
 //! 官方建议项目约定进仓库目录、个人工作流进 home 全局目录；且远程 agent 场景下
@@ -19,14 +19,15 @@ pub const SKILL_REFS: &[(&str, &str)] = &[
     ),
 ];
 /// 当前技能版本（与 SKILL.md frontmatter 的 version 保持一致，用于安装时的版本对比）
-pub const SKILL_VERSION: &str = "7";
+pub const SKILL_VERSION: &str = "9";
 
 /// 技能在各 agent 技能目录下的文件夹名（Agent Skills 标准：与 frontmatter name 一致）
-const SKILL_DIR_NAME: &str = "pokemon-choose-you";
+pub const SKILL_DIR_NAME: &str = "pokemon-choose-you";
 
 /// 从 agent 可执行命令推断技能目标类型：basename 匹配关键词即命中
-/// （claude / opencode / pi；绝对路径与自定义包装脚本也能识别）。
-/// pi 名字只有两个字母，必须精确等值匹配——子串匹配会把 copilot 之类误判成 pi
+/// （claude / opencode / pi / dsh；绝对路径与自定义包装脚本也能识别）。
+/// pi 名字只有两个字母，必须精确等值匹配——子串匹配会把 copilot 之类误判成 pi；
+/// dsh 同理（dash/winssh 之类含 dsh 子串的无关命令不能误报）
 pub fn kind_for_command(command: &str) -> Option<&'static str> {
     let base = command
         .rsplit(['/', '\\'])
@@ -35,6 +36,8 @@ pub fn kind_for_command(command: &str) -> Option<&'static str> {
         .to_lowercase();
     if base == "pi" || base.contains("pi-coding-agent") {
         Some("pi")
+    } else if base == "dsh" || base.contains("deepseek") {
+        Some("dsh")
     } else if base.contains("claude") {
         Some("claude-code")
     } else if base.contains("opencode") {
@@ -46,14 +49,68 @@ pub fn kind_for_command(command: &str) -> Option<&'static str> {
 
 /// 技能文件所在目录（本机 $HOME 下的绝对路径）：claude-code → ~/.claude/skills；
 /// opencode → ~/.config/opencode/skill；pi → ~/.pi/agent/skills；
-/// 其他 agent 用 --dir 显式指定
+/// dsh（DeepSeek Harness）→ ~/.dsh/skills；
+/// 其他 agent 用 --dir 显式指定（或设置页的技能根目录字段，同一参数）。
+/// 目录覆盖指的是**技能根目录**（如 ~/.claude/skills）：技能本体落在
+/// <根>/pokemon-choose-you——与各 agent 默认目录同构，根下一技能一目录，
+/// 不与根下其他技能混放
 pub fn skill_dir_for(agent: &str, dir_flag: Option<&str>) -> Result<std::path::PathBuf, String> {
-    if let Some(d) = dir_flag.filter(|d| !d.is_empty()) {
-        return Ok(std::path::PathBuf::from(d));
+    if let Some(d) = dir_override(dir_flag) {
+        // ~ 前缀展开（与 agent 工作目录同语义），其余按原样（绝对/相对路径）
+        let base = if let Some(rest) = d.strip_prefix("~/") {
+            match dirs::home_dir() {
+                Some(home) => home.join(rest),
+                None => std::path::PathBuf::from(d),
+            }
+        } else {
+            std::path::PathBuf::from(d)
+        };
+        return Ok(base.join(SKILL_DIR_NAME));
     }
     let home = dirs::home_dir().ok_or_else(|| "无法定位用户主目录".to_string())?;
     let rel = skill_dir_rel(agent)?;
     Ok(home.join(rel))
+}
+
+/// 目录覆盖值的归一：trim 后非空才算指定
+fn dir_override(dir: Option<&str>) -> Option<&str> {
+    dir.map(str::trim).filter(|d| !d.is_empty())
+}
+
+/// 远端技能目录的 shell 安全表达式（嵌入状态行与安装脚本）：缺省 `"$HOME/<rel>"`；
+/// 覆盖值为**技能根目录**，技能名子目录拼进表达式（语义与 skill_dir_for 一致）——
+/// `~` 前缀转 `"${HOME}/rest"`（双引号内展开、空格安全），其余整体 posix_quote
+pub fn remote_dir_word(agent: &str, dir: Option<&str>) -> Result<String, String> {
+    match dir_override(dir) {
+        Some(d) => {
+            if let Some(rest) = d.strip_prefix('~') {
+                let rest = rest.strip_prefix('/').unwrap_or(rest);
+                Ok(format!(
+                    "\"${{HOME}}/{}/{}\"",
+                    dq_escape(rest),
+                    SKILL_DIR_NAME
+                ))
+            } else {
+                Ok(format!("{}/{}", crate::ai::posix_quote(d), SKILL_DIR_NAME))
+            }
+        }
+        None => Ok(format!("\"$HOME/{}\"", skill_dir_rel(agent)?)),
+    }
+}
+
+/// 双引号字符串内的元字符转义（$ ` " \ 会让 ${HOME} 表达式被远端 shell 改义）
+fn dq_escape(s: &str) -> String {
+    let mut out = String::with_capacity(s.len());
+    for c in s.chars() {
+        match c {
+            '"' => out.push_str("\\\""),
+            '$' => out.push_str("\\$"),
+            '`' => out.push_str("\\`"),
+            '\\' => out.push_str("\\\\"),
+            _ => out.push(c),
+        }
+    }
+    out
 }
 
 /// 技能目录在 $HOME 下的相对路径（POSIX 斜杠形式；远程安装时交给远端 shell 展开 $HOME）
@@ -62,8 +119,9 @@ pub fn skill_dir_rel(agent: &str) -> Result<String, String> {
         "claude-code" | "claude" => Ok(format!(".claude/skills/{SKILL_DIR_NAME}")),
         "opencode" => Ok(format!(".config/opencode/skill/{SKILL_DIR_NAME}")),
         "pi" => Ok(format!(".pi/agent/skills/{SKILL_DIR_NAME}")),
+        "dsh" | "deepseek-harness" => Ok(format!(".dsh/skills/{SKILL_DIR_NAME}")),
         other => Err(format!(
-            "暂不认识 agent「{other}」的技能目录：支持 claude-code / opencode / pi，其他 agent 用 --dir <目录> 指定，或 pk skill show 自行粘贴"
+            "暂不认识 agent「{other}」的技能目录：支持 claude-code / opencode / pi / dsh，其他 agent 用 --dir <目录> 指定，或 pk skill show 自行粘贴"
         )),
     }
 }
@@ -118,19 +176,22 @@ pub fn local_install(dir: &std::path::Path) -> Result<(Option<String>, String), 
 }
 
 /// 远端单行命令：读取远端已装 SKILL.md（stdout 带回内容，本地解析版本）。
-/// 未安装时 cat 失败被吞（`|| true`），ssh 退出码只反映连接问题
-pub fn remote_status_line(agent: &str) -> Result<String, String> {
-    let rel = skill_dir_rel(agent)?;
-    Ok(format!("cat \"$HOME/{rel}/SKILL.md\" 2>/dev/null || true"))
+/// 未安装时 cat 失败被吞（`|| true`），ssh 退出码只反映连接问题。
+/// dir 覆盖远端机器上的技能根目录（None = 按 agent 类型推断）
+pub fn remote_status_line(agent: &str, dir: Option<&str>) -> Result<String, String> {
+    let word = remote_dir_word(agent, dir)?;
+    // /SKILL.md 拼在引用词外（shell 相邻词拼接，结果等价；无空格常量段无需入引号）
+    Ok(format!("cat {word}/SKILL.md 2>/dev/null || true"))
 }
 
 /// 远端安装脚本（经 stdin 交给远端 sh -s）：逐文件 heredoc 落盘。
-/// set -e 任一步失败即非零退出，ssh 退出码如实反映
-pub fn remote_install_script(agent: &str) -> Result<String, String> {
-    let rel = skill_dir_rel(agent)?;
+/// set -e 任一步失败即非零退出，ssh 退出码如实反映。
+/// dir 覆盖远端机器上的技能根目录（None = 按 agent 类型推断）
+pub fn remote_install_script(agent: &str, dir: Option<&str>) -> Result<String, String> {
+    let word = remote_dir_word(agent, dir)?;
     // heredoc 定界符带固定盐：技能正文是我们自己的 Markdown，不会撞行
     const DELIM: &str = "PK_SKILL_HEREDOC_END_7Q4X";
-    let mut script = format!("set -e\numask 022\ndir=\"$HOME/{rel}\"\nmkdir -p \"$dir\"\n");
+    let mut script = format!("set -e\numask 022\ndir={word}\nmkdir -p \"$dir\"\n");
     for (rel_path, content) in
         std::iter::once(("SKILL.md", SKILL_MD)).chain(SKILL_REFS.iter().copied())
     {
@@ -185,6 +246,7 @@ mod tests {
     }
 
     /// pi 名字太短，只能精确命中（contains 会误伤 copilot 之类）；
+    /// dsh 同样短，精确命中（dash 之类含 dsh 子串的不误报）；
     /// claude 走子串匹配
     #[test]
     fn kind_for_command_matches_pi() {
@@ -199,8 +261,22 @@ mod tests {
         assert_eq!(kind_for_command("ping-agent"), None);
     }
 
+    /// dsh（DeepSeek Harness）：命令名精确等值；产品名包装脚本（deepseek-harness）
+    /// 走子串；含 dsh 子串的无关命令不误报
     #[test]
-    fn skill_dirs_cover_three_agents() {
+    fn kind_for_command_matches_dsh() {
+        assert_eq!(kind_for_command("dsh"), Some("dsh"));
+        assert_eq!(kind_for_command("/usr/local/bin/dsh"), Some("dsh"));
+        assert_eq!(kind_for_command("deepseek-harness"), Some("dsh"));
+        assert_eq!(
+            kind_for_command("dash"),
+            None,
+            "含 dsh 子串的无关命令不误报"
+        );
+    }
+
+    #[test]
+    fn skill_dirs_cover_four_agents() {
         let home = dirs::home_dir().unwrap();
         assert_eq!(
             skill_dir_for("claude-code", None).unwrap(),
@@ -215,9 +291,24 @@ mod tests {
             home.join(".pi/agent/skills/pokemon-choose-you")
         );
         assert_eq!(
+            skill_dir_for("dsh", None).unwrap(),
+            home.join(".dsh/skills/pokemon-choose-you"),
+            "DeepSeek Harness 技能落 ~/.dsh/skills"
+        );
+        assert_eq!(
             skill_dir_for("unknown", Some("/tmp/x")).unwrap(),
-            std::path::PathBuf::from("/tmp/x"),
-            "--dir 显式指定优先"
+            std::path::PathBuf::from("/tmp/x/pokemon-choose-you"),
+            "--dir 指定的是技能根目录，技能落进名称子目录（与默认目录同构）"
+        );
+        assert_eq!(
+            skill_dir_for("unknown", Some("~/pk-skills")).unwrap(),
+            home.join("pk-skills/pokemon-choose-you"),
+            "自定义根目录支持 ~ 前缀（与 workdir 同语义），名称子目录照建"
+        );
+        assert_eq!(
+            skill_dir_for("claude-code", Some("  ")).unwrap(),
+            home.join(".claude/skills/pokemon-choose-you"),
+            "空白覆盖视为未指定，回落按 kind 推断"
         );
         assert!(skill_dir_for("unknown", None).is_err());
         // 远端相对路径与本地目录尾部一致
@@ -229,12 +320,12 @@ mod tests {
 
     #[test]
     fn remote_scripts_quote_and_version() {
-        let status = remote_status_line("claude-code").unwrap();
+        let status = remote_status_line("claude-code", None).unwrap();
         assert!(
-            status.contains("\"$HOME/.claude/skills/pokemon-choose-you/SKILL.md\""),
+            status.contains("cat \"$HOME/.claude/skills/pokemon-choose-you\"/SKILL.md"),
             "{status}"
         );
-        let install = remote_install_script("pi").unwrap();
+        let install = remote_install_script("pi", None).unwrap();
         assert!(install.starts_with("set -e"), "任一步失败即退出: {install}");
         assert!(install.contains("dir=\"$HOME/.pi/agent/skills/pokemon-choose-you\""));
         assert!(install.contains("<<'PK_SKILL_HEREDOC_END_7Q4X'"));
@@ -248,6 +339,43 @@ mod tests {
                 .ends_with(&format!("echo \"PK_SKILL_INSTALLED {SKILL_VERSION}\"")),
             "回显哨兵与版本: {install}"
         );
+    }
+
+    /// 自定义目录的远端表达式：~ 前缀转 ${HOME}（引号内展开），其余整体引用，
+    /// 空格路径也安全；空白覆盖回落缺省目录
+    #[test]
+    fn remote_dir_word_quotes_custom_dirs() {
+        assert_eq!(
+            remote_dir_word("claude-code", None).unwrap(),
+            "\"$HOME/.claude/skills/pokemon-choose-you\""
+        );
+        assert_eq!(
+            remote_dir_word("claude-code", Some("  ")).unwrap(),
+            "\"$HOME/.claude/skills/pokemon-choose-you\"",
+            "空白覆盖回落缺省"
+        );
+        assert_eq!(
+            remote_dir_word("claude-code", Some("~/my skills")).unwrap(),
+            "\"${HOME}/my skills/pokemon-choose-you\"",
+            "~ 前缀在双引号内经 $HOME 变量展开，空格安全；技能名子目录拼进引号内"
+        );
+        assert_eq!(
+            remote_dir_word("custom", Some("/opt/pk skill")).unwrap(),
+            "'/opt/pk skill'/pokemon-choose-you",
+            "绝对路径走单引号引用，名称子目录拼在引用词外"
+        );
+        assert_eq!(
+            remote_dir_word("custom", Some("/opt/pk's")).unwrap(),
+            "'/opt/pk'\\''s'/pokemon-choose-you",
+            "路径内单引号按 posix_quote 转义"
+        );
+        // 状态行与安装脚本都以该表达式定位目录
+        assert!(remote_status_line("custom", Some("~/x"))
+            .unwrap()
+            .contains("cat \"${HOME}/x/pokemon-choose-you\"/SKILL.md"));
+        assert!(remote_install_script("custom", Some("~/x"))
+            .unwrap()
+            .contains("dir=\"${HOME}/x/pokemon-choose-you\""));
     }
 
     /// 本地安装→状态读取往返：装的是同一份内容，版本取 frontmatter
@@ -286,7 +414,7 @@ mod tests {
         let home = std::env::temp_dir().join(format!("pk-skill-sh-{}", std::process::id()));
         let _ = std::fs::remove_dir_all(&home);
         std::fs::create_dir_all(&home).unwrap();
-        let script = remote_install_script("pi").unwrap();
+        let script = remote_install_script("pi", None).unwrap();
 
         use std::io::Write;
         let mut child = std::process::Command::new("sh")
@@ -323,6 +451,44 @@ mod tests {
         assert!(home
             .join(".pi/agent/skills/pokemon-choose-you/references/commands.md")
             .is_file());
+        let _ = std::fs::remove_dir_all(&home);
+    }
+
+    /// 自定义目录端到端：~ 前缀覆盖在 sh -s 下经 ${HOME} 展开落到指定目录，
+    /// 带空格的目录名同样安全（引用由 remote_dir_word 保证）
+    #[test]
+    #[cfg(unix)]
+    fn remote_install_script_runs_with_custom_dir() {
+        let home = std::env::temp_dir().join(format!("pk-skill-cd-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&home);
+        std::fs::create_dir_all(&home).unwrap();
+        let script = remote_install_script("custom", Some("~/my skills")).unwrap();
+
+        use std::io::Write;
+        let mut child = std::process::Command::new("sh")
+            .arg("-s")
+            .env("HOME", &home)
+            .stdin(std::process::Stdio::piped())
+            .stdout(std::process::Stdio::piped())
+            .stderr(std::process::Stdio::piped())
+            .spawn()
+            .unwrap();
+        child
+            .stdin
+            .take()
+            .unwrap()
+            .write_all(script.as_bytes())
+            .unwrap();
+        let out = child.wait_with_output().unwrap();
+        assert!(
+            out.status.success(),
+            "脚本执行失败: {}",
+            String::from_utf8_lossy(&out.stderr)
+        );
+        assert!(
+            home.join("my skills/pokemon-choose-you/SKILL.md").is_file(),
+            "落到自定义根目录下的名称子目录"
+        );
         let _ = std::fs::remove_dir_all(&home);
     }
 }
