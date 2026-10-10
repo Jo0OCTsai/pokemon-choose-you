@@ -207,11 +207,10 @@ async fn spawn_and_wait(
                 String::from_utf8(out.stdout)
                     .map_err(|e| AppError::External(format!("Agent 输出不是 UTF-8: {e}")))
             } else {
-                let stderr = String::from_utf8_lossy(&out.stderr);
                 Err(AppError::External(format!(
                     "Agent「{program}」退出码 {}：{}",
                     out.status.code().unwrap_or(-1),
-                    trunc(stderr.trim(), 300)
+                    failure_detail(&out.stderr, &out.stdout)
                 )))
             }
         }
@@ -225,6 +224,30 @@ fn spawn_error(program: &str, e: std::io::Error) -> AppError {
         ))
     } else {
         AppError::External(format!("启动「{program}」失败: {e}"))
+    }
+}
+
+/// 失败详情的流选择：stderr 优先；stderr 为空或全是 Warning: 开头的良性警告时
+/// （ssh 远程调用的按需 -R 绑不上端口仅告警，见 invocation.rs——常驻隧道占着远程端口）
+/// 真实失败原因常在 stdout（qodercli 的 "Not logged in" 打在 stdout），一并带回，
+/// 避免良性警告成为错误信息里的唯一线索、误导排障方向
+fn failure_detail(stderr: &[u8], stdout: &[u8]) -> String {
+    let stderr = String::from_utf8_lossy(stderr);
+    let stderr = stderr.trim();
+    let stdout = String::from_utf8_lossy(stdout);
+    let stdout = stdout.trim();
+    // 空串的 lines().all() 恒真：stderr 无输出同样视为「无可诊断内容」
+    let stderr_benign = stderr
+        .lines()
+        .all(|l| l.trim_start().starts_with("Warning:"));
+    if stderr_benign && !stdout.is_empty() {
+        if stderr.is_empty() {
+            trunc(stdout, 300)
+        } else {
+            format!("{}；stdout：{}", trunc(stderr, 300), trunc(stdout, 300))
+        }
+    } else {
+        trunc(stderr, 300)
     }
 }
 
@@ -531,6 +554,75 @@ mod tests {
             assert!(
                 err.to_string().contains("model exploded"),
                 "stderr 片段带进错误信息: {err}"
+            );
+        }
+
+        /// 回归（现场实报）：qodercli 把 "Not logged in · Please run /login" 打到
+        /// stdout、stderr 只剩 ssh 反向转发的良性警告（常驻隧道占住远程端口时按需
+        /// -R 绑不上仅告警，见 invocation.rs），stderr-only 的失败详情让良性警告成了
+        /// 唯一可见信息、误导排障方向——失败详情必须带回 stdout 片段
+        #[test]
+        fn run_agent_failure_surfaces_stdout_when_stderr_benign() {
+            let agent = fake_agent(
+                "silent",
+                "printf 'Not logged in · Please run /login'; exit 1",
+                "unused",
+            );
+            let err = tauri::async_runtime::block_on(run_agent(&agent, "hi")).unwrap_err();
+            assert!(
+                err.to_string().contains("Not logged in"),
+                "stderr 无诊断信息时 stdout 片段带进错误信息: {err}"
+            );
+        }
+
+        /// stderr 有诊断信息（含非 Warning 行）时保持原样只回 stderr，不掺 stdout 噪音
+        #[test]
+        fn run_agent_failure_prefers_stderr_when_diagnostic() {
+            let agent = fake_agent(
+                "loud",
+                "echo 'model exploded' >&2; echo 'noise on stdout'; exit 3",
+                "unused",
+            );
+            let err = tauri::async_runtime::block_on(run_agent(&agent, "hi")).unwrap_err();
+            assert!(
+                err.to_string().contains("model exploded"),
+                "stderr 诊断信息保留: {err}"
+            );
+            assert!(
+                !err.to_string().contains("noise on stdout"),
+                "stderr 有诊断信息时不掺 stdout: {err}"
+            );
+        }
+
+        // ---- failure_detail：失败详情的流选择（stderr 优先，良性警告时补 stdout） ----
+
+        #[test]
+        fn failure_detail_picks_streams_by_diagnostic_value() {
+            // stderr 有诊断信息（含非 Warning 行）→ 只回 stderr
+            assert_eq!(
+                failure_detail(b"Warning: something\nError: real cause", b"stdout junk"),
+                "Warning: something\nError: real cause"
+            );
+            // stderr 全是良性警告 + stdout 非空 → 警告保留、stdout 片段拼后（现场形态：
+            // ssh -R 告警 + qodercli 的 Not logged in）
+            assert_eq!(
+            failure_detail(
+                b"Warning: remote port forwarding failed for listen port 10022\n",
+                "Not logged in · Please run /login".as_bytes()
+            ),
+            "Warning: remote port forwarding failed for listen port 10022；stdout：Not logged in · Please run /login"
+        );
+            // stderr 空（含纯空白）+ stdout 非空 → 只回 stdout，不加流标签
+            assert_eq!(failure_detail(b"", b"Not logged in"), "Not logged in");
+            assert_eq!(failure_detail(b"  \n", b"Not logged in"), "Not logged in");
+            // 两者皆空 → 空串（错误信息只剩退出码）
+            assert_eq!(failure_detail(b"", b""), "");
+            // 超长输出截断（中文安全，与 stderr 同口径 300 字符）
+            let long = "错".repeat(400);
+            assert_eq!(
+                failure_detail(b"", long.as_bytes()),
+                "错".repeat(300),
+                "stdout 片段按 300 字符截断"
             );
         }
 
