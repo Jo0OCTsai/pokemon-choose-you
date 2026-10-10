@@ -14,37 +14,37 @@ name = "pokemon_choose_you_lib"
 crate-type = ["staticlib", "cdylib", "rlib"]
 
 [build-dependencies]
-tauri-build = { version = "2.6.3", features = [] }
+tauri-build = { version = "2.7.1", features = [] }
 
 [dependencies]
-tauri = { version = "2.11.6", features = ["macos-private-api", "tray-icon"] }
-tauri-plugin-opener = "2.5.5"
-tauri-plugin-notification = "2.4.0"
-tauri-plugin-log = "2.9.2"
-tauri-plugin-autostart = "2.5.1"
+tauri = { version = "2.12.2", features = ["macos-private-api", "tray-icon"] }
+tauri-plugin-opener = "2.7.1"
+tauri-plugin-notification = "2.6.0"
+tauri-plugin-log = "2.10.1"
+tauri-plugin-autostart = "2.7.0"
 # 常驻应用标配：单实例 / 窗口状态记忆 / 全局快捷键 / 自动更新
-tauri-plugin-single-instance = "2.4.5"
-tauri-plugin-window-state = "2.4.1"
-tauri-plugin-global-shortcut = "2.3.2"
-tauri-plugin-updater = "2.12.0"
-tauri-plugin-process = "2.3.1"
+tauri-plugin-single-instance = "2.5.3"
+tauri-plugin-window-state = "2.5.0"
+tauri-plugin-global-shortcut = "2.4.1"
+tauri-plugin-updater = "2.13.3"
+tauri-plugin-process = "2.4.0"
 # 桌面交互：右键菜单的剪贴板读写（WebView 里 navigator.clipboard 读常被权限卡住）+ 导出另存为对话框
-tauri-plugin-clipboard-manager = "2.3.3"
-tauri-plugin-dialog = "2.7.3"
+tauri-plugin-clipboard-manager = "2.4.2"
+tauri-plugin-dialog = "2.8.2"
 serde = { version = "1.0.229", features = ["derive"] }
-serde_json = "1.0.151"
+serde_json = "1.0.152"
 rusqlite = { version = "0.40.2", features = ["bundled", "backup"] }
 chrono = { version = "0.4.45", features = ["serde"] }
-tokio = { version = "1.53.1", features = ["time", "macros", "process", "io-util"] }
+tokio = { version = "1.53.2", features = ["time", "macros", "process", "io-util"] }
 # pk CLI 定位应用数据库文件（与 tauri 的 app_data_dir 同一规则：config_dir/<identifier>）
 dirs = "7.0.0"
 log = "0.4.34"
-thiserror = "2.0.20"
+thiserror = "2.0.21"
 # 秘钥存 OS 钥匙串（macOS Keychain / Windows Credential Manager / Linux Secret Service）；
 # 默认特性 v1 的 linux 后端为纯 Rust zbus，无需 libdbus 系统依赖
 keyring = "4.2.0"
 # 派发会话续接：预生成 claude --session-id 用的 UUID v4
-uuid = { version = "1.26.1", features = ["v4"] }
+uuid = { version = "1.28.0", features = ["v4"] }
 
 # 输入响应（F1）：全局键鼠活动强度监听（回调只递增计数器，不取内容），仅 Windows/Linux；
 # macOS 自写最小 CGEventTap（见 input.rs）——rdev 0.5.3 在监听线程调 TIS 布局 API，
@@ -55,7 +55,7 @@ rdev = "0.5.3"
 [dev-dependencies]
 serial_test = "4.0.1"
 # 仅测试构建启用 mock 运行时，不影响正常编译与发布产物
-tauri = { version = "2.11.6", features = ["test"] }
+tauri = { version = "2.12.2", features = ["test"] }
 
 [profile.release]
 codegen-units = 1
