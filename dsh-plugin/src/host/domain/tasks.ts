@@ -190,8 +190,10 @@ function newTaskValues(task: NewTask, conn: Conn, now: string): Array<string | n
   ];
 }
 
-/** 创建任务（对齐 create_task_conn）：标题去空格、落分类、挂标签、保不变量、记日志 */
-export function createTask(conn: Conn, task: NewTask, origin = "dsh", now = nowRfc3339()): Task {
+/** 创建任务（对齐 create_task_conn）：标题去空格、落分类、挂标签、保不变量、记日志。
+ * now 缺省时行写入与审计各写点独立取时（Rust create_task_conn 的 created_at 与
+ * log_change 各自 db::now()，FR-X3 按夹具对齐）。 */
+export function createTask(conn: Conn, task: NewTask, origin = "dsh", now?: string): Task {
   const title = task.title.trim();
   if (title === "") {
     throw paramError("标题不能为空");
@@ -201,7 +203,7 @@ export function createTask(conn: Conn, task: NewTask, origin = "dsh", now = nowR
       "INSERT INTO tasks (title, note, category_id, status, priority, due_at, remind_at, source, external_id, created_at) " +
         "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
     )
-    .run(...newTaskValues(task, conn, now));
+    .run(...newTaskValues(task, conn, now ?? nowRfc3339()));
   const id = Number(result.lastInsertRowid);
   if (task.tagIds !== undefined) {
     setTaskTags(conn, id, task.tagIds);
@@ -265,10 +267,11 @@ function buildUpdateSets(patch: TaskPatch, now: string): { sets: string[]; value
   return { sets, values };
 }
 
-/** 字段级 patch + 不变量 + diff 日志（对齐 update_task_conn，含提醒时间变化重置提醒标志） */
-export function updateTask(conn: Conn, patch: TaskPatch, origin = "dsh", now = nowRfc3339()): Task {
+/** 字段级 patch + 不变量 + diff 日志（对齐 update_task_conn，含提醒时间变化重置提醒标志）。
+ * now 缺省时完成时间写点与各审计行独立取时（FR-X3 按夹具对齐）。 */
+export function updateTask(conn: Conn, patch: TaskPatch, origin = "dsh", now?: string): Task {
   const before = getTask(conn, patch.id);
-  const { sets, values } = buildUpdateSets(patch, now);
+  const { sets, values } = buildUpdateSets(patch, now ?? nowRfc3339());
   if (sets.length > 0) {
     values.push(patch.id);
     conn.prepare(`UPDATE tasks SET ${sets.join(", ")} WHERE id=?${values.length}`).run(...values);

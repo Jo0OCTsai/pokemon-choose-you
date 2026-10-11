@@ -64,3 +64,46 @@ export function seedDefaults(conn: Conn): void {
     insertDimension.run(d.id, d.key, d.name, d.cardinality, d.maxTags, d.id, d.id, d.key);
   }
 }
+
+/** 存量 agent 预设升级的旧/新 claude 参数（db.rs normalize_legacy_agent_presets 同款） */
+const OLD_CLAUDE_ARGS = "-p {prompt} --allowedTools Bash(pk:*)";
+const NEW_CLAUDE_ARGS = "-p {prompt} --allowedTools Bash(pk:*) --output-format json";
+
+/**
+ * 存量 agent 预设的一次性升级标记（db.rs normalize_legacy_agent_presets 同构，幂等，
+ * 完成即写标记位 ai_agent_presets_v2=1）：claude 旧默认参数补 `--output-format json`
+ * （无头 stdout 变 JSON 信封，会话回链自动落库）。只动「与旧默认值完全一致」的字段；
+ * 坏 ai_agents 行不写标记位（下次启动重试）；无 agent 配置也写标记位。
+ * FR-X3：Rust oracle 的 init 恒写该标记行（契约夹具 final.settings 锁定），TS 侧对齐。
+ */
+export function normalizeLegacyAgentPresets(conn: Conn): void {
+  const marked = conn.prepare("SELECT 1 FROM settings WHERE key='ai_agent_presets_v2'").get();
+  if (marked !== undefined) {
+    return;
+  }
+  const raw = conn.prepare("SELECT value FROM settings WHERE key='ai_agents'").get() as { value: string } | undefined;
+  if (raw === undefined) {
+    conn.prepare("INSERT OR REPLACE INTO settings (key, value) VALUES ('ai_agent_presets_v2', '1')").run();
+    return;
+  }
+  let agents: Array<{ command?: string; args?: string }>;
+  try {
+    agents = JSON.parse(raw.value) as Array<{ command?: string; args?: string }>;
+    if (!Array.isArray(agents)) {
+      return; // 坏数据不写标记位，下次启动重试
+    }
+  } catch {
+    return;
+  }
+  let changed = false;
+  for (const a of agents) {
+    if ((a.command ?? "").includes("claude") && a.args === OLD_CLAUDE_ARGS) {
+      a.args = NEW_CLAUDE_ARGS;
+      changed = true;
+    }
+  }
+  if (changed) {
+    conn.prepare("INSERT OR REPLACE INTO settings (key, value) VALUES ('ai_agents', ?)").run(JSON.stringify(agents));
+  }
+  conn.prepare("INSERT OR REPLACE INTO settings (key, value) VALUES ('ai_agent_presets_v2', '1')").run();
+}

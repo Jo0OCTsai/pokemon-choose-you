@@ -3,7 +3,7 @@
  * src-tauri/src/commands/dispatch/auto.rs：跨形态（app / dsh / pk）合计计数，
  * 崩溃后租约过期自动回收（A6：租约时长 = 无头超时 + 5 分钟余量）。
  */
-import { nowRfc3339, txImmediate, type Conn } from "../storage/db";
+import { nowRfc3339, shiftRfc3339Seconds, txImmediate, type Conn } from "../storage/db";
 import { claimDispatch, DS_QUEUED } from "./dispatch";
 
 /** 无头超时下限（秒，与 headless.rs DISPATCH_MIN_TIMEOUT_SECS 一致；槽租约的基数） */
@@ -41,11 +41,16 @@ export interface AcquireSlotOptions {
  * 领取并占槽（claim_with_slot 同构）：上限检查（COUNT）+ claim + 插租约行在同一
  * BEGIN IMMEDIATE 事务内原子完成——不会出现「claim 了没占槽」或「两个形态同时过
  * COUNT 检查」的中间态。返回 false = 没领到（槽满 / 任务已被领取）。
- * owner 供崩溃排障（app/dsh，不参与互斥判定）。
+ * owner 供崩溃排障（app/dsh，不参与互斥判定）。时间戳：now 注入 = 纯确定性推导；
+ * 缺省 = 单调实时时钟（微秒精度，连续领取不共享同一时刻——Rust chrono ns 同语义，
+ * FR-X3 契约夹具的 <ts:N> 归一按「每次取时值不同」锁定）。
  */
 export function acquireSlot(conn: Conn, opts: AcquireSlotOptions): boolean {
-  const now = opts.now ?? new Date();
-  const leaseExpires = nowRfc3339(new Date(now.getTime() + opts.leaseSecs * 1000));
+  const acquiredAt = opts.now !== undefined ? nowRfc3339(opts.now) : nowRfc3339();
+  const leaseExpires =
+    opts.now !== undefined
+      ? nowRfc3339(new Date(opts.now.getTime() + opts.leaseSecs * 1000))
+      : shiftRfc3339Seconds(acquiredAt, opts.leaseSecs);
   return txImmediate(conn, () => {
     const used = conn.prepare("SELECT COUNT(*) AS n FROM dispatch_slots WHERE host_key=?").get(opts.hostKey) as {
       n: number;
@@ -61,7 +66,7 @@ export function acquireSlot(conn: Conn, opts: AcquireSlotOptions): boolean {
         "INSERT INTO dispatch_slots (host_key, task_id, owner, acquired_at, lease_expires_at) " +
           "VALUES (?, ?, ?, ?, ?)",
       )
-      .run(opts.hostKey, opts.taskId, opts.owner ?? "dsh", nowRfc3339(now), leaseExpires);
+      .run(opts.hostKey, opts.taskId, opts.owner ?? "dsh", acquiredAt, leaseExpires);
     return true;
   });
 }

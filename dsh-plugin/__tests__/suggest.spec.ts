@@ -161,7 +161,7 @@ describe("批内判重兜底", () => {
     expect(demoted).toEqual(["om_b"]);
     expect(list[1].action).toBe("none");
     expect(list[1].title).toBeNull();
-    expect(list[1].reason).toBe("与消息 [om_a] 同一件事");
+    expect(list[1].reason).toBe("与消息 om_a 的待办重复"); // FR-X3：夹具 dedup-demote-none 锁定文案
     expect(list[0].action).toBe("todo");
     expect(list[2].action).toBe("todo");
   });

@@ -52,7 +52,11 @@ export type FilterState = "follow" | "always_filter" | "always_pull";
 export function filterUpsert(conn: Conn, chatId: string, state: FilterState, now = nowRfc3339()): FilterItem {
   const snapshot = conn.prepare("SELECT chat_type FROM feishu_chats WHERE chat_id=?").get(chatId) as
     { chat_type: string } | undefined;
-  assertNotP2p(snapshot);
+  // p2p 只拦非 follow（set_feishu_chat_filter 同构：Follow = 删偏好行无害放行，
+  // 手动偏好才拒绝——FR-X3 夹具 filter-p2p-fixed-follow 锁定）
+  if (state !== "follow") {
+    assertNotP2p(snapshot);
+  }
   writePreference(conn, chatId, state, now);
   return readFilterItem(conn, chatId, snapshot);
 }

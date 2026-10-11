@@ -111,7 +111,8 @@ export function parseProposedTagsJson(raw: string): ProposedTag[] {
  * （review_status='accepted'、task_id 回填、逃走原因随状态清掉）。
  * 任务来源跟随消息类型：飞书消息 → feishu，本地捕捉 → capture。
  */
-export function createTaskFromMessage(conn: Conn, msg: ChatMessageLike, origin = "dsh", now = nowRfc3339()): number {
+export function createTaskFromMessage(conn: Conn, msg: ChatMessageLike, origin = "dsh", now?: string): number {
+  const stamp = (): string => now ?? nowRfc3339();
   const suggestedTitle = msg.suggestedTitle?.trim();
   const title =
     suggestedTitle !== undefined && suggestedTitle !== ""
@@ -131,11 +132,11 @@ export function createTaskFromMessage(conn: Conn, msg: ChatMessageLike, origin =
       validPriority(msg.suggestedPriority),
       due,
       msg.chatType === "local" ? "capture" : "feishu",
-      now,
+      stamp(),
     );
   const taskId = Number(result.lastInsertRowid);
-  attachMessageTags(conn, msg, taskId, now);
-  logChange(conn, taskId, "create", "title", null, title, origin, now);
+  attachMessageTags(conn, msg, taskId, stamp());
+  logChange(conn, taskId, "create", "title", null, title, origin, stamp());
   // 原因随状态一起清：已逃走消息被强制捕捉时不留陈旧原因
   conn
     .prepare("UPDATE chat_messages SET review_status='accepted', task_id=?, dismiss_reason='' WHERE id=?")

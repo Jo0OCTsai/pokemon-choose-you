@@ -210,7 +210,7 @@ export function dedupBatchTodos(suggestions: AiSuggestion[]): string[] {
     s.tags = [];
     s.followUpTaskId = null;
     s.updateTaskId = null;
-    s.reason = `与消息 [${keptId}] 同一件事`;
+    s.reason = `与消息 ${keptId} 的待办重复`;
     demoted.push(s.messageId);
   }
   return demoted;

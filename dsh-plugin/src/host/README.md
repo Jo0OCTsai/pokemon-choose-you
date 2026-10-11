@@ -2,15 +2,21 @@
 
 package-by-feature 模块挂点：每个子目录 README 记一句话职责（内容取自 AD §3.1，防后续任务找不到挂点）。
 
-## 挂点清单（后续任务落位，specs/dsh-plugin/plan.md 并行组 1）
+## 挂点清单（specs/dsh-plugin/plan.md 并行组 1）
 
-- TODO（AD NFR-3 ②）：apply 期能力探测全集——timer / subagent / worktrees / ssh / storage /
-  slots / terminal 表面 + 宿主 Node 运行时；node:sqlite 探测已落 `index.ts`（`probeNodeSqlite`）。
-  探测清单与 `docs/compatibility.md` 矩阵的一致性由单测断言（矩阵与代码不一致即红）。
-- TODO：`tools/` 注册面（AD §3.1：dsh tools 注册，会话模型与判定 subagent 的统一消费面——
-  薄壳，全部转发到 domain/judge/dispatch）。
-- TODO：storage/ 落 node:sqlite 连接与 guarded 迁移（并行组 1 任务 3，A1 实测见 docs/compatibility.md）。
-- TODO：domain/ 各状态机与并发原语（并行组 1 任务 2，TDD 重灾区，逐 fixtures 回放）。
+- ~~apply 期能力探测全集~~：已落 `index.ts`（`CAPABILITY_KEYS` 单源 + `probeNodeRuntime` /
+  `probeNodeSqlite`；dsh 表面键已入清单锁一致性，真实 dsh Context 适配层落位时逐项补探测实现）。
+  探测清单与 `docs/compatibility.md` 矩阵「探测键」列的一致性由 `__tests__/compat.spec.ts` 断言。
+- ~~`tools/` 注册面~~：已落（`registry.ts` defineTools + `todoTools.ts` 装配 22 工具名 /
+  AD §4.1 表 20 行；`todoTaskTools` / `todoOpsTools` / `contextData` 分文件）——dsh 真实
+  tools API 适配层后续消费注册表投影。
+- ~~storage/ node:sqlite 连接与 guarded 迁移~~：已落（A1 实测见 docs/compatibility.md）。
+- ~~domain/ 各状态机与并发原语~~：已落（契约回放 `__tests__/contracts-replay.spec.ts`
+  43 场景全绿——FR-X3 以 contracts/fixtures 锁定）。
+- `index.ts`：能力探测 + `apply`（骨架语义保留）；惰性装配工厂 `createPlugin(deps)` 见
+  `assembly.ts`（+ `petSection.ts` 桌宠段），全部依赖可注入（伪 ctx 集成测试消费）。
+- `commands.ts` + `commands/`：host 命令实现表（AD §4.1.1 的 49 RPC + taskDeleteUndo
+  撤销面 + pageOpen 推送出口 + conversation chip 数据源——dsh 适配层接线面）。
 
 > 注：待办标记只写在本 README（.md 不入质量棘轮 ③ 卫生扫描口径）；源码内不落 TODO 字面量，
 > 全仓 TODO 基线 = 0（quality-ratchet-baseline.json hygiene 段）。

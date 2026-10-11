@@ -62,7 +62,7 @@ function alreadyResolved(): PkyError {
  * 捕捉：pending → accepted 先行原子抢占，CAS 与建任务同一 BEGIN IMMEDIATE 事务，
  * 建任务失败整体回滚（消息回 pending，不留孤儿已接受态）；成功返回新建任务 id。
  */
-export function acceptMessage(conn: Conn, messageId: string, origin = "dsh", now = nowRfc3339()): number {
+export function acceptMessage(conn: Conn, messageId: string, origin = "dsh", now?: string): number {
   const msg = getMessage(conn, messageId);
   if (msg.taskId !== null) {
     throw new PkyError("INVALID_ARGUMENT", "该消息已创建过待办");
@@ -186,7 +186,7 @@ function updatePatchFromMessage(conn: Conn, msg: ChatMessageLike): TaskPatch {
  * 把建议字段明确给出的部分打补丁到目标待办（复用 updateTask 的校验/草丛不变量/
  * 字段级审计）→ 消息标记已接受。返回目标待办 id。
  */
-export function applyUpdateMessage(conn: Conn, messageId: string, origin = "dsh", now = nowRfc3339()): number {
+export function applyUpdateMessage(conn: Conn, messageId: string, origin = "dsh", now?: string): number {
   const msg = getMessage(conn, messageId);
   if (msg.reviewStatus !== "pending" || msg.aiStatus !== "update") {
     throw new PkyError("INVALID_ARGUMENT", "该消息不是待确认的更新建议");

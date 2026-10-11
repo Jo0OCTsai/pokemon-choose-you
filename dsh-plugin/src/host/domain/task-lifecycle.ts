@@ -20,22 +20,24 @@ const SQL_START_ONE = "UPDATE tasks SET status='active', started_at=COALESCE(sta
 /**
  * 出发（全局唯一进行中 + 顶下 demote）——对齐 start_task_conn：demote 快照在事务外
  * 读、审计在 COMMIT 后补写；本任务置 active 并记首次开始时间。目标不存在时 demote
- * 已提交（Rust 同款行为：n==0 在 commit 后报 NotFound）。
+ * 已提交（Rust 同款行为：n==0 在 commit 后报 NotFound）。now 缺省时 started_at 与
+ * 各审计行独立取时（Rust 各写点独立 db::now()，FR-X3 按夹具对齐）。
  */
-export function startTask(conn: Conn, id: number, origin = "dsh", now = nowRfc3339()): Task {
+export function startTask(conn: Conn, id: number, origin = "dsh", now?: string): Task {
+  const stamp = (): string => now ?? nowRfc3339();
   // 被顶下的任务也要记状态变更日志，先取快照（事务外读——Rust 时序）
   const demoted = conn.prepare(SQL_DEMOTE_SNAPSHOT).all() as Array<{ id: number; status: string }>;
   const started = txImmediate(conn, () => {
     conn.exec(SQL_DEMOTE_ALL);
-    return Number(conn.prepare(SQL_START_ONE).run(now, id).changes);
+    return Number(conn.prepare(SQL_START_ONE).run(stamp(), id).changes);
   });
   if (started === 0) {
     throw notFound(`任务 ${id} 不存在`);
   }
   for (const d of demoted) {
-    logChange(conn, Number(d.id), "demote", "status", d.status, "scheduled", origin, now);
+    logChange(conn, Number(d.id), "demote", "status", d.status, "scheduled", origin, stamp());
   }
-  logChange(conn, id, "start", "status", null, "active", origin, now);
+  logChange(conn, id, "start", "status", null, "active", origin, stamp());
   return getTask(conn, id);
 }
 

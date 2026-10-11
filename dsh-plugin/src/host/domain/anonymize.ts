@@ -29,8 +29,10 @@ function existingAlias(conn: Conn, openId: string): string | null {
   return alias && alias !== "" ? alias : null;
 }
 
-/** open_id → 「成员_xxxx」候选（FNV-1a 32 位取低 16 位；形态与 Rust 一致，值不承诺相同） */
-function aliasHash(openId: string): string {
+/** open_id → 「成员_xxxx」候选（FNV-1a 32 位取低 16 位；形态与 Rust 一致，值不承诺相同）。
+ * 导出面供契约回放 harness 构造确定性碰撞场景（Rust 侧 pub(crate) alias_hash 同位，
+ * contracts 场景 anon_preoccupy 消费）。 */
+export function aliasHash(openId: string): string {
   let hash = 0x811c9dc5;
   for (let i = 0; i < openId.length; i++) {
     hash ^= openId.charCodeAt(i);
@@ -58,13 +60,19 @@ export function ensureAlias(conn: Conn, openId: string, now = nowRfc3339()): str
     )
     .run(openId, now);
   const base = aliasHash(openId);
+  const tryAssign = conn.prepare("UPDATE feishu_users SET alias=? WHERE open_id=? AND (alias='' OR alias IS NULL)");
   for (let probe = 0; probe < 64; probe++) {
     const candidate = probe === 0 ? base : `${base}${probe.toString(16)}`;
-    // 只写仍为空的行：并发下别人（应用/pk 另一进程）已分配则以库里的为准
-    const result = conn
-      .prepare("UPDATE feishu_users SET alias=? WHERE open_id=? AND (alias='' OR alias IS NULL)")
-      .run(candidate, openId);
-    if (Number(result.changes) === 1) {
+    // 只写仍为空的行：并发下别人（应用/pk 另一进程）已分配则以库里的为准。
+    // 候选撞唯一索引时 node:sqlite 抛约束错（rusqlite 为 Err）——按「被占用」处理
+    // 继续探测（Rust execute Err 分支同构，FR-X3 契约夹具 collision-probe 锁定）
+    let assigned = false;
+    try {
+      assigned = Number(tryAssign.run(candidate, openId).changes) === 1;
+    } catch {
+      assigned = false;
+    }
+    if (assigned) {
       return candidate;
     }
     // 候选被占用（唯一索引）或行被并发写入：前者继续探测，后者重查收敛

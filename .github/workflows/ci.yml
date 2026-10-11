@@ -145,7 +145,10 @@ jobs:
         run: pnpm --filter dsh-plugin format:check
       - name: 类型检查
         run: pnpm --filter dsh-plugin typecheck
-      - name: 单元测试（v8 覆盖率 + 阈值门禁，business core 口径 = src/host/**（NFR-5），阈值 = dsh-plugin/vite.config.ts thresholds 85）
+      - name: 单元测试 + 契约回放（v8 覆盖率 + 阈值门禁，business core 口径 = src/host/**（NFR-5），阈值 = dsh-plugin/vite.config.ts thresholds 85）
+        # vitest 同进程消费 contracts/fixtures（与 rust job 同 commit 的 checked-in 版本）：
+        # contracts-replay.spec（43 场景逐字段回放 + M3a 完备性）与 compat.spec（兼容矩阵 ×
+        # CAPABILITY_KEYS 一致性）即本步的一部分——无独立回放步骤，勿重复挂载（AD §4.4/§7.3）
         run: pnpm --filter dsh-plugin test:coverage
       - name: 质量棘轮（复杂度基线只准收缩；基线 = .devcontainer/scripts/quality-ratchet-baseline.json）
         run: python3 .devcontainer/scripts/quality_ratchet_check.py --service dsh-plugin
@@ -154,9 +157,8 @@ jobs:
         run: pnpm --filter dsh-plugin-helper typecheck
       - name: helper 单元测试（bridge 契约真 stdio fake host + 状态机纯逻辑 + headless 运行时集成）
         run: pnpm --filter dsh-plugin-helper test
-      # TODO(并行组 1 后续任务挂入本 job)：契约回放（消费 contracts/fixtures，与 rust job 同 commit
-      # 的 checked-in 版本）、schema 字节同源断言、i18n 三语键集断言、兼容矩阵一致性断言
-      # （docs/compatibility.md × apply 期探测清单，AD §4.4/§7.3）
+      # schema 字节同源断言在 rust job 的 contracts_schema_single_source（include_str! × 磁盘）；
+      # i18n 三语键集断言随 i18n 装配模块（并行组后续任务）挂入本 job
 
   supply-chain:
     name: 供应链扫描（pnpm audit + cargo-deny + gitleaks）
