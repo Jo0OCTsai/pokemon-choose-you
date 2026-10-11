@@ -1,0 +1,1307 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<testsuites name="vitest tests" tests="595" failures="0" errors="0" time="27.037247169">
+    <testsuite name="__tests__/anonymize.spec.ts" timestamp="2026-10-11T20:01:53.664Z" hostname="MacBookPro" tests="13" failures="0" errors="0" skipped="0" time="0.123089458">
+        <testcase classname="__tests__/anonymize.spec.ts" name="懒分配（ensure_alias 同构） &gt; 分配一次后稳定复用；形态 成员_xxxx；跨调用同一代号" time="0.029855042">
+        </testcase>
+        <testcase classname="__tests__/anonymize.spec.ts" name="懒分配（ensure_alias 同构） &gt; 群外成员（无缓存行）也能即时分配并落库（跨进程共用）" time="0.005367583">
+        </testcase>
+        <testcase classname="__tests__/anonymize.spec.ts" name="懒分配（ensure_alias 同构） &gt; 不同 open_id 代号唯一；空 open_id 返回 null" time="0.011621458">
+        </testcase>
+        <testcase classname="__tests__/anonymize.spec.ts" name="懒分配（ensure_alias 同构） &gt; 候选被占时向后探测（唯一索引防碰撞锚点）" time="0.00423875">
+        </testcase>
+        <testcase classname="__tests__/anonymize.spec.ts" name="懒分配（ensure_alias 同构） &gt; 并发收敛：条件更新只写空别名行（WHERE alias=&apos;&apos;），已写值不被覆盖" time="0.00427875">
+        </testcase>
+        <testcase classname="__tests__/anonymize.spec.ts" name="AnonRules（build/scrub/alias_of） &gt; 我的称呼（含短称呼）→（疑似@我）；长名优先防截胡；成员名 → 代号" time="0.006111125">
+        </testcase>
+        <testcase classname="__tests__/anonymize.spec.ts" name="AnonRules（build/scrub/alias_of） &gt; 标题场景：称呼替换成第一人称「我」" time="0.004915583">
+        </testcase>
+        <testcase classname="__tests__/anonymize.spec.ts" name="AnonRules（build/scrub/alias_of） &gt; same_name_risk：同名他人条目不进词表，检出风险" time="0.004576125">
+        </testcase>
+        <testcase classname="__tests__/anonymize.spec.ts" name="AnonRules（build/scrub/alias_of）·下 &gt; aliasOf：我的 open_id → 「我」；未分配的懒分配；缓存复用" time="0.004543458">
+        </testcase>
+        <testcase classname="__tests__/anonymize.spec.ts" name="AnonRules（build/scrub/alias_of）·下 &gt; MIN_NAME_LEN=2：单字称呼不进文本替换；单字名条目不进词表" time="0.026789042">
+        </testcase>
+        <testcase classname="__tests__/anonymize.spec.ts" name="还原（restore） &gt; 代号 → 真名；长代号优先（防短代号被前缀截胡）；未知代号原样保留" time="0.010664625">
+        </testcase>
+        <testcase classname="__tests__/anonymize.spec.ts" name="还原（restore） &gt; 群名不脱敏：原样透传无需还原（A12/D17）" time="0.004892083">
+        </testcase>
+        <testcase classname="__tests__/anonymize.spec.ts" name="parseNameList &gt; 逗号/顿号分隔，滤单字与空串" time="0.004013958">
+        </testcase>
+    </testsuite>
+    <testsuite name="__tests__/capture.spec.ts" timestamp="2026-10-11T20:01:53.671Z" hostname="MacBookPro" tests="9" failures="0" errors="0" skipped="0" time="0.055767583">
+        <testcase classname="__tests__/capture.spec.ts" name="输入校验 &gt; 空输入 / 超长输入拒绝且不落消息" time="0.010907208">
+        </testcase>
+        <testcase classname="__tests__/capture.spec.ts" name="todo 主路径 &gt; local 消息入库（content_anon 代号化）→ 判定 todo → 直接建待办 + accepted 反馈" time="0.008117875">
+        </testcase>
+        <testcase classname="__tests__/capture.spec.ts" name="判重命中现有待办（生成更新卡不重复建） &gt; 判定 update → 留收音机待确认，不建任务" time="0.005186416">
+        </testcase>
+        <testcase classname="__tests__/capture.spec.ts" name="判重命中现有待办（生成更新卡不重复建） &gt; 判定 none（纯重复提及）→ 留收音机" time="0.004666791">
+        </testcase>
+        <testcase classname="__tests__/capture.spec.ts" name="失败路径 &gt; 执行方失败 → 消息标 error 留档（可强制捕捉/逃走）+ 健康记失败 + 会话账本 error" time="0.004650125">
+        </testcase>
+        <testcase classname="__tests__/capture.spec.ts" name="失败路径 &gt; 执行方未返回判定 → 失败留档 error" time="0.006412667">
+        </testcase>
+        <testcase classname="__tests__/capture.spec.ts" name="5 秒撤销（undoCapture） &gt; 删任务 + 消息回 pending + 清掉 accepted 反馈" time="0.005238916">
+        </testcase>
+        <testcase classname="__tests__/capture.spec.ts" name="5 秒撤销（undoCapture） &gt; 非 accepted / 无任务 / 任务 id 被复用（source 不符）拒绝撤销" time="0.004513542">
+        </testcase>
+        <testcase classname="__tests__/capture.spec.ts" name="5 秒撤销（undoCapture） &gt; 任务已被手动删（source 行缺失）→ 只回消息状态不报错" time="0.004927167">
+        </testcase>
+    </testsuite>
+    <testsuite name="__tests__/client/a11y.spec.tsx" timestamp="2026-10-11T20:01:53.675Z" hostname="MacBookPro" tests="8" failures="0" errors="0" skipped="0" time="0.187033166">
+        <testcase classname="__tests__/client/a11y.spec.tsx" name="① 瞬态反馈 role=status + aria-live=polite &gt; 撤销 toast 具备 role=status 与 aria-live=polite（读屏可感知、不打断）" time="0.059984459">
+        </testcase>
+        <testcase classname="__tests__/client/a11y.spec.tsx" name="① 瞬态反馈 role=status + aria-live=polite &gt; 撤销窗口常量 = 5 秒（捕捉/放生共用范式）" time="0.000241458">
+        </testcase>
+        <testcase classname="__tests__/client/a11y.spec.tsx" name="② 弹层 focus trap + Esc + 焦点回归 &gt; Modal：打开聚焦首个可聚焦元素、Tab 循环、Esc 关闭、焦点回归触发元素" time="0.037562333">
+        </testcase>
+        <testcase classname="__tests__/client/a11y.spec.tsx" name="② 弹层 focus trap + Esc + 焦点回归 &gt; ConfirmDialog：两键齐全且 Esc = 取消语义" time="0.012609875">
+        </testcase>
+        <testcase classname="__tests__/client/a11y.spec.tsx" name="③ 置信档位与健康状态非颜色冗余 &gt; 建议卡置信三档：边框形色（data-confidence）+ 行内文字档位标（高/中/低置信）" time="0.05712025">
+        </testcase>
+        <testcase classname="__tests__/client/a11y.spec.tsx" name="③ 置信档位与健康状态非颜色冗余 &gt; 状态点旁必有文字状态（正常/重试中/未授权），色觉不依赖" time="0.009039375">
+        </testcase>
+        <testcase classname="__tests__/client/a11y.spec.tsx" name="④ 命中区 ≥32px（对交付 CSS 源断言） &gt; 共享控件（按钮/开关/选择器/输入）≥32px（composes 继承基类尺寸）" time="0.00720625">
+        </testcase>
+        <testcase classname="__tests__/client/a11y.spec.tsx" name="④ 命中区 ≥32px（对交付 CSS 源断言） &gt; 分段导航 / 分区选单 / chip 按钮 / 三态组 / 建议卡复选与标签接受 ≥32px" time="0.0009745">
+        </testcase>
+    </testsuite>
+    <testsuite name="__tests__/client/chip.spec.tsx" timestamp="2026-10-11T20:01:53.676Z" hostname="MacBookPro" tests="6" failures="0" errors="0" skipped="0" time="0.158067417">
+        <testcase classname="__tests__/client/chip.spec.tsx" name="ConversationChip 四态 &gt; 无进行中任务零占位（不渲染任何节点）" time="0.017748125">
+        </testcase>
+        <testcase classname="__tests__/client/chip.spec.tsx" name="ConversationChip 四态 &gt; 运行态：皮卡丘 捕获中 · 24:59 ⏸✔；⏸/✔ 调 taskPause/taskComplete" time="0.089655458">
+        </testcase>
+        <testcase classname="__tests__/client/chip.spec.tsx" name="ConversationChip 四态 &gt; 暂停态：已暂停 mm:ss ▶🍦✔（▶ 继续 / 🍦 先试 5 分钟）" time="0.017025208">
+        </testcase>
+        <testcase classname="__tests__/client/chip.spec.tsx" name="ConversationChip 四态 &gt; 短休息态：☕ 休息中 ▶——不含 ✔ 完成钮" time="0.003751833">
+        </testcase>
+        <testcase classname="__tests__/client/chip.spec.tsx" name="ConversationChip 四态 &gt; 点击主体 → onOpenPage（可选目标分段）" time="0.026229834">
+        </testcase>
+        <testcase classname="__tests__/client/chip.spec.tsx" name="ConversationChip 四态 &gt; 只读模式（DB_SCHEMA_TOO_NEW）：⏸/✔ 置灰" time="0.002495709">
+        </testcase>
+    </testsuite>
+    <testsuite name="__tests__/client/defaults.spec.tsx" timestamp="2026-10-11T20:01:53.682Z" hostname="MacBookPro" tests="7" failures="0" errors="0" skipped="0" time="0.032612708">
+        <testcase classname="__tests__/client/defaults.spec.tsx" name="面板零闪烁（NFR-6：动效即信息——闪烁名额归桌宠） &gt; client CSS Modules 无 animation 声明、无 blink 关键字（徽标状态靠形与色）" time="0.002253542">
+        </testcase>
+        <testcase classname="__tests__/client/defaults.spec.tsx" name="打断类默认全关（对 SETTING_DEFAULTS 借用键断言） &gt; dsh 消费的行为开关默认关：飞书轮询/桌宠输入响应×2/语音/陪跑/自动派发" time="0.000481375">
+        </testcase>
+        <testcase classname="__tests__/client/defaults.spec.tsx" name="打断类默认全关（对 SETTING_DEFAULTS 借用键断言） &gt; 减弱动效默认跟随系统（reduce_motion=false，U15）" time="0.000097875">
+        </testcase>
+        <testcase classname="__tests__/client/defaults.spec.tsx" name="dsh 侧无系统通知 / 弹窗 / 定时打断通路（源码扫描） &gt; 无 Notification / window.alert / window.confirm（弹窗与系统通知零通路，D1）" time="0.003066042">
+        </testcase>
+        <testcase classname="__tests__/client/defaults.spec.tsx" name="dsh 侧无系统通知 / 弹窗 / 定时打断通路（源码扫描） &gt; 无 setInterval（无周期性自动动作；番茄为各形态本地计时，不由面板驱动）" time="0.00156">
+        </testcase>
+        <testcase classname="__tests__/client/defaults.spec.tsx" name="dsh 侧无系统通知 / 弹窗 / 定时打断通路（源码扫描） &gt; setTimeout 仅用于瞬态自隐（toast/保存 hint），不触发任务状态机动作" time="0.001825958">
+        </testcase>
+        <testcase classname="__tests__/client/defaults.spec.tsx" name="计数静态（被动信号不强调） &gt; SegmentNav 计数样式无动画与 aria-live 通道（静态数字直接变）" time="0.000289042">
+        </testcase>
+    </testsuite>
+    <testsuite name="__tests__/client/drawer.spec.tsx" timestamp="2026-10-11T20:01:53.688Z" hostname="MacBookPro" tests="10" failures="0" errors="0" skipped="0" time="0.767850584">
+        <testcase classname="__tests__/client/drawer.spec.tsx" name="抽屉焦点管理（a11y 断言②） &gt; 打开即聚焦容器内首个可聚焦元素；Tab 循环不出容器" time="0.304454292">
+        </testcase>
+        <testcase classname="__tests__/client/drawer.spec.tsx" name="抽屉焦点管理（a11y 断言②） &gt; Esc 关闭且焦点回归触发元素" time="0.012636166">
+        </testcase>
+        <testcase classname="__tests__/client/drawer.spec.tsx" name="FollowupStream / DispatchTimeline &gt; 跟进记录流按追加序展示" time="0.088064542">
+        </testcase>
+        <testcase classname="__tests__/client/drawer.spec.tsx" name="FollowupStream / DispatchTimeline &gt; Agent 时间线：时长/成本/退出码 + 来源过滤" time="0.125852291">
+        </testcase>
+        <testcase classname="__tests__/client/drawer.spec.tsx" name="FollowupStream / DispatchTimeline &gt; 无执行记录时空态：还没有派出过 agent" time="0.026069291">
+        </testcase>
+        <testcase classname="__tests__/client/drawer.spec.tsx" name="DispatchOps &gt; 派发先出路由确认弹层（可临时改选说明），确认后 dispatchInteractive" time="0.032959417">
+        </testcase>
+        <testcase classname="__tests__/client/drawer.spec.tsx" name="DispatchOps &gt; 互斥冲突（DISPATCH_ALREADY_ACTIVE）中性提示，不弹窗" time="0.067446">
+        </testcase>
+        <testcase classname="__tests__/client/drawer.spec.tsx" name="DispatchOps &gt; 收口三键 + 重派 + 取消排队（排队态才可取消）" time="0.07010475">
+        </testcase>
+        <testcase classname="__tests__/client/drawer.spec.tsx" name="ReleaseGuard &gt; 两层确认 → taskDelete → 撤销 toast（role=status）；5 秒窗口内撤销恢复" time="0.022523834">
+        </testcase>
+        <testcase classname="__tests__/client/drawer.spec.tsx" name="ReleaseGuard &gt; 撤销窗 5 秒超时自动收口" time="0.0157835">
+        </testcase>
+    </testsuite>
+    <testsuite name="__tests__/client/i18n.spec.ts" timestamp="2026-10-11T20:01:53.692Z" hostname="MacBookPro" tests="6" failures="0" errors="0" skipped="0" time="0.047218834">
+        <testcase classname="__tests__/client/i18n.spec.ts" name="三语键集一致性（缺键即红） &gt; 三语 merged 键集（主应用字典 + dsh.*）完全相等" time="0.005298417">
+        </testcase>
+        <testcase classname="__tests__/client/i18n.spec.ts" name="三语键集一致性（缺键即红） &gt; 组件源内全部 t() 字面键在三语中均存在（动态键族展开枚举）" time="0.036095459">
+        </testcase>
+        <testcase classname="__tests__/client/i18n.spec.ts" name="三语键集一致性（缺键即红） &gt; SUPPORTED_LOCALES 三语与主应用字典取值一致" time="0.000185">
+        </testcase>
+        <testcase classname="__tests__/client/i18n.spec.ts" name="t() 与插值 &gt; 点路径取值 + {name} 插值；缺键回落键名" time="0.000289667">
+        </testcase>
+        <testcase classname="__tests__/client/i18n.spec.ts" name="t() 与插值 &gt; interpolate 保留未知占位符、接受数字参数" time="0.000094875">
+        </testcase>
+        <testcase classname="__tests__/client/i18n.spec.ts" name="t() 与插值 &gt; 装饰英文（POKé-DEX/CAUGHT）不入 i18n（§8）：dsh.* 键值无该装饰串" time="0.000756958">
+        </testcase>
+    </testsuite>
+    <testsuite name="__tests__/client/plugin-page.spec.tsx" timestamp="2026-10-11T20:01:53.694Z" hostname="MacBookPro" tests="10" failures="0" errors="0" skipped="0" time="0.579096625">
+        <testcase classname="__tests__/client/plugin-page.spec.tsx" name="PluginDetailPage · 分段导航 &gt; 七段齐全（冒险/草丛/路线/图鉴/收音机/日志/背包）且可切换" time="0.035519208">
+        </testcase>
+        <testcase classname="__tests__/client/plugin-page.spec.tsx" name="PluginDetailPage · 分段导航 &gt; 收音机待处理计数静态呈现（无 aria-live——被动信号不打断）" time="0.006807792">
+        </testcase>
+        <testcase classname="__tests__/client/plugin-page.spec.tsx" name="PluginDetailPage · 分段导航 &gt; 连续失败 ≥3 时收音机段计数叠加静态 ⚠ 前缀（U14；不闪烁）" time="0.00793325">
+        </testcase>
+        <testcase classname="__tests__/client/plugin-page.spec.tsx" name="PluginDetailPage · 分段导航 &gt; pageOpen 推送锚定：section=settings 切到背包段" time="0.207448417">
+        </testcase>
+        <testcase classname="__tests__/client/plugin-page.spec.tsx" name="PluginDetailPage · 分段导航 &gt; 初始分段可注入（锚点参数）" time="0.1799865">
+        </testcase>
+        <testcase classname="__tests__/client/plugin-page.spec.tsx" name="PluginDetailPage · 只读传播（DB_SCHEMA_TOO_NEW） &gt; mode=ro 时顶部持久横幅 + 任务卡操作与发报禁用" time="0.050044375">
+        </testcase>
+        <testcase classname="__tests__/client/plugin-page.spec.tsx" name="空态文案（§8） &gt; 任务分段冷启动：草丛静悄悄（被动引导，无按钮）" time="0.029905666">
+        </testcase>
+        <testcase classname="__tests__/client/plugin-page.spec.tsx" name="空态文案（§8） &gt; 收音机无消息：电波安静" time="0.030738375">
+        </testcase>
+        <testcase classname="__tests__/client/plugin-page.spec.tsx" name="空态文案（§8） &gt; 日志空态：还没有派出过 agent" time="0.02185975">
+        </testcase>
+        <testcase classname="__tests__/client/plugin-page.spec.tsx" name="空态文案（§8） &gt; loading 态显示骨架行" time="0.004612958">
+        </testcase>
+    </testsuite>
+    <testsuite name="__tests__/client/radio.spec.tsx" timestamp="2026-10-11T20:01:53.698Z" hostname="MacBookPro" tests="14" failures="0" errors="0" skipped="0" time="0.488832208">
+        <testcase classname="__tests__/client/radio.spec.tsx" name="HealthStrip &gt; ok 态：状态点 + 文字「正常」+ 上次成功/下次轮询/失败计数/立即拉取" time="0.040318625">
+        </testcase>
+        <testcase classname="__tests__/client/radio.spec.tsx" name="HealthStrip &gt; warn 态文字「重试中」、fail 态「未授权」（非颜色冗余，a11y 断言③）" time="0.007625833">
+        </testcase>
+        <testcase classname="__tests__/client/radio.spec.tsx" name="AuthBanner &gt; 未授权：调频引导 + 授权登录（larkAuth 即时动作）" time="0.020810083">
+        </testcase>
+        <testcase classname="__tests__/client/radio.spec.tsx" name="AuthBanner &gt; 失效：单次横幅可收起不刷屏；重新授权入口在" time="0.014840375">
+        </testcase>
+        <testcase classname="__tests__/client/radio.spec.tsx" name="SuggestionCard &gt; 内联展开：AI 建议盒（标题/理由/置信档文字）+ todo 动作 ◎ 捕捉" time="0.070136666">
+        </testcase>
+        <testcase classname="__tests__/client/radio.spec.tsx" name="SuggestionCard &gt; update 建议 → ◎ 应用更新；none 建议无操作键" time="0.042935458">
+        </testcase>
+        <testcase classname="__tests__/client/radio.spec.tsx" name="SuggestionCard &gt; 逃走展开 6 原因码菜单 → reviewDismiss(reasonCode)" time="0.013589208">
+        </testcase>
+        <testcase classname="__tests__/client/radio.spec.tsx" name="SuggestionCard &gt; 新标签提议「＋」接受态（aria-pressed，接受建议时创建）" time="0.004488833">
+        </testcase>
+        <testcase classname="__tests__/client/radio.spec.tsx" name="SuggestionCard &gt; 幂等冲突 → 中性提示文案「已在另一处处置」（不弹窗）" time="0.033662083">
+        </testcase>
+        <testcase classname="__tests__/client/radio.spec.tsx" name="BatchBar（U13） &gt; 未选中不浮现；选中 ≥1 浮现「已选 N 条」" time="0.0310145">
+        </testcase>
+        <testcase classname="__tests__/client/radio.spec.tsx" name="BatchBar（U13） &gt; 批量捕捉 → reviewBatch(op=accept)；批量逃走统一原因码" time="0.03819725">
+        </testcase>
+        <testcase classname="__tests__/client/radio.spec.tsx" name="失败组与逃走组 &gt; AI 判定失败 · N 条 + 一键重判（retryJudge all）+ 强制捕捉/逃走" time="0.012431083">
+        </testcase>
+        <testcase classname="__tests__/client/radio.spec.tsx" name="失败组与逃走组 &gt; 逃走留档组默认折叠，展开可 ↩恢复（reviewRestore）" time="0.0092385">
+        </testcase>
+        <testcase classname="__tests__/client/radio.spec.tsx" name="CaptureBar（⚡发报） &gt; 提报 → 判定中 → 建卡 + 5 秒撤销 toast；判重命中附更新建议提示" time="0.139462417">
+        </testcase>
+    </testsuite>
+    <testsuite name="__tests__/client/rpc.spec.ts" timestamp="2026-10-11T20:01:53.707Z" hostname="MacBookPro" tests="12" failures="0" errors="0" skipped="0" time="0.006962291">
+        <testcase classname="__tests__/client/rpc.spec.ts" name="rpc 命令契约 &gt; HostClient 暴露 AD §4.1.1 的 49 命令 + UIUX 放生撤销（taskDeleteUndo）" time="0.001870042">
+        </testcase>
+        <testcase classname="__tests__/client/rpc.spec.ts" name="rpc 命令契约 &gt; createHostClient 经 transport 转发命令并回传信封" time="0.000724708">
+        </testcase>
+        <testcase classname="__tests__/client/rpc.spec.ts" name="rpc 命令契约 &gt; pageOpen 推送：transport 事件通道 → client.onPageOpen 订阅/退订" time="0.000168416">
+        </testcase>
+        <testcase classname="__tests__/client/rpc.spec.ts" name="rpc 命令契约 &gt; 15 错误码枚举与 host/storage/errors 单源逐字一致" time="0.00010725">
+        </testcase>
+        <testcase classname="__tests__/client/rpc.spec.ts" name="mockHost 语义子集 &gt; taskStart demote 全局唯一进行中并记录调用" time="0.001250375">
+        </testcase>
+        <testcase classname="__tests__/client/rpc.spec.ts" name="mockHost 语义子集 &gt; 分诊 CAS：已处置建议返回 SUGGESTION_ALREADY_RESOLVED" time="0.000257084">
+        </testcase>
+        <testcase classname="__tests__/client/rpc.spec.ts" name="mockHost 语义子集 &gt; reviewDismiss 校验 6 枚举原因码" time="0.000196208">
+        </testcase>
+        <testcase classname="__tests__/client/rpc.spec.ts" name="mockHost 语义子集 &gt; configWrite：勿扰起=止 → CONFIG_VALIDATION_FAILED（U20 校验兜底）" time="0.000206917">
+        </testcase>
+        <testcase classname="__tests__/client/rpc.spec.ts" name="mockHost 语义子集 &gt; agentUpsert：空命令 AGENT_COMMAND_INVALID；修订基线失配 SETTING_MODIFIED_ELSEWHERE，force 覆盖" time="0.000235">
+        </testcase>
+        <testcase classname="__tests__/client/rpc.spec.ts" name="mockHost 语义子集 &gt; 只读模式（DB_SCHEMA_TOO_NEW）：写命令统一拒绝、浏览不受影响" time="0.000160042">
+        </testcase>
+        <testcase classname="__tests__/client/rpc.spec.ts" name="mockHost 语义子集 &gt; 放生撤销窗口：taskDelete 落墓碑、taskDeleteUndo 恢复" time="0.000592375">
+        </testcase>
+        <testcase classname="__tests__/client/rpc.spec.ts" name="mockHost 语义子集 &gt; pollNow 未授权 → LARK_UNAUTHORIZED" time="0.000113125">
+        </testcase>
+    </testsuite>
+    <testsuite name="__tests__/client/settings-sections.spec.tsx" timestamp="2026-10-11T20:01:53.716Z" hostname="MacBookPro" tests="9" failures="0" errors="0" skipped="0" time="1.664806542">
+        <testcase classname="__tests__/client/settings-sections.spec.tsx" name="分区内容对齐主应用（U20） &gt; 专注分区触达类键带「作用于主应用触达」badge" time="0.109490584">
+        </testcase>
+        <testcase classname="__tests__/client/settings-sections.spec.tsx" name="分区内容对齐主应用（U20） &gt; 桌宠分区：主宝可梦/台词/输入响应×2/语音/陪跑（作用于主应用桌宠 badge）" time="0.213246583">
+        </testcase>
+        <testcase classname="__tests__/client/settings-sections.spec.tsx" name="分区内容对齐主应用（U20） &gt; 显示分区：时间制式带实时预览（24h ↔ 12h）" time="0.068567875">
+        </testcase>
+        <testcase classname="__tests__/client/settings-sections.spec.tsx" name="分区内容对齐主应用（U20） &gt; 语言即时跟随：onLocalePreview 上抛（U21/U8：即时切换、落库走保存）" time="0.095348416">
+        </testcase>
+        <testcase classname="__tests__/client/settings-sections.spec.tsx" name="分区内容对齐主应用（U20） &gt; 飞书分区：会话过滤三态行内切换；私聊固定跟随置灰只读" time="0.185674375">
+        </testcase>
+        <testcase classname="__tests__/client/settings-sections.spec.tsx" name="分区内容对齐主应用（U20） &gt; Agent 分区：判定执行方（分支 C 文案）+ 终端偏好 badge + agent 卡删除（修订检测面）" time="0.437527375">
+        </testcase>
+        <testcase classname="__tests__/client/settings-sections.spec.tsx" name="分区内容对齐主应用（U20） &gt; 诊断分区：两链路面板（状态点+文字非颜色冗余）+ 日志查看器 + 支持报告" time="0.174700041">
+        </testcase>
+        <testcase classname="__tests__/client/settings-sections.spec.tsx" name="分区内容对齐主应用（U20） &gt; 通用分区：复盘/备份/托盘 badge + 库状态查询 + 双形态说明" time="0.169422083">
+        </testcase>
+        <testcase classname="__tests__/client/settings-sections.spec.tsx" name="分区内容对齐主应用（U20） &gt; 分类与标签分区：分类卡（名称/描述可编辑）+ 维度 key 只读 + 放生分类级联确认" time="0.209531">
+        </testcase>
+    </testsuite>
+    <testsuite name="__tests__/client/settings.spec.tsx" timestamp="2026-10-11T20:01:53.722Z" hostname="MacBookPro" tests="10" failures="0" errors="0" skipped="0" time="1.890316959">
+        <testcase classname="__tests__/client/settings.spec.tsx" name="SectionNav 八分区（U21） &gt; 八分区同名同构主应用设置中心，一次只选中一个（aria-pressed）" time="0.073308167">
+        </testcase>
+        <testcase classname="__tests__/client/settings.spec.tsx" name="SectionNav 八分区（U21） &gt; 一次只显示一个分区整页，其余 hidden（全部渲染以保留各分区态）" time="0.15383875">
+        </testcase>
+        <testcase classname="__tests__/client/settings.spec.tsx" name="SectionNav 八分区（U21） &gt; 切换分区保留未保存草稿（切回仍在，不出确认）" time="0.152948083">
+        </testcase>
+        <testcase classname="__tests__/client/settings.spec.tsx" name="保存制（U21） &gt; 未保存静态角标 ● + title「有未保存的修改」（不闪烁）" time="0.179654125">
+        </testcase>
+        <testcase classname="__tests__/client/settings.spec.tsx" name="保存制（U21） &gt; 保存 → configWrite（仅 dirty 键）→「已保存」hint 4s 自隐（role=status 无 toast）" time="0.184694167">
+        </testcase>
+        <testcase classname="__tests__/client/settings.spec.tsx" name="保存制（U21） &gt; 勿扰起=止：行内防呆阻断保存（saveBlocked）+ 后端兜底 CONFIG_VALIDATION_FAILED" time="0.249177292">
+        </testcase>
+        <testcase classname="__tests__/client/settings.spec.tsx" name="未保存离开确认（U21） &gt; 三键弹层（保存并离开/放弃修改/留在这里）+ focus trap" time="0.264705625">
+        </testcase>
+        <testcase classname="__tests__/client/settings.spec.tsx" name="未保存离开确认（U21） &gt; 保存并离开：先 configWrite 成功再放行" time="0.278642833">
+        </testcase>
+        <testcase classname="__tests__/client/settings.spec.tsx" name="未保存离开确认（U21） &gt; 放弃修改：草稿回落基线后放行" time="0.199906958">
+        </testcase>
+        <testcase classname="__tests__/client/settings.spec.tsx" name="未保存离开确认（U21） &gt; 留在这里 / Esc：不放行（resolved false）" time="0.15210925">
+        </testcase>
+    </testsuite>
+    <testsuite name="__tests__/client/tasks.spec.tsx" timestamp="2026-10-11T20:01:53.726Z" hostname="MacBookPro" tests="19" failures="0" errors="0" skipped="0" time="0.61429825">
+        <testcase classname="__tests__/client/tasks.spec.tsx" name="TaskCard 五呈现 × 派发徽标 &gt; 状态 normal → 呈现 inbox" time="0.174940959">
+        </testcase>
+        <testcase classname="__tests__/client/tasks.spec.tsx" name="TaskCard 五呈现 × 派发徽标 &gt; 状态 active → 呈现 active" time="0.003146792">
+        </testcase>
+        <testcase classname="__tests__/client/tasks.spec.tsx" name="TaskCard 五呈现 × 派发徽标 &gt; 状态 activePaused → 呈现 paused" time="0.001802709">
+        </testcase>
+        <testcase classname="__tests__/client/tasks.spec.tsx" name="TaskCard 五呈现 × 派发徽标 &gt; 状态 done → 呈现 done" time="0.001515166">
+        </testcase>
+        <testcase classname="__tests__/client/tasks.spec.tsx" name="TaskCard 五呈现 × 派发徽标 &gt; 状态 escaped → 呈现 cancelled" time="0.023985083">
+        </testcase>
+        <testcase classname="__tests__/client/tasks.spec.tsx" name="TaskCard 五呈现 × 派发徽标 &gt; 进行中呈现 ♪ 捕获中；暂停变体 ⏸ 暂停" time="0.013730417">
+        </testcase>
+        <testcase classname="__tests__/client/tasks.spec.tsx" name="TaskCard 五呈现 × 派发徽标 &gt; 派发徽标 queued → 形 排队中 + tooltip 文字（非颜色冗余）" time="0.068919667">
+        </testcase>
+        <testcase classname="__tests__/client/tasks.spec.tsx" name="TaskCard 五呈现 × 派发徽标 &gt; 派发徽标 running → 形 agent 执行中 + tooltip 文字（非颜色冗余）" time="0.007103375">
+        </testcase>
+        <testcase classname="__tests__/client/tasks.spec.tsx" name="TaskCard 五呈现 × 派发徽标 &gt; 派发徽标 done → 形 已回传 + tooltip 文字（非颜色冗余）" time="0.005878667">
+        </testcase>
+        <testcase classname="__tests__/client/tasks.spec.tsx" name="TaskCard 五呈现 × 派发徽标 &gt; 派发徽标 failed → 形 执行失败 + tooltip 文字（非颜色冗余）" time="0.004357292">
+        </testcase>
+        <testcase classname="__tests__/client/tasks.spec.tsx" name="TaskCard 操作 &gt; 出发/完成直达 host 命令" time="0.052190292">
+        </testcase>
+        <testcase classname="__tests__/client/tasks.spec.tsx" name="TaskCard 操作 &gt; 「…」溢出菜单：逃走展开 6 原因码 → taskCancel(reasonCode)" time="0.012131083">
+        </testcase>
+        <testcase classname="__tests__/client/tasks.spec.tsx" name="TaskCard 操作 &gt; 溢出菜单改期 → taskReschedule；放生 → 两层确认弹层" time="0.020212125">
+        </testcase>
+        <testcase classname="__tests__/client/tasks.spec.tsx" name="OverdueFold（反羞耻 fresh start） &gt; 昨天有 N 只溜走了 + 全部归草丛（批量清空截止）" time="0.00878675">
+        </testcase>
+        <testcase classname="__tests__/client/tasks.spec.tsx" name="OverdueFold（反羞耻 fresh start） &gt; 展开/收起明细" time="0.004608917">
+        </testcase>
+        <testcase classname="__tests__/client/tasks.spec.tsx" name="四分段派生 &gt; 冒险：CAUGHT 1/3 进度条 + 今日列表" time="0.119183666">
+        </testcase>
+        <testcase classname="__tests__/client/tasks.spec.tsx" name="四分段派生 &gt; 路线：按日期分组（10-11 / 10-12 两站）" time="0.042879584">
+        </testcase>
+        <testcase classname="__tests__/client/tasks.spec.tsx" name="四分段派生 &gt; 草丛：仅 inbox" time="0.002039292">
+        </testcase>
+        <testcase classname="__tests__/client/tasks.spec.tsx" name="四分段派生 &gt; 图鉴：统计 + 里程碑档位 + 筛选（全部/已捕捉/已逃走）" time="0.043730875">
+        </testcase>
+    </testsuite>
+    <testsuite name="__tests__/commands.spec.ts" timestamp="2026-10-11T20:01:53.748Z" hostname="MacBookPro" tests="6" failures="0" errors="0" skipped="0" time="0.061988542">
+        <testcase classname="__tests__/commands.spec.ts" name="host 命令装配面（AD §4.1.1）· 全集与任务域 &gt; 命令名全集 = 50 条目（49 RPC + taskDeleteUndo 撤销面），未知命令 INVALID_ARGUMENT" time="0.008001792">
+        </testcase>
+        <testcase classname="__tests__/commands.spec.ts" name="host 命令装配面（AD §4.1.1）· 全集与任务域 &gt; 任务域：Start/Pause/Resume/Complete/Cancel/Delete/Undo/Reschedule" time="0.014465583">
+        </testcase>
+        <testcase classname="__tests__/commands.spec.ts" name="host 命令装配面 · 收音机域 &gt; 快捕与分诊四路 + 放生撤销窗口外参数错" time="0.008318167">
+        </testcase>
+        <testcase classname="__tests__/commands.spec.ts" name="host 命令装配面 · 收音机域 &gt; 批量分诊 / 失败组 / 手动拉取" time="0.009202125">
+        </testcase>
+        <testcase classname="__tests__/commands.spec.ts" name="host 命令装配面 · 派发与设置域 &gt; 六派发 + config/route/lark" time="0.012975292">
+        </testcase>
+        <testcase classname="__tests__/commands.spec.ts" name="host 命令装配面 · 背包/诊断/桌宠/通用/专注域 &gt; 全命令信封 ok + onWrites 接线" time="0.007494916">
+        </testcase>
+    </testsuite>
+    <testsuite name="__tests__/compat.spec.ts" timestamp="2026-10-11T20:01:53.756Z" hostname="MacBookPro" tests="3" failures="0" errors="0" skipped="0" time="0.010903125">
+        <testcase classname="__tests__/compat.spec.ts" name="兼容矩阵一致性（FR-X7 / NFR-3 ③） &gt; 矩阵「探测键」列与 CAPABILITY_KEYS 探测清单双向相等" time="0.005742792">
+        </testcase>
+        <testcase classname="__tests__/compat.spec.ts" name="兼容矩阵一致性（FR-X7 / NFR-3 ③） &gt; 矩阵键无重复；探测清单覆盖 node:sqlite/timer/subagent/worktrees/ssh/storage/slots/terminal 全集" time="0.001554375">
+        </testcase>
+        <testcase classname="__tests__/compat.spec.ts" name="兼容矩阵一致性（FR-X7 / NFR-3 ③） &gt; 可直接探测项的本机现状（node ≥ 24 / node:sqlite 可开）" time="0.001216417">
+        </testcase>
+    </testsuite>
+    <testsuite name="__tests__/contracts-replay.spec.ts" timestamp="2026-10-11T20:01:53.758Z" hostname="MacBookPro" tests="45" failures="0" errors="0" skipped="0" time="0.273422">
+        <testcase classname="__tests__/contracts-replay.spec.ts" name="契约回放（contracts/fixtures · Rust oracle 锁定的期望输出） &gt; M3a 完备性：场景目录非空且执行集 == 目录文件集" time="0.000998583">
+        </testcase>
+        <testcase classname="__tests__/contracts-replay.spec.ts" name="契约回放（contracts/fixtures · Rust oracle 锁定的期望输出） &gt; anonymize/collision-probe：逐字段回放比对" time="0.009596583">
+        </testcase>
+        <testcase classname="__tests__/contracts-replay.spec.ts" name="契约回放（contracts/fixtures · Rust oracle 锁定的期望输出） &gt; anonymize/lazy-assign-stable：逐字段回放比对" time="0.004179583">
+        </testcase>
+        <testcase classname="__tests__/contracts-replay.spec.ts" name="契约回放（contracts/fixtures · Rust oracle 锁定的期望输出） &gt; anonymize/long-name-priority：逐字段回放比对" time="0.002961708">
+        </testcase>
+        <testcase classname="__tests__/contracts-replay.spec.ts" name="契约回放（contracts/fixtures · Rust oracle 锁定的期望输出） &gt; anonymize/restore-and-hallucination：逐字段回放比对" time="0.002613125">
+        </testcase>
+        <testcase classname="__tests__/contracts-replay.spec.ts" name="契约回放（contracts/fixtures · Rust oracle 锁定的期望输出） &gt; anonymize/same-name-risk-and-me：逐字段回放比对" time="0.004426625">
+        </testcase>
+        <testcase classname="__tests__/contracts-replay.spec.ts" name="契约回放（contracts/fixtures · Rust oracle 锁定的期望输出） &gt; cold_start/seeds-defaults：逐字段回放比对" time="0.002730667">
+        </testcase>
+        <testcase classname="__tests__/contracts-replay.spec.ts" name="契约回放（contracts/fixtures · Rust oracle 锁定的期望输出） &gt; concurrency/dual-connection-mixed-writes：逐字段回放比对" time="0.020761459">
+        </testcase>
+        <testcase classname="__tests__/contracts-replay.spec.ts" name="契约回放（contracts/fixtures · Rust oracle 锁定的期望输出） &gt; config_align/agent-upsert-delete-revision：逐字段回放比对" time="0.003164375">
+        </testcase>
+        <testcase classname="__tests__/contracts-replay.spec.ts" name="契约回放（contracts/fixtures · Rust oracle 锁定的期望输出） &gt; config_align/config-write-roundtrip：逐字段回放比对" time="0.003904959">
+        </testcase>
+        <testcase classname="__tests__/contracts-replay.spec.ts" name="契约回放（contracts/fixtures · Rust oracle 锁定的期望输出） &gt; config_align/prompt-override-validation：逐字段回放比对" time="0.008008583">
+        </testcase>
+        <testcase classname="__tests__/contracts-replay.spec.ts" name="契约回放（contracts/fixtures · Rust oracle 锁定的期望输出） &gt; config_align/prompt-warnings-and-resolve-states：逐字段回放比对" time="0.003696875">
+        </testcase>
+        <testcase classname="__tests__/contracts-replay.spec.ts" name="契约回放（contracts/fixtures · Rust oracle 锁定的期望输出） &gt; dispatch_sm/claim-atomic-double-claim：逐字段回放比对" time="0.003234666">
+        </testcase>
+        <testcase classname="__tests__/contracts-replay.spec.ts" name="契约回放（contracts/fixtures · Rust oracle 锁定的期望输出） &gt; dispatch_sm/done-failed-no-reentry：逐字段回放比对" time="0.002465875">
+        </testcase>
+        <testcase classname="__tests__/contracts-replay.spec.ts" name="契约回放（contracts/fixtures · Rust oracle 锁定的期望输出） &gt; dispatch_sm/illegal-transitions-rejected：逐字段回放比对" time="0.003243708">
+        </testcase>
+        <testcase classname="__tests__/contracts-replay.spec.ts" name="契约回放（contracts/fixtures · Rust oracle 锁定的期望输出） &gt; dispatch_sm/legal-path-queued-running-done：逐字段回放比对" time="0.054888542">
+        </testcase>
+        <testcase classname="__tests__/contracts-replay.spec.ts" name="契约回放（contracts/fixtures · Rust oracle 锁定的期望输出） &gt; dispatch_sm/queue-due-filters：逐字段回放比对" time="0.003260833">
+        </testcase>
+        <testcase classname="__tests__/contracts-replay.spec.ts" name="契约回放（contracts/fixtures · Rust oracle 锁定的期望输出） &gt; dispatch_sm/reset-rescue-and-redispatch：逐字段回放比对" time="0.002751334">
+        </testcase>
+        <testcase classname="__tests__/contracts-replay.spec.ts" name="契约回放（contracts/fixtures · Rust oracle 锁定的期望输出） &gt; dispatch_sm/slot-lease-lifecycle：逐字段回放比对" time="0.005009083">
+        </testcase>
+        <testcase classname="__tests__/contracts-replay.spec.ts" name="契约回放（contracts/fixtures · Rust oracle 锁定的期望输出） &gt; injection/data-declaration-present：逐字段回放比对" time="0.002471583">
+        </testcase>
+        <testcase classname="__tests__/contracts-replay.spec.ts" name="契约回放（contracts/fixtures · Rust oracle 锁定的期望输出） &gt; injection/delimit-and-launder：逐字段回放比对" time="0.002138958">
+        </testcase>
+        <testcase classname="__tests__/contracts-replay.spec.ts" name="契约回放（contracts/fixtures · Rust oracle 锁定的期望输出） &gt; judge_protocol/acceptance-fallbacks：逐字段回放比对" time="0.003102042">
+        </testcase>
+        <testcase classname="__tests__/contracts-replay.spec.ts" name="契约回放（contracts/fixtures · Rust oracle 锁定的期望输出） &gt; judge_protocol/batch-atomic-and-duplicate-id：逐字段回放比对" time="0.0028505">
+        </testcase>
+        <testcase classname="__tests__/contracts-replay.spec.ts" name="契约回放（contracts/fixtures · Rust oracle 锁定的期望输出） &gt; judge_protocol/claim-subset-reclaim-guard：逐字段回放比对" time="0.004704667">
+        </testcase>
+        <testcase classname="__tests__/contracts-replay.spec.ts" name="契约回放（contracts/fixtures · Rust oracle 锁定的期望输出） &gt; judge_protocol/dedup-demote-none：逐字段回放比对" time="0.003097459">
+        </testcase>
+        <testcase classname="__tests__/contracts-replay.spec.ts" name="契约回放（contracts/fixtures · Rust oracle 锁定的期望输出） &gt; judge_protocol/review-lifecycle：逐字段回放比对" time="0.003257791">
+        </testcase>
+        <testcase classname="__tests__/contracts-replay.spec.ts" name="契约回放（contracts/fixtures · Rust oracle 锁定的期望输出） &gt; judge_protocol/validate-rejects-enums-and-category：逐字段回放比对" time="0.003084792">
+        </testcase>
+        <testcase classname="__tests__/contracts-replay.spec.ts" name="契约回放（contracts/fixtures · Rust oracle 锁定的期望输出） &gt; judge_protocol/validate-rejects-payload-mismatch：逐字段回放比对" time="0.003774542">
+        </testcase>
+        <testcase classname="__tests__/contracts-replay.spec.ts" name="契约回放（contracts/fixtures · Rust oracle 锁定的期望输出） &gt; judge_protocol/validate-rejects-review-status：逐字段回放比对" time="0.002852833">
+        </testcase>
+        <testcase classname="__tests__/contracts-replay.spec.ts" name="契约回放（contracts/fixtures · Rust oracle 锁定的期望输出） &gt; judge_protocol/validate-rejects-tags：逐字段回放比对" time="0.005594209">
+        </testcase>
+        <testcase classname="__tests__/contracts-replay.spec.ts" name="契约回放（contracts/fixtures · Rust oracle 锁定的期望输出） &gt; redact/report-no-secret-leak：逐字段回放比对" time="0.002800834">
+        </testcase>
+        <testcase classname="__tests__/contracts-replay.spec.ts" name="契约回放（contracts/fixtures · Rust oracle 锁定的期望输出） &gt; redact/three-layer-redact：逐字段回放比对" time="0.00246675">
+        </testcase>
+        <testcase classname="__tests__/contracts-replay.spec.ts" name="契约回放（contracts/fixtures · Rust oracle 锁定的期望输出） &gt; task_sm/create-defaults-and-inbox-invariant：逐字段回放比对" time="0.002963583">
+        </testcase>
+        <testcase classname="__tests__/contracts-replay.spec.ts" name="契约回放（contracts/fixtures · Rust oracle 锁定的期望输出） &gt; task_sm/delete-cascade-tombstone：逐字段回放比对" time="0.002185167">
+        </testcase>
+        <testcase classname="__tests__/contracts-replay.spec.ts" name="契约回放（contracts/fixtures · Rust oracle 锁定的期望输出） &gt; task_sm/direct-transitions-actual-behavior：逐字段回放比对" time="0.00285325">
+        </testcase>
+        <testcase classname="__tests__/contracts-replay.spec.ts" name="契约回放（contracts/fixtures · Rust oracle 锁定的期望输出） &gt; task_sm/escape-from-every-unfinished：逐字段回放比对" time="0.002922625">
+        </testcase>
+        <testcase classname="__tests__/contracts-replay.spec.ts" name="契约回放（contracts/fixtures · Rust oracle 锁定的期望输出） &gt; task_sm/legal-full-lifecycle：逐字段回放比对" time="0.003458917">
+        </testcase>
+        <testcase classname="__tests__/contracts-replay.spec.ts" name="契约回放（contracts/fixtures · Rust oracle 锁定的期望输出） &gt; task_sm/route-without-due-falls-to-inbox：逐字段回放比对" time="0.002732875">
+        </testcase>
+        <testcase classname="__tests__/contracts-replay.spec.ts" name="契约回放（contracts/fixtures · Rust oracle 锁定的期望输出） &gt; task_sm/start-demotes-active-with-audit：逐字段回放比对" time="0.041441125">
+        </testcase>
+        <testcase classname="__tests__/contracts-replay.spec.ts" name="契约回放（contracts/fixtures · Rust oracle 锁定的期望输出） &gt; task_sm/undone-routing-scheduled-vs-inbox：逐字段回放比对" time="0.003849541">
+        </testcase>
+        <testcase classname="__tests__/contracts-replay.spec.ts" name="契约回放（contracts/fixtures · Rust oracle 锁定的期望输出） &gt; vocabulary/category-delete-cascade：逐字段回放比对" time="0.002756458">
+        </testcase>
+        <testcase classname="__tests__/contracts-replay.spec.ts" name="契约回放（contracts/fixtures · Rust oracle 锁定的期望输出） &gt; vocabulary/category-guards：逐字段回放比对" time="0.00637775">
+        </testcase>
+        <testcase classname="__tests__/contracts-replay.spec.ts" name="契约回放（contracts/fixtures · Rust oracle 锁定的期望输出） &gt; vocabulary/dimension-immutable-and-tag-quota：逐字段回放比对" time="0.00523">
+        </testcase>
+        <testcase classname="__tests__/contracts-replay.spec.ts" name="契约回放（contracts/fixtures · Rust oracle 锁定的期望输出） &gt; vocabulary/filter-p2p-fixed-follow：逐字段回放比对" time="0.0053875">
+        </testcase>
+        <testcase classname="__tests__/contracts-replay.spec.ts" name="契约回放（contracts/fixtures · Rust oracle 锁定的期望输出） &gt; M3a 反向：fixtures 无孤儿（每份夹具都有场景对应）" time="0.005127041">
+        </testcase>
+    </testsuite>
+    <testsuite name="__tests__/db.spec.ts" timestamp="2026-10-11T20:01:53.785Z" hostname="MacBookPro" tests="8" failures="0" errors="0" skipped="0" time="0.036473541">
+        <testcase classname="__tests__/db.spec.ts" name="open：连接级 PRAGMA（db.rs CONN_PRAGMAS 逐字一致） &gt; WAL + NORMAL + busy_timeout=5000 打开即生效" time="0.00648975">
+        </testcase>
+        <testcase classname="__tests__/db.spec.ts" name="open：连接级 PRAGMA（db.rs CONN_PRAGMAS 逐字一致） &gt; PRAGMA 常量字符串与主应用逐字一致" time="0.00018775">
+        </testcase>
+        <testcase classname="__tests__/db.spec.ts" name="txImmediate：单条 BEGIN IMMEDIATE 短事务 &gt; 成功路径提交可见" time="0.003896916">
+        </testcase>
+        <testcase classname="__tests__/db.spec.ts" name="txImmediate：单条 BEGIN IMMEDIATE 短事务 &gt; fn 抛错整体回滚" time="0.015211708">
+        </testcase>
+        <testcase classname="__tests__/db.spec.ts" name="txImmediate：单条 BEGIN IMMEDIATE 短事务·下 &gt; 嵌套禁止：事务中再开事务直接报错（PROTOCOL.md §1）" time="0.004357666">
+        </testcase>
+        <testcase classname="__tests__/db.spec.ts" name="txImmediate：单条 BEGIN IMMEDIATE 短事务·下 &gt; getUserVersion 读取 schema 版本" time="0.004040083">
+        </testcase>
+        <testcase classname="__tests__/db.spec.ts" name="nowRfc3339：时间戳形态（与 chrono to_rfc3339 同形态，字典序可比较） &gt; +00:00 后缀而非 Z，供跨形态 rfc3339 字典序比较不失真" time="0.000910667">
+        </testcase>
+        <testcase classname="__tests__/db.spec.ts" name="nowRfc3339：时间戳形态（与 chrono to_rfc3339 同形态，字典序可比较） &gt; 同 instant 生成的串相等（确定性注入）" time="0.000087083">
+        </testcase>
+    </testsuite>
+    <testsuite name="__tests__/dispatch-auto.spec.ts" timestamp="2026-10-11T20:01:53.790Z" hostname="MacBookPro" tests="9" failures="0" errors="0" skipped="0" time="0.290129958">
+        <testcase classname="__tests__/dispatch-auto.spec.ts" name="autoDispatchTick（dispatch_tick 同构） &gt; 到期入队并执行到 done；重复轮次不重复派（queued 非 NULL 不重排）" time="0.013075958">
+        </testcase>
+        <testcase classname="__tests__/dispatch-auto.spec.ts" name="autoDispatchTick 排队语义 &gt; 未到期 / 无 agent 配置 / agent 不可用 的标签不排队" time="0.004661209">
+        </testcase>
+        <testcase classname="__tests__/dispatch-auto.spec.ts" name="autoDispatchTick 过滤与撤销 &gt; done/failed/queued 状态不自动重派（失败循环防线）" time="0.004695209">
+        </testcase>
+        <testcase classname="__tests__/dispatch-auto.spec.ts" name="autoDispatchTick 过滤与撤销 &gt; 并发上限：槽满领不到 → 保持 queued（skipped），槽释放后下轮补派" time="0.005872083">
+        </testcase>
+        <testcase classname="__tests__/dispatch-auto.spec.ts" name="autoDispatchTick 槽与撤销 &gt; 过期槽租约每轮开头回收（A6 崩溃自愈）" time="0.005926959">
+        </testcase>
+        <testcase classname="__tests__/dispatch-auto.spec.ts" name="autoDispatchTick 槽与撤销 &gt; 排队后 agent 不可用 → 撤销排队（重置，不留在 queued 卡死）" time="0.005271083">
+        </testcase>
+        <testcase classname="__tests__/dispatch-auto.spec.ts" name="autoDispatchTick 槽与撤销 &gt; 开关关闭 → no-op（不动库）" time="0.005905417">
+        </testcase>
+        <testcase classname="__tests__/dispatch-auto.spec.ts" name="系统 timer（真 setInterval 路径） &gt; every/cancel：注册与停扫" time="0.1861185">
+        </testcase>
+        <testcase classname="__tests__/dispatch-auto.spec.ts" name="扫描循环（timer 注入） &gt; 60 秒注册一轮；tick 异常被吞（onError 收到）不中断；stop 取消" time="0.057414208">
+        </testcase>
+    </testsuite>
+    <testsuite name="__tests__/dispatch-executor.spec.ts" timestamp="2026-10-11T20:01:53.797Z" hostname="MacBookPro" tests="15" failures="0" errors="0" skipped="0" time="0.767146667">
+        <testcase classname="__tests__/dispatch-executor.spec.ts" name="effectiveTimeoutSecs（DISPATCH_MIN_TIMEOUT_SECS=600 下限） &gt; 配置小于 600 按下限；大于则原样" time="0.000943708">
+        </testcase>
+        <testcase classname="__tests__/dispatch-executor.spec.ts" name="parseHeadlessEnvelope（headless.rs 同构） &gt; claude JSON 信封字段提取；is_error 判失败；非 JSON 全空" time="0.000438584">
+        </testcase>
+        <testcase classname="__tests__/dispatch-executor.spec.ts" name="buildLocalArgv（invocation.rs 本地分支同构） &gt; {prompt} 占位替换进 argv；无占位时 prompt 走 stdin" time="0.000568416">
+        </testcase>
+        <testcase classname="__tests__/dispatch-executor.spec.ts" name="local 执行器（真实 node 子进程） &gt; 成功：退出码 0 + stdout 透传（env 注入可见）" time="0.070584083">
+        </testcase>
+        <testcase classname="__tests__/dispatch-executor.spec.ts" name="local 执行器（真实 node 子进程） &gt; 失败：非零退出码透传（不抛错）" time="0.058191625">
+        </testcase>
+        <testcase classname="__tests__/dispatch-executor.spec.ts" name="local 执行器（真实 node 子进程） &gt; 超时 kill：挂起子进程到时被杀，timedOut=true（下限注入缩短等待）" time="0.214884916">
+        </testcase>
+        <testcase classname="__tests__/dispatch-executor.spec.ts" name="local 执行器 IO 路径（stdin / spawn 失败） &gt; stdin 路径：无 {prompt} 占位时 prompt 写入子进程 stdin" time="0.069958292">
+        </testcase>
+        <testcase classname="__tests__/dispatch-executor.spec.ts" name="local 执行器 IO 路径（stdin / spawn 失败） &gt; kill()：中止挂起中的执行（timedOut 收口）" time="0.093222375">
+        </testcase>
+        <testcase classname="__tests__/dispatch-executor.spec.ts" name="local 执行器 IO 路径（stdin / spawn 失败） &gt; 进程被信号终止（非超时路径）：code=null + stderr 摘要进 error" time="0.103396709">
+        </testcase>
+        <testcase classname="__tests__/dispatch-executor.spec.ts" name="local 执行器占位与 kill/cwd &gt; {prompt} 占位经 argv 注入（无 stdin 写入）" time="0.0829785">
+        </testcase>
+        <testcase classname="__tests__/dispatch-executor.spec.ts" name="local 执行器占位与 kill/cwd &gt; spawn 同步抛错（非法 cwd 控制字符）→ error 收口不炸" time="0.001303417">
+        </testcase>
+        <testcase classname="__tests__/dispatch-executor.spec.ts" name="local 执行器占位与 kill/cwd &gt; workdir 生效：子进程 cwd = 配置目录（真实临时目录）" time="0.058869792">
+        </testcase>
+        <testcase classname="__tests__/dispatch-executor.spec.ts" name="local 执行器 spawn 失败 &gt; 不可执行命令：error 文案可读（不抛错）" time="0.009446166">
+        </testcase>
+        <testcase classname="__tests__/dispatch-executor.spec.ts" name="fake 执行器（测试替身） &gt; 默认成功；可编程失败 / 挂起等 kill；job 记录可断言" time="0.000661625">
+        </testcase>
+        <testcase classname="__tests__/dispatch-executor.spec.ts" name="fake 执行器（测试替身） &gt; hang 挂起直到 kill（驱动超时/中止路径）" time="0.000096666">
+        </testcase>
+    </testsuite>
+    <testsuite name="__tests__/dispatch-headless-run.spec.ts" timestamp="2026-10-11T20:01:53.803Z" hostname="MacBookPro" tests="7" failures="0" errors="0" skipped="0" time="0.190416292">
+        <testcase classname="__tests__/dispatch-headless-run.spec.ts" name="远端执行世界（deployment 路由） &gt; provider 未装配（executorFor 返回 null）→ failed + 未装配 note + 删槽（不抛）" time="0.011589125">
+        </testcase>
+        <testcase classname="__tests__/dispatch-headless-run.spec.ts" name="远端执行世界（deployment 路由） &gt; 免密预检失败 → SSH_AUTH_REQUIRED（claim 前拦截）" time="0.005963958">
+        </testcase>
+        <testcase classname="__tests__/dispatch-headless-run.spec.ts" name="执行异常封闭（claim 后不泄漏槽/running） &gt; worktree 策略抛错 → failed 收口 + 删槽 + error 账本行" time="0.005458292">
+        </testcase>
+        <testcase classname="__tests__/dispatch-headless-run.spec.ts" name="localShellRunner（真实 sh 子进程） &gt; 成功/失败两态" time="0.145243084">
+        </testcase>
+        <testcase classname="__tests__/dispatch-headless-run.spec.ts" name="worktree 策略 &gt; noOp 直跑原目录；git 策略经注入 runner 执行幂等脚本并换目录" time="0.006359417">
+        </testcase>
+        <testcase classname="__tests__/dispatch-headless-run.spec.ts" name="worktree 策略 &gt; runner 成功但无哨兵行 → 输出异常降级原目录" time="0.008757375">
+        </testcase>
+        <testcase classname="__tests__/dispatch-headless-run.spec.ts" name="worktree 策略 &gt; git 失败 → 降级原目录 + note（不阻断执行）" time="0.005000209">
+        </testcase>
+    </testsuite>
+    <testsuite name="__tests__/dispatch-headless.spec.ts" timestamp="2026-10-11T20:01:53.805Z" hostname="MacBookPro" tests="13" failures="0" errors="0" skipped="0" time="0.078590834">
+        <testcase classname="__tests__/dispatch-headless.spec.ts" name="session_flags（A14 / headless.rs 同构） &gt; claude：续接 --resume；首轮预生成 --session-id uuid v4" time="0.007451291">
+        </testcase>
+        <testcase classname="__tests__/dispatch-headless.spec.ts" name="session_flags（A14 / headless.rs 同构） &gt; pi：续接与首轮同旗标 --session-id；其他 agent 无续接" time="0.004342542">
+        </testcase>
+        <testcase classname="__tests__/dispatch-headless.spec.ts" name="纯函数（kind_for_command / dispatch_args） &gt; kind 判定与预设白名单剔除" time="0.005200583">
+        </testcase>
+        <testcase classname="__tests__/dispatch-headless.spec.ts" name="手动无头派发（fake 执行器三态） &gt; 成功：定界 prompt + 状态 done + 账本 + 审计 + 删槽" time="0.007789458">
+        </testcase>
+        <testcase classname="__tests__/dispatch-headless.spec.ts" name="手动无头派发（fake 执行器三态） &gt; 失败：非零退出码 → failed + error 账本行" time="0.005112125">
+        </testcase>
+        <testcase classname="__tests__/dispatch-headless.spec.ts" name="手动无头派发：超时态 &gt; 超时：timedOut → failed + 记原因（DISPATCH_TIMEOUT）+ exit_code null" time="0.004743459">
+        </testcase>
+        <testcase classname="__tests__/dispatch-headless.spec.ts" name="手动无头派发：信封回填与会话续接 &gt; 信封 is_error / 成本字段回填 + dispatched_session 落库" time="0.006222166">
+        </testcase>
+        <testcase classname="__tests__/dispatch-headless.spec.ts" name="手动无头派发：信封回填与会话续接 &gt; 续接：claude 上轮会话 → --resume；首轮预生成 uuid 落库（进程被杀也留续接线索）" time="0.008749084">
+        </testcase>
+        <testcase classname="__tests__/dispatch-headless.spec.ts" name="手动无头派发：互斥与前置校验 &gt; 重复派发：running 中 → DISPATCH_ALREADY_ACTIVE；槽满 → DISPATCH_LAUNCH_FAILED" time="0.006039459">
+        </testcase>
+        <testcase classname="__tests__/dispatch-headless.spec.ts" name="手动无头派发：互斥与前置校验 &gt; 无 project 标签 → 参数错（不进执行）" time="0.005406584">
+        </testcase>
+        <testcase classname="__tests__/dispatch-headless.spec.ts" name="排队任务无头执行（自动派发路径原语） &gt; queued → 领取占槽 → done → 删槽；槽满 → started:false 保持 queued" time="0.005794958">
+        </testcase>
+        <testcase classname="__tests__/dispatch-headless.spec.ts" name="排队任务无头执行（自动派发路径原语） &gt; running 中不允许重复 claim（防重复派发）" time="0.0056335">
+        </testcase>
+        <testcase classname="__tests__/dispatch-headless.spec.ts" name="agent_sessions 落账原语 &gt; 任务不存在 → 参数错；agent 名反查失败用 id 兜底" time="0.004679292">
+        </testcase>
+    </testsuite>
+    <testsuite name="__tests__/dispatch-interactive.spec.ts" timestamp="2026-10-11T20:01:53.809Z" hostname="MacBookPro" tests="16" failures="0" errors="0" skipped="0" time="1.530021833">
+        <testcase classname="__tests__/dispatch-interactive.spec.ts" name="命令行组装（cmdline.rs 同构） &gt; interactive_args 剔除会话恢复开关（带值旗标的值一并）" time="0.0068695">
+        </testcase>
+        <testcase classname="__tests__/dispatch-interactive.spec.ts" name="命令行组装（cmdline.rs 同构） &gt; agent_line 整体引用 prompt（不可信正文不裸拼）；summarize 截断 prompt" time="0.007954541">
+        </testcase>
+        <testcase classname="__tests__/dispatch-interactive.spec.ts" name="命令行组装（cmdline.rs 同构） &gt; localDispatchDir：~ 展开 / 绝对路径原样 / 空返回 null（不自动创建）" time="0.00850275">
+        </testcase>
+        <testcase classname="__tests__/dispatch-interactive.spec.ts" name="交互派发主链路 &gt; 注入成功：prompt 定界 + 会话标识落库 + 状态 running 等回传" time="0.014705791">
+        </testcase>
+        <testcase classname="__tests__/dispatch-interactive.spec.ts" name="交互派发主链路 &gt; 重复派发互斥：running 中 → DISPATCH_ALREADY_ACTIVE" time="0.008023333">
+        </testcase>
+        <testcase classname="__tests__/dispatch-interactive.spec.ts" name="交互派发主链路 &gt; 注入失败：迁移 failed + 原因入审计 + DISPATCH_LAUNCH_FAILED" time="0.013713416">
+        </testcase>
+        <testcase classname="__tests__/dispatch-interactive.spec.ts" name="交互派发前置校验 &gt; 本地工作目录先验：不存在 → 参数错；存在放行（目录配错应报错）" time="0.013116083">
+        </testcase>
+        <testcase classname="__tests__/dispatch-interactive.spec.ts" name="交互派发前置校验 &gt; deployment 路由：免密预检失败 → SSH_AUTH_REQUIRED（claim 前拦截，不进终端）" time="0.006954125">
+        </testcase>
+        <testcase classname="__tests__/dispatch-interactive.spec.ts" name="交互派发 deployment 预检 &gt; deployment 路由：预检通过 → 正常注入（远端目录不本地预检）" time="0.006518084">
+        </testcase>
+        <testcase classname="__tests__/dispatch-interactive.spec.ts" name="dispatchReport（todo_dispatch_done/fail 工具语义 + 手动收口） &gt; 回传收口：running → done/failed + 账本行；已收口幂等（不重复落账）" time="0.010855458">
+        </testcase>
+        <testcase classname="__tests__/dispatch-interactive.spec.ts" name="dispatchReport（todo_dispatch_done/fail 工具语义 + 手动收口） &gt; 手动收口兜底——重置（救援卡死 running）" time="0.005124833">
+        </testcase>
+        <testcase classname="__tests__/dispatch-interactive.spec.ts" name="sshCheck 系统探测器（fake ssh 探测脚本：成功/失败） &gt; exit 0（带 stderr 告警文本）→ ok" time="0.694942959">
+        </testcase>
+        <testcase classname="__tests__/dispatch-interactive.spec.ts" name="sshCheck 系统探测器（fake ssh 探测脚本：成功/失败） &gt; exit 255 无输出 → ok:false，错误文案取 exec 错误信息" time="0.6797225">
+        </testcase>
+        <testcase classname="__tests__/dispatch-interactive.spec.ts" name="sshCheck 系统探测器（fake ssh 探测脚本：成功/失败） &gt; 不可达真实目标 → ok:false（SSH_AUTH_REQUIRED，不挂起）" time="0.042852708">
+        </testcase>
+        <testcase classname="__tests__/dispatch-interactive.spec.ts" name="sshCheck 系统探测器（fake ssh 探测脚本：成功/失败） &gt; sshProbeArgv：无端口目标不带 -p" time="0.004147292">
+        </testcase>
+        <testcase classname="__tests__/dispatch-interactive.spec.ts" name="sshCheck 集成（fake 探测器：成功/失败） &gt; exit 0 → ok；非 0 → SSH_AUTH_REQUIRED（argv 含 BatchMode/ConnectTimeout/端口解析）" time="0.00461">
+        </testcase>
+    </testsuite>
+    <testsuite name="__tests__/dispatch-prompt.spec.ts" timestamp="2026-10-11T20:01:53.814Z" hostname="MacBookPro" tests="1" failures="0" errors="0" skipped="0" time="0.011805959">
+        <testcase classname="__tests__/dispatch-prompt.spec.ts" name="取数（prepareDispatchPrompt：假名化 + notes 取最新 3 条 + 续接线索） &gt; 标题/跟进/上下文过假名化；空字段无噪音；续接线索" time="0.010023125">
+        </testcase>
+    </testsuite>
+    <testsuite name="__tests__/dispatch-routes.spec.ts" timestamp="2026-10-11T20:01:53.815Z" hostname="MacBookPro" tests="9" failures="0" errors="0" skipped="0" time="0.158717917">
+        <testcase classname="__tests__/dispatch-routes.spec.ts" name="路由 CRUD（dsh:dispatch_routes） &gt; upsert/list/delete：以项目标签名为键整读-改-整写" time="0.011829333">
+        </testcase>
+        <testcase classname="__tests__/dispatch-routes.spec.ts" name="路由 CRUD（dsh:dispatch_routes） &gt; 校验：空 tag / 空 agentId / deployment 缺字段 / maxConcurrent 非法 → 参数错" time="0.008705542">
+        </testcase>
+        <testcase classname="__tests__/dispatch-routes.spec.ts" name="路由 CRUD（dsh:dispatch_routes） &gt; deployment 引用只存 ref + target（不存连接细节——A13）" time="0.026571166">
+        </testcase>
+        <testcase classname="__tests__/dispatch-routes.spec.ts" name="路由解析（resolve_dispatch_route 同构） &gt; 优先级 pick &gt; route &gt; meta &gt; default；routeOverride 不回写" time="0.006597042">
+        </testcase>
+        <testcase classname="__tests__/dispatch-routes.spec.ts" name="路由解析改选与回落 &gt; 改选（pick）临时生效不回写；路由表删除回落 meta；ghost 改选回落路由层" time="0.005483125">
+        </testcase>
+        <testcase classname="__tests__/dispatch-routes.spec.ts" name="路由解析默认层与回写语义 &gt; 无路由无 meta → 全局默认（ai_agent_id 指向 &gt; 首个启用）；停用项不选" time="0.00465575">
+        </testcase>
+        <testcase classname="__tests__/dispatch-routes.spec.ts" name="路由解析边界（缺标签 / deployment / worktree 层级） &gt; 无 project 标签 / 无可用 agent → 参数错（文案对齐主应用）" time="0.005330709">
+        </testcase>
+        <testcase classname="__tests__/dispatch-routes.spec.ts" name="路由解析边界（缺标签 / deployment / worktree 层级） &gt; deployment 路由 → hostKey 归一 ssh:user@host[:port]（domain 口径复用）" time="0.00395275">
+        </testcase>
+        <testcase classname="__tests__/dispatch-routes.spec.ts" name="路由解析边界（缺标签 / deployment / worktree 层级） &gt; worktree 层级：route.worktree &gt; 全局 dispatch_worktree &gt; false" time="0.083439959">
+        </testcase>
+    </testsuite>
+    <testsuite name="__tests__/dispatch.spec.ts" timestamp="2026-10-11T20:01:53.817Z" hostname="MacBookPro" tests="20" failures="0" errors="0" skipped="0" time="0.157815166">
+        <testcase classname="__tests__/dispatch.spec.ts" name="transition_allowed 矩阵（state.rs 逐字对齐） &gt; 全部合法迁移与非法拒绝" time="0.031555166">
+        </testcase>
+        <testcase classname="__tests__/dispatch.spec.ts" name="claim_dispatch（OR 守卫式抢占） &gt; NULL 口径抢到；running 重复抢失败；不允许 NULL 的口径抢不到 NULL 行" time="0.005022875">
+        </testcase>
+        <testcase classname="__tests__/dispatch.spec.ts" name="CAS 迁移与审计 &gt; NULL → done 非法拒绝；running → done 带备注并入审计 new_value" time="0.006405542">
+        </testcase>
+        <testcase classname="__tests__/dispatch.spec.ts" name="CAS 迁移与审计 &gt; 重置（to=null）：new_value = 重置 / 重置：备注" time="0.004404417">
+        </testcase>
+        <testcase classname="__tests__/dispatch.spec.ts" name="CAS 迁移与审计 &gt; 并发失配·目标态已达成 → 幂等成功（不写审计）；第三态 → 重读值入文案报错" time="0.004304292">
+        </testcase>
+        <testcase classname="__tests__/dispatch.spec.ts" name="CAS 迁移与审计·下 &gt; transitionOrAlready：目标态已达成直接成功；否则走状态机" time="0.004538708">
+        </testcase>
+        <testcase classname="__tests__/dispatch.spec.ts" name="CAS 迁移与审计·下 &gt; markDispatchIdle：done 状态也能直接重置（救援语义）；不存在 NOT_FOUND" time="0.004748583">
+        </testcase>
+        <testcase classname="__tests__/dispatch.spec.ts" name="CAS 迁移与审计·下 &gt; 不存在的任务 NOT_FOUND" time="0.004691291">
+        </testcase>
+        <testcase classname="__tests__/dispatch.spec.ts" name="机器级并发槽表 &gt; host_key 归一：本机 local / 远程 ssh:user@host / 空白 host 视同本机" time="0.005136542">
+        </testcase>
+        <testcase classname="__tests__/dispatch.spec.ts" name="机器级并发槽表 &gt; 租约时长 = 无头超时（600 下限）+ 5 分钟余量" time="0.004080042">
+        </testcase>
+        <testcase classname="__tests__/dispatch.spec.ts" name="机器级并发槽表 &gt; acquire 上限闸门：满槽拒绝；release 后额度复用" time="0.004899125">
+        </testcase>
+        <testcase classname="__tests__/dispatch.spec.ts" name="机器级并发槽表 &gt; acquire 内含 claim：任务不在 queued 态领不到（不占槽）" time="0.006005333">
+        </testcase>
+        <testcase classname="__tests__/dispatch.spec.ts" name="机器级并发槽表·下 &gt; reclaimExpired：过期租约被扫掉（崩溃自愈），新鲜租约保留" time="0.00569">
+        </testcase>
+        <testcase classname="__tests__/dispatch.spec.ts" name="机器级并发槽表·下 &gt; 双连接并发占槽：max=1 时第二条落空（COUNT+INSERT 同事务原子）" time="0.0221145">
+        </testcase>
+        <testcase classname="__tests__/dispatch.spec.ts" name="queue_due（到期排队，auto.rs 同构） &gt; 到期 + meta 指定可用 agent → 排队；重复轮次不重复排" time="0.007625625">
+        </testcase>
+        <testcase classname="__tests__/dispatch.spec.ts" name="queue_due（到期排队，auto.rs 同构） &gt; done/failed 不重入（只动 NULL 行）" time="0.017050416">
+        </testcase>
+        <testcase classname="__tests__/dispatch.spec.ts" name="queue_due（到期排队，auto.rs 同构）·下 &gt; meta 无 agentId / agent 不可用 / 未到期 / 无截止 全部不排" time="0.004961292">
+        </testcase>
+        <testcase classname="__tests__/dispatch.spec.ts" name="queue_due（到期排队，auto.rs 同构）·下 &gt; agentAvailable 回调：停用 agent 不排（dsh 侧可用性注入）" time="0.004319208">
+        </testcase>
+        <testcase classname="__tests__/dispatch.spec.ts" name="工具函数 &gt; parseTime：RFC3339 带时区 / 本地无时区 / 非法串" time="0.003900375">
+        </testcase>
+        <testcase classname="__tests__/dispatch.spec.ts" name="工具函数 &gt; parseTagMeta：空/坏数据按无元数据处理" time="0.003930792">
+        </testcase>
+    </testsuite>
+    <testsuite name="__tests__/errors.spec.ts" timestamp="2026-10-11T20:01:53.821Z" hostname="MacBookPro" tests="7" failures="0" errors="0" skipped="0" time="0.0048325">
+        <testcase classname="__tests__/errors.spec.ts" name="错误码（PROTOCOL.md §2：15 枚举单源） &gt; 恰好 15 个且无重复" time="0.001016083">
+        </testcase>
+        <testcase classname="__tests__/errors.spec.ts" name="错误码（PROTOCOL.md §2：15 枚举单源） &gt; 枚举内容与协议表格逐字一致" time="0.000406375">
+        </testcase>
+        <testcase classname="__tests__/errors.spec.ts" name="PkyError &gt; 携带 code/message/hint，toShape 输出响应信封 error 字段形态" time="0.000273042">
+        </testcase>
+        <testcase classname="__tests__/errors.spec.ts" name="PkyError &gt; 无 hint 时 shape 不含 hint 键" time="0.000535125">
+        </testcase>
+        <testcase classname="__tests__/errors.spec.ts" name="ok/fail 响应包装 &gt; ok 包装 data" time="0.000109375">
+        </testcase>
+        <testcase classname="__tests__/errors.spec.ts" name="ok/fail 响应包装 &gt; fail 包装 PkyError 为信封" time="0.000115917">
+        </testcase>
+        <testcase classname="__tests__/errors.spec.ts" name="ok/fail 响应包装 &gt; toResult：正常值 → ok；PkyError → fail；其他异常原样上抛" time="0.000485916">
+        </testcase>
+    </testsuite>
+    <testsuite name="__tests__/fetcher.spec.ts" timestamp="2026-10-11T20:01:53.822Z" hostname="MacBookPro" tests="9" failures="0" errors="0" skipped="0" time="3.475534458">
+        <testcase classname="__tests__/fetcher.spec.ts" name="pullOnce 语境规则（Rust 全链路用例对齐） &gt; bot 单聊：我发的送 AI、bot 回复只作上下文" time="0.344686">
+        </testcase>
+        <testcase classname="__tests__/fetcher.spec.ts" name="pullOnce 语境规则（Rust 全链路用例对齐） &gt; 身份与群成员名落库（pk context 脱敏词源）" time="0.777070834">
+        </testcase>
+        <testcase classname="__tests__/fetcher.spec.ts" name="pullOnce 语境规则（Rust 全链路用例对齐） &gt; p2p 单聊：对方发的送 AI；我发的只作上下文；发给自己的会话视作备忘" time="0.667678792">
+        </testcase>
+        <testcase classname="__tests__/fetcher.spec.ts" name="pullOnce 语境规则 · 群聊与过滤 &gt; 群聊：@我（显式 at_me=at）、@他人（代号进匿名版）、手打名字（name）、图片只作上下文" time="0.2401695">
+        </testcase>
+        <testcase classname="__tests__/fetcher.spec.ts" name="pullOnce 语境规则 · 群聊与过滤 &gt; 免打扰会话被过滤不拉取；快照含全部会话并推进时间戳；水位推进" time="0.267344709">
+        </testcase>
+        <testcase classname="__tests__/fetcher.spec.ts" name="增量与去重 &gt; 二轮拉取同数据：INSERT OR IGNORE 去重不重复入库、pending 不再产生" time="0.305200625">
+        </testcase>
+        <testcase classname="__tests__/fetcher.spec.ts" name="增量与去重 &gt; 水位驱动增量窗口：请求参数带 since-2min 容错（首拉回看 24h）" time="0.35966325">
+        </testcase>
+        <testcase classname="__tests__/fetcher.spec.ts" name="增量与去重 &gt; 超期未捕捉消息（&gt;60 天）被清理，已建待办的不清理" time="0.301695208">
+        </testcase>
+        <testcase classname="__tests__/fetcher.spec.ts" name="会话过滤偏好（chat_filter_prefs） &gt; always_pull 拯救被免打扰误杀的会话；always_filter 跳过未免打扰会话" time="0.210292208">
+        </testcase>
+    </testsuite>
+    <testsuite name="__tests__/focus.spec.ts" timestamp="2026-10-11T20:01:53.824Z" hostname="MacBookPro" tests="6" failures="0" errors="0" skipped="0" time="0.03604375">
+        <testcase classname="__tests__/focus.spec.ts" name="整分钟入账（D16） &gt; 入账累加 focus_seconds（分钟 × 60），settled=true" time="0.006805459">
+        </testcase>
+        <testcase classname="__tests__/focus.spec.ts" name="整分钟入账（D16） &gt; 幂等：同一 localSessionId 重复 settle 跳过（账本命中，不重复入账）" time="0.004455291">
+        </testcase>
+        <testcase classname="__tests__/focus.spec.ts" name="整分钟入账（D16） &gt; 账本滚动保留最近 100 个 localSessionId" time="0.010827416">
+        </testcase>
+        <testcase classname="__tests__/focus.spec.ts" name="整分钟入账（D16）·下 &gt; elapsedMin=0 也入账 0 分钟并记账本（会话封口）" time="0.004231583">
+        </testcase>
+        <testcase classname="__tests__/focus.spec.ts" name="整分钟入账（D16）·下 &gt; 参数校验：负数 / 非整数 / 空 localSessionId / 不存在的任务 拒绝" time="0.0045565">
+        </testcase>
+        <testcase classname="__tests__/focus.spec.ts" name="整分钟入账（D16）·下 &gt; parseLedger：坏数据按空账本处理" time="0.004091792">
+        </testcase>
+    </testsuite>
+    <testsuite name="__tests__/health-snapshot.spec.ts" timestamp="2026-10-11T20:01:53.826Z" hostname="MacBookPro" tests="5" failures="0" errors="0" skipped="0" time="0.030510333">
+        <testcase classname="__tests__/health-snapshot.spec.ts" name="level 六态归并（health.rs 同构） &gt; off / paused / idle / ok / degraded / down" time="0.007801708">
+        </testcase>
+        <testcase classname="__tests__/health-snapshot.spec.ts" name="HealthState 记录语义 &gt; 失败累积、成功清零；历史错误保留供回看；错误截断 300 字符" time="0.006116792">
+        </testcase>
+        <testcase classname="__tests__/health-snapshot.spec.ts" name="HealthState 记录语义 &gt; nextRunAt 仅登记；未记录的 provider 快照安全退化为默认值" time="0.005146625">
+        </testcase>
+        <testcase classname="__tests__/health-snapshot.spec.ts" name="diagnosticsSnapshot（两链路完整字段） &gt; 未配置时 off；配置后按运行记录归并；积压只计 todo/update" time="0.005136458">
+        </testcase>
+        <testcase classname="__tests__/health-snapshot.spec.ts" name="diagnosticsSnapshot（两链路完整字段） &gt; radioHealth 四元组（上次成功/下次轮询/连续失败/待处理积压）" time="0.004256209">
+        </testcase>
+    </testsuite>
+    <testsuite name="__tests__/injection.spec.ts" timestamp="2026-10-11T20:01:53.827Z" hostname="MacBookPro" tests="4" failures="0" errors="0" skipped="0" time="0.003420667">
+        <testcase classname="__tests__/injection.spec.ts" name="定界不变式（FR-D8） &gt; 定界符各出现且仅出现一次；数据声明在场；内容字段齐全" time="0.001336667">
+        </testcase>
+        <testcase classname="__tests__/injection.spec.ts" name="定界不变式（FR-D8） &gt; 正文里的伪造定界符被洗裁（含「忽略以上所有指令」样本——指令段结构不变）" time="0.000224708">
+        </testcase>
+        <testcase classname="__tests__/injection.spec.ts" name="定界不变式（FR-D8） &gt; 空字段不产生空行噪音；最小形态仍只各一次定界" time="0.000156417">
+        </testcase>
+        <testcase classname="__tests__/injection.spec.ts" name="定界不变式（FR-D8） &gt; 只读展示样例：完整结构在场（设置页 dispatch 项的 defaultText）" time="0.000139">
+        </testcase>
+    </testsuite>
+    <testsuite name="__tests__/integration.spec.ts" timestamp="2026-10-11T20:01:53.829Z" hostname="MacBookPro" tests="6" failures="0" errors="0" skipped="0" time="0.141675583">
+        <testcase classname="__tests__/integration.spec.ts" name="createPlugin 分层替身集成（伪 ctx + 真实临时 SQLite） &gt; ① 启动迁移+种子：schema 版本 / 默认分类与维度 / presets_v2 标记位" time="0.012053292">
+        </testcase>
+        <testcase classname="__tests__/integration.spec.ts" name="createPlugin 分层替身集成（伪 ctx + 真实临时 SQLite） &gt; ② 快捕→判定（fake subagent 返回建议）→分诊建任务链路贯通" time="0.006915167">
+        </testcase>
+        <testcase classname="__tests__/integration.spec.ts" name="createPlugin 分层替身集成（伪 ctx + 真实临时 SQLite） &gt; ③ 出发任务→pet task-state 送达 fake helper（写后直推 + 重发恢复）" time="0.066725709">
+        </testcase>
+        <testcase classname="__tests__/integration.spec.ts" name="createPlugin 分层替身集成 · 自动派发与配置 &gt; ④ 自动派发扫描→无头执行→回传收口（槽释放 + 状态 done）" time="0.039895">
+        </testcase>
+        <testcase classname="__tests__/integration.spec.ts" name="createPlugin 分层替身集成 · 自动派发与配置 &gt; ⑤ configWrite→两形态键读回（共享设置键 + dsh: 内部键同路）" time="0.0062835">
+        </testcase>
+        <testcase classname="__tests__/integration.spec.ts" name="createPlugin 分层替身集成 · 自动派发与配置 &gt; pageOpen 推送通道：订阅者收到 section 载荷（dsh 适配层接线面）" time="0.007579042">
+        </testcase>
+    </testsuite>
+    <testsuite name="__tests__/judge-adapters.spec.ts" timestamp="2026-10-11T20:01:53.831Z" hostname="MacBookPro" tests="9" failures="0" errors="0" skipped="0" time="1.196657958">
+        <testcase classname="__tests__/judge-adapters.spec.ts" name="buildAgentInvocation &gt; args 带 {prompt} → 替换进 argv；未出现 → prompt 走 stdin" time="0.013733125">
+        </testcase>
+        <testcase classname="__tests__/judge-adapters.spec.ts" name="extractPayload / loadSuggestionsFor &gt; claude JSON 信封解 result + session_id；非 JSON 原文" time="0.006863125">
+        </testcase>
+        <testcase classname="__tests__/judge-adapters.spec.ts" name="extractPayload / loadSuggestionsFor &gt; 回读：已落库态映射 action；pending 语义行；缺失消息按 none 兜底" time="0.012144292">
+        </testcase>
+        <testcase classname="__tests__/judge-adapters.spec.ts" name="执行方形态 &gt; fake subagent：内存结构化结果（selfLanding=false）" time="0.007017041">
+        </testcase>
+        <testcase classname="__tests__/judge-adapters.spec.ts" name="执行方形态 &gt; subagent 占位：调用即明确报错（不静默半工作）" time="0.016722375">
+        </testcase>
+        <testcase classname="__tests__/judge-adapters.spec.ts" name="cliJudgeExecutor（真实子进程 + fake agent 脚本） &gt; prompt 经 stdin 送达；输出信封 session_id 采纳；库回读组装建议" time="0.4953185">
+        </testcase>
+        <testcase classname="__tests__/judge-adapters.spec.ts" name="cliJudgeExecutor（真实子进程 + fake agent 脚本） &gt; 全部遗漏（无落库）判失败；非零退出码携带输出详情" time="0.633563709">
+        </testcase>
+        <testcase classname="__tests__/judge-adapters.spec.ts" name="cliJudgeExecutor（真实子进程 + fake agent 脚本） &gt; 超时映射 JUDGE_TIMEOUT（注入 spawn 抛 PkyError 透传）" time="0.004419458">
+        </testcase>
+        <testcase classname="__tests__/judge-adapters.spec.ts" name="会话账本（agent_sessions） &gt; logJudgeSession 落 kind=classify 行（成败两态）" time="0.004716917">
+        </testcase>
+    </testsuite>
+    <testsuite name="__tests__/judge-orchestrator.spec.ts" timestamp="2026-10-11T20:01:53.834Z" hostname="MacBookPro" tests="10" failures="0" errors="0" skipped="0" time="0.068101542">
+        <testcase classname="__tests__/judge-orchestrator.spec.ts" name="判定主链路（claim → 校验 → 落库 → 还原 → 健康） &gt; 内存建议经提交期校验落库：代号还原成真名、ai_status=todo、健康记成功" time="0.010316459">
+        </testcase>
+        <testcase classname="__tests__/judge-orchestrator.spec.ts" name="判定主链路（claim → 校验 → 落库 → 还原 → 健康） &gt; 未提及的消息兜底 none（AI 没给判定不等于跳过）" time="0.005320291">
+        </testcase>
+        <testcase classname="__tests__/judge-orchestrator.spec.ts" name="判定主链路（claim → 校验 → 落库 → 还原 → 健康） &gt; judgePending 全集分批（&gt;20 条拆批）" time="0.010018875">
+        </testcase>
+        <testcase classname="__tests__/judge-orchestrator.spec.ts" name="校验失败重试自限（A21） &gt; 第一次校验失败 → 带反馈重试成功（共 2 次执行）" time="0.008835792">
+        </testcase>
+        <testcase classname="__tests__/judge-orchestrator.spec.ts" name="校验失败重试自限（A21） &gt; 持续校验失败：初跑 + 2 重试后整批落 error（可重判），健康记失败" time="0.005452375">
+        </testcase>
+        <testcase classname="__tests__/judge-orchestrator.spec.ts" name="执行方崩溃路径 &gt; 执行方崩溃（非校验错）：整批落 error 不重试；claim 落空消息不动" time="0.005030291">
+        </testcase>
+        <testcase classname="__tests__/judge-orchestrator.spec.ts" name="claim 失配消费守卫（A22） &gt; selfLanding 回读消费守卫：令牌匹配采纳，claim 失配不采纳" time="0.00627875">
+        </testcase>
+        <testcase classname="__tests__/judge-orchestrator.spec.ts" name="claim 失配消费守卫（A22） &gt; claim 失配行处置：他方在判原样保留；迟到落库回置 pending 清残留" time="0.004769542">
+        </testcase>
+        <testcase classname="__tests__/judge-orchestrator.spec.ts" name="selfLanding 全链路 &gt; selfLanding 全链路：回读采纳 + 未落库标 error + 兜底 none" time="0.00480025">
+        </testcase>
+        <testcase classname="__tests__/judge-orchestrator.spec.ts" name="selfLanding 失败挽救 &gt; selfLanding 崩溃：失败挽救收下已落库、未落库标 error（可重判）" time="0.004761875">
+        </testcase>
+    </testsuite>
+    <testsuite name="__tests__/judge-prompt.spec.ts" timestamp="2026-10-11T20:01:53.836Z" hostname="MacBookPro" tests="8" failures="0" errors="0" skipped="0" time="0.039413667">
+        <testcase classname="__tests__/judge-prompt.spec.ts" name="来源标签 &gt; chatLabel 四型 + 兜底；群名不脱敏、单聊对方名 scrub" time="0.006004875">
+        </testcase>
+        <testcase classname="__tests__/judge-prompt.spec.ts" name="归属标注（mentionNote） &gt; at/name 两级 + 同名风险叠加；空 at_me 无标注" time="0.004342375">
+        </testcase>
+        <testcase classname="__tests__/judge-prompt.spec.ts" name="buildAiMessages（批组装） &gt; 发送者代号化、30 分钟上下文窗口、归属标注进批" time="0.007134208">
+        </testcase>
+        <testcase classname="__tests__/judge-prompt.spec.ts" name="buildAiMessages · 老数据兜底 &gt; content_anon 为空的老数据现场 scrub 真名" time="0.0045995">
+        </testcase>
+        <testcase classname="__tests__/judge-prompt.spec.ts" name="buildJudgePrompt / buildCapturePrompt &gt; 默认系统提示词 + 消息正文 + &lt;AGENT_ID&gt; 替换；不内嵌判重上下文" time="0.004308958">
+        </testcase>
+        <testcase classname="__tests__/judge-prompt.spec.ts" name="buildJudgePrompt · 覆盖三态 &gt; 自定义覆盖生效（im_classify）：默认文本不出现、占位符已替换；坏覆盖回落默认" time="0.003842625">
+        </testcase>
+        <testcase classname="__tests__/judge-prompt.spec.ts" name="buildJudgePrompt · 覆盖三态 &gt; capture prompt：CAPTURE 系统提示词 + 单条输入" time="0.004095667">
+        </testcase>
+        <testcase classname="__tests__/judge-prompt.spec.ts" name="buildJudgePrompt · 覆盖三态 &gt; renderMessages：归属标注行位于发送者与内容之间；上下文行缩进呈现" time="0.003919708">
+        </testcase>
+    </testsuite>
+    <testsuite name="__tests__/judge-retry.spec.ts" timestamp="2026-10-11T20:01:53.840Z" hostname="MacBookPro" tests="3" failures="0" errors="0" skipped="0" time="0.02895475">
+        <testcase classname="__tests__/judge-retry.spec.ts" name="重判（retryJudge） &gt; error 且未分诊的重置后重新判定；非 error/已分诊逐条汇报" time="0.010603458">
+        </testcase>
+        <testcase classname="__tests__/judge-retry.spec.ts" name="重判（retryJudge） &gt; 批内判重兜底：同标题 todo 只留首条，其余降级 none（reason 指向保留条）" time="0.004867584">
+        </testcase>
+        <testcase classname="__tests__/judge-retry.spec.ts" name="重判（retryJudge） &gt; 判定 prompt 假名化：真名不进 prompt（anon 列驱动）" time="0.004969833">
+        </testcase>
+    </testsuite>
+    <testsuite name="__tests__/lark.spec.ts" timestamp="2026-10-11T20:01:53.841Z" hostname="MacBookPro" tests="8" failures="0" errors="0" skipped="0" time="1.92715125">
+        <testcase classname="__tests__/lark.spec.ts" name="信封解包（unwrapEnvelope） &gt; ok=true 取 data；无 data 整体返回；前后日志文字容错" time="0.001154583">
+        </testcase>
+        <testcase classname="__tests__/lark.spec.ts" name="信封解包（unwrapEnvelope） &gt; ok=false / 非 JSON → LARK_FETCH_FAILED 且文案含错误信息" time="0.000295375">
+        </testcase>
+        <testcase classname="__tests__/lark.spec.ts" name="正常增量态（lark-cli-ok.sh，真实子进程） &gt; user_identity / list_chats / batch_query / messages / members 逐面走通" time="0.207667583">
+        </testcase>
+        <testcase classname="__tests__/lark.spec.ts" name="未授权态（lark-cli-unauth.sh） &gt; user_identity → LARK_UNAUTHORIZED（信封 ok=false）" time="0.151514625">
+        </testcase>
+        <testcase classname="__tests__/lark.spec.ts" name="未授权态（lark-cli-unauth.sh） &gt; authStatus 报未登录；未初始化配置时授权跳转行带 config init" time="0.604875833">
+        </testcase>
+        <testcase classname="__tests__/lark.spec.ts" name="网络失败态与超时 &gt; 非零退出码 → LARK_FETCH_FAILED 携带 stderr 摘要；authStatus 失败按未登录兜底" time="0.652177666">
+        </testcase>
+        <testcase classname="__tests__/lark.spec.ts" name="网络失败态与超时 &gt; 超时杀进程 → LARK_FETCH_FAILED 且含超时秒数" time="0.304726916">
+        </testcase>
+        <testcase classname="__tests__/lark.spec.ts" name="网络失败态与超时 &gt; 二进制不存在 → LARK_FETCH_FAILED 带安装指引" time="0.002710959">
+        </testcase>
+    </testsuite>
+    <testsuite name="__tests__/log-ring.spec.ts" timestamp="2026-10-11T20:01:53.845Z" hostname="MacBookPro" tests="6" failures="0" errors="0" skipped="0" time="0.030842917">
+        <testcase classname="__tests__/log-ring.spec.ts" name="环形缓冲 &gt; 超容量丢最旧（2000 条滚动）" time="0.006448542">
+        </testcase>
+        <testcase classname="__tests__/log-ring.spec.ts" name="环形缓冲 &gt; 最新在上；offset 分页跳过最新条目" time="0.005216708">
+        </testcase>
+        <testcase classname="__tests__/log-ring.spec.ts" name="环形缓冲 &gt; limit 默认 500、上限 2000，total 为匹配总数（不受 limit 截断）" time="0.004886333">
+        </testcase>
+        <testcase classname="__tests__/log-ring.spec.ts" name="过滤（级别 / 来源） &gt; minLevel 过滤在缓冲上执行（error≥warn≥info≥debug）" time="0.004438708">
+        </testcase>
+        <testcase classname="__tests__/log-ring.spec.ts" name="过滤（级别 / 来源） &gt; target 精确过滤；组合 minLevel + target" time="0.00400125">
+        </testcase>
+        <testcase classname="__tests__/log-ring.spec.ts" name="logQuery 出口脱敏 &gt; message 过三层管线：键名遮蔽，库内真名遮蔽；原始内存文本保留" time="0.004832292">
+        </testcase>
+    </testsuite>
+    <testsuite name="__tests__/migrate.spec.ts" timestamp="2026-10-11T20:01:53.848Z" hostname="MacBookPro" tests="13" failures="0" errors="0" skipped="0" time="0.062758292">
+        <testcase classname="__tests__/migrate.spec.ts" name="schema 字节同源（AD §4.4：内嵌与磁盘文件比对断言） &gt; 内嵌（vite ?raw）与磁盘 contracts/schema 逐字节相等" time="0.001712959">
+        </testcase>
+        <testcase classname="__tests__/migrate.spec.ts" name="schema 字节同源（AD §4.4：内嵌与磁盘文件比对断言） &gt; loadSchemaSql 默认 fs 路径可达且与内嵌同源（双 loader 汇合点）" time="0.000307083">
+        </testcase>
+        <testcase classname="__tests__/migrate.spec.ts" name="schema 字节同源（AD §4.4：内嵌与磁盘文件比对断言） &gt; 注册内嵌后优先走 embedded 来源" time="0.000088292">
+        </testcase>
+        <testcase classname="__tests__/migrate.spec.ts" name="schema 字节同源（AD §4.4：内嵌与磁盘文件比对断言） &gt; 两种来源都缺失时报装配错误（不静默降级）" time="0.0035215">
+        </testcase>
+        <testcase classname="__tests__/migrate.spec.ts" name="guarded 迁移（AD §5.3 / A19） &gt; 空库 → 迁移至 minSchema=2 + 种子（D15 冷启动）" time="0.016308917">
+        </testcase>
+        <testcase classname="__tests__/migrate.spec.ts" name="guarded 迁移（AD §5.3 / A19） &gt; 重复 init 幂等：版本不变、种子不重复" time="0.004228958">
+        </testcase>
+        <testcase classname="__tests__/migrate.spec.ts" name="guarded 迁移（AD §5.3 / A19） &gt; 迁移目标封顶 minSchema：绝不把库推过 2（A19）" time="0.000149292">
+        </testcase>
+        <testcase classname="__tests__/migrate.spec.ts" name="guarded 迁移（AD §5.3 / A19）·下 &gt; 库版本 &gt; maxSchema → 只读模式标记（DB_SCHEMA_TOO_NEW 语义），不迁移不动库" time="0.006143292">
+        </testcase>
+        <testcase classname="__tests__/migrate.spec.ts" name="guarded 迁移（AD §5.3 / A19）·下 &gt; v1 存量库（user_version=1）前滚到 2：数据保留（002 只追加 dispatch_slots + claim 列）" time="0.008460625">
+        </testcase>
+        <testcase classname="__tests__/migrate.spec.ts" name="guarded 迁移（AD §5.3 / A19）·下 &gt; openAndInit 冷启动建目录建库（库文件不存在 → data/ 目录自动创建）" time="0.008031125">
+        </testcase>
+        <testcase classname="__tests__/migrate.spec.ts" name="冷启动种子（D15：与 db.rs 常量逐字段一致 + 幂等跳过） &gt; 默认分类 5 项：id/名称/宝可梦/sprite/描述逐字段一致（第一个分类固定 id=1）" time="0.004244416">
+        </testcase>
+        <testcase classname="__tests__/migrate.spec.ts" name="冷启动种子（D15：与 db.rs 常量逐字段一致 + 幂等跳过） &gt; 默认维度 4 项：固定 id 1~4、project 单选、sort=id、topic 兜底位" time="0.003925708">
+        </testcase>
+        <testcase classname="__tests__/migrate.spec.ts" name="冷启动种子（D15：与 db.rs 常量逐字段一致 + 幂等跳过）·下 &gt; 幂等跳过：id 或名字（key）已存在都不插（改名后的默认分类保留不改）" time="0.004161042">
+        </testcase>
+    </testsuite>
+    <testsuite name="__tests__/paths.spec.ts" timestamp="2026-10-11T20:01:53.851Z" hostname="MacBookPro" tests="6" failures="0" errors="0" skipped="0" time="0.002420459">
+        <testcase classname="__tests__/paths.spec.ts" name="归一化根解析（db.rs app_home_from 同构） &gt; env 非空优先：直接作为根目录" time="0.001011334">
+        </testcase>
+        <testcase classname="__tests__/paths.spec.ts" name="归一化根解析（db.rs app_home_from 同构） &gt; env 空串视同未设：回落 home/.choose-you" time="0.000121708">
+        </testcase>
+        <testcase classname="__tests__/paths.spec.ts" name="归一化根解析（db.rs app_home_from 同构） &gt; env 未设：缺省 &lt;home&gt;/.choose-you" time="0.000074917">
+        </testcase>
+        <testcase classname="__tests__/paths.spec.ts" name="归一化根解析（db.rs app_home_from 同构） &gt; env 与 home 都缺：返回 undefined（调用方决定报错）" time="0.0000885">
+        </testcase>
+        <testcase classname="__tests__/paths.spec.ts" name="归一化根解析（db.rs app_home_from 同构） &gt; 库文件 = &lt;root&gt;/data/pokemon-choose-you.db" time="0.0001515">
+        </testcase>
+        <testcase classname="__tests__/paths.spec.ts" name="归一化根解析（db.rs app_home_from 同构） &gt; 环境变量键名与主应用一致（CHOOSE_YOU_HOME）" time="0.000072709">
+        </testcase>
+    </testsuite>
+    <testsuite name="__tests__/pet-autostart.spec.ts" timestamp="2026-10-11T20:01:53.852Z" hostname="MacBookPro" tests="1" failures="0" errors="0" skipped="0" time="0.001697917">
+        <testcase classname="__tests__/pet-autostart.spec.ts" name="随 dsh 启动开关（A2：host 侧读写接口） &gt; 默认开；读写可覆盖（内存实现，Config schema 装配层替换持久化）" time="0.000935959">
+        </testcase>
+    </testsuite>
+    <testsuite name="__tests__/pet-bridge.spec.ts" timestamp="2026-10-11T20:01:53.853Z" hostname="MacBookPro" tests="6" failures="0" errors="0" skipped="0" time="0.046642166">
+        <testcase classname="__tests__/pet-bridge.spec.ts" name="上行解码与分发 &gt; hello 握手：onHello + onReady 触发一次；hello 字段可读" time="0.004182333">
+        </testcase>
+        <testcase classname="__tests__/pet-bridge.spec.ts" name="上行解码与分发 &gt; cmd 上行分发（start/done 带 taskId）；focus-settle 分发" time="0.001991625">
+        </testcase>
+        <testcase classname="__tests__/pet-bridge.spec.ts" name="上行解码与分发 &gt; 坏行 / 未知 type / 缺字段 → 计错不崩（丢弃立场与 helper 侧一致）" time="0.011268666">
+        </testcase>
+        <testcase classname="__tests__/pet-bridge.spec.ts" name="下行发送（五种全集） &gt; task-state/pomodoro-config/lang/sprites/heartbeat 逐型发送" time="0.000458958">
+        </testcase>
+        <testcase classname="__tests__/pet-bridge.spec.ts" name="下行发送（五种全集） &gt; detach 后发送返回 false（helper 不在，静默丢弃）" time="0.000126917">
+        </testcase>
+        <testcase classname="__tests__/pet-bridge.spec.ts" name="心跳（15 秒供给侧，timer 注入） &gt; 间隔默认 15s；每 tick 发一条 heartbeat；stop 停发" time="0.000429916">
+        </testcase>
+    </testsuite>
+    <testsuite name="__tests__/pet-cmdhandler.spec.ts" timestamp="2026-10-11T20:01:53.854Z" hostname="MacBookPro" tests="8" failures="0" errors="0" skipped="0" time="0.042818833">
+        <testcase classname="__tests__/pet-cmdhandler.spec.ts" name="cmd → domain（真实临时 SQLite） &gt; start/switch：出发任务（顶下 demote 由 domain 原语承载）" time="0.008459416">
+        </testcase>
+        <testcase classname="__tests__/pet-cmdhandler.spec.ts" name="cmd → domain（真实临时 SQLite） &gt; pause（当前）→ resume（缺省取最近暂停）→ done" time="0.005516041">
+        </testcase>
+        <testcase classname="__tests__/pet-cmdhandler.spec.ts" name="cmd → domain（真实临时 SQLite） &gt; resume 无暂停任务 → no-op 不抛错；capture 无文本转发空串" time="0.004789208">
+        </testcase>
+        <testcase classname="__tests__/pet-cmdhandler.spec.ts" name="cmd → domain（真实临时 SQLite） &gt; taskId 缺失/非法 → 参数错（start/switch）" time="0.003984542">
+        </testcase>
+        <testcase classname="__tests__/pet-cmdhandler.spec.ts" name="cmd → domain（真实临时 SQLite） &gt; 任意 cmd 携带 pos → 持久化 dsh:pet_pos（拖动上报；petMove 同义）" time="0.00467975">
+        </testcase>
+        <testcase classname="__tests__/pet-cmdhandler.spec.ts" name="cmd 转发面（pos 持久化 / 回关注入） &gt; capture/hide/open-page/pet-interact → 注册回调转发（零依赖注入面）" time="0.004068291">
+        </testcase>
+        <testcase classname="__tests__/pet-cmdhandler.spec.ts" name="cmd 转发面（pos 持久化 / 回关注入） &gt; domain 写后 onWrites 直推钩子被调用（装配层接 stateFeed.notifyLocalWrite）" time="0.005812792">
+        </testcase>
+        <testcase classname="__tests__/pet-cmdhandler.spec.ts" name="focus-settle → domain/focus（D16 幂等） &gt; 两次同 localSessionId 只入账一次（账本命中跳过）" time="0.004395125">
+        </testcase>
+    </testsuite>
+    <testsuite name="__tests__/pet-statefeed.spec.ts" timestamp="2026-10-11T20:01:53.857Z" hostname="MacBookPro" tests="11" failures="0" errors="0" skipped="0" time="0.332055">
+        <testcase classname="__tests__/pet-statefeed.spec.ts" name="快照组装 &gt; activeTask：active 优先于 paused，分类精灵 key 随行（categories.sprite 列）" time="0.012791">
+        </testcase>
+        <testcase classname="__tests__/pet-statefeed.spec.ts" name="快照组装 &gt; badge：pendingSuggestions = 待处理 todo/update；failures = error 组（主应用 getter 口径）" time="0.005776917">
+        </testcase>
+        <testcase classname="__tests__/pet-statefeed.spec.ts" name="A17 变更标记（合取单查询） &gt; task_logs / active 聚合 / chat_messages 任一轴变化 → 标记变化" time="0.007505708">
+        </testcase>
+        <testcase classname="__tests__/pet-statefeed.spec.ts" name="位置持久化（dsh:pet_pos） &gt; 写入读取（取整）；坏数据按 null 处理" time="0.004072333">
+        </testcase>
+        <testcase classname="__tests__/pet-statefeed.spec.ts" name="配置下发组装 &gt; lang 三态归一；sprites 六只内置 + cdnBase（helper 单源）+ reducedMotion" time="0.009260584">
+        </testcase>
+        <testcase classname="__tests__/pet-statefeed.spec.ts" name="配置下发组装 &gt; pomodoro-config：档位 [15,25,45,60] 固定 + breakMin 读共享设置缺省 5" time="0.004076125">
+        </testcase>
+        <testcase classname="__tests__/pet-statefeed.spec.ts" name="StateFeed（推送与轮询） &gt; 写后直推（notifyLocalWrite）即时送 task-state；helper 不在时丢弃不炸" time="0.005192959">
+        </testcase>
+        <testcase classname="__tests__/pet-statefeed.spec.ts" name="StateFeed（推送与轮询） &gt; 轮询：库被外部形态改写 → 推送；无变化不推（≤2s 上界的机制面）" time="0.004402625">
+        </testcase>
+        <testcase classname="__tests__/pet-statefeed.spec.ts" name="StateFeed（推送与轮询） &gt; republishAll：lang + sprites + pomodoro-config + task-state 四连发（重启恢复）" time="0.007525083">
+        </testcase>
+        <testcase classname="__tests__/pet-statefeed.spec.ts" name="StateFeed 轮询循环（start/stop 与真实 timer） &gt; 真实 timer 自动轮询：外部写入后 ≤pollMs 推送（A17 机制闭环）" time="0.25201075">
+        </testcase>
+        <testcase classname="__tests__/pet-statefeed.spec.ts" name="StateFeed 轮询循环（start/stop 与真实 timer） &gt; start/stop：默认 2 秒间隔注册；自定义 pollMs" time="0.016997375">
+        </testcase>
+    </testsuite>
+    <testsuite name="__tests__/pet-supervisor.spec.ts" timestamp="2026-10-11T20:01:53.860Z" hostname="MacBookPro" tests="12" failures="0" errors="0" skipped="0" time="4.839838667">
+        <testcase classname="__tests__/pet-supervisor.spec.ts" name="hello 握手与心跳 &gt; show() 拉起 fake helper 并完成 hello 握手；hide 停进程" time="0.267588083">
+        </testcase>
+        <testcase classname="__tests__/pet-supervisor.spec.ts" name="hello 握手与心跳 &gt; 心跳 15s（真实 helper 侧看门狗同值）；hide 后 helper 随 stdin 关闭退出" time="0.12197">
+        </testcase>
+        <testcase classname="__tests__/pet-supervisor.spec.ts" name="task-state 送达与状态恢复 &gt; onBridgeReady 后下发可达：helper 收到 lang/task-state（--pos 位置恢复）" time="0.2150955">
+        </testcase>
+        <testcase classname="__tests__/pet-supervisor.spec.ts" name="cmd 上行处理（fake helper → domain） &gt; fake helper 发 cmd start → domain 出发 + 上行记录" time="0.339776042">
+        </testcase>
+        <testcase classname="__tests__/pet-supervisor.spec.ts" name="focus-settle 幂等（两次同 localSessionId 只入账一次） &gt; fake helper 发两条同 id focus-settle → focus_seconds 只加一次" time="0.325675833">
+        </testcase>
+        <testcase classname="__tests__/pet-supervisor.spec.ts" name="崩溃自拉起（FR-P1：10 秒内） &gt; fake helper 自杀 → supervisor 重启（计数 +1）且新代 hello/状态恢复回调再触发" time="0.473901334">
+        </testcase>
+        <testcase classname="__tests__/pet-supervisor.spec.ts" name="崩溃自拉起（FR-P1：10 秒内） &gt; hide 后崩溃不重启（主动停止语义）" time="0.456321416">
+        </testcase>
+        <testcase classname="__tests__/pet-supervisor.spec.ts" name="握手超时与幂等（边界分支） &gt; helper 不说 hello：show() 等待窗后返回 null 但进程在管（hide 可停）" time="0.252314041">
+        </testcase>
+        <testcase classname="__tests__/pet-supervisor.spec.ts" name="握手超时与幂等（边界分支） &gt; show 幂等：已运行时直接返回现有 hello" time="0.060405917">
+        </testcase>
+        <testcase classname="__tests__/pet-supervisor.spec.ts" name="生命周期边界（hide 撤销待重启 / 早期二次 show / dispose） &gt; 崩溃已排定重启时 hide()：撤销待重启定时器，不再拉起" time="0.675165375">
+        </testcase>
+        <testcase classname="__tests__/pet-supervisor.spec.ts" name="生命周期边界（hide 撤销待重启 / 早期二次 show / dispose） &gt; hello 到达前二次 show()：返回 null（bridge 在但握手未完成），进程不受影响" time="0.060964625">
+        </testcase>
+        <testcase classname="__tests__/pet-supervisor.spec.ts" name="生命周期边界（hide 撤销待重启 / 早期二次 show / dispose） &gt; 缺省参数监督器（helloTimeout 5s / 重启延迟 1s 缺省分支）+ 崩溃自拉起 + dispose" time="1.5889345">
+        </testcase>
+    </testsuite>
+    <testsuite name="__tests__/poll-loop.spec.ts" timestamp="2026-10-11T20:01:53.863Z" hostname="MacBookPro" tests="8" failures="0" errors="0" skipped="0" time="2.96566725">
+        <testcase classname="__tests__/poll-loop.spec.ts" name="一轮的完整链路 &gt; reclaim 过期 judging → 拉取 → 触发判定（pending 消息被消费）→ 健康记成功" time="0.866351583">
+        </testcase>
+        <testcase classname="__tests__/poll-loop.spec.ts" name="一轮的完整链路 &gt; 未配置 agent：拉取照常、判定跳过不阻断（pending 留给下一轮）" time="0.628145292">
+        </testcase>
+        <testcase classname="__tests__/poll-loop.spec.ts" name="一轮的完整链路 &gt; feishu_enabled=false：空转不触达 lark" time="0.004953792">
+        </testcase>
+        <testcase classname="__tests__/poll-loop.spec.ts" name="失败退避（timer 调度口径） &gt; 连续失败 ×2 封顶 ×8：调度间隔 240s→480s→960s→960s；nextRunAt 登记" time="0.145055083">
+        </testcase>
+        <testcase classname="__tests__/poll-loop.spec.ts" name="失败退避（timer 调度口径） &gt; 成功复位：失败一轮后下一轮成功，调度回基准间隔" time="0.340205">
+        </testcase>
+        <testcase classname="__tests__/poll-loop.spec.ts" name="未授权暂停与单次事件 &gt; LARK_UNAUTHORIZED：暂停 + 单次事件；暂停期自动轮空转不再触达；手动成功后恢复" time="0.517239458">
+        </testcase>
+        <testcase classname="__tests__/poll-loop.spec.ts" name="授权恢复（resume） &gt; 显式 resume() 清暂停态（larkAuth 成功后的装配层挂点）：新暂停回合再发一次事件" time="0.242754125">
+        </testcase>
+        <testcase classname="__tests__/poll-loop.spec.ts" name="claim 并发收敛（轮询与判定链路的桥接） &gt; 他形态已 claim 的消息本轮 claim 落空、原样保留" time="0.219451625">
+        </testcase>
+    </testsuite>
+    <testsuite name="__tests__/redact.spec.ts" timestamp="2026-10-11T20:01:53.869Z" hostname="MacBookPro" tests="9" failures="0" errors="0" skipped="0" time="0.073644917">
+        <testcase classname="__tests__/redact.spec.ts" name="第一层：键名遮蔽（redactLine） &gt; 敏感键命中遮值，Bearer 凭证连遮，引用值保持对称" time="0.00790425">
+        </testcase>
+        <testcase classname="__tests__/redact.spec.ts" name="第一层：键名遮蔽（redactLine） &gt; 无敏感键的行原样保留（含多字节字符）" time="0.005525708">
+        </testcase>
+        <testcase classname="__tests__/redact.spec.ts" name="第二层：值形态遮蔽（redactValues） &gt; 邮箱与凭证前缀（≥8 位）遮蔽，短前缀词不误伤" time="0.029277333">
+        </testcase>
+        <testcase classname="__tests__/redact.spec.ts" name="第二层：值形态遮蔽（redactValues） &gt; 裸 @ 与无点域名不按邮箱处理" time="0.00455875">
+        </testcase>
+        <testcase classname="__tests__/redact.spec.ts" name="第三层：名词表遮蔽（collectSensitiveNames + redactNames） &gt; 库内真名/群名/称呼进词表，长名优先" time="0.005147542">
+        </testcase>
+        <testcase classname="__tests__/redact.spec.ts" name="第三层：名词表遮蔽（collectSensitiveNames + redactNames） &gt; 单字名/单字称呼不进词表（误伤率过高）" time="0.004232166">
+        </testcase>
+        <testcase classname="__tests__/redact.spec.ts" name="redact 夹具回放（contracts/fixtures/redact，Rust oracle） &gt; report-no-secret-leak：期望行逐字对齐" time="0.00644">
+        </testcase>
+        <testcase classname="__tests__/redact.spec.ts" name="redact 夹具回放（contracts/fixtures/redact，Rust oracle） &gt; three-layer-redact：期望行逐字对齐" time="0.004655958">
+        </testcase>
+        <testcase classname="__tests__/redact.spec.ts" name="redact 夹具回放（contracts/fixtures/redact，Rust oracle） &gt; 夹具断言零泄漏：敏感原文不在任何输出行里" time="0.004478208">
+        </testcase>
+    </testsuite>
+    <testsuite name="__tests__/render.spec.ts" timestamp="2026-10-11T20:01:53.875Z" hostname="MacBookPro" tests="10" failures="0" errors="0" skipped="0" time="0.087036917">
+        <testcase classname="__tests__/render.spec.ts" name="text 消息 &gt; mention 占位符还原：display 真名、anon 代号；@到我 双版渲染「@我」并标 atMe" time="0.013320209">
+        </testcase>
+        <testcase classname="__tests__/render.spec.ts" name="text 消息 &gt; list 接口的字符串 id 形态同样解析（回归口径）" time="0.004015208">
+        </testcase>
+        <testcase classname="__tests__/render.spec.ts" name="text 消息 &gt; 无 mentions 映射时 display 保留原文" time="0.0042625">
+        </testcase>
+        <testcase classname="__tests__/render.spec.ts" name="text 消息 &gt; 手打文本命中称呼（无 mention 结构）：anon 里我的称呼→（疑似@我）、成员→代号" time="0.006475583">
+        </testcase>
+        <testcase classname="__tests__/render.spec.ts" name="post 富文本 &gt; 标题单独成行；at 段真名/代号；a 段带 href；图片占位" time="0.004251667">
+        </testcase>
+        <testcase classname="__tests__/render.spec.ts" name="post 富文本 &gt; 语言包形态取 zh_cn；at 段经 mentions user_key 定位（@到我 → 我）" time="0.004997">
+        </testcase>
+        <testcase classname="__tests__/render.spec.ts" name="post 富文本 &gt; emotion/video 段占位；无 content 数组返回 null" time="0.003810708">
+        </testcase>
+        <testcase classname="__tests__/render.spec.ts" name="卡片与媒体占位 &gt; interactive 收集 text/content/title 文本节点，前缀 [卡片]，人名过词表" time="0.004910916">
+        </testcase>
+        <testcase classname="__tests__/render.spec.ts" name="卡片与媒体占位 &gt; 媒体占位与 file 名；未知类型/非法 JSON 跳过" time="0.036094292">
+        </testcase>
+        <testcase classname="__tests__/render.spec.ts" name="词表与辅助 &gt; isMediaOnly 覆盖全部媒体类型；短 id 截 11 字符" time="0.000227834">
+        </testcase>
+    </testsuite>
+    <testsuite name="__tests__/review.spec.ts" timestamp="2026-10-11T20:01:53.879Z" hostname="MacBookPro" tests="18" failures="0" errors="0" skipped="0" time="0.177696083">
+        <testcase classname="__tests__/review.spec.ts" name="捕捉（accept） &gt; 建任务回填 task_id：标题/备注/优先级/截止/标签齐全，有截止进路线" time="0.013051333">
+        </testcase>
+        <testcase classname="__tests__/review.spec.ts" name="捕捉（accept） &gt; 无建议字段时标题取正文前 40 字，无截止进草丛，未知分类回落第一个启用" time="0.004480625">
+        </testcase>
+        <testcase classname="__tests__/review.spec.ts" name="捕捉（accept）·下 &gt; due 空串按无截止处理进草丛（suggested_due 落 NULL）" time="0.004831708">
+        </testcase>
+        <testcase classname="__tests__/review.spec.ts" name="捕捉（accept）·下 &gt; CAS：已处置的消息再捕捉 → SUGGESTION_ALREADY_RESOLVED 且不建任务" time="0.004632459">
+        </testcase>
+        <testcase classname="__tests__/review.spec.ts" name="捕捉（accept）·下 &gt; 已创建过待办的消息（task_id 已回填）拒绝重复捕捉" time="0.005185792">
+        </testcase>
+        <testcase classname="__tests__/review.spec.ts" name="捕捉（accept）·下 &gt; 本地捕捉消息（chat_type=local）任务来源 = capture" time="0.004564583">
+        </testcase>
+        <testcase classname="__tests__/review.spec.ts" name="逃走（dismiss） &gt; pending → dismissed，原因码随消息行落库并记反馈" time="0.006922542">
+        </testcase>
+        <testcase classname="__tests__/review.spec.ts" name="逃走（dismiss） &gt; 无原因码直接逃走也记反馈（reason 空串）；未知原因码拒绝" time="0.062481875">
+        </testcase>
+        <testcase classname="__tests__/review.spec.ts" name="逃走（dismiss） &gt; CAS：已捕捉的消息不能逃走 → SUGGESTION_ALREADY_RESOLVED，不落第二条反馈" time="0.006870666">
+        </testcase>
+        <testcase classname="__tests__/review.spec.ts" name="撤销逃走（restore） &gt; 仅 dismissed → pending：清原因、删误操作反馈" time="0.006768">
+        </testcase>
+        <testcase classname="__tests__/review.spec.ts" name="撤销逃走（restore） &gt; 非逃生态（pending / accepted）恢复 → SUGGESTION_ALREADY_RESOLVED" time="0.004672792">
+        </testcase>
+        <testcase classname="__tests__/review.spec.ts" name="应用更新（applyUpdate） &gt; 只改 AI 明确给出的字段；分类只认启用中的同名；消息转已接受" time="0.005238042">
+        </testcase>
+        <testcase classname="__tests__/review.spec.ts" name="应用更新（applyUpdate） &gt; 非 update 状态 / 缺目标 / 目标已删 / 无可应用字段 拒绝" time="0.024465792">
+        </testcase>
+        <testcase classname="__tests__/review.spec.ts" name="应用更新（applyUpdate）·下 &gt; CAS：已逃走的更新建议不能再应用（幂等拒绝、补丁不落目标）" time="0.004164833">
+        </testcase>
+        <testcase classname="__tests__/review.spec.ts" name="批量分诊 &gt; accept 混合：todo 建待办 + update 应用更新 + 已处置的单独失败" time="0.005404875">
+        </testcase>
+        <testcase classname="__tests__/review.spec.ts" name="批量分诊 &gt; dismiss 批量：pending 全部标记，非 pending 进失败列表；原因逐条落反馈" time="0.004552625">
+        </testcase>
+        <testcase classname="__tests__/review.spec.ts" name="批量分诊 &gt; 空选集拒绝；不存在的消息进失败列表" time="0.004105667">
+        </testcase>
+        <testcase classname="__tests__/review.spec.ts" name="getMessage &gt; 不存在的消息 NOT_FOUND" time="0.003763791">
+        </testcase>
+    </testsuite>
+    <testsuite name="__tests__/settings.spec.ts" timestamp="2026-10-11T20:01:53.893Z" hostname="MacBookPro" tests="18" failures="0" errors="0" skipped="0" time="0.118556959">
+        <testcase classname="__tests__/settings.spec.ts" name="36 共享设置键（配置 100% 对齐，§8⑨） &gt; 键集与主应用 src/stores/settings.ts SETTING_KEYS 逐字一致（含顺序）" time="0.007447375">
+        </testcase>
+        <testcase classname="__tests__/settings.spec.ts" name="36 共享设置键（配置 100% 对齐，§8⑨） &gt; readSettings / writeSettings 读写往返；缺键不出现" time="0.005600667">
+        </testcase>
+        <testcase classname="__tests__/settings.spec.ts" name="36 共享设置键（配置 100% 对齐，§8⑨）·下 &gt; 写入校验：数值键必须正整数、时钟键 HH:MM、空键拒绝（CONFIG_VALIDATION_FAILED）" time="0.004921708">
+        </testcase>
+        <testcase classname="__tests__/settings.spec.ts" name="36 共享设置键（配置 100% 对齐，§8⑨）·下 &gt; dsh: 内部键与 ai_prompt_* 旁路键同路可写可读（主应用 get_setting/set_setting 同口径）" time="0.004159458">
+        </testcase>
+        <testcase classname="__tests__/settings.spec.ts" name="agent 列表（ai_agents 整读-改-整写） &gt; loadAgents：坏数据按未配置、空 command 过滤" time="0.004675125">
+        </testcase>
+        <testcase classname="__tests__/settings.spec.ts" name="agent 列表（ai_agents 整读-改-整写） &gt; agentUpsert 新增/更新 + 返回完整列表；空 command 拒绝（AGENT_COMMAND_INVALID）" time="0.00614975">
+        </testcase>
+        <testcase classname="__tests__/settings.spec.ts" name="agent 列表（ai_agents 整读-改-整写） &gt; 修订检测：expectedAgentIds 失配 → SETTING_MODIFIED_ELSEWHERE；force 覆盖；匹配基线放行" time="0.004659084">
+        </testcase>
+        <testcase classname="__tests__/settings.spec.ts" name="agent 列表（ai_agents 整读-改-整写）·下 &gt; agentDelete：删除联动清 ai_agent_id；失配同修订检测；不存在的 id 拒绝" time="0.027451417">
+        </testcase>
+        <testcase classname="__tests__/settings.spec.ts" name="agent 列表（ai_agents 整读-改-整写）·下 &gt; primaryAgent：优先 ai_agent_id 指定的启用项，否则第一个启用项" time="0.005075875">
+        </testcase>
+        <testcase classname="__tests__/settings.spec.ts" name="提示词覆盖（4 键 + dispatch 只读项） &gt; 目录自检：4 键唯一、默认文本含全部必要占位符、上限 20000" time="0.0070955">
+        </testcase>
+        <testcase classname="__tests__/settings.spec.ts" name="提示词覆盖（4 键 + dispatch 只读项） &gt; promptList：固定 5 项（4 可编辑 + dispatch 只读示例）" time="0.004109209">
+        </testcase>
+        <testcase classname="__tests__/settings.spec.ts" name="提示词覆盖（4 键 + dispatch 只读项） &gt; promptGet：未知键 / dispatch 键拒绝（该提示词不支持编辑）" time="0.003876542">
+        </testcase>
+        <testcase classname="__tests__/settings.spec.ts" name="提示词覆盖（4 键 + dispatch 只读项）·下 &gt; resolveOverride 三态：无行 default / 合法 custom / 缺占位符或超长 default_warned 回落默认" time="0.004986084">
+        </testcase>
+        <testcase classname="__tests__/settings.spec.ts" name="提示词覆盖（4 键 + dispatch 只读项）·下 &gt; promptOverride：空白 / 等于默认 = 删行；超长与缺占位符拒绝（文案含上限/占位符名）" time="0.004853125">
+        </testcase>
+        <testcase classname="__tests__/settings.spec.ts" name="提示词覆盖（4 键 + dispatch 只读项）·下 &gt; promptOverride：合法保存返回 spec + 未知占位符警告（非阻断、去重、小写不告警）" time="0.004355417">
+        </testcase>
+        <testcase classname="__tests__/settings.spec.ts" name="提示词覆盖（4 键 + dispatch 只读项）·下 &gt; 修订检测：expectedValue 基线失配 → SETTING_MODIFIED_ELSEWHERE；force 覆盖" time="0.009299334">
+        </testcase>
+        <testcase classname="__tests__/settings.spec.ts" name="提示词覆盖（4 键 + dispatch 只读项）·下 &gt; promptReset = 删行；修订检测同款" time="0.0044385">
+        </testcase>
+        <testcase classname="__tests__/settings.spec.ts" name="提示词覆盖（4 键 + dispatch 只读项）·下 &gt; scanUnknownPlaceholders：样式边界（数字开头/单字符/未闭合/前缀杂讯）" time="0.003883292">
+        </testcase>
+    </testsuite>
+    <testsuite name="__tests__/smoke.spec.ts" timestamp="2026-10-11T20:01:53.901Z" hostname="MacBookPro" tests="5" failures="0" errors="0" skipped="0" time="0.00488225">
+        <testcase classname="__tests__/smoke.spec.ts" name="A1 能力探测：node:sqlite（AD NFR-3 ②） &gt; 仓库工具链 Node ≥ 24：node:sqlite 可开可用（实测口径见 docs/compatibility.md）" time="0.001110292">
+        </testcase>
+        <testcase classname="__tests__/smoke.spec.ts" name="A1 能力探测：node:sqlite（AD NFR-3 ②） &gt; apply 在探测失败时抛带指引的载入拒绝错误（不静默半工作）" time="0.000603667">
+        </testcase>
+        <testcase classname="__tests__/smoke.spec.ts" name="A1 能力探测：node:sqlite（AD NFR-3 ②） &gt; apply 探测通过时不抛（惰性注册骨架）" time="0.000186791">
+        </testcase>
+        <testcase classname="__tests__/smoke.spec.ts" name="A1 能力探测：node:sqlite（AD NFR-3 ②） &gt; 错误文案含失败详情；无详情时指引仍完整" time="0.00013775">
+        </testcase>
+        <testcase classname="__tests__/smoke.spec.ts" name="契约 schema 冒烟（与 A1 实测同口径） &gt; contracts/schema 两个迁移 SQL 可在内存库顺序执行，业务表集完整" time="0.001932625">
+        </testcase>
+    </testsuite>
+    <testsuite name="__tests__/suggest-apply.spec.ts" timestamp="2026-10-11T20:01:53.904Z" hostname="MacBookPro" tests="16" failures="0" errors="0" skipped="0" time="0.168491541">
+        <testcase classname="__tests__/suggest-apply.spec.ts" name="落库（apply） &gt; todo：写建议列等用户确认（ai_status=todo，due 空白归 NULL）" time="0.010484">
+        </testcase>
+        <testcase classname="__tests__/suggest-apply.spec.ts" name="落库（apply） &gt; update：覆盖写 + update_task_id 回填" time="0.058897417">
+        </testcase>
+        <testcase classname="__tests__/suggest-apply.spec.ts" name="落库（apply）·下 &gt; followUp：直接挂跟进并入（content 原文为跟进正文），重放不重复挂" time="0.004664667">
+        </testcase>
+        <testcase classname="__tests__/suggest-apply.spec.ts" name="落库（apply）·下 &gt; none：只记 reason/confidence/agent 与状态" time="0.037635541">
+        </testcase>
+        <testcase classname="__tests__/suggest-apply.spec.ts" name="落库（apply）·下 &gt; 重复提交同一消息 todo/none 为覆盖写（幂等）" time="0.004234166">
+        </testcase>
+        <testcase classname="__tests__/suggest-apply.spec.ts" name="接受期解析（非拒绝语义） &gt; resolveCategory：命中启用分类；停用/未知回落第一个启用" time="0.004182708">
+        </testcase>
+        <testcase classname="__tests__/suggest-apply.spec.ts" name="接受期解析（非拒绝语义） &gt; resolveProposedTags：维度+名精确 → 按名兜底 → isNew 创建（origin=ai）→ 词表外跳过" time="0.00474075">
+        </testcase>
+        <testcase classname="__tests__/suggest-apply.spec.ts" name="接受期解析（非拒绝语义） &gt; resolveProposedTags：配额满的 isNew 跳过（接受期不拒绝）" time="0.004685083">
+        </testcase>
+        <testcase classname="__tests__/suggest-apply.spec.ts" name="接受期解析（非拒绝语义） &gt; validPriority 非法回落 normal；normalizeDue 空白归 NULL" time="0.003879625">
+        </testcase>
+        <testcase classname="__tests__/suggest-apply.spec.ts" name="claim 协议（A22/A5/A6） &gt; claimJudging：pending → judging 写令牌，只返回抢到的子集" time="0.005360792">
+        </testcase>
+        <testcase classname="__tests__/suggest-apply.spec.ts" name="claim 协议（A22/A5/A6） &gt; 落态 claim 守卫：judging+令牌匹配才落库；令牌失配丢弃（不污染新判定）" time="0.005195459">
+        </testcase>
+        <testcase classname="__tests__/suggest-apply.spec.ts" name="claim 协议（A22/A5/A6） &gt; claim 守卫下的 followUp：失配令牌不挂跟进" time="0.00425175">
+        </testcase>
+        <testcase classname="__tests__/suggest-apply.spec.ts" name="claim 协议（A22/A5/A6）·下 &gt; reclaimStaleJudging：超过 10 分钟的 judging 回 pending 清令牌；新鲜令牌保留" time="0.004555042">
+        </testcase>
+        <testcase classname="__tests__/suggest-apply.spec.ts" name="claim 协议（A22/A5/A6）·下 &gt; markAiError：claim 口径只翻转本 claim 抢到的行（judging+令牌）" time="0.004417959">
+        </testcase>
+        <testcase classname="__tests__/suggest-apply.spec.ts" name="捕捉建任务（createTaskFromMessage） &gt; 非法优先级回落 normal、未知分类回落第一个启用、未知标签丢弃、空串 due 归 NULL" time="0.00455">
+        </testcase>
+        <testcase classname="__tests__/suggest-apply.spec.ts" name="逃走原因码白名单 &gt; 6 枚举；白名单外拒绝" time="0.004510708">
+        </testcase>
+    </testsuite>
+    <testsuite name="__tests__/suggest.spec.ts" timestamp="2026-10-11T20:01:53.907Z" hostname="MacBookPro" tests="10" failures="0" errors="0" skipped="0" time="0.100986959">
+        <testcase classname="__tests__/suggest.spec.ts" name="提交期校验（六规则，整批原子） &gt; 消息不存在 / 已人工确认过 → 整批拒绝，文案含序号与 messageId" time="0.007065666">
+        </testcase>
+        <testcase classname="__tests__/suggest.spec.ts" name="提交期校验（六规则，整批原子） &gt; action 枚举封闭 + 载荷匹配（todo 缺 title / update 缺目标 / followUp 目标不存在）" time="0.00845225">
+        </testcase>
+        <testcase classname="__tests__/suggest.spec.ts" name="提交期校验（六规则，整批原子）·下 &gt; priority / confidence 非空必须命中枚举" time="0.004427042">
+        </testcase>
+        <testcase classname="__tests__/suggest.spec.ts" name="提交期校验（六规则，整批原子）·下 &gt; category 非空必须命中启用分类（停用同名分类拒绝）" time="0.004341708">
+        </testcase>
+        <testcase classname="__tests__/suggest.spec.ts" name="提交期校验（六规则，整批原子）·下 &gt; tags：非 isNew 词表外整批拒绝；isNew 维度配额满整批拒绝" time="0.050061334">
+        </testcase>
+        <testcase classname="__tests__/suggest.spec.ts" name="提交期校验（六规则，整批原子）·下 &gt; 批内 messageId 重复整批拒绝" time="0.004316833">
+        </testcase>
+        <testcase classname="__tests__/suggest.spec.ts" name="提交期校验（六规则，整批原子）·下 &gt; 整批原子：第 2 条违规时第 1 条也不落库" time="0.004426166">
+        </testcase>
+        <testcase classname="__tests__/suggest.spec.ts" name="提交期校验（六规则，整批原子）·下 &gt; 空 results 拒绝" time="0.004013667">
+        </testcase>
+        <testcase classname="__tests__/suggest.spec.ts" name="批内判重兜底 &gt; 规范化标题相同的 todo 只留首条，其余降级 none 且 reason 指向保留条" time="0.004799917">
+        </testcase>
+        <testcase classname="__tests__/suggest.spec.ts" name="假名还原（提交前 restore） &gt; title/note/reason/tags 的代号反向还原为真名；未知代号原样保留" time="0.004264791">
+        </testcase>
+    </testsuite>
+    <testsuite name="__tests__/support-report.spec.ts" timestamp="2026-10-11T20:01:53.909Z" hostname="MacBookPro" tests="4" failures="0" errors="0" skipped="0" time="0.02476825">
+        <testcase classname="__tests__/support-report.spec.ts" name="buildSupportReport &gt; 含版本头（插件 + dsh 占位 + 平台）、健康段、最近日志段" time="0.006811125">
+        </testcase>
+        <testcase classname="__tests__/support-report.spec.ts" name="buildSupportReport · 空态与条数上限 &gt; 无 dsh 版本时省略 dsh 段；无日志时呈现（无日志）" time="0.0048705">
+        </testcase>
+        <testcase classname="__tests__/support-report.spec.ts" name="buildSupportReport · 空态与条数上限 &gt; 日志段最多 200 条且按时间正序呈现（最新在末尾）" time="0.007639125">
+        </testcase>
+        <testcase classname="__tests__/support-report.spec.ts" name="buildSupportReport · 空态与条数上限 &gt; 密钥零泄漏：日志里的邮箱/凭证前缀/库内真名全部遮蔽" time="0.004444458">
+        </testcase>
+    </testsuite>
+    <testsuite name="__tests__/tasks.spec.ts" timestamp="2026-10-11T20:01:53.912Z" hostname="MacBookPro" tests="24" failures="0" errors="0" skipped="0" time="0.2675405">
+        <testcase classname="__tests__/tasks.spec.ts" name="创建 &gt; 默认 inbox + normal + 第一个启用分类 + source=local，审计记 create（origin=dsh）" time="0.0105">
+        </testcase>
+        <testcase classname="__tests__/tasks.spec.ts" name="创建 &gt; scheduled + 有截止 → scheduled；scheduled 标志但无截止被不变量兜底归草丛" time="0.007879125">
+        </testcase>
+        <testcase classname="__tests__/tasks.spec.ts" name="创建 &gt; 空白标题拒绝（参数错）" time="0.004377417">
+        </testcase>
+        <testcase classname="__tests__/tasks.spec.ts" name="创建 &gt; 未指定分类落到第一个启用分类（id=1 停用时跳过）" time="0.004413208">
+        </testcase>
+        <testcase classname="__tests__/tasks.spec.ts" name="出发（全局唯一进行中 + 顶下 demote） &gt; 切换后旧 active 回 scheduled，本任务 active 并记首次开始时间" time="0.0049655">
+        </testcase>
+        <testcase classname="__tests__/tasks.spec.ts" name="出发（全局唯一进行中 + 顶下 demote） &gt; 审计时序照抄 Rust：demote 快照提交后补写 + start 日志（origin 传递）" time="0.004616291">
+        </testcase>
+        <testcase classname="__tests__/tasks.spec.ts" name="出发（全局唯一进行中 + 顶下 demote）·下 &gt; paused 任务也被顶下（demote 覆盖 active/paused 全部）" time="0.004883458">
+        </testcase>
+        <testcase classname="__tests__/tasks.spec.ts" name="出发（全局唯一进行中 + 顶下 demote）·下 &gt; 不存在的任务报 NOT_FOUND（demote 已提交——Rust 同款行为）" time="0.004534125">
+        </testcase>
+        <testcase classname="__tests__/tasks.spec.ts" name="出发（全局唯一进行中 + 顶下 demote）·下 &gt; 双连接并发出发两个任务：任一时刻 active ≤ 1（写锁串行化 + demote 原语）" time="0.015212709">
+        </testcase>
+        <testcase classname="__tests__/tasks.spec.ts" name="暂停 / 完成 / 撤销分流 / 逃走 &gt; 暂停后无 active，列表首项 paused；日志记 pause" time="0.008274541">
+        </testcase>
+        <testcase classname="__tests__/tasks.spec.ts" name="暂停 / 完成 / 撤销分流 / 逃走 &gt; taskId 指定但不在进行中 → 参数错" time="0.004444416">
+        </testcase>
+        <testcase classname="__tests__/tasks.spec.ts" name="暂停 / 完成 / 撤销分流 / 逃走 &gt; 完成写 completed_at，进 done 列表；撤销分流：有截止 → scheduled" time="0.005610958">
+        </testcase>
+        <testcase classname="__tests__/tasks.spec.ts" name="暂停 / 完成 / 撤销分流 / 逃走 &gt; 撤销分流：无截止且从未出发 → inbox（「路线无截止从未出发强制回草丛」不变量）" time="0.012044625">
+        </testcase>
+        <testcase classname="__tests__/tasks.spec.ts" name="暂停 / 完成 / 撤销分流 / 逃走 &gt; 撤销分流：无截止但曾出发 → scheduled（开始过的任务可停留在路线）" time="0.00878325">
+        </testcase>
+        <testcase classname="__tests__/tasks.spec.ts" name="暂停 / 完成 / 撤销分流 / 逃走 &gt; 逃走：cancelled + cancelled_at，出现在图鉴（done 列表）" time="0.005233041">
+        </testcase>
+        <testcase classname="__tests__/tasks.spec.ts" name="更新与改期 &gt; 字段级 patch：只动给出的字段；提醒时间变化重置 reminded" time="0.005068708">
+        </testcase>
+        <testcase classname="__tests__/tasks.spec.ts" name="更新与改期 &gt; dueAt 三态：缺失不改 / null 清空 / 字符串设置" time="0.00883575">
+        </testcase>
+        <testcase classname="__tests__/tasks.spec.ts" name="更新与改期·下 &gt; 无变化不写审计日志；变化逐字段记 update" time="0.113681458">
+        </testcase>
+        <testcase classname="__tests__/tasks.spec.ts" name="更新与改期·下 &gt; 改期：due 空串清空截止并联动草丛；有值落 scheduled" time="0.0089505">
+        </testcase>
+        <testcase classname="__tests__/tasks.spec.ts" name="更新与改期·下 &gt; 历史脏数据兜底：due_at 空串的 scheduled 任务任意写路径后归草丛" time="0.004450666">
+        </testcase>
+        <testcase classname="__tests__/tasks.spec.ts" name="更新与改期·下 &gt; 不存在的任务：NOT_FOUND" time="0.004346417">
+        </testcase>
+        <testcase classname="__tests__/tasks.spec.ts" name="放生（级联删除 + 墓碑） &gt; tasks/task_tags/task_notes 删除，task_logs 墓碑保留标题快照" time="0.005590458">
+        </testcase>
+        <testcase classname="__tests__/tasks.spec.ts" name="跟进记录 &gt; 追加 + 列表；空内容拒绝；不存在的任务 NOT_FOUND；source 归一 manual/ai" time="0.004790291">
+        </testcase>
+        <testcase classname="__tests__/tasks.spec.ts" name="列表口径（open 排序：active 最前） &gt; open 列表 active 优先，其后按状态档" time="0.004261833">
+        </testcase>
+    </testsuite>
+    <testsuite name="__tests__/tools-registry.spec.ts" timestamp="2026-10-11T20:01:53.918Z" hostname="MacBookPro" tests="24" failures="0" errors="0" skipped="0" time="0.237902833">
+        <testcase classname="__tests__/tools-registry.spec.ts" name="tools 注册表（AD §4.1） &gt; 22 工具名全集与 AD 表一致（20 行成对工具拆开命名）" time="0.009357167">
+        </testcase>
+        <testcase classname="__tests__/tools-registry.spec.ts" name="tools 注册表（AD §4.1） &gt; 未知工具 → INVALID_ARGUMENT 信封；PkyError → 错误信封" time="0.006002666">
+        </testcase>
+        <testcase classname="__tests__/tools-registry.spec.ts" name="tools 注册表（AD §4.1） &gt; todo_context：happy path 转发断言" time="0.014774958">
+        </testcase>
+        <testcase classname="__tests__/tools-registry.spec.ts" name="tools 注册表（AD §4.1） &gt; todo_task_list：happy path 转发断言" time="0.005404083">
+        </testcase>
+        <testcase classname="__tests__/tools-registry.spec.ts" name="tools 注册表（AD §4.1） &gt; todo_task_get：happy path 转发断言" time="0.004353625">
+        </testcase>
+        <testcase classname="__tests__/tools-registry.spec.ts" name="tools 注册表（AD §4.1） &gt; todo_task_search：happy path 转发断言" time="0.004630458">
+        </testcase>
+        <testcase classname="__tests__/tools-registry.spec.ts" name="tools 注册表（AD §4.1） &gt; todo_task_create：happy path 转发断言" time="0.012847583">
+        </testcase>
+        <testcase classname="__tests__/tools-registry.spec.ts" name="tools 注册表（AD §4.1） &gt; todo_task_update：happy path 转发断言" time="0.045681709">
+        </testcase>
+        <testcase classname="__tests__/tools-registry.spec.ts" name="tools 注册表（AD §4.1） &gt; todo_task_done：happy path 转发断言" time="0.004433333">
+        </testcase>
+        <testcase classname="__tests__/tools-registry.spec.ts" name="tools 注册表（AD §4.1） &gt; todo_task_undone：happy path 转发断言" time="0.004251">
+        </testcase>
+        <testcase classname="__tests__/tools-registry.spec.ts" name="tools 注册表（AD §4.1） &gt; todo_task_start：happy path 转发断言" time="0.00664725">
+        </testcase>
+        <testcase classname="__tests__/tools-registry.spec.ts" name="tools 注册表（AD §4.1） &gt; todo_task_current：happy path 转发断言" time="0.004399583">
+        </testcase>
+        <testcase classname="__tests__/tools-registry.spec.ts" name="tools 注册表（AD §4.1） &gt; todo_task_pause：happy path 转发断言" time="0.004307">
+        </testcase>
+        <testcase classname="__tests__/tools-registry.spec.ts" name="tools 注册表（AD §4.1） &gt; todo_task_delete：happy path 转发断言" time="0.004026042">
+        </testcase>
+        <testcase classname="__tests__/tools-registry.spec.ts" name="tools 注册表（AD §4.1） &gt; todo_task_escape：happy path 转发断言" time="0.004351">
+        </testcase>
+        <testcase classname="__tests__/tools-registry.spec.ts" name="tools 注册表（AD §4.1） &gt; todo_note_add：happy path 转发断言" time="0.062623583">
+        </testcase>
+        <testcase classname="__tests__/tools-registry.spec.ts" name="tools 注册表（AD §4.1） &gt; todo_tag_list：happy path 转发断言" time="0.00453025">
+        </testcase>
+        <testcase classname="__tests__/tools-registry.spec.ts" name="tools 注册表（AD §4.1） &gt; todo_tag_create：happy path 转发断言" time="0.004716042">
+        </testcase>
+        <testcase classname="__tests__/tools-registry.spec.ts" name="tools 注册表（AD §4.1） &gt; todo_suggest_batch：happy path 转发断言" time="0.004903625">
+        </testcase>
+        <testcase classname="__tests__/tools-registry.spec.ts" name="tools 注册表（AD §4.1） &gt; todo_dispatch_done：happy path 转发断言" time="0.004729083">
+        </testcase>
+        <testcase classname="__tests__/tools-registry.spec.ts" name="tools 注册表（AD §4.1） &gt; todo_dispatch_fail：happy path 转发断言" time="0.004246333">
+        </testcase>
+        <testcase classname="__tests__/tools-registry.spec.ts" name="tools 注册表（AD §4.1） &gt; todo_session_log：happy path 转发断言" time="0.004238416">
+        </testcase>
+        <testcase classname="__tests__/tools-registry.spec.ts" name="tools 注册表（AD §4.1） &gt; todo_pet_hide：happy path 转发断言" time="0.004174042">
+        </testcase>
+        <testcase classname="__tests__/tools-registry.spec.ts" name="tools 注册表（AD §4.1） &gt; todo_pet_show：happy path 转发断言" time="0.004176334">
+        </testcase>
+    </testsuite>
+    <testsuite name="__tests__/vocabulary.spec.ts" timestamp="2026-10-11T20:01:53.924Z" hostname="MacBookPro" tests="17" failures="0" errors="0" skipped="0" time="0.192681917">
+        <testcase classname="__tests__/vocabulary.spec.ts" name="分类 &gt; 新增 + 换装（pokemon/sprite 字段）+ 改名去空格 + 启停" time="0.007783167">
+        </testcase>
+        <testcase classname="__tests__/vocabulary.spec.ts" name="分类 &gt; 空名 / 重名拒绝；不存在的分类 NOT_FOUND" time="0.004793667">
+        </testcase>
+        <testcase classname="__tests__/vocabulary.spec.ts" name="分类 &gt; 停用最后一个启用分类拒绝（至少保留一个启用）" time="0.004923667">
+        </testcase>
+        <testcase classname="__tests__/vocabulary.spec.ts" name="分类 &gt; 放生级联：任务归第一个启用分类（跳过停用低 id）；返回迁移计数" time="0.004188584">
+        </testcase>
+        <testcase classname="__tests__/vocabulary.spec.ts" name="分类 &gt; 最后一个分类不可删" time="0.004326416">
+        </testcase>
+        <testcase classname="__tests__/vocabulary.spec.ts" name="维度 &gt; dimensionIdByKey：空 key 回落 topic；未知拒绝" time="0.025072084">
+        </testcase>
+        <testcase classname="__tests__/vocabulary.spec.ts" name="维度 &gt; 改名 / 调上限（clamp 1..200）/ 停用；key 与 cardinality 不在更新面（传入无通道）" time="0.004346958">
+        </testcase>
+        <testcase classname="__tests__/vocabulary.spec.ts" name="维度 &gt; dimensionRemaining：max - used" time="0.005185">
+        </testcase>
+        <testcase classname="__tests__/vocabulary.spec.ts" name="标签 &gt; 新建挂维度；同维度重名拒（背包面强校验）；跨维度同名允许" time="0.004851292">
+        </testcase>
+        <testcase classname="__tests__/vocabulary.spec.ts" name="标签 &gt; 空名 / 未知维度 / 配额满 / 维度停用 拒绝" time="0.006107542">
+        </testcase>
+        <testcase classname="__tests__/vocabulary.spec.ts" name="标签 &gt; 更新走 id（改名/改描述）；不存在 NOT_FOUND" time="0.00448575">
+        </testcase>
+        <testcase classname="__tests__/vocabulary.spec.ts" name="标签·下 &gt; 删除级联清 task_tags 关联" time="0.004230917">
+        </testcase>
+        <testcase classname="__tests__/vocabulary.spec.ts" name="标签·下 &gt; listTags 带维度/usage（按维度序 + id 序）" time="0.004607042">
+        </testcase>
+        <testcase classname="__tests__/vocabulary.spec.ts" name="会话过滤（三态） &gt; 清单排除私聊；无偏好行 = follow；counts 汇总三态" time="0.004401">
+        </testcase>
+        <testcase classname="__tests__/vocabulary.spec.ts" name="会话过滤（三态） &gt; follow = 删偏好行；重复 upsert 覆盖（updated_at 刷新）" time="0.004059084">
+        </testcase>
+        <testcase classname="__tests__/vocabulary.spec.ts" name="会话过滤（三态） &gt; p2p 私聊拒写（固定跟随，API 层拦截）" time="0.004435625">
+        </testcase>
+        <testcase classname="__tests__/vocabulary.spec.ts" name="会话过滤（三态） &gt; 机器人单聊（bot）可设（手动偏好对群聊/机器人开放）" time="0.092586542">
+        </testcase>
+    </testsuite>
+    <testsuite name="__tests__/watermark-backoff.spec.ts" timestamp="2026-10-11T20:01:53.929Z" hostname="MacBookPro" tests="9" failures="0" errors="0" skipped="0" time="0.122635625">
+        <testcase classname="__tests__/watermark-backoff.spec.ts" name="watermark 读取与推进 &gt; 空库读 null；首拉推进双写生效" time="0.008277917">
+        </testcase>
+        <testcase classname="__tests__/watermark-backoff.spec.ts" name="watermark 读取与推进 &gt; oldCursor 匹配时 CAS 推进生效" time="0.006391959">
+        </testcase>
+        <testcase classname="__tests__/watermark-backoff.spec.ts" name="watermark 读取与推进 &gt; CAS 失配（他形态已推进）：重读合并取 max，水位不回退" time="0.004449041">
+        </testcase>
+        <testcase classname="__tests__/watermark-backoff.spec.ts" name="watermark 读取与推进 &gt; sync_state 行缺失但 settings 镜像存在（崩溃半写）：推进收敛双写" time="0.004492584">
+        </testcase>
+        <testcase classname="__tests__/watermark-backoff.spec.ts" name="watermark 双连接交错（不丢不重） &gt; 两连接各持旧水位交错推进：收敛到 max，两处存储一致" time="0.004471125">
+        </testcase>
+        <testcase classname="__tests__/watermark-backoff.spec.ts" name="watermark 双连接交错（不丢不重） &gt; 并发首拉：INSERT 抢占一方胜出，另一方合并" time="0.004395291">
+        </testcase>
+        <testcase classname="__tests__/watermark-backoff.spec.ts" name="backoff &gt; 失败计数驱动的倍数序列：1→2→4→8 封顶，成功复位" time="0.004341375">
+        </testcase>
+        <testcase classname="__tests__/watermark-backoff.spec.ts" name="backoff &gt; 睡眠秒数 = 间隔 × 倍数" time="0.061837375">
+        </testcase>
+        <testcase classname="__tests__/watermark-backoff.spec.ts" name="backoff &gt; 间隔读取：非法/过小回落默认 120；≥30 下限" time="0.004446792">
+        </testcase>
+    </testsuite>
+</testsuites>
