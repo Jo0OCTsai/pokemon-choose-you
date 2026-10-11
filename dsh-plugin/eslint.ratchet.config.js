@@ -14,4 +14,24 @@ export default [
       "max-lines": ["error", 300],
     },
   },
+  {
+    // client 半边 React 视图组件（.tsx）：JSX 模板行计入函数体，与 Vue SFC「模板不进
+    // script 函数」的口径不可比（根仓 frontend 同体量视图组件在 vue 侧不触发本规则）——
+    // 对视图文件关闭 max-lines-per-function，complexity / max-lines 两维照常棘轮。
+    name: "ratchet/react-view-components",
+    files: ["src/client/**/*.tsx"],
+    rules: {
+      "max-lines-per-function": "off",
+    },
+  },
+  {
+    // client 组件测试（__tests__/client）：渲染装配/夹具函数天然超过 50 行——与根仓
+    // frontend 测试规格的既有口径一致（其长测试经基线豁免存量运行）；此处显式免
+    // max-lines-per-function，complexity / max-lines 两维照常棘轮。
+    name: "ratchet/client-test-assembly",
+    files: ["__tests__/client/**"],
+    rules: {
+      "max-lines-per-function": "off",
+    },
+  },
 ];

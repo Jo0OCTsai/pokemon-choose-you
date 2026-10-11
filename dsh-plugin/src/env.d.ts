@@ -4,3 +4,9 @@ declare module "*?raw" {
   const content: string;
   export default content;
 }
+
+// CSS Modules（client 半边 scoped 样式；vitest css:false 下导入返回类名映射代理）
+declare module "*.module.css" {
+  const classes: Record<string, string>;
+  export default classes;
+}

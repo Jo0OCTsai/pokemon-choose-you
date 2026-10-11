@@ -1,0 +1,119 @@
+/* 插件页面壳样式（scoped；宿主 token 语义引用 --dsh-*，缺省回退中性色；零闪烁） */
+
+.page {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  color: var(--dsh-text, #1f2328);
+  background: var(--dsh-surface, transparent);
+  font-size: 14px;
+}
+
+/* PageHeader */
+.pageHeader {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.pageHeaderSprite {
+  width: 36px;
+  height: 36px;
+  image-rendering: pixelated;
+  border-radius: var(--dsh-radius-card, 8px);
+  border: 1px solid var(--dsh-border, #e3e7ec);
+  background: var(--dsh-surface-raised, #f6f8fa);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 18px;
+}
+.pageTitle {
+  font-size: 18px;
+  font-weight: 700;
+  margin: 0;
+  flex: 1;
+}
+.pendingBadge {
+  display: inline-flex;
+  align-items: center;
+  min-height: 32px;
+  padding: 2px 10px;
+  border-radius: 999px;
+  border: 1px solid var(--dsh-border, #d0d7de);
+  background: var(--dsh-surface-raised, #f6f8fa);
+  color: var(--dsh-text-muted, #57606a);
+  font-size: 12px;
+  /* 静态数字（NFR-6：无 badge 弹跳/闪烁动画） */
+}
+
+/* SchemaBanner（持久横幅，只读模式） */
+.schemaBanner {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  border-radius: var(--dsh-radius-card, 10px);
+  border: 1px solid var(--pcy-warn, #b58900);
+  background: var(--dsh-surface-raised, #fdf6e3);
+  color: var(--dsh-text, #1f2328);
+  font-size: 13px;
+}
+.schemaReadonlyTag {
+  margin-left: auto;
+  padding: 1px 10px;
+  border-radius: 999px;
+  border: 1px solid var(--pcy-warn, #b58900);
+  font-size: 11px;
+  white-space: nowrap;
+}
+
+/* SegmentNav（七段；计数静态） */
+.segmentNav {
+  display: flex;
+  gap: 4px;
+  overflow-x: auto;
+  border-bottom: 1px solid var(--dsh-border, #e3e7ec);
+  padding-bottom: 6px;
+}
+.segmentButton {
+  min-height: 32px;
+  padding: 4px 12px;
+  border: none;
+  border-radius: var(--dsh-radius-card, 8px) var(--dsh-radius-card, 8px) 0 0;
+  background: transparent;
+  color: var(--dsh-text-muted, #57606a);
+  font-size: 13px;
+  cursor: pointer;
+  white-space: nowrap;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.segmentButton:hover {
+  background: var(--dsh-interactive-hover, #f0f2f5);
+}
+.segmentButton:focus-visible {
+  outline: 2px solid var(--dsh-focus-ring, #316dca);
+  outline-offset: -2px;
+}
+.segmentButton[aria-current="page"] {
+  color: var(--dsh-text, #1f2328);
+  font-weight: 700;
+  box-shadow: inset 0 -2px 0 var(--dsh-interactive, #316dca);
+}
+.segmentCount {
+  display: inline-block;
+  min-width: 20px;
+  text-align: center;
+  padding: 0 6px;
+  border-radius: 999px;
+  background: var(--dsh-surface-raised, #eaeef2);
+  border: 1px solid var(--dsh-border, #d0d7de);
+  font-size: 11px;
+  line-height: 18px;
+  /* 静态计数：无闪烁、无弹跳动画（U14 ⚠ 为静态前缀字符） */
+}
+
+.segmentBody {
+  min-height: 200px;
+}

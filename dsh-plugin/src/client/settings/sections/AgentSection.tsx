@@ -1,0 +1,150 @@
+/**
+ * Agent 分区页（🤖，U20：原派发段并入 + 判定执行方移入）：
+ * - AgentConfigCard（agent 列表配置卡 CRUD：名称/命令/历史参数/技能根目录——卡自持保存，
+ *   实体 CRUD 不走分区保存制；命令行内校验：空阻断；修订检测 SETTING_MODIFIED_ELSEWHERE）
+ * - 判定执行方（ai_agent_id，保存制）/ 终端偏好（标「作用于主应用交互派发」，保存制）
+ * - 项目派发路由（routeUpsert 实体 CRUD）/ 自动派发/并发/worktree（保存制）
+ * - PromptOverrideEditor（4 处提示词查看/编辑覆盖/恢复默认——自持保存 + hint 自隐 4s）
+ */
+import { useEffect, useState } from "react";
+import type { AgentConfig } from "../../../host/domain/settings";
+import { useClient } from "../../clientContext";
+import { useT } from "../../i18n";
+import { ScopeBadge, Select, Toggle } from "../../ui/controls";
+import type { PromptSpecInfo } from "../../../host/domain/prompt-overrides";
+import ui from "../../ui/ui.module.css";
+import { AgentConfigCard, RouteRow } from "./AgentConfigCard";
+import { PromptOverrideEditor } from "./PromptOverrideEditor";
+import type { SectionProps } from "../sectionProps";
+import { AGENT_KEYS } from "../sectionKeys";
+import type { DispatchRoute } from "../../rpc";
+import { SectionShell } from "../SectionShell";
+import styles from "../settings.module.css";
+
+function blankAgent(id: string): AgentConfig {
+  return { id, name: "", command: "", args: "", historyArgs: "", workdir: "", timeoutSecs: 600, enabled: true };
+}
+
+export function AgentSection({
+  agents,
+  routes,
+  promptSpecs,
+  ...props
+}: SectionProps & {
+  agents: AgentConfig[];
+  routes: DispatchRoute[];
+  /** promptList 结果（适配层预取注入；空数组时面板内自取） */
+  promptSpecs: PromptSpecInfo[];
+}): React.JSX.Element {
+  const { draft, saved, onField, onSavedKeys } = props;
+  const t = useT();
+  const client = useClient();
+  const [agentList, setAgentList] = useState(agents);
+  const [specs, setSpecs] = useState<PromptSpecInfo[]>(promptSpecs);
+  useEffect(() => {
+    setAgentList(agents);
+  }, [agents]);
+  useEffect(() => {
+    if (specs.length === 0) {
+      void client.promptList().then((r) => {
+        if (r.ok) {
+          setSpecs(r.data.specs);
+        }
+      });
+    }
+  }, [specs.length, client]);
+
+  const agentOptions = [
+    { value: "", label: t("ai.primaryNone") },
+    ...agentList.map((a) => ({ value: a.id, label: a.name })),
+  ];
+
+  return (
+    <SectionShell
+      title={`🤖 ${t("stabs.agents")}`}
+      keys={AGENT_KEYS}
+      draft={draft}
+      saved={saved}
+      onSavedKeys={onSavedKeys}
+    >
+      <div className={ui.card}>
+        <h4 className={styles.cardTitle}>{t("ai.title")}</h4>
+        <p className={styles.cardHint}>{t("ai.hint")}</p>
+        <div className={styles.entityList}>
+          {agentList.map((agent) => (
+            <AgentConfigCard
+              key={agent.id}
+              agent={agent}
+              expectedIds={agentList.map((a) => a.id)}
+              onSaved={setAgentList}
+            />
+          ))}
+        </div>
+        <button
+          type="button"
+          className={ui.button}
+          onClick={() => {
+            setAgentList((list) => [...list, blankAgent(`agent-${list.length + 1}`)]);
+          }}
+        >
+          {t("ai.add")}
+        </button>
+      </div>
+      <div className={ui.card}>
+        <h4 className={styles.cardTitle}>{t("dispatchCfg.title")}</h4>
+        <p className={styles.cardHint}>{t("dispatchCfg.hint")}</p>
+        <Select
+          label={t("ai.primary")}
+          value={draft["ai_agent_id"]}
+          options={agentOptions}
+          onChange={(v) => onField("ai_agent_id", v)}
+        />
+        <p className={styles.cardHint}>{t("dsh.settings.judgeSource")}</p>
+        <Select
+          label={t("ai.terminal")}
+          value={draft["terminal_preference"]}
+          options={[
+            { value: "default", label: t("ai.termBuiltin") },
+            { value: "iterm2", label: "iTerm2" },
+            { value: "ghostty", label: "Ghostty" },
+            { value: "windows-terminal", label: "Windows Terminal" },
+          ]}
+          onChange={(v) => onField("terminal_preference", v)}
+        />
+        <p className={styles.cardHint}>
+          {t("ai.terminalDesc")} <ScopeBadge kind="dispatch" />
+        </p>
+        <Toggle
+          label={t("dispatchCfg.auto")}
+          checked={draft["dispatch_auto_enabled"] === "true"}
+          onChange={(v) => onField("dispatch_auto_enabled", String(v))}
+        />
+        <p className={styles.cardHint}>{t("dispatchCfg.autoDesc")}</p>
+        <Select
+          label={t("dispatchCfg.maxConcurrent")}
+          value={draft["dispatch_max_concurrent"]}
+          options={[1, 2, 3, 4].map((n) => ({ value: String(n), label: t("dispatchCfg.mcN", { n }) }))}
+          onChange={(v) => onField("dispatch_max_concurrent", v)}
+        />
+        <p className={styles.cardHint}>{t("dispatchCfg.maxConcurrentDesc")}</p>
+        <Toggle
+          label={t("dispatchCfg.worktree")}
+          checked={draft["dispatch_worktree"] === "true"}
+          onChange={(v) => onField("dispatch_worktree", String(v))}
+        />
+        <p className={styles.cardHint}>{t("dispatchCfg.worktreeDesc")}</p>
+      </div>
+      <div className={ui.card}>
+        <h4 className={styles.cardTitle}>{t("tagDispatch.title")}</h4>
+        <p className={styles.cardHint}>{t("tagDispatch.hint")}</p>
+        {routes.length === 0 ? (
+          <p className={ui.muted}>{t("tagDispatch.empty")}</p>
+        ) : (
+          routes.map((route) => <RouteRow key={route.tag} route={route} agents={agentList} />)
+        )}
+        <p className={styles.cardHint}>{t("tagDispatch.foot")}</p>
+      </div>
+      <PromptOverrideEditor specs={specs} onSpecChange={setSpecs} />
+    </SectionShell>
+  );
+}

@@ -1,0 +1,332 @@
+/* 任务分段样式（scoped）：精灵条目卡为面板 signature（宿主列表行容器 + pixelated 精灵） */
+
+.segmentWrap {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+/* AdventureHeader */
+.adventureHeader {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.adventureDate {
+  font-size: 14px;
+  font-weight: 700;
+}
+.caughtBar {
+  flex: 1;
+  max-width: 280px;
+  height: 8px;
+  border-radius: 4px;
+  background: var(--dsh-border, #e3e7ec);
+  overflow: hidden;
+}
+.caughtFill {
+  height: 100%;
+  background: var(--pcy-conf-high, #2f7d3c);
+}
+.caughtLabel {
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  color: var(--dsh-text-muted, #57606a);
+}
+
+/* OverdueFold */
+.overdueFold {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 10px;
+  border-radius: var(--dsh-radius-card, 8px);
+  border: 1px dashed var(--dsh-border, #c7cdd4);
+  background: var(--dsh-surface-raised, #f8f9fb);
+  color: var(--dsh-text-muted, #57606a);
+  font-size: 13px;
+}
+.overdueList {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 4px 0 0 12px;
+}
+
+/* 精灵条目卡 */
+.taskCard {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+  border-radius: var(--dsh-radius-card, 10px);
+  border: 1px solid var(--dsh-border, #e3e7ec);
+  background: var(--dsh-surface-raised, #ffffff);
+  cursor: pointer;
+  text-align: left;
+  width: 100%;
+  min-height: 44px;
+  font-size: 13px;
+  color: inherit;
+}
+.taskCard:hover {
+  background: var(--dsh-interactive-hover, #f0f2f5);
+}
+.taskCard:focus-visible {
+  outline: 2px solid var(--dsh-focus-ring, #316dca);
+  outline-offset: 1px;
+}
+/* 五呈现（形与色承载状态，不闪烁） */
+.taskCard[data-presentation="active"] {
+  border-color: var(--pcy-warn, #b58900);
+  border-width: 2px;
+}
+.taskCard[data-presentation="activePaused"] {
+  border-color: var(--dsh-border, #c7cdd4);
+  filter: saturate(0.5);
+}
+.taskCard[data-presentation="done"] .taskTitle {
+  text-decoration: line-through;
+  color: var(--dsh-text-muted, #57606a);
+}
+.taskCard[data-presentation="done"] .taskSprite,
+.taskCard[data-presentation="escaped"] .taskSprite {
+  filter: grayscale(1);
+}
+.taskCard[data-presentation="escaped"] {
+  opacity: 0.6;
+}
+.taskSprite {
+  width: 28px;
+  height: 28px;
+  image-rendering: pixelated;
+  border-radius: 6px;
+  background: var(--pcy-sprite-bg, #eef2f6);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 16px;
+  flex: none;
+}
+.taskMain {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.taskTitle {
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.taskMeta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 11px;
+  color: var(--dsh-text-muted, #57606a);
+  flex-wrap: wrap;
+}
+.activeBadge {
+  color: var(--pcy-warn, #b58900);
+  font-size: 11px;
+}
+.pausedBadge {
+  color: var(--dsh-text-muted, #57606a);
+  font-size: 11px;
+}
+/* 优先级四点（紧急档放大点 + 双描边，不闪烁） */
+.prioDot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex: none;
+  border: 1px solid rgba(0, 0, 0, 0.35);
+}
+.prioDot[data-prio="urgent"] {
+  width: 12px;
+  height: 12px;
+  box-shadow:
+    0 0 0 2px var(--dsh-surface-raised, #fff),
+    0 0 0 3px var(--pcy-danger, #b3590f);
+  background: var(--pcy-danger, #b3590f);
+}
+.prioDot[data-prio="high"] {
+  background: var(--pcy-warn, #b58900);
+}
+.prioDot[data-prio="normal"] {
+  background: var(--dsh-border, #c7cdd4);
+}
+.prioDot[data-prio="low"] {
+  background: var(--dsh-surface-raised, #f0f2f5);
+}
+/* 派发徽标五态（形变不闪烁） */
+.dispatchBadge {
+  font-size: 12px;
+  flex: none;
+}
+.dispatchBadge[data-state="queued"] {
+  color: var(--dsh-text-muted, #57606a);
+}
+.dispatchBadge[data-state="running"] {
+  color: var(--pcy-dispatch-running, #316dca);
+}
+.dispatchBadge[data-state="done"] {
+  color: var(--pcy-dispatch-done, #2f7d3c);
+}
+.dispatchBadge[data-state="failed"] {
+  color: var(--pcy-dispatch-failed, #b3590f);
+}
+.quickOps {
+  display: flex;
+  gap: 4px;
+  flex: none;
+}
+.overflowWrap {
+  position: relative;
+  flex: none;
+}
+.overflowMenu {
+  position: absolute;
+  right: 0;
+  top: 34px;
+  z-index: 30;
+  min-width: 180px;
+  padding: 6px;
+  border-radius: var(--dsh-radius-card, 10px);
+  border: 1px solid var(--dsh-border, #d0d7de);
+  background: var(--dsh-surface-raised, #ffffff);
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.15);
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.overflowMenu button {
+  min-height: 32px;
+  text-align: left;
+  padding: 4px 10px;
+  border: none;
+  border-radius: 6px;
+  background: none;
+  cursor: pointer;
+  font-size: 13px;
+  color: inherit;
+}
+.overflowMenu button:hover {
+  background: var(--dsh-interactive-hover, #f0f2f5);
+}
+
+/* DexView */
+.dexStatsLine {
+  font-size: 13px;
+}
+.dexMilestone {
+  font-size: 13px;
+  color: var(--dsh-text-muted, #57606a);
+}
+.dexFilters {
+  display: flex;
+  gap: 4px;
+}
+.filterButton {
+  min-height: 32px;
+  padding: 2px 12px;
+  border-radius: 999px;
+  border: 1px solid var(--dsh-border, #d0d7de);
+  background: var(--dsh-surface-raised, #ffffff);
+  color: var(--dsh-text-muted, #57606a);
+  font-size: 12px;
+  cursor: pointer;
+}
+.filterButton[aria-pressed="true"] {
+  border-color: var(--dsh-interactive, #316dca);
+  color: var(--dsh-text, #1f2328);
+  font-weight: 700;
+}
+
+/* EmptyState */
+.emptyState {
+  padding: 28px 16px;
+  text-align: center;
+  color: var(--dsh-text-muted, #57606a);
+  font-size: 13px;
+  line-height: 1.8;
+}
+
+/* 路线分组 */
+.routeGroupDate {
+  font-size: 13px;
+  font-weight: 700;
+  margin: 6px 0 2px;
+}
+
+/* 详情抽屉内容 */
+.drawerHeader {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--dsh-border, #e3e7ec);
+}
+.drawerTitle {
+  font-size: 15px;
+  font-weight: 700;
+  margin: 0;
+  flex: 1;
+}
+.drawerClose {
+  flex: none;
+}
+.drawerBody {
+  flex: 1;
+  overflow-y: auto;
+  padding: 14px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+.drawerSectionTitle {
+  font-size: 13px;
+  font-weight: 700;
+  margin: 0 0 6px;
+}
+.followupItem {
+  padding: 4px 0 4px 12px;
+  border-left: 2px solid var(--dsh-border, #e3e7ec);
+  font-size: 13px;
+}
+.followupMeta {
+  font-size: 11px;
+  color: var(--dsh-text-muted, #57606a);
+}
+.followupComposer {
+  display: flex;
+  gap: 6px;
+}
+.timelineItem {
+  display: flex;
+  gap: 10px;
+  padding: 6px 0;
+  font-size: 12px;
+}
+.timelineDot {
+  width: 8px;
+  height: 8px;
+  margin-top: 4px;
+  border-radius: 50%;
+  background: var(--dsh-border, #c7cdd4);
+  flex: none;
+}
+.timelineMain {
+  flex: 1;
+}
+.opsRow {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.dangerZone {
+  border-color: var(--pcy-danger, #b3590f);
+}
