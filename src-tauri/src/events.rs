@@ -46,10 +46,13 @@ pub fn all() -> &'static [&'static str] {
 }
 
 /// 数据变更广播：主面板与桌宠是两个独立窗口，靠这些事件保持状态一致
-/// （emitting 放在写库成功之后，前端收到事件后各自重新拉取）
+/// （emitting 放在写库成功之后，前端收到事件后各自重新拉取）。
+/// 广播成功后内联刷新外部变更侦听器基线（§7.1 条目 7 / A17）：自家命令写库本就
+/// 即时广播过，基线同步推到位可避免下轮轮询把自家写入当外部变更重复广播
 pub fn broadcast<R: tauri::Runtime>(app: &tauri::AppHandle<R>, event: &str) {
     use tauri::Emitter;
     let _ = app.emit(event, ());
+    crate::change_watcher::refresh_baseline(app);
 }
 
 #[cfg(test)]

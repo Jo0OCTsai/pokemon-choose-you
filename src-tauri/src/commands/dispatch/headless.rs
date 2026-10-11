@@ -12,8 +12,8 @@ use crate::error::AppResult;
 use crate::models::AgentSession;
 use rusqlite::params;
 
-/// 无头派发超时下限（秒）：任务处理远慢于分类（§5.3）
-const DISPATCH_MIN_TIMEOUT_SECS: u64 = 600;
+/// 无头派发超时下限（秒）：任务处理远慢于分类（§5.3）。auto 的槽租约时长同口径引用
+pub(crate) const DISPATCH_MIN_TIMEOUT_SECS: u64 = 600;
 
 /// 派发用无头参数：剔除应用分类预设塞的 `--allowedTools Bash(pk:*)`（派发要读写仓库，
 /// §6 白名单只约束分类）。值列表里的预设项一并剔除；用户自定义的其他 --allowedTools 值保留

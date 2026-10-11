@@ -92,7 +92,8 @@ pub async fn force_create_todo<R: tauri::Runtime>(
         Err(e) => {
             let conn = db.0.lock().unwrap();
             // 只翻转仍未落库判定的消息：分类失败前 pk 可能已把判定写库，不能覆盖
-            let _ = mark_ai_error_conn(&conn, std::slice::from_ref(&msg.message_id));
+            //（强制捕捉未走 claim 协议，pending 守卫语义不变——条目 3 只改 claim 路径）
+            let _ = mark_ai_error_conn(&conn, std::slice::from_ref(&msg.message_id), None);
             app.state::<crate::health::HealthState>().record_failure(
                 &app,
                 crate::health::AI,
@@ -267,7 +268,7 @@ pub async fn capture_todo<R: tauri::Runtime>(
         Err(e) => {
             {
                 let conn = db.0.lock().unwrap();
-                let _ = mark_ai_error_conn(&conn, std::slice::from_ref(&message_id));
+                let _ = mark_ai_error_conn(&conn, std::slice::from_ref(&message_id), None);
                 let mut rec = crate::commands::sessions::NewAgentSession::for_run(
                     "capture",
                     &agent,

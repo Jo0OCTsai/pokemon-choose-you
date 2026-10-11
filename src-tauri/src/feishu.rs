@@ -1079,6 +1079,21 @@ pub fn spawn_poll_loop(app: AppHandle) {
     tauri::async_runtime::spawn(async move {
         let mut backoff = 1u64;
         loop {
+            // 每轮开头回收超时 judging（A6 / §7.1 条目 3）：claim 后崩溃/被杀的判定
+            // 卡在 judging，10 分钟后回置 pending——本轮拉取的新批与重判流程即可接住
+            {
+                let db = app.state::<Db>();
+                let locked = db.0.lock();
+                if let Ok(conn) = locked {
+                    match crate::commands::radio::reclaim_stale_judging_conn(&conn) {
+                        Ok(n) if n > 0 => {
+                            log::info!("feishu: 回收 {n} 条超时 judging 待重判（A6）")
+                        }
+                        Ok(_) => {}
+                        Err(e) => log::warn!("feishu: judging 超时回收失败: {e}"),
+                    }
+                }
+            }
             let (enabled, interval) = {
                 let db = app.state::<Db>();
                 let conn = db.0.lock().unwrap();

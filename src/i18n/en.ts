@@ -131,6 +131,8 @@ export default {
     type: { bot: "Bot", p2p: "Direct", group: "Group", local: "Typed" },
     status: {
       pending: "AI pending",
+      // judgment in flight (claim protocol, specs/dsh-plugin §7.1 item 1): same look as pending
+      judging: "AI pending",
       todo: "Todo signal",
       update: "Update suggestion",
       none: "No todo",

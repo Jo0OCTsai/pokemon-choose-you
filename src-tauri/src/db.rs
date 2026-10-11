@@ -88,6 +88,13 @@ pub fn expected_schema_version() -> i64 {
     MIGRATIONS.len() as i64
 }
 
+/// 连接级 PRAGMA：WAL 多进程并发 + NORMAL 同步 + busy_timeout（§7.1 条目 9 / A11）。
+/// busy_timeout=5000 与 pk CLI（bin/pk/cli.rs）对齐——主应用连接此前没有它，
+/// 第三写方（pk / dsh 插件）常态化后 GUI 撞写锁会即时报 `database is locked`；
+/// 补上后变为等待 ≤5 秒重试（行为修正、非零变化，显式声明见 A11）。
+const CONN_PRAGMAS: &str =
+    "PRAGMA journal_mode=WAL; PRAGMA synchronous=NORMAL; PRAGMA busy_timeout=5000;";
+
 #[derive(Debug, thiserror::Error)]
 pub enum MigrateError {
     #[error("数据库版本 {0} 比当前程序支持的更新，请升级应用后再打开")]
@@ -150,7 +157,7 @@ pub fn init(app: &tauri::AppHandle) -> Result<(), Box<dyn std::error::Error>> {
     let dir = data_dir().ok_or("无法定位归一化根目录（HOME / CHOOSE_YOU_HOME）")?;
     std::fs::create_dir_all(&dir)?;
     let conn = Connection::open(dir.join(DB_FILE))?;
-    conn.execute_batch("PRAGMA journal_mode=WAL; PRAGMA synchronous=NORMAL;")?;
+    conn.execute_batch(CONN_PRAGMAS)?;
     init_conn(&conn)?;
     // 存量秘钥迁 OS 钥匙串（不可用则留在 settings 表，读取端回落兜底）
     let moved = crate::secrets::migrate_settings_secrets(&conn);
@@ -596,6 +603,22 @@ pub(crate) mod tests {
             })
             .unwrap();
         assert_eq!(v, "en");
+    }
+
+    /// 条目 9（A11）：主应用连接补 busy_timeout=5000（对齐 pk CLI）——撞写锁由
+    /// 即时报 `database is locked` 变为等待 ≤5 秒（行为修正，单用户不可感）
+    #[test]
+    fn conn_pragmas_set_busy_timeout_5000() {
+        let conn = Connection::open_in_memory().unwrap();
+        conn.execute_batch(CONN_PRAGMAS).unwrap();
+        let timeout: i64 = conn
+            .query_row("PRAGMA busy_timeout", [], |r| r.get(0))
+            .unwrap();
+        assert_eq!(timeout, 5000, "主应用连接必须带 busy_timeout（条目 9/A11）");
+        let sync: i64 = conn
+            .query_row("PRAGMA synchronous", [], |r| r.get(0))
+            .unwrap();
+        assert_eq!(sync, 1, "NORMAL 同步档保持不变");
     }
 
     /// 归一化根：CHOOSE_YOU_HOME 覆盖优先，缺省 <主目录>/.choose-you，空串视同未设置

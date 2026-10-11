@@ -132,6 +132,8 @@ export default {
     type: { bot: "机器人", p2p: "私聊", group: "群聊", local: "手动输入" },
     status: {
       pending: "AI 待判定",
+      // 判定进行中（claim 协议，specs/dsh-plugin §7.1 条目 1）：与待判定同观感
+      judging: "AI 待判定",
       todo: "有待办信号",
       update: "更新建议",
       none: "无待办",

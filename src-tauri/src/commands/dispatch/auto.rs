@@ -1,29 +1,89 @@
 //! 自动派发循环（M3，§10）：到期未开始的 project 待办排队 → 按每机器并发上限
 //! 领取 → 无头执行，完成发系统通知。
-use super::headless::run_headless_dispatch;
+//! 并发上限闸门 = 库内 `dispatch_slots` 租约槽表（§5.4 / §7.1 条目 5，A6）：
+//! 跨形态（app / dsh 插件 / pk）合计计数，崩溃后租约过期自动回收。
+use super::headless::{run_headless_dispatch, DISPATCH_MIN_TIMEOUT_SECS};
 use super::route::prepare_dispatch;
 use super::state::{claim_dispatch, dispatch_transition_conn, DS_DONE, DS_FAILED, DS_QUEUED};
 use crate::ai::{self, AgentConfig};
-use crate::db::Db;
+use crate::db::{now, Db};
 use crate::error::AppResult;
 use rusqlite::{params, Connection};
 use tauri::Manager;
 
-/// 每台机器（本机 / 每个 SSH 目标）在途无头派发数：并发上限闸门（内存态；
-/// 应用重启后清零——库里的 running 状态不受影响，可手动重置救援）
-fn inflight() -> &'static std::sync::Mutex<std::collections::HashMap<String, usize>> {
-    static F: std::sync::OnceLock<std::sync::Mutex<std::collections::HashMap<String, usize>>> =
-        std::sync::OnceLock::new();
-    F.get_or_init(|| std::sync::Mutex::new(std::collections::HashMap::new()))
-}
+/// 槽租约余量（秒，A6）：租约时长 = 无头超时 + 5 分钟，执行中的正常派发不会被误回收
+const SLOT_LEASE_MARGIN_SECS: i64 = 300;
 
-fn host_key(agent: &AgentConfig) -> String {
+/// host_key 归一（dispatch_slots.host_key 的键口径，跨形态合计计数的机器标识）：
+/// 本机 'local'；远程 agent 'ssh:user@host[:port]'。公开供其他消费面复用同一归一
+pub fn host_key(agent: &AgentConfig) -> String {
     agent
         .remote
         .as_ref()
         .filter(|r| !r.host.trim().is_empty())
         .map(|r| format!("ssh:{}", r.host.trim()))
         .unwrap_or_else(|| "local".into())
+}
+
+/// 槽租约时长（秒）：无头超时（600 秒下限，与 run_headless_dispatch 同口径）+ 余量（A6）
+fn slot_lease_secs(agent_timeout_secs: u64) -> i64 {
+    agent_timeout_secs.max(DISPATCH_MIN_TIMEOUT_SECS) as i64 + SLOT_LEASE_MARGIN_SECS
+}
+
+/// 回收过期租约（每 tick 开头）：派发进程崩溃/被杀后不会自己删槽——租约到期即
+/// 扫掉，不占并发额度（A6 崩溃自愈；rfc3339 字典序与时间序一致）
+fn reclaim_expired_slots(conn: &Connection) -> AppResult<usize> {
+    let n = conn.execute(
+        "DELETE FROM dispatch_slots WHERE lease_expires_at < ?1",
+        params![now()],
+    )?;
+    Ok(n)
+}
+
+/// 领取并占槽（条目 5）：上限检查（COUNT）+ claim + 插租约行在同一事务内原子完成
+/// ——不会出现「claim 了没占槽」或「两个形态同时过 COUNT 检查」的中间态。
+/// 返回 false = 没领到（槽满 / 任务已被领取）
+fn claim_with_slot(
+    conn: &Connection,
+    task_id: i64,
+    host: &str,
+    max_concurrent: usize,
+    lease_secs: i64,
+) -> AppResult<bool> {
+    let tx = conn.unchecked_transaction()?;
+    let used: i64 = tx.query_row(
+        "SELECT COUNT(*) FROM dispatch_slots WHERE host_key=?1",
+        params![host],
+        |r| r.get(0),
+    )?;
+    if used >= max_concurrent as i64 {
+        return Ok(false);
+    }
+    if !claim_dispatch(&tx, task_id, false, &[DS_QUEUED])? {
+        return Ok(false);
+    }
+    let t = chrono::Utc::now();
+    tx.execute(
+        "INSERT INTO dispatch_slots (host_key, task_id, owner, acquired_at, lease_expires_at)
+         VALUES (?1, ?2, 'app', ?3, ?4)",
+        params![
+            host,
+            task_id,
+            t.to_rfc3339(),
+            (t + chrono::Duration::seconds(lease_secs)).to_rfc3339()
+        ],
+    )?;
+    tx.commit()?;
+    Ok(true)
+}
+
+/// 收口释放槽（完成 / 失败）：删对应租约行，额度立即可复用
+fn release_slot(conn: &Connection, host: &str, task_id: i64) -> AppResult<()> {
+    conn.execute(
+        "DELETE FROM dispatch_slots WHERE host_key=?1 AND task_id=?2",
+        params![host, task_id],
+    )?;
+    Ok(())
 }
 
 /// 自动派发循环：每 60 秒排队到期任务、领取可执行者（无头执行可能数分钟，异步发车）
@@ -64,6 +124,14 @@ async fn dispatch_tick<R: tauri::Runtime>(app: &tauri::AppHandle<R>) -> AppResul
     if !auto_on {
         return Ok(());
     }
+    // 每轮开头回收过期槽租约（条目 5 / A6）：崩溃/被杀的派发留下的租约到期即扫掉
+    {
+        let conn = db.0.lock().unwrap();
+        let n = reclaim_expired_slots(&conn)?;
+        if n > 0 {
+            log::info!("dispatch: 回收 {n} 条过期派发槽租约（A6 崩溃自愈）");
+        }
+    }
     // 排队：到期未开始 + project 标签 meta 显式指定了可用 agent（只自动派发用户明确配置过的）
     {
         let conn = db.0.lock().unwrap();
@@ -98,22 +166,14 @@ async fn dispatch_tick<R: tauri::Runtime>(app: &tauri::AppHandle<R>) -> AppResul
             continue;
         };
         let hk = host_key(&agent);
-        let slots = {
-            let m = inflight().lock().unwrap();
-            max_concurrent.saturating_sub(*m.get(&hk).unwrap_or(&0))
-        };
-        if slots == 0 {
-            continue;
-        }
-        {
+        // 领取 = 上限检查 + claim + 占槽（同一事务，跨形态合计；条目 5）
+        let lease_secs = slot_lease_secs(agent.timeout_secs);
+        let acquired = {
             let conn = db.0.lock().unwrap();
-            if !claim_dispatch(&conn, task_id, false, &[DS_QUEUED])? {
-                continue;
-            }
-        }
-        {
-            let mut m = inflight().lock().unwrap();
-            *m.entry(hk.clone()).or_insert(0) += 1;
+            claim_with_slot(&conn, task_id, &hk, max_concurrent, lease_secs)?
+        };
+        if !acquired {
+            continue;
         }
         let app = app.clone();
         let lang = lang.clone();
@@ -125,22 +185,27 @@ async fn dispatch_tick<R: tauri::Runtime>(app: &tauri::AppHandle<R>) -> AppResul
                     log::warn!("dispatch: 自动派发准备失败（No.{task_id}）: {e}");
                     let _ = {
                         let conn = db.0.lock().unwrap();
-                        dispatch_transition_conn(
+                        let r = dispatch_transition_conn(
                             &conn,
                             task_id,
                             Some(DS_FAILED),
                             Some(&e.to_string()),
                             "dispatch-auto",
-                        )
+                        );
+                        let _ = release_slot(&conn, &hk, task_id);
+                        r
                     };
-                    dec_inflight(&hk);
                     return;
                 }
             };
             let title = prep.task.title.clone();
             let agent_name = prep.agent.name.clone();
             let out = run_headless_dispatch(&db, &prep, use_worktree).await;
-            dec_inflight(&hk);
+            // 收口释放槽（完成/失败都删租约行，条目 5）
+            {
+                let conn = db.0.lock().unwrap();
+                let _ = release_slot(&conn, &hk, task_id);
+            }
             crate::events::broadcast(&app, crate::events::TASKS_CHANGED);
             if notify_on {
                 use tauri_plugin_notification::NotificationExt;
@@ -156,13 +221,6 @@ async fn dispatch_tick<R: tauri::Runtime>(app: &tauri::AppHandle<R>) -> AppResul
         });
     }
     Ok(())
-}
-
-fn dec_inflight(host: &str) {
-    let mut m = inflight().lock().unwrap();
-    if let Some(n) = m.get_mut(host) {
-        *n = n.saturating_sub(1);
-    }
 }
 
 /// 排队到期任务（SQL 粗筛 + parse_time 精判，窗口放宽一天——与提醒循环同一套时间字符串
@@ -367,6 +425,108 @@ mod tests {
         )
         .unwrap();
         assert_eq!(queue_due_tasks(&conn).unwrap(), 0, "done 不自动重派");
+    }
+
+    /// 条目 5：host_key 归一（dispatch_slots 的机器标识口径）——本机 'local'，
+    /// 远程 'ssh:user@host[:port]'，空白 host 回落本机
+    #[test]
+    fn host_key_normalizes_local_and_ssh() {
+        use crate::ai::AgentRemote;
+        let local = AgentConfig::default();
+        let blank_host = AgentConfig {
+            remote: Some(AgentRemote {
+                host: "   ".into(),
+                port: 22,
+                key_path: None,
+                tunnel: None,
+                persistent: false,
+            }),
+            ..Default::default()
+        };
+        let ssh = AgentConfig {
+            remote: Some(AgentRemote {
+                host: " vscode@localhost:1022 ".into(),
+                port: 1022,
+                key_path: None,
+                tunnel: None,
+                persistent: false,
+            }),
+            ..Default::default()
+        };
+        assert_eq!(host_key(&local), "local");
+        assert_eq!(host_key(&blank_host), "local", "空白 host 视同本机");
+        assert_eq!(
+            host_key(&ssh),
+            "ssh:vscode@localhost:1022",
+            "去首尾空格，user@host[:port] 原样保留"
+        );
+    }
+
+    /// 条目 5（A6）：槽表生命周期——上限闸门按 host 独立、领取与占槽原子、
+    /// 收口释放额度复用、过期租约自动回收；租约时长 = 无头超时 + 5 分钟余量
+    #[test]
+    fn dispatch_slots_gate_concurrency_and_expire() {
+        let conn = test_conn();
+        for id in [1i64, 2] {
+            conn.execute(
+                "INSERT INTO tasks (id, title, status, dispatch_state, created_at)
+                 VALUES (?1, 't', 'inbox', 'queued', '2026-09-13T00:00:00Z')",
+                params![id],
+            )
+            .unwrap();
+        }
+
+        // 租约时长：无头超时 600 秒下限 + 300 秒余量（A6）
+        assert_eq!(slot_lease_secs(30), 900, "短超时按下限 600 起算");
+        assert_eq!(slot_lease_secs(1200), 1500, "长超时原样 + 余量");
+
+        // 领取占槽：本机 max=1 槽满领不到（任务保持 queued），SSH 目标独立配额
+        assert!(claim_with_slot(&conn, 1, "local", 1, 900).unwrap());
+        assert!(
+            !claim_with_slot(&conn, 2, "local", 1, 900).unwrap(),
+            "本机槽满拒绝领取"
+        );
+        let state: String = conn
+            .query_row("SELECT dispatch_state FROM tasks WHERE id=2", [], |r| {
+                r.get(0)
+            })
+            .unwrap();
+        assert_eq!(state, DS_QUEUED, "槽满时不动任务状态");
+        assert!(
+            claim_with_slot(&conn, 2, "ssh:u@h", 1, 900).unwrap(),
+            "SSH 目标独立配额"
+        );
+        // running 中的任务不允许重复 claim（防重复派发，沿用 claim_dispatch 语义）
+        assert!(
+            !claim_with_slot(&conn, 1, "local", 2, 900).unwrap(),
+            "running 不允许重复 claim"
+        );
+        let slots: i64 = conn
+            .query_row("SELECT COUNT(*) FROM dispatch_slots", [], |r| r.get(0))
+            .unwrap();
+        assert_eq!(slots, 2, "两次成功领取各占一行槽");
+
+        // 收口释放：额度立即可复用
+        release_slot(&conn, "local", 1).unwrap();
+        conn.execute("UPDATE tasks SET dispatch_state='queued' WHERE id=1", [])
+            .unwrap();
+        assert!(
+            claim_with_slot(&conn, 1, "local", 1, 900).unwrap(),
+            "释放后额度可复用"
+        );
+
+        // 过期回收：只扫掉到期租约，执行中的（租约未到）保留
+        conn.execute(
+            "UPDATE dispatch_slots SET lease_expires_at='2000-01-01T00:00:00+00:00'
+             WHERE host_key='ssh:u@h'",
+            [],
+        )
+        .unwrap();
+        assert_eq!(reclaim_expired_slots(&conn).unwrap(), 1);
+        let remain: i64 = conn
+            .query_row("SELECT COUNT(*) FROM dispatch_slots", [], |r| r.get(0))
+            .unwrap();
+        assert_eq!(remain, 1, "崩溃遗留的过期租约被回收，在途租约保留");
     }
 
     #[test]
