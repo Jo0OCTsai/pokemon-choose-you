@@ -18,6 +18,13 @@
 - [ ] **ai 引用工具仍被跨域直用**（来源：2026-09-26 后端大文件拆分评估）：dispatch/cmdline、skills、tunnel 仍直接用 `ai::posix_quote` / `ai::windows_ps_quote` / `ai::ssh_bin` 等底层零件自拼 SSH / tmux 命令行。本次拆分已把它们集中到 `ai/invocation.rs`（路径不变），后续可在其上提供统一的远端 argv 构造接口收编各处手拼。
 - [ ] **schema 基线漂移对存量 v1 库不可见**（来源：2026-09-28 群代号标签事故复盘）：迁移策略是「schema 变更直接改 SCHEMA_V1 基线、不加迁移项」，但已有 v1 库 `migrate()` 是 no-op——基线新增的表/列永远补不到存量库，且 `pk doctor` 只比对 user_version（1==1 判健康），漂移完全静默。当日实例：真实库缺 `feishu_chat_aliases`（手动对齐漏了表）→ 群代号分配 64 探测耗尽 → 模型编造 群_xxxx 标签 + restore 整体失效；已随「群名不脱敏」改造移除该表根治此例。遗留建议：启动时对 SCHEMA_V1 的幂等 CREATE 段做基线自愈重放，或 doctor 增加关键表存在性抽检，防下次基线变更再踩同类坑。
 - [ ] **skills.rs / remote_pk.rs 的 ssh 失败详情仍是 stderr-only**（来源：2026-10-10 qodercli 未登录误诊复盘）：qodercli 把 "Not logged in" 打到 stdout、stderr 只剩 ssh `-R` 良性告警时，stderr-only 的失败详情会丢真因误导排障——`ai/runner.rs` 失败路径已改 `failure_detail`（stderr 优先，空/全是 Warning 行时补 stdout 片段），但两处独立自拼 ssh 的路径未收编：`commands/skills.rs` 的 run_remote（技能检查/安装）与 `commands/remote_pk.rs` 一键配置步骤执行器（stderr 空时只回「退出码 N」）。可与已登记的「统一远端 argv 构造接口收编各处手拼」一并处理。
+- [ ] **dsh 形态：真实 dsh 宿主 E2E 手动验收清单未执行**（来源：2026-10 dsh 插件形态实施收尾，AD A10）：v1 E2E 为分层替身（伪 ctx 集成 + 桥协议 + 组件测试），真实 dsh 宿主内的端到端冒烟（插件装配/会话工具/面板/helper 拉起/双形态同库互见）列为手动验收项——dsh 稳定测试钩子出现后再自动化。
+- [ ] **dsh 形态：适配层真实平台面装配未落**（来源：同上）：`dsh-plugin/src/host/index.ts` 目前是骨架（真实 Cordis Context / slots / timer / subagent / worktrees / SSH 表面未接）；业务核心与桥协议均按契约测试就绪，装配任务见 `dsh-plugin/src/host/README.md` TODO 段。
+- [ ] **dsh 形态：pk suggest 判定路径不带 claim 令牌**（来源：同上，D9 口径维持）：判定迟到落库的消费侧守卫已落地（A22，判定发起方回读前校验 claim 归属），但 pk CLI 自身不携带 claim 令牌（不动 pk 命令面）——若日后开放 pk 直写判定结果的新调用方，需重新评估守卫覆盖面。
+- [ ] **dsh 形态：兼容矩阵待实测项**（来源：同上，A1 宿主侧）：`dsh-plugin/docs/compatibility.md` 矩阵中 dsh 宿主（Electron 内嵌 Node）的 `node:sqlite` 实测与各 dsh 子系统（timer/subagent/worktrees/SSH/storage/slots/terminal）最低版本「待定」行——随真实宿主装配任务逐项落实并补一致性断言。
+- [ ] **dsh 形态：插件分发形态待裁决**（来源：同上，A9）：v1 本地路径/file 安装（自用）；npm 公开发布与否涉及 PokeAPI sprites 公开再分发口径，待用户裁决。
+- [ ] **dsh 形态：键盘流 J/K 焦点移动未完成**（来源：同上，UIUX 收音机键盘流）：三语提示文案已备（J/K 上下条 · C 捕捉 · X 逃走…，见 `src/client/i18n/dsh-*.ts`），SuggestionFeed 的焦点移动与按键分发逻辑未接线。
+- [ ] **dsh 形态：G4（收音机链路）收尾跳过项**（来源：同上，实施组 4 报告）：① 迟到 30s 回看兜底未在 TS 判定路径对齐复刻（主应用 judge.rs 现行有 30 秒延迟回看收迟到孤儿）；② 无头判定调用的 session-id 预生成未覆盖全部路径（部分路径仅信封回填）；③ Windows 宿主下 pk 所在目录注入 PATH 的增强未做。
 
 ## 已完成
 
