@@ -7,6 +7,10 @@ pub mod backup;
 mod change_watcher;
 // db / models / error / commands 对外公开：pk CLI（src/bin/pk.rs）以 crate 库形式复用同一套数据逻辑
 pub mod commands;
+// 契约 harness（FR-X3 Rust oracle 侧）：执行 contracts/scenarios 场景生成/比对
+// contracts/fixtures 夹具（specs/dsh-plugin AD §4.4），仅测试期编译
+#[cfg(test)]
+mod contracts;
 pub mod db;
 pub mod error;
 mod events;

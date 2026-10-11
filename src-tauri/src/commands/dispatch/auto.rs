@@ -32,7 +32,8 @@ fn slot_lease_secs(agent_timeout_secs: u64) -> i64 {
 
 /// 回收过期租约（每 tick 开头）：派发进程崩溃/被杀后不会自己删槽——租约到期即
 /// 扫掉，不占并发额度（A6 崩溃自愈；rfc3339 字典序与时间序一致）
-fn reclaim_expired_slots(conn: &Connection) -> AppResult<usize> {
+/// pub(crate)：契约套件（contracts 模块）驱动真实槽原语用，行为不变
+pub(crate) fn reclaim_expired_slots(conn: &Connection) -> AppResult<usize> {
     let n = conn.execute(
         "DELETE FROM dispatch_slots WHERE lease_expires_at < ?1",
         params![now()],
@@ -43,7 +44,8 @@ fn reclaim_expired_slots(conn: &Connection) -> AppResult<usize> {
 /// 领取并占槽（条目 5）：上限检查（COUNT）+ claim + 插租约行在同一事务内原子完成
 /// ——不会出现「claim 了没占槽」或「两个形态同时过 COUNT 检查」的中间态。
 /// 返回 false = 没领到（槽满 / 任务已被领取）
-fn claim_with_slot(
+/// pub(crate)：契约套件驱动真实槽原语用，行为不变
+pub(crate) fn claim_with_slot(
     conn: &Connection,
     task_id: i64,
     host: &str,
@@ -78,7 +80,8 @@ fn claim_with_slot(
 }
 
 /// 收口释放槽（完成 / 失败）：删对应租约行，额度立即可复用
-fn release_slot(conn: &Connection, host: &str, task_id: i64) -> AppResult<()> {
+/// pub(crate)：契约套件驱动真实槽原语用，行为不变
+pub(crate) fn release_slot(conn: &Connection, host: &str, task_id: i64) -> AppResult<()> {
     conn.execute(
         "DELETE FROM dispatch_slots WHERE host_key=?1 AND task_id=?2",
         params![host, task_id],
@@ -225,7 +228,8 @@ async fn dispatch_tick<R: tauri::Runtime>(app: &tauri::AppHandle<R>) -> AppResul
 
 /// 排队到期任务（SQL 粗筛 + parse_time 精判，窗口放宽一天——与提醒循环同一套时间字符串
 /// 混排问题）；只动 dispatch_state IS NULL 的行（done/failed 不自动重派，避免失败循环）
-fn queue_due_tasks(conn: &Connection) -> AppResult<usize> {
+/// pub(crate)：契约套件（contracts 模块）驱动真实排队原语用，行为不变
+pub(crate) fn queue_due_tasks(conn: &Connection) -> AppResult<usize> {
     let window = (chrono::Utc::now() + chrono::Duration::days(1)).to_rfc3339();
     let rows: Vec<(i64, String, Option<String>)> = {
         let mut stmt = conn.prepare(

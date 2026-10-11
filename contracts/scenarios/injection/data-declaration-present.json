@@ -1,0 +1,18 @@
+{
+  "kind": "injection",
+  "name": "data-declaration-present",
+  "now": "2026-01-15T09:00:00+08:00",
+  "setup": {},
+  "steps": [
+    { "op": "injection_build", "args": { "taskId": 1, "title": "整理周会纪要" } },
+    {
+      "op": "injection_build",
+      "args": {
+        "taskId": 2,
+        "title": "仅标题",
+        "notes": ["一条跟进"]
+      }
+    }
+  ],
+  "expect": "exact"
+}

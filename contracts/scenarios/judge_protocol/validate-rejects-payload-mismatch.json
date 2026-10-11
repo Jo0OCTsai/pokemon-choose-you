@@ -1,0 +1,29 @@
+{
+  "kind": "judge_protocol",
+  "name": "validate-rejects-payload-mismatch",
+  "now": "2026-01-15T09:00:00+08:00",
+  "setup": {
+    "tasks": [
+      { "id": 7, "title": "现有待办", "status": "scheduled", "created_at": "2026-01-01T00:00:00Z" }
+    ],
+    "chat_messages": [
+      { "id": 1, "message_id": "om_1", "content": "x", "created_at": "2026-01-10T00:00:00Z" },
+      { "id": 2, "message_id": "om_2", "content": "x", "created_at": "2026-01-10T00:00:00Z" },
+      { "id": 3, "message_id": "om_3", "content": "x", "created_at": "2026-01-10T00:00:00Z" },
+      { "id": 4, "message_id": "om_4", "content": "x", "created_at": "2026-01-10T00:00:00Z" },
+      { "id": 5, "message_id": "om_5", "content": "x", "created_at": "2026-01-10T00:00:00Z" },
+      { "id": 6, "message_id": "om_6", "content": "x", "created_at": "2026-01-10T00:00:00Z" }
+    ]
+  },
+  "steps": [
+    { "op": "suggest_batch", "args": { "results": [ { "messageId": "om_1", "action": "todo", "title": "  " } ] } },
+    { "op": "suggest_batch", "args": { "results": [ { "messageId": "om_2", "action": "update", "title": "改期" } ] } },
+    { "op": "suggest_batch", "args": { "results": [ { "messageId": "om_3", "action": "update", "updateTaskId": 999 } ] } },
+    { "op": "suggest_batch", "args": { "results": [ { "messageId": "om_4", "action": "followUp" } ] } },
+    { "op": "suggest_batch", "args": { "results": [ { "messageId": "om_5", "action": "followUp", "followUpTaskId": 999 } ] } },
+    { "op": "suggest_batch", "args": { "results": [ { "messageId": "om_6", "action": "explode", "title": "x" } ] } },
+    { "op": "suggest_batch", "args": { "results": [ { "messageId": "om_2", "action": "update", "updateTaskId": 7, "title": "周会改到周四" } ] } },
+    { "op": "suggest_batch", "args": { "results": [ { "messageId": "om_4", "action": "followUp", "followUpTaskId": 7, "reason": "进展同步" } ] } }
+  ],
+  "expect": "exact"
+}

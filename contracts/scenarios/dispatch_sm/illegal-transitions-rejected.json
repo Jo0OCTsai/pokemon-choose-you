@@ -1,0 +1,24 @@
+{
+  "kind": "dispatch_sm",
+  "name": "illegal-transitions-rejected",
+  "now": "2026-01-15T09:00:00+08:00",
+  "setup": {
+    "tasks": [
+      { "id": 1, "title": "未派发", "status": "scheduled", "created_at": "2026-01-01T00:00:00Z" },
+      { "id": 2, "title": "排队中", "status": "scheduled", "dispatch_state": "queued", "created_at": "2026-01-01T00:00:00Z" },
+      { "id": 3, "title": "执行中", "status": "scheduled", "dispatch_state": "running", "created_at": "2026-01-01T00:00:00Z" },
+      { "id": 4, "title": "已完成", "status": "scheduled", "dispatch_state": "done", "created_at": "2026-01-01T00:00:00Z" }
+    ]
+  },
+  "steps": [
+    { "op": "dispatch_transition", "args": { "taskId": 1, "to": "done" } },
+    { "op": "dispatch_transition", "args": { "taskId": 2, "to": "done" } },
+    { "op": "dispatch_transition", "args": { "taskId": 3, "to": "queued" } },
+    { "op": "dispatch_transition", "args": { "taskId": 4, "to": "done" } },
+    { "op": "dispatch_transition", "args": { "taskId": 4, "to": "failed" } },
+    { "op": "dispatch_transition", "args": { "taskId": 99, "to": "done" } },
+    { "op": "dispatch_transition", "args": { "taskId": 3, "to": "failed", "note": "非零退出" } },
+    { "op": "dispatch_reset", "args": { "taskId": 2, "note": "手动取消排队" } }
+  ],
+  "expect": "exact"
+}

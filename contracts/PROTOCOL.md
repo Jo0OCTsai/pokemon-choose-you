@@ -120,7 +120,13 @@ contracts/fixtures/<group>/<name>.json    期望输出（Rust oracle 生成，ch
 
 **生成与更新**：`UPDATE_FIXTURES=1 cargo test`（Rust，契约模块）重生成 fixtures；无环境变量时仅比对（漂移即红 = 契约变更是有意的两步动作）。
 
-**操作集（op 枚举 · 两侧共用语义面）**：task_create / task_update / task_start / task_pause / task_resume / task_done / task_undone / task_escape / task_delete / task_reschedule / note_add / suggest_batch / claim_judge / apply_judge_result / review_accept / review_apply_update / review_dismiss / review_restore / force_capture / force_dismiss / dispatch_queue / dispatch_claim / dispatch_transition / dispatch_close / dispatch_reset / slot_acquire / slot_release / slot_reclaim / anon_build / anon_scrub / anon_restore / prompt_override / prompt_reset / agent_upsert / agent_delete / category_upsert / category_delete / tag_upsert / tag_delete / dimension_update / filter_upsert / config_write / redact_report / injection_build / migrate_cold_start。
+**操作集（op 枚举 · 两侧共用语义面）**：task_create / task_update / task_start / task_pause / task_resume / task_done / task_undone / task_escape / task_delete / task_reschedule / note_add / suggest_batch / claim_judge / judge_reclaim / apply_judge_result / review_accept / review_apply_update / review_dismiss / review_restore / force_capture / force_dismiss / dispatch_queue / dispatch_claim / dispatch_transition / dispatch_close / dispatch_reset / slot_acquire / slot_release / slot_reclaim / anon_build / anon_scrub / anon_restore / anon_preoccupy / prompt_override / prompt_reset / agent_upsert / agent_delete / category_upsert / category_delete / tag_upsert / tag_delete / dimension_update / filter_upsert / config_write / redact_report / injection_build / migrate_cold_start。
+
+> op 补记（Rust oracle 落地时新增）：`judge_reclaim`（judging 超时回收——主应用侧该逻辑藏在 async 判定路径里，契约面以 `reclaim_stale_judging_conn` 原语独立驱动）；`anon_preoccupy`（构造确定性别名碰撞，驱动探测路径）。`force_capture`/`force_dismiss` 未入场景集（主应用 force 路径执行真实 agent 子进程，其持久化语义已被 suggest/apply/review 路径覆盖）。
+
+**FR-X3 代码优先行为发现（fixtures 已按实际行为锁定，TS 侧必须对齐；与 AD 文字矩阵的差异待回流 AD）**：
+1. 任务面 conn 层无状态迁移守卫：`inbox→done`、`done→active` 等直接放行，状态合法性校验只在前端/pk 枚举层——TS 域核心对齐「原语层不设迁移守卫、守卫在命令面」的现行结构（SDD 3.3 状态图的非法迁移拒绝发生在消费入口而非 SQL 原语）。
+2. `create_tag_conn`/维度解析不检查维度 `enabled`：停用维度上新建标签实际放行（停用语义只影响 AI 判定选项与建卡选择器可见性）。
 
 ## 6. 注入定界不变式（FR-D8）
 

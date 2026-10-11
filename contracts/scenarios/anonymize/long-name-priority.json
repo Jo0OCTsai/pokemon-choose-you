@@ -1,0 +1,23 @@
+{
+  "kind": "anonymize",
+  "name": "long-name-priority",
+  "now": "2026-01-15T09:00:00+08:00",
+  "setup": {
+    "settings": {
+      "feishu_my_open_id": "ou_me",
+      "feishu_my_name": "蔡乔蓉",
+      "feishu_my_names": "乔蓉"
+    },
+    "feishu_users": [
+      { "open_id": "ou_me", "name": "蔡乔蓉", "updated_at": "2026-01-01T00:00:00Z" },
+      { "open_id": "ou_z", "name": "张三丰", "alias": "成员_00aa", "updated_at": "2026-01-01T00:00:00Z" },
+      { "open_id": "ou_w", "name": "张三", "alias": "成员_00bb", "updated_at": "2026-01-01T00:00:00Z" }
+    ]
+  },
+  "steps": [
+    { "op": "anon_build", "args": {} },
+    { "op": "anon_scrub", "args": { "text": "乔蓉帮我看下，再找张三丰和张三对齐" } },
+    { "op": "anon_scrub", "args": { "text": "蔡乔蓉的周报写完了吗", "titles": true } }
+  ],
+  "expect": "exact"
+}

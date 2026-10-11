@@ -1,0 +1,18 @@
+{
+  "kind": "vocabulary",
+  "name": "category-delete-cascade",
+  "now": "2026-01-15T09:00:00+08:00",
+  "setup": {
+    "tasks": [
+      { "id": 1, "title": "归属二", "category_id": 2, "status": "inbox", "created_at": "2026-01-01T00:00:00Z" },
+      { "id": 2, "title": "也归属二", "category_id": 2, "status": "inbox", "created_at": "2026-01-01T00:00:00Z" }
+    ]
+  },
+  "steps": [
+    { "op": "category_upsert", "args": { "id": 1, "enabled": false } },
+    { "op": "category_delete", "args": { "id": 2 } },
+    { "op": "category_upsert", "args": { "name": "新分类", "pokemon": "卡比兽", "sprite": "snorlax", "description": "专注产出" } },
+    { "op": "category_upsert", "args": { "id": 6, "name": "改名", "pokemon": "皮卡丘", "sprite": "pikachu" } }
+  ],
+  "expect": "exact"
+}

@@ -1,0 +1,21 @@
+{
+  "kind": "vocabulary",
+  "name": "filter-p2p-fixed-follow",
+  "now": "2026-01-15T09:00:00+08:00",
+  "setup": {
+    "chats": [
+      { "chat_id": "oc_group", "chat_name": "项目攻坚群", "chat_type": "group", "mute_outcome": "unknown" },
+      { "chat_id": "oc_p2p", "chat_name": "张三", "chat_type": "p2p", "mute_outcome": "unmuted" }
+    ]
+  },
+  "steps": [
+    { "op": "filter_upsert", "args": { "chatId": "oc_group", "state": "always_filter" } },
+    { "op": "filter_upsert", "args": { "chatId": "oc_p2p", "state": "always_filter" } },
+    { "op": "filter_upsert", "args": { "chatId": "oc_p2p", "state": "always_pull" } },
+    { "op": "filter_upsert", "args": { "chatId": "oc_p2p", "state": "follow" } },
+    { "op": "filter_upsert", "args": { "chatId": "oc_group", "state": "follow" } },
+    { "op": "filter_upsert", "args": { "chatId": "oc_group", "state": "bogus" } },
+    { "op": "filter_upsert", "args": { "chatId": "", "state": "follow" } }
+  ],
+  "expect": "exact"
+}

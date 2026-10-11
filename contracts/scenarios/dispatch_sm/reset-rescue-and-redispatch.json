@@ -1,0 +1,19 @@
+{
+  "kind": "dispatch_sm",
+  "name": "reset-rescue-and-redispatch",
+  "now": "2026-01-15T09:00:00+08:00",
+  "setup": {
+    "tasks": [
+      { "id": 1, "title": "卡死的 running", "status": "scheduled", "dispatch_state": "running", "created_at": "2026-01-01T00:00:00Z" },
+      { "id": 2, "title": "done 重派", "status": "scheduled", "dispatch_state": "done", "created_at": "2026-01-01T00:00:00Z" },
+      { "id": 3, "title": "failed 重试", "status": "scheduled", "dispatch_state": "failed", "created_at": "2026-01-01T00:00:00Z" }
+    ]
+  },
+  "steps": [
+    { "op": "dispatch_reset", "args": { "taskId": 1, "note": "救援卡死" } },
+    { "op": "dispatch_transition", "args": { "taskId": 2, "to": "running", "note": "--resume 续接" } },
+    { "op": "dispatch_transition", "args": { "taskId": 3, "to": "running" } },
+    { "op": "dispatch_reset", "args": { "taskId": 1 } }
+  ],
+  "expect": "exact"
+}

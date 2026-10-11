@@ -276,7 +276,8 @@ pub(crate) fn reclaim_stale_judging_conn(conn: &Connection) -> AppResult<usize> 
 ///   建议载荷（error 态同口径）待重判
 ///
 /// 返回（保留的判定, 失配丢弃的 message_id）
-fn filter_by_claim_conn(
+/// pub(crate)：契约套件（contracts 模块）驱动真实 claim 守卫原语用，行为不变
+pub(crate) fn filter_by_claim_conn(
     conn: &Connection,
     loaded: Vec<AiSuggestion>,
     claim_ts: &str,
