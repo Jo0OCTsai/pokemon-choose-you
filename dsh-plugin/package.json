@@ -1,0 +1,35 @@
+{
+  "name": "dsh-plugin",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "description": "dsh（DeepSeek Harness）插件形态：host 半边 Node + client 半边 React 同包（specs/dsh-plugin）",
+  "engines": {
+    "node": ">=24"
+  },
+  "dsh": {
+    "$comment": "dsh 插件清单占位：client 入口与兼容声明字段名以 dsh 0.2.0-rc.2 实际清单为准（AD A8 待确认；engines.dsh 同为占位，兼容矩阵见 docs/compatibility.md）",
+    "client": "dist/client/index.js"
+  },
+  "scripts": {
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage"
+  },
+  "devDependencies": {
+    "@types/node": "^24.13.6",
+    "@vitest/coverage-v8": "^5.0.1",
+    "eslint": "^10.11.0",
+    "eslint-config-prettier": "^10.1.8",
+    "happy-dom": "^20.14.5",
+    "prettier": "^3.9.9",
+    "typescript": "~6.0.3",
+    "typescript-eslint": "^8.70.1",
+    "vitest": "^5.0.1"
+  }
+}

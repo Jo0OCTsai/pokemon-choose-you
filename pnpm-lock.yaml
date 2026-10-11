@@ -109,6 +109,36 @@ importers:
         specifier: ^3.3.11
         version: 3.3.11(typescript@6.0.3)
 
+  dsh-plugin:
+    devDependencies:
+      '@types/node':
+        specifier: ^24.13.6
+        version: 24.13.6
+      '@vitest/coverage-v8':
+        specifier: ^5.0.1
+        version: 5.0.1(vitest@5.0.1)
+      eslint:
+        specifier: ^10.11.0
+        version: 10.11.0(jiti@2.6.1)
+      eslint-config-prettier:
+        specifier: ^10.1.8
+        version: 10.1.8(eslint@10.11.0(jiti@2.6.1))
+      happy-dom:
+        specifier: ^20.14.5
+        version: 20.14.5
+      prettier:
+        specifier: ^3.9.9
+        version: 3.9.9
+      typescript:
+        specifier: ~6.0.3
+        version: 6.0.3
+      typescript-eslint:
+        specifier: ^8.70.1
+        version: 8.70.1(eslint@10.11.0(jiti@2.6.1))(typescript@6.0.3)
+      vitest:
+        specifier: ^5.0.1
+        version: 5.0.1(@types/node@24.13.6)(@vitest/coverage-v8@5.0.1)(happy-dom@20.14.5)(vite@8.3.0(@types/node@24.13.6)(jiti@2.6.1))
+
 packages:
 
   '@babel/code-frame@7.29.7':

@@ -14,6 +14,8 @@ export default defineConfigWithVueTs(
       "src-tauri/gen/**",
       "public/**",
       "docs/design/**",
+      // dsh-plugin 自带 eslint.config.ts 独立 lint（stack.json services[] 单独路由），根配置不重复扫
+      "dsh-plugin/**",
     ],
   },
   pluginVue.configs["flat/recommended"],
@@ -33,4 +35,12 @@ export default defineConfigWithVueTs(
   },
   // Prettier 负责格式（见 .prettierrc.json），ESLint 关掉与之冲突的样式规则
   prettierConfig,
+  {
+    // 仓内存在多份 tsconfig（根 + dsh-plugin workspace 成员）：显式固定根 tsconfigRootDir，
+    // 否则 typescript-eslint projectService 在跨根文件集（如 pre-commit 显式传参）下无法
+    // 唯一推断而整批解析报错（dsh-plugin/** 已在全局 ignore，不经根配置 lint）
+    languageOptions: {
+      parserOptions: { tsconfigRootDir: import.meta.dirname },
+    },
+  },
 );

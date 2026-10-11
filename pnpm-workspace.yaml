@@ -1,3 +1,6 @@
+packages:
+  # dsh 插件包（specs/dsh-plugin AD §3.0 候选 A；helper 子包随并行组 2 再入列）
+  - dsh-plugin
 allowBuilds:
   lefthook: true
 auditConfig:

@@ -119,6 +119,32 @@ jobs:
             src-tauri/target/llvm-cov/report/
           retention-days: 7
 
+  plugin:
+    name: dsh 插件（lint + 类型 + 单测 + 覆盖率门禁）
+    runs-on: ubuntu-latest
+    timeout-minutes: 10 # 骨架期秒级；余量给依赖安装与后续契约回放套件
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
+        with:
+          node-version: 24.21.0
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: ESLint
+        run: pnpm --filter dsh-plugin lint
+      - name: Prettier 格式检查
+        run: pnpm --filter dsh-plugin format:check
+      - name: 类型检查
+        run: pnpm --filter dsh-plugin typecheck
+      - name: 单元测试（v8 覆盖率 + 阈值门禁，business core 口径 = src/host/**（NFR-5），阈值 = dsh-plugin/vite.config.ts thresholds 85）
+        run: pnpm --filter dsh-plugin test:coverage
+      - name: 质量棘轮（复杂度基线只准收缩；基线 = .devcontainer/scripts/quality-ratchet-baseline.json）
+        run: python3 .devcontainer/scripts/quality_ratchet_check.py --service dsh-plugin
+      # TODO(并行组 1 后续任务挂入本 job)：契约回放（消费 contracts/fixtures，与 rust job 同 commit
+      # 的 checked-in 版本）、schema 字节同源断言、i18n 三语键集断言、兼容矩阵一致性断言
+      # （docs/compatibility.md × apply 期探测清单，AD §4.4/§7.3）
+
   supply-chain:
     name: 供应链扫描（pnpm audit + cargo-deny + gitleaks）
     runs-on: ubuntu-latest

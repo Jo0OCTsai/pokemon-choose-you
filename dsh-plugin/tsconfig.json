@@ -1,0 +1,25 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "useDefineForClassFields": true,
+    "module": "ESNext",
+    "lib": ["ES2022", "DOM"],
+    "skipLibCheck": true,
+
+    /* Bundler mode（vitest 解析；对齐根 tsconfig 风格） */
+    "moduleResolution": "bundler",
+    "allowImportingTsExtensions": true,
+    "isolatedModules": true,
+    "noEmit": true,
+
+    /* Linting */
+    "strict": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "noFallthroughCasesInSwitch": true,
+
+    /* host 半边为 Node 进程（node:sqlite / node:module 等） */
+    "types": ["node"]
+  },
+  "include": ["src/**/*.ts", "__tests__/**/*.ts"]
+}
