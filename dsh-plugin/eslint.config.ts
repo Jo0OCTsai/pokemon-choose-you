@@ -6,7 +6,9 @@ import prettierConfig from "eslint-config-prettier";
 // 根配置已 ignore "dsh-plugin/**"，根 pnpm lint 不会重复扫描本包。
 export default tseslint.config(
   {
-    ignores: ["dist/**", "node_modules/**", "coverage/**"],
+    // helper/dist/** 是 esbuild 产物（build.mjs 生成，本地 pnpm build 后存在）——生成物不入
+    // lint/棘轮口径；注意 flat config 的含斜杠 pattern 锚定本包根，需为子包显式列条目
+    ignores: ["dist/**", "node_modules/**", "coverage/**", "helper/dist/**", "helper/coverage/**"],
   },
   ...tseslint.configs.recommended,
   {

@@ -1,0 +1,35 @@
+{
+  "name": "dsh-plugin-helper",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "description": "桌宠 Electron helper 子包（specs/dsh-plugin AD §3.3）：透明置顶局部小窗 + stdio JSON 行桥 + 宿主存亡绑定。不依赖 dsh 运行时——由插件宿主半边 pet/ spawn（并行组 2）",
+  "engines": {
+    "node": ">=24"
+  },
+  "main": "dist/main.js",
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "build": "node build.mjs",
+    "dev": "pnpm build && electron ."
+  },
+  "devDependencies": {
+    "@fontsource/press-start-2p": "^5.3.0",
+    "@types/node": "^24.13.6",
+    "@vp-tw/cjk-web-fonts-fusion-pixel-font": "^0.0.1",
+    "electron": "^44.7.0",
+    "esbuild": "^0.28.2",
+    "eslint": "^10.11.0",
+    "eslint-config-prettier": "^10.1.8",
+    "prettier": "^3.9.9",
+    "typescript": "~6.0.3",
+    "typescript-eslint": "^8.70.1",
+    "vitest": "^5.0.1"
+  }
+}

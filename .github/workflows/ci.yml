@@ -19,6 +19,9 @@ jobs:
           node-version: 24.21.0
           cache: pnpm
       - run: pnpm install --frozen-lockfile
+        env:
+          # workspace 新增 helper 子包携带 electron devDep；前端 job 不跑窗体，跳过二进制下载
+          ELECTRON_SKIP_BINARY_DOWNLOAD: "1"
       - name: ESLint
         run: pnpm lint
       - name: Prettier 格式检查
@@ -120,9 +123,9 @@ jobs:
           retention-days: 7
 
   plugin:
-    name: dsh 插件（lint + 类型 + 单测 + 覆盖率门禁）
+    name: dsh 插件（lint + 类型 + 单测 + 覆盖率门禁 + helper）
     runs-on: ubuntu-latest
-    timeout-minutes: 10 # 骨架期秒级；余量给依赖安装与后续契约回放套件
+    timeout-minutes: 12 # 骨架期秒级；余量给依赖安装、helper 真 stdio 子进程契约测试与后续契约回放套件
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
       - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
@@ -130,7 +133,12 @@ jobs:
         with:
           node-version: 24.21.0
           cache: pnpm
-      - run: pnpm install --frozen-lockfile
+      - name: pnpm install
+        run: pnpm install --frozen-lockfile
+        env:
+          # helper 的 electron devDep 只在开发机本地跑窗体；CI headless 测试不需要二进制
+          # （ELECTRON_SKIP_BINARY_DOWNLOAD 由 electron 官方 install 脚本识别）
+          ELECTRON_SKIP_BINARY_DOWNLOAD: "1"
       - name: ESLint
         run: pnpm --filter dsh-plugin lint
       - name: Prettier 格式检查
@@ -141,6 +149,11 @@ jobs:
         run: pnpm --filter dsh-plugin test:coverage
       - name: 质量棘轮（复杂度基线只准收缩；基线 = .devcontainer/scripts/quality-ratchet-baseline.json）
         run: python3 .devcontainer/scripts/quality_ratchet_check.py --service dsh-plugin
+      # ---- 桌宠 Electron helper 子包（并行组 2；窗体不进 CI——headless 跳过 BrowserWindow）----
+      - name: helper 类型检查（dsh-plugin-helper）
+        run: pnpm --filter dsh-plugin-helper typecheck
+      - name: helper 单元测试（bridge 契约真 stdio fake host + 状态机纯逻辑 + headless 运行时集成）
+        run: pnpm --filter dsh-plugin-helper test
       # TODO(并行组 1 后续任务挂入本 job)：契约回放（消费 contracts/fixtures，与 rust job 同 commit
       # 的 checked-in 版本）、schema 字节同源断言、i18n 三语键集断言、兼容矩阵一致性断言
       # （docs/compatibility.md × apply 期探测清单，AD §4.4/§7.3）

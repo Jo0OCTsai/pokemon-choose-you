@@ -1,8 +1,15 @@
 packages:
-  # dsh 插件包（specs/dsh-plugin AD §3.0 候选 A；helper 子包随并行组 2 再入列）
+  # dsh 插件包（specs/dsh-plugin AD §3.0 候选 A）+ 桌宠 Electron helper 子包（AD §3.3）
   - dsh-plugin
+  - dsh-plugin/helper
 allowBuilds:
   lefthook: true
+  # helper 构建与开发机本地运行依赖（并行组 2）：
+  # - esbuild：build.mjs 直接依赖，postinstall 为平台二进制校验；
+  # - electron：仅开发机本地跑窗体需要二进制（运行时分发由插件侧探测下载 ~/.dsh/electron/，
+  #   AD §3.3）；CI 经 ELECTRON_SKIP_BINARY_DOWNLOAD=1 跳过下载（headless 测试不起窗体）
+  esbuild: true
+  electron: true
 auditConfig:
   ignoreGhsas:
     - GHSA-vfj7-8cjw-p6xm

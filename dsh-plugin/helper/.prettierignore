@@ -1,0 +1,6 @@
+# helper 子包本地 prettier ignore（从本包目录跑 format:check 时，根 .prettierignore 的
+# 向上查找在本环境不生效——就地补齐同口径条目，防 build 产物/文档进格式门禁）
+dist
+node_modules
+coverage
+*.md
