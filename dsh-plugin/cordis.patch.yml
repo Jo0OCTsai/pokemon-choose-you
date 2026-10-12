@@ -1,7 +1,8 @@
 # pokemon-choose-you 的 dsh 自注册补丁：本包经 `dsh plugin --profile <name> add file:…`
 # 作为 bundle 安装时由 loader 应用（dsh.bundle.patch 声明于 package.json），把 host 半边
 # 入口插入组合树——entry id 与 src/host/dsh/hostEntry.ts 导出的 name 同名；name 行
-# 是包定位面（profile node_modules 的 dsh-plugin）。client 半边（web 平台）Phase B 落型。
+# 是包定位面（profile node_modules 的 dsh-plugin）。client 半边（web 平台）已落型：
+# exports["./client"] → dist/client.js（src/client/dsh/clientEntry.tsx，Phase B）。
 - insert:
     - id: pokemon-choose-you
       name: "dsh-plugin"

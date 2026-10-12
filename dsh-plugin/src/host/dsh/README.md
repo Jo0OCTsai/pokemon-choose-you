@@ -20,4 +20,5 @@
 - 单测：`__tests__/dsh-tool-schema.spec.ts` / `__tests__/dsh-rpc-dispatch.spec.ts`（纯逻辑件）。
 - hostEntry 接线面不进覆盖率门禁（vite.config.ts exclude——GUI 胶水同口径），真实加载走
   profile 安装冒烟（新建测试 profile，勿动 web/desktop）。
-- client 半边（`./client` 导出占位 dist/client.js，Phase B 落型）：AD §3.2，web 平台注册面。
+- client 半边（Phase B 已落型）：`src/client/dsh/`（module-loader bundle + slots 注册 + RPC transport，
+  见该目录 README）；本层 rpcDispatch 的信封转换由其 transport.ts 逆向还原。

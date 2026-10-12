@@ -25,6 +25,9 @@
 - [ ] **dsh 形态：插件分发形态待裁决**（来源：同上，A9）：v1 本地路径/file 安装（自用）；npm 公开发布与否涉及 PokeAPI sprites 公开再分发口径，待用户裁决。
 - [ ] **dsh 形态：键盘流 J/K 焦点移动未完成**（来源：同上，UIUX 收音机键盘流）：三语提示文案已备（J/K 上下条 · C 捕捉 · X 逃走…，见 `src/client/i18n/dsh-*.ts`），SuggestionFeed 的焦点移动与按键分发逻辑未接线。
 - [ ] **dsh 形态：G4（收音机链路）收尾跳过项**（来源：同上，实施组 4 报告）：① 迟到 30s 回看兜底未在 TS 判定路径对齐复刻（主应用 judge.rs 现行有 30 秒延迟回看收迟到孤儿）；② 无头判定调用的 session-id 预生成未覆盖全部路径（部分路径仅信封回填）；③ Windows 宿主下 pk 所在目录注入 PATH 的增强未做。
+- [ ] **dsh 形态：面板实体读命令缺失——Phase B 面板空集降级**（来源：2026-10-11 Phase B client 适配层实施）：50 host 命令面（Phase A 上线）只含触发类写命令 + 六个读面（configRead/dbStatus/diagnosticsSnapshot/filterList/promptList/logQuery），任务/建议/会话/派发视图/跟进/分类等**实体清单无读命令**——client 适配层（`dsh-plugin/src/client/dsh/panelData.ts`）以空集装配（组件空态呈现），背包/收音机健康/日志/设置/换装搜索已真数据。补齐路径：host 侧增聚合读命令（如 `panelSnapshot`，走 `pky/` 前缀）或逐实体 list 命令，client 侧 fetchPanelData 点亮即可。
+- [ ] **dsh 形态：pageOpen host→client 推送与 chip 数据源未接**（来源：同上）：host 侧 pageOpen 出口（commands/context.ts `openPage`）尚未接 dsh 客户端导航/事件通道——chip 点击主体降级 noop（`clientEntry.tsx` onOpenPage 不传）、桌宠双击 open-page 无法直达插件页；chip 的进行中任务/番茄计时态亦无读命令或推送承载（v1 零占位）。接线后：transport 的 pageOpen 本地监听面 + `useChipTask` 数据钩子即为落点位。
+- [ ] **dsh 形态：diagnostics 视图模型字段名漂移由 client 胶水吸收**（来源：同上）：host `diagnosticsSnapshot` 返回 `status` 字段 + `nextPollAt` epoch 毫秒，client 契约（DiagnosticsLink/RadioHealth）为 `level` + RFC3339 串——Phase B 在 `transport.ts`（status→level）与 `panelData.ts`（epoch→ISO）归一吸收。上游对齐（host 改名或 client 契约改 `status`）待裁决后可删胶水层。
 
 ## 已完成
 

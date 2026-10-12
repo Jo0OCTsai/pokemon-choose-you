@@ -9,6 +9,8 @@ export default defineConfig({
     alias: {
       // 主应用字典源直引（A16）：client 半边零拷贝复用主应用三语字典 TS 源
       "@app-i18n": resolve(__dirname, "../src/i18n"),
+      // 主应用宝可梦名录直引（dsh 适配层换装搜索零拷贝；catalog.json 静态数据）
+      "@app-pokemon": resolve(__dirname, "../src/pokemon"),
     },
   },
   test: {

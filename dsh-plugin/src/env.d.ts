@@ -10,3 +10,10 @@ declare module "*.module.css" {
   const classes: Record<string, string>;
   export default classes;
 }
+
+// 主应用宝可梦名录（@app-pokemon alias → 仓根 src/pokemon；vite/esbuild 原生 json loader，
+// 类型面在此自声明——tsconfig 不开 resolveJsonModule 以维持主仓口径一致）
+declare module "@app-pokemon/catalog.json" {
+  const catalog: { v: number; entries: [number, string, string, string, string][] };
+  export default catalog;
+}
