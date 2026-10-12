@@ -1,8 +1,8 @@
 /**
  * client→host RPC 分发（平台胶水层，Phase A host 侧）。
  *
- * 50 条 host 命令（commands.ts 的 HOST_COMMAND_NAMES）挂 dsh connection 共享 `/api`
- * 通道的 `pky/<command>` 端点下：`ctx.connection.rpc.intercept("/api", isPkyEndpoint,
+ * 55 条 host 命令（commands.ts 的 HOST_COMMAND_NAMES——50 Phase A 条目 + 5 条实体
+ * 读域）挂 dsh connection 共享 `/api` 通道的 `pky/<command>` 端点下：`ctx.connection.rpc.intercept("/api", isPkyEndpoint,
  * dispatch)`。本模块只做端点解析与信封转换（纯逻辑，单测直测）；hostEntry 负责
  * 挂到真实 connection 表面（headless 组合无 connection 服务——不拦截即不注册）。
  *

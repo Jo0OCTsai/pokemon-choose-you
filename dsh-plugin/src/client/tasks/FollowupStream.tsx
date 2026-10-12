@@ -1,5 +1,6 @@
 /**
- * 跟进记录流（append-only 时间流展示；追加入口在会话/主应用侧——49 命令面无 note 命令）。
+ * 跟进记录流（append-only 时间流展示；数据源 = taskDetail 懒载灌入 data.followups——
+ * 追加入口在会话/主应用侧，host 命令面无 note 写命令）。
  */
 import { useT } from "../i18n";
 import type { PanelData } from "../model";

@@ -109,8 +109,8 @@ function seedMsg(
 }
 
 describe("host 命令装配面（AD §4.1.1）· 全集与任务域", () => {
-  it("命令名全集 = 50 条目（49 RPC + taskDeleteUndo 撤销面），未知命令 INVALID_ARGUMENT", async () => {
-    expect(HOST_COMMAND_NAMES).toHaveLength(50);
+  it("命令名全集 = 55 条目（54 RPC + taskDeleteUndo 撤销面），未知命令 INVALID_ARGUMENT", async () => {
+    expect(HOST_COMMAND_NAMES).toHaveLength(55);
     const unknown = (await call("nope")) as { ok: boolean; error: { code: string } };
     expect(unknown.ok).toBe(false);
     expect(unknown.error.code).toBe("INVALID_ARGUMENT");
@@ -272,5 +272,19 @@ describe("host 命令装配面 · 背包/诊断/桌宠/通用/专注域", () => 
     expect(await call("dbStatus")).toMatchObject({ ok: true, data: { userVersion: 2, mode: "ok" } });
     expect(await call("pomoTryFive", {})).toMatchObject({ ok: true, data: { ok: true } });
     expect(writes).toBeGreaterThan(0);
+  });
+});
+
+describe("host 命令装配面 · 实体读域", () => {
+  it("5 命令信封 ok（细节形状断言见 readCommands.spec）", async () => {
+    seedTask("实体读目标");
+    expect(await call("panelSnapshot", {})).toMatchObject({
+      ok: true,
+      data: { adventure: { active: [], dueToday: [], overdue: [] }, radio: { health: expect.any(Object) } },
+    });
+    expect(await call("taskDetail", { taskId: 1 })).toMatchObject({ ok: true, data: { task: { id: 1 } } });
+    expect(await call("taskSearch", { query: "实体" })).toMatchObject({ ok: true, data: { tasks: [{ id: 1 }] } });
+    expect(await call("todayTasks", {})).toMatchObject({ ok: true, data: { tasks: expect.any(Array) } });
+    expect(await call("categoriesList", {})).toMatchObject({ ok: true, data: { categories: expect.any(Array) } });
   });
 });

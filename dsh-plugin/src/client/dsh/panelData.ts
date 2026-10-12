@@ -1,19 +1,23 @@
 /**
  * PanelData 组装（Phase B 适配层数据面）：HostClient 读命令 → 面板快照。
  *
- * 50 命令面（Phase A 上线）只含触发类写命令 + 六个读面（configRead / dbStatus /
- * diagnosticsSnapshot / filterList / promptList / logQuery——logQuery 由诊断分区页内
- * 自查）；任务/建议/会话/派发/跟进/分类等实体清单没有对应读命令，本层以空集装配
- * （组件空态呈现），读命令补齐是后续接面（docs/debt.md 已记）。agents 与派发路由
- * 从共享设置键解析（`ai_agents` / `dsh:dispatch_routes` JSON——与主应用「前端整读」
- * 同构）；收音机健康与授权态从 diagnostics feishu 链路派生（epoch 毫秒 → RFC3339，
- * 避免 client timeOf 对 number 取 slice 崩溃）；换装搜索内置主应用 catalog.json
+ * 实体清单经 `panelSnapshot`（实体读域聚合命令，Phase B 契约缺口补齐）一次灌入：
+ * 任务四段/收音机消息五分组/会话账本/分类/当前任务——组件契约是「全量 Task[] +
+ * 纯函数重分组」，本层把快照各段按 id 去重合并成 Task[]（model 纯函数重导出的
+ * 分组与 host 分段一致）；跟进流与任务级时间线由 taskDetail 在抽屉打开时懒载
+ * （TaskDetailDrawer 内接线）。快照失败/旧 host 无此命令 → 空集降级（组件空态）。
+ * 其余读面（config/dbStatus/diagnostics/filter/prompt/logQuery）并行逐项兜底；
+ * agents 与派发路由从共享设置键解析（`ai_agents` / `dsh:dispatch_routes` JSON——
+ * 与主应用「前端整读」同构）；收音机健康优先取快照（host 已归一 client 契约形态），
+ * 快照缺勤时从 diagnostics feishu 链路派生（epoch 毫秒 → RFC3339，避免 client
+ * timeOf 对 number 取 slice 崩溃）；换装搜索内置主应用 catalog.json
  * （@app-pokemon alias 零拷贝直引，54KB 静态名录随 bundle 分发）。
  */
 import catalogJson from "@app-pokemon/catalog.json";
 import type { AgentConfig } from "../../host/domain/settings";
+import type { Task } from "../../host/domain/tasks";
 import type { HostClient, PkyResult } from "../rpc";
-import type { DiagnosticsLink, DispatchRoute, RadioHealth } from "../rpcTypes";
+import type { DiagnosticsLink, DispatchRoute, PanelSnapshot, RadioHealth } from "../rpcTypes";
 import type { Locale } from "../i18n";
 import { SUPPORTED_LOCALES } from "../i18n";
 import type { PanelData } from "../model";
@@ -153,28 +157,69 @@ function dataOf<T>(result: PkyResult<T> | null, fallback: T): T {
   return result?.ok === true ? result.data : fallback;
 }
 
-/** 组装面板快照（读命令并行、逐项兜底；实体清单空集见文件头） */
+/** 快照各任务段合并去重（组件契约 = 全量 Task[] + model 纯函数重分组，与 host 分段一致） */
+function snapshotTasks(snapshot: PanelSnapshot | null): Task[] {
+  if (snapshot === null) {
+    return [];
+  }
+  const segments: Task[] = [
+    ...snapshot.adventure.active,
+    ...snapshot.adventure.dueToday,
+    ...snapshot.adventure.overdue,
+    ...snapshot.grass,
+    ...snapshot.route,
+    ...snapshot.dex.done,
+    ...snapshot.dex.cancelled,
+  ];
+  const seen = new Set<number>();
+  const merged: Task[] = [];
+  for (const task of segments) {
+    if (!seen.has(task.id)) {
+      seen.add(task.id);
+      merged.push(task);
+    }
+  }
+  return merged;
+}
+
+/** 快照五分组消息合成（client suggestionGroups 会重分组——顺序仅组内展示序） */
+function snapshotMessages(snapshot: PanelSnapshot | null): PanelData["messages"] {
+  if (snapshot === null) {
+    return [];
+  }
+  return [
+    ...snapshot.radio.pending,
+    ...snapshot.radio.none,
+    ...snapshot.radio.error,
+    ...snapshot.radio.escaped,
+    ...snapshot.radio.accepted,
+  ];
+}
+
+/** 组装面板快照（读命令并行、逐项兜底；实体段从 panelSnapshot 灌入） */
 export async function fetchPanelData(client: HostClient): Promise<PanelData> {
-  const [configR, dbR, diagR, filtersR, promptsR] = await Promise.all([
+  const [configR, dbR, diagR, filtersR, promptsR, snapR] = await Promise.all([
     client.configRead({}).catch(() => null),
     client.dbStatus().catch(() => null),
     client.diagnosticsSnapshot().catch(() => null),
     client.filterList().catch(() => null),
     client.promptList().catch(() => null),
+    client.panelSnapshot().catch(() => null),
   ]);
   const config = dataOf(configR, { keyValues: {} as Record<string, string> }).keyValues;
   const links = dataOf(diagR, { links: [] as DiagnosticsLink[] }).links;
+  const snapshot = snapR?.ok === true ? snapR.data : null;
   return {
     locale: localeOf(config),
     today: localToday(),
-    tasks: [],
-    categories: [],
-    messages: [],
-    health: healthFromLinks(links),
+    tasks: snapshotTasks(snapshot),
+    categories: snapshot?.categories ?? [],
+    messages: snapshotMessages(snapshot),
+    health: snapshot?.radio.health ?? healthFromLinks(links),
     auth: authFromLinks(links),
     followups: {},
     dispatches: {},
-    sessions: [],
+    sessions: snapshot?.logs ?? [],
     routes: routesOf(config),
     config,
     dbStatus: dataOf(dbR, null as PanelData["dbStatus"]),

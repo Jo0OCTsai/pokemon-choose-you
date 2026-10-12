@@ -6,7 +6,7 @@
  * package.json main（dist/host.js）加载本模块，消费具名导出 name/inject/Config/apply。
  *
  * 职责边界：本层只做平台接线——能力探测、createPlugin 依赖注入（timer/pet spawner/
- * 判定执行方）、22 工具 → ctx.tools（defineTool JSON DSL 投影）、50 host 命令 →
+ * 判定执行方）、22 工具 → ctx.tools（defineTool JSON DSL 投影）、55 host 命令 →
  * connection 共享 /api 通道 `pky/<command>` 端点；业务行为全部在 src/host/** 业务核心。
  *
  * inject 就地决策：connection 服务只在 web 组合（dsh-web-app）存在，headless 组合
@@ -162,7 +162,7 @@ function renderEnvelope(value: unknown): string {
   return `[${error.code}] ${error.message}${error.hint === undefined ? "" : `\nhint: ${error.hint}`}`;
 }
 
-/** 50 host 命令 → connection 共享 /api 通道 `pky/<command>` 端点（web 组合才有 connection） */
+/** 55 host 命令 → connection 共享 /api 通道 `pky/<command>` 端点（web 组合才有 connection） */
 function registerRpcIntercept(ctx: Context, plugin: Plugin): void {
   ctx.inject(["connection"], (connCtx: Context) => {
     const dispatch = createPkyRpcDispatcher(plugin.commands);

@@ -1,7 +1,7 @@
 /**
  * 客户端半边 RPC 层（AD §4.1.1 host 命令契约）：
- * - HostClient（49 命令类型面）与错误码/视图模型见 rpcTypes.ts（本文件再出口，消费面
- *   import 不变）；内存 mockHost 见 mockHost.ts（同样再出口）。
+ * - HostClient（54 命令类型面——49 Phase A + 5 实体读域）与错误码/视图模型见
+ *   rpcTypes.ts（本文件再出口，消费面 import 不变）；内存 mockHost 见 mockHost.ts（同样再出口）。
  * - ok/fail 响应信封 + 可注入 transport（真实 dsh 桥后续接；测试用 mockHost 内存实现）。
  *
  * 类型源只读引用 src/host/**（域核心），不反向依赖其运行时（errors.ts 为零依赖模块，例外直引）。
@@ -13,6 +13,15 @@ import type { HostClient, PageOpenEvent } from "./rpcTypes";
 export { ok, fail, PkyError };
 export type { ErrorCode, PkyErrorShape, PkyResult };
 export * from "./rpcTypes";
+// 实体读域载荷类型（host readCommands 单源；在此再出口保消费面 import 路径不变）
+export type {
+  PanelSnapshot,
+  PanelMessage,
+  PanelRadioHealth,
+  PanelSession,
+  PanelFollowup,
+  TaskDetail,
+} from "../host/commands/readCommands";
 export { mockHost, type MockHost, type MockHostState, type MockCall } from "./mockHost";
 
 // ---- 可注入 transport ----
@@ -147,7 +156,19 @@ function miscFacade(
   call: Sender,
 ): Pick<
   HostClient,
-  "diagnosticsSnapshot" | "supportReport" | "logQuery" | "petShow" | "petHide" | "petMove" | "dbStatus" | "pomoTryFive"
+  | "diagnosticsSnapshot"
+  | "supportReport"
+  | "logQuery"
+  | "petShow"
+  | "petHide"
+  | "petMove"
+  | "dbStatus"
+  | "pomoTryFive"
+  | "panelSnapshot"
+  | "taskDetail"
+  | "taskSearch"
+  | "todayTasks"
+  | "categoriesList"
 > {
   return {
     diagnosticsSnapshot: () => call("diagnosticsSnapshot"),
@@ -158,6 +179,11 @@ function miscFacade(
     petMove: (p) => call("petMove", p),
     dbStatus: () => call("dbStatus"),
     pomoTryFive: (p) => call("pomoTryFive", p),
+    panelSnapshot: () => call("panelSnapshot"),
+    taskDetail: (p) => call("taskDetail", p),
+    taskSearch: (p) => call("taskSearch", p),
+    todayTasks: () => call("todayTasks"),
+    categoriesList: () => call("categoriesList"),
   };
 }
 

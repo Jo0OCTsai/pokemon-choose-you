@@ -19,12 +19,14 @@
   diagnosticsSnapshot 视图模型归一（host `status` → client 契约 `level`）；pageOpen
   本地监听面（host 推送接面预留）。
 - `panelData.ts` —— 读命令 → PanelData 组装：configRead/dbStatus/diagnosticsSnapshot/
-  filterList/promptList 并行逐项兜底；locale 取共享 `language` 键；健康/授权派生自
-  diagnostics feishu 链路（epoch 毫秒 → RFC3339——client timeOf 对 number 取 slice 会
-  崩）；agents/routes 从 `ai_agents` / `dsh:dispatch_routes` 设置键 JSON 解析；换装搜索
-  内置主应用 catalog.json（`@app-pokemon` alias）。**实体清单（tasks/messages/sessions/
-  dispatches/followups/categories）读命令不在 50 命令面——空集降级，补齐后此处点亮**
-  （docs/debt.md）。
+  filterList/promptList/panelSnapshot 并行逐项兜底；实体清单（任务四段/收音机消息五分组/
+  会话账本/分类/当前任务）从 `panelSnapshot` 聚合读灌入（各任务段按 id 去重合并成全量
+  Task[]——组件纯函数重分组与 host 分段一致），跟进流与任务级时间线由 `taskDetail` 在
+  TaskDetailDrawer 懒载；locale 取共享 `language` 键；健康优先取快照（host 已归一 client
+  契约形态），快照缺勤（旧 host 无命令）回落 diagnostics feishu 链路派生（epoch 毫秒 →
+  RFC3339——client timeOf 对 number 取 slice 会崩）；agents/routes 从 `ai_agents` /
+  `dsh:dispatch_routes` 设置键 JSON 解析；换装搜索内置主应用 catalog.json
+  （`@app-pokemon` alias）。
 
 ## 构建与验证口径
 

@@ -16,7 +16,9 @@ package-by-feature 模块挂点：每个子目录 README 记一句话职责（�
 - `index.ts`：能力探测 + `apply`（骨架语义保留）；惰性装配工厂 `createPlugin(deps)` 见
   `assembly.ts`（+ `petSection.ts` 桌宠段），全部依赖可注入（伪 ctx 集成测试消费）。
 - `commands.ts` + `commands/`：host 命令实现表（AD §4.1.1 的 49 RPC + taskDeleteUndo
-  撤销面 + pageOpen 推送出口 + conversation chip 数据源——dsh 适配层接线面）。
+  撤销面 + 实体读域 5 条（`readCommands.ts`：panelSnapshot/taskDetail/taskSearch/
+  todayTasks/categoriesList——Phase B 契约缺口补齐，全部只读）+ pageOpen 推送出口 +
+  conversation chip 数据源——dsh 适配层接线面）。
 
 > 注：待办标记只写在本 README（.md 不入质量棘轮 ③ 卫生扫描口径）；源码内不落 TODO 字面量，
 > 全仓 TODO 基线 = 0（quality-ratchet-baseline.json hygiene 段）。

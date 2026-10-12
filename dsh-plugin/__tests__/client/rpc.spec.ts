@@ -1,5 +1,5 @@
 /**
- * rpc 层契约：49 命令面 + taskDeleteUndo（UIUX 放生撤销入口）+ pageOpen 推送订阅；
+ * rpc 层契约：54 命令面 + taskDeleteUndo（UIUX 放生撤销入口）+ pageOpen 推送订阅；
  * 15 错误码与 host 单源一致；ok/fail 信封；mockHost 语义子集（状态机 demote /
  * 分诊 CAS / 配置校验 / agent 修订检测 / 只读守卫）。
  */
@@ -70,13 +70,18 @@ const COMMAND_METHODS = [
   "petMove",
   "dbStatus",
   "pomoTryFive",
+  "panelSnapshot",
+  "taskDetail",
+  "taskSearch",
+  "todayTasks",
+  "categoriesList",
 ] as const satisfies readonly (keyof HostClient)[];
 
 describe("rpc 命令契约", () => {
-  it("HostClient 暴露 AD §4.1.1 的 49 命令 + UIUX 放生撤销（taskDeleteUndo）", () => {
-    // 49 = AD §4.1.1 表逐行；+1 = UIUX 触发入口表 host:taskDeleteUndo
-    expect(COMMAND_METHODS.length).toBe(50);
-    expect(COMMAND_METHODS.filter((m) => m !== "taskDeleteUndo").length).toBe(49);
+  it("HostClient 暴露 49 Phase A 命令 + 5 实体读 + UIUX 放生撤销（taskDeleteUndo）", () => {
+    // 54 = AD §4.1.1 表逐行 49 + 实体读域 5；+1 = UIUX 触发入口表 host:taskDeleteUndo
+    expect(COMMAND_METHODS.length).toBe(55);
+    expect(COMMAND_METHODS.filter((m) => m !== "taskDeleteUndo").length).toBe(54);
     const client: HostClient = mockHost();
     for (const method of COMMAND_METHODS) {
       expect(typeof client[method]).toBe("function");

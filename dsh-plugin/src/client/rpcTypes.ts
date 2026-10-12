@@ -11,6 +11,8 @@ import type { PromptSpecInfo } from "../host/domain/prompt-overrides";
 import type { Category } from "../host/domain/vocabulary";
 import type { Tag, TagDimension } from "../host/domain/vocabulary-tags";
 import type { FilterItem, FilterState } from "../host/domain/vocabulary-filters";
+import type { PanelSnapshot, TaskDetail } from "../host/commands/readCommands";
+export type { PanelSnapshot, TaskDetail } from "../host/commands/readCommands";
 
 // ---- 错误码（15 枚举；与 host/storage/errors ERROR_CODES 逐字一致——类型级双向断言） ----
 
@@ -167,11 +169,12 @@ export interface BatchReviewOutcome {
   error: string | null;
 }
 
-// ---- 49 个 client→host RPC 命令（AD §4.1.1 表逐行） ----
+// ---- 54 个 client→host RPC 命令（AD §4.1.1 表逐行 + 实体读域 5 条） ----
 
 /**
- * HostClient：客户端半边消费的命令面。49 命令 + 放生撤销（UIUX 触发入口表
- * host:taskDeleteUndo——墓碑审计恢复，AD §4.1.1 归并口径的显式撤销面）+ pageOpen 推送订阅。
+ * HostClient：客户端半边消费的命令面。54 命令（49 Phase A + 5 实体读）+ 放生撤销
+ * （UIUX 触发入口表 host:taskDeleteUndo——墓碑审计恢复，AD §4.1.1 归并口径的显式
+ * 撤销面）+ pageOpen 推送订阅。
  */
 export interface HostClient {
   // 任务
@@ -275,6 +278,12 @@ export interface HostClient {
   petMove(params: { pos: { x: number; y: number } }): Promise<PkyResult<{ ok: boolean }>>;
   // 通用
   dbStatus(): Promise<PkyResult<DbStatus>>;
+  // 实体读（Phase B 契约缺口补齐：panelSnapshot 面板首载聚合；其余按需懒载）
+  panelSnapshot(): Promise<PkyResult<PanelSnapshot>>;
+  taskDetail(params: { taskId: number }): Promise<PkyResult<TaskDetail>>;
+  taskSearch(params: { query: string }): Promise<PkyResult<{ tasks: Task[] }>>;
+  todayTasks(): Promise<PkyResult<{ tasks: Task[] }>>;
+  categoriesList(): Promise<PkyResult<{ categories: Category[] }>>;
   // 专注
   pomoTryFive(params?: { taskId?: number }): Promise<PkyResult<{ ok: boolean }>>;
   // host→客户端推送：打开插件页面（可选目标分段锚点）

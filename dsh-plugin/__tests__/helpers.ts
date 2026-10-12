@@ -8,6 +8,10 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { open, type Conn } from "../src/host/storage/db";
 import { initConn } from "../src/host/storage/init";
+import { LogRing } from "../src/host/health/logRing";
+import { HealthState } from "../src/host/health/snapshot";
+import { createFakeTerminal } from "../src/host/dispatch/interactive";
+import type { HostCommandDeps } from "../src/host/commands";
 
 export interface TestDb {
   conn: Conn;
@@ -156,4 +160,33 @@ export function seedTag(conn: Conn, name: string, dimensionKey = "topic"): numbe
 export function scalar(conn: Conn, sql: string, ...args: unknown[]): unknown {
   const row = conn.prepare(sql).get(...(args as never[])) as Record<string, unknown> | undefined;
   return row === undefined ? undefined : Object.values(row)[0];
+}
+
+/** host 命令装配测试的最小 deps（poll/lark/pet 全替身——读命令面不触碰这些面） */
+export function commandDeps(conn: Conn, opts: { onWrites?: () => void } = {}): HostCommandDeps {
+  return {
+    conn,
+    health: new HealthState(),
+    logs: new LogRing(),
+    log: () => undefined,
+    poll: { runRound: async () => ({ ok: true, inserted: 0, unauthorized: false }), resume: () => undefined },
+    lark: {
+      userIdentity: async () => ({ openId: "ou_me", name: "测试用户" }),
+      listChats: async () => ({ items: [] }),
+      chatUserSettings: async () => ({}),
+      listMessages: async () => ({}),
+      listMembers: async () => ({}),
+      authStatus: async () => ({ loggedIn: true, userName: "测试用户" }),
+      configReady: async () => true,
+    },
+    larkBin: "lark-cli",
+    newExecutor: () => null,
+    dispatchDeps: { executorFor: () => undefined as never },
+    terminal: createFakeTerminal(),
+    pet: { show: async () => undefined, hide: () => undefined, running: false },
+    onWrites: opts.onWrites ?? (() => undefined),
+    openPage: () => undefined,
+    feishuConfigured: true,
+    meta: { pluginVersion: "0.1.0", dshVersion: null },
+  };
 }

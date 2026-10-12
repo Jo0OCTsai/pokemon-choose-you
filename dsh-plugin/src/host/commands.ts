@@ -1,8 +1,9 @@
 /**
  * host 命令装配（AD §4.1.1：49 client→host RPC + 1 条 host→客户端 pageOpen 推送，
- * 共 50 条目——49 命令含放生撤销 taskDeleteUndo 的显式撤销面）。分域实现表见
- * commands/ 目录；本文件装配统一调用面（ok/fail 信封）+ pageOpen 推送出口 +
- * conversation chip 数据源接口（dsh 适配层后续接线）。
+ * 共 50 条目——49 命令含放生撤销 taskDeleteUndo 的显式撤销面；实体读域 5 条为
+ * Phase B 契约缺口补齐，共 55 条目）。分域实现表见 commands/ 目录；本文件装配
+ * 统一调用面（ok/fail 信封）+ pageOpen 推送出口 + conversation chip 数据源接口
+ * （dsh 适配层后续接线）。
  */
 import { envelope, type CommandTable, type HostCommandCaller, type HostCommandDeps } from "./commands/context";
 import { taskCommands } from "./commands/taskCommands";
@@ -10,6 +11,7 @@ import { radioCommands } from "./commands/radioCommands";
 import { dispatchSettingsCommands } from "./commands/dispatchSettingsCommands";
 import { backpackCommands } from "./commands/backpackCommands";
 import { miscCommands } from "./commands/miscCommands";
+import { readCommands } from "./commands/readCommands";
 
 export type { HostCommandDeps, HostCommandCaller } from "./commands/context";
 
@@ -65,6 +67,12 @@ export const HOST_COMMAND_NAMES = [
   "petMove",
   "dbStatus",
   "pomoTryFive",
+  // 实体读域（Phase B 契约缺口补齐——面板首载聚合 + 按需懒载，全部只读）
+  "panelSnapshot",
+  "taskDetail",
+  "taskSearch",
+  "todayTasks",
+  "categoriesList",
 ] as const;
 
 /** 全量命令实现表（分域合并） */
@@ -75,6 +83,7 @@ export function hostCommandTable(): CommandTable {
     ...dispatchSettingsCommands(),
     ...backpackCommands(),
     ...miscCommands(),
+    ...readCommands(),
   };
 }
 

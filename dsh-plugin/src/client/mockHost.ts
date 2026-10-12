@@ -1,11 +1,19 @@
 /**
  * mockHost 内存实现 · 状态与组装（供组件测试；真实语义子集）。命令实现按域拆分：
  * 任务/快捕/分诊 → mockTasks.ts；派发 → mockDispatch.ts；设置/背包 → mockPanels.ts；
- * 诊断/桌宠/通用 → mockMisc.ts。rpc.ts 统一再出口，消费面不变。
+ * 诊断/桌宠/通用 → mockMisc.ts；实体读 → mockRead.ts。rpc.ts 统一再出口，消费面不变。
  */
 import { fail, PkyError, type PkyResult } from "../host/storage/errors";
 import type { HostClient, PageOpenEvent } from "./rpc";
-import type { DbStatus, DiagnosticsLink, LogEntry, RadioHealth, RadioMessage } from "./rpcTypes";
+import type {
+  AgentSessionEntry,
+  DbStatus,
+  DiagnosticsLink,
+  FollowupNote,
+  LogEntry,
+  RadioHealth,
+  RadioMessage,
+} from "./rpcTypes";
 import type { Task } from "../host/domain/tasks";
 import { taskSwitchCommands, taskCloseCommands, releaseCommands } from "./mockTasks";
 import { captureCommands, acceptCommands, dismissCommands, retryCommands } from "./mockReview";
@@ -13,6 +21,7 @@ import { dispatchCommands, dispatchControlCommands } from "./mockDispatch";
 import { settingsCommands, categoryCommands, vocabularyCommands, agentCommands, filterCommands } from "./mockPanels";
 import { promptCommands } from "./mockPrompts";
 import { diagCommands, logCommands, miscCommands } from "./mockMisc";
+import { readCommands } from "./mockRead";
 
 /** mockHost 可配置的内存态（组件测试的夹具面） */
 export interface MockHostState {
@@ -31,6 +40,10 @@ export interface MockHostState {
   promptSpecs: import("../host/domain/prompt-overrides").PromptSpecInfo[];
   /** 放生墓碑（taskDeleteUndo 的 5 秒撤销窗语义） */
   deleted: Task[];
+  /** agent 会话账本（panelSnapshot logs / taskDetail timeline 消费） */
+  sessions: AgentSessionEntry[];
+  /** taskId → 跟进记录流（taskDetail 消费） */
+  followups: Record<number, FollowupNote[]>;
 }
 
 /** 调用记录（断言命令面与参数） */
@@ -87,6 +100,8 @@ function defaultState(): MockHostState {
     diagnostics: [],
     promptSpecs: [],
     deleted: [],
+    sessions: [],
+    followups: {},
   };
 }
 
@@ -159,6 +174,7 @@ export function mockHost(initial: Partial<MockHostState> = {}): MockHost {
     ...diagCommands(ctx),
     ...logCommands(ctx),
     ...miscCommands(ctx),
+    ...readCommands(ctx),
     onPageOpen(listener: (event: PageOpenEvent) => void) {
       pageOpenListeners.add(listener);
       return () => {
