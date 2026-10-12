@@ -60,8 +60,18 @@ export function SettingsSegment({
   onLocalePreview?: (locale: Locale) => void;
 }): React.JSX.Element {
   const [section, setSection] = useState<SectionKey>("focus");
-  const [draft, setDraft] = useState<Record<string, string>>(data.config);
-  const [saved, setSaved] = useState<Record<string, string>>(data.config);
+  // 真实库未落盘的设置键 configRead 回 undefined——draft/saved 统一归一空串
+  // （设置值皆字符串形态；Toggle 的 ==="true" 与 textarea 的受控值都与 "" 兼容），
+  // 否则 PetSection 的 quotes.split 等消费点在未设键上崩溃（真实宿主实测踩坑）
+  const initialConfig = useMemo(() => {
+    const normalized: Record<string, string> = {};
+    for (const key of DRAFT_KEYS) {
+      normalized[key] = data.config[key] ?? "";
+    }
+    return normalized;
+  }, [data.config]);
+  const [draft, setDraft] = useState<Record<string, string>>(initialConfig);
+  const [saved, setSaved] = useState<Record<string, string>>(initialConfig);
 
   const onField = useCallback((key: string, value: string) => {
     setDraft((prev) => ({ ...prev, [key]: value }));

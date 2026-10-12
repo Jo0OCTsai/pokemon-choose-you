@@ -24,10 +24,10 @@ function panelOf(registrations: Array<{ id: string; component: (props: Record<st
 function mockHostRpc(host: MockHost): DshConnectionRpc {
   return {
     async call(channel, endpoint, payload): Promise<DshConnectionResult> {
-      if (channel !== "/api" || !endpoint.startsWith("pky/")) {
-        return { ok: false, error: { code: "INVALID_ARGUMENT", message: `非 pky/ 端点：${endpoint}`, details: {} } };
+      if (channel !== "/pky") {
+        return { ok: false, error: { code: "INVALID_ARGUMENT", message: `非 /pky 通道：${channel}`, details: {} } };
       }
-      const command = endpoint.slice("pky/".length);
+      const command = endpoint;
       const fn = (host as unknown as Record<string, (p?: unknown) => Promise<PkyResult<unknown>>>)[command];
       if (typeof fn !== "function") {
         return { ok: false, error: { code: "INVALID_ARGUMENT", message: `未知命令 ${command}`, details: {} } };

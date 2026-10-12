@@ -33,7 +33,7 @@ import type { ToolContext } from "../tools/registry";
 import type { HelperSpawner } from "../pet/supervisor";
 import type { TimerApi as LoopTimer } from "../dispatch/autoDispatch";
 import { toDslParameters, TODO_TOOL_PARAM_DECLS } from "./toolSchema";
-import { createPkyRpcDispatcher, isPkyEndpoint } from "./rpcDispatch";
+import { PKY_RPC_CHANNEL, createPkyRpcDispatcher } from "./rpcDispatch";
 
 // 契约 SQL 编译期内嵌注册（migrate 双 loader 的内嵌侧）：安装形态磁盘相对路径不可达，
 // dist 产物经 build.mjs 的 ?raw loader 内嵌——模块加载期注册一次（fs 回落留给仓内 dev 直跑）
@@ -117,7 +117,7 @@ export function apply(ctx: Context, config: ResolvedPkyConfig): void {
   // 装配逆序注册：dispose 最先进 effect → 卸载时最后执行（先注销工具/RPC，再收口循环与连接）
   ctx.effect((): (() => void) => plugin.dispose);
   registerTodoTools(ctx, plugin);
-  registerRpcIntercept(ctx, plugin);
+  registerRpcChannel(ctx, plugin);
 }
 
 /** 循环 timer 面（autoDispatch 与 stateFeed 同形：every/cancel → ctx.interval 反注册函数） */
@@ -162,19 +162,13 @@ function renderEnvelope(value: unknown): string {
   return `[${error.code}] ${error.message}${error.hint === undefined ? "" : `\nhint: ${error.hint}`}`;
 }
 
-/** 55 host 命令 → connection 共享 /api 通道 `pky/<command>` 端点（web 组合才有 connection） */
-function registerRpcIntercept(ctx: Context, plugin: Plugin): void {
+/** 55 host 命令 → connection 自有通道 /pky（web 组合才有 connection；不占共享 /api——单拦截器独占，抢注会打死宿主网关） */
+function registerRpcChannel(ctx: Context, plugin: Plugin): void {
   ctx.inject(["connection"], (connCtx: Context) => {
     const dispatch = createPkyRpcDispatcher(plugin.commands);
-    connCtx.effect(() => {
-      // intercept 返回同步反注册函数（其返回值为清理 Promise）——effect 收口调用它
-      const dispose = connCtx.connection.rpc.intercept("/api", isPkyEndpoint, (endpoint, payload) =>
-        dispatch(endpoint, payload),
-      );
-      return () => {
-        void dispose();
-      };
-    });
+    connCtx.effect(() =>
+      connCtx.connection.rpc.handle(PKY_RPC_CHANNEL, (endpoint, payload) => dispatch(endpoint, payload)),
+    );
   });
 }
 

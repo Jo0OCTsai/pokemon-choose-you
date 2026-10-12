@@ -13,7 +13,7 @@
   `conversation.session.header.actions`（list/session，ConversationChip；选 actions 而非
   single 容器位 `conversation.header`——多插件共存不冲突）。chip 点击的 pageOpen 导航
   降级 noop（host 推送通道未接 dsh 导航，接面后落型）；`slots.inject` 自带纤维回收。
-- `transport.ts` —— DshRpcTransport：命令 → `/api` + `pky/<command>`（前缀与 host 侧
+- `transport.ts` —— DshRpcTransport：命令 → 自有通道 `/pky`（通道与 host 侧
   rpcDispatch 单源），ConnectionRpcResult → PROTOCOL §2 信封逆向还原（value→data /
   details.hint→hint / 未知码折叠 INVALID_ARGUMENT 原码并入 message）；
   diagnosticsSnapshot 视图模型归一（host `status` → client 契约 `level`）；pageOpen

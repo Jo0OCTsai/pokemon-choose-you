@@ -1,6 +1,6 @@
 /**
  * dsh 客户端 RPC transport（Phase B 真实适配层）：client 半边 HostTransport 的 dsh
- * connection 实现——命令经共享 /api 通道 `pky/<command>` 端点上行（端点前缀与 host
+ * connection 实现——命令经自有通道 `/pky` 上行（端点名 = 命令名；通道常量与 host
  * 半边 rpcDispatch 单源），下行按 ConnectionRpcResult（{ok,value} | {ok,error:{code,
  * message,details}}）逆向还原成 PROTOCOL §2 信封（{ok,data} | {ok,error:{code,
  * message,hint?}}）——host 侧 rpcDispatch 的正向转换（hint → details.hint）在此还原。
@@ -10,7 +10,6 @@
  * pageOpen 推送：host 侧推送通道尚未接 dsh 事件面——本层先提供本地监听注册面
  * （emitPageOpen 供桥接/测试注入），真实 host→client 推送接面后续落型。
  */
-import { PKY_RPC_PREFIX } from "../../host/dsh/rpcDispatch";
 import { ERROR_CODES, type HostTransport, type PageOpenEvent, type PkyErrorShape, type PkyResult } from "../rpc";
 
 /** dsh ConnectionRpcFailure（线上契约三字段：code/message/details） */
@@ -63,12 +62,18 @@ function normalizeDiagnostics(value: unknown): unknown {
   return { ...(value as Record<string, unknown>), links };
 }
 
-/** 构造 dsh RPC transport：命令 → `/api` + `pky/<command>`，结果信封逆向还原 */
+/**
+ * RPC 通道字面量（单源 = host 侧 src/host/dsh/rpcDispatch.ts 的 PKY_RPC_CHANNEL；
+ * 此处内联避免把 host 模块卷进 client bundle——同 settings 键字面量的锚定惯例）。
+ */
+const PKY_RPC_CHANNEL = "/pky";
+
+/** 构造 dsh RPC transport：命令 → 自有通道 `/pky`（端点名 = 命令名），结果信封逆向还原 */
 export function createDshRpcTransport(rpc: DshConnectionRpc): DshRpcTransport {
   const pageOpenListeners = new Set<(event: PageOpenEvent) => void>();
   return {
     async send<T>(command: string, params?: unknown): Promise<PkyResult<T>> {
-      const result = await rpc.call("/api", PKY_RPC_PREFIX + command, params ?? {});
+      const result = await rpc.call(PKY_RPC_CHANNEL, command, params ?? {});
       if (result.ok) {
         const data = command === "diagnosticsSnapshot" ? normalizeDiagnostics(result.value) : result.value;
         return { ok: true, data: data as T };

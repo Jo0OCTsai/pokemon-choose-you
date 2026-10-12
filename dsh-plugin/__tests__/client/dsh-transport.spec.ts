@@ -1,6 +1,6 @@
 /**
  * DshRpcTransport 信封还原（Phase B 适配层）：ConnectionRpcResult → PROTOCOL §2 信封
- * （value→data / details.hint→hint / 未知码折叠）、端点拼接（pky/ 前缀 + /api 通道）、
+ * （value→data / details.hint→hint / 未知码折叠）、通道与端点形态（自有通道 /pky、端点名=命令名）、
  * diagnosticsSnapshot 视图模型归一（status→level）、pageOpen 本地监听面。
  */
 import { describe, expect, it, vi } from "vitest";
@@ -21,12 +21,12 @@ function fakeRpc(script: DshConnectionResult[]) {
 }
 
 describe("DshRpcTransport · 信封还原", () => {
-  it("成功：value → {ok,data}；端点 = /api + pky/<command>；payload 缺省补 {}", async () => {
+  it("成功：value → {ok,data}；通道 = /pky、端点 = 命令名；payload 缺省补 {}", async () => {
     const rpc = fakeRpc([{ ok: true, value: { keyValues: { language: "en" } } }]);
     const transport = createDshRpcTransport(rpc);
     const result: PkyResult<{ keyValues: Record<string, string> }> = await transport.send("configRead");
     expect(result).toEqual({ ok: true, data: { keyValues: { language: "en" } } });
-    expect(rpc.calls).toEqual([{ channel: "/api", endpoint: "pky/configRead", payload: {} }]);
+    expect(rpc.calls).toEqual([{ channel: "/pky", endpoint: "configRead", payload: {} }]);
   });
 
   it("payload 原样上行", async () => {
