@@ -47,7 +47,7 @@ jobs:
         with:
           files: coverage/lcov.info
           flags: frontend
-      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         with:
           name: coverage-frontend
           path: coverage/
@@ -58,7 +58,7 @@ jobs:
         run: pnpm exec playwright install --with-deps chromium firefox webkit
       - name: E2E（chromium / firefox / webkit 兼容性矩阵）
         run: pnpm test:e2e
-      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         if: failure()
         with:
           name: playwright-report
@@ -110,7 +110,7 @@ jobs:
         with:
           files: src-tauri/target/llvm-cov/lcov.info
           flags: rust
-      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         if: always()
         with:
           name: coverage-rust
