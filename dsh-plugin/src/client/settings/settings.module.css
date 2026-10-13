@@ -12,7 +12,7 @@
   gap: 4px;
   overflow-x: auto;
   padding-bottom: 4px;
-  border-bottom: 1px solid var(--dsh-border, #e3e7ec);
+  border-bottom: 1px solid var(--dsw-alias-border-l1, #e3e7ec);
 }
 .sectionNavButton {
   min-height: 32px;
@@ -20,22 +20,22 @@
   border: 1px solid transparent;
   border-radius: 999px;
   background: transparent;
-  color: var(--dsh-text-muted, #57606a);
+  color: var(--dsw-alias-label-secondary, #57606a);
   font-size: 13px;
   cursor: pointer;
   white-space: nowrap;
   flex: none;
 }
 .sectionNavButton:hover {
-  background: var(--dsh-interactive-hover, #f0f2f5);
+  background: var(--dsw-alias-interactive-bg-hover, #f0f2f5);
 }
 .sectionNavButton[aria-pressed="true"] {
-  border-color: var(--dsh-interactive, #316dca);
-  color: var(--dsh-text, #1f2328);
+  border-color: var(--dsw-alias-state-business-primary, #316dca);
+  color: var(--dsw-alias-label-primary, #1f2328);
   font-weight: 700;
 }
 .sectionNavButton:focus-visible {
-  outline: 2px solid var(--dsh-focus-ring, #316dca);
+  outline: 2px solid var(--dsw-alias-state-business-primary, #316dca);
   outline-offset: 1px;
 }
 
@@ -55,9 +55,9 @@
   min-height: 32px;
   padding: 4px 14px;
   position: relative;
-  border-radius: var(--dsh-radius-card, 8px);
-  border: 1px solid var(--dsh-interactive, #316dca);
-  background: var(--dsh-interactive, #316dca);
+  border-radius: 8px;
+  border: 1px solid var(--dsw-alias-state-business-primary, #316dca);
+  background: var(--dsw-alias-state-business-primary, #316dca);
   color: #ffffff;
   font-size: 13px;
   cursor: pointer;
@@ -75,7 +75,7 @@
   height: 8px;
   border-radius: 50%;
   background: var(--pcy-warn, #b58900);
-  border: 1px solid var(--dsh-surface-raised, #ffffff);
+  border: 1px solid var(--dsw-alias-bg-layer-1, #ffffff);
 }
 /* 分区选单项上的静态点提示 */
 .unsavedDotInline {
@@ -110,7 +110,7 @@
 }
 .cardHint {
   font-size: 12px;
-  color: var(--dsh-text-muted, #57606a);
+  color: var(--dsw-alias-label-secondary, #57606a);
   margin: 0 0 10px;
   line-height: 1.6;
 }
@@ -126,9 +126,9 @@
   align-items: center;
   gap: 10px;
   padding: 8px 10px;
-  border: 1px solid var(--dsh-border, #e3e7ec);
-  border-radius: var(--dsh-radius-card, 8px);
-  background: var(--dsh-surface-raised, #ffffff);
+  border: 1px solid var(--dsw-alias-border-l1, #e3e7ec);
+  border-radius: 8px;
+  background: var(--dsw-alias-bg-layer-1, #ffffff);
   flex-wrap: wrap;
 }
 .entitySprite {
@@ -154,8 +154,8 @@
   min-height: 32px;
   padding: 2px 8px;
   border-radius: 6px;
-  border: 1px solid var(--dsh-border, #d0d7de);
-  background: var(--dsh-surface-raised, #ffffff);
+  border: 1px solid var(--dsw-alias-border-l2, #d0d7de);
+  background: var(--dsw-alias-bg-layer-1, #ffffff);
   color: inherit;
   font-size: 13px;
 }
@@ -163,20 +163,20 @@
   min-height: 32px;
   padding: 2px 8px;
   border-radius: 6px;
-  border: 1px solid var(--dsh-border, #d0d7de);
-  background: var(--dsh-surface-raised, #ffffff);
-  color: var(--dsh-text-muted, #57606a);
+  border: 1px solid var(--dsw-alias-border-l2, #d0d7de);
+  background: var(--dsw-alias-bg-layer-1, #ffffff);
+  color: var(--dsw-alias-label-secondary, #57606a);
   font-size: 12px;
   width: 100%;
 }
 .readonlyKey {
   font-size: 11px;
-  color: var(--dsh-text-muted, #57606a);
-  font-family: var(--dsh-mono, ui-monospace, monospace);
+  color: var(--dsw-alias-label-secondary, #57606a);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
 }
 .dimCount {
   font-size: 11px;
-  color: var(--dsh-text-muted, #57606a);
+  color: var(--dsw-alias-label-secondary, #57606a);
 }
 
 /* 换装搜索弹层 */
@@ -202,7 +202,7 @@
   padding: 2px 8px;
 }
 .pokeResultRow:hover {
-  background: var(--dsh-interactive-hover, #f0f2f5);
+  background: var(--dsw-alias-interactive-bg-hover, #f0f2f5);
 }
 
 /* 会话过滤行 */
@@ -222,7 +222,7 @@
 }
 .triStateGroup {
   display: inline-flex;
-  border: 1px solid var(--dsh-border, #d0d7de);
+  border: 1px solid var(--dsw-alias-border-l2, #d0d7de);
   border-radius: 999px;
   overflow: hidden;
 }
@@ -231,12 +231,12 @@
   padding: 2px 12px;
   border: none;
   background: transparent;
-  color: var(--dsh-text-muted, #57606a);
+  color: var(--dsw-alias-label-secondary, #57606a);
   font-size: 12px;
   cursor: pointer;
 }
 .triStateButton[aria-pressed="true"] {
-  background: var(--dsh-interactive, #316dca);
+  background: var(--dsw-alias-state-business-primary, #316dca);
   color: #ffffff;
 }
 .triStateButton:disabled {
@@ -250,8 +250,8 @@
   flex-direction: column;
   gap: 4px;
   padding: 10px 12px;
-  border: 1px solid var(--dsh-border, #e3e7ec);
-  border-radius: var(--dsh-radius-card, 8px);
+  border: 1px solid var(--dsw-alias-border-l1, #e3e7ec);
+  border-radius: 8px;
   font-size: 13px;
 }
 
@@ -261,10 +261,10 @@
   gap: 10px;
   font-size: 12px;
   padding: 2px 0;
-  font-family: var(--dsh-mono, ui-monospace, monospace);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
 }
 .logTime {
-  color: var(--dsh-text-muted, #57606a);
+  color: var(--dsw-alias-label-secondary, #57606a);
   flex: none;
 }
 .logLevel {
@@ -287,8 +287,8 @@
 
 /* 提示词编辑器 */
 .promptPanel {
-  border: 1px solid var(--dsh-border, #e3e7ec);
-  border-radius: var(--dsh-radius-card, 8px);
+  border: 1px solid var(--dsw-alias-border-l1, #e3e7ec);
+  border-radius: 8px;
   padding: 8px 12px;
   display: flex;
   flex-direction: column;
@@ -298,15 +298,15 @@
   min-height: 120px;
   padding: 8px;
   border-radius: 6px;
-  border: 1px solid var(--dsh-border, #d0d7de);
-  background: var(--dsh-surface-raised, #ffffff);
+  border: 1px solid var(--dsw-alias-border-l2, #d0d7de);
+  background: var(--dsw-alias-bg-layer-1, #ffffff);
   color: inherit;
   font-size: 12px;
-  font-family: var(--dsh-mono, ui-monospace, monospace);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
 }
 .promptBadge {
   font-size: 11px;
-  border: 1px solid var(--dsh-border, #d0d7de);
+  border: 1px solid var(--dsw-alias-border-l2, #d0d7de);
   border-radius: 999px;
   padding: 0 8px;
   line-height: 18px;
@@ -323,15 +323,15 @@
 /* 预览行（显示分区） */
 .previewLine {
   font-size: 12px;
-  color: var(--dsh-text-muted, #57606a);
-  font-family: var(--dsh-mono, ui-monospace, monospace);
+  color: var(--dsw-alias-label-secondary, #57606a);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
 }
 
 /* 通用说明块 */
 .noteBlock {
   font-size: 12px;
-  color: var(--dsh-text-muted, #57606a);
+  color: var(--dsw-alias-label-secondary, #57606a);
   line-height: 1.7;
   padding: 8px 10px;
-  border-left: 3px solid var(--dsh-border, #e3e7ec);
+  border-left: 3px solid var(--dsw-alias-border-l1, #e3e7ec);
 }

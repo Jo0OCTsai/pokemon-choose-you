@@ -1,6 +1,7 @@
 /**
- * 共享 UI 原语样式（CSS Modules · scoped）：宿主 token 语义引用（UIUX §6.1 `dsh:*` 命名
- * 约定 → CSS 变量注入点 `--dsh-*`，宿主未注入时回退中性色）；世界观 scoped 色 `--pcy-*`
+ * 共享 UI 原语样式（CSS Modules · scoped）：宿主主题 token `--dsw-alias-*`（官方
+ * practices 口径：token 是与宿主唯一共享的样式依赖，2026-10-13 对齐），宿主未注入时
+ * 回退中性色；世界观 scoped 色 `--pcy-*`
  * 只挂小图形容器。命中区 ≥32px（a11y 断言④）。零闪烁（无 animation 声明，NFR-6）。
  */
 
@@ -8,17 +9,17 @@
 .overlay {
   position: fixed;
   inset: 0;
-  background: var(--dsh-scrim, rgba(0, 0, 0, 0.32));
+  background: var(--dsw-alias-bg-mask-drop, rgba(0, 0, 0, 0.32));
   display: flex;
   align-items: center;
   justify-content: center;
   z-index: 60;
 }
 .dialog {
-  background: var(--dsh-surface-raised, #ffffff);
-  color: var(--dsh-text, #1f2328);
-  border: 1px solid var(--dsh-border, #d0d7de);
-  border-radius: var(--dsh-radius-card, 10px);
+  background: var(--dsw-alias-bg-layer-1, #ffffff);
+  color: var(--dsw-alias-label-primary, #1f2328);
+  border: 1px solid var(--dsw-alias-border-l2, #d0d7de);
+  border-radius: 10px;
   box-shadow: 0 8px 28px rgba(0, 0, 0, 0.18);
   min-width: 320px;
   max-width: 520px;
@@ -33,7 +34,7 @@
   margin: 0 0 14px;
   font-size: 13px;
   line-height: 1.6;
-  color: var(--dsh-text-muted, #57606a);
+  color: var(--dsw-alias-label-secondary, #57606a);
 }
 .dialogActions {
   display: flex;
@@ -45,7 +46,7 @@
 .drawerOverlay {
   position: fixed;
   inset: 0;
-  background: var(--dsh-scrim, rgba(0, 0, 0, 0.24));
+  background: var(--dsw-alias-bg-mask-drop, rgba(0, 0, 0, 0.24));
   z-index: 50;
 }
 .drawer {
@@ -54,9 +55,9 @@
   right: 0;
   bottom: 0;
   width: min(440px, 92vw);
-  background: var(--dsh-surface, #fbfbfc);
-  color: var(--dsh-text, #1f2328);
-  border-left: 1px solid var(--dsh-border, #d0d7de);
+  background: var(--dsw-alias-bg-base, #fbfbfc);
+  color: var(--dsw-alias-label-primary, #1f2328);
+  border-left: 1px solid var(--dsw-alias-border-l2, #d0d7de);
   box-shadow: -6px 0 24px rgba(0, 0, 0, 0.12);
   display: flex;
   flex-direction: column;
@@ -67,21 +68,21 @@
 .button {
   min-height: 32px;
   padding: 4px 12px;
-  border-radius: var(--dsh-radius-card, 8px);
-  border: 1px solid var(--dsh-border, #d0d7de);
-  background: var(--dsh-surface-raised, #ffffff);
-  color: var(--dsh-text, #1f2328);
+  border-radius: 8px;
+  border: 1px solid var(--dsw-alias-border-l2, #d0d7de);
+  background: var(--dsw-alias-bg-layer-1, #ffffff);
+  color: var(--dsw-alias-label-primary, #1f2328);
   font-size: 13px;
   cursor: pointer;
 }
 .button:hover {
-  background: var(--dsh-interactive-hover, #f0f2f5);
+  background: var(--dsw-alias-interactive-bg-hover, #f0f2f5);
 }
 .button:active {
-  background: var(--dsh-interactive-active, #e4e7eb);
+  background: var(--dsw-alias-interactive-bg-active, #e4e7eb);
 }
 .button:focus-visible {
-  outline: 2px solid var(--dsh-focus-ring, #316dca);
+  outline: 2px solid var(--dsw-alias-state-business-primary, #316dca);
   outline-offset: 1px;
 }
 .button:disabled {
@@ -90,8 +91,8 @@
 }
 .buttonPrimary {
   composes: button;
-  background: var(--dsh-interactive, #316dca);
-  border-color: var(--dsh-interactive, #316dca);
+  background: var(--dsw-alias-state-business-primary, #316dca);
+  border-color: var(--dsw-alias-state-business-primary, #316dca);
   color: #ffffff;
 }
 .buttonDanger {
@@ -116,9 +117,9 @@
   width: 34px;
   height: 18px;
   border-radius: 9px;
-  background: var(--dsh-border, #c7cdd4);
+  background: var(--dsw-alias-border-l3, #c7cdd4);
   position: relative;
-  transition: background var(--dsh-motion-fast, 150ms) ease;
+  transition: background 0.12s ease;
   flex: none;
 }
 .toggleThumb {
@@ -129,16 +130,16 @@
   height: 14px;
   border-radius: 50%;
   background: #ffffff;
-  transition: transform var(--dsh-motion-fast, 150ms) ease;
+  transition: transform 0.12s ease;
 }
 .toggle[data-on="true"] .toggleTrack {
-  background: var(--dsh-interactive, #316dca);
+  background: var(--dsw-alias-state-business-primary, #316dca);
 }
 .toggle[data-on="true"] .toggleThumb {
   transform: translateX(16px);
 }
 .toggle:focus-visible {
-  outline: 2px solid var(--dsh-focus-ring, #316dca);
+  outline: 2px solid var(--dsw-alias-state-business-primary, #316dca);
   outline-offset: 2px;
   border-radius: 6px;
 }
@@ -150,14 +151,14 @@
 .select {
   min-height: 32px;
   padding: 2px 8px;
-  border-radius: var(--dsh-radius-card, 8px);
-  border: 1px solid var(--dsh-border, #d0d7de);
-  background: var(--dsh-surface-raised, #ffffff);
-  color: var(--dsh-text, #1f2328);
+  border-radius: 8px;
+  border: 1px solid var(--dsw-alias-border-l2, #d0d7de);
+  background: var(--dsw-alias-bg-layer-1, #ffffff);
+  color: var(--dsw-alias-label-primary, #1f2328);
   font-size: 13px;
 }
 .select:focus-visible {
-  outline: 2px solid var(--dsh-focus-ring, #316dca);
+  outline: 2px solid var(--dsw-alias-state-business-primary, #316dca);
   outline-offset: 1px;
 }
 .select:disabled {
@@ -167,14 +168,14 @@
 .input {
   min-height: 32px;
   padding: 4px 8px;
-  border-radius: var(--dsh-radius-card, 8px);
-  border: 1px solid var(--dsh-border, #d0d7de);
-  background: var(--dsh-surface-raised, #ffffff);
-  color: var(--dsh-text, #1f2328);
+  border-radius: 8px;
+  border: 1px solid var(--dsw-alias-border-l2, #d0d7de);
+  background: var(--dsw-alias-bg-layer-1, #ffffff);
+  color: var(--dsw-alias-label-primary, #1f2328);
   font-size: 13px;
 }
 .input:focus-visible {
-  outline: 2px solid var(--dsh-focus-ring, #316dca);
+  outline: 2px solid var(--dsw-alias-state-business-primary, #316dca);
   outline-offset: 1px;
 }
 .input:disabled {
@@ -211,9 +212,9 @@
   margin-left: 8px;
   padding: 1px 8px;
   border-radius: 999px;
-  border: 1px solid var(--dsh-border, #d0d7de);
-  background: var(--dsh-surface-raised, #f2f4f7);
-  color: var(--dsh-text-muted, #57606a);
+  border: 1px solid var(--dsw-alias-border-l2, #d0d7de);
+  background: var(--dsw-alias-bg-layer-1, #f2f4f7);
+  color: var(--dsw-alias-label-secondary, #57606a);
   font-size: 11px;
   white-space: nowrap;
 }
@@ -228,8 +229,8 @@
   align-items: center;
   gap: 12px;
   padding: 10px 14px;
-  border-radius: var(--dsh-radius-card, 10px);
-  background: var(--dsh-surface-raised, #2d333b);
+  border-radius: 10px;
+  background: var(--dsw-alias-bg-layer-1, #2d333b);
   color: #f4f6f8;
   box-shadow: 0 6px 20px rgba(0, 0, 0, 0.25);
   font-size: 13px;
@@ -241,17 +242,17 @@
 
 /* ---- 卡片 / 行 ---- */
 .card {
-  background: var(--dsh-surface-raised, #ffffff);
-  border: 1px solid var(--dsh-border, #e3e7ec);
-  border-radius: var(--dsh-radius-card, 10px);
+  background: var(--dsw-alias-bg-layer-1, #ffffff);
+  border: 1px solid var(--dsw-alias-border-l1, #e3e7ec);
+  border-radius: 10px;
   padding: 12px 14px;
 }
 .muted {
-  color: var(--dsh-text-muted, #57606a);
+  color: var(--dsw-alias-label-secondary, #57606a);
   font-size: 12px;
 }
 .hint {
-  color: var(--dsh-text-muted, #57606a);
+  color: var(--dsw-alias-label-secondary, #57606a);
   font-size: 12px;
 }
 .errorText {
@@ -285,11 +286,11 @@
   width: 28px;
   height: 28px;
   border-radius: 6px;
-  background: var(--dsh-border, #e3e7ec);
+  background: var(--dsw-alias-border-l1, #e3e7ec);
   flex: none;
 }
 .skeletonLine {
   height: 10px;
   border-radius: 4px;
-  background: var(--dsh-border, #e3e7ec);
+  background: var(--dsw-alias-border-l1, #e3e7ec);
 }

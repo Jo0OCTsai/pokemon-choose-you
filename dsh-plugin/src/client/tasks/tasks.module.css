@@ -21,7 +21,7 @@
   max-width: 280px;
   height: 8px;
   border-radius: 4px;
-  background: var(--dsh-border, #e3e7ec);
+  background: var(--dsw-alias-border-l1, #e3e7ec);
   overflow: hidden;
 }
 .caughtFill {
@@ -31,7 +31,7 @@
 .caughtLabel {
   font-size: 12px;
   font-variant-numeric: tabular-nums;
-  color: var(--dsh-text-muted, #57606a);
+  color: var(--dsw-alias-label-secondary, #57606a);
 }
 
 /* OverdueFold */
@@ -40,10 +40,10 @@
   align-items: center;
   gap: 10px;
   padding: 6px 10px;
-  border-radius: var(--dsh-radius-card, 8px);
-  border: 1px dashed var(--dsh-border, #c7cdd4);
-  background: var(--dsh-surface-raised, #f8f9fb);
-  color: var(--dsh-text-muted, #57606a);
+  border-radius: 8px;
+  border: 1px dashed var(--dsw-alias-border-l3, #c7cdd4);
+  background: var(--dsw-alias-bg-layer-1, #f8f9fb);
+  color: var(--dsw-alias-label-secondary, #57606a);
   font-size: 13px;
 }
 .overdueList {
@@ -59,9 +59,9 @@
   align-items: center;
   gap: 10px;
   padding: 8px 10px;
-  border-radius: var(--dsh-radius-card, 10px);
-  border: 1px solid var(--dsh-border, #e3e7ec);
-  background: var(--dsh-surface-raised, #ffffff);
+  border-radius: 10px;
+  border: 1px solid var(--dsw-alias-border-l1, #e3e7ec);
+  background: var(--dsw-alias-bg-layer-1, #ffffff);
   cursor: pointer;
   text-align: left;
   width: 100%;
@@ -70,10 +70,10 @@
   color: inherit;
 }
 .taskCard:hover {
-  background: var(--dsh-interactive-hover, #f0f2f5);
+  background: var(--dsw-alias-interactive-bg-hover, #f0f2f5);
 }
 .taskCard:focus-visible {
-  outline: 2px solid var(--dsh-focus-ring, #316dca);
+  outline: 2px solid var(--dsw-alias-state-business-primary, #316dca);
   outline-offset: 1px;
 }
 /* 五呈现（形与色承载状态，不闪烁） */
@@ -82,12 +82,12 @@
   border-width: 2px;
 }
 .taskCard[data-presentation="activePaused"] {
-  border-color: var(--dsh-border, #c7cdd4);
+  border-color: var(--dsw-alias-border-l3, #c7cdd4);
   filter: saturate(0.5);
 }
 .taskCard[data-presentation="done"] .taskTitle {
   text-decoration: line-through;
-  color: var(--dsh-text-muted, #57606a);
+  color: var(--dsw-alias-label-secondary, #57606a);
 }
 .taskCard[data-presentation="done"] .taskSprite,
 .taskCard[data-presentation="escaped"] .taskSprite {
@@ -126,7 +126,7 @@
   align-items: center;
   gap: 8px;
   font-size: 11px;
-  color: var(--dsh-text-muted, #57606a);
+  color: var(--dsw-alias-label-secondary, #57606a);
   flex-wrap: wrap;
 }
 .activeBadge {
@@ -134,7 +134,7 @@
   font-size: 11px;
 }
 .pausedBadge {
-  color: var(--dsh-text-muted, #57606a);
+  color: var(--dsw-alias-label-secondary, #57606a);
   font-size: 11px;
 }
 /* 优先级四点（紧急档放大点 + 双描边，不闪烁） */
@@ -149,7 +149,7 @@
   width: 12px;
   height: 12px;
   box-shadow:
-    0 0 0 2px var(--dsh-surface-raised, #fff),
+    0 0 0 2px var(--dsw-alias-bg-layer-1, #fff),
     0 0 0 3px var(--pcy-danger, #b3590f);
   background: var(--pcy-danger, #b3590f);
 }
@@ -157,10 +157,10 @@
   background: var(--pcy-warn, #b58900);
 }
 .prioDot[data-prio="normal"] {
-  background: var(--dsh-border, #c7cdd4);
+  background: var(--dsw-alias-border-l3, #c7cdd4);
 }
 .prioDot[data-prio="low"] {
-  background: var(--dsh-surface-raised, #f0f2f5);
+  background: var(--dsw-alias-bg-layer-1, #f0f2f5);
 }
 /* 派发徽标五态（形变不闪烁） */
 .dispatchBadge {
@@ -168,7 +168,7 @@
   flex: none;
 }
 .dispatchBadge[data-state="queued"] {
-  color: var(--dsh-text-muted, #57606a);
+  color: var(--dsw-alias-label-secondary, #57606a);
 }
 .dispatchBadge[data-state="running"] {
   color: var(--pcy-dispatch-running, #316dca);
@@ -195,9 +195,9 @@
   z-index: 30;
   min-width: 180px;
   padding: 6px;
-  border-radius: var(--dsh-radius-card, 10px);
-  border: 1px solid var(--dsh-border, #d0d7de);
-  background: var(--dsh-surface-raised, #ffffff);
+  border-radius: 10px;
+  border: 1px solid var(--dsw-alias-border-l2, #d0d7de);
+  background: var(--dsw-alias-bg-layer-1, #ffffff);
   box-shadow: 0 6px 18px rgba(0, 0, 0, 0.15);
   display: flex;
   flex-direction: column;
@@ -215,7 +215,7 @@
   color: inherit;
 }
 .overflowMenu button:hover {
-  background: var(--dsh-interactive-hover, #f0f2f5);
+  background: var(--dsw-alias-interactive-bg-hover, #f0f2f5);
 }
 
 /* DexView */
@@ -224,7 +224,7 @@
 }
 .dexMilestone {
   font-size: 13px;
-  color: var(--dsh-text-muted, #57606a);
+  color: var(--dsw-alias-label-secondary, #57606a);
 }
 .dexFilters {
   display: flex;
@@ -234,15 +234,15 @@
   min-height: 32px;
   padding: 2px 12px;
   border-radius: 999px;
-  border: 1px solid var(--dsh-border, #d0d7de);
-  background: var(--dsh-surface-raised, #ffffff);
-  color: var(--dsh-text-muted, #57606a);
+  border: 1px solid var(--dsw-alias-border-l2, #d0d7de);
+  background: var(--dsw-alias-bg-layer-1, #ffffff);
+  color: var(--dsw-alias-label-secondary, #57606a);
   font-size: 12px;
   cursor: pointer;
 }
 .filterButton[aria-pressed="true"] {
-  border-color: var(--dsh-interactive, #316dca);
-  color: var(--dsh-text, #1f2328);
+  border-color: var(--dsw-alias-state-business-primary, #316dca);
+  color: var(--dsw-alias-label-primary, #1f2328);
   font-weight: 700;
 }
 
@@ -250,7 +250,7 @@
 .emptyState {
   padding: 28px 16px;
   text-align: center;
-  color: var(--dsh-text-muted, #57606a);
+  color: var(--dsw-alias-label-secondary, #57606a);
   font-size: 13px;
   line-height: 1.8;
 }
@@ -268,7 +268,7 @@
   align-items: flex-start;
   gap: 10px;
   padding: 14px 16px;
-  border-bottom: 1px solid var(--dsh-border, #e3e7ec);
+  border-bottom: 1px solid var(--dsw-alias-border-l1, #e3e7ec);
 }
 .drawerTitle {
   font-size: 15px;
@@ -294,12 +294,12 @@
 }
 .followupItem {
   padding: 4px 0 4px 12px;
-  border-left: 2px solid var(--dsh-border, #e3e7ec);
+  border-left: 2px solid var(--dsw-alias-border-l1, #e3e7ec);
   font-size: 13px;
 }
 .followupMeta {
   font-size: 11px;
-  color: var(--dsh-text-muted, #57606a);
+  color: var(--dsw-alias-label-secondary, #57606a);
 }
 .followupComposer {
   display: flex;
@@ -316,7 +316,7 @@
   height: 8px;
   margin-top: 4px;
   border-radius: 50%;
-  background: var(--dsh-border, #c7cdd4);
+  background: var(--dsw-alias-border-l3, #c7cdd4);
   flex: none;
 }
 .timelineMain {

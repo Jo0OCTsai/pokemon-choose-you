@@ -13,16 +13,16 @@
   gap: 14px;
   flex-wrap: wrap;
   padding: 8px 12px;
-  border-radius: var(--dsh-radius-card, 10px);
-  border: 1px solid var(--dsh-border, #e3e7ec);
-  background: var(--dsh-surface-raised, #ffffff);
+  border-radius: 10px;
+  border: 1px solid var(--dsw-alias-border-l1, #e3e7ec);
+  background: var(--dsw-alias-bg-layer-1, #ffffff);
   font-size: 12px;
 }
 .healthItem {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  color: var(--dsh-text-muted, #57606a);
+  color: var(--dsw-alias-label-secondary, #57606a);
 }
 
 /* AuthBanner */
@@ -31,9 +31,9 @@
   align-items: center;
   gap: 12px;
   padding: 10px 14px;
-  border-radius: var(--dsh-radius-card, 10px);
+  border-radius: 10px;
   border: 1px solid var(--pcy-warn, #b58900);
-  background: var(--dsh-surface-raised, #fdf6e3);
+  background: var(--dsw-alias-bg-layer-1, #fdf6e3);
   font-size: 13px;
 }
 
@@ -49,9 +49,9 @@
   margin: 4px 0 0;
 }
 .suggestionCard {
-  border: 1px solid var(--dsh-border, #e3e7ec);
-  border-radius: var(--dsh-radius-card, 10px);
-  background: var(--dsh-surface-raised, #ffffff);
+  border: 1px solid var(--dsw-alias-border-l1, #e3e7ec);
+  border-radius: 10px;
+  background: var(--dsw-alias-bg-layer-1, #ffffff);
   padding: 8px 12px;
 }
 /* 置信三档边框（形与色 + 行内文字档位标——非颜色冗余） */
@@ -62,7 +62,7 @@
   border-left: 3px solid var(--pcy-warn, #b58900);
 }
 .suggestionCard[data-confidence="low"] {
-  border-left: 3px solid var(--dsh-border, #c7cdd4);
+  border-left: 3px solid var(--dsw-alias-border-l3, #c7cdd4);
 }
 .suggestionCollapsed {
   display: flex;
@@ -79,7 +79,7 @@
   padding: 0;
 }
 .suggestionCollapsed:focus-visible {
-  outline: 2px solid var(--dsh-focus-ring, #316dca);
+  outline: 2px solid var(--dsw-alias-state-business-primary, #316dca);
   outline-offset: 2px;
 }
 .suggestionText {
@@ -91,8 +91,8 @@
 }
 .confidenceTag {
   font-size: 11px;
-  color: var(--dsh-text-muted, #57606a);
-  border: 1px solid var(--dsh-border, #d0d7de);
+  color: var(--dsw-alias-label-secondary, #57606a);
+  border: 1px solid var(--dsw-alias-border-l2, #d0d7de);
   border-radius: 999px;
   padding: 0 8px;
   line-height: 18px;
@@ -107,12 +107,12 @@
 .lcdText {
   font-size: 12px;
   line-height: 1.6;
-  color: var(--dsh-text-muted, #57606a);
+  color: var(--dsw-alias-label-secondary, #57606a);
   white-space: pre-wrap;
 }
 .aiBox {
-  border: 1px dashed var(--dsh-border, #c7cdd4);
-  border-radius: var(--dsh-radius-card, 8px);
+  border: 1px dashed var(--dsw-alias-border-l3, #c7cdd4);
+  border-radius: 8px;
   padding: 8px 10px;
   font-size: 13px;
   display: flex;
@@ -129,7 +129,7 @@
   display: inline-flex;
   align-items: center;
   gap: 4px;
-  border: 1px solid var(--dsh-border, #d0d7de);
+  border: 1px solid var(--dsw-alias-border-l2, #d0d7de);
   border-radius: 999px;
   padding: 1px 8px;
   font-size: 11px;
@@ -139,13 +139,13 @@
   min-width: 32px;
   padding: 0 8px;
   border-radius: 999px;
-  border: 1px solid var(--dsh-border, #d0d7de);
+  border: 1px solid var(--dsw-alias-border-l2, #d0d7de);
   background: none;
   cursor: pointer;
   font-size: 11px;
 }
 .tagProposalAccept[aria-pressed="true"] {
-  background: var(--dsh-surface-raised, #e8f2ea);
+  background: var(--dsw-alias-bg-layer-1, #e8f2ea);
   border-color: var(--pcy-conf-high, #2f7d3c);
 }
 .actionBar {
@@ -159,9 +159,9 @@
   flex-direction: column;
   gap: 2px;
   padding: 6px;
-  border: 1px solid var(--dsh-border, #d0d7de);
-  border-radius: var(--dsh-radius-card, 8px);
-  background: var(--dsh-surface-raised, #ffffff);
+  border: 1px solid var(--dsw-alias-border-l2, #d0d7de);
+  border-radius: 8px;
+  background: var(--dsw-alias-bg-layer-1, #ffffff);
 }
 .reasonMenu button {
   min-height: 32px;
@@ -174,7 +174,7 @@
   padding: 2px 10px;
 }
 .reasonMenu button:hover {
-  background: var(--dsh-interactive-hover, #f0f2f5);
+  background: var(--dsw-alias-interactive-bg-hover, #f0f2f5);
 }
 
 /* 复选框（待处理组 hover/聚焦显现；键盘 Tab 可达） */
@@ -193,9 +193,9 @@
   align-items: center;
   gap: 10px;
   padding: 8px 12px;
-  border-radius: var(--dsh-radius-card, 10px);
-  border: 1px solid var(--dsh-border, #d0d7de);
-  background: var(--dsh-surface-raised, #f4f6f8);
+  border-radius: 10px;
+  border: 1px solid var(--dsw-alias-border-l2, #d0d7de);
+  background: var(--dsw-alias-bg-layer-1, #f4f6f8);
   box-shadow: 0 -2px 12px rgba(0, 0, 0, 0.08);
   font-size: 13px;
 }
@@ -213,7 +213,7 @@
   align-items: center;
   gap: 8px;
   font-size: 12px;
-  color: var(--dsh-text-muted, #57606a);
+  color: var(--dsw-alias-label-secondary, #57606a);
 }
 
 /* CaptureBar（通栏垫底） */
@@ -226,21 +226,21 @@
   flex: 1;
   min-height: 32px;
   padding: 4px 10px;
-  border-radius: var(--dsh-radius-card, 8px);
-  border: 1px solid var(--dsh-border, #d0d7de);
-  background: var(--dsh-surface-raised, #ffffff);
+  border-radius: 8px;
+  border: 1px solid var(--dsw-alias-border-l2, #d0d7de);
+  background: var(--dsw-alias-bg-layer-1, #ffffff);
   color: inherit;
   font-size: 13px;
 }
 .captureInput:focus-visible {
-  outline: 2px solid var(--dsh-focus-ring, #316dca);
+  outline: 2px solid var(--dsw-alias-state-business-primary, #316dca);
   outline-offset: 1px;
 }
 .judgingChip {
   font-size: 12px;
-  color: var(--dsh-text-muted, #57606a);
+  color: var(--dsw-alias-label-secondary, #57606a);
 }
 .kbdHint {
   font-size: 11px;
-  color: var(--dsh-text-muted, #57606a);
+  color: var(--dsw-alias-label-secondary, #57606a);
 }

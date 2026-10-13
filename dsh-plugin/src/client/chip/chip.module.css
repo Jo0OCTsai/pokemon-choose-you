@@ -8,17 +8,17 @@
   min-height: 32px;
   padding: 2px 8px;
   border-radius: 999px;
-  border: 1px solid var(--dsh-border, #d0d7de);
-  background: var(--dsh-surface-raised, #ffffff);
-  color: var(--dsh-text, #1f2328);
+  border: 1px solid var(--dsw-alias-border-l2, #d0d7de);
+  background: var(--dsw-alias-bg-layer-1, #ffffff);
+  color: var(--dsw-alias-label-primary, #1f2328);
   font-size: 12px;
   cursor: pointer;
 }
 .chip:hover {
-  background: var(--dsh-interactive-hover, #f0f2f5);
+  background: var(--dsw-alias-interactive-bg-hover, #f0f2f5);
 }
 .chip:focus-visible {
-  outline: 2px solid var(--dsh-focus-ring, #316dca);
+  outline: 2px solid var(--dsw-alias-state-business-primary, #316dca);
   outline-offset: 1px;
 }
 .chip[data-mode="paused"] {
@@ -50,10 +50,10 @@
   justify-content: center;
 }
 .chipButton:hover {
-  background: var(--dsh-interactive-hover, #f0f2f5);
+  background: var(--dsw-alias-interactive-bg-hover, #f0f2f5);
 }
 .chipButton:focus-visible {
-  outline: 2px solid var(--dsh-focus-ring, #316dca);
+  outline: 2px solid var(--dsw-alias-state-business-primary, #316dca);
 }
 .chipButton:disabled {
   opacity: 0.45;
