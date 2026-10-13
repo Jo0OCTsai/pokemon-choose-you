@@ -111,6 +111,9 @@ importers:
 
   dsh-plugin:
     dependencies:
+      '@deepseek-ai/dsh-typert-protocol':
+        specifier: 0.2.0-rc.2
+        version: 0.2.0-rc.2(@deepseek-ai/cordis@4.0.4)
       react:
         specifier: ^19.3.0
         version: 19.3.0

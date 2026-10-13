@@ -9,8 +9,9 @@
  * 判定执行方）、22 工具 → ctx.tools（defineTool JSON DSL 投影）、55 host 命令 →
  * connection 共享 /api 通道 `pky/<command>` 端点；业务行为全部在 src/host/** 业务核心。
  *
- * inject 就地决策：connection 服务只在 web 组合（dsh-web-app）存在且**晚供**，入口
- * inject 会阻断 headless 启动——通道注册的时序适配与 rc.2 已知降级见 rpcChannel.ts。
+ * 数据面：55 host 命令经 PkyRemoteService（Typert Remote，官方 /api 通道——
+ * 2026-10-13 迁移，原 connection.rpc.handle 自定义通道在 rc.2 对第三方不可用）；
+ * 服务注册即生效，headless 组合同样安全（无 connection 依赖）。
  */
 import { spawn } from "node:child_process";
 import { existsSync, statSync } from "node:fs";
@@ -32,7 +33,7 @@ import type { ToolContext } from "../tools/registry";
 import type { HelperSpawner } from "../pet/supervisor";
 import type { TimerApi as LoopTimer } from "../dispatch/autoDispatch";
 import { toDslParameters, TODO_TOOL_PARAM_DECLS } from "./toolSchema";
-import { registerRpcChannel } from "./rpcChannel";
+import { PkyRemoteService } from "./remoteService";
 
 // 契约 SQL 编译期内嵌注册（migrate 双 loader 的内嵌侧）：安装形态磁盘相对路径不可达，
 // dist 产物经 build.mjs 的 ?raw loader 内嵌——模块加载期注册一次（fs 回落留给仓内 dev 直跑）
@@ -118,7 +119,7 @@ export function apply(ctx: Context, config: ResolvedPkyConfig): void {
   ctx.effect((): (() => void) => plugin.dispose);
   try {
     registerTodoTools(ctx, plugin);
-    registerRpcChannel(ctx, plugin);
+    new PkyRemoteService(ctx, plugin.commands);
   } catch (error) {
     process.stderr.write(
       `[pokemon-choose-you] 工具/RPC 注册失败：${String(error)}\n${error instanceof Error ? error.stack : ""}\n`,

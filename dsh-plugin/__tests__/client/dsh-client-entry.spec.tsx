@@ -38,29 +38,24 @@ function panelOf(registrations: Registration[]): SlotC {
   return component as SlotC;
 }
 
-/** mockHost → fake dsh connection rpc（host 侧 rpcDispatch 的正向信封转换镜像） */
+/** mockHost → fake dsh connection rpc（Typert Remote 迁移后 wire 形态：/api + pky/call + 双信封） */
 function mockHostRpc(host: MockHost): DshConnectionRpc {
   return {
     async call(channel, endpoint, payload): Promise<DshConnectionResult> {
-      if (channel !== "/pky") {
-        return { ok: false, error: { code: "INVALID_ARGUMENT", message: `非 /pky 通道：${channel}`, details: {} } };
+      const args = (payload as { args?: { command?: unknown; payload?: unknown } } | undefined)?.args;
+      if (channel !== "/api" || endpoint !== "pky/call" || typeof args?.command !== "string") {
+        return {
+          ok: false,
+          error: { code: "INVALID_ARGUMENT", message: `非 pky/call Remote 调用：${channel} ${endpoint}`, details: {} },
+        };
       }
-      const command = endpoint;
+      const command = args.command;
       const fn = (host as unknown as Record<string, (p?: unknown) => Promise<PkyResult<unknown>>>)[command];
       if (typeof fn !== "function") {
         return { ok: false, error: { code: "INVALID_ARGUMENT", message: `未知命令 ${command}`, details: {} } };
       }
-      const result = await fn(payload);
-      return result.ok
-        ? { ok: true, value: result.data }
-        : {
-            ok: false,
-            error: {
-              code: result.error.code,
-              message: result.error.message,
-              details: result.error.hint === undefined ? {} : { hint: result.error.hint },
-            },
-          };
+      // 业务信封原样透传（Remote 方法不抛错，错误走信封）
+      return { ok: true, value: await fn(args.payload) };
     },
   };
 }

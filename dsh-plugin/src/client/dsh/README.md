@@ -21,11 +21,13 @@
   `--dsh-frame-top-clearance` 避让红绿灯带 + 整页自滚动，`mainPanel.module.css`）、
   `createPanelOpener`（chip 点击导航）与 `createPanelRoot`（detail section / 主面板共用
   的数据快照根）。
-- `transport.ts` —— DshRpcTransport：命令 → 自有通道 `/pky`（通道与 host 侧
-  rpcDispatch 单源），ConnectionRpcResult → PROTOCOL §2 信封逆向还原（value→data /
-  details.hint→hint / 未知码折叠 INVALID_ARGUMENT 原码并入 message）；
-  diagnosticsSnapshot 视图模型归一（host `status` → client 契约 `level`）；pageOpen
-  本地监听面（host 推送接面预留）。
+- `transport.ts` —— DshRpcTransport（Typert Remote 迁移后形态，2026-10-13）：命令 →
+  共享 `/api` 通道 Remote 端点 `pky/call`（args 按源码参数名键控 `{command, payload?}`，
+  单源锚定 host 侧 remoteService.ts），双信封剥层——传输层 ConnectionRpcResult 的
+  value = host 业务信封原样透传（Remote 方法不抛错，业务错误码不进传输层错误路径）；
+  传输失败信封逆向还原（details.hint→hint / 未知码折叠 INVALID_ARGUMENT 原码并入
+  message）；diagnosticsSnapshot 视图模型归一（host `status` → client 契约 `level`）；
+  pageOpen 本地监听面（host 推送接面预留）。
 - `panelData.ts` —— 读命令 → PanelData 组装：configRead/dbStatus/diagnosticsSnapshot/
   filterList/promptList/panelSnapshot 并行逐项兜底；实体清单（任务四段/收音机消息五分组/
   会话账本/分类/当前任务）从 `panelSnapshot` 聚合读灌入（各任务段按 id 去重合并成全量

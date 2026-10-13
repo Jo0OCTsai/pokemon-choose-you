@@ -1,9 +1,11 @@
 /**
  * dsh 客户端 RPC transport（Phase B 真实适配层）：client 半边 HostTransport 的 dsh
- * connection 实现——命令经自有通道 `/pky` 上行（端点名 = 命令名；通道常量与 host
- * 半边 rpcDispatch 单源），下行按 ConnectionRpcResult（{ok,value} | {ok,error:{code,
- * message,details}}）逆向还原成 PROTOCOL §2 信封（{ok,data} | {ok,error:{code,
- * message,hint?}}）——host 侧 rpcDispatch 的正向转换（hint → details.hint）在此还原。
+ * connection 实现——命令经官方共享 `/api` 通道的 Typert Remote 端点 `pky/call` 上行
+ * （2026-10-13 迁移：原 connection.rpc.handle 自定义通道 `/pky` 在 rc.2 对第三方插件
+ * 不可用；官方宿主→客户端数据面全走 api-gateway 的 Remote），args 按源码参数名键控
+ * （{command, payload?}——SRC 模式 wire 契约）。双信封：传输层 ConnectionRpcResult
+ * 的 value 即 host 侧业务信封（PROTOCOL §2 ok/fail——Remote 方法不抛错，业务错误码
+ * 不进传输层错误路径），传输失败信封按 dsh 通用形态逆向还原（hint → details.hint）。
  *
  * 视图模型归一（平台胶水的漂移吸收位）：diagnosticsSnapshot 的 host 字段 status →
  * 客户端契约 DiagnosticsLink.level（Phase A 上线面冻结不改，client 消费面按契约取 level）。
@@ -63,22 +65,33 @@ function normalizeDiagnostics(value: unknown): unknown {
 }
 
 /**
- * RPC 通道字面量（单源 = host 侧 src/host/dsh/rpcDispatch.ts 的 PKY_RPC_CHANNEL；
- * 此处内联避免把 host 模块卷进 client bundle——同 settings 键字面量的锚定惯例）。
+ * Remote 端点线面（单源 = host 侧 src/host/dsh/remoteService.ts 的服务名/方法名与
+ * SRC 参数名；此处内联避免把 host 模块卷进 client bundle——同 settings 键字面量的
+ * 锚定惯例）。
  */
-const PKY_RPC_CHANNEL = "/pky";
+const REMOTE_CHANNEL = "/api";
+const REMOTE_ENDPOINT = "pky/call";
 
-/** 构造 dsh RPC transport：命令 → 自有通道 `/pky`（端点名 = 命令名），结果信封逆向还原 */
+/** 构造 dsh RPC transport：命令 → /api 通道 Remote 端点 pky/call，双信封剥层还原 */
 export function createDshRpcTransport(rpc: DshConnectionRpc): DshRpcTransport {
   const pageOpenListeners = new Set<(event: PageOpenEvent) => void>();
   return {
     async send<T>(command: string, params?: unknown): Promise<PkyResult<T>> {
-      const result = await rpc.call(PKY_RPC_CHANNEL, command, params ?? {});
-      if (result.ok) {
-        const data = command === "diagnosticsSnapshot" ? normalizeDiagnostics(result.value) : result.value;
-        return { ok: true, data: data as T };
+      const args = params === undefined ? { command } : { command, payload: params };
+      const result = await rpc.call(REMOTE_CHANNEL, REMOTE_ENDPOINT, { args });
+      if (!result.ok) {
+        return { ok: false, error: restoreError(result.error) };
       }
-      return { ok: false, error: restoreError(result.error) };
+      // 传输成功：value = host 业务信封（PkyResult）原样透传
+      const envelope = result.value as PkyResult<T>;
+      if (envelope === null || typeof envelope !== "object" || typeof (envelope as { ok?: unknown }).ok !== "boolean") {
+        return { ok: false, error: { code: "INVALID_ARGUMENT", message: "Remote 返回值不是业务信封" } };
+      }
+      if (!envelope.ok) {
+        return { ok: false, error: envelope.error };
+      }
+      const data = command === "diagnosticsSnapshot" ? normalizeDiagnostics(envelope.data) : envelope.data;
+      return { ok: true, data: data as T };
     },
     on(event: "pageOpen", listener: (event: PageOpenEvent) => void): () => void {
       if (event !== "pageOpen") {

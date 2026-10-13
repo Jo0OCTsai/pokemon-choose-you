@@ -1,7 +1,8 @@
 /**
- * DshRpcTransport 信封还原（Phase B 适配层）：ConnectionRpcResult → PROTOCOL §2 信封
- * （value→data / details.hint→hint / 未知码折叠）、通道与端点形态（自有通道 /pky、端点名=命令名）、
- * diagnosticsSnapshot 视图模型归一（status→level）、pageOpen 本地监听面。
+ * DshRpcTransport 信封还原（Phase B 适配层，Typert Remote 迁移后形态）：命令 → /api
+ * 通道 Remote 端点 pky/call（args 按源码参数名键控）→ 传输层 ConnectionRpcResult 的
+ * value = 业务信封原样透传（双信封剥层）；传输失败信封还原（details.hint→hint /
+ * 未知码折叠）、diagnosticsSnapshot 视图模型归一（status→level）、pageOpen 本地监听面。
  */
 import { describe, expect, it, vi } from "vitest";
 import { createDshRpcTransport, type DshConnectionResult } from "../../src/client/dsh/transport";
@@ -21,19 +22,35 @@ function fakeRpc(script: DshConnectionResult[]) {
 }
 
 describe("DshRpcTransport · 信封还原", () => {
-  it("成功：value → {ok,data}；通道 = /pky、端点 = 命令名；payload 缺省补 {}", async () => {
-    const rpc = fakeRpc([{ ok: true, value: { keyValues: { language: "en" } } }]);
+  it("成功：业务信封透传 → {ok,data}；通道 = /api、端点 = pky/call、args 按参数名键控", async () => {
+    const rpc = fakeRpc([{ ok: true, value: { ok: true, data: { keyValues: { language: "en" } } } }]);
     const transport = createDshRpcTransport(rpc);
     const result: PkyResult<{ keyValues: Record<string, string> }> = await transport.send("configRead");
     expect(result).toEqual({ ok: true, data: { keyValues: { language: "en" } } });
-    expect(rpc.calls).toEqual([{ channel: "/pky", endpoint: "configRead", payload: {} }]);
+    expect(rpc.calls).toEqual([
+      { channel: "/api", endpoint: "pky/call", payload: { args: { command: "configRead" } } },
+    ]);
   });
 
-  it("payload 原样上行", async () => {
-    const rpc = fakeRpc([{ ok: true, value: 1 }]);
+  it("payload 原样上行（args.payload）", async () => {
+    const rpc = fakeRpc([{ ok: true, value: { ok: true, data: 1 } }]);
     const transport = createDshRpcTransport(rpc);
     await transport.send("taskPause", { taskId: 3 });
-    expect(rpc.calls[0]?.payload).toEqual({ taskId: 3 });
+    expect(rpc.calls[0]?.payload).toEqual({ args: { command: "taskPause", payload: { taskId: 3 } } });
+  });
+
+  it("业务信封失败：error 原样还原（不经传输层折叠）", async () => {
+    const rpc = fakeRpc([
+      { ok: true, value: { ok: false, error: { code: "DISPATCH_TIMEOUT", message: "派发超时", hint: "重试" } } },
+    ]);
+    const result = await createDshRpcTransport(rpc).send("dispatchRun", { taskId: 1 });
+    expect(result).toEqual({ ok: false, error: { code: "DISPATCH_TIMEOUT", message: "派发超时", hint: "重试" } });
+  });
+
+  it("传输成功但 value 非业务信封形态 → INVALID_ARGUMENT 防御", async () => {
+    const rpc = fakeRpc([{ ok: true, value: 42 }]);
+    const result = await createDshRpcTransport(rpc).send("pollNow");
+    expect(result).toEqual({ ok: false, error: { code: "INVALID_ARGUMENT", message: "Remote 返回值不是业务信封" } });
   });
 
   it("失败：code/message 透传，hint 从 details.hint 还原", async () => {
@@ -74,10 +91,13 @@ describe("DshRpcTransport · diagnosticsSnapshot 归一", () => {
       {
         ok: true,
         value: {
-          links: [
-            { provider: "feishu", status: "degraded" },
-            { provider: "ai", level: "ok" },
-          ],
+          ok: true,
+          data: {
+            links: [
+              { provider: "feishu", status: "degraded" },
+              { provider: "ai", level: "ok" },
+            ],
+          },
         },
       },
     ]);
@@ -95,8 +115,8 @@ describe("DshRpcTransport · diagnosticsSnapshot 归一", () => {
 
   it("非 diagnostics 命令与其他形态载荷原样透传", async () => {
     const rpc = fakeRpc([
-      { ok: true, value: { ok: true } },
-      { ok: true, value: { links: null } },
+      { ok: true, value: { ok: true, data: { ok: true } } },
+      { ok: true, value: { ok: true, data: { links: null } } },
     ]);
     const transport = createDshRpcTransport(rpc);
     expect(await transport.send("petShow")).toEqual({ ok: true, data: { ok: true } });
