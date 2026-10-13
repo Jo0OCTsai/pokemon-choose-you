@@ -8,11 +8,19 @@
 
 - `clientEntry.tsx` —— 客户端入口（浏览器 Loader 经 `window.__ModuleLoader__.load` 挂载
   dist/client.js，消费 `inject`/`apply`）：`ctx.connection.rpc` → transport →
-  `createHostClient` → 双 slot 注册——`plugins.detail.section`（list/root，subject 指向
-  本包 `pkg.name === "dsh-plugin"` 才渲染 PluginDetailPage，他包 null 零占位）与
+  `createHostClient` → 四 slot 注册——`plugins.detail.section`（list/root，subject 指向
+  本包 `pkg.name === "dsh-plugin"` 才渲染 PluginDetailPage，他包 null 零占位）、
   `conversation.session.header.actions`（list/session，ConversationChip；选 actions 而非
-  single 容器位 `conversation.header`——多插件共存不冲突）。chip 点击的 pageOpen 导航
-  降级 noop（host 推送通道未接 dsh 导航，接面后落型）；`slots.inject` 自带纤维回收。
+  single 容器位 `conversation.header`——多插件共存不冲突）、`sidebar.panellist`（list/root，
+  侧边栏一级入口）与 `main`（keyed/root，主区全局面板）。chip 点击经
+  `ctx.layout.selectPanel` 客户端闭环直达面板；`slots.inject` 自带纤维回收。
+- `sidebarPanel.tsx` —— 侧边栏一级入口 + 主区面板（`sidebar.panellist` + `main` keyed
+  槽，id/key 同源 `PANEL_ID = "pokemon-choose-you"`、order 20 排内置插件 0 / 自动化任务
+  10 之后）：图标组件（装饰性精灵球 SVG，无障碍标签归侧边栏行壳）、locale-aware 标签
+  （宿主 locale 快照映射三语 `dsh.page.title`）、主面板壳（darwin 顶部
+  `--dsh-frame-top-clearance` 避让红绿灯带 + 整页自滚动，`mainPanel.module.css`）、
+  `createPanelOpener`（chip 点击导航）与 `createPanelRoot`（detail section / 主面板共用
+  的数据快照根）。
 - `transport.ts` —— DshRpcTransport：命令 → 自有通道 `/pky`（通道与 host 侧
   rpcDispatch 单源），ConnectionRpcResult → PROTOCOL §2 信封逆向还原（value→data /
   details.hint→hint / 未知码折叠 INVALID_ARGUMENT 原码并入 message）；
@@ -36,7 +44,9 @@
   @app-i18n/@app-pokemon 经 tsconfig paths 解析后整体 bundle。
 - 单测：`__tests__/client/dsh-transport.spec.ts`（信封还原/归一/监听面）、
   `__tests__/client/dsh-panel-data.spec.ts`（组装/派生件）、
-  `__tests__/client/dsh-client-entry.spec.tsx`（slot 注册/subject 自判/chip 零占位——
-  fake slots + mockHost 信封正向转换）。
+  `__tests__/client/dsh-client-entry.spec.tsx`（四 slot 注册/subject 自判/侧边栏入口与
+  标签映射/主面板渲染/chip 导航与零占位——fake slots + mockHost 信封正向转换）。
 - client 代码不进覆盖率门禁（vite.config include 只扫 src/host），进 lint/棘轮。
-- 真实加载走 pky-test profile 冒烟（`dsh web --profile pky-test` 后台起服 curl bundle）。
+- 真实加载走 pky-test profile 冒烟（`dsh --profile pky-test --no-open --port <p>` 后
+  浏览器验证——侧边栏入口出现 + 主面板七段渲染；注意 profile 的 node_modules 若是
+  file: 拷贝需同步 dist 后再验）。
