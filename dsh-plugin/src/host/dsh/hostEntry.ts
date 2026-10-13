@@ -9,9 +9,8 @@
  * 判定执行方）、22 工具 → ctx.tools（defineTool JSON DSL 投影）、55 host 命令 →
  * connection 共享 /api 通道 `pky/<command>` 端点；业务行为全部在 src/host/** 业务核心。
  *
- * inject 就地决策：connection 服务只在 web 组合（dsh-web-app）存在，headless 组合
- * 不装载——若列入入口 inject 会阻断 headless 下的插件启动（冒烟口径），故入口只
- * 声明 tools/timer，connection 经 apply 内 ctx.inject 按需挂（api-gateway 同款模式）。
+ * inject 就地决策：connection 服务只在 web 组合（dsh-web-app）存在且**晚供**，入口
+ * inject 会阻断 headless 启动——通道注册的时序适配与 rc.2 已知降级见 rpcChannel.ts。
  */
 import { spawn } from "node:child_process";
 import { existsSync, statSync } from "node:fs";
@@ -33,7 +32,7 @@ import type { ToolContext } from "../tools/registry";
 import type { HelperSpawner } from "../pet/supervisor";
 import type { TimerApi as LoopTimer } from "../dispatch/autoDispatch";
 import { toDslParameters, TODO_TOOL_PARAM_DECLS } from "./toolSchema";
-import { PKY_RPC_CHANNEL, createPkyRpcDispatcher } from "./rpcDispatch";
+import { registerRpcChannel } from "./rpcChannel";
 
 // 契约 SQL 编译期内嵌注册（migrate 双 loader 的内嵌侧）：安装形态磁盘相对路径不可达，
 // dist 产物经 build.mjs 的 ?raw loader 内嵌——模块加载期注册一次（fs 回落留给仓内 dev 直跑）
@@ -42,7 +41,7 @@ registerEmbeddedSchemas({ ...schemaRaw });
 /** 入口 id（cordis.patch.yml 的 insert id 同名；包名 dsh-plugin 是安装定位面） */
 export const name = "pokemon-choose-you";
 
-/** 必需服务（connection 按 headless 兼容就地下放——见文件头说明） */
+/** 必需服务（timer 的 ctx.interval 增强面需要 inject 声明） */
 export const inject = ["tools", "timer"];
 
 /**
@@ -94,6 +93,7 @@ export function apply(ctx: Context, config: ResolvedPkyConfig): void {
   if (dbPath === undefined) {
     throw new Error("[dsh-plugin] 无法定位待办库：CHOOSE_YOU_HOME 与 home 均不可用（AD §5.1 库定位）");
   }
+  process.stderr.write(`[pokemon-choose-you] 待办库：${dbPath}\n`);
   const petSpawner = detectPetSpawner();
   const plugin = createPlugin({
     dbPath,
@@ -116,8 +116,15 @@ export function apply(ctx: Context, config: ResolvedPkyConfig): void {
   }
   // 装配逆序注册：dispose 最先进 effect → 卸载时最后执行（先注销工具/RPC，再收口循环与连接）
   ctx.effect((): (() => void) => plugin.dispose);
-  registerTodoTools(ctx, plugin);
-  registerRpcChannel(ctx, plugin);
+  try {
+    registerTodoTools(ctx, plugin);
+    registerRpcChannel(ctx, plugin);
+  } catch (error) {
+    process.stderr.write(
+      `[pokemon-choose-you] 工具/RPC 注册失败：${String(error)}\n${error instanceof Error ? error.stack : ""}\n`,
+    );
+    throw error;
+  }
 }
 
 /** 循环 timer 面（autoDispatch 与 stateFeed 同形：every/cancel → ctx.interval 反注册函数） */
@@ -160,16 +167,6 @@ function renderEnvelope(value: unknown): string {
   }
   const error = result.error;
   return `[${error.code}] ${error.message}${error.hint === undefined ? "" : `\nhint: ${error.hint}`}`;
-}
-
-/** 55 host 命令 → connection 自有通道 /pky（web 组合才有 connection；不占共享 /api——单拦截器独占，抢注会打死宿主网关） */
-function registerRpcChannel(ctx: Context, plugin: Plugin): void {
-  ctx.inject(["connection"], (connCtx: Context) => {
-    const dispatch = createPkyRpcDispatcher(plugin.commands);
-    connCtx.effect(() =>
-      connCtx.connection.rpc.handle(PKY_RPC_CHANNEL, (endpoint, payload) => dispatch(endpoint, payload)),
-    );
-  });
 }
 
 // ---- 桌宠 helper 拉起面（spawner 定位 + electron 探测；找不到 = 降级停用不报错 A20） ----
