@@ -93,7 +93,7 @@ describe("SuggestionCard", () => {
     expect(host.calls).toContainEqual({ command: "reviewAccept", params: { messageId: "m1" } });
   });
 
-  it("update 建议 → ◎ 应用更新；none 建议无操作键", async () => {
+  it("update 建议 → ◎ 应用更新；none 建议无分诊键但有 ⚡ 强制捕捉", async () => {
     const { host } = renderRadio([
       makeMessage({ messageId: "m2", aiStatus: "update", updateTaskId: 9, content: "周报改成周五发" }),
       makeMessage({ messageId: "m3", aiStatus: "none", suggestedTitle: null, content: "中午吃什么" }),
@@ -103,13 +103,17 @@ describe("SuggestionCard", () => {
     fireEvent.click(within(updateCard).getByText("◎ 应用更新"));
     await flush();
     expect(host.calls).toContainEqual({ command: "reviewApplyUpdate", params: { messageId: "m2" } });
-    // 无动作建议进无信号组（建议卡呈现，U2 原型 a-none 卡）——展开后无分诊操作键
+    // 无动作建议进无信号组（建议卡呈现，U2 原型 a-none 卡）——展开后无捕捉/逃走键，
+    // 仅桌面 F 键语义的 ⚡ 强制捕捉（AI 判无信号时人工拍板）
     expect(screen.getByText("中午吃什么")).toBeTruthy();
     const noneCard = screen.getAllByTestId("suggestion-card")[1];
     fireEvent.click(within(noneCard).getByRole("button", { name: /中午吃什么/ }));
     expect(within(noneCard).queryByText("◎ 捕捉")).toBeNull();
     expect(within(noneCard).queryByText("◎ 应用更新")).toBeNull();
     expect(within(noneCard).queryByText("✕ 逃走")).toBeNull();
+    fireEvent.click(within(noneCard).getByText("⚡ 强制捕捉"));
+    await flush();
+    expect(host.calls).toContainEqual({ command: "forceCapture", params: { messageId: "m3" } });
   });
 
   it("逃走展开 6 原因码菜单 → reviewDismiss(reasonCode)", async () => {
@@ -153,16 +157,18 @@ describe("SuggestionCard", () => {
 describe("BatchBar（U13）", () => {
   const messages = [makeMessage({ messageId: "b1" }), makeMessage({ messageId: "b2" })];
 
-  it("未选中不浮现；选中 ≥1 浮现「已选 N 条」", () => {
+  it("随待处理组常驻（桌面批量条 parity）：全选/清除联动「已选 N 条」", () => {
     renderRadio(messages);
-    expect(screen.queryByTestId("batch-bar")).toBeNull();
+    // 未选中时常驻可见（桌面批量条常驻），清除钮不出现
+    expect(screen.getByTestId("batch-bar").textContent).toContain("已选 0 条");
+    expect(screen.queryByText("清除")).toBeNull();
     const checks = screen.getAllByRole("checkbox");
     fireEvent.click(checks[0]);
     expect(screen.getByTestId("batch-bar").textContent).toContain("已选 1 条");
     fireEvent.click(checks[1]);
     expect(screen.getByTestId("batch-bar").textContent).toContain("已选 2 条");
     fireEvent.click(screen.getByText("清除"));
-    expect(screen.queryByTestId("batch-bar")).toBeNull();
+    expect(screen.getByTestId("batch-bar").textContent).toContain("已选 0 条");
   });
 
   it("批量捕捉 → reviewBatch(op=accept)；批量逃走统一原因码", async () => {

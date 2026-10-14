@@ -1,12 +1,13 @@
 /**
  * 收音机分段（UIUX §3.1）：HealthStrip（健康最小面 D13）+ AuthBanner（未授权/失效单次）
- * + SuggestionFeed（五分组：待处理/无动作/失败/已捕捉/已逃走——后两组默认折叠）+
- * CaptureBar（⚡发报，5 秒撤销）。纵向流 + 建议卡内联展开（U2）。
+ * + SuggestionFeed（工具栏搜索/视图切换 + 状态五分组：待处理/无动作/失败/已捕捉/已逃走
+ * ——后两组默认折叠；频道模式按会话聚拢）+ CaptureBar（⚡发报，5 秒撤销）。
+ * 纵向流 + 建议卡内联展开（U2）。
  */
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import { useClient } from "../clientContext";
 import { useT } from "../i18n";
-import { suggestionGroups, type PanelData } from "../model";
+import type { PanelData } from "../model";
 import { StatusDot } from "../ui/controls";
 import ui from "../ui/ui.module.css";
 import { AuthBanner } from "./AuthBanner";
@@ -73,7 +74,6 @@ export function RadioSegment({
   onChanged: () => void;
 }): React.JSX.Element {
   const t = useT();
-  const groups = useMemo(() => suggestionGroups(data.messages), [data.messages]);
   const empty = data.messages.length === 0 && data.health.pendingCount === 0;
   return (
     <section className={styles.radioSegment} data-testid="segment-radio">
@@ -84,7 +84,7 @@ export function RadioSegment({
       {empty ? (
         <div className={ui.muted}>{t("dsh.empty.radio")}</div>
       ) : (
-        <SuggestionFeed groups={groups} readonly={readonly} onChanged={onChanged} />
+        <SuggestionFeed messages={data.messages} readonly={readonly} onChanged={onChanged} />
       )}
       <CaptureBar readonly={readonly} onChanged={onChanged} />
       <p className={styles.kbdHint}>{t("dsh.radio.kbdHint")}</p>

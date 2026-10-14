@@ -188,9 +188,11 @@ export function tagUpsert(conn: Conn, input: TagUpsert, now = nowRfc3339()): Tag
   if (input.id === undefined) {
     return createTagChecked(conn, name, input, dimId, dim, now);
   }
+  // dimension 一并落库（update_tag 的 dimension_id=COALESCE 同构）——迁移维度是
+  // 背包面标签管理的正式操作（桌面 TagsManagerCard 维度迁移下拉）
   const result = conn
-    .prepare("UPDATE tags SET name=?, description=? WHERE id=?")
-    .run(name, input.description ?? "", input.id);
+    .prepare("UPDATE tags SET name=?, description=?, dimension_id=? WHERE id=?")
+    .run(name, input.description ?? "", dimId, input.id);
   if (Number(result.changes) === 0) {
     throw notFound(`标签 ${input.id} 不存在`);
   }

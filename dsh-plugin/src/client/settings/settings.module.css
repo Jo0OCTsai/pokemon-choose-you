@@ -142,6 +142,10 @@
   background: var(--dsw-alias-bg-layer-1, #ffffff);
   flex-wrap: wrap;
 }
+/* 停用中的实体行整体降透明（分类停用/agent 停用同观感，主应用 .off 同口径） */
+.entityCard[data-off="true"] {
+  opacity: 0.55;
+}
 .entitySprite {
   width: 32px;
   height: 32px;
@@ -187,6 +191,42 @@
 .dimCount {
   font-size: 11px;
   color: var(--dsw-alias-label-secondary, #57606a);
+}
+
+/* 标签管理卡：维度分组（组头 = 维度名 + 配额 + 单选标记 + 新增入口） */
+.tagDimGroup {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 12px;
+}
+.tagDimGroup:last-of-type {
+  margin-bottom: 0;
+}
+.tagDimHead {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 32px;
+  font-size: 13px;
+}
+.tagDimHead b {
+  flex: none;
+}
+/* ⚡ 徽标：已配置项目派发的标签（配置入口在 Agent 分区的「项目派发」卡片） */
+.tagChip {
+  flex: none;
+  font-size: 13px;
+  cursor: help;
+}
+
+/* agent 卡 SSH 远程执行组（host/端口/私钥/反向隧道/常驻隧道） */
+.sshGroup {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 8px 10px;
+  border-left: 3px solid var(--dsw-alias-border-l1, #e3e7ec);
 }
 
 /* 换装搜索弹层 */

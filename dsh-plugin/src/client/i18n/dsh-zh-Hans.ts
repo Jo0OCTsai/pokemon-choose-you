@@ -80,6 +80,17 @@ export default {
   },
   agents: {
     commandRequired: "agent 命令不能为空（填可执行文件名或绝对路径）",
+    argsPh: "-p {prompt}",
+    sshHostPh: "user@host",
+    presetLabel: "Agent 预设",
+    presetCustom: "自定义",
+  },
+  pet: {
+    showNotReady: "桌宠未在 5 秒内完成启动握手，可能仍在启动中",
+    clearMain: "清除",
+  },
+  tag: {
+    deleteConfirm: "删除标签「{name}」？其与待办的关联将一并清理。",
   },
   task: {
     reschedule: "改期",

@@ -1,7 +1,8 @@
 /**
  * 飞书分区页（U20 原收音机段改组）：启用轮询/轮询间隔/我的称呼（保存制，U21）+
- * 授权登录/测试连接（即时动作）+ 会话过滤三态（行内乐观写——实体 CRUD，私聊固定跟随
- * 置灰只读，A23）。
+ * 授权登录/测试连接（即时动作）+ 会话过滤管理（对齐主应用 FeishuChatFilterManager 的
+ * 数据支持子集：搜索/生效状态/偏好/类型三维前端筛选 + 汇总计数行；行内乐观写——实体
+ * CRUD，私聊固定跟随置灰只读，A23。快照新鲜度警告未做——dsh FilterItem 无快照时间字段）。
  */
 import { useState } from "react";
 import type { FilterItem } from "../../../host/domain/vocabulary-filters";
@@ -15,6 +16,11 @@ import { SectionShell } from "../SectionShell";
 import { POLL_INTERVAL_SECS } from "../optionSets";
 import styles from "../settings.module.css";
 
+/** 生效/偏好/类型三维筛选档（dsh 数据面：state 即偏好——手动=always_*，生效口径跟随手动值） */
+type EffFilter = "all" | "pull" | "filter";
+type PrefFilter = "all" | "follow" | "manual";
+type TypeFilter = "all" | "group" | "bot";
+
 export function FeishuSection({ filters, ...props }: SectionProps & { filters: FilterItem[] }): React.JSX.Element {
   const { draft, saved, onField, onSavedKeys } = props;
   const t = useT();
@@ -25,6 +31,40 @@ export function FeishuSection({ filters, ...props }: SectionProps & { filters: F
     busy: false,
     identity: null,
     failed: false,
+  });
+  const [query, setQuery] = useState("");
+  const [effFilter, setEffFilter] = useState<EffFilter>("all");
+  const [prefFilter, setPrefFilter] = useState<PrefFilter>("all");
+  const [typeFilter, setTypeFilter] = useState<TypeFilter>("all");
+
+  /** 汇总计数（全量口径：拉取=always_pull、过滤=always_filter、手动=非 follow——前端计数） */
+  const counts = {
+    total: chatList.length,
+    pulling: chatList.filter((c) => c.state === "always_pull").length,
+    filtered: chatList.filter((c) => c.state === "always_filter").length,
+    manual: chatList.filter((c) => c.state !== "follow").length,
+  };
+  const visibleChats = chatList.filter((chat) => {
+    const q = query.trim().toLowerCase();
+    if (q !== "" && !chat.chatName.toLowerCase().includes(q)) {
+      return false;
+    }
+    if (effFilter === "pull" && chat.state !== "always_pull") {
+      return false;
+    }
+    if (effFilter === "filter" && chat.state !== "always_filter") {
+      return false;
+    }
+    if (prefFilter === "follow" && chat.state !== "follow") {
+      return false;
+    }
+    if (prefFilter === "manual" && chat.state === "follow") {
+      return false;
+    }
+    if (typeFilter !== "all" && chat.chatType !== typeFilter) {
+      return false;
+    }
+    return true;
   });
 
   async function setFilter(chatId: string, state: FilterItem["state"]): Promise<void> {
@@ -111,8 +151,63 @@ export function FeishuSection({ filters, ...props }: SectionProps & { filters: F
       <div className={ui.card}>
         <h4 className={styles.cardTitle}>{t("feishu.filter.title")}</h4>
         <p className={styles.cardHint}>{t("feishu.filter.hint")}</p>
+        <p className={styles.cardHint} data-testid="filter-summary">
+          {t("feishu.filter.summary", {
+            total: counts.total,
+            pulling: counts.pulling,
+            filtered: counts.filtered,
+            manual: counts.manual,
+          })}
+        </p>
+        <div className={styles.filterRow}>
+          <TextInput
+            ariaLabel={t("feishu.filter.searchLabel")}
+            value={query}
+            onChange={setQuery}
+            placeholder={t("feishu.filter.searchPh")}
+          />
+          <Select
+            ariaLabel={t("feishu.filter.chipsLabel")}
+            value={effFilter}
+            options={[
+              { value: "all", label: t("feishu.filter.fAll", { n: counts.total }) },
+              { value: "pull", label: t("feishu.filter.fPull", { n: counts.pulling }) },
+              { value: "filter", label: t("feishu.filter.fFiltered", { n: counts.filtered }) },
+            ]}
+            onChange={(v) => setEffFilter(v as EffFilter)}
+          />
+          <Select
+            ariaLabel={t("feishu.filter.prefChipsLabel")}
+            value={prefFilter}
+            options={[
+              { value: "all", label: t("feishu.filter.pAll", { n: counts.total }) },
+              { value: "follow", label: t("feishu.filter.fFollow", { n: counts.total - counts.manual }) },
+              { value: "manual", label: t("feishu.filter.fManual", { n: counts.manual }) },
+            ]}
+            onChange={(v) => setPrefFilter(v as PrefFilter)}
+          />
+          <Select
+            ariaLabel={t("feishu.filter.typeChipsLabel")}
+            value={typeFilter}
+            options={[
+              {
+                value: "all",
+                label: t("feishu.filter.tAll", { n: counts.total }),
+              },
+              {
+                value: "group",
+                label: t("feishu.filter.tGroup", { n: chatList.filter((c) => c.chatType === "group").length }),
+              },
+              {
+                value: "bot",
+                label: t("feishu.filter.tBot", { n: chatList.filter((c) => c.chatType === "bot").length }),
+              },
+            ]}
+            onChange={(v) => setTypeFilter(v as TypeFilter)}
+          />
+        </div>
         <div className={styles.entityList}>
-          {chatList.map((chat) => (
+          {visibleChats.map((chat) => (
             <div key={chat.chatId} className={styles.filterRow} data-testid="filter-row">
               <span className={styles.filterChatName}>{chat.chatName}</span>
               {chat.chatType === "p2p" ? (

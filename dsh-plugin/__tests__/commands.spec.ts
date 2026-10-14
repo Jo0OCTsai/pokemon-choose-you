@@ -109,8 +109,8 @@ function seedMsg(
 }
 
 describe("host 命令装配面（AD §4.1.1）· 全集与任务域", () => {
-  it("命令名全集 = 59 条目（54 RPC + taskDeleteUndo 撤销面 + 任务编辑/跟进/历史 4 条），未知命令 INVALID_ARGUMENT", async () => {
-    expect(HOST_COMMAND_NAMES).toHaveLength(59);
+  it("命令名全集 = 62 条目（57 RPC + taskDeleteUndo 撤销面 + 任务编辑/跟进/历史 4 条 + 备份/导出 3 条），未知命令 INVALID_ARGUMENT", async () => {
+    expect(HOST_COMMAND_NAMES).toHaveLength(62);
     const unknown = (await call("nope")) as { ok: boolean; error: { code: string } };
     expect(unknown.ok).toBe(false);
     expect(unknown.error.code).toBe("INVALID_ARGUMENT");
@@ -322,5 +322,39 @@ describe("host 命令装配面 · 实体读域", () => {
     expect(await call("taskSearch", { query: "实体" })).toMatchObject({ ok: true, data: { tasks: [{ id: 1 }] } });
     expect(await call("todayTasks", {})).toMatchObject({ ok: true, data: { tasks: expect.any(Array) } });
     expect(await call("categoriesList", {})).toMatchObject({ ok: true, data: { categories: expect.any(Array) } });
+  });
+});
+
+describe("host 命令装配面 · 备份/导出域", () => {
+  it("backupRun/backupList/exportRun 三种 kind 信封 ok（产物落盘细节见 backup-export.spec）", async () => {
+    // 数据目录经 CHOOSE_YOU_HOME 注入临时根（默认会落用户真实 home——测试须显式指向）
+    const prevHome = process.env.CHOOSE_YOU_HOME;
+    process.env.CHOOSE_YOU_HOME = dir;
+    try {
+      seedTask("备份目标");
+      const backup = (await call("backupRun")) as { ok: boolean; data: { file: string; files: unknown[] } };
+      expect(backup.ok).toBe(true);
+      expect(backup.data.file).toMatch(/^pokemon-choose-you-\d{8}-\d{6}(-\d+)?\.db$/);
+      expect(backup.data.files).toEqual(expect.any(Array));
+      expect(await call("backupList")).toMatchObject({ ok: true, data: { backups: expect.any(Array) } });
+      expect(await call("exportRun", { kind: "json" })).toMatchObject({
+        ok: true,
+        data: { path: expect.stringContaining("pokemon-choose-you-full-") },
+      });
+      expect(await call("exportRun", { kind: "csv" })).toMatchObject({
+        ok: true,
+        data: { path: expect.stringContaining("pokemon-choose-you-tasks-") },
+      });
+      expect(await call("exportRun", { kind: "report" })).toMatchObject({
+        ok: true,
+        data: { path: expect.stringContaining("pokemon-choose-you-daily-") },
+      });
+    } finally {
+      if (prevHome === undefined) {
+        delete process.env.CHOOSE_YOU_HOME;
+      } else {
+        process.env.CHOOSE_YOU_HOME = prevHome;
+      }
+    }
   });
 });

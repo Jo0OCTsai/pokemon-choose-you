@@ -4,13 +4,17 @@
  * - RouteView：按日期分组
  * - GrassView：无截止草丛
  * - DexView：统计 + 里程碑贺词 + 筛选（全部/已捕捉/已逃走）
+ * 四段共用：顶部搜索栏（TaskSearchShell）+ 全字段编辑弹窗状态（useTaskEditor）。
  */
 import { useMemo, useState } from "react";
 import { useT } from "../i18n";
 import { adventureSnapshot, dexStats, grassTasks, routeGroups } from "../model";
 import type { PanelData } from "../model";
+import type { Task } from "../../host/domain/tasks";
 import { EmptyState, SkeletonRows, TaskList } from "./TaskList";
 import { OverdueFold } from "./OverdueFold";
+import { TaskSearchShell } from "./TaskSearchBar";
+import { TaskEditModal } from "./TaskEditModal";
 import ui from "../ui/ui.module.css";
 import styles from "./tasks.module.css";
 
@@ -21,98 +25,138 @@ interface SegmentProps {
   onChanged: () => void;
 }
 
+/** 分段层编辑弹窗状态（四任务段共用：卡片溢出菜单「编辑」→ 打开 TaskEditModal） */
+function useTaskEditor(
+  data: PanelData,
+  onChanged: () => void,
+): { openEdit: (task: Task) => void; modal: React.JSX.Element | null } {
+  const [editing, setEditing] = useState<Task | null>(null);
+  return {
+    openEdit: setEditing,
+    modal:
+      editing === null ? null : (
+        <TaskEditModal task={editing} data={data} onClose={() => setEditing(null)} onChanged={onChanged} />
+      ),
+  };
+}
+
 /** 冒险分段：进行中 + 今日到期 + 逾期折叠（fresh start） */
 export function AdventureView({ data, readonly, onOpen, onChanged }: SegmentProps): React.JSX.Element {
+  const editor = useTaskEditor(data, onChanged);
   const snapshot = useMemo(() => adventureSnapshot(data.tasks, data.today), [data.tasks, data.today]);
   const percent = snapshot.total === 0 ? 0 : Math.round((snapshot.caught / snapshot.total) * 100);
   return (
-    <section className={styles.segmentWrap} data-testid="segment-adventure">
-      {data.loading === true ? (
-        <SkeletonRows />
-      ) : (
-        <>
-          <div className={styles.adventureHeader}>
-            <span className={styles.adventureDate}>{data.today}</span>
-            <span className={styles.caught}>
-              <span className={styles.caughtLabel}>
-                CAUGHT {snapshot.caught}/{snapshot.total}
-              </span>
-              <span
-                className={styles.caughtBar}
-                role="progressbar"
-                aria-valuemin={0}
-                aria-valuemax={snapshot.total}
-                aria-valuenow={snapshot.caught}
-              >
-                <span className={styles.caughtFill} style={{ width: `${percent}%` }} />
-              </span>
-            </span>
-          </div>
-          <OverdueFold tasks={snapshot.overdueTasks} readonly={readonly} onChanged={onChanged} />
-          {snapshot.todayTasks.length === 0 && snapshot.overdueTasks.length === 0 ? (
-            <EmptyState kind="tasks" />
+    <>
+      <TaskSearchShell data={data} readonly={readonly} onOpen={onOpen} onChanged={onChanged} onEdit={editor.openEdit}>
+        <section className={styles.segmentWrap} data-testid="segment-adventure">
+          {data.loading === true ? (
+            <SkeletonRows />
           ) : (
-            <TaskList
-              tasks={snapshot.todayTasks}
-              categories={data.categories}
-              readonly={readonly}
-              onOpen={onOpen}
-              onChanged={onChanged}
-            />
+            <>
+              <div className={styles.adventureHeader}>
+                <span className={styles.adventureDate}>{data.today}</span>
+                <span className={styles.caught}>
+                  <span className={styles.caughtLabel}>
+                    CAUGHT {snapshot.caught}/{snapshot.total}
+                  </span>
+                  <span
+                    className={styles.caughtBar}
+                    role="progressbar"
+                    aria-valuemin={0}
+                    aria-valuemax={snapshot.total}
+                    aria-valuenow={snapshot.caught}
+                  >
+                    <span className={styles.caughtFill} style={{ width: `${percent}%` }} />
+                  </span>
+                </span>
+              </div>
+              <OverdueFold tasks={snapshot.overdueTasks} readonly={readonly} onChanged={onChanged} />
+              {snapshot.todayTasks.length === 0 && snapshot.overdueTasks.length === 0 ? (
+                <EmptyState kind="tasks" />
+              ) : (
+                <TaskList
+                  tasks={snapshot.todayTasks}
+                  categories={data.categories}
+                  readonly={readonly}
+                  onOpen={onOpen}
+                  onChanged={onChanged}
+                  onEdit={editor.openEdit}
+                />
+              )}
+            </>
           )}
-        </>
-      )}
-    </section>
+        </section>
+      </TaskSearchShell>
+      {editor.modal}
+    </>
   );
 }
 
 /** 路线分段：按日期分组 */
 export function RouteView({ data, readonly, onOpen, onChanged }: SegmentProps): React.JSX.Element {
+  const editor = useTaskEditor(data, onChanged);
   const groups = useMemo(() => routeGroups(data.tasks), [data.tasks]);
   const categories = data.categories;
+  let body: React.JSX.Element;
   if (data.loading === true) {
-    return <SkeletonRows rows={4} />;
-  }
-  if (groups.length === 0) {
-    return <EmptyState kind="tasks" />;
+    body = <SkeletonRows rows={4} />;
+  } else if (groups.length === 0) {
+    body = <EmptyState kind="tasks" />;
+  } else {
+    body = (
+      <section className={styles.segmentWrap} data-testid="segment-route">
+        {groups.map((group) => (
+          <div key={group.date}>
+            <h4 className={styles.routeGroupDate}>{group.date}</h4>
+            <TaskList
+              tasks={group.tasks}
+              categories={categories}
+              readonly={readonly}
+              onOpen={onOpen}
+              onChanged={onChanged}
+              onEdit={editor.openEdit}
+            />
+          </div>
+        ))}
+      </section>
+    );
   }
   return (
-    <section className={styles.segmentWrap} data-testid="segment-route">
-      {groups.map((group) => (
-        <div key={group.date}>
-          <h4 className={styles.routeGroupDate}>{group.date}</h4>
-          <TaskList
-            tasks={group.tasks}
-            categories={categories}
-            readonly={readonly}
-            onOpen={onOpen}
-            onChanged={onChanged}
-          />
-        </div>
-      ))}
-    </section>
+    <>
+      <TaskSearchShell data={data} readonly={readonly} onOpen={onOpen} onChanged={onChanged} onEdit={editor.openEdit}>
+        {body}
+      </TaskSearchShell>
+      {editor.modal}
+    </>
   );
 }
 
 /** 草丛分段：无截止的未决定项 */
 export function GrassView({ data, readonly, onOpen, onChanged }: SegmentProps): React.JSX.Element {
+  const editor = useTaskEditor(data, onChanged);
   const tasks = useMemo(() => grassTasks(data.tasks), [data.tasks]);
   return (
-    <section data-testid="segment-grass" className={styles.segmentWrap}>
-      {data.loading === true ? (
-        <SkeletonRows />
-      ) : tasks.length === 0 ? (
-        <EmptyState kind="tasks" />
-      ) : (
-        <TaskList
-          tasks={tasks}
-          categories={data.categories}
-          readonly={readonly}
-          onOpen={onOpen}
-          onChanged={onChanged}
-        />
-      )}
-    </section>
+    <>
+      <TaskSearchShell data={data} readonly={readonly} onOpen={onOpen} onChanged={onChanged} onEdit={editor.openEdit}>
+        <section data-testid="segment-grass" className={styles.segmentWrap}>
+          {data.loading === true ? (
+            <SkeletonRows />
+          ) : tasks.length === 0 ? (
+            <EmptyState kind="tasks" />
+          ) : (
+            <TaskList
+              tasks={tasks}
+              categories={data.categories}
+              readonly={readonly}
+              onOpen={onOpen}
+              onChanged={onChanged}
+              onEdit={editor.openEdit}
+            />
+          )}
+        </section>
+      </TaskSearchShell>
+      {editor.modal}
+    </>
   );
 }
 
@@ -121,41 +165,50 @@ type DexFilter = "all" | "done" | "cancelled";
 /** 图鉴分段：累计统计 + 里程碑贺词档位 + 筛选 */
 export function DexView({ data, readonly, onOpen, onChanged }: SegmentProps): React.JSX.Element {
   const t = useT();
+  const editor = useTaskEditor(data, onChanged);
   const [filter, setFilter] = useState<DexFilter>("all");
   const stats = useMemo(() => dexStats(data.tasks), [data.tasks]);
   const archived = data.tasks.filter((t0) => t0.status === "done" || t0.status === "cancelled");
   const shown = archived.filter((task) => filter === "all" || task.status === filter);
   return (
-    <section className={styles.segmentWrap} data-testid="segment-dex">
-      <div className={styles.dexStatsLine}>{t("dexStats.line", { caught: stats.caught, escaped: stats.escaped })}</div>
-      <div className={styles.dexMilestone}>
-        {t(`dexStats.milestone.${stats.milestone}`, { n: stats.milestoneParam })}
-      </div>
-      <div className={styles.dexFilters} role="group" aria-label={t("dexFilter.all")}>
-        {(["all", "done", "cancelled"] as const).map((key) => (
-          <button
-            key={key}
-            type="button"
-            className={styles.filterButton}
-            aria-pressed={filter === key}
-            onClick={() => setFilter(key)}
-          >
-            {t(`dexFilter.${key}`)}
-          </button>
-        ))}
-      </div>
-      {shown.length === 0 ? (
-        <EmptyState kind="tasks" />
-      ) : (
-        <TaskList
-          tasks={shown}
-          categories={data.categories}
-          readonly={readonly}
-          onOpen={onOpen}
-          onChanged={onChanged}
-        />
-      )}
-    </section>
+    <>
+      <TaskSearchShell data={data} readonly={readonly} onOpen={onOpen} onChanged={onChanged} onEdit={editor.openEdit}>
+        <section className={styles.segmentWrap} data-testid="segment-dex">
+          <div className={styles.dexStatsLine}>
+            {t("dexStats.line", { caught: stats.caught, escaped: stats.escaped })}
+          </div>
+          <div className={styles.dexMilestone}>
+            {t(`dexStats.milestone.${stats.milestone}`, { n: stats.milestoneParam })}
+          </div>
+          <div className={styles.dexFilters} role="group" aria-label={t("dexFilter.all")}>
+            {(["all", "done", "cancelled"] as const).map((key) => (
+              <button
+                key={key}
+                type="button"
+                className={styles.filterButton}
+                aria-pressed={filter === key}
+                onClick={() => setFilter(key)}
+              >
+                {t(`dexFilter.${key}`)}
+              </button>
+            ))}
+          </div>
+          {shown.length === 0 ? (
+            <EmptyState kind="tasks" />
+          ) : (
+            <TaskList
+              tasks={shown}
+              categories={data.categories}
+              readonly={readonly}
+              onOpen={onOpen}
+              onChanged={onChanged}
+              onEdit={editor.openEdit}
+            />
+          )}
+        </section>
+      </TaskSearchShell>
+      {editor.modal}
+    </>
   );
 }
 

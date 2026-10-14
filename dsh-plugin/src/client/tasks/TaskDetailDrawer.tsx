@@ -1,15 +1,17 @@
 /**
  * 任务详情抽屉（UIUX §3.1）：FollowupStream + DispatchTimeline + DispatchOps +
- * ReleaseGuard 四件（各自文件）；focus trap + Esc 关闭 + 焦点回归（a11y 断言②）。
+ * ReleaseGuard 四件（各自文件）+ 操作历史段（taskHistory 倒序只读）+ 底部「编辑」
+ * 入口（TaskEditModal，桌面同款）；focus trap + Esc 关闭 + 焦点回归（a11y 断言②）。
  * 跟进流与该任务的 agent 时间线经 taskDetail 懒载（实体读域按需命令）——拉回后以
  * overlay PanelData 下传，FollowupStream/DispatchTimeline 契约不变；旧 host 无此
- * 命令或加载中保持快照面（空跟进/全局账本过滤）。
+ * 命令或加载中保持快照面（空跟进/全局账本过滤）。跟进写命令成功后重拉 taskDetail
+ * （reload）回灌流。
  */
 import { useEffect, useMemo, useState } from "react";
 import type { Category } from "../../host/domain/vocabulary";
-import type { Task } from "../../host/domain/tasks";
+import type { Task, TaskLog } from "../../host/domain/tasks";
 import { useClient } from "../clientContext";
-import { useT } from "../i18n";
+import { flattenKeys, MESSAGES, useI18n, useT } from "../i18n";
 import type { PanelData } from "../model";
 import type { AgentSessionEntry, HostClient, TaskDetail } from "../rpc";
 import { useFocusTrap } from "../ui/useFocusTrap";
@@ -18,6 +20,7 @@ import { DispatchOps } from "./DispatchOps";
 import { DispatchTimeline } from "./DispatchTimeline";
 import { FollowupStream } from "./FollowupStream";
 import { ReleaseGuard } from "./ReleaseGuard";
+import { TaskEditModal } from "./TaskEditModal";
 import styles from "./tasks.module.css";
 
 export function TaskDetailDrawer({
@@ -38,7 +41,9 @@ export function TaskDetailDrawer({
   const readonly = data.dbStatus?.mode === "ro";
   const ref = useFocusTrapTarget(onClose);
   const category = categories.find((c) => c.id === task.categoryId);
-  const detail = useTaskDetail(client, task.id);
+  const [detail, reloadDetail] = useTaskDetail(client, task.id);
+  const logs = useTaskHistory(client, task.id);
+  const [editing, setEditing] = useState(false);
   const overlay = useMemo<PanelData>(
     () => (detail === null ? data : overlayDetail(data, task.id, detail)),
     [data, detail, task.id],
@@ -71,19 +76,66 @@ export function TaskDetailDrawer({
               {Math.floor(task.focusSeconds / 60)} min
             </div>
           </div>
-          <FollowupStream data={overlay} taskId={task.id} />
+          <FollowupStream data={overlay} taskId={task.id} onRefresh={reloadDetail} readonly={readonly} />
           <DispatchTimeline data={overlay} taskId={task.id} />
           <DispatchOps task={task} data={data} readonly={readonly} onChanged={onChanged} />
           <ReleaseGuard task={task} readonly={readonly} onChanged={onChanged} />
+          <HistorySection logs={logs} />
+          <div>
+            <button type="button" className={ui.button} disabled={readonly} onClick={() => setEditing(true)}>
+              ✎ {t("detail.edit")}
+            </button>
+          </div>
+          {/* 编辑弹层在抽屉容器内渲染（与 DispatchConfirm 同位：overlay z-index 低于抽屉面板） */}
+          {editing && <TaskEditModal task={task} data={data} onClose={() => setEditing(false)} onChanged={onChanged} />}
         </div>
       </aside>
     </>
   );
 }
 
-/** taskDetail 懒载（失败/旧 host 无命令 → null，保持快照面不阻塞抽屉） */
-function useTaskDetail(client: HostClient, taskId: number): TaskDetail | null {
+/** 操作历史段（对照桌面：时间 + 动作文案 + 字段旧→新；动作文案 log.* 键缺失回退原文） */
+function HistorySection({ logs }: { logs: TaskLog[] }): React.JSX.Element {
+  const t = useT();
+  const { locale } = useI18n();
+  // 键集一次展平（te() 等价件：缺键回退原值，不在运行时报红）
+  const keys = useMemo(() => flattenKeys(MESSAGES[locale]), [locale]);
+  const tx = (key: string, fallback: string): string => (keys.has(key) ? t(key) : fallback);
+  /** 字段值展示：null/空串 → —；status 值走翻译 */
+  const valueText = (field: string, value: string | null): string => {
+    if (value === null || value === "") {
+      return "—";
+    }
+    return field === "status" ? tx(`status.${value}`, value) : value;
+  };
+  return (
+    <div data-testid="task-history">
+      <h4 className={styles.drawerSectionTitle}>{t("edit.history")}</h4>
+      {logs.length === 0 ? (
+        <div className={styles.followupEmpty}>{t("edit.noHistory")}</div>
+      ) : (
+        logs.map((log) => (
+          <div key={log.id} className={styles.historyRow}>
+            <div className={styles.historyMeta}>
+              <span className={styles.historyOrigin}>{log.origin}</span>
+              <span>{log.createdAt.slice(0, 16).replace("T", " ")}</span>
+            </div>
+            <div className={styles.historyText}>
+              {tx(`log.${log.action}`, log.action)}
+              {log.field !== "" &&
+                ` · ${log.field}: ${valueText(log.field, log.oldValue)} → ${valueText(log.field, log.newValue)}`}
+            </div>
+          </div>
+        ))
+      )}
+    </div>
+  );
+}
+
+/** taskDetail 懒载（失败/旧 host 无命令 → null，保持快照面不阻塞抽屉；reload 供跟进写后回读） */
+function useTaskDetail(client: HostClient, taskId: number): [TaskDetail | null, () => void] {
   const [detail, setDetail] = useState<TaskDetail | null>(null);
+  const [nonce, setNonce] = useState(0);
   useEffect(() => {
     setDetail(null);
     let alive = true;
@@ -95,8 +147,25 @@ function useTaskDetail(client: HostClient, taskId: number): TaskDetail | null {
     return () => {
       alive = false;
     };
+  }, [client, taskId, nonce]);
+  return [detail, () => setNonce((n) => n + 1)];
+}
+
+/** 操作历史懒载（进抽屉时 taskHistory 拉取一次；失败/旧 host → 空，不阻塞） */
+function useTaskHistory(client: HostClient, taskId: number): TaskLog[] {
+  const [logs, setLogs] = useState<TaskLog[]>([]);
+  useEffect(() => {
+    let alive = true;
+    void client.taskHistory({ taskId }).then((result) => {
+      if (alive && result.ok) {
+        setLogs(result.data.logs);
+      }
+    });
+    return () => {
+      alive = false;
+    };
   }, [client, taskId]);
-  return detail;
+  return logs;
 }
 
 /** 快照面 + 任务详情 overlay（跟进灌入 followups；时间线按 id 去重并入 sessions） */

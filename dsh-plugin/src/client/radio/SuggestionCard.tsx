@@ -1,9 +1,10 @@
 /**
  * 建议卡（内联展开，U2）：折叠态一行（转写文本 + 置信文字档位标）；展开态 = LCD 全文 +
  * AI 建议盒（标题/分类/截止/标签提议/理由）+ 操作条（四动作随建议类型：todo=◎捕捉/
- * ✕逃走、update=◎应用更新、followup=自动并入说明、none 无操作；✕ 逃走展开 6 原因码
- * 菜单；新标签提议「＋」接受态——接受建议时创建）。置信三档：边框形色 + 行内文字档位
- * 标（高/中/低，非颜色冗余——a11y 断言③）。
+ * ✕逃走、update=◎应用更新、followup=自动并入说明；none 与低置信 todo 另有 ⚡强制捕捉
+ * ——桌面 F 键语义，判定中/已处理不出；✕ 逃走展开 6 原因码菜单；新标签提议「＋」接受
+ * 态——接受建议时创建）。置信三档：边框形色 + 行内文字档位标（高/中/低，非颜色冗余
+ * ——a11y 断言③）。
  */
 import { useState } from "react";
 import { useClient } from "../clientContext";
@@ -20,7 +21,7 @@ function isJudging(aiStatus: RadioMessage["aiStatus"]): boolean {
 
 /** 建议类型状态标签键 */
 function statusLabelKey(aiStatus: RadioMessage["aiStatus"]): string {
-  if (aiStatus === "update" || aiStatus === "followup" || aiStatus === "none") {
+  if (aiStatus === "update" || aiStatus === "followup" || aiStatus === "none" || aiStatus === "error") {
     return `im.status.${aiStatus}`;
   }
   return "im.status.todo";
@@ -155,6 +156,12 @@ function ExpandedSuggestion({
   const canCatch = message.aiStatus === "todo";
   const canApply = message.aiStatus === "update";
   const canEscape = !judging && message.aiStatus !== "none" && message.aiStatus !== "followup";
+  // 强制捕捉（桌面 F 键语义）：无信号消息 / 低置信 todo 建议——AI 不确定时人工拍板；
+  // update/followup 不需要，判定中/已处理不加
+  const canForce =
+    message.reviewStatus === "pending" &&
+    !judging &&
+    (message.aiStatus === "none" || (message.aiStatus === "todo" && (message.confidence ?? "low") === "low"));
   return (
     <div className={styles.suggestionExpanded}>
       <div className={styles.lcdText}>
@@ -196,6 +203,16 @@ function ExpandedSuggestion({
         {canEscape && (
           <button type="button" className={ui.button} disabled={readonly} onClick={() => setEscapeOpen((v) => !v)}>
             {t("im.release")}
+          </button>
+        )}
+        {canForce && (
+          <button
+            type="button"
+            className={ui.button}
+            disabled={readonly}
+            onClick={() => void run(() => client.forceCapture({ messageId: message.messageId }))}
+          >
+            {t("im.force")}
           </button>
         )}
       </div>

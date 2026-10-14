@@ -68,6 +68,53 @@
   flex-direction: column;
   gap: 8px;
 }
+/* 工具栏（桌面 im-toolbar parity：电波搜索 + ⏱/📡 视图切换） */
+.toolbar {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.searchInput {
+  flex: 1;
+  min-width: 160px;
+  min-height: 32px;
+  padding: 4px 10px;
+  border-radius: 8px;
+  border: 1px solid var(--dsw-alias-border-l2, #d0d7de);
+  background: var(--dsw-alias-bg-layer-1, #ffffff);
+  color: inherit;
+  font-size: 12.5px;
+}
+.searchInput:focus-visible {
+  outline: 2px solid var(--dsw-alias-state-business-primary, #316dca);
+  outline-offset: 1px;
+}
+/* ⏱按状态 / 📡按频道 互切（aria-pressed 态高亮当前模式） */
+.viewToggle {
+  display: inline-flex;
+  border: 1px solid var(--dsw-alias-border-l2, #d0d7de);
+  border-radius: 8px;
+  overflow: hidden;
+  background: var(--dsw-alias-bg-layer-1, #ffffff);
+}
+.viewToggle button {
+  min-height: 32px;
+  padding: 4px 10px;
+  border: none;
+  background: transparent;
+  color: var(--dsw-alias-label-secondary, #57606a);
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.viewToggle button[aria-pressed="true"] {
+  background: var(--pcy-conf-mid-soft, #fff3d6);
+  color: var(--pcy-warn-ink, #8a5e06);
+}
+.viewToggle button:focus-visible {
+  outline: 2px solid var(--dsw-alias-state-business-primary, #316dca);
+  outline-offset: -2px;
+}
 .feedGroupTitle {
   display: flex;
   align-items: center;
@@ -77,6 +124,12 @@
   letter-spacing: 0.4px;
   color: var(--dsw-alias-label-secondary, #57606a);
   margin: 8px 0 2px;
+}
+/* 组头动作钮（一键清空——叠在 ui.button 上收小字重边距） */
+.headAction {
+  font-size: 11px;
+  font-weight: 700;
+  padding: 2px 8px;
 }
 .groupCount {
   display: inline-block;
@@ -88,6 +141,11 @@
   font-size: 10.5px;
   font-weight: 700;
   line-height: 18px;
+}
+/* 频道组头「{n} 待处理」热点态：组内有待处理信号时高亮（桌面 count-hot parity） */
+.groupCount[data-hot="true"] {
+  background: var(--pcy-conf-mid-soft, #fff3d6);
+  color: var(--pcy-warn-ink, #8a5e06);
 }
 .suggestionCard {
   border: 1px solid var(--dsw-alias-border-l1, #e3e7ec);
@@ -257,7 +315,7 @@
   align-items: center;
 }
 
-/* BatchBar（选中 ≥1 浮现于建议流底部，U13；主色描边强调） */
+/* BatchBar（随待处理组常驻，桌面批量条 parity；主色描边强调） */
 .batchBar {
   position: sticky;
   bottom: 0;
@@ -271,6 +329,16 @@
   background: var(--dsw-alias-bg-layer-1, #ffffff);
   font-size: 13px;
   font-weight: 700;
+}
+/* 全选待处理勾选行（label 整体为命中区，≥32px） */
+.batchCheck {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  min-height: 32px;
+  font-size: 12px;
+  cursor: pointer;
+  user-select: none;
 }
 
 /* 判定失败组头行（组名 + 整组操作按钮） */

@@ -22,6 +22,13 @@ async function flush(): Promise<void> {
   });
 }
 
+/** 等 300ms 防抖窗 + mock 异步链（真实定时器——本文件未启用假时钟） */
+async function settleSearch(): Promise<void> {
+  await act(async () => {
+    await new Promise((resolve) => setTimeout(resolve, 340));
+  });
+}
+
 function renderWithClient(node: React.ReactNode, host: MockHost = mockHost(), locale: PanelData["locale"] = "zh-Hans") {
   const onChange = vi.fn();
   render(
@@ -227,5 +234,56 @@ describe("四分段派生", () => {
     fireEvent.click(screen.getByRole("button", { name: "已逃走" }));
     expect(screen.getByText(/No\.6/)).toBeTruthy();
     expect(screen.queryByText(/No\.2/)).toBeNull();
+  });
+});
+
+describe("任务搜索栏（四分段共享，对照 TaskTab 搜索）", () => {
+  const tasks = [
+    makeTask({ id: 5, status: "inbox", title: "找皮卡丘" }),
+    makeTask({ id: 6, status: "inbox", title: "写周报" }),
+  ];
+  const data = makeData({ tasks });
+
+  /** host 与 PanelData 同源任务集（taskSearch 在 host 内存态里匹配） */
+  function renderGrass() {
+    const host = mockHost({ tasks });
+    render(
+      <ClientProvider client={host}>
+        <I18nProvider locale="zh-Hans">
+          <GrassView data={data} readonly={false} onOpen={() => undefined} onChanged={() => undefined} />
+        </I18nProvider>
+      </ClientProvider>,
+    );
+    return host;
+  }
+
+  it("输入防抖 300ms → taskSearch → 结果渲染 + 常规内容隐藏；清空恢复原视图", async () => {
+    const host = renderGrass();
+    expect(screen.getByTestId("segment-grass")).toBeTruthy();
+    fireEvent.change(screen.getByPlaceholderText("🔍 搜索待办（标题 / 备注 / 标签 / 跟进记录）"), {
+      target: { value: "皮卡丘" },
+    });
+    await settleSearch();
+    expect(host.calls.find((c) => c.command === "taskSearch")?.params).toEqual({ query: "皮卡丘" });
+    expect(screen.getByText("命中 1 条")).toBeTruthy();
+    expect(screen.getByText(/No\.5/)).toBeTruthy();
+    expect(screen.queryByText(/No\.6/)).toBeNull();
+    // 搜索态隐藏该视图常规内容
+    expect(screen.queryByTestId("segment-grass")).toBeNull();
+    // 清空 → 恢复原视图
+    fireEvent.change(screen.getByPlaceholderText("🔍 搜索待办（标题 / 备注 / 标签 / 跟进记录）"), {
+      target: { value: "" },
+    });
+    expect(screen.getByTestId("segment-grass")).toBeTruthy();
+    expect(screen.queryByText(/No\.5/)).toBeTruthy();
+  });
+
+  it("无命中 → 空态（search.empty）", async () => {
+    renderGrass();
+    fireEvent.change(screen.getByPlaceholderText("🔍 搜索待办（标题 / 备注 / 标签 / 跟进记录）"), {
+      target: { value: "不存在的词" },
+    });
+    await settleSearch();
+    expect(screen.getByText("没有找到匹配的宝可梦。")).toBeTruthy();
   });
 });

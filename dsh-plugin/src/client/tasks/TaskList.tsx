@@ -15,12 +15,15 @@ export function TaskList({
   readonly,
   onOpen,
   onChanged,
+  onEdit,
 }: {
   tasks: Task[];
   categories: Category[];
   readonly: boolean;
   onOpen: (taskId: number) => void;
   onChanged: () => void;
+  /** 溢出菜单「编辑」入口（缺省 = 不渲染编辑项，如只读快照面） */
+  onEdit?: (task: Task) => void;
 }): React.JSX.Element {
   return (
     <div className={styles.segmentWrap} role="list">
@@ -32,6 +35,7 @@ export function TaskList({
           readonly={readonly}
           onOpen={() => onOpen(task.id)}
           onChanged={onChanged}
+          onEdit={onEdit !== undefined ? () => onEdit(task) : undefined}
         />
       ))}
     </div>

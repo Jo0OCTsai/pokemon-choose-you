@@ -169,11 +169,19 @@ export interface BatchReviewOutcome {
   error: string | null;
 }
 
-// ---- 54 个 client→host RPC 命令（AD §4.1.1 表逐行 + 实体读域 5 条） ----
+/** 备份条目（backupList/backupRun 载荷；与桌面 BackupInfo 同构） */
+export interface BackupInfo {
+  file: string;
+  size: number;
+  /** 备份时间（本地时区 RFC3339，取文件修改时间） */
+  createdAt: string;
+}
+
+// ---- 57 个 client→host RPC 命令（AD §4.1.1 表逐行 + 实体读域 5 条 + 备份/导出域 3 条） ----
 
 /**
- * HostClient：客户端半边消费的命令面。54 命令（49 Phase A + 5 实体读）+ 放生撤销
- * （UIUX 触发入口表 host:taskDeleteUndo——墓碑审计恢复，AD §4.1.1 归并口径的显式
+ * HostClient：客户端半边消费的命令面。57 命令（49 Phase A + 5 实体读 + 3 备份/导出）+
+ * 放生撤销（UIUX 触发入口表 host:taskDeleteUndo——墓碑审计恢复，AD §4.1.1 归并口径的显式
  * 撤销面）+ pageOpen 推送订阅。
  */
 export interface HostClient {
@@ -294,6 +302,13 @@ export interface HostClient {
   categoriesList(): Promise<PkyResult<{ categories: Category[] }>>;
   // 专注
   pomoTryFive(params?: { taskId?: number }): Promise<PkyResult<{ ok: boolean }>>;
+  // 备份/导出（手动快照 + 滚动保留 + 三种导出；恢复/导入不在命令面）
+  /** 立即备份：返回新文件名与滚动保留后的列表 */
+  backupRun(): Promise<PkyResult<{ file: string; files: BackupInfo[] }>>;
+  /** 备份列表（时间倒序；目录不存在为空列表） */
+  backupList(): Promise<PkyResult<{ backups: BackupInfo[] }>>;
+  /** 数据导出：全量 JSON / 任务 CSV / 今日日报，返回写入的完整路径 */
+  exportRun(params: { kind: "json" | "csv" | "report" }): Promise<PkyResult<{ path: string }>>;
   // host→客户端推送：打开插件页面（可选目标分段锚点）
   onPageOpen(listener: (event: PageOpenEvent) => void): () => void;
 }

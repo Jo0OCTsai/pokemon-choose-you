@@ -82,6 +82,17 @@ export default {
   },
   agents: {
     commandRequired: "Agent command must not be empty (executable name or absolute path)",
+    argsPh: "-p {prompt}",
+    sshHostPh: "user@host",
+    presetLabel: "Agent preset",
+    presetCustom: "Custom",
+  },
+  pet: {
+    showNotReady: "The pet didn't finish its startup handshake within 5 seconds — it may still be starting",
+    clearMain: "Clear",
+  },
+  tag: {
+    deleteConfirm: 'Delete tag "{name}"? Its task links will be removed as well.',
   },
   task: {
     reschedule: "Reschedule",

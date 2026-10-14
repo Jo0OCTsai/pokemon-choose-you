@@ -117,6 +117,7 @@ export function SettingsSegment({
             categories={data.categories}
             dimensions={taxonomy.dimensions}
             tags={taxonomy.tags}
+            routes={data.routes}
             pokemonSearch={data.pokemonSearch}
             onChanged={onChanged}
           />

@@ -22,6 +22,8 @@ import { settingsCommands, categoryCommands, vocabularyCommands, agentCommands, 
 import { promptCommands } from "./mockPrompts";
 import { diagCommands, logCommands, miscCommands } from "./mockMisc";
 import { readCommands } from "./mockRead";
+import { backupCommands } from "./mockBackup";
+import type { BackupInfo } from "./rpcTypes";
 
 /** mockHost 可配置的内存态（组件测试的夹具面） */
 export interface MockHostState {
@@ -46,6 +48,8 @@ export interface MockHostState {
   followups: Record<number, FollowupNote[]>;
   /** taskId → 操作日志（taskHistory 消费；缺省空） */
   taskLogs: Record<number, import("../host/domain/tasks").TaskLog[]>;
+  /** 备份列表（backupList/backupRun 消费；缺省空） */
+  backups: BackupInfo[];
 }
 
 /** 调用记录（断言命令面与参数） */
@@ -105,6 +109,7 @@ function defaultState(): MockHostState {
     sessions: [],
     followups: {},
     taskLogs: {},
+    backups: [],
   };
 }
 
@@ -179,6 +184,7 @@ export function mockHost(initial: Partial<MockHostState> = {}): MockHost {
     ...logCommands(ctx),
     ...miscCommands(ctx),
     ...readCommands(ctx),
+    ...backupCommands(ctx),
     onPageOpen(listener: (event: PageOpenEvent) => void) {
       pageOpenListeners.add(listener);
       return () => {

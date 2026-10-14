@@ -122,11 +122,15 @@ describe("标签", () => {
     expect(() => tagUpsert(db.conn, { name: "停用维度", dimension: "person" })).toThrowError(/已停用/);
   });
 
-  it("更新走 id（改名/改描述）；不存在 NOT_FOUND", () => {
+  it("更新走 id（改名/改描述/迁移维度落库）；不存在 NOT_FOUND", () => {
     const tag = tagUpsert(db.conn, { name: "原", dimension: "topic" });
     const updated = tagUpsert(db.conn, { id: tag.id, name: "新", dimension: "topic", description: "描述" });
     expect(updated.name).toBe("新");
     expect(updated.description).toBe("描述");
+    // 迁移维度（update_tag 的 dimension_id=COALESCE 同构——背包面标签管理正式操作）
+    const moved = tagUpsert(db.conn, { id: tag.id, name: "新", dimension: "project" });
+    expect(moved.dimension).toBe("project");
+    expect(() => tagUpsert(db.conn, { id: tag.id, name: "x", dimension: "nope" })).toThrowError(/未知标签维度/);
     expect(() => tagUpsert(db.conn, { id: 999, name: "x", dimension: "topic" })).toThrowError(/不存在/);
   });
 });

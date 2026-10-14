@@ -21,9 +21,27 @@ import type { DispatchRoute } from "../../rpc";
 import { SectionShell } from "../SectionShell";
 import styles from "../settings.module.css";
 
-function blankAgent(id: string): AgentConfig {
-  return { id, name: "", command: "", args: "", historyArgs: "", workdir: "", timeoutSecs: 600, enabled: true };
-}
+/** 添加预设（主应用 AGENT_PRESETS 同值：{prompt} 占位符由执行层替换，见 src/stores/agents.ts） */
+const AGENT_PRESETS: Record<string, Pick<AgentConfig, "name" | "command" | "args" | "historyArgs">> = {
+  claude: {
+    name: "Claude Code",
+    command: "claude",
+    args: "-p {prompt} --allowedTools Bash(pk:*) --output-format json",
+    historyArgs: "--resume",
+  },
+  opencode: { name: "OpenCode", command: "opencode", args: "run {prompt}", historyArgs: "" },
+  pi: { name: "pi", command: "pi", args: "-p {prompt}", historyArgs: "-r" },
+  dsh: { name: "DeepSeek Harness", command: "dsh", args: "--profile headless", historyArgs: "" },
+  custom: { name: "", command: "", args: "{prompt}", historyArgs: "" },
+};
+
+const PRESET_OPTIONS = (t: (key: string) => string): Array<{ value: string; label: string }> => [
+  { value: "claude", label: "Claude Code" },
+  { value: "opencode", label: "OpenCode" },
+  { value: "pi", label: "pi" },
+  { value: "dsh", label: "DeepSeek Harness" },
+  { value: "custom", label: t("dsh.agents.presetCustom") },
+];
 
 export function AgentSection({
   agents,
@@ -40,6 +58,7 @@ export function AgentSection({
   const t = useT();
   const client = useClient();
   const [agentList, setAgentList] = useState(agents);
+  const [agentPreset, setAgentPreset] = useState("claude");
   const [specs, setSpecs] = useState<PromptSpecInfo[]>(promptSpecs);
   useEffect(() => {
     setAgentList(agents);
@@ -58,6 +77,40 @@ export function AgentSection({
     { value: "", label: t("ai.primaryNone") },
     ...agentList.map((a) => ({ value: a.id, label: a.name })),
   ];
+
+  /** 预设名已被占用时加序号后缀（同类型配多个时列表仍可辨——主应用 dedupeName 同口径） */
+  function dedupeName(base: string): string {
+    if (base === "" || !agentList.some((a) => a.name === base)) {
+      return base;
+    }
+    let n = 2;
+    while (agentList.some((a) => a.name === `${base} ${n}`)) {
+      n++;
+    }
+    return `${base} ${n}`;
+  }
+
+  /** 按预设新增 agent（选中预设预填 name/command/args/historyArgs；未知键回落 custom） */
+  function addAgent(presetKey: string): void {
+    const preset = AGENT_PRESETS[presetKey] ?? AGENT_PRESETS.custom;
+    const id =
+      typeof crypto !== "undefined" && "randomUUID" in crypto
+        ? crypto.randomUUID()
+        : `agent-${Date.now().toString(36)}`;
+    setAgentList((list) => [
+      ...list,
+      {
+        id,
+        name: dedupeName(preset.name),
+        command: preset.command,
+        args: preset.args,
+        historyArgs: preset.historyArgs,
+        workdir: "",
+        timeoutSecs: 120,
+        enabled: true,
+      },
+    ]);
+  }
 
   return (
     <SectionShell
@@ -80,15 +133,17 @@ export function AgentSection({
             />
           ))}
         </div>
-        <button
-          type="button"
-          className={ui.button}
-          onClick={() => {
-            setAgentList((list) => [...list, blankAgent(`agent-${list.length + 1}`)]);
-          }}
-        >
-          {t("ai.add")}
-        </button>
+        <div className={styles.filterRow}>
+          <Select
+            ariaLabel={t("dsh.agents.presetLabel")}
+            value={agentPreset}
+            options={PRESET_OPTIONS(t)}
+            onChange={setAgentPreset}
+          />
+          <button type="button" className={ui.button} onClick={() => addAgent(agentPreset)}>
+            {t("ai.add")}
+          </button>
+        </div>
       </div>
       <div className={ui.card}>
         <h4 className={styles.cardTitle}>{t("dispatchCfg.title")}</h4>

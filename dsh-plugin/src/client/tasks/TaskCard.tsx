@@ -26,6 +26,7 @@ export function TaskCard({
   readonly,
   onOpen,
   onChanged,
+  onEdit,
 }: {
   task: Task;
   category?: Category;
@@ -33,6 +34,8 @@ export function TaskCard({
   readonly: boolean;
   onOpen: () => void;
   onChanged: () => void;
+  /** 溢出菜单「编辑」入口（缺省 = 不渲染编辑项） */
+  onEdit?: (task: Task) => void;
 }): React.JSX.Element {
   const t = useT();
   const [releaseOpen, setReleaseOpen] = useState(false);
@@ -70,7 +73,13 @@ export function TaskCard({
           <TaskMeta task={task} category={category} />
         </span>
         {!readonly && quickOps}
-        <OverflowMenu task={task} readonly={readonly} onChanged={onChanged} onRelease={() => setReleaseOpen(true)} />
+        <OverflowMenu
+          task={task}
+          readonly={readonly}
+          onChanged={onChanged}
+          onRelease={() => setReleaseOpen(true)}
+          onEdit={onEdit}
+        />
       </div>
       <TaskReleaseModal
         task={task}
@@ -82,17 +91,19 @@ export function TaskCard({
   );
 }
 
-/** 卡尾「…」溢出菜单（U12：逃走[6 原因码]/改期/放生——承接主应用右键语义） */
+/** 卡尾「…」溢出菜单（U12：编辑/逃走[6 原因码]/改期/放生——承接主应用右键语义） */
 function OverflowMenu({
   task,
   readonly,
   onChanged,
   onRelease,
+  onEdit,
 }: {
   task: Task;
   readonly: boolean;
   onChanged: () => void;
   onRelease: () => void;
+  onEdit?: (task: Task) => void;
 }): React.JSX.Element {
   const t = useT();
   const [open, setOpen] = useState(false);
@@ -121,13 +132,14 @@ function OverflowMenu({
           close={() => setOpen(false)}
           onChanged={onChanged}
           onRelease={onRelease}
+          onEdit={onEdit}
         />
       )}
     </span>
   );
 }
 
-/** 菜单内容（逃走子菜单 6 原因码 / 改期日期 / 放生入口由卡片层弹层承接） */
+/** 菜单内容（编辑项 / 逃走子菜单 6 原因码 / 改期日期 / 放生入口由卡片层弹层承接） */
 function OverflowMenuItems({
   task,
   escapeOpen,
@@ -135,6 +147,7 @@ function OverflowMenuItems({
   close,
   onChanged,
   onRelease,
+  onEdit,
 }: {
   task: Task;
   escapeOpen: boolean;
@@ -142,6 +155,7 @@ function OverflowMenuItems({
   close: () => void;
   onChanged: () => void;
   onRelease: () => void;
+  onEdit?: (task: Task) => void;
 }): React.JSX.Element {
   const t = useT();
   const client = useClient();
@@ -167,6 +181,18 @@ function OverflowMenuItems({
   }
   return (
     <div className={styles.overflowMenu} role="menu" onClick={(event) => event.stopPropagation()}>
+      {onEdit !== undefined && (
+        <button
+          type="button"
+          role="menuitem"
+          onClick={() => {
+            close();
+            onEdit(task);
+          }}
+        >
+          ✎ {t("entry.edit")}
+        </button>
+      )}
       <button type="button" role="menuitem" onClick={() => setEscapeOpen(true)}>
         {t("entry.escape")}
       </button>
