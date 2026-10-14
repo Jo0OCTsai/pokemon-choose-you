@@ -1,5 +1,6 @@
 /**
- * 表单原语：Toggle（开关，32px 命中区）/ Select / TextInput / ScopeBadge（作用于
+ * 表单原语：Toggle（开关，32px 命中区；整行形态——label 左、track 右，对齐主应用
+ * SettingRow 与 Select 的 .row 布局）/ Select / TextInput / ScopeBadge（作用于
  * 主应用×，U20）/ StatusDot（状态点 + 文字状态，非颜色冗余 a11y 断言③）。
  */
 import type { ReactNode } from "react";
@@ -29,11 +30,13 @@ export function Toggle({
       disabled={disabled}
       onClick={() => onChange(!checked)}
     >
+      <span className={styles.toggleLabel}>
+        {label}
+        {badge !== undefined && <span className={styles.scopeBadge}>{badge}</span>}
+      </span>
       <span className={styles.toggleTrack} aria-hidden="true">
         <span className={styles.toggleThumb} />
       </span>
-      <span>{label}</span>
-      {badge !== undefined && <span className={styles.scopeBadge}>{badge}</span>}
     </button>
   );
 }

@@ -9,13 +9,22 @@ import ui from "../../ui/ui.module.css";
 import type { SectionProps } from "../sectionProps";
 import { DISPLAY_KEYS } from "../sectionKeys";
 import { SectionShell } from "../SectionShell";
+import { DATE_FORMATS } from "../optionSets";
 import styles from "../settings.module.css";
 
+/** 日期格式选项示例（固定参考日 2026-10-11，主应用 fmtDatePreview 同构） */
+const DATE_FORMAT_LABELS: Record<(typeof DATE_FORMATS)[number], string> = {
+  "YYYY-MM-DD": "2026-10-11",
+  "MM/DD/YYYY": "10/11/2026",
+  "DD/MM/YYYY": "11/10/2026",
+};
+
 function previewDateTime(draft: Record<string, string>): string {
-  const date =
-    draft["date_format"] === "MM-DD" ? "10-11" : draft["date_format"] === "zh-CN" ? "10月11日" : "2026-10-11";
+  const fmt = (DATE_FORMATS as readonly string[]).includes(draft["date_format"])
+    ? (draft["date_format"] as (typeof DATE_FORMATS)[number])
+    : "YYYY-MM-DD";
   const time = draft["time_format"] === "12h" ? "4:24 PM" : "16:24";
-  return `${date} ${time}`;
+  return `${DATE_FORMAT_LABELS[fmt]} ${time}`;
 }
 
 export function DisplaySection({
@@ -51,11 +60,7 @@ export function DisplaySection({
         <Select
           label={t("display.date")}
           value={draft["date_format"]}
-          options={[
-            { value: "YYYY-MM-DD", label: "2026-10-11" },
-            { value: "MM-DD", label: "10-11" },
-            { value: "zh-CN", label: "10月11日" },
-          ]}
+          options={DATE_FORMATS.map((f) => ({ value: f, label: DATE_FORMAT_LABELS[f] }))}
           onChange={(v) => onField("date_format", v)}
         />
         <Select

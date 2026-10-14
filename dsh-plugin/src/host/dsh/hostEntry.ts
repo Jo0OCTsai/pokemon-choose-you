@@ -13,7 +13,6 @@
  * 2026-10-13 迁移，原 connection.rpc.handle 自定义通道在 rc.2 对第三方不可用）；
  * 服务注册即生效，headless 组合同样安全（无 connection 依赖）。
  */
-import { spawn } from "node:child_process";
 import { existsSync, statSync } from "node:fs";
 import { homedir } from "node:os";
 import { dirname, join } from "node:path";
@@ -24,6 +23,7 @@ import type { Context } from "@deepseek-ai/cordis";
 import type {} from "@deepseek-ai/cordis-plugin-timer"; // 类型面：ctx.interval/ctx.timeout 增强
 import type {} from "@deepseek-ai/dsh-client-connection"; // 类型面：Context.connection 增强
 import { createPlugin, probeNodeSqlite, unsupportedSqliteError, type Plugin } from "../index";
+import { electronSpawner } from "../pet/supervisor";
 import { dbFileFrom } from "../storage/paths";
 import { registerEmbeddedSchemas } from "../storage/migrate";
 import schemaRaw from "../storage/schema-raw";
@@ -193,23 +193,7 @@ function detectPetSpawner(): HelperSpawner | undefined {
   if (electronBin === undefined) {
     return undefined;
   }
-  return {
-    spawn(args) {
-      const child = spawn(electronBin, [helperDir, ...args], {
-        stdio: ["pipe", "pipe", "pipe"],
-        env: { ...process.env },
-      });
-      return {
-        pid: child.pid,
-        stdin: child.stdin,
-        stdout: child.stdout,
-        stderr: child.stderr,
-        on: (event, cb) => child.on(event, cb),
-        once: (event, cb) => child.once(event, cb),
-        kill: (signal) => child.kill(signal),
-      };
-    },
-  };
+  return electronSpawner(electronBin, helperMain);
 }
 
 /** 向上探测 helper/dist/main.js（上限 5 级；命中即返回绝对路径） */

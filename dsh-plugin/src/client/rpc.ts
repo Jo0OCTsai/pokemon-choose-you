@@ -50,6 +50,10 @@ function taskFacade(
   | "taskDelete"
   | "taskDeleteUndo"
   | "taskReschedule"
+  | "taskUpdate"
+  | "taskNoteAdd"
+  | "taskNoteDelete"
+  | "taskHistory"
   | "captureTodo"
   | "reviewAccept"
   | "reviewApplyUpdate"
@@ -70,6 +74,10 @@ function taskFacade(
     taskDelete: (p) => call("taskDelete", p),
     taskDeleteUndo: (p) => call("taskDeleteUndo", p),
     taskReschedule: (p) => call("taskReschedule", p),
+    taskUpdate: (p) => call("taskUpdate", p),
+    taskNoteAdd: (p) => call("taskNoteAdd", p),
+    taskNoteDelete: (p) => call("taskNoteDelete", p),
+    taskHistory: (p) => call("taskHistory", p),
     captureTodo: (p) => call("captureTodo", p),
     reviewAccept: (p) => call("reviewAccept", p),
     reviewApplyUpdate: (p) => call("reviewApplyUpdate", p),

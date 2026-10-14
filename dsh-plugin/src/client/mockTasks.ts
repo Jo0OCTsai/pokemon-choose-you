@@ -142,3 +142,72 @@ export function releaseCommands(
     },
   };
 }
+
+/** 全字段编辑 / 跟进记录 / 操作历史（语义子集：taskUpdate 就地改字段——tagIds 只记录不改
+ * tags 投影，编辑器组件测试断言调用参数即可；跟进写 ctx.state.followups 供 taskDetail 回读） */
+export function taskEditCommands(
+  ctx: MockContext,
+): Pick<HostClient, "taskUpdate" | "taskNoteAdd" | "taskNoteDelete" | "taskHistory"> {
+  return {
+    async taskUpdate(params) {
+      ctx.record("taskUpdate", params);
+      const blocked = ctx.guardWritable();
+      if (blocked !== null) {
+        return { ok: false, error: blocked.toShape() };
+      }
+      const task = ctx.findTask(params.id);
+      if (task === undefined) {
+        return { ok: false, error: new PkyError("NOT_FOUND", `任务 ${params.id} 不存在`).toShape() };
+      }
+      if (params.title !== undefined) task.title = params.title;
+      if (params.note !== undefined) task.note = params.note;
+      if (params.categoryId !== undefined) task.categoryId = params.categoryId;
+      if (params.priority !== undefined) task.priority = params.priority;
+      if (params.dueAt !== undefined) task.dueAt = params.dueAt;
+      if (params.remindAt !== undefined) task.remindAt = params.remindAt;
+      if (params.status !== undefined) task.status = params.status;
+      return ctx.ok(task);
+    },
+    async taskNoteAdd(params) {
+      ctx.record("taskNoteAdd", params);
+      const blocked = ctx.guardWritable();
+      if (blocked !== null) {
+        return { ok: false, error: blocked.toShape() };
+      }
+      const task = ctx.findTask(params.taskId);
+      if (task === undefined) {
+        return { ok: false, error: new PkyError("NOT_FOUND", `任务 ${params.taskId} 不存在`).toShape() };
+      }
+      const content = params.content.trim();
+      if (content === "") {
+        return { ok: false, error: new PkyError("INVALID_ARGUMENT", "跟进内容不能为空").toShape() };
+      }
+      const list = (ctx.state.followups[params.taskId] ??= []);
+      const note = {
+        id: list.reduce((max, n) => Math.max(max, n.id), 0) + 1,
+        taskId: params.taskId,
+        content,
+        source: "manual",
+        createdAt: "2026-10-14T08:00:00+00:00",
+      };
+      list.push(note);
+      return ctx.ok(note);
+    },
+    async taskNoteDelete(params) {
+      ctx.record("taskNoteDelete", params);
+      const blocked = ctx.guardWritable();
+      if (blocked !== null) {
+        return { ok: false, error: blocked.toShape() };
+      }
+      for (const key of Object.keys(ctx.state.followups)) {
+        const id = Number(key);
+        ctx.state.followups[id] = ctx.state.followups[id].filter((n) => n.id !== params.id);
+      }
+      return ctx.ok({ ok: true });
+    },
+    async taskHistory(params) {
+      ctx.record("taskHistory", params);
+      return ctx.ok({ logs: ctx.state.taskLogs[params.taskId] ?? [] });
+    },
+  };
+}

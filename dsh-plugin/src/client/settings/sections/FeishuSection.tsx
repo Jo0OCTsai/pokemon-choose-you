@@ -12,6 +12,7 @@ import ui from "../../ui/ui.module.css";
 import type { SectionProps } from "../sectionProps";
 import { FEISHU_KEYS } from "../sectionKeys";
 import { SectionShell } from "../SectionShell";
+import { POLL_INTERVAL_SECS } from "../optionSets";
 import styles from "../settings.module.css";
 
 export function FeishuSection({ filters, ...props }: SectionProps & { filters: FilterItem[] }): React.JSX.Element {
@@ -56,7 +57,10 @@ export function FeishuSection({ filters, ...props }: SectionProps & { filters: F
         <Select
           label={t("feishu.interval")}
           value={draft["feishu_poll_interval"]}
-          options={[30, 60, 120, 300, 600].map((n) => ({ value: String(n), label: t("focus.minutes", { n }) }))}
+          options={POLL_INTERVAL_SECS.map((secs) => ({
+            value: String(secs),
+            label: t("focus.minutes", { n: secs / 60 }),
+          }))}
           onChange={(v) => onField("feishu_poll_interval", v)}
         />
         <p className={styles.cardHint}>{t("feishu.hint")}</p>

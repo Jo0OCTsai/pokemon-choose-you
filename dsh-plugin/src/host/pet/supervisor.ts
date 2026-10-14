@@ -53,6 +53,31 @@ export function nodeScriptSpawner(scriptPath: string, env: Record<string, string
   };
 }
 
+/**
+ * electron 形态 spawner（真实 helper 拉起）：入口必须是 dist/main.js **文件**——
+ * 传 dist 目录时 Electron default_app 因目录内无 package.json/index.js 解析失败，
+ * 弹原生错误框后 exit(1)（supervisor 再每秒重启成死循环，桌宠永远不显示）。
+ */
+export function electronSpawner(electronBin: string, helperMain: string): HelperSpawner {
+  return {
+    spawn(args: string[]) {
+      const child = spawn(electronBin, [helperMain, ...args], {
+        stdio: ["pipe", "pipe", "pipe"],
+        env: { ...process.env },
+      });
+      return {
+        pid: child.pid,
+        stdin: child.stdin,
+        stdout: child.stdout,
+        stderr: child.stderr,
+        on: (event, cb) => child.on(event, cb),
+        once: (event, cb) => child.once(event, cb),
+        kill: (signal) => child.kill(signal),
+      };
+    },
+  };
+}
+
 export interface PetSupervisorOptions {
   spawner: HelperSpawner;
   /** 上行处理（cmd/focus-settle 分发到 cmdHandler；装配层注入） */

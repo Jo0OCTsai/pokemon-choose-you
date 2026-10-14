@@ -57,7 +57,7 @@ beforeEach(() => {
       }),
     },
     terminal: createFakeTerminal(),
-    pet: { show: async () => undefined, hide: () => undefined, running: false },
+    pet: { show: async () => null, hide: () => undefined, running: false },
     onWrites: () => (writes += 1),
     openPage: (section) => pages.push({ section }),
     feishuConfigured: true,
@@ -109,8 +109,8 @@ function seedMsg(
 }
 
 describe("host 命令装配面（AD §4.1.1）· 全集与任务域", () => {
-  it("命令名全集 = 55 条目（54 RPC + taskDeleteUndo 撤销面），未知命令 INVALID_ARGUMENT", async () => {
-    expect(HOST_COMMAND_NAMES).toHaveLength(55);
+  it("命令名全集 = 59 条目（54 RPC + taskDeleteUndo 撤销面 + 任务编辑/跟进/历史 4 条），未知命令 INVALID_ARGUMENT", async () => {
+    expect(HOST_COMMAND_NAMES).toHaveLength(59);
     const unknown = (await call("nope")) as { ok: boolean; error: { code: string } };
     expect(unknown.ok).toBe(false);
     expect(unknown.error.code).toBe("INVALID_ARGUMENT");
@@ -133,6 +133,42 @@ describe("host 命令装配面（AD §4.1.1）· 全集与任务域", () => {
     expect(await call("taskDeleteUndo", { taskId: del })).toMatchObject({ ok: true, data: { id: del } });
     const rs = seedTask("改期目标");
     expect(await call("taskReschedule", { taskId: rs, due: "2026-06-01T09:00" })).toMatchObject({ ok: true });
+  });
+
+  it("任务编辑/跟进/历史：taskUpdate 全字段 patch + 审计日志 + 跟进增删", async () => {
+    const id = seedTask("编辑目标");
+    expect(
+      await call("taskUpdate", { id, title: "改后标题", note: "备注", priority: "high", dueAt: "2026-06-02T09:00" }),
+    ).toMatchObject({ ok: true, data: { id, title: "改后标题", note: "备注", priority: "high" } });
+    const missing = (await call("taskUpdate", { id: 424242, title: "幽灵" })) as {
+      ok: boolean;
+      error: { code: string };
+    };
+    expect(missing.ok).toBe(false);
+    expect(missing.error.code).toBe("NOT_FOUND");
+
+    const note = (await call("taskNoteAdd", { taskId: id, content: "  手动跟进  " })) as {
+      ok: boolean;
+      data: { id: number; content: string; source: string };
+    };
+    expect(note.ok).toBe(true);
+    expect(note.data.content).toBe("手动跟进"); // 去空格
+    expect(note.data.source).toBe("manual");
+    const empty = (await call("taskNoteAdd", { taskId: id, content: "   " })) as { ok: boolean };
+    expect(empty.ok).toBe(false);
+
+    const hist = (await call("taskHistory", { taskId: id })) as {
+      ok: boolean;
+      data: { logs: Array<{ action: string; field: string; newValue: string | null }> };
+    };
+    expect(hist.ok).toBe(true);
+    expect(hist.data.logs.some((l) => l.action === "update" && l.field === "title" && l.newValue === "改后标题")).toBe(
+      true,
+    );
+
+    expect(await call("taskNoteDelete", { id: note.data.id })).toMatchObject({ ok: true });
+    const after = (await call("taskDetail", { taskId: id })) as { data: { followups: unknown[] } };
+    expect(after.data.followups).toHaveLength(0);
   });
 });
 
@@ -266,7 +302,7 @@ describe("host 命令装配面 · 背包/诊断/桌宠/通用/专注域", () => 
       data: { text: expect.stringContaining("支持报告") },
     });
     expect(await call("logQuery", { limit: 5 })).toMatchObject({ ok: true });
-    expect(await call("petShow")).toMatchObject({ ok: true, data: { ok: true } });
+    expect(await call("petShow")).toMatchObject({ ok: true, data: { ok: true, ready: false } });
     expect(await call("petHide")).toMatchObject({ ok: true, data: { ok: true } });
     expect(await call("petMove", { pos: { x: 1, y: 2 } })).toMatchObject({ ok: true });
     expect(await call("dbStatus")).toMatchObject({ ok: true, data: { userVersion: 2, mode: "ok" } });

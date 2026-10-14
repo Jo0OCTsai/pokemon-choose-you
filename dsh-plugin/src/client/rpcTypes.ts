@@ -5,7 +5,7 @@
 import { ESCAPE_REASONS, type ProposedTag } from "../host/domain/suggest-types";
 export type { ProposedTag };
 import type { ErrorCode, PkyResult } from "../host/storage/errors";
-import type { Task } from "../host/domain/tasks";
+import type { Task, TaskNote, TaskLog, TaskPatch } from "../host/domain/tasks";
 import type { AgentConfig } from "../host/domain/settings";
 import type { PromptSpecInfo } from "../host/domain/prompt-overrides";
 import type { Category } from "../host/domain/vocabulary";
@@ -187,6 +187,14 @@ export interface HostClient {
   /** 放生撤销（5 秒窗口内恢复任务与级联数据） */
   taskDeleteUndo(params: { taskId: number }): Promise<PkyResult<Task>>;
   taskReschedule(params: { taskId: number; due?: string }): Promise<PkyResult<Task>>;
+  /** 全字段编辑（桌面 TaskEditModal 同位；域内含 diff 审计） */
+  taskUpdate(params: TaskPatch): Promise<PkyResult<Task>>;
+  /** 添加跟进记录（source=manual） */
+  taskNoteAdd(params: { taskId: number; content: string }): Promise<PkyResult<TaskNote>>;
+  /** 删除跟进记录（幂等） */
+  taskNoteDelete(params: { id: number }): Promise<PkyResult<{ ok: boolean }>>;
+  /** 操作历史（task_logs 倒序 200 条封顶） */
+  taskHistory(params: { taskId: number }): Promise<PkyResult<{ logs: TaskLog[] }>>;
   // 快捕
   captureTodo(params: { text: string }): Promise<PkyResult<CaptureResult>>;
   // 分诊

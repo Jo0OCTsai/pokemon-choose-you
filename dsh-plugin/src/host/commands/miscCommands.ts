@@ -24,9 +24,11 @@ export function miscCommands(): CommandTable {
       }),
     }),
     logQuery: (p, deps) => logQuery(deps.conn, deps.logs, p as LogQueryParams),
+    // ready = hello 握手在超时窗内完成；false 不代表失败（迟到仍会触发 onBridgeReady），
+    // 但必须如实带回——否则 helper 启动死循环时 UI 静默假成功
     petShow: async (_p, deps) => {
-      await deps.pet.show();
-      return { ok: true };
+      const hello = await deps.pet.show();
+      return { ok: true, ready: hello !== null };
     },
     petHide: (_p, deps) => {
       deps.pet.hide();

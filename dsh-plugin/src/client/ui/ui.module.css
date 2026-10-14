@@ -81,17 +81,24 @@
 }
 
 .toggle {
-  min-width: 32px;
-  min-height: 32px;
-  display: inline-flex;
+  display: flex;
   align-items: center;
-  gap: 8px;
+  justify-content: space-between;
+  gap: 10px;
+  min-height: 32px;
+  width: 100%;
   cursor: pointer;
   background: none;
   border: none;
   padding: 0;
   color: inherit;
   font-size: 13px;
+}
+.toggleLabel {
+  flex: 1;
+  text-align: left;
+  font-size: 13px;
+  min-width: 0;
 }
 .toggleTrack {
   width: 34px;

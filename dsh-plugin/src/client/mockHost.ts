@@ -15,7 +15,7 @@ import type {
   RadioMessage,
 } from "./rpcTypes";
 import type { Task } from "../host/domain/tasks";
-import { taskSwitchCommands, taskCloseCommands, releaseCommands } from "./mockTasks";
+import { taskSwitchCommands, taskCloseCommands, releaseCommands, taskEditCommands } from "./mockTasks";
 import { captureCommands, acceptCommands, dismissCommands, retryCommands } from "./mockReview";
 import { dispatchCommands, dispatchControlCommands } from "./mockDispatch";
 import { settingsCommands, categoryCommands, vocabularyCommands, agentCommands, filterCommands } from "./mockPanels";
@@ -44,6 +44,8 @@ export interface MockHostState {
   sessions: AgentSessionEntry[];
   /** taskId → 跟进记录流（taskDetail 消费） */
   followups: Record<number, FollowupNote[]>;
+  /** taskId → 操作日志（taskHistory 消费；缺省空） */
+  taskLogs: Record<number, import("../host/domain/tasks").TaskLog[]>;
 }
 
 /** 调用记录（断言命令面与参数） */
@@ -102,6 +104,7 @@ function defaultState(): MockHostState {
     deleted: [],
     sessions: [],
     followups: {},
+    taskLogs: {},
   };
 }
 
@@ -159,6 +162,7 @@ export function mockHost(initial: Partial<MockHostState> = {}): MockHost {
     ...taskSwitchCommands(ctx),
     ...taskCloseCommands(ctx),
     ...releaseCommands(ctx),
+    ...taskEditCommands(ctx),
     ...captureCommands(ctx),
     ...acceptCommands(ctx),
     ...dismissCommands(ctx),

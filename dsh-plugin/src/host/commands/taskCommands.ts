@@ -1,6 +1,7 @@
 /**
  * host 命令 · 任务域（AD §4.1.1 任务行 + 通用 dbStatus 撤销面）：taskStart / Pause /
- * Resume / Complete / Cancel / Delete / DeleteUndo / Reschedule。撤销 = 进程内快照
+ * Resume / Complete / Cancel / Delete / DeleteUndo / Reschedule / Update（全字段编辑）/
+ * NoteAdd / NoteDelete（跟进记录）/ History（操作日志）。撤销 = 进程内快照
  * 单槽（UI 5 秒窗口期语义；跨进程撤销不支持——放生墓碑审计只留标题）。
  */
 import { paramError } from "../storage/errors";
@@ -13,7 +14,15 @@ import {
   resumeTask,
   startTask,
 } from "../domain/task-lifecycle";
-import { getCurrentTask, getTask } from "../domain/tasks";
+import {
+  addTaskNote,
+  deleteTaskNote,
+  getCurrentTask,
+  getTask,
+  listTaskLogs,
+  updateTask,
+  type TaskPatch,
+} from "../domain/tasks";
 import { validEscapeReason } from "../domain/suggest-types";
 import type { CommandFn, CommandTable, DeleteUndoSnapshot } from "./context";
 
@@ -128,5 +137,23 @@ export function taskCommands(): CommandTable {
       deps.onWrites();
       return task;
     },
+    // 全字段编辑（桌面 TaskEditModal 同位：updateTask 域内含 diff 审计）
+    taskUpdate: (p, deps) => {
+      const task = updateTask(deps.conn, p as TaskPatch, ORIGIN);
+      deps.onWrites();
+      return task;
+    },
+    taskNoteAdd: (p, deps) => {
+      const args = p as { taskId: number; content: string };
+      const note = addTaskNote(deps.conn, args.taskId, args.content);
+      deps.onWrites();
+      return note;
+    },
+    taskNoteDelete: (p, deps) => {
+      deleteTaskNote(deps.conn, (p as { id: number }).id);
+      deps.onWrites();
+      return { ok: true };
+    },
+    taskHistory: (p, deps) => ({ logs: listTaskLogs(deps.conn, (p as { taskId: number }).taskId) }),
   };
 }
