@@ -88,7 +88,7 @@ export function SuggestionCard({
   );
 }
 
-/** 折叠态单行（会话名 + 转写文本 + 置信文字档位标；Esc 收起） */
+/** 折叠态单行（会话名 + 转写文本 + 置信文字档位标 + 建议类型徽章；Esc 收起） */
 function CollapsedSuggestion({
   message,
   expanded,
@@ -99,6 +99,7 @@ function CollapsedSuggestion({
   onToggle: () => void;
 }): React.JSX.Element {
   const t = useT();
+  const judging = isJudging(message.aiStatus);
   return (
     <button
       type="button"
@@ -116,7 +117,12 @@ function CollapsedSuggestion({
         {message.chatName !== "" && <b>{message.chatName} · </b>}
         {message.content}
       </span>
-      <span className={styles.confidenceTag}>{t(`im.confidence.${message.confidence ?? "low"}`)}</span>
+      <span className={styles.confidenceTag} data-conf={message.confidence ?? "low"}>
+        {t(`im.confidence.${message.confidence ?? "low"}`)}
+      </span>
+      <span className={styles.actionTag} data-act={judging ? "judging" : message.aiStatus}>
+        {judging ? t("dsh.radio.judging") : t(statusLabelKey(message.aiStatus))}
+      </span>
     </button>
   );
 }

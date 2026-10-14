@@ -16,6 +16,8 @@ import ui from "../ui/ui.module.css";
 import styles from "./tasks.module.css";
 
 const DISPATCH_GLYPHS: Record<string, string> = { queued: "⏳", running: "◉", done: "✓", failed: "▲" };
+/** 种子分类 id → 属性徽章档（db.rs DEFAULT_CATEGORIES 播种序：工作/学习/生活/健康/兴趣） */
+const CATEGORY_TYPE_KEYS: Record<number, string> = { 1: "work", 2: "study", 3: "life", 4: "health", 5: "interest" };
 
 export function TaskCard({
   task,
@@ -35,8 +37,6 @@ export function TaskCard({
   const [releaseOpen, setReleaseOpen] = useState(false);
 
   const presentation = taskPresentation(task);
-  const dispatchState = task.dispatchState;
-  const tooltipKey = dispatchTooltipKey(dispatchState);
 
   const quickOps = <TaskQuickOps task={task} readonly={readonly} onChanged={onChanged} />;
   return (
@@ -55,24 +55,19 @@ export function TaskCard({
           }
         }}
       >
-        <TaskSprite category={category} />
-        <span className={styles.taskMain}>
-          <span className={styles.taskTitle}>
-            No.{task.id} {task.title}
-            {presentation === "active" && <span className={styles.activeBadge}> ♪ {t("entry.catching")}</span>}
-            {presentation === "activePaused" && <span className={styles.pausedBadge}> ⏸ {t("entry.paused")}</span>}
-          </span>
-          <TaskMeta task={task} category={category} />
-        </span>
-        {dispatchState !== null && (
-          <span
-            className={styles.dispatchBadge}
-            data-state={dispatchState}
-            title={tooltipKey !== null ? t(tooltipKey, { reason: "" }) : undefined}
-          >
-            {DISPATCH_GLYPHS[dispatchState]}
+        {(presentation === "active" || presentation === "activePaused") && (
+          <span className={styles.runningTag}>
+            {presentation === "active" ? `♪ ${t("entry.catching")}` : `⏸ ${t("entry.paused")}`}
           </span>
         )}
+        <span className={styles.taskNo} aria-hidden="true">
+          No.{task.id}
+        </span>
+        <TaskSprite category={category} />
+        <span className={styles.taskMain}>
+          <span className={styles.taskTitle}>{task.title}</span>
+          <TaskMeta task={task} category={category} />
+        </span>
         {!readonly && quickOps}
         <OverflowMenu task={task} readonly={readonly} onChanged={onChanged} onRelease={() => setReleaseOpen(true)} />
       </div>
@@ -230,17 +225,38 @@ function TaskSprite({ category }: { category?: Category }): React.JSX.Element {
   );
 }
 
-/** 辅助信息行（优先级点/分类/截止/专注时长/来源徽标） */
+/** 辅助信息行（分类属性徽章/优先级点/截止/专注时长/来源/派发徽标——原型 aux 行口径） */
 function TaskMeta({ task, category }: { task: Task; category?: Category }): React.JSX.Element {
   const t = useT();
   const focusMinutes = Math.floor(task.focusSeconds / 60);
+  const dispatchState = task.dispatchState;
+  const tooltipKey = dispatchTooltipKey(dispatchState);
   return (
     <span className={styles.taskMeta}>
+      {category !== undefined && (
+        <span className={styles.typeBadge} data-type={categoryTypeKey(category.id)}>
+          {category.name}
+        </span>
+      )}
       <span className={styles.prioDot} data-prio={task.priority} aria-label={t(`priority.${task.priority}`)} />
-      {category !== undefined && <span>{category.name}</span>}
       {task.dueAt !== null && <span>{t("entry.due", { v: task.dueAt.slice(0, 16).replace("T", " ") })}</span>}
       {focusMinutes > 0 && <span>{t("entry.focus", { n: focusMinutes })}</span>}
       {task.source !== "local" && <span>{t(`entry.${task.source === "feishu" ? "feishu" : "capture"}`)}</span>}
+      {dispatchState !== null && (
+        <span
+          className={styles.dispatchBadge}
+          data-state={dispatchState}
+          title={tooltipKey !== null ? t(tooltipKey, { reason: "" }) : undefined}
+        >
+          <span className={styles.dispatchGlyph}>{DISPATCH_GLYPHS[dispatchState]}</span>
+          {t(`dsh.dispatch.badge.${dispatchState}`)}
+        </span>
+      )}
     </span>
   );
+}
+
+/** 分类 id → 属性徽章档（种子分类 1-5 固定序，与 DESIGN_SYSTEM 分类色同源；自定义分类中性） */
+function categoryTypeKey(categoryId: number): string | undefined {
+  return CATEGORY_TYPE_KEYS[categoryId];
 }

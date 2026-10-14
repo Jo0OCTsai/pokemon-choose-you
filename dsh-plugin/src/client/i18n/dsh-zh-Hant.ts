@@ -62,6 +62,12 @@ export default {
     tooltipRunning: "agent 執行中",
     tooltipDone: "已回傳，查看時間線",
     tooltipFailed: "執行失敗：{reason}",
+    badge: {
+      queued: "排隊中",
+      running: "派發執行中",
+      done: "已回傳",
+      failed: "失敗",
+    },
     confirm:
       "即將派發：{agent} · {scope} · {dir} · 來源：{project}。可臨時改選，不回寫專案路由。互動通道將在終端機面板啟動，可隨時觀察接管。",
     scopeLocal: "本機",

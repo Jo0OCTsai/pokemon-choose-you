@@ -89,9 +89,11 @@ describe("TaskCard 五呈现 × 派发徽标", () => {
         onChanged={() => undefined}
       />,
     );
-    const badge = screen.getByText(glyph);
-    expect(badge.getAttribute("data-state")).toBe(state);
-    expect(badge.getAttribute("title")).toContain(tooltip);
+    // 形（glyph 独立文本节点）+ 徽标容器携带 data-state 与 tooltip；文字标签随形同现
+    const badge = screen.getByText(glyph).closest("[data-state]");
+    expect(badge?.getAttribute("data-state")).toBe(state);
+    expect(badge?.getAttribute("title")).toContain(tooltip);
+    expect(badge?.textContent?.replace(glyph, "").trim().length).toBeGreaterThan(0);
   });
 });
 

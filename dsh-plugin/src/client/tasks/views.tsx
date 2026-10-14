@@ -33,17 +33,19 @@ export function AdventureView({ data, readonly, onOpen, onChanged }: SegmentProp
         <>
           <div className={styles.adventureHeader}>
             <span className={styles.adventureDate}>{data.today}</span>
-            <span
-              className={styles.caughtBar}
-              role="progressbar"
-              aria-valuemin={0}
-              aria-valuemax={snapshot.total}
-              aria-valuenow={snapshot.caught}
-            >
-              <span className={styles.caughtFill} style={{ width: `${percent}%` }} />
-            </span>
-            <span className={styles.caughtLabel}>
-              CAUGHT {snapshot.caught}/{snapshot.total}
+            <span className={styles.caught}>
+              <span className={styles.caughtLabel}>
+                CAUGHT {snapshot.caught}/{snapshot.total}
+              </span>
+              <span
+                className={styles.caughtBar}
+                role="progressbar"
+                aria-valuemin={0}
+                aria-valuemax={snapshot.total}
+                aria-valuenow={snapshot.caught}
+              >
+                <span className={styles.caughtFill} style={{ width: `${percent}%` }} />
+              </span>
             </span>
           </div>
           <OverdueFold tasks={snapshot.overdueTasks} readonly={readonly} onChanged={onChanged} />
@@ -182,16 +184,18 @@ export function LogSegment({ data }: { data: PanelData }): React.JSX.Element {
         <EmptyState kind="dispatch" />
       ) : (
         shown.map((session) => (
-          <div key={session.id} className={ui.card}>
-            <div className={styles.taskMeta}>
-              <span>{t(`sess.kind.${session.kind}`)}</span>
-              <span>{session.agentId}</span>
-              {session.sessionId !== null && <span className={ui.muted}>{session.sessionId}</span>}
-              {session.durationMs !== null && <span>{Math.round(session.durationMs / 1000)}s</span>}
-              {session.costUsd !== null && <span>${session.costUsd.toFixed(3)}</span>}
-              {session.exitCode !== null && <span>exit {session.exitCode}</span>}
-            </div>
-            {session.summary !== null && <div className={ui.muted}>{session.summary}</div>}
+          <div key={session.id} className={styles.ledger}>
+            <span className={styles.ledgerAgent}>{session.agentId}</span>
+            <span>{t(`sess.kind.${session.kind}`)}</span>
+            {session.durationMs !== null && <span>{Math.round(session.durationMs / 1000)}s</span>}
+            {session.costUsd !== null && <span>${session.costUsd.toFixed(3)}</span>}
+            {session.exitCode !== null && (
+              <span className={styles.ledgerExit} data-ok={session.exitCode === 0}>
+                exit {session.exitCode}
+              </span>
+            )}
+            {session.sessionId !== null && <span className={ui.muted}>{session.sessionId}</span>}
+            {session.summary !== null && <span className={ui.muted}>{session.summary}</span>}
           </div>
         ))
       )}

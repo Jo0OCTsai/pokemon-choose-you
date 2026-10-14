@@ -63,6 +63,12 @@ export default {
     tooltipRunning: "agent 执行中",
     tooltipDone: "已回传，查看时间线",
     tooltipFailed: "执行失败：{reason}",
+    badge: {
+      queued: "排队中",
+      running: "派发执行中",
+      done: "已回传",
+      failed: "失败",
+    },
     confirm:
       "即将派发：{agent} · {scope} · {dir} · 来源：{project}。可临时改选，不回写项目路由。交互通道将在终端面板启动，可随时观察接管。",
     scopeLocal: "本机",

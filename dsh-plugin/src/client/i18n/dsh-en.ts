@@ -65,6 +65,12 @@ export default {
     tooltipRunning: "Agent running",
     tooltipDone: "Reported — see timeline",
     tooltipFailed: "Failed: {reason}",
+    badge: {
+      queued: "Queued",
+      running: "Dispatching",
+      done: "Reported",
+      failed: "Failed",
+    },
     confirm:
       "Dispatching: {agent} · {scope} · {dir} · via {project}. Changes here won't overwrite the route. Interactive runs launch in the terminal panel — watch or take over anytime.",
     scopeLocal: "local",

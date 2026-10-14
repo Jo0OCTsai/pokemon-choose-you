@@ -54,7 +54,8 @@ export function SuggestionFeed({
       {groups.pending.length > 0 && (
         <div>
           <h4 className={styles.feedGroupTitle}>
-            {t("im.groupSignal")} · {groups.pending.length}
+            {t("im.groupSignal")}
+            <span className={styles.groupCount}>{groups.pending.length}</span>
           </h4>
           {groups.pending.map((message) => (
             <div key={message.messageId} style={{ display: "flex", alignItems: "flex-start" }}>
@@ -77,7 +78,7 @@ export function SuggestionFeed({
               <span>{t("dsh.batch.selected", { n: selected.size })}</span>
               <button
                 type="button"
-                className={ui.button}
+                className={ui.buttonPrimary}
                 disabled={readonly || batchBusy}
                 onClick={() => void runBatch("accept")}
               >
@@ -121,7 +122,8 @@ export function SuggestionFeed({
       {groups.none.length > 0 && (
         <div>
           <h4 className={styles.feedGroupTitle}>
-            {t("im.groupNoise")} · {groups.none.length}
+            {t("im.groupNoise")}
+            <span className={styles.groupCount}>{groups.none.length}</span>
           </h4>
           {groups.none.map((message) => (
             <div key={message.messageId} className={ui.muted} style={{ padding: "4px 0" }}>

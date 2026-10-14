@@ -47,7 +47,7 @@ export function HealthStrip({
       <span className={styles.healthItem}>{t("dsh.radio.failCount", { n: health.consecutiveFailures })}</span>
       <button
         type="button"
-        className={ui.button}
+        className={styles.pollNow}
         disabled={readonly || busy}
         onClick={async () => {
           setBusy(true);

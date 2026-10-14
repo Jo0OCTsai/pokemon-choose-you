@@ -6,32 +6,42 @@
   gap: 10px;
 }
 
-/* AdventureHeader */
+/* AdventureHeader（原型 adv-head：等宽日期左 + CAUGHT 计数与描边进度条右） */
 .adventureHeader {
   display: flex;
   align-items: center;
+  justify-content: space-between;
   gap: 12px;
 }
 .adventureDate {
-  font-size: 14px;
-  font-weight: 700;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  color: var(--dsw-alias-label-secondary, #57606a);
 }
-.caughtBar {
-  flex: 1;
-  max-width: 280px;
-  height: 8px;
-  border-radius: 4px;
-  background: var(--dsw-alias-border-l1, #e3e7ec);
-  overflow: hidden;
-}
-.caughtFill {
-  height: 100%;
-  background: var(--pcy-conf-high, #2f7d3c);
+.caught {
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
 .caughtLabel {
   font-size: 12px;
   font-variant-numeric: tabular-nums;
-  color: var(--dsw-alias-label-secondary, #57606a);
+  color: var(--dsw-alias-label-primary, #1f2328);
+  font-weight: 600;
+}
+.caughtBar {
+  width: 110px;
+  height: 10px;
+  border: 1.5px solid var(--dsw-alias-label-primary, #1f2328);
+  border-radius: 999px;
+  background: var(--dsw-alias-bg-layer-1, #ffffff);
+  overflow: hidden;
+}
+.caughtFill {
+  display: block;
+  height: 100%;
+  background: var(--pcy-ok, #2e9e5b);
 }
 
 /* OverdueFold */
@@ -53,13 +63,14 @@
   padding: 4px 0 0 12px;
 }
 
-/* 精灵条目卡 */
+/* 精灵条目卡（面板 signature，原型 tcard：宿主容器 + pixelated 精灵 + No.xxx + 属性徽章） */
 .taskCard {
+  position: relative;
   display: flex;
   align-items: center;
   gap: 10px;
-  padding: 8px 10px;
-  border-radius: 10px;
+  padding: 10px 12px;
+  border-radius: 12px;
   border: 1px solid var(--dsw-alias-border-l1, #e3e7ec);
   background: var(--dsw-alias-bg-layer-1, #ffffff);
   cursor: pointer;
@@ -70,7 +81,7 @@
   color: inherit;
 }
 .taskCard:hover {
-  background: var(--dsw-alias-interactive-bg-hover, #f0f2f5);
+  border-color: var(--dsw-alias-border-l3, #c7cdd4);
 }
 .taskCard:focus-visible {
   outline: 2px solid var(--dsw-alias-state-business-primary, #316dca);
@@ -78,12 +89,16 @@
 }
 /* 五呈现（形与色承载状态，不闪烁） */
 .taskCard[data-presentation="active"] {
-  border-color: var(--pcy-warn, #b58900);
-  border-width: 2px;
+  border: 2px solid var(--pcy-running, #ffcb05);
 }
+/* 进行中·暂停变体：灰描边 + 精灵/标题降饱和（与桌宠 paused 灰度呼应） */
 .taskCard[data-presentation="activePaused"] {
-  border-color: var(--dsw-alias-border-l3, #c7cdd4);
-  filter: saturate(0.5);
+  border: 2px solid var(--dsw-alias-border-l3, #c7cdd4);
+}
+.taskCard[data-presentation="activePaused"] .taskSprite,
+.taskCard[data-presentation="activePaused"] .taskTitle {
+  filter: saturate(0.45);
+  opacity: 0.85;
 }
 .taskCard[data-presentation="done"] .taskTitle {
   text-decoration: line-through;
@@ -92,13 +107,40 @@
 .taskCard[data-presentation="done"] .taskSprite,
 .taskCard[data-presentation="escaped"] .taskSprite {
   filter: grayscale(1);
+  opacity: 0.55;
 }
 .taskCard[data-presentation="escaped"] {
   opacity: 0.6;
 }
+/* 进行中悬浮标签（卡顶骑缝 pill，原型 running-tag；暂停变体灰） */
+.runningTag {
+  position: absolute;
+  top: -9px;
+  left: 12px;
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 1.4;
+  background: var(--pcy-running, #ffcb05);
+  color: var(--dsw-alias-label-primary, #1a1b25);
+  border: 1px solid var(--dsw-alias-label-primary, #1a1b25);
+  border-radius: 999px;
+  padding: 0 8px;
+}
+.taskCard[data-presentation="activePaused"] .runningTag {
+  background: var(--dsw-alias-border-l1, #e3e7ec);
+  color: var(--dsw-alias-label-secondary, #57606a);
+  border-color: var(--dsw-alias-border-l3, #c7cdd4);
+}
+/* 等宽图鉴编号（U6：面板不加载像素字体，等宽字体承载编号） */
+.taskNo {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 10px;
+  color: var(--dsw-alias-label-secondary, #57606a);
+  flex: none;
+}
 .taskSprite {
-  width: 28px;
-  height: 28px;
+  width: 30px;
+  height: 30px;
   image-rendering: pixelated;
   border-radius: 6px;
   background: var(--pcy-sprite-bg, #eef2f6);
@@ -113,10 +155,10 @@
   min-width: 0;
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: 3px;
 }
 .taskTitle {
-  font-weight: 600;
+  font-weight: 700;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -129,55 +171,88 @@
   color: var(--dsw-alias-label-secondary, #57606a);
   flex-wrap: wrap;
 }
-.activeBadge {
-  color: var(--pcy-warn, #b58900);
-  font-size: 11px;
+/* 属性徽章（DESIGN_SYSTEM 分类色固定底 + navy 字；暗主题 1px 描边兜底对比——U7） */
+.typeBadge {
+  font-size: 10px;
+  font-weight: 700;
+  color: #1a1b25;
+  border-radius: 4px;
+  padding: 0 7px;
+  line-height: 16px;
+  border: 1px solid rgba(26, 27, 37, 0.35);
+  background: var(--pcy-type-neutral, var(--dsw-alias-border-l1, #e3e7ec));
+  flex: none;
 }
-.pausedBadge {
-  color: var(--dsw-alias-label-secondary, #57606a);
-  font-size: 11px;
+.typeBadge[data-type="work"] {
+  background: var(--pcy-type-work, #f8d030);
+}
+.typeBadge[data-type="study"] {
+  background: var(--pcy-type-study, #6890f0);
+}
+.typeBadge[data-type="life"] {
+  background: var(--pcy-type-life, #78c850);
+}
+.typeBadge[data-type="health"] {
+  background: var(--pcy-type-health, #a8a878);
+}
+.typeBadge[data-type="interest"] {
+  background: var(--pcy-type-interest, #ee99ac);
 }
 /* 优先级四点（紧急档放大点 + 双描边，不闪烁） */
 .prioDot {
-  width: 8px;
-  height: 8px;
+  width: 9px;
+  height: 9px;
   border-radius: 50%;
   flex: none;
-  border: 1px solid rgba(0, 0, 0, 0.35);
+  border: 1px solid rgba(26, 27, 37, 0.35);
 }
 .prioDot[data-prio="urgent"] {
   width: 12px;
   height: 12px;
   box-shadow:
     0 0 0 2px var(--dsw-alias-bg-layer-1, #fff),
-    0 0 0 3px var(--pcy-danger, #b3590f);
-  background: var(--pcy-danger, #b3590f);
+    0 0 0 3.5px var(--pcy-danger, #ee1515);
+  background: var(--pcy-danger, #ee1515);
 }
 .prioDot[data-prio="high"] {
-  background: var(--pcy-warn, #b58900);
+  background: var(--pcy-prio-high, #f08030);
 }
 .prioDot[data-prio="normal"] {
-  background: var(--dsw-alias-border-l3, #c7cdd4);
+  background: var(--pcy-type-life, #78c850);
 }
 .prioDot[data-prio="low"] {
-  background: var(--dsw-alias-bg-layer-1, #f0f2f5);
+  background: var(--pcy-type-health, #a8a878);
 }
-/* 派发徽标五态（形变不闪烁） */
+/* 派发徽标五态（形 + 文字标签 + 软底，非颜色冗余） */
 .dispatchBadge {
-  font-size: 12px;
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  font-size: 10px;
+  font-weight: 700;
+  border-radius: 4px;
+  padding: 0 6px;
+  line-height: 16px;
   flex: none;
 }
+.dispatchGlyph {
+  font-size: 10px;
+}
 .dispatchBadge[data-state="queued"] {
-  color: var(--dsw-alias-label-secondary, #57606a);
+  background: var(--pcy-conf-mid-soft, #fff3d6);
+  color: var(--pcy-warn-ink, #8a5e06);
 }
 .dispatchBadge[data-state="running"] {
-  color: var(--pcy-dispatch-running, #316dca);
+  background: var(--pcy-ok-soft, #dff3e4);
+  color: var(--pcy-ok-ink, #1d6b3c);
 }
 .dispatchBadge[data-state="done"] {
-  color: var(--pcy-dispatch-done, #2f7d3c);
+  background: var(--pcy-conf-low-soft, #eceada);
+  color: var(--dsw-alias-label-secondary, #57606a);
 }
 .dispatchBadge[data-state="failed"] {
-  color: var(--pcy-dispatch-failed, #b3590f);
+  background: var(--pcy-fail-soft, #fde8e8);
+  color: var(--pcy-fail-ink, #991b1b);
 }
 .quickOps {
   display: flex;
@@ -228,22 +303,27 @@
 }
 .dexFilters {
   display: flex;
-  gap: 4px;
+  flex-wrap: wrap;
+  gap: 6px;
 }
 .filterButton {
   min-height: 32px;
   padding: 2px 12px;
   border-radius: 999px;
-  border: 1px solid var(--dsw-alias-border-l2, #d0d7de);
+  border: 1px solid var(--dsw-alias-border-l1, #e3e7ec);
   background: var(--dsw-alias-bg-layer-1, #ffffff);
   color: var(--dsw-alias-label-secondary, #57606a);
   font-size: 12px;
+  font-weight: 600;
   cursor: pointer;
+}
+.filterButton:hover {
+  border-color: var(--dsw-alias-border-l3, #c7cdd4);
 }
 .filterButton[aria-pressed="true"] {
   border-color: var(--dsw-alias-state-business-primary, #316dca);
-  color: var(--dsw-alias-label-primary, #1f2328);
-  font-weight: 700;
+  background: var(--dsw-alias-state-business-primary, #316dca);
+  color: #ffffff;
 }
 
 /* EmptyState */
@@ -255,11 +335,45 @@
   line-height: 1.8;
 }
 
-/* 路线分组 */
+/* 路线分组（原型 group-h：小号加粗弱化色 + 字距） */
 .routeGroupDate {
-  font-size: 13px;
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.4px;
+  color: var(--dsw-alias-label-secondary, #57606a);
+  margin: 10px 0 6px;
+}
+
+/* 日志段 ledger 行卡（原型 ledger：agent 加粗 + exit 色字 + 时间右对齐等宽） */
+.ledger {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 12px;
+  background: var(--dsw-alias-bg-layer-1, #ffffff);
+  border: 1px solid var(--dsw-alias-border-l1, #e3e7ec);
+  border-radius: 10px;
+  padding: 9px 12px;
+  font-size: 12px;
+  color: var(--dsw-alias-label-secondary, #57606a);
+}
+.ledgerAgent {
   font-weight: 700;
-  margin: 6px 0 2px;
+  color: var(--dsw-alias-label-primary, #1f2328);
+  font-size: 12.5px;
+}
+.ledgerExit {
+  font-weight: 700;
+}
+.ledgerExit[data-ok="true"] {
+  color: var(--pcy-ok-ink, #1d6b3c);
+}
+.ledgerExit[data-ok="false"] {
+  color: var(--pcy-fail-ink, #991b1b);
+}
+.ledgerTime {
+  margin-left: auto;
+  font-variant-numeric: tabular-nums;
 }
 
 /* 详情抽屉内容 */

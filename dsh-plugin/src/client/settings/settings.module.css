@@ -6,44 +6,46 @@
   gap: 12px;
 }
 
-/* SectionNav：八分区横向选单（窄屏横向滚动，不折行） */
+/* SectionNav：八分区横向选单（窄屏横向滚动，不折行）——原型 secnav 描边胶囊口径 */
 .sectionNav {
   display: flex;
-  gap: 4px;
+  gap: 6px;
   overflow-x: auto;
   padding-bottom: 4px;
-  border-bottom: 1px solid var(--dsw-alias-border-l1, #e3e7ec);
 }
 .sectionNavButton {
   min-height: 32px;
-  padding: 4px 12px;
-  border: 1px solid transparent;
+  padding: 4px 14px;
+  border: 1px solid var(--dsw-alias-border-l1, #e3e7ec);
   border-radius: 999px;
-  background: transparent;
+  background: var(--dsw-alias-bg-layer-1, #ffffff);
   color: var(--dsw-alias-label-secondary, #57606a);
   font-size: 13px;
+  font-weight: 600;
   cursor: pointer;
   white-space: nowrap;
   flex: none;
 }
 .sectionNavButton:hover {
-  background: var(--dsw-alias-interactive-bg-hover, #f0f2f5);
+  border-color: var(--dsw-alias-border-l3, #c7cdd4);
 }
 .sectionNavButton[aria-pressed="true"] {
   border-color: var(--dsw-alias-state-business-primary, #316dca);
-  color: var(--dsw-alias-label-primary, #1f2328);
-  font-weight: 700;
+  background: var(--dsw-alias-state-business-primary, #316dca);
+  color: #ffffff;
 }
 .sectionNavButton:focus-visible {
   outline: 2px solid var(--dsw-alias-state-business-primary, #316dca);
   outline-offset: 1px;
 }
 
-/* 分区整页标题行（保存按钮右侧，U21） */
+/* 分区整页标题行（保存按钮右侧，U21；标题行 2px 分隔——原型 sec-title-row） */
 .sectionHeader {
   display: flex;
   align-items: center;
   gap: 10px;
+  border-bottom: 2px solid var(--dsw-alias-border-l1, #e3e7ec);
+  padding-bottom: 10px;
 }
 .sectionHeading {
   font-size: 15px;
@@ -88,20 +90,29 @@
   vertical-align: middle;
 }
 .savedHint {
-  font-size: 12px;
-  color: var(--pcy-ok, #2f7d3c);
+  font-size: 11.5px;
+  font-weight: 700;
+  color: var(--pcy-ok-ink, #1d6b3c);
+  background: var(--pcy-ok-soft, #dff3e4);
+  border: 1px solid var(--pcy-ok, #2e9e5b);
+  border-radius: 6px;
+  padding: 2px 8px;
 }
 .saveFailHint {
   font-size: 12px;
   color: var(--pcy-danger, #b3590f);
 }
 
-/* 分区整页布局 */
+/* 分区整页布局（原型 sectionpage：卡片容器承载整页表单） */
 .sectionPage {
   display: flex;
   flex-direction: column;
   gap: 14px;
   max-width: 760px;
+  background: var(--dsw-alias-bg-layer-1, #ffffff);
+  border: 1px solid var(--dsw-alias-border-l1, #e3e7ec);
+  border-radius: 12px;
+  padding: 14px 16px 16px;
 }
 .cardTitle {
   font-size: 14px;

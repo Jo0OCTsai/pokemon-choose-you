@@ -77,11 +77,13 @@ const cssModulesPlugin = {
   setup(build) {
     build.onLoad({ filter: /\.module\.css$/ }, (args) => {
       const rel = path.relative(root, args.path);
-      const scope = createHash("sha1")
+      const hash = createHash("sha1")
         .update(rel)
         .digest("base64url")
         .replace(/[^A-Za-z0-9]/g, "")
         .slice(0, 6);
+      // CSS 标识符不能以数字开头——数字首的 hash 会让整张样式表成为非法选择器被浏览器丢弃
+      const scope = /^[0-9]/.test(hash) ? `_${hash}` : hash;
       const { css, exportsMap } = transformCssModule(readFileSync(args.path, "utf8"), scope);
       const tagId = `dsh-plugin/${rel}`;
       const contents = [

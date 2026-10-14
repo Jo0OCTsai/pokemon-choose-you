@@ -36,53 +36,58 @@
 .pendingBadge {
   display: inline-flex;
   align-items: center;
-  min-height: 32px;
-  padding: 2px 10px;
+  justify-content: center;
+  min-width: 20px;
+  height: 20px;
+  padding: 0 6px;
   border-radius: 999px;
-  border: 1px solid var(--dsw-alias-border-l2, #d0d7de);
-  background: var(--dsw-alias-bg-layer-1, #f6f8fa);
-  color: var(--dsw-alias-label-secondary, #57606a);
+  /* 图鉴红底白字（DESIGN_SYSTEM --dex-red，世界观 scoped 徽章；计数静态无动画 NFR-6） */
+  background: var(--pcy-badge-red, #ee1515);
+  color: #ffffff;
   font-size: 12px;
-  /* 静态数字（NFR-6：无 badge 弹跳/闪烁动画） */
+  font-weight: 700;
+  line-height: 20px;
 }
 
-/* SchemaBanner（持久横幅，只读模式） */
+/* SchemaBanner（持久横幅，只读模式；警示软底为固定色，理由同 AuthBanner） */
 .schemaBanner {
   display: flex;
   align-items: center;
   gap: 10px;
   padding: 10px 14px;
   border-radius: 10px;
-  border: 1px solid var(--pcy-warn, #b58900);
-  background: var(--dsw-alias-bg-layer-1, #fdf6e3);
-  color: var(--dsw-alias-label-primary, #1f2328);
+  border: 1.5px solid var(--pcy-warn, #c98a06);
+  background: var(--pcy-warn-soft, #fff3cd);
+  color: var(--pcy-warn-ink, #8a5e06);
   font-size: 13px;
 }
 .schemaReadonlyTag {
   margin-left: auto;
+  flex: none;
   padding: 1px 10px;
-  border-radius: 999px;
-  border: 1px solid var(--pcy-warn, #b58900);
+  border-radius: 6px;
+  border: 1.5px solid var(--pcy-warn-ink, #8a5e06);
   font-size: 11px;
+  font-weight: 700;
   white-space: nowrap;
 }
 
-/* SegmentNav（七段；计数静态） */
+/* SegmentNav（七段胶囊选单；计数静态）——原型 segnav 口径：描边胶囊、active 主色填充 */
 .segmentNav {
   display: flex;
-  gap: 4px;
-  overflow-x: auto;
-  border-bottom: 1px solid var(--dsw-alias-border-l1, #e3e7ec);
-  padding-bottom: 6px;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding-bottom: 2px;
 }
 .segmentButton {
   min-height: 32px;
-  padding: 4px 12px;
-  border: none;
-  border-radius: 8px 8px 0 0;
-  background: transparent;
+  padding: 4px 14px;
+  border: 1px solid var(--dsw-alias-border-l1, #e3e7ec);
+  border-radius: 999px;
+  background: var(--dsw-alias-bg-layer-1, #ffffff);
   color: var(--dsw-alias-label-secondary, #57606a);
   font-size: 13px;
+  font-weight: 600;
   cursor: pointer;
   white-space: nowrap;
   display: inline-flex;
@@ -90,16 +95,16 @@
   gap: 6px;
 }
 .segmentButton:hover {
-  background: var(--dsw-alias-interactive-bg-hover, #f0f2f5);
+  border-color: var(--dsw-alias-border-l3, #c7cdd4);
 }
 .segmentButton:focus-visible {
   outline: 2px solid var(--dsw-alias-state-business-primary, #316dca);
-  outline-offset: -2px;
+  outline-offset: 1px;
 }
 .segmentButton[aria-current="page"] {
-  color: var(--dsw-alias-label-primary, #1f2328);
-  font-weight: 700;
-  box-shadow: inset 0 -2px 0 var(--dsw-alias-state-business-primary, #316dca);
+  color: #ffffff;
+  background: var(--dsw-alias-state-business-primary, #316dca);
+  border-color: var(--dsw-alias-state-business-primary, #316dca);
 }
 .segmentCount {
   display: inline-block;

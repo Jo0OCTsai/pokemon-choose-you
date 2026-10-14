@@ -101,6 +101,7 @@ const KEY_FAMILIES: ReadonlyArray<readonly [string, readonly string[]]> = [
   ["priority.", ["low", "normal", "high", "urgent"]],
   ["sess.kind.", ["classify", "capture", "dispatch_headless", "dispatch_interactive"]],
   ["im.status.", ["todo", "update", "followup", "none"]],
+  ["dsh.dispatch.badge.", ["queued", "running", "done", "failed"]],
   ["diag.provider.", ["feishu", "ai"]],
   ["diag.status.", ["off", "paused", "idle", "ok", "degraded", "down"]],
   ["dexStats.milestone.", ["m0", "m1", "m10", "m50", "m100", "m200"]],
