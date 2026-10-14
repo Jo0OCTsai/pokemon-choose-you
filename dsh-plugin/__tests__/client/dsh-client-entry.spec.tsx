@@ -149,9 +149,9 @@ describe("clientEntry · 面板 section（subject 自判 + 数据装配）", () 
     const { registrations } = applyWith();
     const Panel = panelOf(registrations);
     render(<Panel subject={self} />);
-    // 快照拉取异步完成 → 面板落地（SegmentNav 七段）
+    // 快照拉取异步完成 → 面板落地（SegmentNav 七段）；无待处理（0）红徽章不渲染（被动信号不强调零态）
     expect(await screen.findByTestId("segment-nav")).toBeTruthy();
-    expect(screen.getByTestId("pending-count")).toBeTruthy();
+    expect(screen.queryByTestId("pending-count")).toBeNull();
   });
 
   it("本包 subject（row 形态，pkg 同名）同样渲染", async () => {
@@ -219,7 +219,7 @@ describe("clientEntry · 侧边栏一级入口 + 主区全局面板", () => {
     const Main = component as SlotC;
     render(<Main />);
     expect(await screen.findByTestId("segment-nav")).toBeTruthy();
-    expect(screen.getByTestId("pending-count")).toBeTruthy();
+    expect(screen.queryByTestId("pending-count")).toBeNull();
   });
 });
 

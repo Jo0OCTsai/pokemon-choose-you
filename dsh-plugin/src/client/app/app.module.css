@@ -27,11 +27,24 @@
   justify-content: center;
   font-size: 18px;
 }
+/* 精灵剪影（PageHeader 装饰位：去色降透明，不与列表内彩色精灵抢注意力） */
+.pageHeaderSprite img {
+  filter: grayscale(1);
+  opacity: 0.65;
+}
 .pageTitle {
   font-size: 18px;
   font-weight: 700;
   margin: 0;
-  flex: 1;
+}
+/* POKé-DEX 装饰英文（§8：不入 i18n；等宽小字 + 字距，原型 pagehead 同款） */
+.pageTitleDeco {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 10px;
+  letter-spacing: 1px;
+  color: var(--dsw-alias-label-tertiary, var(--dsw-alias-label-secondary, #57606a));
+  margin-left: -6px;
+  transform: translateY(3px);
 }
 .pendingBadge {
   display: inline-flex;

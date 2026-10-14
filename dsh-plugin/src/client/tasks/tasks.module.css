@@ -112,7 +112,9 @@
 .taskCard[data-presentation="escaped"] {
   opacity: 0.6;
 }
-/* 进行中悬浮标签（卡顶骑缝 pill，原型 running-tag；暂停变体灰） */
+/* 进行中悬浮标签（卡顶骑缝 pill，原型 running-tag；暂停变体灰）。
+   文字/描边用固定墨色（DESIGN_SYSTEM --dex-navy）——alias label 在暗主题翻转为浅色，
+   黄底浅字对比度不足（U7 scoped 固定色口径） */
 .runningTag {
   position: absolute;
   top: -9px;
@@ -121,14 +123,15 @@
   font-weight: 700;
   line-height: 1.4;
   background: var(--pcy-running, #ffcb05);
-  color: var(--dsw-alias-label-primary, #1a1b25);
-  border: 1px solid var(--dsw-alias-label-primary, #1a1b25);
+  color: #1a1b25;
+  border: 1px solid #1a1b25;
   border-radius: 999px;
   padding: 0 8px;
 }
+/* 暂停变体：主题面灰底 + 主标签色字（保持安静但可读——降饱和灰调的呈现主体是卡片） */
 .taskCard[data-presentation="activePaused"] .runningTag {
-  background: var(--dsw-alias-border-l1, #e3e7ec);
-  color: var(--dsw-alias-label-secondary, #57606a);
+  background: var(--dsw-alias-border-l3, #c7cdd4);
+  color: var(--dsw-alias-label-primary, #1a1b25);
   border-color: var(--dsw-alias-border-l3, #c7cdd4);
 }
 /* 等宽图鉴编号（U6：面板不加载像素字体，等宽字体承载编号） */
@@ -143,7 +146,6 @@
   height: 30px;
   image-rendering: pixelated;
   border-radius: 6px;
-  background: var(--pcy-sprite-bg, #eef2f6);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -223,7 +225,7 @@
 .prioDot[data-prio="low"] {
   background: var(--pcy-type-health, #a8a878);
 }
-/* 派发徽标五态（形 + 文字标签 + 软底，非颜色冗余） */
+/* 派发徽标五态（形 + 文字标签 + 软底，非颜色冗余）；固定软底加 1px 墨描边兜底暗主题小图形对比（U7） */
 .dispatchBadge {
   display: inline-flex;
   align-items: center;
@@ -234,6 +236,7 @@
   padding: 0 6px;
   line-height: 16px;
   flex: none;
+  border: 1px solid rgba(26, 27, 37, 0.2);
 }
 .dispatchGlyph {
   font-size: 10px;
@@ -376,7 +379,27 @@
   font-variant-numeric: tabular-nums;
 }
 
-/* 详情抽屉内容 */
+/* 详情抽屉（右侧滑入覆盖层，原型 drawer/drawer-mask：fixed 整视口 mask + 右缘面板；
+   fixed 相对宿主视口——面板载体（detail section / 主面板）滚动容器各异，视口级最稳健） */
+.drawerOverlay {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  background: rgba(15, 18, 30, 0.42);
+}
+.drawer {
+  position: fixed;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 61;
+  width: min(94vw, 420px);
+  display: flex;
+  flex-direction: column;
+  background: var(--dsw-alias-bg-base, var(--dsw-alias-bg-layer-1, #ffffff));
+  border-left: 2px solid var(--dsw-alias-border-l2, #d0d7de);
+  box-shadow: -8px 0 24px rgba(0, 0, 0, 0.2);
+}
 .drawerHeader {
   display: flex;
   align-items: flex-start;

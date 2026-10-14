@@ -42,27 +42,7 @@
   justify-content: flex-end;
 }
 
-/* ---- 抽屉（任务详情，原型 drawer：右滑 380px + 2px 左描边） ---- */
-.drawerOverlay {
-  position: fixed;
-  inset: 0;
-  background: rgba(28, 34, 68, 0.42);
-  z-index: 50;
-}
-.drawer {
-  position: fixed;
-  top: 0;
-  right: 0;
-  bottom: 0;
-  width: min(380px, 94vw);
-  background: var(--dsw-alias-bg-layer-1, #ffffff);
-  color: var(--dsw-alias-label-primary, #1f2328);
-  border-left: 2px solid var(--dsw-alias-border-l2, #d0d7de);
-  box-shadow: -6px 0 24px rgba(0, 0, 0, 0.12);
-  display: flex;
-  flex-direction: column;
-  z-index: 51;
-}
+/* ---- 抽屉（任务详情）——样式在组件消费侧 tasks.module.css（drawer/drawerOverlay），此处不重复 ---- */
 
 /* ---- 按钮 / 控件（命中区 ≥32px） ---- */
 .button {

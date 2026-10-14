@@ -103,9 +103,13 @@ describe("SuggestionCard", () => {
     fireEvent.click(within(updateCard).getByText("◎ 应用更新"));
     await flush();
     expect(host.calls).toContainEqual({ command: "reviewApplyUpdate", params: { messageId: "m2" } });
-    // 无动作建议进无信号组（非建议卡），不出现操作键
+    // 无动作建议进无信号组（建议卡呈现，U2 原型 a-none 卡）——展开后无分诊操作键
     expect(screen.getByText("中午吃什么")).toBeTruthy();
-    expect(screen.queryAllByRole("button", { name: /中午吃什么/ })).toHaveLength(0);
+    const noneCard = screen.getAllByTestId("suggestion-card")[1];
+    fireEvent.click(within(noneCard).getByRole("button", { name: /中午吃什么/ }));
+    expect(within(noneCard).queryByText("◎ 捕捉")).toBeNull();
+    expect(within(noneCard).queryByText("◎ 应用更新")).toBeNull();
+    expect(within(noneCard).queryByText("✕ 逃走")).toBeNull();
   });
 
   it("逃走展开 6 原因码菜单 → reviewDismiss(reasonCode)", async () => {

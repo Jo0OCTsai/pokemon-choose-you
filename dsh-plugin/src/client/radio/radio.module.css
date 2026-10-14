@@ -150,7 +150,7 @@
 .confidenceTag[data-conf="medium"] {
   color: var(--pcy-warn-ink, #8a5e06);
 }
-/* 建议类型徽章（软底 pill：新待办绿底 / 更新黄底 / 无动作灰底） */
+/* 建议类型徽章（软底 pill：新待办绿底 / 更新黄底 / 无动作灰底）；固定软底加 1px 墨描边兜底暗主题小图形对比（U7） */
 .actionTag {
   flex: none;
   font-size: 10.5px;
@@ -160,6 +160,7 @@
   line-height: 18px;
   background: var(--pcy-conf-low-soft, #eceada);
   color: var(--dsw-alias-label-secondary, #57606a);
+  border: 1px solid rgba(26, 27, 37, 0.2);
 }
 .actionTag[data-act="todo"] {
   background: var(--pcy-ok-soft, #dff3e4);
@@ -173,7 +174,7 @@
   display: flex;
   flex-direction: column;
   gap: 8px;
-  padding-top: 6px;
+  padding: 2px 12px 12px;
 }
 .lcdText {
   font-size: 12px;
@@ -272,7 +273,7 @@
   font-weight: 700;
 }
 
-/* FailedGroup / EscapedGroup */
+/* 判定失败组头行（组名 + 整组操作按钮） */
 .failedRow {
   display: flex;
   align-items: center;
@@ -280,10 +281,39 @@
   flex-wrap: wrap;
   font-size: 13px;
 }
-.escapedRow {
+
+/* 判定失败组行卡（原型 .sug.failed：surface 卡 + 4px 红左边框——失败留档可重判） */
+.failedCard {
   display: flex;
   align-items: center;
   gap: 8px;
+  margin-bottom: 6px;
+  padding: 8px 12px;
+  border: 1px solid var(--dsw-alias-border-l1, #e3e7ec);
+  border-left: 4px solid var(--pcy-log-error, #d64545);
+  border-radius: 10px;
+  background: var(--dsw-alias-bg-layer-1, #ffffff);
+  font-size: 12.5px;
+  color: var(--dsw-alias-label-secondary, #57606a);
+}
+.failedText {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+/* 已捕捉/已逃走归档行卡（默认折叠组展开后的留档呈现——中性卡，非裸文本行） */
+.archivedRow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-bottom: 6px;
+  padding: 7px 12px;
+  border: 1px solid var(--dsw-alias-border-l1, #e3e7ec);
+  border-radius: 10px;
+  background: var(--dsw-alias-bg-layer-1, #ffffff);
   font-size: 12px;
   color: var(--dsw-alias-label-secondary, #57606a);
 }

@@ -118,7 +118,7 @@ export function SuggestionFeed({
       {/* 判定失败组（中性命名 + 一键重判/强制） */}
       {groups.failed.length > 0 && <FailedGroup messages={groups.failed} readonly={readonly} onChanged={onChanged} />}
 
-      {/* 无动作组 */}
+      {/* 无动作组（原型 .sug 卡 + a-none 徽章——留档可清扫，复用建议卡内联展开） */}
       {groups.none.length > 0 && (
         <div>
           <h4 className={styles.feedGroupTitle}>
@@ -126,9 +126,7 @@ export function SuggestionFeed({
             <span className={styles.groupCount}>{groups.none.length}</span>
           </h4>
           {groups.none.map((message) => (
-            <div key={message.messageId} className={ui.muted} style={{ padding: "4px 0" }}>
-              {message.content}
-            </div>
+            <SuggestionCard key={message.messageId} message={message} readonly={readonly} onChanged={onChanged} />
           ))}
         </div>
       )}
@@ -195,8 +193,8 @@ export function FailedGroup({
         </button>
       </div>
       {messages.map((message) => (
-        <div key={message.messageId} className={styles.escapedRow}>
-          {message.content}
+        <div key={message.messageId} className={styles.failedCard}>
+          <span className={styles.failedText}>{message.content}</span>
           <button
             type="button"
             className={ui.button}
@@ -246,7 +244,7 @@ function CaughtGroup({ messages }: { messages: RadioMessage[] }): React.JSX.Elem
       </button>
       {open &&
         messages.map((message) => (
-          <div key={message.messageId} className={styles.escapedRow}>
+          <div key={message.messageId} className={styles.archivedRow}>
             ✔ {message.content}
             {message.taskId !== null && <span>{t("im.caughtTask", { id: message.taskId })}</span>}
           </div>
@@ -278,7 +276,7 @@ function EscapedGroup({
       </button>
       {open &&
         messages.map((message) => (
-          <div key={message.messageId} className={styles.escapedRow}>
+          <div key={message.messageId} className={styles.archivedRow}>
             ✕ {message.content}
             {message.dismissReason !== "" && <span>{t(`im.escapeReasons.${message.dismissReason}`)}</span>}
             <button
