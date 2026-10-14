@@ -10,6 +10,7 @@ import type { Tag, TagDimension } from "../../../host/domain/vocabulary-tags";
 import { useClient } from "../../clientContext";
 import { useT } from "../../i18n";
 import { ConfirmDialog, Modal } from "../../ui/Modal";
+import { Sprite } from "../../ui/Sprite";
 import { TextInput } from "../../ui/controls";
 import ui from "../../ui/ui.module.css";
 import styles from "../settings.module.css";
@@ -59,7 +60,7 @@ export function CategoryTagSection({
           {categories.map((category) => (
             <div key={category.id} className={styles.entityCard} data-testid="category-ui.card">
               <span className={styles.entitySprite}>
-                {category.sprite !== "" && <img src={category.sprite} alt={category.pokemon} width={28} height={28} />}
+                {category.sprite !== "" && <Sprite spriteKey={category.sprite} size={28} alt={category.pokemon} />}
               </span>
               <div className={styles.entityMain}>
                 <TextInput
@@ -147,7 +148,8 @@ export function CategoryTagSection({
           onClose={() => setDressTarget(null)}
           onPick={(candidate) => {
             void client
-              .categoryUpsert({ id: dressTarget.id, pokemon: candidate.key, sprite: `pokemon/${candidate.key}.gif` })
+              // sprite 存 PokeAPI 裸 key（共享库约定，主应用 PokemonSprite 按此解析）
+              .categoryUpsert({ id: dressTarget.id, pokemon: candidate.name, sprite: candidate.key })
               .then(() => {
                 setDressTarget(null);
                 onChanged();
@@ -258,7 +260,9 @@ export function PokeSearchModal({
         )}
         {candidates.map((candidate) => (
           <button key={candidate.key} type="button" className={styles.pokeResultRow} onClick={() => onPick(candidate)}>
-            <span className={styles.entitySprite}>▸</span>
+            <span className={styles.entitySprite}>
+              <Sprite spriteKey={candidate.key} size={24} alt={candidate.name} />
+            </span>
             No.{candidate.number} {candidate.name} · {candidate.english}
           </button>
         ))}

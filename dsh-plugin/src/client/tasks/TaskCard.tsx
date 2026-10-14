@@ -12,6 +12,7 @@ import { dispatchTooltipKey, taskPresentation } from "../model";
 import { TaskQuickOps } from "./TaskQuickOps";
 import { TaskReleaseModal } from "./TaskReleaseModal";
 import { ESCAPE_REASON_CODES } from "../rpc";
+import { Sprite } from "../ui/Sprite";
 import ui from "../ui/ui.module.css";
 import styles from "./tasks.module.css";
 
@@ -212,12 +213,12 @@ function RescheduleItem({
   );
 }
 
-/** 分类精灵图（pixelated；分类缺失时占位点） */
+/** 分类精灵图（CDN 候选链回退；分类缺失时占位点） */
 function TaskSprite({ category }: { category?: Category }): React.JSX.Element {
   return (
     <span className={styles.taskSprite} aria-label={category?.pokemon ?? ""}>
-      {category !== undefined && category.pokemon !== "" ? (
-        <img src={category.sprite} alt={category.pokemon} width={24} height={24} />
+      {category !== undefined && category.sprite !== "" ? (
+        <Sprite spriteKey={category.sprite} alt={category.pokemon} />
       ) : (
         "•"
       )}
