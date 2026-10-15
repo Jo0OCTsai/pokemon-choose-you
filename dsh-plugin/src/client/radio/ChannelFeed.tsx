@@ -1,12 +1,14 @@
 /**
  * 频道视图（📡 按频道，桌面 RadioTab channelGroups 同构）：按会话名聚拢全部消息——
  * 组内待处理信号（todo/update）排前、其余待处理居中、已捕捉/已逃走垫底（并入各自
- * 频道组尾）；组头 = 📡 会话名 + 「{n} 待处理」（组内有信号时高亮）+ 「{n} 条」总数。
+ * 频道组尾）；组头 = 📡 会话名 + 「{n} 待处理」（组内有信号时高亮）+ 「{n} 条」总数，
+ * 折叠状态由 SuggestionFeed 集中管理（键 `ch:<会话名>`，桌面同构）。
  * 待处理消息走建议卡（内联展开分诊），已处理走归档行（✔ 回执 / ✕ 原因）。
  */
 import { useMemo } from "react";
 import { useT } from "../i18n";
 import type { RadioMessage } from "../rpc";
+import { FeedGroup } from "./FeedGroup";
 import { SuggestionCard } from "./SuggestionCard";
 import styles from "./radio.module.css";
 
@@ -39,10 +41,15 @@ function groupByChannel(messages: RadioMessage[]): ChannelGroup[] {
 
 export function ChannelFeed({
   messages,
+  collapsed,
+  onToggleGroup,
   readonly,
   onChanged,
 }: {
   messages: RadioMessage[];
+  /** 集中折叠态（与状态分组共用一套 Set；频道组键 = `ch:<会话名>`） */
+  collapsed: Set<string>;
+  onToggleGroup: (key: string) => void;
   readonly: boolean;
   onChanged: () => void;
 }): React.JSX.Element {
@@ -52,15 +59,19 @@ export function ChannelFeed({
     <div data-testid="channel-feed">
       {groups.map((group) => {
         const pendingSignals = group.list.filter((m) => m.reviewStatus === "pending" && isSignal(m)).length;
+        const key = `ch:${group.name}`;
         return (
-          <div key={group.name} data-testid="channel-group" data-chat={group.name}>
-            <h4 className={styles.feedGroupTitle}>
-              📡 {group.name}
-              <span className={styles.groupCount} data-hot={pendingSignals > 0 ? "true" : undefined}>
-                {t("im.chanPending", { n: pendingSignals })}
-              </span>
-              <span className={styles.groupCount}>{t("im.chanTotal", { n: group.list.length })}</span>
-            </h4>
+          <FeedGroup
+            key={group.name}
+            testId="channel-group"
+            chat={group.name}
+            title={`📡 ${group.name}`}
+            count={t("im.chanPending", { n: pendingSignals })}
+            hot={pendingSignals > 0}
+            stateLabel={t("im.chanTotal", { n: group.list.length })}
+            collapsed={collapsed.has(key)}
+            onToggle={() => onToggleGroup(key)}
+          >
             {group.list.map((message) =>
               message.reviewStatus === "pending" ? (
                 <SuggestionCard key={message.messageId} message={message} readonly={readonly} onChanged={onChanged} />
@@ -68,7 +79,7 @@ export function ChannelFeed({
                 <ArchivedChannelRow key={message.messageId} message={message} />
               ),
             )}
-          </div>
+          </FeedGroup>
         );
       })}
     </div>

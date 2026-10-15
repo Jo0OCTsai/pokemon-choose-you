@@ -55,32 +55,35 @@ function noonToday(): string {
   return new Date(now.getFullYear(), now.getMonth(), now.getDate(), 12, 0, 0).toISOString().replace("Z", "+00:00");
 }
 
+/** 快照用例主体（describe 回调行数棘轮受限，长用例体提为命名函数等量迁出） */
+async function runBackupSnapshotCase(): Promise<void> {
+  seedTask("备份我");
+
+  const { file, files } = data<{ file: string; files: Array<{ file: string }> }>(await caller("backupRun"));
+  expect(file).toMatch(/^pokemon-choose-you-\d{8}-\d{6}(-\d+)?\.db$/);
+  const path = join(backupDir(join(db.dir, "data")), file);
+  expect(existsSync(path)).toBe(true);
+  expect(files.map((f) => f.file)).toContain(file);
+
+  // 快照是完整独立库（VACUUM INTO 不含 WAL 垃圾，可直接打开）
+  const snap = new DatabaseSync(path);
+  expect(snap.prepare("SELECT COUNT(*) AS n FROM tasks").get()).toEqual({ n: 1 });
+  snap.close();
+
+  // 源库继续写不影响已落盘快照
+  seedTask("后来的");
+  const snap2 = new DatabaseSync(path);
+  expect(snap2.prepare("SELECT COUNT(*) AS n FROM tasks").get()).toEqual({ n: 1 });
+  snap2.close();
+
+  // 同秒连跑第二份也不互相覆盖（序号后缀/跨秒时间戳都产生新文件）
+  const again = data<{ file: string }>(await caller("backupRun")).file;
+  expect(again).not.toBe(file);
+  expect(existsSync(join(backupDir(join(db.dir, "data")), again))).toBe(true);
+}
+
 describe("备份域：backupRun / backupList", () => {
-  it("backupRun 落盘 VACUUM INTO 快照：命名对齐桌面、可独立打开、含全部数据", async () => {
-    seedTask("备份我");
-
-    const { file, files } = data<{ file: string; files: Array<{ file: string }> }>(await caller("backupRun"));
-    expect(file).toMatch(/^pokemon-choose-you-\d{8}-\d{6}(-\d+)?\.db$/);
-    const path = join(backupDir(join(db.dir, "data")), file);
-    expect(existsSync(path)).toBe(true);
-    expect(files.map((f) => f.file)).toContain(file);
-
-    // 快照是完整独立库（VACUUM INTO 不含 WAL 垃圾，可直接打开）
-    const snap = new DatabaseSync(path);
-    expect(snap.prepare("SELECT COUNT(*) AS n FROM tasks").get()).toEqual({ n: 1 });
-    snap.close();
-
-    // 源库继续写不影响已落盘快照
-    seedTask("后来的");
-    const snap2 = new DatabaseSync(path);
-    expect(snap2.prepare("SELECT COUNT(*) AS n FROM tasks").get()).toEqual({ n: 1 });
-    snap2.close();
-
-    // 同秒连跑第二份也不互相覆盖（序号后缀/跨秒时间戳都产生新文件）
-    const again = data<{ file: string }>(await caller("backupRun")).file;
-    expect(again).not.toBe(file);
-    expect(existsSync(join(backupDir(join(db.dir, "data")), again))).toBe(true);
-  });
+  it("backupRun 落盘 VACUUM INTO 快照：命名对齐桌面、可独立打开、含全部数据", runBackupSnapshotCase);
 
   it("backup_keep 滚动保留：超量删最旧，无关文件不动（Rust prune 测试同手法）", async () => {
     db.conn.prepare("INSERT OR REPLACE INTO settings (key, value) VALUES ('backup_keep', '2')").run();
@@ -116,63 +119,71 @@ describe("备份域：backupRun / backupList", () => {
   });
 });
 
+/** 导出域公共夹具（beforeEach 主体等量迁出） */
+function seedExportFixture(): void {
+  seedTask("写周报", { status: "done", completedAt: noonToday() });
+  seedTask('交报告, 第二版 "最终"');
+  db.conn
+    .prepare("INSERT INTO tags (name, description, dimension_id, created_at) VALUES ('重要', '', 1, '2026-09-01')")
+    .run();
+  db.conn.prepare("INSERT INTO task_tags (task_id, tag_id) VALUES (1, 1)").run();
+  db.conn
+    .prepare(
+      "INSERT INTO task_notes (task_id, content, source, created_at) VALUES (1, '对方确认周五交付', 'manual', ?)",
+    )
+    .run(noonToday());
+  db.conn
+    .prepare(
+      "INSERT OR REPLACE INTO settings (key, value) VALUES ('language', 'en'), ('ai_prompt_capture', '我的覆盖'), ('ai_agent_presets_v2', '1')",
+    )
+    .run();
+}
+
+/** JSON 导出用例主体（describe 回调行数棘轮受限，长用例体提为命名函数等量迁出） */
+async function runJsonExportCase(): Promise<void> {
+  const { path } = data<{ path: string }>(await caller("exportRun", { kind: "json" }));
+  expect(path).toMatch(/pokemon-choose-you-full-\d{8}-\d{6}\.json$/);
+  expect(path.startsWith(join(exportsDir(join(db.dir, "data"))))).toBe(true);
+
+  const parsed = JSON.parse(readFileSync(path, "utf8")) as {
+    app: string;
+    format: number;
+    exportedAt: string;
+    data: Record<string, Array<Record<string, unknown>>>;
+  };
+  expect(parsed.app).toBe("pokemon-choose-you");
+  expect(parsed.format).toBe(1);
+  expect(parsed.exportedAt).toMatch(/^\d{4}-\d{2}-\d{2}T/);
+  // 表数据带出（全量 11 表键齐 + 任务两行 + 联表关联）
+  expect(Object.keys(parsed.data).sort()).toEqual(
+    [
+      "categories",
+      "tasks",
+      "tags",
+      "task_tags",
+      "task_notes",
+      "task_logs",
+      "chat_messages",
+      "feishu_users",
+      "sync_state",
+      "settings",
+      "chat_filter_prefs",
+    ].sort(),
+  );
+  expect(parsed.data.tasks).toHaveLength(2);
+  expect(parsed.data.task_tags).toHaveLength(1);
+  // 设置行随导出带出，但覆盖键/内部标记不出文件
+  expect(parsed.data.settings).toContainEqual(expect.objectContaining({ key: "language", value: "en" }));
+  expect(JSON.stringify(parsed.data.settings)).not.toContain("ai_prompt_");
+  expect(JSON.stringify(parsed.data.settings)).not.toContain("ai_agent_presets_v2");
+}
+
 describe("导出域：exportRun", () => {
   beforeEach(() => {
-    seedTask("写周报", { status: "done", completedAt: noonToday() });
-    seedTask('交报告, 第二版 "最终"');
-    db.conn
-      .prepare("INSERT INTO tags (name, description, dimension_id, created_at) VALUES ('重要', '', 1, '2026-09-01')")
-      .run();
-    db.conn.prepare("INSERT INTO task_tags (task_id, tag_id) VALUES (1, 1)").run();
-    db.conn
-      .prepare(
-        "INSERT INTO task_notes (task_id, content, source, created_at) VALUES (1, '对方确认周五交付', 'manual', ?)",
-      )
-      .run(noonToday());
-    db.conn
-      .prepare(
-        "INSERT OR REPLACE INTO settings (key, value) VALUES ('language', 'en'), ('ai_prompt_capture', '我的覆盖'), ('ai_agent_presets_v2', '1')",
-      )
-      .run();
+    seedExportFixture();
   });
 
-  it("kind=json：全量表数据 + 信封字段；设置排除提示词覆盖与内部标记", async () => {
-    const { path } = data<{ path: string }>(await caller("exportRun", { kind: "json" }));
-    expect(path).toMatch(/pokemon-choose-you-full-\d{8}-\d{6}\.json$/);
-    expect(path.startsWith(join(exportsDir(join(db.dir, "data"))))).toBe(true);
-
-    const parsed = JSON.parse(readFileSync(path, "utf8")) as {
-      app: string;
-      format: number;
-      exportedAt: string;
-      data: Record<string, Array<Record<string, unknown>>>;
-    };
-    expect(parsed.app).toBe("pokemon-choose-you");
-    expect(parsed.format).toBe(1);
-    expect(parsed.exportedAt).toMatch(/^\d{4}-\d{2}-\d{2}T/);
-    // 表数据带出（全量 11 表键齐 + 任务两行 + 联表关联）
-    expect(Object.keys(parsed.data).sort()).toEqual(
-      [
-        "categories",
-        "tasks",
-        "tags",
-        "task_tags",
-        "task_notes",
-        "task_logs",
-        "chat_messages",
-        "feishu_users",
-        "sync_state",
-        "settings",
-        "chat_filter_prefs",
-      ].sort(),
-    );
-    expect(parsed.data.tasks).toHaveLength(2);
-    expect(parsed.data.task_tags).toHaveLength(1);
-    // 设置行随导出带出，但覆盖键/内部标记不出文件
-    expect(parsed.data.settings).toContainEqual(expect.objectContaining({ key: "language", value: "en" }));
-    expect(JSON.stringify(parsed.data.settings)).not.toContain("ai_prompt_");
-    expect(JSON.stringify(parsed.data.settings)).not.toContain("ai_agent_presets_v2");
-  });
+  it("kind=json：全量表数据 + 信封字段；设置排除提示词覆盖与内部标记", runJsonExportCase);
 
   it("kind=csv：BOM + 表头 + RFC4180 转义 + 标签拼接", async () => {
     const { path } = data<{ path: string }>(await caller("exportRun", { kind: "csv" }));

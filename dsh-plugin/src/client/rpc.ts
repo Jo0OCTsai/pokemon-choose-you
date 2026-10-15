@@ -1,6 +1,6 @@
 /**
  * 客户端半边 RPC 层（AD §4.1.1 host 命令契约）：
- * - HostClient（57 命令类型面——49 Phase A + 5 实体读域 + 3 备份/导出域）与错误码/
+ * - HostClient（60 命令类型面——57 + 复盘向导标签体检 3 条）与错误码/
  *   视图模型见 rpcTypes.ts（本文件再出口，消费面 import 不变）；内存 mockHost 见 mockHost.ts（同样再出口）。
  * - ok/fail 响应信封 + 可注入 transport（真实 dsh 桥后续接；测试用 mockHost 内存实现）。
  *
@@ -37,7 +37,7 @@ export interface HostTransport {
 
 type Sender = <T>(command: string, params?: unknown) => Promise<PkyResult<T>>;
 
-/** 任务/快捕/分诊/失败组/收音机命令门面（组内每方法一行转发） */
+/** 任务域命令门面（生命周期 + 编辑/跟进/历史，组内每方法一行转发） */
 function taskFacade(
   call: Sender,
 ): Pick<
@@ -54,16 +54,6 @@ function taskFacade(
   | "taskNoteAdd"
   | "taskNoteDelete"
   | "taskHistory"
-  | "captureTodo"
-  | "reviewAccept"
-  | "reviewApplyUpdate"
-  | "reviewDismiss"
-  | "reviewRestore"
-  | "reviewBatch"
-  | "retryJudge"
-  | "forceCapture"
-  | "forceDismiss"
-  | "pollNow"
 > {
   return {
     taskStart: (p) => call("taskStart", p),
@@ -78,6 +68,26 @@ function taskFacade(
     taskNoteAdd: (p) => call("taskNoteAdd", p),
     taskNoteDelete: (p) => call("taskNoteDelete", p),
     taskHistory: (p) => call("taskHistory", p),
+  };
+}
+
+/** 收音机命令门面（快捕/分诊/批量/失败组重判/手动拉取） */
+function radioFacade(
+  call: Sender,
+): Pick<
+  HostClient,
+  | "captureTodo"
+  | "reviewAccept"
+  | "reviewApplyUpdate"
+  | "reviewDismiss"
+  | "reviewRestore"
+  | "reviewBatch"
+  | "retryJudge"
+  | "forceCapture"
+  | "forceDismiss"
+  | "pollNow"
+> {
+  return {
     captureTodo: (p) => call("captureTodo", p),
     reviewAccept: (p) => call("reviewAccept", p),
     reviewApplyUpdate: (p) => call("reviewApplyUpdate", p),
@@ -135,6 +145,9 @@ function backpackFacade(
   | "dimensionUpdate"
   | "filterList"
   | "filterUpsert"
+  | "tagCheckup"
+  | "tagMerge"
+  | "tagMoveDimension"
   | "agentUpsert"
   | "agentDelete"
   | "promptList"
@@ -150,6 +163,9 @@ function backpackFacade(
     dimensionUpdate: (p) => call("dimensionUpdate", p),
     filterList: () => call("filterList"),
     filterUpsert: (p) => call("filterUpsert", p),
+    tagCheckup: () => call("tagCheckup"),
+    tagMerge: (p) => call("tagMerge", p),
+    tagMoveDimension: (p) => call("tagMoveDimension", p),
     agentUpsert: (p) => call("agentUpsert", p),
     agentDelete: (p) => call("agentDelete", p),
     promptList: () => call("promptList"),
@@ -215,6 +231,7 @@ export function createHostClient(transport: HostTransport): HostClient {
   });
   return {
     ...taskFacade(call),
+    ...radioFacade(call),
     ...dispatchFacade(call),
     ...backpackFacade(call),
     ...miscFacade(call),

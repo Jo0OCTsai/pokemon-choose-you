@@ -1,7 +1,8 @@
 /**
  * host 命令装配（AD §4.1.1：49 client→host RPC + 1 条 host→客户端 pageOpen 推送，
  * 共 50 条目——49 命令含放生撤销 taskDeleteUndo 的显式撤销面；实体读域 5 条为
- * Phase B 契约缺口补齐 + 任务编辑/跟进/历史 4 条 + 备份/导出域 3 条，共 62 条目）。
+ * Phase B 契约缺口补齐 + 任务编辑/跟进/历史 4 条 + 备份/导出域 3 条 + 复盘向导
+ * 标签体检 3 条，共 65 条目）。
  * 分域实现表见 commands/ 目录；本文件装配统一调用面（ok/fail 信封）+ pageOpen 推送出口 +
  * conversation chip 数据源接口（dsh 适配层后续接线）。
  */
@@ -58,6 +59,10 @@ export const HOST_COMMAND_NAMES = [
   "dimensionUpdate",
   "filterList",
   "filterUpsert",
+  // 复盘向导「标签体检」（本地预筛报告 + 合并/迁维度治理动作）
+  "tagCheckup",
+  "tagMerge",
+  "tagMoveDimension",
   "agentUpsert",
   "agentDelete",
   "promptList",

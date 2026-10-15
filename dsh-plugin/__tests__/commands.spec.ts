@@ -3,199 +3,120 @@
  * happy path 调用（信封 ok / data 落库；全命令覆盖装配层，细节行为已有各域单测）。
  * deps 走 createHostCommands 直装（fake lark/poll/pet/terminal——不经 createPlugin，
  * 插件级装配链路由 integration.spec 覆盖）。
+ * 背包/诊断/桌宠/通用/专注域之外的分域（标签体检/实体读/备份导出）→ commands-misc.spec；
+ * 临时库/deps 装配/种子便捷件 → commandsSetup。
  */
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { join } from "node:path";
-import { tmpdir } from "node:os";
-import { mkdtempSync, rmSync } from "node:fs";
-import { createHostCommands, HOST_COMMAND_NAMES } from "../src/host/commands";
-import type { HostCommandDeps } from "../src/host/commands";
-import { initConn } from "../src/host/storage/init";
-import { open } from "../src/host/storage/db";
-import { LogRing } from "../src/host/health/logRing";
-import { HealthState } from "../src/host/health/snapshot";
-import { createFakeTerminal } from "../src/host/dispatch/interactive";
-import { fakeSubagentExecutor } from "../src/host/judge/adapters";
-import type { DispatchExecutor, ExecOutcome } from "../src/host/dispatch/executor";
+import { HOST_COMMAND_NAMES } from "../src/host/commands";
+import { attachProjectTag, createCommandsFixture, seedMsg, seedTask, type CommandsFixture } from "./commandsSetup";
 
-let dir: string;
-let conn: ReturnType<typeof open>;
-let pages: Array<{ section?: string }>;
-let writes: number;
-let deps: HostCommandDeps;
+let f: CommandsFixture;
 
 beforeEach(() => {
-  dir = mkdtempSync(join(tmpdir(), "pky-cmds-"));
-  conn = open(join(dir, "test.db"));
-  initConn(conn);
-  pages = [];
-  writes = 0;
-  deps = {
-    conn,
-    health: new HealthState(),
-    logs: new LogRing(),
-    log: () => undefined,
-    poll: { runRound: async () => ({ ok: true, inserted: 0, unauthorized: false }), resume: () => undefined },
-    lark: {
-      userIdentity: async () => ({ openId: "ou_me", name: "测试用户" }),
-      listChats: async () => ({ items: [] }),
-      chatUserSettings: async () => ({}),
-      listMessages: async () => ({}),
-      listMembers: async () => ({}),
-      authStatus: async () => ({ loggedIn: true, userName: "测试用户" }),
-      configReady: async () => true,
-    },
-    larkBin: "lark-cli",
-    newExecutor: () =>
-      fakeSubagentExecutor("fake-judge", (batch) => [
-        { messageId: batch.messageIds[0] ?? "", action: "todo", title: "快捕任务" },
-      ]),
-    dispatchDeps: {
-      executorFor: (): DispatchExecutor => ({
-        launch: async (): Promise<ExecOutcome> => ({ exitCode: 0, durationMs: 5, stdout: "", timedOut: false }),
-        kill: () => undefined,
-      }),
-    },
-    terminal: createFakeTerminal(),
-    pet: { show: async () => null, hide: () => undefined, running: false },
-    onWrites: () => (writes += 1),
-    openPage: (section) => pages.push({ section }),
-    feishuConfigured: true,
-    meta: { pluginVersion: "0.1.0", dshVersion: null },
-  };
+  f = createCommandsFixture();
 });
 
 afterEach(() => {
-  conn.close();
-  rmSync(dir, { recursive: true, force: true });
+  f.close();
 });
 
-const call = (name: string, params?: unknown): Promise<unknown> => createHostCommands(deps)(name, params);
+/** 编辑/跟进/历史用例主体（describe 回调行数棘轮受限，长用例体提为命名函数等量迁出） */
+async function runTaskEditHistoryCase(): Promise<void> {
+  const id = seedTask(f.conn, "编辑目标");
+  expect(
+    await f.call("taskUpdate", { id, title: "改后标题", note: "备注", priority: "high", dueAt: "2026-06-02T09:00" }),
+  ).toMatchObject({ ok: true, data: { id, title: "改后标题", note: "备注", priority: "high" } });
+  const missing = (await f.call("taskUpdate", { id: 424242, title: "幽灵" })) as {
+    ok: boolean;
+    error: { code: string };
+  };
+  expect(missing.ok).toBe(false);
+  expect(missing.error.code).toBe("NOT_FOUND");
 
-/** 直插任务（返回 id；opts 补状态/派发态） */
-function seedTask(title: string, opts: { status?: string; dispatch?: string | null } = {}): number {
-  const r = conn
-    .prepare(
-      "INSERT INTO tasks (title, status, dispatch_state, created_at) VALUES (?, ?, ?, '2026-01-01T00:00:00+00:00')",
-    )
-    .run(title, opts.status ?? "scheduled", opts.dispatch ?? null);
-  return Number(r.lastInsertRowid);
-}
+  const note = (await f.call("taskNoteAdd", { taskId: id, content: "  手动跟进  " })) as {
+    ok: boolean;
+    data: { id: number; content: string; source: string };
+  };
+  expect(note.ok).toBe(true);
+  expect(note.data.content).toBe("手动跟进"); // 去空格
+  expect(note.data.source).toBe("manual");
+  const empty = (await f.call("taskNoteAdd", { taskId: id, content: "   " })) as { ok: boolean };
+  expect(empty.ok).toBe(false);
 
-/** 项目标签（派发路由的前提：project 维度 + meta 指定 agent）并挂到任务 */
-function attachProjectTag(taskId: number): void {
-  conn
-    .prepare(
-      "INSERT INTO tags (name, dimension_id, meta, created_at) VALUES ('PokemonApp', 1, ?, '2026-01-01T00:00:00+00:00') ON CONFLICT(name, dimension_id) DO UPDATE SET meta=excluded.meta",
-    )
-    .run(JSON.stringify({ agentId: "ag-1", workdir: dir }));
-  const tagId = Number(
-    (conn.prepare("SELECT id FROM tags WHERE name='PokemonApp' AND dimension_id=1").get() as { id: number }).id,
+  const hist = (await f.call("taskHistory", { taskId: id })) as {
+    ok: boolean;
+    data: { logs: Array<{ action: string; field: string; newValue: string | null }> };
+  };
+  expect(hist.ok).toBe(true);
+  expect(hist.data.logs.some((l) => l.action === "update" && l.field === "title" && l.newValue === "改后标题")).toBe(
+    true,
   );
-  conn.prepare("INSERT OR IGNORE INTO task_tags (task_id, tag_id) VALUES (?, ?)").run(taskId, tagId);
-}
 
-/** 直插消息（快捕/分诊/重判的种子） */
-function seedMsg(
-  messageId: string,
-  opts: { aiStatus?: string; review?: string; title?: string; updateTask?: number | null } = {},
-): void {
-  conn
-    .prepare(
-      "INSERT INTO chat_messages (message_id, content, suggested_title, suggested_tags, ai_status, review_status, update_task_id, created_at) " +
-        "VALUES (?, '内容', ?, '[]', ?, ?, ?, '2026-01-01T00:00:00+00:00')",
-    )
-    .run(messageId, opts.title ?? null, opts.aiStatus ?? "pending", opts.review ?? "pending", opts.updateTask ?? null);
+  expect(await f.call("taskNoteDelete", { id: note.data.id })).toMatchObject({ ok: true });
+  const after = (await f.call("taskDetail", { taskId: id })) as { data: { followups: unknown[] } };
+  expect(after.data.followups).toHaveLength(0);
 }
 
 describe("host 命令装配面（AD §4.1.1）· 全集与任务域", () => {
-  it("命令名全集 = 62 条目（57 RPC + taskDeleteUndo 撤销面 + 任务编辑/跟进/历史 4 条 + 备份/导出 3 条），未知命令 INVALID_ARGUMENT", async () => {
-    expect(HOST_COMMAND_NAMES).toHaveLength(62);
-    const unknown = (await call("nope")) as { ok: boolean; error: { code: string } };
+  it("命令名全集 = 65 条目（62 + 复盘向导标签体检 3 条），未知命令 INVALID_ARGUMENT", async () => {
+    expect(HOST_COMMAND_NAMES).toHaveLength(65);
+    const unknown = (await f.call("nope")) as { ok: boolean; error: { code: string } };
     expect(unknown.ok).toBe(false);
     expect(unknown.error.code).toBe("INVALID_ARGUMENT");
   });
 
   it("任务域：Start/Pause/Resume/Complete/Cancel/Delete/Undo/Reschedule", async () => {
-    const id = seedTask("命令面任务");
-    expect(await call("taskStart", { taskId: id })).toMatchObject({ ok: true, data: { status: "active" } });
-    expect(await call("taskPause", {})).toMatchObject({ ok: true });
-    expect(await call("taskResume", {})).toMatchObject({ ok: true });
-    const done = seedTask("完成目标", { status: "active" });
-    expect(await call("taskComplete", { taskId: done })).toMatchObject({ ok: true });
-    const esc = seedTask("逃走目标");
-    expect(await call("taskCancel", { taskId: esc, reasonCode: "noise" })).toMatchObject({
+    const id = seedTask(f.conn, "命令面任务");
+    expect(await f.call("taskStart", { taskId: id })).toMatchObject({ ok: true, data: { status: "active" } });
+    expect(await f.call("taskPause", {})).toMatchObject({ ok: true });
+    expect(await f.call("taskResume", {})).toMatchObject({ ok: true });
+    const done = seedTask(f.conn, "完成目标", { status: "active" });
+    expect(await f.call("taskComplete", { taskId: done })).toMatchObject({ ok: true });
+    const esc = seedTask(f.conn, "逃走目标");
+    expect(await f.call("taskCancel", { taskId: esc, reasonCode: "noise" })).toMatchObject({
       ok: true,
       data: { status: "cancelled" },
     });
-    const del = seedTask("放生目标");
-    expect(await call("taskDelete", { taskId: del })).toEqual({ ok: true, data: { taskId: del } });
-    expect(await call("taskDeleteUndo", { taskId: del })).toMatchObject({ ok: true, data: { id: del } });
-    const rs = seedTask("改期目标");
-    expect(await call("taskReschedule", { taskId: rs, due: "2026-06-01T09:00" })).toMatchObject({ ok: true });
+    const del = seedTask(f.conn, "放生目标");
+    expect(await f.call("taskDelete", { taskId: del })).toEqual({ ok: true, data: { taskId: del } });
+    expect(await f.call("taskDeleteUndo", { taskId: del })).toMatchObject({ ok: true, data: { id: del } });
+    const rs = seedTask(f.conn, "改期目标");
+    expect(await f.call("taskReschedule", { taskId: rs, due: "2026-06-01T09:00" })).toMatchObject({ ok: true });
   });
 
-  it("任务编辑/跟进/历史：taskUpdate 全字段 patch + 审计日志 + 跟进增删", async () => {
-    const id = seedTask("编辑目标");
-    expect(
-      await call("taskUpdate", { id, title: "改后标题", note: "备注", priority: "high", dueAt: "2026-06-02T09:00" }),
-    ).toMatchObject({ ok: true, data: { id, title: "改后标题", note: "备注", priority: "high" } });
-    const missing = (await call("taskUpdate", { id: 424242, title: "幽灵" })) as {
-      ok: boolean;
-      error: { code: string };
-    };
-    expect(missing.ok).toBe(false);
-    expect(missing.error.code).toBe("NOT_FOUND");
-
-    const note = (await call("taskNoteAdd", { taskId: id, content: "  手动跟进  " })) as {
-      ok: boolean;
-      data: { id: number; content: string; source: string };
-    };
-    expect(note.ok).toBe(true);
-    expect(note.data.content).toBe("手动跟进"); // 去空格
-    expect(note.data.source).toBe("manual");
-    const empty = (await call("taskNoteAdd", { taskId: id, content: "   " })) as { ok: boolean };
-    expect(empty.ok).toBe(false);
-
-    const hist = (await call("taskHistory", { taskId: id })) as {
-      ok: boolean;
-      data: { logs: Array<{ action: string; field: string; newValue: string | null }> };
-    };
-    expect(hist.ok).toBe(true);
-    expect(hist.data.logs.some((l) => l.action === "update" && l.field === "title" && l.newValue === "改后标题")).toBe(
-      true,
-    );
-
-    expect(await call("taskNoteDelete", { id: note.data.id })).toMatchObject({ ok: true });
-    const after = (await call("taskDetail", { taskId: id })) as { data: { followups: unknown[] } };
-    expect(after.data.followups).toHaveLength(0);
-  });
+  it("任务编辑/跟进/历史：taskUpdate 全字段 patch + 审计日志 + 跟进增删", runTaskEditHistoryCase);
 });
 
 describe("host 命令装配面 · 收音机域", () => {
   it("快捕与分诊四路 + 放生撤销窗口外参数错", async () => {
-    const stale = (await call("taskDeleteUndo", { taskId: 424242 })) as { ok: boolean; error: { code: string } };
+    const stale = (await f.call("taskDeleteUndo", { taskId: 424242 })) as { ok: boolean; error: { code: string } };
     expect(stale.error.code).toBe("INVALID_ARGUMENT");
-    expect(await call("captureTodo", { text: "记得买咖啡" })).toMatchObject({ ok: true, data: { outcome: "caught" } });
-    seedMsg("om_acc", { aiStatus: "todo", title: "待接受" });
-    expect(await call("reviewAccept", { messageId: "om_acc" })).toMatchObject({
+    expect(await f.call("captureTodo", { text: "记得买咖啡" })).toMatchObject({
+      ok: true,
+      data: { outcome: "caught" },
+    });
+    seedMsg(f.conn, "om_acc", { aiStatus: "todo", title: "待接受" });
+    expect(await f.call("reviewAccept", { messageId: "om_acc" })).toMatchObject({
       ok: true,
       data: { messageId: "om_acc" },
     });
-    const upd = seedTask("更新目标");
-    seedMsg("om_upd", { aiStatus: "update", title: "改名", updateTask: upd });
-    expect(await call("reviewApplyUpdate", { messageId: "om_upd" })).toMatchObject({ ok: true, data: { taskId: upd } });
-    seedMsg("om_dis");
-    expect(await call("reviewDismiss", { messageId: "om_dis", reasonCode: "noise" })).toMatchObject({ ok: true });
-    seedMsg("om_res");
-    await call("reviewDismiss", { messageId: "om_res", reasonCode: "noise" });
-    expect(await call("reviewRestore", { messageId: "om_res" })).toMatchObject({ ok: true });
+    const upd = seedTask(f.conn, "更新目标");
+    seedMsg(f.conn, "om_upd", { aiStatus: "update", title: "改名", updateTask: upd });
+    expect(await f.call("reviewApplyUpdate", { messageId: "om_upd" })).toMatchObject({
+      ok: true,
+      data: { taskId: upd },
+    });
+    seedMsg(f.conn, "om_dis");
+    expect(await f.call("reviewDismiss", { messageId: "om_dis", reasonCode: "noise" })).toMatchObject({ ok: true });
+    seedMsg(f.conn, "om_res");
+    await f.call("reviewDismiss", { messageId: "om_res", reasonCode: "noise" });
+    expect(await f.call("reviewRestore", { messageId: "om_res" })).toMatchObject({ ok: true });
   });
 
   it("批量分诊 / 失败组 / 手动拉取", async () => {
-    seedMsg("om_b1", { aiStatus: "todo", title: "批一" });
-    seedMsg("om_b2", { aiStatus: "todo", title: "批二" });
-    const batch = (await call("reviewBatch", {
+    seedMsg(f.conn, "om_b1", { aiStatus: "todo", title: "批一" });
+    seedMsg(f.conn, "om_b2", { aiStatus: "todo", title: "批二" });
+    const batch = (await f.call("reviewBatch", {
       messageIds: ["om_b1", "om_b2"],
       op: "dismiss",
       reasonCode: "noise",
@@ -203,81 +124,88 @@ describe("host 命令装配面 · 收音机域", () => {
       data: { results: Array<{ ok: boolean }> };
     };
     expect(batch.data.results.every((r) => r.ok)).toBe(true);
-    seedMsg("om_err", { aiStatus: "error", review: "pending" });
-    expect(await call("retryJudge", { messageIds: ["om_err"] })).toMatchObject({ ok: true });
-    seedMsg("om_fc", { aiStatus: "none" });
-    expect(await call("forceCapture", { messageId: "om_fc" })).toMatchObject({ ok: true });
-    seedMsg("om_fd");
-    expect(await call("forceDismiss", { messageId: "om_fd", reasonCode: "noise" })).toMatchObject({ ok: true });
-    expect(await call("pollNow")).toMatchObject({ ok: true });
+    seedMsg(f.conn, "om_err", { aiStatus: "error", review: "pending" });
+    expect(await f.call("retryJudge", { messageIds: ["om_err"] })).toMatchObject({ ok: true });
+    seedMsg(f.conn, "om_fc", { aiStatus: "none" });
+    expect(await f.call("forceCapture", { messageId: "om_fc" })).toMatchObject({ ok: true });
+    seedMsg(f.conn, "om_fd");
+    expect(await f.call("forceDismiss", { messageId: "om_fd", reasonCode: "noise" })).toMatchObject({ ok: true });
+    expect(await f.call("pollNow")).toMatchObject({ ok: true });
   });
 });
 
+/** 派发用 agent 配置落库（ag-1 → true 命令，workdir 指临时根） */
+function seedAgentEntry(): void {
+  f.conn.prepare("INSERT OR REPLACE INTO settings (key, value) VALUES ('ai_agents', ?)").run(
+    JSON.stringify([
+      {
+        id: "ag-1",
+        name: "A",
+        command: "true",
+        args: "",
+        historyArgs: "",
+        workdir: f.dir,
+        timeoutSecs: 120,
+        enabled: true,
+      },
+    ]),
+  );
+}
+
 describe("host 命令装配面 · 派发与设置域", () => {
   it("六派发 + config/route/lark", async () => {
-    conn.prepare("INSERT OR REPLACE INTO settings (key, value) VALUES ('ai_agents', ?)").run(
-      JSON.stringify([
-        {
-          id: "ag-1",
-          name: "A",
-          command: "true",
-          args: "",
-          historyArgs: "",
-          workdir: dir,
-          timeoutSecs: 120,
-          enabled: true,
-        },
-      ]),
-    );
-    const inter = seedTask("交互派发");
-    attachProjectTag(inter);
-    expect(await call("dispatchInteractive", { taskId: inter })).toMatchObject({
+    seedAgentEntry();
+    const inter = seedTask(f.conn, "交互派发");
+    attachProjectTag(f.conn, f.dir, inter);
+    expect(await f.call("dispatchInteractive", { taskId: inter })).toMatchObject({
       ok: true,
       data: { state: "running" },
     });
-    const head = seedTask("无头派发");
-    attachProjectTag(head);
-    expect(await call("dispatchHeadless", { taskId: head })).toMatchObject({ ok: true });
-    const closing = seedTask("收口目标", { dispatch: "running" });
-    expect(await call("dispatchClose", { taskId: closing, result: "done", note: "完成" })).toMatchObject({
+    const head = seedTask(f.conn, "无头派发");
+    attachProjectTag(f.conn, f.dir, head);
+    expect(await f.call("dispatchHeadless", { taskId: head })).toMatchObject({ ok: true });
+    const closing = seedTask(f.conn, "收口目标", { dispatch: "running" });
+    expect(await f.call("dispatchClose", { taskId: closing, result: "done", note: "完成" })).toMatchObject({
       ok: true,
       data: { state: "done" },
     });
-    const reset = seedTask("重置目标", { dispatch: "running" });
-    expect(await call("dispatchReset", { taskId: reset })).toMatchObject({ ok: true });
-    const cancel = seedTask("取消排队", { dispatch: "queued" });
-    expect(await call("dispatchCancel", { taskId: cancel })).toMatchObject({ ok: true });
-    const redo = seedTask("重派目标", { dispatch: "done" });
-    attachProjectTag(redo);
-    expect(await call("dispatchRedo", { taskId: redo })).toMatchObject({ ok: true });
-    expect(await call("configWrite", { keyValues: { language: "en" } })).toMatchObject({
+    const reset = seedTask(f.conn, "重置目标", { dispatch: "running" });
+    expect(await f.call("dispatchReset", { taskId: reset })).toMatchObject({ ok: true });
+    const cancel = seedTask(f.conn, "取消排队", { dispatch: "queued" });
+    expect(await f.call("dispatchCancel", { taskId: cancel })).toMatchObject({ ok: true });
+    const redo = seedTask(f.conn, "重派目标", { dispatch: "done" });
+    attachProjectTag(f.conn, f.dir, redo);
+    expect(await f.call("dispatchRedo", { taskId: redo })).toMatchObject({ ok: true });
+    expect(await f.call("configWrite", { keyValues: { language: "en" } })).toMatchObject({
       ok: true,
       data: { ok: true },
     });
-    const read = (await call("configRead", { keys: ["language"] })) as { data: { keyValues: Record<string, string> } };
+    const read = (await f.call("configRead", { keys: ["language"] })) as {
+      data: { keyValues: Record<string, string> };
+    };
     expect(read.data.keyValues.language).toBe("en");
     expect(
-      await call("routeUpsert", { route: { tag: "PokemonApp", agentId: "ag-1", workdir: dir, context: "" } }),
+      await f.call("routeUpsert", { route: { tag: "PokemonApp", agentId: "ag-1", workdir: f.dir, context: "" } }),
     ).toMatchObject({ ok: true });
-    expect(await call("larkAuth")).toMatchObject({ ok: true, data: { launched: true } });
-    expect(await call("larkTest")).toMatchObject({ ok: true, data: { identity: "测试用户", chatCount: 0 } });
+    expect(await f.call("larkAuth")).toMatchObject({ ok: true, data: { launched: true } });
+    expect(await f.call("larkTest")).toMatchObject({ ok: true, data: { identity: "测试用户", chatCount: 0 } });
   });
 });
 
 describe("host 命令装配面 · 背包/诊断/桌宠/通用/专注域", () => {
   it("全命令信封 ok + onWrites 接线", async () => {
-    expect(await call("categoryUpsert", { name: "新分类" })).toMatchObject({ ok: true });
-    expect(await call("categoryDelete", { id: 5 })).toMatchObject({ ok: true, data: { id: 5 } });
-    expect(await call("tagUpsert", { name: "标签", dimension: "topic" })).toMatchObject({ ok: true });
-    expect(await call("tagDelete", { id: 1 })).toMatchObject({ ok: true });
-    expect(await call("dimensionUpdate", { key: "topic", name: "主题" })).toMatchObject({ ok: true });
-    conn
+    expect(await f.call("categoryUpsert", { name: "新分类" })).toMatchObject({ ok: true });
+    expect(await f.call("categoryDelete", { id: 5 })).toMatchObject({ ok: true, data: { id: 5 } });
+    expect(await f.call("tagUpsert", { name: "标签", dimension: "topic" })).toMatchObject({ ok: true });
+    expect(await f.call("tagDelete", { id: 1 })).toMatchObject({ ok: true });
+    expect(await f.call("dimensionUpdate", { key: "topic", name: "主题" })).toMatchObject({ ok: true });
+    f.conn
       .prepare(
         "INSERT INTO feishu_chats (chat_id, chat_name, chat_type, mute_outcome) VALUES ('oc_g', '群', 'group', 'unknown')",
       )
       .run();
-    expect(await call("filterList")).toMatchObject({ ok: true });
-    expect(await call("filterUpsert", { chatId: "oc_g", state: "always_filter" })).toMatchObject({ ok: true });
+    expect(await f.call("filterList")).toMatchObject({ ok: true });
+    expect(await f.call("filterUpsert", { chatId: "oc_g", state: "always_filter" })).toMatchObject({ ok: true });
     const agent = {
       id: "ag-9",
       name: "X",
@@ -288,73 +216,25 @@ describe("host 命令装配面 · 背包/诊断/桌宠/通用/专注域", () => 
       timeoutSecs: 60,
       enabled: true,
     };
-    expect(await call("agentUpsert", { agent })).toMatchObject({ ok: true });
-    expect(await call("agentDelete", { id: "ag-9" })).toMatchObject({ ok: true });
-    expect(await call("promptList")).toMatchObject({ ok: true });
-    expect(await call("promptGet", { key: "ai_prompt_tag_health" })).toMatchObject({ ok: true });
-    expect(await call("promptOverride", { key: "ai_prompt_tag_health", value: "自定义提示词" })).toMatchObject({
+    expect(await f.call("agentUpsert", { agent })).toMatchObject({ ok: true });
+    expect(await f.call("agentDelete", { id: "ag-9" })).toMatchObject({ ok: true });
+    expect(await f.call("promptList")).toMatchObject({ ok: true });
+    expect(await f.call("promptGet", { key: "ai_prompt_tag_health" })).toMatchObject({ ok: true });
+    expect(await f.call("promptOverride", { key: "ai_prompt_tag_health", value: "自定义提示词" })).toMatchObject({
       ok: true,
     });
-    expect(await call("promptReset", { key: "ai_prompt_tag_health" })).toMatchObject({ ok: true });
-    expect(await call("diagnosticsSnapshot")).toMatchObject({ ok: true, data: { links: expect.any(Array) } });
-    expect(await call("supportReport")).toMatchObject({
+    expect(await f.call("promptReset", { key: "ai_prompt_tag_health" })).toMatchObject({ ok: true });
+    expect(await f.call("diagnosticsSnapshot")).toMatchObject({ ok: true, data: { links: expect.any(Array) } });
+    expect(await f.call("supportReport")).toMatchObject({
       ok: true,
       data: { text: expect.stringContaining("支持报告") },
     });
-    expect(await call("logQuery", { limit: 5 })).toMatchObject({ ok: true });
-    expect(await call("petShow")).toMatchObject({ ok: true, data: { ok: true, ready: false } });
-    expect(await call("petHide")).toMatchObject({ ok: true, data: { ok: true } });
-    expect(await call("petMove", { pos: { x: 1, y: 2 } })).toMatchObject({ ok: true });
-    expect(await call("dbStatus")).toMatchObject({ ok: true, data: { userVersion: 2, mode: "ok" } });
-    expect(await call("pomoTryFive", {})).toMatchObject({ ok: true, data: { ok: true } });
-    expect(writes).toBeGreaterThan(0);
-  });
-});
-
-describe("host 命令装配面 · 实体读域", () => {
-  it("5 命令信封 ok（细节形状断言见 readCommands.spec）", async () => {
-    seedTask("实体读目标");
-    expect(await call("panelSnapshot", {})).toMatchObject({
-      ok: true,
-      data: { adventure: { active: [], dueToday: [], overdue: [] }, radio: { health: expect.any(Object) } },
-    });
-    expect(await call("taskDetail", { taskId: 1 })).toMatchObject({ ok: true, data: { task: { id: 1 } } });
-    expect(await call("taskSearch", { query: "实体" })).toMatchObject({ ok: true, data: { tasks: [{ id: 1 }] } });
-    expect(await call("todayTasks", {})).toMatchObject({ ok: true, data: { tasks: expect.any(Array) } });
-    expect(await call("categoriesList", {})).toMatchObject({ ok: true, data: { categories: expect.any(Array) } });
-  });
-});
-
-describe("host 命令装配面 · 备份/导出域", () => {
-  it("backupRun/backupList/exportRun 三种 kind 信封 ok（产物落盘细节见 backup-export.spec）", async () => {
-    // 数据目录经 CHOOSE_YOU_HOME 注入临时根（默认会落用户真实 home——测试须显式指向）
-    const prevHome = process.env.CHOOSE_YOU_HOME;
-    process.env.CHOOSE_YOU_HOME = dir;
-    try {
-      seedTask("备份目标");
-      const backup = (await call("backupRun")) as { ok: boolean; data: { file: string; files: unknown[] } };
-      expect(backup.ok).toBe(true);
-      expect(backup.data.file).toMatch(/^pokemon-choose-you-\d{8}-\d{6}(-\d+)?\.db$/);
-      expect(backup.data.files).toEqual(expect.any(Array));
-      expect(await call("backupList")).toMatchObject({ ok: true, data: { backups: expect.any(Array) } });
-      expect(await call("exportRun", { kind: "json" })).toMatchObject({
-        ok: true,
-        data: { path: expect.stringContaining("pokemon-choose-you-full-") },
-      });
-      expect(await call("exportRun", { kind: "csv" })).toMatchObject({
-        ok: true,
-        data: { path: expect.stringContaining("pokemon-choose-you-tasks-") },
-      });
-      expect(await call("exportRun", { kind: "report" })).toMatchObject({
-        ok: true,
-        data: { path: expect.stringContaining("pokemon-choose-you-daily-") },
-      });
-    } finally {
-      if (prevHome === undefined) {
-        delete process.env.CHOOSE_YOU_HOME;
-      } else {
-        process.env.CHOOSE_YOU_HOME = prevHome;
-      }
-    }
+    expect(await f.call("logQuery", { limit: 5 })).toMatchObject({ ok: true });
+    expect(await f.call("petShow")).toMatchObject({ ok: true, data: { ok: true, ready: false } });
+    expect(await f.call("petHide")).toMatchObject({ ok: true, data: { ok: true } });
+    expect(await f.call("petMove", { pos: { x: 1, y: 2 } })).toMatchObject({ ok: true });
+    expect(await f.call("dbStatus")).toMatchObject({ ok: true, data: { userVersion: 2, mode: "ok" } });
+    expect(await f.call("pomoTryFive", {})).toMatchObject({ ok: true, data: { ok: true } });
+    expect(f.writes()).toBeGreaterThan(0);
   });
 });

@@ -103,12 +103,15 @@
   color: var(--pcy-danger, #b3590f);
 }
 
-/* 分区整页布局（原型 sectionpage：卡片容器承载整页表单） */
+/* 分区整页布局（原型 sectionpage：卡片容器承载整页表单；920px 上限 + 水平居中——
+ * 桌面 .set-card 同口径，宽宿主下不留右侧死区） */
 .sectionPage {
   display: flex;
   flex-direction: column;
   gap: 14px;
-  max-width: 760px;
+  width: 100%;
+  max-width: 920px;
+  margin-inline: auto;
   background: var(--dsw-alias-bg-layer-1, #ffffff);
   border: 1px solid var(--dsw-alias-border-l1, #e3e7ec);
   border-radius: 12px;
@@ -117,12 +120,12 @@
 .cardTitle {
   font-size: 14px;
   font-weight: 700;
-  margin: 0 0 8px;
+  margin: 0;
 }
 .cardHint {
   font-size: 12px;
   color: var(--dsw-alias-label-secondary, #57606a);
-  margin: 0 0 10px;
+  margin: 0;
   line-height: 1.6;
 }
 
@@ -141,6 +144,70 @@
   border-radius: 8px;
   background: var(--dsw-alias-bg-layer-1, #ffffff);
   flex-wrap: wrap;
+}
+/* 堆叠形态实体卡（分类卡/项目派发卡/agent 编辑卡）：上行标识与操作、下行通栏字段——
+ * 桌面 cat-row / dispatch-block 同构（上行一行排齐、下行描述/表单通栏不换行错落） */
+.entityCardStack {
+  composes: entityCard;
+  flex-direction: column;
+  align-items: stretch;
+}
+/* 卡内单行（实体行第一行）：控件同行排齐、不折行——桌面 cat-line / agent-row 同构 */
+.entityLine {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+/* 行内定宽档（对齐桌面：名称 110 / agent 名 120 / 维度 key 84 / 端口·上限 64 / 维度下拉 92） */
+.w110 {
+  width: 110px;
+  flex: none;
+}
+.w120 {
+  width: 120px;
+  flex: none;
+}
+.w84 {
+  width: 84px;
+  flex: none;
+}
+.w64 {
+  width: 64px;
+  flex: none;
+}
+.w92 {
+  width: 92px;
+  flex: none;
+}
+/* 行内伸缩档：占满同行剩余宽（命令/描述输入），超长省略不撑爆 */
+.grow {
+  flex: 1;
+  min-width: 0;
+}
+/* 标识行文本（agent 折叠态：名称 + 命令摘要） */
+.entityName {
+  width: 120px;
+  flex: none;
+  font-size: 13px;
+  font-weight: 700;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.entitySub {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 12px;
+}
+/* 卡底动作行（保存/取消等——桌面 .btn-row 同构） */
+.cardActions {
+  display: flex;
+  gap: 10px;
+  margin-top: 10px;
 }
 /* 停用中的实体行整体降透明（分类停用/agent 停用同观感，主应用 .off 同口径） */
 .entityCard[data-off="true"] {
@@ -183,10 +250,17 @@
   font-size: 12px;
   width: 100%;
 }
-.readonlyKey {
+/* 维度 key 列（建后只读，桌面 dim-key 同款：定宽 84 + 省略） */
+.dimKey {
+  flex: none;
+  width: 84px;
   font-size: 11px;
+  font-weight: 800;
   color: var(--dsw-alias-label-secondary, #57606a);
   font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .dimCount {
   font-size: 11px;
@@ -306,6 +380,10 @@
 }
 
 /* LogViewer */
+.logList {
+  display: flex;
+  flex-direction: column;
+}
 .logRow {
   display: flex;
   gap: 10px;

@@ -3,6 +3,7 @@
  * 关闭到托盘——三项标「作用于主应用」、保存制（U21）；待办库状态（dbStatus 即时查询，
  * 挂载即探测一次供只读判定）/数据导出（全量 JSON/任务 CSV/今日日报——导入与另存为
  * 不在 dsh 形态）/使用指南链接/双形态说明（语言与显示偏好已移入显示分区页）。
+ * 备份卡/导出卡拆件（BackupCard/ExportCard，复杂度棘轮拆分）在本文件内。
  */
 import { useEffect, useState } from "react";
 import { useClient } from "../../clientContext";
@@ -21,27 +22,47 @@ function fmtSize(bytes: number): string {
   return `${Math.max(1, Math.round(bytes / 1024))} KB`;
 }
 
-export function GeneralSection(props: SectionProps): React.JSX.Element {
-  const { draft, saved, onField, onSavedKeys } = props;
+/** 备份列表（null = 未加载——区分「空列表」与「还没查到」） */
+function BackupList({ backups }: { backups: BackupInfo[] | null }): React.JSX.Element {
+  const t = useT();
+  return (
+    <>
+      {backups !== null && backups.length > 0 && (
+        <ul className={styles.entityList} data-testid="backup-list">
+          {backups.map((b) => (
+            <li key={b.file} className={styles.entityCard} data-testid="backup-row">
+              <span>{b.file}</span>
+              <span className={ui.muted}>
+                {new Date(b.createdAt).toLocaleString()} · {fmtSize(b.size)}
+              </span>
+            </li>
+          ))}
+        </ul>
+      )}
+      {backups !== null && backups.length === 0 && <p className={styles.cardHint}>{t("backup.empty")}</p>}
+    </>
+  );
+}
+
+/** 备份卡：开关 + 保留份数（保存制字段）+ 立即备份（快照 + 滚动保留，行内提示新文件名） */
+function BackupCard({
+  draft,
+  onField,
+  readonly,
+}: {
+  draft: Record<string, string>;
+  onField: (key: string, value: string) => void;
+  readonly: boolean;
+}): React.JSX.Element {
   const t = useT();
   const client = useClient();
-  const [dbStatus, setDbStatus] = useState<DbStatus | null>(null);
-  // 备份列表（null = 未加载——区分「空列表」与「还没查到」）
   const [backups, setBackups] = useState<BackupInfo[] | null>(null);
   const [backingUp, setBackingUp] = useState(false);
   const [backupMsg, setBackupMsg] = useState("");
-  const [exporting, setExporting] = useState(false);
-  const [exportMsg, setExportMsg] = useState("");
-  // 只读模式（库版本较新）：写动作按钮统一禁用（桌面无此态，dsh 按 §4.2 禁用清单口径）
-  const readonly = dbStatus?.mode === "ro";
 
-  // 挂载即探测库状态（只读判定）+ 备份列表（备份卡的列表直读）
+  // 备份列表直读（备份卡的列表初始态）
   useEffect(() => {
     void (async () => {
-      const status = await client.dbStatus();
-      if (status.ok) {
-        setDbStatus(status.data);
-      }
       const list = await client.backupList();
       if (list.ok) {
         setBackups(list.data.backups);
@@ -66,6 +87,50 @@ export function GeneralSection(props: SectionProps): React.JSX.Element {
     }
   }
 
+  return (
+    <div className={ui.card}>
+      <h4 className={styles.cardTitle}>{t("backup.title")}</h4>
+      <Toggle
+        label={t("backup.enable")}
+        checked={draft["backup_enabled"] === "true"}
+        onChange={(v) => onField("backup_enabled", String(v))}
+        badge={t("dsh.badge.mainApp")}
+      />
+      <p className={styles.cardHint}>{t("backup.enableDesc")}</p>
+      <Select
+        label={t("backup.keep")}
+        value={draft["backup_keep"]}
+        options={[3, 7, 14, 30].map((n) => ({ value: String(n), label: t("backup.keepN", { n }) }))}
+        onChange={(v) => onField("backup_keep", v)}
+      />
+      <div className={styles.filterRow}>
+        <button
+          type="button"
+          className={ui.button}
+          disabled={backingUp || readonly}
+          data-testid="backup-now"
+          onClick={() => void backupNow()}
+        >
+          {backingUp ? t("backup.working") : t("backup.now")}
+        </button>
+        {backupMsg !== "" && (
+          <span className={ui.muted} data-testid="backup-msg">
+            {backupMsg}
+          </span>
+        )}
+      </div>
+      <BackupList backups={backups} />
+    </div>
+  );
+}
+
+/** 数据导出卡：全量 JSON / 任务 CSV / 今日日报，提示写入路径 */
+function ExportCard({ readonly }: { readonly: boolean }): React.JSX.Element {
+  const t = useT();
+  const client = useClient();
+  const [exporting, setExporting] = useState(false);
+  const [exportMsg, setExportMsg] = useState("");
+
   /** 数据导出：全量 JSON / 任务 CSV / 今日日报，提示写入路径 */
   async function runExport(kind: "json" | "csv" | "report"): Promise<void> {
     if (exporting || readonly) {
@@ -81,6 +146,66 @@ export function GeneralSection(props: SectionProps): React.JSX.Element {
       setExportMsg(`❌ ${result.error.message}`);
     }
   }
+
+  return (
+    <div className={ui.card}>
+      <h4 className={styles.cardTitle}>{t("export.title")}</h4>
+      <div className={styles.filterRow}>
+        <button
+          type="button"
+          className={ui.button}
+          disabled={exporting || readonly}
+          data-testid="export-json"
+          onClick={() => void runExport("json")}
+        >
+          {t("export.json")}
+        </button>
+        <button
+          type="button"
+          className={ui.button}
+          disabled={exporting || readonly}
+          data-testid="export-csv"
+          onClick={() => void runExport("csv")}
+        >
+          {t("export.csv")}
+        </button>
+        <button
+          type="button"
+          className={ui.button}
+          disabled={exporting || readonly}
+          data-testid="export-report"
+          onClick={() => void runExport("report")}
+        >
+          {t("export.md")}
+        </button>
+        {exportMsg !== "" && (
+          <span className={ui.muted} data-testid="export-msg">
+            {exportMsg}
+          </span>
+        )}
+      </div>
+      <p className={styles.cardHint}>{t("export.hint")}</p>
+    </div>
+  );
+}
+
+export function GeneralSection(props: SectionProps): React.JSX.Element {
+  const { draft, saved, onField, onSavedKeys } = props;
+  const t = useT();
+  const client = useClient();
+  const [dbStatus, setDbStatus] = useState<DbStatus | null>(null);
+  // 只读模式（库版本较新）：写动作按钮统一禁用（桌面无此态，dsh 按 §4.2 禁用清单口径）
+  const readonly = dbStatus?.mode === "ro";
+
+  // 挂载即探测库状态（只读判定）
+  useEffect(() => {
+    void (async () => {
+      const status = await client.dbStatus();
+      if (status.ok) {
+        setDbStatus(status.data);
+      }
+    })();
+  }, [client]);
 
   return (
     <SectionShell
@@ -106,89 +231,8 @@ export function GeneralSection(props: SectionProps): React.JSX.Element {
           onChange={(v) => onField("review_dow", v)}
         />
       </div>
-      <div className={ui.card}>
-        <h4 className={styles.cardTitle}>{t("backup.title")}</h4>
-        <Toggle
-          label={t("backup.enable")}
-          checked={draft["backup_enabled"] === "true"}
-          onChange={(v) => onField("backup_enabled", String(v))}
-          badge={t("dsh.badge.mainApp")}
-        />
-        <p className={styles.cardHint}>{t("backup.enableDesc")}</p>
-        <Select
-          label={t("backup.keep")}
-          value={draft["backup_keep"]}
-          options={[3, 7, 14, 30].map((n) => ({ value: String(n), label: t("backup.keepN", { n }) }))}
-          onChange={(v) => onField("backup_keep", v)}
-        />
-        <div className={styles.filterRow}>
-          <button
-            type="button"
-            className={ui.button}
-            disabled={backingUp || readonly}
-            data-testid="backup-now"
-            onClick={() => void backupNow()}
-          >
-            {backingUp ? t("backup.working") : t("backup.now")}
-          </button>
-          {backupMsg !== "" && (
-            <span className={ui.muted} data-testid="backup-msg">
-              {backupMsg}
-            </span>
-          )}
-        </div>
-        {backups !== null && backups.length > 0 && (
-          <ul className={styles.entityList} data-testid="backup-list">
-            {backups.map((b) => (
-              <li key={b.file} className={styles.entityCard} data-testid="backup-row">
-                <span>{b.file}</span>
-                <span className={ui.muted}>
-                  {new Date(b.createdAt).toLocaleString()} · {fmtSize(b.size)}
-                </span>
-              </li>
-            ))}
-          </ul>
-        )}
-        {backups !== null && backups.length === 0 && <p className={styles.cardHint}>{t("backup.empty")}</p>}
-      </div>
-      <div className={ui.card}>
-        <h4 className={styles.cardTitle}>{t("export.title")}</h4>
-        <div className={styles.filterRow}>
-          <button
-            type="button"
-            className={ui.button}
-            disabled={exporting || readonly}
-            data-testid="export-json"
-            onClick={() => void runExport("json")}
-          >
-            {t("export.json")}
-          </button>
-          <button
-            type="button"
-            className={ui.button}
-            disabled={exporting || readonly}
-            data-testid="export-csv"
-            onClick={() => void runExport("csv")}
-          >
-            {t("export.csv")}
-          </button>
-          <button
-            type="button"
-            className={ui.button}
-            disabled={exporting || readonly}
-            data-testid="export-report"
-            onClick={() => void runExport("report")}
-          >
-            {t("export.md")}
-          </button>
-          {exportMsg !== "" && (
-            <span className={ui.muted} data-testid="export-msg">
-              {exportMsg}
-            </span>
-          )}
-        </div>
-        <p className={styles.cardHint}>{t("export.hint")}</p>
-      </div>
+      <BackupCard draft={draft} onField={onField} readonly={readonly} />
+      <ExportCard readonly={readonly} />
       <div className={ui.card}>
         <Toggle
           label={t("general.closeToTray")}

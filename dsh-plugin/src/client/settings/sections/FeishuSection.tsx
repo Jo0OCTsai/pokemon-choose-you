@@ -10,18 +10,68 @@ import { useState } from "react";
 import type { FilterItem } from "../../../host/domain/vocabulary-filters";
 import { useClient } from "../../clientContext";
 import { useT } from "../../i18n";
-import { Select, TextInput, Toggle } from "../../ui/controls";
+import { Select, TextInput } from "../../ui/controls";
 import ui from "../../ui/ui.module.css";
 import type { SectionProps } from "../sectionProps";
 import { FEISHU_KEYS } from "../sectionKeys";
 import { SectionShell } from "../SectionShell";
 import { POLL_INTERVAL_SECS } from "../optionSets";
 import styles from "../settings.module.css";
+import { FeishuConnCard } from "./FeishuConnCard";
 
 /** 生效/偏好/类型三维筛选档（dsh 数据面：state 即偏好——手动=always_*，生效口径跟随手动值） */
 type EffFilter = "all" | "pull" | "filter";
 type PrefFilter = "all" | "follow" | "manual";
 type TypeFilter = "all" | "group" | "bot";
+
+/** 生效档匹配（pull=always_pull / filter=always_filter / all 不筛） */
+function matchesEffState(state: FilterItem["state"], eff: EffFilter): boolean {
+  if (eff === "pull") {
+    return state === "always_pull";
+  }
+  if (eff === "filter") {
+    return state === "always_filter";
+  }
+  return true;
+}
+
+/** 偏好档匹配（follow=跟随 / manual=非 follow / all 不筛） */
+function matchesPrefState(state: FilterItem["state"], pref: PrefFilter): boolean {
+  if (pref === "follow") {
+    return state === "follow";
+  }
+  if (pref === "manual") {
+    return state !== "follow";
+  }
+  return true;
+}
+
+/** 名称搜索 + 生效/偏好/类型三维筛选（前端过滤，三维档各自独立匹配） */
+function chatMatchesFilters(chat: FilterItem, q: string, eff: EffFilter, pref: PrefFilter, type: TypeFilter): boolean {
+  if (q !== "" && !chat.chatName.toLowerCase().includes(q)) {
+    return false;
+  }
+  if (!matchesEffState(chat.state, eff) || !matchesPrefState(chat.state, pref)) {
+    return false;
+  }
+  return type === "all" || chat.chatType === type;
+}
+
+/** 快照年龄（分钟；仅启用且已拉取时计算，否则 null） */
+function snapshotAgeMin(enabled: string | undefined, lastPoll: string | null): number | null {
+  const pollMs = Date.parse(lastPoll ?? "");
+  if (enabled !== "true" || !Number.isFinite(pollMs)) {
+    return null;
+  }
+  return Math.round((Date.now() - pollMs) / 60_000);
+}
+
+/** 过期阈值（分钟；桌面同口径 = max(5, 2.5×轮询间隔秒/60)） */
+function staleThresholdMin(interval: string | undefined): number {
+  return Math.max(5, (2.5 * (Number(interval) || POLL_INTERVAL_SECS[1])) / 60);
+}
+
+/** 连接卡拆件 → FeishuConnCard.tsx */
 
 export function FeishuSection({
   filters,
@@ -32,12 +82,6 @@ export function FeishuSection({
   const t = useT();
   const client = useClient();
   const [chatList, setChatList] = useState(filters);
-  const [authBusy, setAuthBusy] = useState(false);
-  const [testState, setTestState] = useState<{ busy: boolean; identity: string | null; failed: boolean }>({
-    busy: false,
-    identity: null,
-    failed: false,
-  });
   const [query, setQuery] = useState("");
   const [effFilter, setEffFilter] = useState<EffFilter>("all");
   const [prefFilter, setPrefFilter] = useState<PrefFilter>("all");
@@ -50,28 +94,9 @@ export function FeishuSection({
     filtered: chatList.filter((c) => c.state === "always_filter").length,
     manual: chatList.filter((c) => c.state !== "follow").length,
   };
-  const visibleChats = chatList.filter((chat) => {
-    const q = query.trim().toLowerCase();
-    if (q !== "" && !chat.chatName.toLowerCase().includes(q)) {
-      return false;
-    }
-    if (effFilter === "pull" && chat.state !== "always_pull") {
-      return false;
-    }
-    if (effFilter === "filter" && chat.state !== "always_filter") {
-      return false;
-    }
-    if (prefFilter === "follow" && chat.state !== "follow") {
-      return false;
-    }
-    if (prefFilter === "manual" && chat.state === "follow") {
-      return false;
-    }
-    if (typeFilter !== "all" && chat.chatType !== typeFilter) {
-      return false;
-    }
-    return true;
-  });
+  const visibleChats = chatList.filter((chat) =>
+    chatMatchesFilters(chat, query.trim().toLowerCase(), effFilter, prefFilter, typeFilter),
+  );
 
   async function setFilter(chatId: string, state: FilterItem["state"]): Promise<void> {
     // 行内乐观写：即时生效（不进保存制），失败回读
@@ -85,14 +110,11 @@ export function FeishuSection({
     }
   }
 
-  /** 快照新鲜度（桌面同口径：阈值 = max(5, 2.5×轮询间隔秒/60) 分钟；仅启用且已拉取时呈现） */
+  /** 快照新鲜度呈现（staleWarn banner / staleOk 时间行） */
   const [polling, setPolling] = useState(false);
   const [lastPoll, setLastPoll] = useState<string | null>(lastPollAt ?? null);
-  const pollMs = Date.parse(lastPoll ?? "");
-  const ageMin =
-    draft["feishu_enabled"] === "true" && Number.isFinite(pollMs) ? Math.round((Date.now() - pollMs) / 60_000) : null;
-  const thresholdMin = Math.max(5, (2.5 * (Number(draft["feishu_poll_interval"]) || POLL_INTERVAL_SECS[1])) / 60);
-  const stale = ageMin !== null && ageMin > thresholdMin;
+  const ageMin = snapshotAgeMin(draft["feishu_enabled"], lastPoll);
+  const stale = ageMin !== null && ageMin > staleThresholdMin(draft["feishu_poll_interval"]);
 
   async function pollNowAndRefresh(): Promise<void> {
     setPolling(true);
@@ -113,67 +135,7 @@ export function FeishuSection({
       saved={saved}
       onSavedKeys={onSavedKeys}
     >
-      <div className={ui.card}>
-        <h4 className={styles.cardTitle}>{t("stabs.feishu")}</h4>
-        <Toggle
-          label={t("feishu.enable")}
-          checked={draft["feishu_enabled"] === "true"}
-          onChange={(v) => onField("feishu_enabled", String(v))}
-        />
-        <Select
-          label={t("feishu.interval")}
-          value={draft["feishu_poll_interval"]}
-          options={POLL_INTERVAL_SECS.map((secs) => ({
-            value: String(secs),
-            label: t("focus.minutes", { n: secs / 60 }),
-          }))}
-          onChange={(v) => onField("feishu_poll_interval", v)}
-        />
-        <p className={styles.cardHint}>{t("feishu.hint")}</p>
-        <div className={styles.filterRow}>
-          <span style={{ flex: 1 }}>{t("feishu.myNames")}</span>
-          <TextInput
-            ariaLabel={t("feishu.myNames")}
-            value={draft["feishu_my_names"]}
-            onChange={(v) => onField("feishu_my_names", v)}
-            placeholder={t("feishu.myNamesPh")}
-          />
-        </div>
-        <p className={styles.cardHint}>{t("feishu.myNamesDesc")}</p>
-        <div className={styles.filterRow}>
-          <button
-            type="button"
-            className={ui.button}
-            disabled={authBusy}
-            onClick={async () => {
-              setAuthBusy(true);
-              await client.larkAuth();
-              setAuthBusy(false);
-            }}
-          >
-            {t("feishu.auth")}
-          </button>
-          <button
-            type="button"
-            className={ui.button}
-            disabled={testState.busy}
-            onClick={async () => {
-              setTestState({ busy: true, identity: null, failed: false });
-              const result = await client.larkTest();
-              setTestState(
-                result.ok
-                  ? { busy: false, identity: result.data.identity, failed: false }
-                  : { busy: false, identity: null, failed: true },
-              );
-            }}
-          >
-            {t("feishu.test")}
-          </button>
-          {testState.busy && <span className={ui.muted}>{t("testing")}</span>}
-          {testState.identity !== null && <span>{t("feishu.authorized", { name: testState.identity })}</span>}
-          {testState.failed && <span className={styles.saveFailHint}>{t("feishu.unauthorized")}</span>}
-        </div>
-      </div>
+      <FeishuConnCard draft={draft} onField={onField} />
       <div className={ui.card}>
         <h4 className={styles.cardTitle}>{t("feishu.filter.title")}</h4>
         <p className={styles.cardHint}>{t("feishu.filter.hint")}</p>

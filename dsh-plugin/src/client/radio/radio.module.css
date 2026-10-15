@@ -115,18 +115,62 @@
   outline: 2px solid var(--dsw-alias-state-business-primary, #316dca);
   outline-offset: -2px;
 }
-.feedGroupTitle {
+/* 折叠分组（桌面 ImListGroup parity）：组头 = 折叠钮（caret+标题+计数+状态字）+ 动作区 */
+.feedGroupSection + .feedGroupSection {
+  margin-top: 6px;
+}
+.groupHead {
   display: flex;
   align-items: center;
   gap: 8px;
+  margin-top: 8px;
+}
+.groupToggle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1;
+  min-width: 0;
+  padding: 4px 6px;
+  border: none;
+  border-radius: 6px;
+  background: none;
+  cursor: pointer;
+  user-select: none;
+  text-align: left;
   font-size: 12px;
   font-weight: 800;
   letter-spacing: 0.4px;
   color: var(--dsw-alias-label-secondary, #57606a);
-  margin: 8px 0 2px;
 }
-/* 组头动作钮（一键清空——叠在 ui.button 上收小字重边距） */
+.groupToggle:hover {
+  background: var(--dsw-alias-interactive-bg-hover, #f0f2f5);
+}
+.groupToggle:focus-visible {
+  outline: 2px solid var(--dsw-alias-state-business-primary, #316dca);
+  outline-offset: -2px;
+}
+.groupCaret {
+  font-size: 10px;
+  width: 12px;
+  flex: none;
+}
+.groupTitleText {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.groupState {
+  margin-left: auto;
+  flex: none;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0;
+}
+/* 组头动作钮（一键清空/一键重判——叠在 ui.button 上收小字重边距） */
 .headAction {
+  flex: none;
   font-size: 11px;
   font-weight: 700;
   padding: 2px 8px;

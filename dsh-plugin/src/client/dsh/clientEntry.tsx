@@ -111,7 +111,14 @@ function createPanelSection(host: HostClient): SlotComponent {
 function useChipTask(
   host: HostClient,
   locale: Locale,
-): { task: Task | null; mode: ChipMode; secondsLeft: number; pokemonName: string; readonly: boolean; refresh: () => void } {
+): {
+  task: Task | null;
+  mode: ChipMode;
+  secondsLeft: number;
+  pokemonName: string;
+  readonly: boolean;
+  refresh: () => void;
+} {
   const [state, setState] = useState<{ task: Task | null; pokemon: string; readonly: boolean }>({
     task: null,
     pokemon: "",
@@ -149,7 +156,14 @@ function useChipTask(
   const mode: ChipMode = task !== null && task.status === "paused" ? "paused" : "running";
   const startedMs = task?.startedAt === null || task?.startedAt === undefined ? NaN : Date.parse(task.startedAt);
   const secondsLeft = Number.isFinite(startedMs) ? Math.max(0, Math.floor((Date.now() - startedMs) / 1000)) : 0;
-  return { task, mode, secondsLeft, pokemonName: pokemonNameOf(state.pokemon, locale), readonly: state.readonly, refresh };
+  return {
+    task,
+    mode,
+    secondsLeft,
+    pokemonName: pokemonNameOf(state.pokemon, locale),
+    readonly: state.readonly,
+    refresh,
+  };
 }
 
 /** 会话头 chip 工厂：语言经共享设置初始化（切换走背包显示分区保存后刷新拉新值） */

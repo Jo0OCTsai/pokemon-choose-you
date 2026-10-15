@@ -2,7 +2,7 @@
  * 任务域核心（六态 inbox/scheduled/active/paused/done/cancelled）：行映射 / 查询 /
  * 草丛不变量 / 创建与字段级更新——行为基准 = src-tauri/src/commands/tasks.rs
  * （FR-X3：冲突以 Rust 为准）。状态机操作（出发/暂停/逃走/放生等）见
- * task-lifecycle.ts；审计见 task-audit.ts。
+ * task-lifecycle.ts；审计见 task-audit.ts；跟进记录与操作日志拆件 → task-notes.ts。
  */
 import { nowRfc3339, type Conn } from "../storage/db";
 import { notFound, paramError } from "../storage/errors";
@@ -285,64 +285,6 @@ export function updateTask(conn: Conn, patch: TaskPatch, origin = "dsh", now?: s
   return after;
 }
 
-// ---- 跟进记录与操作日志（对齐 add_task_note_conn / delete_task_note / list_task_logs_conn） ----
-
-/** 跟进记录行（task_notes 投影；与 PanelFollowup 同形） */
-export interface TaskNote {
-  id: number;
-  taskId: number;
-  content: string;
-  source: string;
-  createdAt: string;
-}
-
-/** 手动添加跟进（Rust 口径：去空格拒空文、任务须存在、source 固定 manual；AI 侧由飞书链路直写） */
-export function addTaskNote(conn: Conn, taskId: number, content: string, now = nowRfc3339()): TaskNote {
-  const trimmed = content.trim();
-  if (trimmed === "") {
-    throw paramError("跟进内容不能为空");
-  }
-  getTask(conn, taskId); // 不存在 → NOT_FOUND
-  const r = conn
-    .prepare("INSERT INTO task_notes (task_id, content, source, created_at) VALUES (?, ?, 'manual', ?)")
-    .run(taskId, trimmed, now);
-  return { id: Number(r.lastInsertRowid), taskId, content: trimmed, source: "manual", createdAt: now };
-}
-
-/** 删除跟进记录（按 id；幂等——不存在不报错，对齐 delete_task_note） */
-export function deleteTaskNote(conn: Conn, id: number): void {
-  conn.prepare("DELETE FROM task_notes WHERE id=?").run(id);
-}
-
-/** 操作日志行（task_logs 投影，字段名与 Rust TaskLog serde camelCase 对齐） */
-export interface TaskLog {
-  id: number;
-  taskId: number;
-  action: string;
-  field: string;
-  oldValue: string | null;
-  newValue: string | null;
-  origin: string;
-  createdAt: string;
-}
-
-/** 操作日志查询（Rust 口径：倒序最新 200 条封顶） */
-export function listTaskLogs(conn: Conn, taskId: number): TaskLog[] {
-  return (
-    conn
-      .prepare(
-        "SELECT id, task_id, action, field, old_value, new_value, origin, created_at " +
-          "FROM task_logs WHERE task_id=? ORDER BY id DESC LIMIT 200",
-      )
-      .all(taskId) as Array<Record<string, unknown>>
-  ).map((l): TaskLog => ({
-    id: Number(l.id),
-    taskId: Number(l.task_id),
-    action: String(l.action),
-    field: String(l.field ?? ""),
-    oldValue: (l.old_value as string | null) ?? null,
-    newValue: (l.new_value as string | null) ?? null,
-    origin: String(l.origin),
-    createdAt: String(l.created_at),
-  }));
-}
+// ---- 跟进记录与操作日志拆件 → task-notes.ts（公共面在此再出口，消费面 import 不变） ----
+export { addTaskNote, deleteTaskNote, listTaskLogs } from "./task-notes";
+export type { TaskNote, TaskLog } from "./task-notes";

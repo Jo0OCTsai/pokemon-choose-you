@@ -6,59 +6,17 @@
  *   两段式删除 + ⚡ 派发 chip）
  * - Agent：预设下拉添加 + 附加参数/工作目录/超时 + SSH 远程执行组
  * - 飞书：会话过滤搜索 + 生效/偏好/类型三维筛选 + 汇总计数行
+ * 渲染壳/分区导航/标签夹具 → settingsHarness（对照 reviewWizardHarness 手法）。
  */
-import { act, cleanup, fireEvent, render, screen, within } from "@testing-library/react";
+import { act, cleanup, fireEvent, screen, within } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { ClientProvider } from "../../src/client/clientContext";
-import { I18nProvider } from "../../src/client/i18n";
-import { mockHost, type MockHost } from "../../src/client/rpc";
-import { SettingsSegment } from "../../src/client/settings/SettingsSegment";
-import type { SectionKey } from "../../src/client/settings/sectionKeys";
+import { mockHost } from "../../src/client/rpc";
 import { makeCategory, makeData } from "./fixtures";
+import { getPage, gotoSection, makeTag, renderSettings } from "./settingsHarness";
 import type { PanelData } from "../../src/client/model";
-import type { Tag } from "../../src/host/domain/vocabulary-tags";
 
 afterEach(cleanup);
 vi.useFakeTimers();
-
-function renderSettings(data: PanelData, host: MockHost = mockHost()) {
-  render(
-    <ClientProvider client={host}>
-      <I18nProvider locale={data.locale}>
-        <SettingsSegment
-          data={data}
-          onChanged={vi.fn()}
-          leaveRequest={null}
-          onLeaveResolved={vi.fn()}
-          onUnsavedChange={vi.fn()}
-        />
-      </I18nProvider>
-    </ClientProvider>,
-  );
-  return { host };
-}
-
-function gotoSection(name: string): void {
-  const nav = screen.getByTestId("section-nav");
-  fireEvent.click(within(nav).getByText(new RegExp(name)));
-}
-
-function getPage(key: SectionKey): HTMLElement {
-  return document.querySelector(`div[data-section-wrap="${key}"]`) as HTMLElement;
-}
-
-/** 标签夹具（维度/标签由用例各自注入） */
-function makeTag(overrides: Partial<Tag> & { id: number }): Tag {
-  return {
-    name: `标签${overrides.id}`,
-    description: "",
-    dimension: "topic",
-    origin: "manual",
-    createdAt: "2026-10-11T09:00:00+08:00",
-    usage: 0,
-    ...overrides,
-  };
-}
 
 describe("桌宠分区对齐（主宝可梦搜索 + 台词分组编辑）", () => {
   it("主宝可梦：搜索弹窗选中写裸 key，清除回到「跟随第一个分类」", async () => {

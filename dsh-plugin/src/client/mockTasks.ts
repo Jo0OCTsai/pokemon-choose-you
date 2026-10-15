@@ -148,6 +148,11 @@ export function releaseCommands(
 export function taskEditCommands(
   ctx: MockContext,
 ): Pick<HostClient, "taskUpdate" | "taskNoteAdd" | "taskNoteDelete" | "taskHistory"> {
+  return { ...taskUpdateCommands(ctx), ...taskNoteCommands(ctx) };
+}
+
+/** 全字段编辑（就地改；undefined 字段不动） */
+function taskUpdateCommands(ctx: MockContext): Pick<HostClient, "taskUpdate"> {
   return {
     async taskUpdate(params) {
       ctx.record("taskUpdate", params);
@@ -168,6 +173,12 @@ export function taskEditCommands(
       if (params.status !== undefined) task.status = params.status;
       return ctx.ok(task);
     },
+  };
+}
+
+/** 跟进记录增删（写 ctx.state.followups）+ 操作历史（读 ctx.state.taskLogs） */
+function taskNoteCommands(ctx: MockContext): Pick<HostClient, "taskNoteAdd" | "taskNoteDelete" | "taskHistory"> {
+  return {
     async taskNoteAdd(params) {
       ctx.record("taskNoteAdd", params);
       const blocked = ctx.guardWritable();

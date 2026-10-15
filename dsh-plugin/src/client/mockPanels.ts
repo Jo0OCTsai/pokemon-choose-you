@@ -1,8 +1,8 @@
 /**
  * mockHost 命令组 · 设置与背包：configRead/configWrite（勿扰起=止与 HH:MM 校验兜底）、
- * routeUpsert/larkAuth/larkTest；分类（upsert/放生级联归第一个分类）、标签/维度、会话
- * 过滤三态、agent 列表（空命令拒绝 + expectedAgentIds 修订检测，A24）、提示词 4 键
- * （长度/占位符校验 + overrideText 基线修订检测）。
+ * routeUpsert/larkAuth/larkTest；分类（upsert/放生级联归第一个分类）、标签/维度、
+ * 会话过滤三态、agent 列表（空命令拒绝 + expectedAgentIds 修订检测，A24）、
+ * 提示词 4 键（长度/占位符校验 + overrideText 基线修订检测）。
  */
 import { PkyError } from "../host/storage/errors";
 import type { Category } from "../host/domain/vocabulary";
@@ -160,7 +160,7 @@ export function categoryCommands(ctx: MockContext): Pick<HostClient, "categoryUp
   };
 }
 
-/** 标签与维度命令 */
+/** 标签与维度命令（tagDelete 同步移除 mock 词表行——僵尸放生与词表夹具保持一致） */
 export function vocabularyCommands(ctx: MockContext): Pick<HostClient, "tagUpsert" | "tagDelete" | "dimensionUpdate"> {
   return {
     async tagUpsert(params) {
@@ -178,6 +178,7 @@ export function vocabularyCommands(ctx: MockContext): Pick<HostClient, "tagUpser
     },
     async tagDelete(params) {
       ctx.record("tagDelete", params);
+      ctx.state.tags = ctx.state.tags.filter((t) => t.id !== params.id);
       return { ok: true, data: { id: params.id } };
     },
     async dimensionUpdate(params) {

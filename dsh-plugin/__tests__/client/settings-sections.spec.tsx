@@ -197,7 +197,8 @@ describe("分区内容对齐主应用（U20）", () => {
     gotoSection("分类与标签");
     const page = getPage("taxonomy");
     expect(within(page).getByDisplayValue("工作")).toBeTruthy();
-    expect(within(page).getByText(/key=project/)).toBeTruthy();
+    // 维度 key 只读列（桌面 dim-key 同款：key 定宽呈现于行首，title 承载全文）
+    expect(within(page).getByText("project")).toBeTruthy();
     fireEvent.click(within(page).getAllByText("放生")[0]);
     expect(screen.getByText(/将归入第一个分类/)).toBeTruthy();
     fireEvent.click(screen.getByText("确认放生"));

@@ -182,16 +182,18 @@ export function LogViewer(): React.JSX.Element {
       {entries.length === 0 ? (
         <p className={ui.muted}>{t("diag.logEmpty")}</p>
       ) : (
-        entries.map((entry, index) => (
-          <div key={`${entry.time}-${index}`} className={styles.logRow}>
-            <span className={styles.logTime}>{entry.time}</span>
-            <span className={styles.logLevel} data-level={entry.level}>
-              {entry.level}
-            </span>
-            <span className={styles.logTime}>{entry.target}</span>
-            <span>{entry.message}</span>
-          </div>
-        ))
+        <div className={styles.logList}>
+          {entries.map((entry, index) => (
+            <div key={`${entry.time}-${index}`} className={styles.logRow}>
+              <span className={styles.logTime}>{entry.time}</span>
+              <span className={styles.logLevel} data-level={entry.level}>
+                {entry.level}
+              </span>
+              <span className={styles.logTime}>{entry.target}</span>
+              <span>{entry.message}</span>
+            </div>
+          ))}
+        </div>
       )}
       <div className={styles.logPager}>
         <button

@@ -100,6 +100,17 @@
   font-size: 13px;
   min-width: 0;
 }
+/* 内联紧凑形态（实体行内）：不占整行宽，紧随相邻控件 */
+.toggle[data-compact="true"] {
+  width: auto;
+  flex: none;
+  gap: 6px;
+}
+.toggle[data-compact="true"] .toggleLabel {
+  flex: none;
+  font-size: 12px;
+  color: var(--dsw-alias-label-secondary, #57606a);
+}
 .toggleTrack {
   width: 34px;
   height: 18px;
@@ -233,6 +244,10 @@
   border: 1px solid var(--dsw-alias-border-l1, #e3e7ec);
   border-radius: 10px;
   padding: 12px 14px;
+  /* 卡内行节奏统一 10px（对齐主应用 .set-row margin-bottom；标题/提示行不再自带 margin 叠加） */
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
 }
 .muted {
   color: var(--dsw-alias-label-secondary, #57606a);
@@ -255,6 +270,18 @@
 .rowLabel {
   flex: 1;
   font-size: 13px;
+}
+/* wide 行（对齐主应用 .set-row.wide）：标签列定宽，控件占满标签右侧整行 */
+.row[data-wide="true"] {
+  gap: 0;
+}
+.row[data-wide="true"] .rowLabel {
+  flex: 0 0 128px;
+  padding-right: 12px;
+}
+.row[data-wide="true"] > :not(.rowLabel) {
+  flex: 1 1 auto;
+  min-width: 0;
 }
 .sectionTitle {
   margin: 0 0 4px;

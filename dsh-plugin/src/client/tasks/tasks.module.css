@@ -673,3 +673,262 @@
 .dangerZone {
   border-color: var(--pcy-danger, #b3590f);
 }
+
+/* 每周复盘向导（对照桌面 ReviewWizard.vue：步骤条 + 总览统计卡 + 条形 + 任务站卡 + 草丛清单 + 体检行卡） */
+.reviewBody {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-height: 200px;
+}
+.reviewSteps {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  font-size: 11px;
+  font-weight: 700;
+}
+.reviewStepDot {
+  border: 1px solid var(--dsw-alias-border-l2, #d0d7de);
+  border-radius: 999px;
+  padding: 2px 8px;
+  color: var(--dsw-alias-label-secondary, #57606a);
+  background: var(--dsw-alias-bg-layer-1, #ffffff);
+}
+.reviewStepDot[data-on="true"] {
+  background: var(--pcy-running, #ffcb05);
+  border-color: rgba(26, 27, 37, 0.35);
+  color: #1a1b25;
+}
+.reviewStepDot[data-past="true"] {
+  background: var(--pcy-ok-soft, #dff3e4);
+  border-color: var(--pcy-ok-ink, #1d6b3c);
+  color: var(--pcy-ok-ink, #1d6b3c);
+}
+.reviewStats {
+  display: flex;
+  gap: 8px;
+}
+.reviewStat {
+  flex: 1;
+  border: 1px solid var(--dsw-alias-border-l1, #e3e7ec);
+  border-radius: 8px;
+  background: var(--dsw-alias-bg-layer-1, #f8f9fb);
+  text-align: center;
+  padding: 8px 4px;
+}
+.reviewStatNum {
+  font-size: 22px;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  color: var(--dsw-alias-label-primary, #1f2328);
+}
+.reviewStatLbl {
+  font-size: 11px;
+  color: var(--dsw-alias-label-secondary, #57606a);
+}
+.reviewBars {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.reviewBarRow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+}
+.reviewBarName {
+  width: 44px;
+  flex: none;
+  font-weight: 700;
+  color: var(--dsw-alias-label-primary, #1f2328);
+}
+.reviewBarTrack {
+  flex: 1;
+  height: 12px;
+  border: 1.5px solid var(--dsw-alias-border-l2, #d0d7de);
+  border-radius: 4px;
+  background: var(--dsw-alias-bg-layer-1, #ffffff);
+  overflow: hidden;
+  display: block;
+}
+.reviewBarFill {
+  display: block;
+  height: 100%;
+  background: var(--pcy-running, #ffcb05);
+}
+.reviewBarN {
+  flex: none;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  color: var(--dsw-alias-label-primary, #1f2328);
+}
+.reviewTip {
+  font-size: 11px;
+  color: var(--dsw-alias-label-secondary, #57606a);
+  margin: 0;
+}
+.reviewStation {
+  border: 1.5px solid var(--dsw-alias-border-l2, #d0d7de);
+  border-radius: 8px;
+  padding: 10px 12px;
+  background: var(--dsw-alias-bg-layer-1, #f8f9fb);
+}
+.reviewStNo {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 10px;
+  letter-spacing: 1px;
+  color: var(--dsw-alias-label-secondary, #57606a);
+}
+.reviewStTitle {
+  font-size: 15px;
+  font-weight: 800;
+  color: var(--dsw-alias-label-primary, #1f2328);
+  margin: 4px 0;
+}
+.reviewStMeta {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  font-size: 11px;
+  color: var(--dsw-alias-label-secondary, #57606a);
+}
+.reviewStMeta [data-overdue="true"] {
+  color: var(--pcy-fail-ink, #991b1b);
+  font-weight: 800;
+}
+.reviewStNote {
+  font-size: 12px;
+  color: var(--dsw-alias-label-secondary, #57606a);
+  margin: 6px 0 0;
+}
+.reviewBtnRow {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+/* ghost/mini/del：桌面 ghost 次要按钮与行内 mini 档（danger 字色） */
+.reviewGhost {
+  background: var(--dsw-alias-bg-layer-1, #f8f9fb);
+}
+.reviewMini {
+  min-height: 26px;
+  padding: 2px 8px;
+  font-size: 12px;
+}
+.reviewDel {
+  color: var(--pcy-danger, #b3590f);
+}
+.reviewEmpty {
+  color: var(--dsw-alias-label-secondary, #57606a);
+  text-align: center;
+  padding: 32px 0;
+  font-size: 13px;
+  margin: 0;
+}
+.reviewGrassHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.reviewBatchCheck {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--dsw-alias-label-primary, #1f2328);
+  cursor: pointer;
+}
+.reviewGrassList {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-height: 220px;
+  overflow-y: auto;
+}
+.reviewGrassItem {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  border: 1px solid var(--dsw-alias-border-l1, #e3e7ec);
+  border-radius: 6px;
+  padding: 6px 10px;
+  font-size: 13px;
+}
+.reviewGrassTitle {
+  font-weight: 700;
+  color: var(--dsw-alias-label-primary, #1f2328);
+}
+.reviewGrassCat {
+  margin-left: auto;
+  font-size: 11px;
+  color: var(--dsw-alias-label-secondary, #57606a);
+}
+.reviewTgTitle {
+  margin: 0 0 6px;
+  font-size: 13px;
+  color: var(--dsw-alias-label-primary, #1f2328);
+}
+.reviewTgRow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  border: 1px solid var(--dsw-alias-border-l1, #e3e7ec);
+  border-radius: 6px;
+  padding: 6px 10px;
+  font-size: 12.5px;
+  margin-bottom: 6px;
+}
+.reviewTgMain {
+  font-weight: 700;
+  color: var(--dsw-alias-label-primary, #1f2328);
+}
+.reviewTgDim {
+  font-style: normal;
+  font-size: 11px;
+  color: var(--dsw-alias-label-secondary, #57606a);
+  margin-left: 4px;
+}
+.reviewTgReason {
+  font-size: 11px;
+  color: var(--dsw-alias-label-secondary, #57606a);
+  flex: 1;
+  min-width: 120px;
+}
+.reviewFin {
+  text-align: center;
+  padding: 16px 0;
+}
+.reviewFinEmoji {
+  font-size: 36px;
+}
+.reviewFinLine {
+  font-size: 14px;
+  font-weight: 800;
+  color: var(--dsw-alias-label-primary, #1f2328);
+  margin: 0;
+}
+
+/* 图鉴筛选行的复盘入口（桌面 .filter-btn.review-btn：右贴边 + 高亮黄） */
+.reviewEntry {
+  margin-left: auto;
+  border-color: rgba(26, 27, 37, 0.35);
+  background: var(--pcy-running, #ffcb05);
+  color: #1a1b25;
+}
+.reviewEntry:hover {
+  border-color: rgba(26, 27, 37, 0.55);
+  background: var(--pcy-running, #ffcb05);
+}
+.reviewEntry:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}

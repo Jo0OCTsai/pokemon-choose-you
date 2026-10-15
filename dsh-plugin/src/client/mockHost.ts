@@ -1,7 +1,8 @@
 /**
  * mockHost 内存实现 · 状态与组装（供组件测试；真实语义子集）。命令实现按域拆分：
  * 任务/快捕/分诊 → mockTasks.ts；派发 → mockDispatch.ts；设置/背包 → mockPanels.ts；
- * 诊断/桌宠/通用 → mockMisc.ts；实体读 → mockRead.ts。rpc.ts 统一再出口，消费面不变。
+ * 复盘向导标签体检 → mockTagHealth.ts；诊断/桌宠/通用 → mockMisc.ts；实体读 → mockRead.ts。
+ * rpc.ts 统一再出口，消费面不变。
  */
 import { fail, PkyError, type PkyResult } from "../host/storage/errors";
 import type { HostClient, PageOpenEvent } from "./rpc";
@@ -19,11 +20,13 @@ import { taskSwitchCommands, taskCloseCommands, releaseCommands, taskEditCommand
 import { captureCommands, acceptCommands, dismissCommands, retryCommands } from "./mockReview";
 import { dispatchCommands, dispatchControlCommands } from "./mockDispatch";
 import { settingsCommands, categoryCommands, vocabularyCommands, agentCommands, filterCommands } from "./mockPanels";
+import { tagHealthCommands } from "./mockTagHealth";
 import { promptCommands } from "./mockPrompts";
 import { diagCommands, logCommands, miscCommands } from "./mockMisc";
 import { readCommands } from "./mockRead";
 import { backupCommands } from "./mockBackup";
-import type { BackupInfo } from "./rpcTypes";
+import type { BackupInfo, TagCheckupReport } from "./rpcTypes";
+import type { Tag, TagDimension } from "../host/domain/vocabulary-tags";
 
 /** mockHost 可配置的内存态（组件测试的夹具面） */
 export interface MockHostState {
@@ -50,6 +53,12 @@ export interface MockHostState {
   taskLogs: Record<number, import("../host/domain/tasks").TaskLog[]>;
   /** 备份列表（backupList/backupRun 消费；缺省空） */
   backups: BackupInfo[];
+  /** 词表夹具（tagMerge/tagMoveDimension/tagDelete 的真实移改对象；复盘向导「采纳」按名解析 id 的数据面） */
+  tags: Tag[];
+  /** 维度夹具（tagMoveDimension 复用/新建维度；缺省空） */
+  dimensions: TagDimension[];
+  /** 标签体检固定报告（tagCheckup 消费；缺省空报告） */
+  tagCheckup: TagCheckupReport;
 }
 
 /** 调用记录（断言命令面与参数） */
@@ -110,6 +119,9 @@ function defaultState(): MockHostState {
     followups: {},
     taskLogs: {},
     backups: [],
+    tags: [],
+    dimensions: [],
+    tagCheckup: { merges: [], zombies: [], newDimensions: [], judged: false },
   };
 }
 
@@ -177,6 +189,7 @@ export function mockHost(initial: Partial<MockHostState> = {}): MockHost {
     ...settingsCommands(ctx),
     ...categoryCommands(ctx),
     ...vocabularyCommands(ctx),
+    ...tagHealthCommands(ctx),
     ...agentCommands(ctx),
     ...filterCommands(ctx),
     ...promptCommands(ctx),

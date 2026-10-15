@@ -3,7 +3,7 @@
  * - AdventureView：日期 + CAUGHT x/y 进度条 + 逾期折叠 + 任务列表
  * - RouteView：按日期分组
  * - GrassView：无截止草丛
- * - DexView：统计 + 里程碑贺词 + 筛选（全部/已捕捉/已逃走）
+ * - DexView：统计 + 里程碑贺词 + 筛选（全部/已捕捉/已逃走）+ 每周复盘向导入口（🧢复盘）
  * 四段共用：顶部搜索栏（TaskSearchShell）+ 全字段编辑弹窗状态（useTaskEditor）。
  */
 import { useMemo, useState } from "react";
@@ -13,6 +13,7 @@ import type { PanelData } from "../model";
 import type { Task } from "../../host/domain/tasks";
 import { EmptyState, SkeletonRows, TaskList } from "./TaskList";
 import { OverdueFold } from "./OverdueFold";
+import { ReviewWizard } from "./ReviewWizard";
 import { TaskSearchShell } from "./TaskSearchBar";
 import { TaskEditModal } from "./TaskEditModal";
 import ui from "../ui/ui.module.css";
@@ -162,11 +163,13 @@ export function GrassView({ data, readonly, onOpen, onChanged }: SegmentProps): 
 
 type DexFilter = "all" | "done" | "cancelled";
 
-/** 图鉴分段：累计统计 + 里程碑贺词档位 + 筛选 */
+/** 图鉴分段：累计统计 + 里程碑贺词档位 + 筛选 + 每周复盘向导入口（仅图鉴段，桌面同位） */
 export function DexView({ data, readonly, onOpen, onChanged }: SegmentProps): React.JSX.Element {
   const t = useT();
   const editor = useTaskEditor(data, onChanged);
   const [filter, setFilter] = useState<DexFilter>("all");
+  // 每周复盘向导（状态全内存态：关闭即重置；入口仅图鉴段可见）
+  const [reviewOpen, setReviewOpen] = useState(false);
   const stats = useMemo(() => dexStats(data.tasks), [data.tasks]);
   const archived = data.tasks.filter((t0) => t0.status === "done" || t0.status === "cancelled");
   const shown = archived.filter((task) => filter === "all" || task.status === filter);
@@ -192,6 +195,14 @@ export function DexView({ data, readonly, onOpen, onChanged }: SegmentProps): Re
                 {t(`dexFilter.${key}`)}
               </button>
             ))}
+            <button
+              type="button"
+              className={`${styles.filterButton} ${styles.reviewEntry}`}
+              disabled={readonly}
+              onClick={() => setReviewOpen(true)}
+            >
+              🧢 {t("review.entry")}
+            </button>
           </div>
           {shown.length === 0 ? (
             <EmptyState kind="tasks" />
@@ -208,6 +219,7 @@ export function DexView({ data, readonly, onOpen, onChanged }: SegmentProps): Re
         </section>
       </TaskSearchShell>
       {editor.modal}
+      {reviewOpen && <ReviewWizard data={data} onClose={() => setReviewOpen(false)} onChanged={onChanged} />}
     </>
   );
 }

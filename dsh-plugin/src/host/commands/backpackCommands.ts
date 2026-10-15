@@ -2,11 +2,13 @@
  * host 命令 · 背包域（AD §4.1.1 背包行，配置 100% 对齐 §8⑨）：categoryUpsert /
  * categoryDelete / tagUpsert / tagDelete / dimensionUpdate / filterList /
  * filterUpsert / agentUpsert / agentDelete / promptList / promptGet /
- * promptOverride / promptReset——薄转发 domain 词表与配置原语。
+ * promptOverride / promptReset——薄转发 domain 词表与配置原语；另含复盘向导
+ * 「标签体检」3 条（tagCheckup 本地预筛报告只读 + tagMerge/tagMoveDimension 治理写）。
  */
 import type { CommandTable } from "./context";
 import { categoryDelete, categoryUpsert } from "../domain/vocabulary";
 import { dimensionUpdate, tagDelete, tagUpsert } from "../domain/vocabulary-tags";
+import { mergeTag, moveTagsToDimension, tagCheckup } from "../domain/tag-health";
 import { filterList, filterUpsert, type FilterState } from "../domain/vocabulary-filters";
 import { agentDelete, agentUpsert, type AgentConfig } from "../domain/settings";
 import { promptGet, promptList, promptOverride, promptReset } from "../domain/prompt-overrides";
@@ -53,6 +55,25 @@ function vocabularyCommands(): CommandTable {
   };
 }
 
+/** 复盘向导「标签体检」段（3 条）：本地预筛报告只读；合并/迁维度为治理写。LLM 复核为桌面专属，judged 恒 false */
+function tagHealthCommands(): CommandTable {
+  return {
+    tagCheckup: (_p, deps) => tagCheckup(deps.conn),
+    tagMerge: (p, deps) => {
+      const args = p as { fromId: number; intoId: number };
+      mergeTag(deps.conn, args.fromId, args.intoId);
+      deps.onWrites();
+      return { ok: true };
+    },
+    tagMoveDimension: (p, deps) => {
+      const args = p as { tagIds: number[]; key: string; name: string };
+      moveTagsToDimension(deps.conn, args.tagIds, args.key, args.name);
+      deps.onWrites();
+      return { ok: true };
+    },
+  };
+}
+
 /** agent 与提示词覆盖段（6 条，A24 修订检测） */
 function agentPromptCommands(): CommandTable {
   return {
@@ -88,7 +109,7 @@ function agentPromptCommands(): CommandTable {
   };
 }
 
-/** 背包域命令表（13 条） */
+/** 背包域命令表（16 条） */
 export function backpackCommands(): CommandTable {
-  return { ...vocabularyCommands(), ...agentPromptCommands() };
+  return { ...vocabularyCommands(), ...tagHealthCommands(), ...agentPromptCommands() };
 }

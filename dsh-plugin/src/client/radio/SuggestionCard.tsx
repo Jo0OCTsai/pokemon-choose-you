@@ -10,7 +10,7 @@ import { useState } from "react";
 import { useClient } from "../clientContext";
 import { useT } from "../i18n";
 import { ESCAPE_REASON_CODES, type PkyErrorShape, type RadioMessage } from "../rpc";
-import type { ProposedTag } from "../rpcTypes";
+import { AiSuggestionBox, statusLabelKey } from "./SuggestionAiBox";
 import ui from "../ui/ui.module.css";
 import styles from "./radio.module.css";
 
@@ -19,12 +19,19 @@ function isJudging(aiStatus: RadioMessage["aiStatus"]): boolean {
   return aiStatus === "judging" || aiStatus === "pending";
 }
 
-/** 建议类型状态标签键 */
-function statusLabelKey(aiStatus: RadioMessage["aiStatus"]): string {
-  if (aiStatus === "update" || aiStatus === "followup" || aiStatus === "none" || aiStatus === "error") {
-    return `im.status.${aiStatus}`;
-  }
-  return "im.status.todo";
+/** ✕ 逃走可用：已判定且非 none/followup（这两类无逃走语义） */
+function canEscapeFrom(message: RadioMessage, judging: boolean): boolean {
+  return !judging && message.aiStatus !== "none" && message.aiStatus !== "followup";
+}
+
+/** 强制捕捉（桌面 F 键语义）：无信号消息 / 低置信 todo 建议——AI 不确定时人工拍板；
+ * update/followup 不需要，判定中/已处理不加 */
+function canForceCatch(message: RadioMessage, judging: boolean): boolean {
+  return (
+    message.reviewStatus === "pending" &&
+    !judging &&
+    (message.aiStatus === "none" || (message.aiStatus === "todo" && (message.confidence ?? "low") === "low"))
+  );
 }
 
 type TranslateFn = ReturnType<typeof useT>;
@@ -153,15 +160,6 @@ function ExpandedSuggestion({
     await reportResult(await action(), t, setConflict, onChanged);
   }
 
-  const canCatch = message.aiStatus === "todo";
-  const canApply = message.aiStatus === "update";
-  const canEscape = !judging && message.aiStatus !== "none" && message.aiStatus !== "followup";
-  // 强制捕捉（桌面 F 键语义）：无信号消息 / 低置信 todo 建议——AI 不确定时人工拍板；
-  // update/followup 不需要，判定中/已处理不加
-  const canForce =
-    message.reviewStatus === "pending" &&
-    !judging &&
-    (message.aiStatus === "none" || (message.aiStatus === "todo" && (message.confidence ?? "low") === "low"));
   return (
     <div className={styles.suggestionExpanded}>
       <div className={styles.lcdText}>
@@ -179,43 +177,13 @@ function ExpandedSuggestion({
           {conflict}
         </div>
       )}
-      <div className={styles.actionBar}>
-        {canCatch && (
-          <button
-            type="button"
-            className={ui.button}
-            disabled={readonly}
-            onClick={() => void run(() => client.reviewAccept({ messageId: message.messageId }))}
-          >
-            {t("im.catch")}
-          </button>
-        )}
-        {canApply && (
-          <button
-            type="button"
-            className={ui.button}
-            disabled={readonly}
-            onClick={() => void run(() => client.reviewApplyUpdate({ messageId: message.messageId }))}
-          >
-            {t("im.applyUpdate")}
-          </button>
-        )}
-        {canEscape && (
-          <button type="button" className={ui.button} disabled={readonly} onClick={() => setEscapeOpen((v) => !v)}>
-            {t("im.release")}
-          </button>
-        )}
-        {canForce && (
-          <button
-            type="button"
-            className={ui.button}
-            disabled={readonly}
-            onClick={() => void run(() => client.forceCapture({ messageId: message.messageId }))}
-          >
-            {t("im.force")}
-          </button>
-        )}
-      </div>
+      <SuggestionActions
+        message={message}
+        readonly={readonly}
+        judging={judging}
+        onRun={run}
+        onToggleEscape={() => setEscapeOpen((v) => !v)}
+      />
       {escapeOpen && (
         <div className={styles.reasonMenu} role="menu" aria-label={t("im.escapeWhy")}>
           {ESCAPE_REASON_CODES.map((code) => (
@@ -235,74 +203,63 @@ function ExpandedSuggestion({
   );
 }
 
-/** AI 建议盒（标题/截止/分类/理由 + 新标签提议行） */
-function AiSuggestionBox({
+/** 操作条（四动作随建议类型：todo=◎捕捉、update=◎应用更新、✕逃走开菜单、⚡强制捕捉） */
+function SuggestionActions({
   message,
-  acceptedTags,
   readonly,
-  onToggleTag,
+  judging,
+  onRun,
+  onToggleEscape,
 }: {
   message: RadioMessage;
-  acceptedTags: Set<string>;
   readonly: boolean;
-  onToggleTag: (name: string) => void;
+  judging: boolean;
+  onRun: (action: () => Promise<{ ok: boolean; error?: PkyErrorShape }>) => Promise<void>;
+  onToggleEscape: () => void;
 }): React.JSX.Element {
   const t = useT();
-  const newTags = message.suggestedTags.filter((tag) => tag.isNew === true);
+  const client = useClient();
+  const canCatch = message.aiStatus === "todo";
+  const canApply = message.aiStatus === "update";
+  const canEscape = canEscapeFrom(message, judging);
+  const canForce = canForceCatch(message, judging);
   return (
-    <div className={styles.aiBox} data-testid="ai-suggestion">
-      <div>
-        {t(statusLabelKey(message.aiStatus))}
-        {message.suggestedTitle !== null && <b> {message.suggestedTitle}</b>}
-      </div>
-      {message.suggestedDue !== null && (
-        <div>
-          {t("edit.due")}：{message.suggestedDue}
-        </div>
+    <div className={styles.actionBar}>
+      {canCatch && (
+        <button
+          type="button"
+          className={ui.button}
+          disabled={readonly}
+          onClick={() => void onRun(() => client.reviewAccept({ messageId: message.messageId }))}
+        >
+          {t("im.catch")}
+        </button>
       )}
-      {message.suggestedCategory !== null && (
-        <div>
-          {t("edit.category")}：{message.suggestedCategory}
-        </div>
+      {canApply && (
+        <button
+          type="button"
+          className={ui.button}
+          disabled={readonly}
+          onClick={() => void onRun(() => client.reviewApplyUpdate({ messageId: message.messageId }))}
+        >
+          {t("im.applyUpdate")}
+        </button>
       )}
-      {message.reason !== null && <div className={ui.muted}>{message.reason}</div>}
-      {newTags.length > 0 && (
-        <TagProposals newTags={newTags} acceptedTags={acceptedTags} readonly={readonly} onToggleTag={onToggleTag} />
+      {canEscape && (
+        <button type="button" className={ui.button} disabled={readonly} onClick={onToggleEscape}>
+          {t("im.release")}
+        </button>
       )}
-    </div>
-  );
-}
-
-/** 新标签提议行（「＋」接受态切换；创建发生在建议被接受时） */
-function TagProposals({
-  newTags,
-  acceptedTags,
-  readonly,
-  onToggleTag,
-}: {
-  newTags: ProposedTag[];
-  acceptedTags: Set<string>;
-  readonly: boolean;
-  onToggleTag: (name: string) => void;
-}): React.JSX.Element {
-  const t = useT();
-  return (
-    <div className={styles.aiBoxTags}>
-      {newTags.map((tag) => (
-        <span key={tag.name} className={styles.tagProposal}>
-          {t("im.tagNew", { dim: tag.dimension ?? "topic" })}: {tag.name}
-          <button
-            type="button"
-            className={styles.tagProposalAccept}
-            aria-pressed={acceptedTags.has(tag.name)}
-            disabled={readonly}
-            title={t("dsh.radio.acceptTag")}
-            onClick={() => onToggleTag(tag.name)}
-          >
-            ＋
-          </button>
-        </span>
-      ))}
+      {canForce && (
+        <button
+          type="button"
+          className={ui.button}
+          disabled={readonly}
+          onClick={() => void onRun(() => client.forceCapture({ messageId: message.messageId }))}
+        >
+          {t("im.force")}
+        </button>
+      )}
     </div>
   );
 }

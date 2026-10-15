@@ -123,6 +123,35 @@ describe("视图切换（⏱ 按状态 / 📡 按频道）", () => {
   });
 });
 
+describe("分组折叠（桌面 ImListGroup parity：状态组与频道组都可折叠）", () => {
+  it("待处理组默认展开；组头点击折叠即卸载卡片，再点恢复", () => {
+    renderRadio([makeMessage({ messageId: "p1", content: "待办信号" })]);
+    expect(screen.getByTestId("suggestion-card")).toBeTruthy();
+    fireEvent.click(screen.getByText("◎ 待办信号"));
+    expect(screen.queryByTestId("suggestion-card")).toBeNull();
+    fireEvent.click(screen.getByText("◎ 待办信号"));
+    expect(screen.getByTestId("suggestion-card")).toBeTruthy();
+  });
+
+  it("已捕捉/已逃走默认折叠（归档不占视野）；展开可见回执行", () => {
+    renderRadio([makeMessage({ messageId: "d1", reviewStatus: "accepted", taskId: 3, content: "已存档信号" })]);
+    expect(screen.queryByText(/已存档信号/)).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: /已捕捉/ }));
+    expect(screen.getByText(/已存档信号/)).toBeTruthy();
+    expect(screen.getByTestId("caught-group").textContent).toContain("已捕捉为待办 No.3");
+  });
+
+  it("频道模式组头同样可折叠；折叠态组内消息卸载、组头计数保留", () => {
+    renderRadio([makeMessage({ messageId: "ch1", chatName: "产品群", content: "频道信号" })]);
+    fireEvent.click(screen.getByRole("button", { name: "📡 按频道" }));
+    expect(within(screen.getByTestId("channel-group")).getByTestId("suggestion-card")).toBeTruthy();
+    fireEvent.click(screen.getByText("📡 产品群"));
+    const group = screen.getByTestId("channel-group");
+    expect(group.querySelector("[data-testid='suggestion-card']")).toBeNull();
+    expect(within(group).getByText("1 待处理")).toBeTruthy();
+  });
+});
+
 describe("电波搜索（前端过滤，跨全部分组生效）", () => {
   const messages = [
     makeMessage({ messageId: "s1", content: "帮我看一下周报的数字", chatName: "产品群", senderName: "成员_1024" }),
