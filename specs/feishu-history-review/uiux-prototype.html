@@ -1,0 +1,765 @@
+<!DOCTYPE html>
+<html lang="zh-Hans">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>电波回顾 · 低保真规格原型 — feishu-history-review</title>
+<!--
+  ============================================================
+  规格 visualization（低保真）· specs/feishu-history-review/uiux-prototype.html
+  - 对应设计文档：uiux-design.md（§3 组件树 / §4 交互状态 / §6 视觉编码 / §8 文案草案）
+  - 降级声明：L 级本应为 frontend-design build 产出的视觉保真原型，本会话该技能不可用，
+    降级为低保真原型：内嵌 dex.css 等价 token（不引外部文件）、mock 数据、不连 API、非业务实现。
+  - 已知偏差：.px 像素字体（Press Start 2P / Fusion Pixel）本地打包不可引，
+    退化为 monospace 系统栈；精灵图缺失；扫描线/呼吸动画以简化形式示意。
+  - 已知偏差（a11y，评审 H2④）：本原型 div onclick / 分组头仅示意交互，未做键盘可达
+    （实施用 button + aria-expanded / role="group"）；四个 modal 弹层未实现 focus trap 与焦点回归
+    （规格见 uiux-design.md §4.5 弹层焦点契约）；toast 未挂 aria-live（实施用 aria-live="polite"）；
+    入口状态点形状/aria 规格见文档 §4.2，原型仅示意视觉。
+  - 演示未覆盖（声明即可，规格在文档）：链路未配置引导态（LinkNotReady）、
+    证据已清理降级态（evidenceAvailable=false）、日期空值态的禁用演示（规格见 §3.2/§8）、
+    首次回填进行中 × 无报告引导态组合（引导卡 CTA 随活跃回填禁用，规格见 §4.2）。
+  - 交互：顶部状态切换器 + 报告页内条目展开 / 收录 / 判重冲突 / 日期修正 / 忽略原因弹层；
+    活跃回填场景（等待/拉取/已暂停）= 吸顶进度卡 + 下方报告同屏（评审 H1 形态）。
+  ============================================================
+-->
+<style>
+/* ---- dex.css 等价 token（:root 直接复制自 src/dex.css，不引外部依赖） ---- */
+:root {
+  --dex-red: #ee1515; --dex-red-dark: #b01010; --danger: #e00f0f;
+  --dex-body: #f5f0dc; --dex-navy: #1a1b25; --poke-yellow: #ffcb05;
+  --lcd: #c4cfa1; --lcd-text: #3a4a32; --lcd-dark: #9caa86;
+  --ink: #1a1b25; --ink-soft: #6b6657; --ink-faint: #9a937f;
+  --ok: #2e9e5b; --ok-bright: #5be36b; --ok-soft: #dff3e4; --ok-ink: #1d6b3c;
+  --warn: #c98a06; --warn-soft: #fff3cd; --warn-ink: #8a5e06;
+  --hover: #fff3c4; --tag-pill: #8a97b8; --rest-blue: #3c5aa6;
+  --log-error: #d64545; --log-warn: #b8860b;
+  --conf-mid: #ffcb05; --conf-mid-soft: #fff3d6; --conf-low: #c9c3ae; --conf-low-soft: #eceada;
+  --t-tap: 80ms; --t-pop: 150ms; --t-act: 300ms;
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0; font-family: "Noto Sans CJK SC", "Noto Sans SC", "PingFang SC", "Microsoft YaHei", sans-serif;
+  color: var(--ink); background: #e8e4d4;
+}
+.px { font-family: "Courier New", ui-monospace, monospace; letter-spacing: 1px; } /* 低保真退化 */
+.px-cn { font-family: "Noto Sans SC", sans-serif; font-weight: 800; }
+
+/* ---- 原型控制条（非产品 UI） ---- */
+.proto-bar {
+  position: sticky; top: 0; z-index: 200; background: var(--dex-navy); color: #fff;
+  padding: 8px 14px; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; font-size: 12px;
+}
+.proto-bar .pb-title { font-weight: 800; margin-right: 8px; }
+.proto-bar button {
+  border: 2px solid #fff; background: transparent; color: #fff; border-radius: 4px;
+  padding: 4px 10px; font-size: 12px; cursor: pointer; font-family: inherit; font-weight: 700;
+}
+.proto-bar button.on { background: var(--poke-yellow); color: var(--dex-navy); border-color: var(--poke-yellow); }
+
+/* ---- 图鉴机外壳 ---- */
+.dex { display: flex; min-height: 640px; background: var(--dex-body); }
+.dex-spine {
+  width: 150px; flex: none; background: linear-gradient(180deg, var(--dex-red) 0%, var(--dex-red) 78%, var(--dex-red-dark) 100%);
+  border-right: 4px solid var(--dex-navy); padding: 14px 10px; color: #fff;
+  display: flex; flex-direction: column; gap: 10px; font-size: 13px;
+}
+.spine-title { font-size: 8px; line-height: 1.8; color: #ffe9e9; }
+.menu-btn {
+  display: flex; gap: 6px; align-items: center; background: rgba(0,0,0,.18);
+  border: 3px solid transparent; border-radius: 8px; color: #fff; font-weight: 700;
+  padding: 7px 8px; cursor: pointer; font-family: inherit; font-size: 13px; text-align: left;
+}
+.menu-btn.active { background: var(--poke-yellow); color: var(--dex-navy); border-color: var(--dex-navy); }
+.menu-btn .cursor { width: 10px; flex: none; }
+.menu-btn.active .cursor { opacity: 1; }
+.menu-btn .cursor { opacity: 0; }
+.dex-main { flex: 1; display: flex; flex-direction: column; min-width: 0; padding: 14px 18px 18px; }
+.main-head h1 { margin: 0; font-size: 22px; letter-spacing: 1px; }
+.main-head .sub { font-size: 12px; color: var(--ink-soft); margin-top: 4px; }
+
+/* ---- 公共组件（低保真） ---- */
+.btn {
+  border: 3px solid var(--dex-navy); background: var(--poke-yellow); color: var(--dex-navy);
+  border-radius: 8px; box-shadow: 3px 3px 0 var(--dex-navy); font-weight: 800;
+  padding: 6px 14px; font-size: 13px; cursor: pointer; font-family: inherit; min-height: 40px;
+  transition: transform var(--t-tap), box-shadow var(--t-tap), background var(--t-tap);
+}
+.btn:hover { background: var(--hover); }
+.btn:active { transform: translate(2px,2px); box-shadow: 1px 1px 0 var(--dex-navy); }
+.btn.ghost { background: #fff; }
+.btn.ghost:hover { background: var(--hover); }
+.btn.red { background: var(--danger); color: #fff; }
+.btn:focus-visible { outline: 3px solid var(--poke-yellow); outline-offset: 2px; }
+.lcd {
+  background: var(--lcd); border: 3px solid var(--dex-navy); border-radius: 8px; color: var(--lcd-text);
+  padding: 10px 12px; position: relative; font-weight: 700;
+  background-image: repeating-linear-gradient(0deg, rgba(0,0,0,.05) 0 2px, transparent 2px 4px);
+}
+.badge {
+  display: inline-flex; align-items: center; border: 2px solid var(--dex-navy); border-radius: 4px;
+  padding: 0 6px; font-size: 11px; font-weight: 800; line-height: 1.6; white-space: nowrap;
+}
+.b-done { background: var(--ok-soft); color: var(--ok-ink); }
+.b-open { background: #fff; color: var(--dex-navy); border-color: var(--tag-pill); }
+.b-unknown { background: var(--conf-low-soft); color: var(--ink-soft); }
+.b-failed { background: var(--warn-soft); color: var(--warn-ink); }
+.b-conf-high { background: var(--ok-soft); color: var(--ok-ink); }
+.b-conf-mid { background: var(--conf-mid-soft); color: var(--warn-ink); }
+.b-conf-low { background: var(--conf-low-soft); color: var(--ink-soft); }
+.b-state { background: #fff; color: var(--dex-navy); }
+
+/* ---- 收音机工具行 + 回顾入口 ---- */
+.radio-toolbar { display: flex; gap: 8px; margin-bottom: 10px; align-items: stretch; flex-wrap: wrap; }
+.search-input {
+  flex: 1; min-width: 160px; padding: 6px 10px; border: 3px solid var(--dex-navy); border-radius: 8px;
+  font-size: 13px; background: #fff; font-family: inherit; box-shadow: 3px 3px 0 var(--dex-navy);
+}
+.view-toggle { display: flex; border: 3px solid var(--dex-navy); border-radius: 8px; overflow: hidden; box-shadow: 3px 3px 0 var(--dex-navy); background: #fff; }
+.view-toggle button { border: 0; background: transparent; padding: 0 10px; font-size: 12px; font-weight: 700; cursor: pointer; font-family: inherit; }
+.view-toggle button.on { background: var(--poke-yellow); }
+.hist-entry {
+  position: relative; border: 3px solid var(--dex-navy); border-radius: 8px; background: #fff;
+  box-shadow: 3px 3px 0 var(--dex-navy); font-weight: 800; font-size: 13px; color: var(--dex-navy);
+  padding: 0 12px; cursor: pointer; font-family: inherit;
+}
+.hist-entry .dot {
+  position: absolute; top: -6px; right: -6px; width: 14px; height: 14px; border-radius: 50%;
+  border: 2px solid var(--dex-navy); display: none;
+}
+.hist-entry.running .dot { display: block; background: var(--ok-bright); animation: breathe 2s infinite; }
+/* 待阅 = 静态黄圆点 + navy 内点；已暂停 = 静态琥珀方点（形状+色相双通道，WCAG 1.4.1） */
+.hist-entry.ready .dot { display: block; background: var(--poke-yellow); }
+.hist-entry.ready .dot::after {
+  content: ""; position: absolute; inset: 3px; background: var(--dex-navy); border-radius: 50%;
+}
+.hist-entry.paused .dot { display: block; background: var(--warn); border-radius: 2px; }
+@keyframes breathe { 0%,100% { opacity: .45; } 50% { opacity: 1; } }
+@media (prefers-reduced-motion: reduce) { .hist-entry.running .dot { animation: none; opacity: 1; } }
+
+/* ---- 回顾子视图 ---- */
+.hist-toolbar { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-bottom: 10px; }
+.hist-toolbar .back { min-height: 38px; }
+.hist-select {
+  border: 3px solid var(--dex-navy); border-radius: 8px; background: #fff; box-shadow: 3px 3px 0 var(--dex-navy);
+  font-family: inherit; font-weight: 700; font-size: 13px; padding: 6px 8px; color: var(--dex-navy); min-height: 38px;
+}
+.summary-lcd { margin-bottom: 10px; font-size: 13px; line-height: 1.8; }
+.filter-chips { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 10px; }
+.chip {
+  border: 2px solid var(--dex-navy); border-radius: 999px; background: #fff; color: var(--dex-navy);
+  font-size: 11px; font-weight: 800; padding: 2px 10px; cursor: pointer; font-family: inherit;
+}
+.chip.on { background: var(--poke-yellow); }
+
+/* 进度卡（吸顶示意：sticky——活跃时悬浮于列表滚动之上） */
+.progress-card {
+  position: sticky; top: 0; z-index: 5;
+  border: 3px solid var(--dex-navy); border-radius: 12px; background: #fff; box-shadow: 4px 4px 0 var(--dex-navy);
+  padding: 12px 14px; margin-bottom: 12px; display: flex; flex-direction: column; gap: 10px;
+}
+.progress-card .row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.progress-card .paused-hint { font-size: 12px; color: var(--ink-soft); font-weight: 700; }
+
+/* 分组 */
+.group { border: 3px solid var(--dex-navy); border-radius: 8px; background: #fff; box-shadow: 3px 3px 0 var(--dex-navy); margin-bottom: 10px; overflow: hidden; }
+.group-head {
+  display: flex; gap: 8px; align-items: center; padding: 8px 10px; font-weight: 800; font-size: 13px;
+  background: var(--dex-body); cursor: pointer; user-select: none;
+}
+.group-head .cnt { margin-left: auto; font-size: 11px; color: var(--ink-soft); }
+.group-body { padding: 6px; display: flex; flex-direction: column; gap: 8px; }
+.group.collapsed .group-body { display: none; }
+.group-head .tri::before { content: "▾"; }
+.group.collapsed .group-head .tri::before { content: "▸"; }
+
+/* 条目卡 */
+.entry-card { border: 3px solid var(--dex-navy); border-radius: 12px; background: #fff; box-shadow: 4px 4px 0 var(--dex-navy); padding: 10px 12px; }
+.entry-card:hover { background: #fffdf2; }
+.entry-head { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; cursor: pointer; }
+.entry-title { font-size: 15px; font-weight: 800; color: var(--dex-navy); margin-right: 2px; }
+.entry-body { display: none; margin-top: 10px; flex-direction: column; gap: 8px; }
+.entry-card.open .entry-body { display: flex; }
+.timeline { border-left: 3px solid var(--lcd-dark); margin: 4px 0 4px 6px; padding-left: 12px; display: flex; flex-direction: column; gap: 8px; }
+.tl-node { font-size: 12.5px; }
+.tl-node .tl-when { color: var(--ink-soft); font-size: 11px; margin-right: 6px; }
+.tl-node .tl-type { font-weight: 800; margin-right: 6px; }
+.tl-evi { color: var(--ink-soft); font-size: 11px; text-decoration: underline dotted; cursor: pointer; }
+.reason { font-size: 12px; color: var(--ink-soft); }
+.evidence-box { border: 2px solid var(--lcd-dark); border-radius: 6px; background: var(--lcd); color: var(--lcd-text); padding: 8px 10px; font-size: 12px; line-height: 1.8; display: none; }
+.evidence-box.show { display: block; }
+.evidence-box .ev-meta { font-size: 11px; opacity: .85; }
+.entry-actions { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+.entry-actions .btn { min-height: 40px; font-size: 12.5px; padding: 4px 12px; }
+.more-menu-wrap { position: relative; }
+.er-pop {
+  position: absolute; bottom: calc(100% + 6px); right: 0; z-index: 60; background: #fff;
+  border: 3px solid var(--dex-navy); border-radius: 8px; box-shadow: 4px 4px 0 var(--dex-navy);
+  padding: 6px; display: flex; flex-direction: column; gap: 4px; min-width: 200px;
+}
+.er-label { font-size: 11px; font-weight: 800; color: var(--ink-soft); padding: 2px 6px 6px; }
+.er-chip {
+  border: 2px solid var(--dex-navy); background: #fff; border-radius: 4px; font-size: 12px; font-weight: 700;
+  padding: 6px 10px; min-height: 32px; cursor: pointer; text-align: left; font-family: inherit; color: var(--dex-navy);
+}
+.er-chip:hover { background: var(--hover); }
+.er-chip.just { border-style: dashed; color: var(--ink-soft); }
+
+/* 状态条（已处理） */
+.state-banner {
+  display: flex; gap: 8px; align-items: center; flex-wrap: wrap; font-size: 13px; font-weight: 800;
+  border: 3px solid var(--dex-navy); border-radius: 8px; box-shadow: 3px 3px 0 var(--dex-navy); padding: 8px 12px; margin-bottom: 8px;
+}
+.state-banner.done { background: var(--ok-soft); color: var(--dex-navy); }
+.state-banner.ignored { background: var(--conf-low-soft); color: var(--ink-soft); }
+.state-banner .sub { font-size: 11.5px; color: var(--ink-soft); font-weight: 600; }
+
+/* 空态 / 引导态 */
+.guide-card {
+  border: 3px dashed var(--ink-faint); border-radius: 12px; padding: 40px 20px; text-align: center;
+  font-size: 14px; color: var(--ink-soft); line-height: 2;
+}
+.empty-report { text-align: center; color: var(--ink-soft); padding: 48px 0; font-size: 14px; line-height: 2; }
+
+/* ---- 弹层 ---- */
+.mask {
+  position: fixed; inset: 0; z-index: 90; background: rgba(28,34,68,.42);
+  display: flex; align-items: center; justify-content: center;
+}
+.modal-card {
+  background: #fff; border: 3px solid var(--dex-navy); border-radius: 12px; box-shadow: 4px 4px 0 var(--dex-navy);
+  padding: 16px 18px; display: flex; flex-direction: column; gap: 12px; width: 480px; max-width: calc(100vw - 32px);
+  max-height: calc(100vh - 40px); overflow-y: auto;
+}
+.modal-card h3 { margin: 0; font-size: 16px; }
+.modal-card .steps { display: flex; gap: 6px; flex-wrap: wrap; font-size: 11px; font-weight: 700; }
+.step-dot { border: 2px solid var(--dex-navy); border-radius: 999px; padding: 2px 8px; background: #fff; color: var(--dex-navy); }
+.step-dot.on { background: var(--poke-yellow); }
+.step-dot.past { background: var(--ok-soft); }
+.range-row { display: flex; gap: 8px; flex-wrap: wrap; }
+.range-opt {
+  border: 3px solid var(--dex-navy); border-radius: 8px; background: #fff; font-weight: 800; font-size: 13px;
+  padding: 6px 12px; cursor: pointer; font-family: inherit; color: var(--dex-navy); min-height: 38px;
+}
+.range-opt.on { background: var(--poke-yellow); }
+.privacy-text { font-size: 13px; line-height: 1.9; color: var(--ink); }
+.privacy-text .hl { font-weight: 800; }
+.date-row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.date-input {
+  border: 3px solid var(--dex-navy); border-radius: 8px; padding: 6px 10px; font-family: inherit;
+  font-size: 13px; box-shadow: 3px 3px 0 var(--dex-navy); min-height: 38px;
+}
+.conflict-item {
+  display: flex; gap: 8px; align-items: center; border: 2px solid var(--dex-navy); border-radius: 4px;
+  padding: 6px 10px; font-size: 12.5px; font-weight: 700;
+}
+.conflict-item .no { color: var(--ink-soft); font-size: 11px; }
+.btn-row { display: flex; gap: 8px; flex-wrap: wrap; }
+.tip { font-size: 11px; color: var(--ink-soft); margin: 0; }
+
+/* toast */
+.toast {
+  position: fixed; right: 16px; bottom: 16px; z-index: 120; background: #fff; border: 3px solid var(--dex-navy);
+  border-radius: 8px; box-shadow: 4px 4px 0 var(--dex-navy); padding: 10px 14px; font-size: 13px; font-weight: 700;
+}
+.hidden { display: none !important; }
+</style>
+</head>
+<body>
+
+<!-- 原型控制条（审阅用，非产品 UI） -->
+<div class="proto-bar">
+  <span class="pb-title">低保真规格原型 · 状态切换</span>
+  <button data-scene="triage" class="on">📻 电波分诊（入口按钮）</button>
+  <button data-scene="guide">回顾·无报告引导</button>
+  <button data-scene="waiting">回顾·启动等待（互斥让路）</button>
+  <button data-scene="progress">回顾·回填进行中（吸顶同屏）</button>
+  <button data-scene="paused">回顾·已暂停（断点保留）</button>
+  <button data-scene="report">回顾·报告审阅</button>
+  <button data-scene="empty">回顾·空报告</button>
+</div>
+
+<div class="dex">
+  <!-- 机脊（简化示意） -->
+  <aside class="dex-spine">
+    <div class="spine-title px">POKé-DEX<br>LET'S CATCH!</div>
+    <div><button class="menu-btn"><span class="cursor">▶</span>冒险</button></div>
+    <div><button class="menu-btn"><span class="cursor">▶</span>路线</button></div>
+    <div><button class="menu-btn"><span class="cursor">▶</span>草丛</button></div>
+    <div><button class="menu-btn"><span class="cursor">▶</span>图鉴</button></div>
+    <div><button class="menu-btn active"><span class="cursor">▶</span>收音机</button></div>
+    <div><button class="menu-btn"><span class="cursor">▶</span>日志</button></div>
+    <div><button class="menu-btn"><span class="cursor">▶</span>背包</button></div>
+  </aside>
+
+  <main class="dex-main">
+    <div class="main-head" style="margin-bottom:12px">
+      <h1 class="px-cn" id="pageTitle">收音机</h1>
+      <div class="sub" id="pageSub">收听飞书传来的电波，从中捕捉待办</div>
+    </div>
+
+    <!-- 场景：电波分诊（现状 + 新入口按钮） -->
+    <div id="sc-triage">
+      <div class="radio-toolbar">
+        <input class="search-input" placeholder="🔍 搜索电波（消息 / 会话 / 发送者）" readonly>
+        <div class="view-toggle" role="group" aria-label="列表分组方式">
+          <button class="on">⏱ 按状态</button><button>📡 按频道</button>
+        </div>
+        <!-- ★ 新增：回顾入口（状态点演示：本场景无状态） -->
+        <button class="hist-entry" id="entryBtnTriage" title="重听旧电波，整理过去一段时间的任务图鉴" onclick="showScene('guide')">📜 回顾<span class="dot"></span></button>
+      </div>
+      <div class="group">
+        <div class="group-head" onclick="this.parentElement.classList.toggle('collapsed')"><span class="tri"></span>◎ 待办信号 <span class="cnt">3</span></div>
+        <div class="group-body">
+          <div class="lcd" style="font-size:12px">（现状分诊列表示意——信号行 / 详情栏 / 批量条均不在本原型范围）</div>
+        </div>
+      </div>
+      <p class="tip">演示注释：入口按钮在「回填进行中」带呼吸点（动效即信息：进行中）、「报告就绪」带静态待阅角标（被动信号）、「已暂停」带静态琥珀方点，见顶部切换器对应场景。</p>
+    </div>
+
+    <!-- 场景：回顾子视图容器 -->
+    <div id="sc-history" class="hidden">
+      <!-- 工具行 -->
+      <div class="hist-toolbar">
+        <button class="btn ghost back" onclick="showScene('triage')">← 返回电波</button>
+        <select class="hist-select" id="reportSwitch" aria-label="切换报告">
+          <option>近 3 个月（06-29 ~ 09-29）· 生成于 09-29 14:02</option>
+          <option>近 1 个月（08-30 ~ 09-29）· 生成于 09-28 09:11</option>
+        </select>
+        <button class="btn ghost" style="min-height:38px;font-size:12.5px" id="regenBtn" title="同一时间范围只保留一份报告；已收录/忽略的不会变" onclick="toast('整理中…（再生成演示）')">再生成</button>
+        <button class="btn ghost" style="min-height:38px;font-size:12.5px" onclick="toast('已导出到 ~/.choose-you/data/exports/（含电波原文）')">📄 导出报告</button>
+        <button class="btn" style="min-height:38px;font-size:12.5px" id="newReviewBtn" onclick="openWizard()">📜 新回顾</button>
+        <button class="btn ghost" style="min-height:38px;font-size:12.5px" title="删除报告 · 查看完整告知" onclick="toast('演示注释：此处展开「删除报告（二次确认）· 查看完整告知」菜单')">更多 ▾</button>
+      </div>
+
+      <!-- 无报告引导态 -->
+      <div id="hs-guide" class="hidden">
+        <div class="guide-card">
+          还没回看过旧电波。<br>
+          把安装前几个月的任务脉络补进图鉴，从选定一段时间开始。<br><br>
+          <button class="btn" onclick="openWizard()">📜 开始第一次回顾</button>
+        </div>
+      </div>
+
+      <!-- 进度态（进行中 / 已暂停 共用容器，内容切文案） -->
+      <div id="hs-progress" class="hidden">
+        <div class="progress-card">
+          <div class="lcd" style="font-size:13px">
+            <span id="progText">正在翻旧电波… 已收听 12/31 个会话 · 入库 1,842 条</span>
+          </div>
+          <div class="row" id="progRunningRow">
+            <button class="btn ghost" title="暂停回看，保留进展" onclick="showScene('paused')">⏸ 暂停</button>
+            <span class="tip">演示注释：进度卡吸顶，下方报告照常审阅；不弹窗不抢焦点；入口按钮的呼吸点是唯一全局信号。活跃期间「新回顾」禁用。</span>
+          </div>
+          <div class="row hidden" id="progPausedRow">
+            <span class="paused-hint">回看暂停了，进展都留着——随时继续</span>
+            <button class="btn" onclick="showScene('progress')">▶ 继续</button>
+            <button class="btn red" onclick="openCancelConfirm()">✕ 放弃这次回看</button>
+          </div>
+          <div class="row hidden" id="progWaitingRow">
+            <button class="btn ghost" title="暂停后停在等待前位置，下次续跑仍先让路" onclick="toast('已暂停（等待前位置）——演示）">⏸ 暂停</button>
+            <button class="btn red" onclick="openCancelConfirm()">✕ 放弃这次回看</button>
+            <span class="tip">演示注释：等待子态操作行 = 可暂停 + 可取消（同已暂停取消出口）。</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- 报告审阅态 -->
+      <div id="hs-report" class="hidden">
+        <div class="lcd summary-lcd">
+          <span class="px" style="font-size:10px">REPORT</span> · 06-29 ~ 09-29 的回顾 · 共 8 件事：已收服 4 · 仍在野外 2 · 去向不明 1 · 判定失败 1 · 已收录 1
+        </div>
+        <div class="filter-chips">
+          <button class="chip" onclick="this.classList.toggle('on')">只看低置信</button>
+          <button class="chip" onclick="this.classList.toggle('on')">只看去向不明</button>
+          <span class="tip" style="align-self:center">演示注释：把复核注意力集中到最需要人眼的地方——宁漏勿滥</span>
+        </div>
+
+        <!-- 待审阅组 -->
+        <div class="group">
+          <div class="group-head" onclick="this.parentElement.classList.toggle('collapsed')"><span class="tri"></span>待审阅 <span class="cnt">4</span></div>
+          <div class="group-body">
+
+            <!-- 条目 1：已完成 · 高置信（演示：日期修正弹层） -->
+            <div class="entry-card" id="e1">
+              <div class="entry-head" onclick="toggleEntry('e1')">
+                <span class="entry-title">季度报告整理</span>
+                <span class="badge b-done">已收服</span>
+                <span class="badge b-conf-high">高置信</span>
+                <span class="badge b-state">待审阅</span>
+              </div>
+              <div class="entry-body">
+                <div class="timeline">
+                  <div class="tl-node"><span class="tl-when px" style="font-size:10px">07-02</span><span class="tl-type">提出</span>老板在群里布置季度报告<span class="tl-evi" onclick="toggleEv('ev1')">证据 2 条 ▾</span></div>
+                  <div class="tl-node"><span class="tl-when px" style="font-size:10px">07-15</span><span class="tl-type">跟进</span>两次催办，你回了排期<span class="tl-evi">证据 1 条 ▾</span></div>
+                  <div class="tl-node"><span class="tl-when px" style="font-size:10px">08-30</span><span class="tl-type">结局</span>交付初版并收到确认<span class="tl-evi">证据 2 条 ▾</span></div>
+                </div>
+                <div class="evidence-box" id="ev1">
+                  <div class="ev-meta">📡 产品大群 · 成员_a3f2 · 08-30 16:41</div>
+                  「季度报告 v2 已发邮箱，有空帮我看看数据那章」<br>
+                  <div class="ev-meta">📡 产品大群 · 你 · 08-30 17:05</div>
+                  「收到，数据那章我明天确认后回你」
+                </div>
+                <p class="reason">💡 判定理由：交付消息后紧跟对方确认「收到」，结局明确。</p>
+                <div class="entry-actions">
+                  <button class="btn" onclick="openDatePicker()">◎ 登录图鉴</button>
+                  <button class="btn ghost" onclick="openIgnorePop('e1-ig')">忽略 ▾</button>
+                </div>
+                <div class="more-menu-wrap hidden" id="e1-ig"></div>
+              </div>
+            </div>
+
+            <!-- 条目 2：未完成（演示：判重冲突 → 并入并完成） -->
+            <div class="entry-card" id="e2">
+              <div class="entry-head" onclick="toggleEntry('e2')">
+                <span class="entry-title">整理季度报告材料</span>
+                <span class="badge b-open">仍在野外</span>
+                <span class="badge b-conf-high">高置信</span>
+                <span class="badge b-state">待审阅</span>
+              </div>
+              <div class="entry-body">
+                <div class="timeline">
+                  <div class="tl-node"><span class="tl-when px" style="font-size:10px">09-12</span><span class="tl-type">提出</span>私聊里约定整理评审材料</div>
+                  <div class="tl-node"><span class="tl-when px" style="font-size:10px">09-20</span><span class="tl-type">跟进</span>材料清单更新过一版</div>
+                </div>
+                <p class="reason">💡 判定理由：最近一条消息仍在讨论分工，无交付或取消信号，判定为仍开放。</p>
+                <div class="entry-actions">
+                  <button class="btn" onclick="openConflict()">🌿 收进草丛</button>
+                  <button class="btn ghost" onclick="openIgnorePop('e2-ig')">忽略 ▾</button>
+                </div>
+                <div class="more-menu-wrap hidden" id="e2-ig"></div>
+              </div>
+            </div>
+
+            <!-- 条目 3：去向不明（双出口：显式指定结局） -->
+            <div class="entry-card" id="e3">
+              <div class="entry-head" onclick="toggleEntry('e3')">
+                <span class="entry-title">帮邻居代收快递的事</span>
+                <span class="badge b-unknown">去向不明</span>
+                <span class="badge b-conf-low" title="判定把握不大，建议看看证据再决定">低置信</span>
+                <span class="badge b-state">待审阅</span>
+              </div>
+              <div class="entry-body">
+                <p class="reason">💡 判定理由：只有一条提到「帮收一下快递」的消息，没有后续交付或取消的证据——结局判定偏收窄（宁漏勿滥）。</p>
+                <div class="entry-actions">
+                  <button class="btn" onclick="toast('按已收服收录：先补完成日期（演示）')">✔ 按已收服收录</button>
+                  <button class="btn ghost" onclick="toast('已收进草丛（回顾收录）——判定结局由你指定')">🌿 按待办收录</button>
+                  <button class="btn ghost" onclick="openIgnorePop('e3-ig')">忽略 ▾</button>
+                </div>
+                <div class="more-menu-wrap hidden" id="e3-ig"></div>
+              </div>
+            </div>
+
+            <!-- 条目 4：低置信 · 已完成 -->
+            <div class="entry-card" id="e4">
+              <div class="entry-head" onclick="toggleEntry('e4')">
+                <span class="entry-title">旧笔记本数据迁移</span>
+                <span class="badge b-done">已收服</span>
+                <span class="badge b-conf-low" title="判定把握不大，建议看看证据再决定">低置信</span>
+                <span class="badge b-state">待审阅</span>
+              </div>
+              <div class="entry-body">
+                <p class="reason">💡 判定理由：「搞定了」可能指迁移也可能指另一件事，证据链不完整。</p>
+                <div class="entry-actions">
+                  <button class="btn" onclick="openDatePicker()">◎ 登录图鉴</button>
+                  <button class="btn ghost" onclick="openIgnorePop('e4-ig')">忽略 ▾</button>
+                </div>
+                <div class="more-menu-wrap hidden" id="e4-ig"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 判定失败组 -->
+        <div class="group">
+          <div class="group-head" onclick="this.parentElement.classList.toggle('collapsed')"><span class="tri"></span>判定失败 <span class="cnt">1</span></div>
+          <div class="group-body">
+            <div class="entry-card" id="e5">
+              <div class="entry-head" onclick="toggleEntry('e5')">
+                <span class="entry-title">九月团建报销</span>
+                <span class="badge b-failed">判定失败</span>
+              </div>
+              <div class="entry-body">
+                <p class="reason">这一批的判定没能完成——可以重判，或直接忽略。</p>
+                <div class="entry-actions">
+                  <button class="btn ghost" onclick="toast('已重新送判（幂等：只处理仍失败的）')">♻ 重判</button>
+                  <button class="btn ghost" onclick="openIgnorePop('e5-ig')">忽略 ▾</button>
+                </div>
+                <div class="more-menu-wrap hidden" id="e5-ig"></div>
+              </div>
+            </div>
+            <button class="btn ghost" style="align-self:flex-start" onclick="toast('1 批判定失败 · 一键重判（演示）')">一键重判</button>
+          </div>
+        </div>
+
+        <!-- 已收录组（默认收起） -->
+        <div class="group collapsed">
+          <div class="group-head" onclick="this.parentElement.classList.toggle('collapsed')"><span class="tri"></span>已收录 <span class="cnt">1</span></div>
+          <div class="group-body">
+            <div class="entry-card">
+              <div class="state-banner done">✔ 已登录图鉴 No.132「整理七月对账单」<span class="sub">回顾收录 · 不计入连胜</span>
+                <button class="btn ghost" style="min-height:32px;font-size:12px;margin-left:auto" title="删除这条收录的任务与跟进，条目回到待审阅">↩ 撤销收录</button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 已并入组（默认收起） -->
+        <div class="group collapsed">
+          <div class="group-head" onclick="this.parentElement.classList.toggle('collapsed')"><span class="tri"></span>已并入 <span class="cnt">1</span></div>
+          <div class="group-body">
+            <div class="entry-card">
+              <div class="state-banner done">已并入 No.088「新版官网首页改版」的跟进脉络<span class="sub">仅并入跟进 · 待办保持未完成，不带来源标记</span>
+                <button class="btn ghost" style="min-height:32px;font-size:12px;margin-left:auto" title="回退该次并入的跟进，条目回到待审阅">↩ 撤销并入</button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 已忽略组（默认收起） -->
+        <div class="group collapsed">
+          <div class="group-head" onclick="this.parentElement.classList.toggle('collapsed')"><span class="tri"></span>已忽略 <span class="cnt">1</span></div>
+          <div class="group-body">
+            <div class="entry-card">
+              <div class="state-banner ignored">✕ 已忽略「转发行业周报」<span class="sub">原因：不是给我的任务</span>
+                <button class="btn ghost" style="min-height:32px;font-size:12px;margin-left:auto">↩ 恢复</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 空报告态 -->
+      <div id="hs-empty" class="hidden">
+        <div class="empty-report">
+          这段时间的电波很安静——没有可回顾的信号。<br>
+          （如果本该有，检查会话过滤偏好是否把来源会话滤掉了）
+        </div>
+      </div>
+    </div>
+  </main>
+</div>
+
+<!-- 弹层：触发向导（Step1 / Step2） -->
+<div class="mask hidden" id="wizardMask">
+  <div class="modal-card">
+    <h3>📜 电波回顾</h3>
+    <div class="steps" id="wizSteps"><span class="step-dot on">1 时间范围</span><span class="step-dot">2 隐私告知</span></div>
+
+    <div id="wizStep1">
+      <div class="range-row">
+        <button class="range-opt">近 1 个月</button>
+        <button class="range-opt on">近 3 个月（默认）</button>
+        <button class="range-opt">近 6 个月</button>
+        <button class="range-opt">自定义…</button>
+      </div>
+      <div class="lcd" style="font-size:12.5px">预计约 3,100 条电波 · 判定约 20~40 分钟 · 成本量级 ¥1~3<br><span style="font-size:11px">（每次随范围更新；取不到会话列表时如实显示「无法预估」，不用假数字）</span></div>
+      <p class="tip">单次上限 6 个月——更早的电波可以再开一次回顾。</p>
+    </div>
+
+    <div id="wizStep2" class="hidden">
+      <div class="privacy-text">
+        <b>回看前，训练家需要知道的事</b><br><br>
+        所选时间范围内的<span class="hl">全部飞书消息</span>将送至你所配置的 <span class="hl">AI agent（本地或 SSH 远程）</span>做整理判定。发送前，真实姓名与群聊名会替换为稳定代号（成员_xxxx / 群_xxxx），同一人同一代号；隐私边界最终取决于你的 agent 配置。消息只整理成本机报告，不会上传到别处。<br>
+        <span class="tip">（本设备只确认这一次；完整文案随时从回顾入口的「更多 ▾」重看）</span>
+      </div>
+    </div>
+
+    <div class="btn-row" style="border-top:2px dashed var(--ink-faint);padding-top:10px">
+      <button class="btn" id="wizNext" onclick="wizNext()">开始回看</button>
+      <button class="btn ghost" onclick="closeMask('wizardMask')">先不了</button>
+      <button class="btn ghost" style="margin-left:auto" onclick="toast('完整隐私告知（演示）')">查看完整告知</button>
+    </div>
+  </div>
+</div>
+
+<!-- 弹层：完成日期修正（收录为已完成 / 并入并完成 共用，模式化确认文案） -->
+<div class="mask hidden" id="dateMask">
+  <div class="modal-card" style="width:400px">
+    <h3>这件事是什么时候收服的？</h3>
+    <div class="date-row">
+      <input class="date-input" type="date" value="2026-08-30" aria-label="完成日期">
+      <span class="tip">判定建议 08-30<br>（依据最后一条证据电波的时间；<br>完成日期不默认填今天）</span>
+    </div>
+    <p class="tip">演示注释：空值态规格——无判定值且无证据时间可参照时，选择器为空、确认按钮禁用，呈引导文案「没有可参照的时间——凭记忆填一个，不默认今天」，填入即解锁。</p>
+    <div class="btn-row">
+      <button class="btn" id="dateConfirmBtn" onclick="doCaptureDone()">◎ 确认登录图鉴</button>
+      <button class="btn ghost" onclick="closeMask('dateMask')">取消</button>
+    </div>
+  </div>
+</div>
+
+<!-- 弹层：判重冲突（按条目结局分型：本演示由「仍在野外」条目 e2 触发，主推仅并入跟进） -->
+<div class="mask hidden" id="conflictMask">
+  <div class="modal-card" style="width:440px">
+    <h3>草丛里已经有很像的待办</h3>
+    <div class="conflict-item"><span class="no px" style="font-size:10px">No.097</span>整理季度报告材料<span class="badge b-open">草丛 · 未完成</span></div>
+    <p class="tip">收录这条会与上面的待办重复。图鉴不双记——选一个处理方式。<br>演示注释：条目「仍在野外」时主推仅并入跟进（本演示）；「已收服」条目触发时主推并入并完成。</p>
+    <div class="btn-row" style="flex-direction:column;align-items:stretch">
+      <button class="btn" onclick="toast('已并入 No.097 的跟进脉络（仅并入跟进演示）');closeMask('conflictMask')">仅并入跟进脉络</button>
+      <button class="btn ghost" onclick="closeMask('conflictMask');openDatePicker('merge')">并入并完成（先补完成日期）</button>
+      <button class="btn ghost" onclick="toast('仍然收进草丛：已新建（演示）');closeMask('conflictMask')">仍然收进草丛</button>
+      <button class="btn ghost" onclick="closeMask('conflictMask')">取消</button>
+    </div>
+  </div>
+</div>
+
+<!-- 弹层：取消回填二次确认 -->
+<div class="mask hidden" id="cancelMask">
+  <div class="modal-card" style="width:420px">
+    <h3>放弃这次回看？</h3>
+    <p style="font-size:13px;margin:0">放弃后这次回看的断点作废（已入库的电波和已生成的报告不受影响）。确定放弃？</p>
+    <div class="btn-row">
+      <button class="btn red" onclick="toast('已放弃（断点作废，数据资产保留）');closeMask('cancelMask')">确定放弃</button>
+      <button class="btn ghost" onclick="closeMask('cancelMask')">继续回看</button>
+    </div>
+  </div>
+</div>
+
+<!-- toast -->
+<div class="toast hidden" id="toastBox"></div>
+
+<script>
+"use strict";
+// ---- 场景切换（审阅用状态机：分诊 / 引导 / 等待 / 进行中 / 已暂停 / 报告 / 空报告） ----
+// 活跃回填场景（waiting/progress/paused）= 吸顶进度卡 + 报告列表同屏（评审 H1 形态）
+const scenes = {
+  triage:   { title: "收音机", sub: "收听飞书传来的电波，从中捕捉待办", hist: false, panes: [], entry: "" },
+  guide:    { title: "历史电波回顾", sub: "把旧电波里的事整理成报告——收不收录都算梳理", hist: true, panes: ["hs-guide"], entry: "" },
+  waiting:  { title: "历史电波回顾", sub: "把旧电波里的事整理成报告——收不收录都算梳理", hist: true, panes: ["hs-progress", "hs-report"], entry: "running" },
+  progress: { title: "历史电波回顾", sub: "把旧电波里的事整理成报告——收不收录都算梳理", hist: true, panes: ["hs-progress", "hs-report"], entry: "running" },
+  paused:   { title: "历史电波回顾", sub: "把旧电波里的事整理成报告——收不收录都算梳理", hist: true, panes: ["hs-progress", "hs-report"], entry: "paused" },
+  report:   { title: "历史电波回顾", sub: "把旧电波里的事整理成报告——收不收录都算梳理", hist: true, panes: ["hs-report"], entry: "ready" },
+  empty:    { title: "历史电波回顾", sub: "把旧电波里的事整理成报告——收不收录都算梳理", hist: true, panes: ["hs-empty"], entry: "ready" },
+};
+const ACTIVE = new Set(["waiting", "progress", "paused"]);
+function showScene(name) {
+  const s = scenes[name];
+  document.getElementById("pageTitle").textContent = s.title;
+  document.getElementById("pageSub").textContent = s.sub;
+  document.getElementById("sc-triage").classList.toggle("hidden", s.hist);
+  document.getElementById("sc-history").classList.toggle("hidden", !s.hist);
+  for (const id of ["hs-guide", "hs-progress", "hs-report", "hs-empty"]) {
+    document.getElementById(id).classList.toggle("hidden", !s.panes.includes(id));
+  }
+  // 进度卡三行子态：等待 / 进行中 / 已暂停
+  document.getElementById("progRunningRow").classList.toggle("hidden", name !== "progress");
+  document.getElementById("progPausedRow").classList.toggle("hidden", name !== "paused");
+  document.getElementById("progWaitingRow").classList.toggle("hidden", name !== "waiting");
+  document.getElementById("progText").textContent =
+    name === "waiting" ? "正在排队 / 准备翻旧电波…（收音机电波优先；等待与首会话拉取在状态上不可区分，共用软化文案）" :
+    name === "paused"   ? "已收听 12/31 个会话 · 入库 1,842 条 —— 断点保留在会话 13" :
+                          "正在翻旧电波… 已收听 12/31 个会话 · 入库 1,842 条";
+  // 入口状态点三态（形状+色相双通道：呼吸圆 / 圆+navy 内点 / 方点）
+  const btn = document.getElementById("entryBtnTriage");
+  btn.classList.toggle("running", s.entry === "running");
+  btn.classList.toggle("ready", s.entry === "ready");
+  btn.classList.toggle("paused", s.entry === "paused");
+  btn.title = s.entry === "running" ? "回顾进行中——重听旧电波，整理过去一段时间的任务图鉴" :
+              s.entry === "ready"   ? "有回顾报告待阅——重听旧电波，整理过去一段时间的任务图鉴" :
+              s.entry === "paused" ? "回顾已暂停，可继续——重听旧电波，整理过去一段时间的任务图鉴" :
+                                     "重听旧电波，整理过去一段时间的任务图鉴";
+  // 活跃回填期间：新回顾 / 再生成禁用（并发回填 = Invalid，已收敛 AD）
+  const nb = document.getElementById("newReviewBtn");
+  const rg = document.getElementById("regenBtn");
+  const dis = ACTIVE.has(name);
+  nb.disabled = dis;
+  rg.disabled = dis;
+  nb.title = dis ? "一次只能跑一个回顾——当前的还没结束" : "";
+  rg.title = dis ? "回填进行中，稍后再生成" : "同一时间范围只保留一份报告；已收录/忽略的不会变";
+  // 控制条
+  document.querySelectorAll(".proto-bar button").forEach((b) => {
+    b.classList.toggle("on", b.dataset.scene === name);
+  });
+}
+document.querySelectorAll(".proto-bar button").forEach((b) => {
+  b.addEventListener("click", () => showScene(b.dataset.scene));
+});
+
+// ---- 条目展开 / 证据展开 ----
+function toggleEntry(id) {
+  document.getElementById(id).classList.toggle("open");
+}
+function toggleEv(id) {
+  document.getElementById(id).classList.toggle("show");
+}
+
+// ---- 弹层 ----
+function openMask(id) { document.getElementById(id).classList.remove("hidden"); }
+function closeMask(id) { document.getElementById(id).classList.add("hidden"); }
+function openWizard() { document.getElementById("wizStep1").classList.remove("hidden"); document.getElementById("wizStep2").classList.add("hidden"); document.getElementById("wizNext").textContent = "开始回看"; setWizStep(1); openMask("wizardMask"); }
+function setWizStep(n) {
+  const dots = document.querySelectorAll("#wizSteps .step-dot");
+  dots.forEach((d, i) => { d.className = "step-dot" + (i + 1 < n ? " past" : i + 1 === n ? " on" : ""); });
+}
+function wizNext() {
+  const s2 = document.getElementById("wizStep2");
+  if (s2.classList.contains("hidden")) { // Step1 → Step2（首次设备；已确认过则向导只有 Step1）
+    s2.classList.remove("hidden");
+    document.getElementById("wizStep1").classList.add("hidden");
+    document.getElementById("wizNext").textContent = "知道了，开始回看";
+    setWizStep(2);
+  } else {
+    closeMask("wizardMask");
+    showScene("waiting"); // 演示：启动后先进等待子态（互斥让路），增量完成后自动转拉取中
+    toast("回看已启动——若收音机正在拉新电波会先让路，不弹窗");
+  }
+}
+// 日期弹层模式化：收录为已完成（capture）/ 并入并完成（merge）共用，确认文案随模式
+let dateMode = "capture";
+function openDatePicker(mode) {
+  dateMode = mode || "capture";
+  document.getElementById("dateConfirmBtn").textContent = dateMode === "merge" ? "确认并入并完成" : "◎ 确认登录图鉴";
+  openMask("dateMask");
+}
+function doCaptureDone() {
+  closeMask("dateMask");
+  toast(dateMode === "merge"
+    ? "No.097 已按所填历史日期落为完成（并入并完成，图鉴无双记）"
+    : "已登录图鉴 No.133「季度报告整理」（回顾收录，不计入连胜）");
+}
+function openConflict() { openMask("conflictMask"); }
+function openCancelConfirm() { openMask("cancelMask"); }
+
+// ---- 忽略原因弹层（五值定稿：not_my_task / already_in_dex / not_worth / wrong_cluster / 空） ----
+const IGNORE_REASONS = ["不是给我的任务", "图鉴里已经有了", "不值得记", "判定有误·不是一件事"];
+function openIgnorePop(hostId) {
+  const host = document.getElementById(hostId);
+  if (!host.classList.contains("hidden")) { host.classList.add("hidden"); host.innerHTML = ""; return; }
+  host.innerHTML = "";
+  const pop = document.createElement("div");
+  pop.className = "er-pop";
+  const label = document.createElement("div");
+  label.className = "er-label";
+  label.textContent = "为什么忽略？（帮 AI 越判越准）";
+  pop.appendChild(label);
+  for (const r of IGNORE_REASONS) {
+    const b = document.createElement("button");
+    b.className = "er-chip";
+    b.textContent = r;
+    b.onclick = () => { host.classList.add("hidden"); host.innerHTML = ""; toast("已忽略：" + r); };
+    pop.appendChild(b);
+  }
+  const just = document.createElement("button");
+  just.className = "er-chip just";
+  just.textContent = "直接忽略";
+  just.onclick = () => { host.classList.add("hidden"); host.innerHTML = ""; toast("已忽略（未填原因）"); };
+  pop.appendChild(just);
+  host.appendChild(pop);
+  host.classList.remove("hidden");
+}
+
+// ---- toast（右下角，不打断） ----
+let toastTimer;
+function toast(text) {
+  const el = document.getElementById("toastBox");
+  el.textContent = text;
+  el.classList.remove("hidden");
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => el.classList.add("hidden"), 3500);
+}
+
+showScene("triage");
+</script>
+</body>
+</html>
