@@ -157,6 +157,25 @@ export interface HostClient {
     expectedAgentIds?: string[];
     force?: boolean;
   }): Promise<PkyResult<{ agents: AgentConfig[] }>>;
+  /** 连接测试探针（ai::test 同构）：无头执行器跑 pk context，结果以数据面带回 */
+  agentTest(params?: { agentId?: string }): Promise<PkyResult<{ connected: boolean; message: string }>>;
+  /** pk 技能本机安装状态（kind 推断失败 → INVALID_ARGUMENT 信封带指引；command/dir
+   *  覆盖 = 编辑态草稿值优先，缺省回落已存 agent 配置） */
+  pkSkillCheck(params?: { agentId?: string; command?: string; dir?: string }): Promise<
+    PkyResult<{
+      kind: string;
+      dir: string;
+      installed: boolean;
+      installedVersion: string | null;
+      bundledVersion: string;
+    }>
+  >;
+  /** pk 技能安装/同步（写 SKILL.md + references/；返回旧版本供「已从 v? 升级」展示） */
+  pkSkillInstall(params?: {
+    agentId?: string;
+    command?: string;
+    dir?: string;
+  }): Promise<PkyResult<{ kind: string; dir: string; previousVersion: string | null; version: string; path: string }>>;
   promptList(): Promise<PkyResult<{ specs: PromptSpecInfo[] }>>;
   promptGet(params: { key: string }): Promise<PkyResult<PromptSpecInfo>>;
   promptOverride(params: {

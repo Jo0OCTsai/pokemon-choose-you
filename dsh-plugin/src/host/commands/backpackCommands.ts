@@ -4,6 +4,8 @@
  * filterUpsert / agentUpsert / agentDelete / promptList / promptGet /
  * promptOverride / promptReset——薄转发 domain 词表与配置原语；另含复盘向导
  * 「标签体检」3 条（tagCheckup 本地预筛报告只读 + tagMerge/tagMoveDimension 治理写）。
+ * agent 工具面 3 条（agentTest 连接探针 / pkSkillCheck / pkSkillInstall 本机分发）
+ * 拆 commands/agentToolsCommands.ts。
  */
 import type { CommandTable } from "./context";
 import { categoryDelete, categoryUpsert } from "../domain/vocabulary";
@@ -109,7 +111,7 @@ function agentPromptCommands(): CommandTable {
   };
 }
 
-/** 背包域命令表（16 条） */
+/** 背包域命令表（16 条；agent 工具面 3 条拆 agentToolsCommands.ts——棘轮拆分） */
 export function backpackCommands(): CommandTable {
   return { ...vocabularyCommands(), ...tagHealthCommands(), ...agentPromptCommands() };
 }

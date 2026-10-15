@@ -59,6 +59,7 @@ export function AgentConfigCard({
     >
       {editing ? (
         <AgentEditForm
+          agentId={agent.id}
           form={form}
           setForm={setForm}
           busy={busy}

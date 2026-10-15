@@ -209,6 +209,7 @@ describe("Agent 分区对齐（预设 + 全字段 + SSH 组）", () => {
       },
     });
   });
+  // pk 技能行与连接测试的用例 → settings-agent-tools.spec.tsx（棘轮拆分，等量迁移）
 });
 
 describe("飞书分区对齐（会话过滤搜索/筛选/汇总）", () => {

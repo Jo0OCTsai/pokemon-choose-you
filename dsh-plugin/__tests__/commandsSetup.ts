@@ -26,6 +26,8 @@ export interface CommandsFixture {
   writes(): number;
   /** 命令面调用便捷件 */
   call(name: string, params?: unknown): Promise<unknown>;
+  /** 完整 deps（个别用例按需覆写——如 agentTest 探针执行器的 stdout） */
+  deps: HostCommandDeps;
   /** 关库 + 清理临时目录 */
   close(): void;
 }
@@ -82,6 +84,8 @@ export function createCommandsFixture(): CommandsFixture {
     dir,
     pages,
     writes: () => writes,
+    /** 完整 deps（个别用例按需覆写，如 agentTest 的探针执行器 stdout） */
+    deps,
     call: (name: string, params?: unknown) => createHostCommands(deps)(name, params),
     close() {
       conn.close();

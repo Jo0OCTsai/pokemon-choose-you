@@ -1,17 +1,23 @@
 /**
  * Agent 配置卡拆件 · 编辑态表单（从 AgentConfigCard 等量迁出，复杂度棘轮拆分）：
  * 首行名称+命令同行（桌面 agent-row）+ 128px 标签列字段行（附加参数/工作目录/历史
- * 参数/技能根目录/超时——桌面 SettingRow label-width 128 同构）+ SSH 远程执行组
- * （host/端口/私钥同行 + 反向隧道/常驻隧道）+ 保存/取消动作行。
+ * 参数/技能根目录/pk 技能状态行/超时——桌面 SettingRow label-width 128 同构）+
+ * SSH 远程执行组（host/端口/私钥同行 + 反向隧道/常驻隧道）+ 保存/取消/测试动作行。
+ * pk 技能行拆 AgentSkillRow.tsx（自持状态）；连接测试为即时动作。
  */
-import type { AgentConfig, AgentRemote } from "../../../host/domain/settings";
+import { useState } from "react";
+import type { AgentConfig } from "../../../host/domain/settings";
+import { useClient } from "../../clientContext";
 import { useT } from "../../i18n";
-import { FormRow, TextInput, Toggle } from "../../ui/controls";
+import { FormRow, TextInput } from "../../ui/controls";
 import ui from "../../ui/ui.module.css";
 import styles from "../settings.module.css";
+import { AgentSkillRow } from "./AgentSkillRow";
+import { AgentSshGroup } from "./AgentSshGroup";
 
 /** 编辑态表单（form 状态由父卡自持；保存/取消动作经回调上抛） */
 export function AgentEditForm({
+  agentId,
   form,
   setForm,
   busy,
@@ -20,6 +26,7 @@ export function AgentEditForm({
   onSave,
   onCancel,
 }: {
+  agentId: string;
   form: AgentConfig;
   setForm: React.Dispatch<React.SetStateAction<AgentConfig>>;
   busy: boolean;
@@ -29,16 +36,16 @@ export function AgentEditForm({
   onCancel: () => void;
 }): React.JSX.Element {
   const t = useT();
-  /** 开 SSH 给默认值（端口 22）；关清空 remote（主应用 toggleRemote 同口径） */
-  function toggleRemote(on: boolean): void {
-    setForm({ ...form, remote: on ? { host: "", port: 22, keyPath: "", tunnel: null, persistent: false } : null });
-  }
-  /** SSH 子字段局部改（remote 未开时忽略） */
-  function patchRemote(patch: Partial<AgentRemote>): void {
-    if (form.remote === undefined || form.remote === null) {
-      return;
-    }
-    setForm({ ...form, remote: { ...form.remote, ...patch } });
+  const client = useClient();
+  const [testing, setTesting] = useState(false);
+  const [testMsg, setTestMsg] = useState<string | null>(null);
+
+  async function runTest(): Promise<void> {
+    setTesting(true);
+    setTestMsg(null);
+    const result = await client.agentTest({ agentId });
+    setTesting(false);
+    setTestMsg(result.ok ? result.data.message : result.error.message);
   }
   return (
     <>
@@ -91,6 +98,12 @@ export function AgentEditForm({
           placeholder={t("ai.skillDirPh")}
         />
       </FormRow>
+      <AgentSkillRow
+        agentId={agentId}
+        command={form.command}
+        dir={form.skillDir ?? ""}
+        commandInvalid={commandInvalid}
+      />
       <FormRow label={t("ai.timeout")} labelWidth={128}>
         <TextInput
           ariaLabel={t("ai.timeout")}
@@ -98,53 +111,20 @@ export function AgentEditForm({
           onChange={(v) => setForm({ ...form, timeoutSecs: Number(v) || 0 })}
         />
       </FormRow>
-      <Toggle label={t("ai.sshOn")} checked={form.remote != null} onChange={toggleRemote} />
-      {form.remote != null && (
-        <div className={styles.sshGroup}>
-          {/* host + 端口 + 私钥同行（桌面 ssh-row 同构：host/私钥占满、端口定宽） */}
-          <div className={styles.entityLine}>
-            <TextInput
-              className={styles.grow}
-              ariaLabel={t("dsh.agents.sshHostPh")}
-              value={form.remote.host}
-              onChange={(host) => patchRemote({ host })}
-              placeholder={t("dsh.agents.sshHostPh")}
-            />
-            <TextInput
-              className={styles.w84}
-              ariaLabel={t("ai.sshPort")}
-              value={String(form.remote.port)}
-              onChange={(v) => patchRemote({ port: Number(v) || 0 })}
-            />
-            <TextInput
-              className={styles.grow}
-              ariaLabel={t("ai.sshKeyPh")}
-              value={form.remote.keyPath ?? ""}
-              onChange={(keyPath) => patchRemote({ keyPath })}
-              placeholder={t("ai.sshKeyPh")}
-            />
-          </div>
-          <FormRow label={t("ai.sshTunnel")} labelWidth={128}>
-            <TextInput
-              ariaLabel={t("ai.sshTunnel")}
-              value={form.remote.tunnel === null || form.remote.tunnel === undefined ? "" : String(form.remote.tunnel)}
-              onChange={(v) => patchRemote({ tunnel: v.trim() === "" ? null : Number(v) || null })}
-              placeholder="10022"
-            />
-          </FormRow>
-          <Toggle
-            label={t("ai.sshKeepAlive")}
-            checked={form.remote.persistent}
-            onChange={(persistent) => patchRemote({ persistent })}
-          />
-          <p className={styles.cardHint}>{t("ai.sshKeepAliveDesc")}</p>
-        </div>
-      )}
+      <AgentSshGroup form={form} setForm={setForm} />
       {commandInvalid && <span className={styles.saveFailHint}>{t("dsh.agents.commandRequired")}</span>}
       {error !== null && <span className={styles.saveFailHint}>{error}</span>}
+      {testMsg !== null && (
+        <p className={styles.cardHint} data-testid="agent-test-msg">
+          {testMsg}
+        </p>
+      )}
       <div className={styles.cardActions}>
         <button type="button" className={ui.button} disabled={busy || commandInvalid} onClick={onSave}>
           {t("ai.save")}
+        </button>
+        <button type="button" className={ui.button} disabled={testing} onClick={() => void runTest()}>
+          {testing ? t("testing") : t("ai.test")}
         </button>
         <button type="button" className={ui.button} onClick={onCancel}>
           {t("prompts.cancel")}

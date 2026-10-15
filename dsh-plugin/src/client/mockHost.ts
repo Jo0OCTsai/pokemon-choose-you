@@ -20,6 +20,7 @@ import { taskSwitchCommands, taskCloseCommands, releaseCommands, taskEditCommand
 import { captureCommands, acceptCommands, dismissCommands, retryCommands } from "./mockReview";
 import { dispatchCommands, dispatchControlCommands } from "./mockDispatch";
 import { settingsCommands, categoryCommands, vocabularyCommands, agentCommands, filterCommands } from "./mockPanels";
+import { agentToolsCommands } from "./mockAgentTools";
 import { tagHealthCommands } from "./mockTagHealth";
 import { promptCommands } from "./mockPrompts";
 import { diagCommands, logCommands, miscCommands } from "./mockMisc";
@@ -59,6 +60,8 @@ export interface MockHostState {
   dimensions: TagDimension[];
   /** 标签体检固定报告（tagCheckup 消费；缺省空报告） */
   tagCheckup: TagCheckupReport;
+  /** pk 技能 mock 状态（pkSkillCheck/Install 消费；缺省未检查） */
+  pkSkill?: import("./mockAgentTools").MockPkSkillState;
 }
 
 /** 调用记录（断言命令面与参数） */
@@ -122,6 +125,7 @@ function defaultState(): MockHostState {
     tags: [],
     dimensions: [],
     tagCheckup: { merges: [], zombies: [], newDimensions: [], judged: false },
+    pkSkill: { installedVersion: null, checked: false },
   };
 }
 
@@ -191,6 +195,7 @@ export function mockHost(initial: Partial<MockHostState> = {}): MockHost {
     ...vocabularyCommands(ctx),
     ...tagHealthCommands(ctx),
     ...agentCommands(ctx),
+    ...agentToolsCommands(ctx),
     ...filterCommands(ctx),
     ...promptCommands(ctx),
     ...diagCommands(ctx),

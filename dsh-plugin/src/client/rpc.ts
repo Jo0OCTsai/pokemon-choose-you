@@ -150,6 +150,9 @@ function backpackFacade(
   | "tagMoveDimension"
   | "agentUpsert"
   | "agentDelete"
+  | "agentTest"
+  | "pkSkillCheck"
+  | "pkSkillInstall"
   | "promptList"
   | "promptGet"
   | "promptOverride"
@@ -168,6 +171,9 @@ function backpackFacade(
     tagMoveDimension: (p) => call("tagMoveDimension", p),
     agentUpsert: (p) => call("agentUpsert", p),
     agentDelete: (p) => call("agentDelete", p),
+    agentTest: (p) => call("agentTest", p),
+    pkSkillCheck: (p) => call("pkSkillCheck", p),
+    pkSkillInstall: (p) => call("pkSkillInstall", p),
     promptList: () => call("promptList"),
     promptGet: (p) => call("promptGet", p),
     promptOverride: (p) => call("promptOverride", p),
