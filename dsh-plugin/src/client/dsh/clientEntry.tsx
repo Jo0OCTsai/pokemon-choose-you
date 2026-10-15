@@ -22,13 +22,13 @@
  * slots.inject 自带 ctx.effect 纤维回收（返回幂等 disposer），apply 内直接调用即得
  * 卸载清理（dsh cordis-client-runner 样例同形）。
  */
-import { useEffect, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useState, type ReactNode } from "react";
 import { ConversationChip, type ChipMode } from "../chip/ConversationChip";
 import { ClientProvider } from "../clientContext";
 import { I18nProvider, type Locale } from "../i18n";
 import { createHostClient, type HostClient, type PageSection } from "../rpc";
 import type { Task } from "../../host/domain/tasks";
-import { loadLocale } from "./panelData";
+import { loadLocale, pokemonNameOf } from "./panelData";
 import { createDshRpcTransport, type DshConnectionRpc } from "./transport";
 import {
   createMainPanel,
@@ -102,12 +102,54 @@ function createPanelSection(host: HostClient): SlotComponent {
 }
 
 /**
- * chip 数据源（进行中任务/番茄倒计时/分类精灵名）：host 侧读命令与推送通道均未落型
- * ——v1 恒「无进行中」（NFR-6 零占位，chip 不渲染）；数据接面（活跃任务读命令或
- * 状态推送）落型后此处点亮，⏸/✔/🍦 就近控制即经 rpc 真实生效。
+ * chip 数据源（v1 事件驱动面，NFR-6 客户端无周期性自动动作——不设轮询定时器）：
+ * panelSnapshot.currentTask + 分类精灵名 + dbStatus 只读位；挂载 / 就近控制动作后
+ * （onMutate）/ 会话窗口重新可见（visibilitychange·focus）时拉取。计时秒 = 最近一次
+ * 刷新时自 startedAt 起算的已专注时长（快照值——番茄倒计时态在 helper 侧（D2 决策），
+ * 无下行通道前的诚实替代）；resting（短休息）同因不可达，仅 running/paused 两态。
  */
-function useChipTask(): { task: Task | null; mode: ChipMode; secondsLeft: number; pokemonName: string } {
-  return { task: null, mode: "running", secondsLeft: 0, pokemonName: "" };
+function useChipTask(
+  host: HostClient,
+  locale: Locale,
+): { task: Task | null; mode: ChipMode; secondsLeft: number; pokemonName: string; readonly: boolean; refresh: () => void } {
+  const [state, setState] = useState<{ task: Task | null; pokemon: string; readonly: boolean }>({
+    task: null,
+    pokemon: "",
+    readonly: false,
+  });
+  const refresh = useCallback((): void => {
+    void Promise.all([host.panelSnapshot(), host.dbStatus()]).then(([snap, db]) => {
+      if (!snap.ok) {
+        return; // 读失败保持上一帧（下一次事件驱动刷新重试）
+      }
+      const task = snap.data.currentTask ?? null;
+      const category = task === null ? undefined : snap.data.categories.find((c) => c.id === task.categoryId);
+      setState({
+        task,
+        pokemon: category?.pokemon ?? "",
+        readonly: db.ok && db.data.mode === "ro",
+      });
+    });
+  }, [host]);
+  useEffect(() => {
+    refresh();
+    const onVisible = (): void => {
+      if (document.visibilityState === "visible") {
+        refresh();
+      }
+    };
+    document.addEventListener("visibilitychange", onVisible);
+    window.addEventListener("focus", onVisible);
+    return () => {
+      document.removeEventListener("visibilitychange", onVisible);
+      window.removeEventListener("focus", onVisible);
+    };
+  }, [refresh]);
+  const task = state.task;
+  const mode: ChipMode = task !== null && task.status === "paused" ? "paused" : "running";
+  const startedMs = task?.startedAt === null || task?.startedAt === undefined ? NaN : Date.parse(task.startedAt);
+  const secondsLeft = Number.isFinite(startedMs) ? Math.max(0, Math.floor((Date.now() - startedMs) / 1000)) : 0;
+  return { task, mode, secondsLeft, pokemonName: pokemonNameOf(state.pokemon, locale), readonly: state.readonly, refresh };
 }
 
 /** 会话头 chip 工厂：语言经共享设置初始化（切换走背包显示分区保存后刷新拉新值） */
@@ -117,7 +159,7 @@ function createChipEntry(host: HostClient, openPage: (section?: PageSection) => 
     useEffect(() => {
       void loadLocale(host).then(setLocale);
     }, []);
-    const chip = useChipTask();
+    const chip = useChipTask(host, locale);
     return (
       <I18nProvider locale={locale}>
         <ClientProvider client={host}>
@@ -126,6 +168,8 @@ function createChipEntry(host: HostClient, openPage: (section?: PageSection) => 
             mode={chip.mode}
             secondsLeft={chip.secondsLeft}
             pokemonName={chip.pokemonName}
+            readonly={chip.readonly}
+            onMutate={chip.refresh}
             onOpenPage={openPage}
           />
         </ClientProvider>

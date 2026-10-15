@@ -48,6 +48,8 @@ export interface PanelData {
   agents?: AgentConfig[];
   promptSpecs?: PromptSpecInfo[];
   filters?: FilterItem[];
+  /** 会话过滤快照时间（host filterList.lastPollAt——health 最近一次成功拉取） */
+  filterLastPollAt?: string | null;
   /** 换装搜索（1025 只名录；适配层接 host 搜索） */
   pokemonSearch?: (query: string) => Promise<PokemonCandidate[]>;
   loading?: boolean;

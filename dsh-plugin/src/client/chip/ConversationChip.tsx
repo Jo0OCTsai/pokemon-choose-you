@@ -15,13 +15,16 @@ export type ChipMode = "running" | "paused" | "resting";
 export function ConversationChip({
   task,
   mode,
-  /** 倒计时剩余秒（各形态本地番茄，D2） */
+  /** 计时秒数（dsh 形态 = 已专注时长快照：自 startedAt 起算、取最近一次刷新时的值
+   *  ——番茄倒计时态在 helper 侧（D2），客户端无周期动作 invariant（NFR-6）下的诚实替代） */
   secondsLeft,
   /** 进行中任务分类的宝可梦名（运行态前缀） */
   pokemonName,
   /** 打开插件页面（宿主导航回调；可选目标分段锚点） */
   onOpenPage,
   targetSection,
+  /** 就近控制后的数据回刷（宿主层注入——⏸/✔/▶ 立即反映，不等轮询窗） */
+  onMutate,
   /** DB_SCHEMA_TOO_NEW 只读传播（§4.2 禁用清单：chip ⏸/✔ 置灰） */
   readonly = false,
 }: {
@@ -31,6 +34,7 @@ export function ConversationChip({
   pokemonName: string;
   onOpenPage?: (section?: PageSection) => void;
   targetSection?: PageSection;
+  onMutate?: () => void;
   readonly?: boolean;
 }): React.JSX.Element | null {
   const t = useT();
@@ -39,6 +43,10 @@ export function ConversationChip({
   if (task === null) {
     return null;
   }
+  /** 动作统一收口：rpc 调用 + 回刷（失败也刷——让 UI 回到真实态） */
+  const act = (fn: () => Promise<unknown>): void => {
+    void fn().finally(() => onMutate?.());
+  };
   const mm = String(Math.floor(secondsLeft / 60)).padStart(2, "0");
   const ss = String(secondsLeft % 60).padStart(2, "0");
   const time = `${mm}:${ss}`;
@@ -68,30 +76,34 @@ export function ConversationChip({
             label={t("pet.menuResume")}
             glyph="▶"
             disabled={readonly}
-            onClick={() => void client.taskResume({ taskId: task.id })}
+            onClick={() => act(() => client.taskResume({ taskId: task.id }))}
           />
           <IconBtn
             label={t("pet.trialStart")}
             glyph="🍦"
             disabled={readonly}
-            onClick={() => void client.pomoTryFive({ taskId: task.id })}
+            onClick={() => act(() => client.pomoTryFive({ taskId: task.id }))}
           />
         </>
       ) : mode === "resting" ? (
-        <IconBtn label={t("pet.menuResume")} glyph="▶" onClick={() => void client.taskResume({ taskId: task.id })} />
+        <IconBtn
+          label={t("pet.menuResume")}
+          glyph="▶"
+          onClick={() => act(() => client.taskResume({ taskId: task.id }))}
+        />
       ) : (
         <>
           <IconBtn
             label={t("entry.pause")}
             glyph="⏸"
             disabled={readonly}
-            onClick={() => void client.taskPause({ taskId: task.id })}
+            onClick={() => act(() => client.taskPause({ taskId: task.id }))}
           />
           <IconBtn
             label={t("pet.menuDone")}
             glyph="✔"
             disabled={readonly}
-            onClick={() => void client.taskComplete({ taskId: task.id })}
+            onClick={() => act(() => client.taskComplete({ taskId: task.id }))}
           />
         </>
       )}

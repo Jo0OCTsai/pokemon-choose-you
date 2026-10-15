@@ -1,8 +1,10 @@
 /**
  * 飞书分区页（U20 原收音机段改组）：启用轮询/轮询间隔/我的称呼（保存制，U21）+
- * 授权登录/测试连接（即时动作）+ 会话过滤管理（对齐主应用 FeishuChatFilterManager 的
- * 数据支持子集：搜索/生效状态/偏好/类型三维前端筛选 + 汇总计数行；行内乐观写——实体
- * CRUD，私聊固定跟随置灰只读，A23。快照新鲜度警告未做——dsh FilterItem 无快照时间字段）。
+ * 授权登录/测试连接（即时动作）+ 会话过滤管理（对齐主应用 FeishuChatFilterManager：
+ * 搜索/生效状态/偏好/类型三维前端筛选 + 汇总计数行 + 快照新鲜度（staleOk 时间行 /
+ * 超 max(5, 2.5×轮询间隔) 分钟 staleWarn banner + 立即拉取一次）；行内乐观写——
+ * 实体 CRUD，私聊固定跟随置灰只读，A23。快照时间 = host filterList 的 lastPollAt
+ * （health 最近一次成功拉取）。
  */
 import { useState } from "react";
 import type { FilterItem } from "../../../host/domain/vocabulary-filters";
@@ -21,7 +23,11 @@ type EffFilter = "all" | "pull" | "filter";
 type PrefFilter = "all" | "follow" | "manual";
 type TypeFilter = "all" | "group" | "bot";
 
-export function FeishuSection({ filters, ...props }: SectionProps & { filters: FilterItem[] }): React.JSX.Element {
+export function FeishuSection({
+  filters,
+  lastPollAt,
+  ...props
+}: SectionProps & { filters: FilterItem[]; lastPollAt?: string | null }): React.JSX.Element {
   const { draft, saved, onField, onSavedKeys } = props;
   const t = useT();
   const client = useClient();
@@ -77,6 +83,26 @@ export function FeishuSection({ filters, ...props }: SectionProps & { filters: F
         setChatList(fresh.data.chats);
       }
     }
+  }
+
+  /** 快照新鲜度（桌面同口径：阈值 = max(5, 2.5×轮询间隔秒/60) 分钟；仅启用且已拉取时呈现） */
+  const [polling, setPolling] = useState(false);
+  const [lastPoll, setLastPoll] = useState<string | null>(lastPollAt ?? null);
+  const pollMs = Date.parse(lastPoll ?? "");
+  const ageMin =
+    draft["feishu_enabled"] === "true" && Number.isFinite(pollMs) ? Math.round((Date.now() - pollMs) / 60_000) : null;
+  const thresholdMin = Math.max(5, (2.5 * (Number(draft["feishu_poll_interval"]) || POLL_INTERVAL_SECS[1])) / 60);
+  const stale = ageMin !== null && ageMin > thresholdMin;
+
+  async function pollNowAndRefresh(): Promise<void> {
+    setPolling(true);
+    await client.pollNow();
+    const fresh = await client.filterList();
+    if (fresh.ok) {
+      setChatList(fresh.data.chats);
+      setLastPoll(fresh.data.lastPollAt);
+    }
+    setPolling(false);
   }
 
   return (
@@ -159,6 +185,19 @@ export function FeishuSection({ filters, ...props }: SectionProps & { filters: F
             manual: counts.manual,
           })}
         </p>
+        {ageMin !== null &&
+          (stale ? (
+            <div className={styles.filterRow} data-testid="filter-stale" role="alert">
+              <span style={{ flex: 1 }}>{t("feishu.filter.staleWarn", { min: ageMin })}</span>
+              <button type="button" className={ui.button} disabled={polling} onClick={() => void pollNowAndRefresh()}>
+                {t("feishu.pollNow")}
+              </button>
+            </div>
+          ) : (
+            <p className={styles.cardHint} data-testid="filter-snaptime">
+              {t("feishu.filter.staleOk", { time: (lastPoll ?? "").slice(0, 16).replace("T", " ") })}
+            </p>
+          ))}
         <div className={styles.filterRow}>
           <TextInput
             ariaLabel={t("feishu.filter.searchLabel")}

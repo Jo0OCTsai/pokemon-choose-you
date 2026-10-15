@@ -6,7 +6,7 @@
  * 客户端闭环导航）；rpc 经 fake connection（mockHost + dsh 信封正向转换）走真实
  * transport 链路；slots.inject 的卸载清理形态。
  */
-import { cleanup, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import type { ComponentType } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { apply, type DshClientContext } from "../../src/client/dsh/clientEntry";
@@ -19,6 +19,7 @@ import {
 } from "../../src/client/dsh/sidebarPanel";
 import type { DshConnectionResult, DshConnectionRpc } from "../../src/client/dsh/transport";
 import { mockHost, type MockHost, type PkyResult } from "../../src/client/rpc";
+import { makeCategory, makeTask } from "./fixtures";
 
 /** slot 组件的 JSX 形态收窄（props 契约 = 槽 owner/标准件合成，测试只喂已知键） */
 type SlotC = ComponentType<Record<string, unknown>>;
@@ -170,6 +171,25 @@ describe("clientEntry · 会话头 chip（零占位）", () => {
     const Chip = chip as SlotC;
     const { container } = render(<Chip sessionId="s1" />);
     expect(container.innerHTML).toBe("");
+  });
+
+  it("有进行中任务 → chip 渲染精灵名与计时；⏸ 暂停即调 taskPause 并回刷", async () => {
+    const host = mockHost({
+      tasks: [makeTask({ id: 3, status: "active", startedAt: "2026-10-11T08:30:00+08:00" })],
+      categories: [makeCategory({ id: 1, name: "工作", pokemon: "pikachu" })],
+    });
+    const { registrations } = applyWith(host);
+    const Chip = registrations.find((r) => r.id === "dsh-plugin#chip")?.component as SlotC;
+    render(<Chip sessionId="s1" />);
+    // panelSnapshot 异步链路后渲染（皮卡丘 = pikachu 的 zh-Hans 名，经 catalog 查名）
+    const chipEl = await screen.findByTestId("conversation-chip");
+    expect(chipEl.getAttribute("data-mode")).toBe("running");
+    expect(chipEl.textContent).toContain("皮卡丘");
+    expect(screen.getByTestId("chip-open")).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: /暂停/ }));
+    await waitFor(() => {
+      expect(host.calls).toContainEqual({ command: "taskPause", params: { taskId: 3 } });
+    });
   });
 });
 

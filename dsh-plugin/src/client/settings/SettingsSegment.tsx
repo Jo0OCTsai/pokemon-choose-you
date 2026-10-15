@@ -129,7 +129,7 @@ export function SettingsSegment({
       case "agents":
         return <AgentSection {...sectionProps} agents={agents} routes={data.routes} promptSpecs={promptSpecs} />;
       case "feishu":
-        return <FeishuSection {...sectionProps} filters={filters} />;
+        return <FeishuSection {...sectionProps} filters={filters} lastPollAt={data.filterLastPollAt ?? null} />;
       case "diag":
         return <DiagnosticsSection />;
       case "general":

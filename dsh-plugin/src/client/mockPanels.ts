@@ -205,7 +205,7 @@ export function filterCommands(ctx: MockContext): Pick<HostClient, "filterList" 
       for (const chat of ctx.state.filters) {
         counts[chat.state] += 1;
       }
-      return { ok: true, data: { chats: ctx.state.filters, counts } };
+      return { ok: true, data: { chats: ctx.state.filters, counts, lastPollAt: ctx.state.health.lastSuccessAt } };
     },
     async filterUpsert(params) {
       ctx.record("filterUpsert", params);

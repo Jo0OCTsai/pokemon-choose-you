@@ -10,6 +10,7 @@ import { dimensionUpdate, tagDelete, tagUpsert } from "../domain/vocabulary-tags
 import { filterList, filterUpsert, type FilterState } from "../domain/vocabulary-filters";
 import { agentDelete, agentUpsert, type AgentConfig } from "../domain/settings";
 import { promptGet, promptList, promptOverride, promptReset } from "../domain/prompt-overrides";
+import { FEISHU } from "../health/snapshot";
 
 /** 词表段（分类/标签/维度/会话过滤，7 条） */
 function vocabularyCommands(): CommandTable {
@@ -39,7 +40,11 @@ function vocabularyCommands(): CommandTable {
       deps.onWrites();
       return out;
     },
-    filterList: (_p, deps) => filterList(deps.conn),
+    // lastPollAt = 飞书链路最近一次成功拉取（health 单源）——会话过滤快照新鲜度口径
+    filterList: (_p, deps) => ({
+      ...filterList(deps.conn),
+      lastPollAt: deps.health.snapshot(FEISHU).lastSuccessAt,
+    }),
     filterUpsert: (p, deps) => {
       const out = filterUpsert(deps.conn, (p as { chatId: string }).chatId, (p as { state: FilterState }).state);
       deps.onWrites();

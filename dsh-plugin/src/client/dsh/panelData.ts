@@ -45,6 +45,15 @@ export function localeOf(config: Record<string, string>): Locale {
   return SUPPORTED_LOCALES.some((l) => l.value === raw) ? (raw as Locale) : "zh-Hans";
 }
 
+/** PokeAPI key → 本地化精灵名（chip 运行态前缀等展示面；名录外回落 key 本身） */
+export function pokemonNameOf(key: string, locale: Locale): string {
+  const row = CATALOG.find((r) => r[1] === key);
+  if (row === undefined) {
+    return key;
+  }
+  return locale === "zh-Hant" ? row[3] : locale === "en" ? row[4] : row[2];
+}
+
 /** locale memo（chip/面板共用一次 configRead；同一 HostClient 实例只拉一回） */
 const localeCache = new WeakMap<HostClient, Promise<Locale>>();
 
@@ -225,7 +234,8 @@ export async function fetchPanelData(client: HostClient): Promise<PanelData> {
     dbStatus: dataOf(dbR, null as PanelData["dbStatus"]),
     agents: agentsOf(config),
     promptSpecs: dataOf(promptsR, { specs: [] as NonNullable<PanelData["promptSpecs"]> }).specs,
-    filters: dataOf(filtersR, { chats: [], counts: {} }).chats,
+    filters: dataOf(filtersR, { chats: [], counts: {}, lastPollAt: null }).chats,
+    filterLastPollAt: dataOf(filtersR, { chats: [], counts: {}, lastPollAt: null }).lastPollAt ?? null,
     pokemonSearch: createPokemonSearch(localeOf(config)),
   };
 }

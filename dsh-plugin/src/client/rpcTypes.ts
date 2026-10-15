@@ -258,7 +258,7 @@ export interface HostClient {
     maxTags?: number;
     enabled?: boolean;
   }): Promise<PkyResult<TagDimension>>;
-  filterList(): Promise<PkyResult<{ chats: FilterItem[]; counts: Record<string, number> }>>;
+  filterList(): Promise<PkyResult<{ chats: FilterItem[]; counts: Record<string, number>; lastPollAt: string | null }>>;
   filterUpsert(params: { chatId: string; state: FilterState }): Promise<PkyResult<FilterItem>>;
   agentUpsert(params: {
     agent: AgentConfig;
