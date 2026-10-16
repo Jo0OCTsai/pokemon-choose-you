@@ -9,7 +9,6 @@ import { useEffect, useState } from "react";
 import type { DiagnosticsLink, LogEntry } from "../../rpc";
 import { useClient } from "../../clientContext";
 import { useT } from "../../i18n";
-import { StatusDot } from "../../ui/controls";
 import ui from "../../ui/ui.module.css";
 import styles from "../settings.module.css";
 
@@ -56,42 +55,42 @@ export function DiagnosticsSection(): React.JSX.Element {
 
   return (
     <section className={styles.sectionPage} data-testid="section-page">
-      <div className={styles.sectionHeader}>
-        <h3 className={styles.sectionHeading}>🩺 {t("stabs.diag")}</h3>
-      </div>
       <div className={ui.card}>
         <h4 className={styles.cardTitle}>{t("diag.healthTitle")}</h4>
         <p className={styles.cardHint}>{t("diag.healthHint")}</p>
+        {/* 健康行（桌面 HealthCard .health-row 同构）：点 + 名称 + 状态章 + 元信息伸缩 + 动作钮右缘 */}
         {links.map((link) => (
-          <div key={link.provider} className={styles.linkPanel} data-testid="diag-link">
-            <StatusDot
-              level={aggregateLevel(link.level)}
-              text={`${t(`diag.provider.${link.provider}`)} · ${t(levelTextKey(link.level))}`}
-            />
-            <span className={ui.muted}>{t("diag.lastSuccess", { v: link.lastSuccessAt ?? t("diag.never") })}</span>
-            <span className={ui.muted}>{t("diag.nextPoll", { v: link.nextPollAt ?? "-" })}</span>
-            <span className={ui.muted}>{t("dsh.radio.failCount", { n: link.consecutiveFailures })}</span>
-            {link.provider === "feishu" && (
-              <span className={ui.muted}>{t("diag.pending", { n: link.pendingCount })}</span>
-            )}
-            {link.primaryAgent !== null && (
-              <span className={ui.muted}>{t("diag.primaryAgent", { name: link.primaryAgent })}</span>
-            )}
-            {link.lastError !== null && <span className={ui.muted}>{link.lastError}</span>}
-            <button
-              type="button"
-              className={ui.button}
-              onClick={async () => {
-                if (link.provider === "feishu") {
-                  await client.pollNow();
-                } else {
-                  await client.retryJudge({ messageIds: "all" });
-                }
-                reload();
-              }}
-            >
-              {t("diag.pollNow")}
-            </button>
+          <div key={link.provider} className={styles.healthItem} data-testid="diag-link">
+            <div className={styles.healthRow}>
+              <span className={styles.healthDot} data-level={aggregateLevel(link.level)} aria-hidden="true" />
+              <span className={styles.healthName}>{t(`diag.provider.${link.provider}`)}</span>
+              <span className={styles.healthState} data-level={aggregateLevel(link.level)}>
+                {t(levelTextKey(link.level))}
+              </span>
+              <span className={styles.healthMeta}>
+                {link.lastSuccessAt !== null ? t("diag.lastSuccess", { v: link.lastSuccessAt }) : t("diag.never")}
+                {link.nextPollAt !== null && <> · {t("diag.nextPoll", { v: link.nextPollAt })}</>}
+                {link.provider === "feishu" && <> · {t("diag.pending", { n: link.pendingCount })}</>}
+                {link.primaryAgent !== null && <> · {t("diag.primaryAgent", { name: link.primaryAgent })}</>}
+                {" · "}
+                {t("dsh.radio.failCount", { n: link.consecutiveFailures })}
+              </span>
+              <button
+                type="button"
+                className={ui.button}
+                onClick={async () => {
+                  if (link.provider === "feishu") {
+                    await client.pollNow();
+                  } else {
+                    await client.retryJudge({ messageIds: "all" });
+                  }
+                  reload();
+                }}
+              >
+                {t("diag.pollNow")}
+              </button>
+            </div>
+            {link.lastError !== null && <p className={styles.healthErr}>{link.lastError}</p>}
           </div>
         ))}
         {links.length === 0 && <p className={ui.muted}>{t("diag.never")}</p>}
@@ -158,7 +157,7 @@ export function LogViewer(): React.JSX.Element {
       <h4 className={styles.cardTitle}>{t("diag.logTitle")}</h4>
       <div className={styles.filterRow}>
         <select
-          className={styles.triStateGroup}
+          className={ui.select}
           aria-label={t("diag.logLevel")}
           value={minLevel}
           onChange={(event) => setMinLevel(event.target.value)}
@@ -169,7 +168,7 @@ export function LogViewer(): React.JSX.Element {
           <option value="error">error</option>
         </select>
         <input
-          className={styles.entityNameInput}
+          className={`${ui.input} ${styles.grow}`}
           aria-label={t("diag.logSource")}
           placeholder={t("diag.logSource")}
           value={target}
@@ -185,12 +184,14 @@ export function LogViewer(): React.JSX.Element {
         <div className={styles.logList}>
           {entries.map((entry, index) => (
             <div key={`${entry.time}-${index}`} className={styles.logRow}>
-              <span className={styles.logTime}>{entry.time}</span>
-              <span className={styles.logLevel} data-level={entry.level}>
-                {entry.level}
-              </span>
-              <span className={styles.logTime}>{entry.target}</span>
-              <span>{entry.message}</span>
+              <div className={styles.logMeta}>
+                <span className={styles.logTime}>{entry.time}</span>
+                <span className={styles.logLevel} data-level={entry.level}>
+                  {entry.level}
+                </span>
+                <span className={styles.logTarget}>{entry.target}</span>
+              </div>
+              <div className={styles.logMsg}>{entry.message}</div>
             </div>
           ))}
         </div>

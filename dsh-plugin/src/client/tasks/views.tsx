@@ -1,6 +1,6 @@
 /**
  * 任务四分段视图（UIUX §2.2 与主应用五视图的映射）：
- * - AdventureView：日期 + CAUGHT x/y 进度条 + 逾期折叠 + 任务列表
+ * - AdventureView：逾期折叠 + 任务列表（日期与 CAUGHT 进度条在 PageHeader，桌面 today 页头同位）
  * - RouteView：按日期分组
  * - GrassView：无截止草丛
  * - DexView：统计 + 里程碑贺词 + 筛选（全部/已捕捉/已逃走）+ 每周复盘向导入口（🧢复盘）
@@ -41,11 +41,10 @@ function useTaskEditor(
   };
 }
 
-/** 冒险分段：进行中 + 今日到期 + 逾期折叠（fresh start） */
+/** 冒险分段：进行中 + 今日到期 + 逾期折叠（fresh start）——日期/CAUGHT 头在 PageHeader */
 export function AdventureView({ data, readonly, onOpen, onChanged }: SegmentProps): React.JSX.Element {
   const editor = useTaskEditor(data, onChanged);
   const snapshot = useMemo(() => adventureSnapshot(data.tasks, data.today), [data.tasks, data.today]);
-  const percent = snapshot.total === 0 ? 0 : Math.round((snapshot.caught / snapshot.total) * 100);
   return (
     <>
       <TaskSearchShell data={data} readonly={readonly} onOpen={onOpen} onChanged={onChanged} onEdit={editor.openEdit}>
@@ -54,23 +53,6 @@ export function AdventureView({ data, readonly, onOpen, onChanged }: SegmentProp
             <SkeletonRows />
           ) : (
             <>
-              <div className={styles.adventureHeader}>
-                <span className={styles.adventureDate}>{data.today}</span>
-                <span className={styles.caught}>
-                  <span className={styles.caughtLabel}>
-                    CAUGHT {snapshot.caught}/{snapshot.total}
-                  </span>
-                  <span
-                    className={styles.caughtBar}
-                    role="progressbar"
-                    aria-valuemin={0}
-                    aria-valuemax={snapshot.total}
-                    aria-valuenow={snapshot.caught}
-                  >
-                    <span className={styles.caughtFill} style={{ width: `${percent}%` }} />
-                  </span>
-                </span>
-              </div>
               <OverdueFold tasks={snapshot.overdueTasks} readonly={readonly} onChanged={onChanged} />
               {snapshot.todayTasks.length === 0 && snapshot.overdueTasks.length === 0 ? (
                 <EmptyState kind="tasks" />
@@ -149,6 +131,7 @@ export function GrassView({ data, readonly, onOpen, onChanged }: SegmentProps): 
               tasks={tasks}
               categories={data.categories}
               readonly={readonly}
+              allowSchedule
               onOpen={onOpen}
               onChanged={onChanged}
               onEdit={editor.openEdit}

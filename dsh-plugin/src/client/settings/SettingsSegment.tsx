@@ -1,15 +1,16 @@
 /**
- * 背包分段（「背包」独立分区，U17/U18/U21）：SectionNav 八分区选单（切换保留未保存
- * 草稿）+ 分区整页 ×8（一次只显示一个、其余 hidden）+ 保存制（36 共享键草稿编辑 →
- * 分区标题行「保存」统一 configWrite）+ 未保存离开确认（保存并离开/放弃修改/留在这里，
- * 离开请求由 PluginDetailPage 在切分段时发起）。
+ * 背包分段（「背包」独立分区，U17/U18/U21）：分区选单行（SectionNav 居左 + 保存控件
+ * 靠右——无独立保存行）+ 分区整页 ×8（一次只显示一个、其余 hidden）+ 保存制（36 共享
+ * 键草稿编辑 → 保存控件统一 configWrite）+ 未保存离开确认（保存并离开/放弃修改/留下来
+ * 在这里，离开请求由 PluginDetailPage 在切分段时发起）。
  */
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useClient } from "../clientContext";
-import type { Locale } from "../i18n";
+import { useT, type Locale } from "../i18n";
 import { dirtySectionSet, type PanelData } from "../model";
 import { normalizeSettingValues } from "./optionSets";
 import { SectionNav } from "./SectionNav";
+import { SaveControls } from "./SectionShell";
 import { UnsavedLeaveDialog } from "./UnsavedLeaveDialog";
 import {
   AGENT_KEYS,
@@ -43,6 +44,23 @@ const SECTION_KEY_SETS: Record<SectionKey, readonly string[]> = {
   general: GENERAL_KEYS,
 };
 
+/** 行内防呆（原 FocusSection 分区页内逻辑上提）：勿扰起=止阻断保存（后端兜底 CONFIG_VALIDATION_FAILED） */
+function sectionSaveBlocker(
+  section: SectionKey,
+  draft: Record<string, string>,
+  t: ReturnType<typeof useT>,
+): { saveBlocked?: boolean; blockedReason?: string } {
+  const quietClash =
+    section === "focus" &&
+    draft["quiet_hours_enabled"] === "true" &&
+    draft["quiet_start"] !== "" &&
+    draft["quiet_start"] === draft["quiet_end"];
+  if (!quietClash) {
+    return {};
+  }
+  return { saveBlocked: true, blockedReason: t("dsh.settings.saveFailed", { reason: t("remind.quiet") }) };
+}
+
 export function SettingsSegment({
   data,
   onChanged,
@@ -60,6 +78,7 @@ export function SettingsSegment({
   onUnsavedChange: (dirty: boolean) => void;
   onLocalePreview?: (locale: Locale) => void;
 }): React.JSX.Element {
+  const t = useT();
   const [section, setSection] = useState<SectionKey>("focus");
   // 真实库未落盘的设置键 configRead 回 undefined——draft/saved 统一归一空串
   // （设置值皆字符串形态；Toggle 的 ==="true" 与 textarea 的受控值都与 "" 兼容），
@@ -127,7 +146,15 @@ export function SettingsSegment({
       case "display":
         return <DisplaySection {...sectionProps} onLocalePreview={onLocalePreview} />;
       case "agents":
-        return <AgentSection {...sectionProps} agents={agents} routes={data.routes} promptSpecs={promptSpecs} />;
+        return (
+          <AgentSection
+            {...sectionProps}
+            agents={agents}
+            routes={data.routes}
+            tags={taxonomy.tags}
+            promptSpecs={promptSpecs}
+          />
+        );
       case "feishu":
         return <FeishuSection {...sectionProps} filters={filters} lastPollAt={data.filterLastPollAt ?? null} />;
       case "diag":
@@ -140,7 +167,19 @@ export function SettingsSegment({
   }
   return (
     <div className={styles.settingsSegment} data-testid="segment-settings">
-      <SectionNav active={section} onChange={setSection} dirtySections={dirtySections} />
+      {/* 分区选单行：选单居左 + 保存控件靠右（无独立保存行；仅含草稿键的分区出保存钮） */}
+      <div className={styles.settingsHeadRow}>
+        <SectionNav active={section} onChange={setSection} dirtySections={dirtySections} />
+        {SECTION_KEY_SETS[section].length > 0 && (
+          <SaveControls
+            keys={SECTION_KEY_SETS[section]}
+            draft={draft}
+            saved={saved}
+            onSavedKeys={onSavedKeys}
+            {...sectionSaveBlocker(section, draft, t)}
+          />
+        )}
+      </div>
       {SECTION_KEYS.map((key) => (
         <div key={key} hidden={section !== key} data-section-wrap={key}>
           {renderSection(key)}

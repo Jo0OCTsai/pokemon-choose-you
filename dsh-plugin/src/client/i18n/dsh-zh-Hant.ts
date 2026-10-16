@@ -108,9 +108,6 @@ export default {
     leaveDiscard: "放棄修改",
     leaveStay: "留在這裡",
     judgeSource: "當前：消費主應用結果（dsh 側不自行判定）",
-    dualFormTitle: "雙形態小贴士",
-    dualFormBody:
-      "dsh 與主應用共用同一份待辦資料與設定——建議不會重複出現；兩隻桌寵可以同時在場，各自可隱藏；到期提醒由主應用承擔（若在執行）；提示詞在兩處都可編輯，同時改動時會提示並刷新到最新；收音機會話過濾可在背包·飛書段直接調整。",
     dbStatusTitle: "待辦庫狀態",
     dbStatusQuery: "查詢庫狀態",
     dbUserVersion: "庫版本 v{v} · {mode}",
@@ -129,6 +126,7 @@ export default {
     placeholder: "搜尋寶可夢（1025 隻 · 名稱 / 編號 / 英文名）",
     searching: "搜尋中…",
     noResult: "沒有找到這隻寶可夢，換個編號或名字試試",
+    bundled: "內建",
   },
   category: {
     releaseConfirm: "放生分類「{name}」後，其 {n} 個任務將歸入第一個分類「{first}」，標籤維度與標籤保留。",

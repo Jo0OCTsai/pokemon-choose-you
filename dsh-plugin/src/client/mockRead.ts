@@ -68,6 +68,8 @@ function mockPanelSnapshot(ctx: MockContext): PanelSnapshot {
     logs: ctx.state.sessions,
     currentTask: tasks.find((t) => t.status === "active") ?? null,
     categories: ctx.state.categories,
+    dimensions: ctx.state.dimensions,
+    tags: ctx.state.tags,
   };
 }
 

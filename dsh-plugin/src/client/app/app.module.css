@@ -9,11 +9,58 @@
   font-size: 14px;
 }
 
-/* PageHeader */
+/* PageHeader（桌面 dex-main-head 同构：标题块左 + 冒险段 CAUGHT 进度右） */
 .pageHeader {
   display: flex;
   align-items: center;
   gap: 12px;
+}
+.pageHeadMain {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+/* 标题行（title + 装饰英文 + 待处理徽章同行；CAUGHT 挂外层右端） */
+.pageTitleRow {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+}
+/* 冒险段日期（桌面 today 页 .sub.px 同位：标题下方独立一行，等宽小字） */
+.pageDate {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  color: var(--dsw-alias-label-secondary, #57606a);
+}
+/* 冒险段 CAUGHT 计数 + 描边进度条（桌面 catch-progress 同构：计数左、进度条右同行） */
+.pageCaught {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: none;
+}
+.caughtLabel {
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  color: var(--dsw-alias-label-primary, #1f2328);
+  font-weight: 600;
+}
+.caughtBar {
+  width: 110px;
+  height: 10px;
+  border: 1.5px solid var(--dsw-alias-label-primary, #1f2328);
+  border-radius: 999px;
+  background: var(--dsw-alias-bg-layer-1, #ffffff);
+  overflow: hidden;
+}
+.caughtFill {
+  display: block;
+  height: 100%;
+  background: var(--pcy-ok, #2e9e5b);
 }
 .pageHeaderSprite {
   width: 36px;
@@ -93,6 +140,7 @@
   padding-bottom: 2px;
 }
 .segmentButton {
+  box-sizing: border-box;
   min-height: 32px;
   padding: 4px 14px;
   border: 1px solid var(--dsw-alias-border-l1, #e3e7ec);
@@ -134,4 +182,23 @@
 
 .segmentBody {
   min-height: 200px;
+}
+/* 收音机段填充窗口剩余高度（--pcy-remaining 由 PluginDetailPage 按段体顶缘实测写入）：
+ * 整页不出滚动条——列表/详情内滚承担展开内容，收发报条常驻可视。
+ * 列表/详情伸缩口径经自定义属性下传（radio.module.css 消费：--list-cap/--list-floor/--detail-floor） */
+.segmentFill {
+  height: var(--pcy-remaining, auto);
+  min-height: 260px;
+  --list-cap: none;
+  --list-floor: 0px;
+  --detail-floor: 0px;
+}
+@media (max-width: 760px) {
+  /* 窄屏纵排回落页面滚动（双面板上下堆叠塞定高会互相挤压） */
+  .segmentFill {
+    height: auto;
+    --list-cap: 560px;
+    --list-floor: 220px;
+    --detail-floor: 160px;
+  }
 }

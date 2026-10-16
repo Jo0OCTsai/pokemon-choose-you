@@ -109,9 +109,6 @@ export default {
     leaveDiscard: "放弃修改",
     leaveStay: "留在这里",
     judgeSource: "当前：消费主应用结果（dsh 侧不自行判定）",
-    dualFormTitle: "双形态小贴士",
-    dualFormBody:
-      "dsh 与主应用共用同一份待办数据与设置——建议不会重复出现；两只桌宠可以同时在场，各自可隐藏；到期提醒由主应用承担（若在运行）；提示词在两处都可编辑，同时改动时会提示并刷新到最新；收音机会话过滤可在背包·飞书段直接调整。",
     dbStatusTitle: "待办库状态",
     dbStatusQuery: "查询库状态",
     dbUserVersion: "库版本 v{v} · {mode}",
@@ -130,6 +127,7 @@ export default {
     placeholder: "搜索宝可梦（1025 只 · 名称 / 编号 / 英文名）",
     searching: "搜索中…",
     noResult: "没有找到这只宝可梦，换个编号或名字试试",
+    bundled: "内置",
   },
   category: {
     releaseConfirm: "放生分类「{name}」后，其 {n} 个任务将归入第一个分类「{first}」，标签维度与标签保留。",

@@ -1,7 +1,7 @@
 /**
  * 背包八分区内容对齐主应用（U20）：桌宠/显示（预览+语言即时跟随）/飞书（会话过滤三态与
  * 私聊置灰）/Agent（判定执行方+终端偏好 badge+agent 卡删除）/诊断（两链路+日志+支持报告）/
- * 通用（badge+库状态+双形态说明）/分类与标签（维度 key 只读+放生级联确认）。
+ * 通用（badge+库状态+使用指南链接）/分类与标签（维度 key 只读+放生级联确认）。
  * 保存制与离开确认见 settings.spec.tsx。
  */
 import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
@@ -166,8 +166,11 @@ describe("分区内容对齐主应用（U20）", () => {
     gotoSection("诊断");
     const page = getPage("diag");
     await vi.runAllTimersAsync();
-    expect(within(page).getByText(/飞书电波 · 正常/)).toBeTruthy();
-    expect(within(page).getByText(/AI Agent · 降级重试中/)).toBeTruthy();
+    // 健康行（桌面 HealthCard 同构）：名称与状态章分列（状态点 aria-hidden + 文字状态非颜色冗余）
+    expect(within(page).getByText("飞书电波")).toBeTruthy();
+    expect(within(page).getByText("正常")).toBeTruthy();
+    expect(within(page).getByText("AI Agent")).toBeTruthy();
+    expect(within(page).getByText("降级重试中")).toBeTruthy();
     expect(within(page).getByText(/待确认建议 2/)).toBeTruthy();
     expect(within(page).getByText("退避重试")).toBeTruthy();
     fireEvent.click(within(page).getByText("复制支持报告"));
@@ -175,12 +178,17 @@ describe("分区内容对齐主应用（U20）", () => {
     expect(host.calls.map((c) => c.command)).toContain("supportReport");
   });
 
-  it("通用分区：复盘/备份/托盘 badge + 库状态查询 + 双形态说明", async () => {
+  it("通用分区：复盘/备份/托盘 badge + 库状态查询 + 使用指南链接", async () => {
     const { host } = renderSettings();
     gotoSection("通用");
     const page = getPage("general");
     expect(within(page).getAllByText("作用于主应用").length).toBeGreaterThanOrEqual(3);
-    expect(within(page).getByTestId("dual-form-note").textContent).toContain("双形态小贴士");
+    // 使用指南 = GitHub 文档外链（dsh 形态章节锚点，新窗口打开）
+    const guide = within(page).getByTestId("guide-link");
+    expect(guide.getAttribute("href")).toContain(
+      "github.com/Jo0OCTsai/pokemon-choose-you/blob/main/docs/USER_GUIDE.md",
+    );
+    expect(guide.getAttribute("target")).toBe("_blank");
     fireEvent.click(within(page).getByText("查询库状态"));
     await vi.runAllTimersAsync();
     expect(host.calls.map((c) => c.command)).toContain("dbStatus");

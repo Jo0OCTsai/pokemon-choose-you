@@ -15,6 +15,9 @@ export const DEFAULT_HOME_DIR = ".choose-you";
 /** 应用数据子目录（db、backups、exports） */
 export const DATA_SUBDIR = "data";
 
+/** 共享日志子目录（主应用 Tauri 与 pk CLI 写 <appHome>/logs/*.log；db.rs LOG_SUBDIR 同名同规则） */
+export const LOG_SUBDIR = "logs";
+
 /** 数据库文件名（应用数据目录内） */
 export const DB_FILE = "pokemon-choose-you.db";
 
@@ -44,4 +47,10 @@ export function dataDirFrom(env?: string, home?: string): string | undefined {
 export function dbFileFrom(env?: string, home?: string): string | undefined {
   const dir = dataDirFrom(env, home);
   return dir === undefined ? undefined : join(dir, DB_FILE);
+}
+
+/** 共享日志目录：<appHome>/logs（主应用 list_log_entries 同数据源） */
+export function logDirFrom(env?: string, home?: string): string | undefined {
+  const root = appHome(env, home);
+  return root === undefined ? undefined : join(root, LOG_SUBDIR);
 }

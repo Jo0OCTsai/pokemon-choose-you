@@ -35,15 +35,19 @@ function renderRadio(messages = makeData().messages): { host: MockHost; onChange
   return { host, onChanged };
 }
 
-/** 待处理组卡级勾选框（按消息 id 定位：行容器 = 卡 div 外层两级，排除批量条内全选框） */
+/** 待处理组行级勾选框（按消息 id 定位：勾选框在行容器内，排除批量条内全选框） */
 function checkboxOf(messageId: string): HTMLInputElement {
-  const card = document.querySelector(`[data-message-id="${messageId}"]`);
-  const row = card?.parentElement?.parentElement ?? card?.parentElement;
+  const row = document.querySelector(`[data-testid="radio-row"][data-message-id="${messageId}"]`);
   const box = row?.querySelector('input[type="checkbox"]');
   if (!(box instanceof HTMLInputElement)) {
-    throw new Error(`消息 ${messageId} 的卡级勾选框未找到`);
+    throw new Error(`消息 ${messageId} 的行级勾选框未找到`);
   }
   return box;
+}
+
+/** 行选中（行点击 = 选中，详情在右栏） */
+function selectRow(messageId: string): void {
+  fireEvent.click(document.querySelector(`[data-testid="radio-row"][data-message-id="${messageId}"]`)!);
 }
 
 describe("视图切换（⏱ 按状态 / 📡 按频道）", () => {
@@ -93,17 +97,15 @@ describe("视图切换（⏱ 按状态 / 📡 按频道）", () => {
     expect(within(groups[0]).getByText("4 条")).toBeTruthy();
     expect(within(groups[1]).getByText("1 待处理").getAttribute("data-hot")).toBe("true");
     // 组内排序：待处理信号 → 其余待处理 → 已捕捉 → 已逃走（并入各自频道组尾）
-    const order = [...groups[0].querySelectorAll("[data-message-id],[data-testid='channel-archived-row']")].map(
-      (el) => el.getAttribute("data-message-id") ?? "archived",
+    const order = [...groups[0].querySelectorAll("[data-testid='radio-row']")].map((el) =>
+      el.getAttribute("data-message-id"),
     );
-    expect(order).toEqual(["c-sig", "c-noise", "archived", "archived"]);
-    const archived = within(groups[0]).getAllByTestId("channel-archived-row");
-    expect(archived[0].textContent).toContain("已捕捉的旧信号");
-    expect(archived[0].textContent).toContain("已捕捉为待办 No.7");
-    expect(archived[1].textContent).toContain("已逃走的闲聊");
-    expect(archived[1].textContent).toContain("闲聊/噪音");
-    // 已处理走归档行（无分诊按钮），待处理走建议卡
-    expect(within(groups[0]).getAllByTestId("suggestion-card")).toHaveLength(2);
+    expect(order).toEqual(["c-sig", "c-noise", "c-done", "c-escaped"]);
+    // 已处理行尾回执（✔ No.7）；原因/原委在选中后的右栏详情
+    const doneRow = groups[0].querySelector("[data-message-id='c-done']");
+    expect(doneRow?.textContent).toContain("✔ No.7");
+    // 全部走电波行（选中制，无分诊按钮内联）
+    expect(within(groups[0]).getAllByTestId("radio-row")).toHaveLength(4);
 
     // 切回状态模式：频道组收起、五分组回来
     fireEvent.click(screen.getByRole("button", { name: "⏱ 按状态" }));
@@ -124,13 +126,13 @@ describe("视图切换（⏱ 按状态 / 📡 按频道）", () => {
 });
 
 describe("分组折叠（桌面 ImListGroup parity：状态组与频道组都可折叠）", () => {
-  it("待处理组默认展开；组头点击折叠即卸载卡片，再点恢复", () => {
+  it("待处理组默认展开；组头点击折叠即卸载行，再点恢复", () => {
     renderRadio([makeMessage({ messageId: "p1", content: "待办信号" })]);
-    expect(screen.getByTestId("suggestion-card")).toBeTruthy();
+    expect(screen.getByTestId("radio-row")).toBeTruthy();
     fireEvent.click(screen.getByText("◎ 待办信号"));
-    expect(screen.queryByTestId("suggestion-card")).toBeNull();
+    expect(screen.queryByTestId("radio-row")).toBeNull();
     fireEvent.click(screen.getByText("◎ 待办信号"));
-    expect(screen.getByTestId("suggestion-card")).toBeTruthy();
+    expect(screen.getByTestId("radio-row")).toBeTruthy();
   });
 
   it("已捕捉/已逃走默认折叠（归档不占视野）；展开可见回执行", () => {
@@ -138,16 +140,16 @@ describe("分组折叠（桌面 ImListGroup parity：状态组与频道组都可
     expect(screen.queryByText(/已存档信号/)).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: /已捕捉/ }));
     expect(screen.getByText(/已存档信号/)).toBeTruthy();
-    expect(screen.getByTestId("caught-group").textContent).toContain("已捕捉为待办 No.3");
+    expect(screen.getByTestId("caught-group").textContent).toContain("✔ No.3");
   });
 
   it("频道模式组头同样可折叠；折叠态组内消息卸载、组头计数保留", () => {
     renderRadio([makeMessage({ messageId: "ch1", chatName: "产品群", content: "频道信号" })]);
     fireEvent.click(screen.getByRole("button", { name: "📡 按频道" }));
-    expect(within(screen.getByTestId("channel-group")).getByTestId("suggestion-card")).toBeTruthy();
+    expect(within(screen.getByTestId("channel-group")).getByTestId("radio-row")).toBeTruthy();
     fireEvent.click(screen.getByText("📡 产品群"));
     const group = screen.getByTestId("channel-group");
-    expect(group.querySelector("[data-testid='suggestion-card']")).toBeNull();
+    expect(group.querySelector("[data-testid='radio-row']")).toBeNull();
     expect(within(group).getByText("1 待处理")).toBeTruthy();
   });
 });
@@ -167,21 +169,23 @@ describe("电波搜索（前端过滤，跨全部分组生效）", () => {
 
   it("按消息内容过滤：命中入组、未命中隐藏；清空恢复", () => {
     renderRadio(messages);
+    const feed = screen.getByTestId("suggestion-feed");
     fireEvent.change(screen.getByTestId("radio-search"), { target: { value: "周报" } });
-    expect(screen.getByText(/帮我看一下周报的数字/)).toBeTruthy();
-    expect(screen.queryByText("中午吃什么")).toBeNull();
+    expect(within(feed).getByText(/帮我看一下周报的数字/)).toBeTruthy();
+    expect(within(feed).queryByText("中午吃什么")).toBeNull();
     fireEvent.change(screen.getByTestId("radio-search"), { target: { value: "" } });
-    expect(screen.getByText("中午吃什么")).toBeTruthy();
+    expect(within(screen.getByTestId("suggestion-feed")).getByText("中午吃什么")).toBeTruthy();
   });
 
   it("按会话名/发送者过滤；频道模式同样生效", () => {
     renderRadio(messages);
+    const feed = screen.getByTestId("suggestion-feed");
     fireEvent.change(screen.getByTestId("radio-search"), { target: { value: "生活群" } });
-    expect(screen.queryByText(/帮我看一下周报的数字/)).toBeNull();
-    expect(screen.getByText("中午吃什么")).toBeTruthy();
+    expect(within(feed).queryByText(/帮我看一下周报的数字/)).toBeNull();
+    expect(within(feed).getByText("中午吃什么")).toBeTruthy();
     fireEvent.change(screen.getByTestId("radio-search"), { target: { value: "成员_1024" } });
-    expect(screen.getByText(/帮我看一下周报的数字/)).toBeTruthy();
-    expect(screen.queryByText("中午吃什么")).toBeNull();
+    expect(within(feed).getByText(/帮我看一下周报的数字/)).toBeTruthy();
+    expect(within(feed).queryByText("中午吃什么")).toBeNull();
     // 频道模式：过滤后只呈现命中的频道组
     fireEvent.change(screen.getByTestId("radio-search"), { target: { value: "生活群" } });
     fireEvent.click(screen.getByRole("button", { name: "📡 按频道" }));
@@ -246,20 +250,19 @@ describe("无信号组一键清空", () => {
 });
 
 describe("强制捕捉（桌面 F 键语义的按钮面）", () => {
-  it("低置信 todo 建议展开有 ⚡ 强制捕捉 → forceCapture；高置信 todo / update 不加", async () => {
+  it("低置信 todo 选中后有 ⚡ 强制捕捉 → forceCapture；none 同有", async () => {
     const { host } = renderRadio([
       makeMessage({ messageId: "low1", confidence: "low", content: "低置信待办" }),
-      makeMessage({ messageId: "high1", confidence: "high", content: "高置信待办" }),
-      makeMessage({ messageId: "upd1", aiStatus: "update", updateTaskId: 9, content: "更新建议消息" }),
+      makeMessage({ messageId: "no1", aiStatus: "none", suggestedTitle: null, content: "无信号消息" }),
     ]);
-    const cards = screen.getAllByTestId("suggestion-card");
-    fireEvent.click(within(cards[0]).getByRole("button", { name: /低置信待办/ }));
-    fireEvent.click(within(cards[0]).getByText("⚡ 强制捕捉"));
+    selectRow("low1");
+    fireEvent.click(screen.getByText(/⚡ 强制捕捉/));
     await flush();
     expect(host.calls).toContainEqual({ command: "forceCapture", params: { messageId: "low1" } });
-    fireEvent.click(within(cards[1]).getByRole("button", { name: /高置信待办/ }));
-    expect(within(cards[1]).queryByText("⚡ 强制捕捉")).toBeNull();
-    fireEvent.click(within(cards[2]).getByRole("button", { name: /更新建议消息/ }));
-    expect(within(cards[2]).queryByText("⚡ 强制捕捉")).toBeNull();
+    // 无信号消息同样支持强制捕捉（人工拍板）
+    selectRow("no1");
+    fireEvent.click(screen.getByText(/⚡ 强制捕捉/));
+    await flush();
+    expect(host.calls).toContainEqual({ command: "forceCapture", params: { messageId: "no1" } });
   });
 });

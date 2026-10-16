@@ -1,9 +1,286 @@
-/* 收音机分段（纵向流 + 建议卡内联展开，U2）：scoped、零闪烁、命中区 ≥32px */
+/* 收音机分段（桌面 RadioTab 双栏同构 + 建议行选中制）：scoped、零闪烁、命中区 ≥32px */
 
 .radioSegment {
   display: flex;
   flex-direction: column;
   gap: 12px;
+  /* 填充形态（segmentFill 定高）下本段恰占满：内部伸缩、不出页面滚动条 */
+  height: 100%;
+  min-height: 0;
+}
+/* 主区两栏（桌面 .im-main 同构：左列表 3 : 右详情 2，窄屏纵排）；填充形态占满剩余高 */
+.radioMain {
+  display: flex;
+  gap: 14px;
+  align-items: stretch;
+  flex: 1 1 auto;
+  min-height: 0;
+}
+/* 空态（桌面 .empty 同款居中）：填充形态下撑满剩余区，收发报条仍贴底 */
+.radioEmpty {
+  flex: 1 1 auto;
+  padding: 40px 12px;
+  text-align: center;
+  color: var(--dsw-alias-label-secondary, #57606a);
+  font-size: 13px;
+  line-height: 2;
+}
+@media (max-width: 760px) {
+  .radioMain {
+    flex-direction: column;
+  }
+}
+
+/* 左栏（桌面 .im-left 同构）：工具行 + 列表容器（内部滚动）+ 批量条 */
+.feedColumn {
+  flex: 3 1 0;
+  min-width: 300px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-height: 0;
+}
+/* 列表容器（桌面 .im-list-box 同构：描边容器内滚）。展开内容内滚吸收——不撑页面高度；
+ * 上限/下限经 segmentFill 下传变量（填充形态放开上限、允许压缩；窄屏回落定值） */
+.listBox {
+  flex: 1;
+  min-height: var(--list-floor, 220px);
+  max-height: var(--list-cap, 560px);
+  overflow-y: auto;
+  border: 1px solid var(--dsw-alias-border-l1, #e3e7ec);
+  border-radius: 10px;
+  background: var(--dsw-alias-bg-layer-1, #ffffff);
+  padding: 6px;
+}
+
+/* 右栏详情（桌面 .im-right 同构）：面板底 + 内容伸缩 + 操作行固定底部 */
+.detailPanel {
+  flex: 2 1 0;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  min-height: var(--detail-floor, 220px);
+  border: 1px solid var(--dsw-alias-border-l1, #e3e7ec);
+  border-radius: 10px;
+  background: var(--dsw-alias-bg-layer-1, #ffffff);
+  padding: 12px 14px;
+}
+.detailEmpty {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--dsw-alias-label-secondary, #57606a);
+  font-size: 13px;
+  line-height: 2;
+  text-align: center;
+}
+.detailBody {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.detailMeta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--dsw-alias-label-secondary, #57606a);
+  flex-wrap: wrap;
+}
+.detailStatus {
+  margin-left: auto;
+  flex: none;
+  font-size: 11px;
+  font-weight: 800;
+  border: 1px solid var(--dsw-alias-border-l2, #d0d7de);
+  border-radius: 4px;
+  padding: 1px 6px;
+  color: var(--dsw-alias-label-secondary, #57606a);
+}
+.detailContent {
+  flex: 1;
+  min-height: 110px;
+  overflow-y: auto;
+  padding: 12px;
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.8;
+  white-space: pre-wrap;
+  border: 1px solid var(--dsw-alias-border-l1, #e3e7ec);
+  border-radius: 8px;
+  background: var(--dsw-alias-bg-base, var(--dsw-alias-bg-layer-1, #f8f9fb));
+  overflow-wrap: break-word;
+}
+.noneLine {
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--dsw-alias-label-secondary, #57606a);
+  border: 1px dashed var(--dsw-alias-border-l2, #d0d7de);
+  border-radius: 8px;
+  padding: 8px 10px;
+}
+.doneBanner {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  font-size: 12.5px;
+  font-weight: 700;
+  color: var(--pcy-ok-ink, #1d6b3c);
+  background: var(--pcy-ok-soft, #dff3e4);
+  border: 1px solid var(--pcy-ok, #2e9e5b);
+  border-radius: 8px;
+  padding: 8px 10px;
+}
+.bannerSub {
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--dsw-alias-label-secondary, #57606a);
+}
+.kbdChip {
+  display: inline-block;
+  margin-left: 6px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 9.5px;
+  border: 1px solid currentColor;
+  border-radius: 4px;
+  padding: 0 4px;
+  line-height: 14px;
+  vertical-align: 1px;
+  opacity: 0.75;
+}
+
+/* 单条电波行（桌面 .rrow 同构：勾选 + 两行主体 + 行尾标记；点击选中） */
+.messageRow {
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+  padding: 7px 8px;
+  border-radius: 8px;
+  cursor: pointer;
+  border: 1px solid transparent;
+  font-size: 12px;
+}
+.messageRow:hover {
+  background: var(--dsw-alias-interactive-bg-hover, #f0f2f5);
+}
+.messageRow[data-selected="true"] {
+  background: var(--dsw-alias-interactive-bg-hover, #f0f2f5);
+  border-color: var(--dsw-alias-state-business-primary, #316dca);
+}
+.messageRow[data-dim="true"] {
+  opacity: 0.6;
+}
+.messageRow:focus-visible {
+  outline: 2px solid var(--dsw-alias-state-business-primary, #316dca);
+  outline-offset: -2px;
+}
+.rowCheck {
+  min-width: 32px;
+  min-height: 32px;
+  display: inline-flex;
+  align-items: flex-start;
+  flex: none;
+}
+.rowMain {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.rowLine1 {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-weight: 700;
+  min-width: 0;
+}
+.rowBadge {
+  flex: none;
+  font-size: 10.5px;
+  font-weight: 800;
+  color: var(--dsw-alias-label-secondary, #57606a);
+  border: 1px solid var(--dsw-alias-border-l2, #d0d7de);
+  border-radius: 4px;
+  padding: 0 4px;
+  max-width: 130px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.rowSender {
+  flex: none;
+  max-width: 96px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.rowTime {
+  margin-left: auto;
+  flex: none;
+  font-size: 10.5px;
+  color: var(--dsw-alias-label-secondary, #57606a);
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+}
+.rowSnippet {
+  font-size: 12px;
+  color: var(--dsw-alias-label-secondary, #57606a);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.rowMarkOk {
+  flex: none;
+  margin-top: 2px;
+  font-size: 11px;
+  font-weight: 800;
+  color: var(--pcy-ok-ink, #1d6b3c);
+}
+.rowMarkNo {
+  flex: none;
+  margin-top: 2px;
+  font-size: 11px;
+  font-weight: 800;
+  color: var(--dsw-alias-label-secondary, #57606a);
+}
+.rowMarks {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex: none;
+  margin-top: 2px;
+}
+.vetoChip {
+  font-size: 10px;
+  font-weight: 800;
+  color: var(--pcy-warn-ink, #8a5e06);
+  border: 1px solid var(--pcy-warn-ink, #8a5e06);
+  border-radius: 4px;
+  padding: 0 4px;
+  white-space: nowrap;
+}
+/* 置信色点（桌面 .conf 同构：形色 + title 文字冗余） */
+.confDot {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  border: 1px solid rgba(26, 27, 37, 0.35);
+  flex: none;
+}
+.confDot[data-conf="high"] {
+  background: var(--pcy-ok, #2e9e5b);
+}
+.confDot[data-conf="medium"] {
+  background: var(--pcy-warn, #ffcb05);
+}
+.confDot[data-conf="low"] {
+  background: var(--dsw-alias-border-l3, #c7cdd4);
 }
 
 /* HealthStrip（原型 health：点 + 文字状态 + tabular 数字 + ⚡主色描边钮右置） */
@@ -26,7 +303,8 @@
   font-variant-numeric: tabular-nums;
 }
 .pollNow {
-  min-height: 32px;
+  box-sizing: border-box;
+  min-height: var(--pcy-control-h, 32px);
   margin-left: auto;
   padding: 2px 12px;
   border-radius: 8px;
@@ -77,7 +355,8 @@
 .searchInput {
   flex: 1;
   min-width: 160px;
-  min-height: 32px;
+  box-sizing: border-box;
+  height: var(--pcy-control-h, 32px);
   padding: 4px 10px;
   border-radius: 8px;
   border: 1px solid var(--dsw-alias-border-l2, #d0d7de);
@@ -98,7 +377,8 @@
   background: var(--dsw-alias-bg-layer-1, #ffffff);
 }
 .viewToggle button {
-  min-height: 32px;
+  box-sizing: border-box;
+  min-height: var(--pcy-control-h, 32px);
   padding: 4px 10px;
   border: none;
   background: transparent;
@@ -191,99 +471,13 @@
   background: var(--pcy-conf-mid-soft, #fff3d6);
   color: var(--pcy-warn-ink, #8a5e06);
 }
-.suggestionCard {
-  border: 1px solid var(--dsw-alias-border-l1, #e3e7ec);
-  border-radius: 12px;
-  background: var(--dsw-alias-bg-layer-1, #ffffff);
-  overflow: hidden;
-}
-/* 置信三档左边框（形与色 + 行内文字档位标——非颜色冗余） */
-.suggestionCard[data-confidence="high"] {
-  border-left: 4px solid var(--pcy-ok, #2e9e5b);
-}
-.suggestionCard[data-confidence="medium"] {
-  border-left: 4px solid var(--pcy-conf-mid, #ffcb05);
-}
-.suggestionCard[data-confidence="low"] {
-  border-left: 4px solid var(--dsw-alias-border-l3, #c7cdd4);
-}
-.suggestionCollapsed {
+.actionBar {
   display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
   align-items: center;
-  gap: 8px;
-  width: 100%;
-  min-height: 32px;
-  background: none;
-  border: none;
-  cursor: pointer;
-  text-align: left;
-  font-size: 12.5px;
-  color: var(--dsw-alias-label-primary, #1f2328);
-  padding: 9px 12px;
 }
-.suggestionCollapsed:hover {
-  background: var(--dsw-alias-interactive-bg-hover, #f6f7f9);
-}
-.suggestionCollapsed:focus-visible {
-  outline: 2px solid var(--dsw-alias-state-business-primary, #316dca);
-  outline-offset: -2px;
-}
-.suggestionText {
-  flex: 1;
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-/* 置信文字档位标（currentColor 描边小徽章，三档色字——非颜色冗余） */
-.confidenceTag {
-  font-size: 9.5px;
-  font-weight: 800;
-  color: var(--dsw-alias-label-secondary, #57606a);
-  border: 1px solid currentColor;
-  border-radius: 4px;
-  padding: 0 4px;
-  line-height: 16px;
-  flex: none;
-}
-.confidenceTag[data-conf="high"] {
-  color: var(--pcy-ok-ink, #1d6b3c);
-}
-.confidenceTag[data-conf="medium"] {
-  color: var(--pcy-warn-ink, #8a5e06);
-}
-/* 建议类型徽章（软底 pill：新待办绿底 / 更新黄底 / 无动作灰底）；固定软底加 1px 墨描边兜底暗主题小图形对比（U7） */
-.actionTag {
-  flex: none;
-  font-size: 10.5px;
-  font-weight: 700;
-  border-radius: 4px;
-  padding: 0 8px;
-  line-height: 18px;
-  background: var(--pcy-conf-low-soft, #eceada);
-  color: var(--dsw-alias-label-secondary, #57606a);
-  border: 1px solid rgba(26, 27, 37, 0.2);
-}
-.actionTag[data-act="todo"] {
-  background: var(--pcy-ok-soft, #dff3e4);
-  color: var(--pcy-ok-ink, #1d6b3c);
-}
-.actionTag[data-act="update"] {
-  background: var(--pcy-conf-mid-soft, #fff3d6);
-  color: var(--pcy-warn-ink, #8a5e06);
-}
-.suggestionExpanded {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  padding: 2px 12px 12px;
-}
-.lcdText {
-  font-size: 12px;
-  line-height: 1.6;
-  color: var(--dsw-alias-label-secondary, #57606a);
-  white-space: pre-wrap;
-}
+/* AI 建议盒（SuggestionAiBox：标题/截止/分类/理由 + 新标签提议行） */
 .aiBox {
   border: 1.5px solid var(--dsw-alias-border-l3, #c7cdd4);
   border-radius: 8px;
@@ -309,7 +503,8 @@
   font-size: 11px;
 }
 .tagProposalAccept {
-  min-height: 32px;
+  box-sizing: border-box;
+  min-height: var(--pcy-control-h, 32px);
   min-width: 32px;
   padding: 0 8px;
   border-radius: 999px;
@@ -322,12 +517,6 @@
   background: var(--dsw-alias-bg-layer-1, #e8f2ea);
   border-color: var(--pcy-conf-high, #2f7d3c);
 }
-.actionBar {
-  display: flex;
-  gap: 6px;
-  flex-wrap: wrap;
-  align-items: center;
-}
 .reasonMenu {
   display: flex;
   flex-direction: column;
@@ -338,7 +527,8 @@
   background: var(--dsw-alias-bg-layer-1, #ffffff);
 }
 .reasonMenu button {
-  min-height: 32px;
+  box-sizing: border-box;
+  min-height: var(--pcy-control-h, 32px);
   border: none;
   background: none;
   text-align: left;
@@ -351,15 +541,7 @@
   background: var(--dsw-alias-interactive-bg-hover, #f0f2f5);
 }
 
-/* 复选框（待处理组 hover/聚焦显现；键盘 Tab 可达） */
-.selectCheckbox {
-  min-width: 32px;
-  min-height: 32px;
-  display: inline-flex;
-  align-items: center;
-}
-
-/* BatchBar（随待处理组常驻，桌面批量条 parity；主色描边强调） */
+/* BatchBar（左栏底部常驻，桌面 .batch-bar parity；主色描边强调） */
 .batchBar {
   position: sticky;
   bottom: 0;
@@ -385,51 +567,6 @@
   user-select: none;
 }
 
-/* 判定失败组头行（组名 + 整组操作按钮） */
-.failedRow {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  flex-wrap: wrap;
-  font-size: 13px;
-}
-
-/* 判定失败组行卡（原型 .sug.failed：surface 卡 + 4px 红左边框——失败留档可重判） */
-.failedCard {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin-bottom: 6px;
-  padding: 8px 12px;
-  border: 1px solid var(--dsw-alias-border-l1, #e3e7ec);
-  border-left: 4px solid var(--pcy-log-error, #d64545);
-  border-radius: 10px;
-  background: var(--dsw-alias-bg-layer-1, #ffffff);
-  font-size: 12.5px;
-  color: var(--dsw-alias-label-secondary, #57606a);
-}
-.failedText {
-  flex: 1;
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-/* 已捕捉/已逃走归档行卡（默认折叠组展开后的留档呈现——中性卡，非裸文本行） */
-.archivedRow {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  flex-wrap: wrap;
-  margin-bottom: 6px;
-  padding: 7px 12px;
-  border: 1px solid var(--dsw-alias-border-l1, #e3e7ec);
-  border-radius: 10px;
-  background: var(--dsw-alias-bg-layer-1, #ffffff);
-  font-size: 12px;
-  color: var(--dsw-alias-label-secondary, #57606a);
-}
-
 /* CaptureBar（通栏垫底；原型 capture：顶部 2px 分隔线） */
 .captureBar {
   display: flex;
@@ -440,7 +577,8 @@
 }
 .captureInput {
   flex: 1;
-  min-height: 32px;
+  box-sizing: border-box;
+  height: var(--pcy-control-h, 32px);
   padding: 4px 10px;
   border-radius: 8px;
   border: 1px solid var(--dsw-alias-border-l2, #d0d7de);

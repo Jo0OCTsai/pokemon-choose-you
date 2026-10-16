@@ -2,7 +2,7 @@
  * 通用分区页（⚙️）：复盘提醒（开关+星期）/备份（开关+保留份数+立即备份+列表）/
  * 关闭到托盘——三项标「作用于主应用」、保存制（U21）；待办库状态（dbStatus 即时查询，
  * 挂载即探测一次供只读判定）/数据导出（全量 JSON/任务 CSV/今日日报——导入与另存为
- * 不在 dsh 形态）/使用指南链接/双形态说明（语言与显示偏好已移入显示分区页）。
+ * 不在 dsh 形态）/使用指南链接（GitHub 文档 · dsh 形态章节）。语言与显示偏好在显示分区页。
  * 备份卡/导出卡拆件（BackupCard/ExportCard，复杂度棘轮拆分）在本文件内。
  */
 import { useEffect, useState } from "react";
@@ -11,10 +11,13 @@ import { useT } from "../../i18n";
 import { Select, Toggle } from "../../ui/controls";
 import ui from "../../ui/ui.module.css";
 import type { SectionProps } from "../sectionProps";
-import { GENERAL_KEYS } from "../sectionKeys";
 import type { BackupInfo, DbStatus } from "../../rpc";
 import { SectionShell } from "../SectionShell";
 import styles from "../settings.module.css";
+
+/** 使用指南文档（GitHub 主分支 · dsh 形态章节锚点；文档不入插件 bundle，点击在浏览器打开） */
+const USER_GUIDE_URL =
+  "https://github.com/Jo0OCTsai/pokemon-choose-you/blob/main/docs/USER_GUIDE.md#dsh-%E6%8F%92%E4%BB%B6%E5%BD%A2%E6%80%81%E7%AC%AC%E4%BA%8C%E5%BD%A2%E6%80%81";
 
 /** 备份文件大小（BackupCard fmtSize 同款：MB 一位小数，否则 KB 取整） */
 function fmtSize(bytes: number): string {
@@ -97,13 +100,15 @@ function BackupCard({
         badge={t("dsh.badge.mainApp")}
       />
       <p className={styles.cardHint}>{t("backup.enableDesc")}</p>
-      <Select
-        label={t("backup.keep")}
-        value={draft["backup_keep"]}
-        options={[3, 7, 14, 30].map((n) => ({ value: String(n), label: t("backup.keepN", { n }) }))}
-        onChange={(v) => onField("backup_keep", v)}
-      />
+      {/* 保留份数 + 选择框 + 立即备份同行（桌面 BackupCard .backup-controls 同构） */}
       <div className={styles.filterRow}>
+        <span>{t("backup.keep")}</span>
+        <Select
+          ariaLabel={t("backup.keep")}
+          value={draft["backup_keep"]}
+          options={[3, 7, 14, 30].map((n) => ({ value: String(n), label: t("backup.keepN", { n }) }))}
+          onChange={(v) => onField("backup_keep", v)}
+        />
         <button
           type="button"
           className={ui.button}
@@ -190,7 +195,7 @@ function ExportCard({ readonly }: { readonly: boolean }): React.JSX.Element {
 }
 
 export function GeneralSection(props: SectionProps): React.JSX.Element {
-  const { draft, saved, onField, onSavedKeys } = props;
+  const { draft, onField } = props;
   const t = useT();
   const client = useClient();
   const [dbStatus, setDbStatus] = useState<DbStatus | null>(null);
@@ -208,13 +213,7 @@ export function GeneralSection(props: SectionProps): React.JSX.Element {
   }, [client]);
 
   return (
-    <SectionShell
-      title={`⚙️ ${t("stabs.general")}`}
-      keys={GENERAL_KEYS}
-      draft={draft}
-      saved={saved}
-      onSavedKeys={onSavedKeys}
-    >
+    <SectionShell>
       <div className={ui.card}>
         <h4 className={styles.cardTitle}>{t("reviewCfg.title")}</h4>
         <Toggle
@@ -269,12 +268,15 @@ export function GeneralSection(props: SectionProps): React.JSX.Element {
       </div>
       <div className={ui.card}>
         <h4 className={styles.cardTitle}>{t("dsh.settings.guideTitle")}</h4>
-        <p className={ui.muted}>{t("dsh.settings.guideLink")}</p>
-      </div>
-      <div className={styles.noteBlock} data-testid="dual-form-note">
-        <b>{t("dsh.settings.dualFormTitle")}</b>
-        <br />
-        {t("dsh.settings.dualFormBody")}
+        <a
+          className={styles.guideLink}
+          href={USER_GUIDE_URL}
+          target="_blank"
+          rel="noopener noreferrer"
+          data-testid="guide-link"
+        >
+          {t("dsh.settings.guideLink")}
+        </a>
       </div>
     </SectionShell>
   );

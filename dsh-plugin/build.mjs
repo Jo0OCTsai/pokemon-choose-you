@@ -48,21 +48,34 @@ const rawPlugin = {
  * composes 本地组合 = 导出值并置双类名、声明行剔除）。样式随 factory 闭包内联，
  * 无独立 .css 产物（module-loader IIFE 形态只认单文件 client.js）。
  */
+
+/** 摘除 url(...) 字面量（data URI 内的 `.x` 会被类名扫描/改写误命中——svg xmlns 的 www.w3.org） */
+function maskUrls(css) {
+  const urls = [];
+  const masked = css.replace(/url\([^)]*\)/g, (match) => {
+    urls.push(match);
+    return `url(__PKY_URL_${urls.length - 1}__)`;
+  });
+  return { masked, urls };
+}
+
 function transformCssModule(source, scope) {
+  const { masked, urls } = maskUrls(source);
   const declared = new Set();
-  for (const match of source.matchAll(/\.([A-Za-z_][A-Za-z0-9_-]*)/g)) {
+  for (const match of masked.matchAll(/\.([A-Za-z_][A-Za-z0-9_-]*)/g)) {
     declared.add(match[1]);
   }
   const composedOf = new Map();
-  for (const rule of source.matchAll(/\.([A-Za-z_][A-Za-z0-9_-]*)\s*\{([^}]*)\}/g)) {
+  for (const rule of masked.matchAll(/\.([A-Za-z_][A-Za-z0-9_-]*)\s*\{([^}]*)\}/g)) {
     const compose = rule[2].match(/composes:\s*([A-Za-z_][A-Za-z0-9_-]*)\s*;/);
     if (compose !== null) {
       composedOf.set(rule[1], compose[1]);
     }
   }
-  const css = source
+  const css = masked
     .replace(/^[ \t]*composes:[ \t]*[A-Za-z_][A-Za-z0-9_-]*[ \t]*;[ \t]*$/gm, "")
-    .replace(/\.([A-Za-z_][A-Za-z0-9_-]*)/g, (whole, name) => (declared.has(name) ? `.${scope}_${name}` : whole));
+    .replace(/\.([A-Za-z_][A-Za-z0-9_-]*)/g, (whole, name) => (declared.has(name) ? `.${scope}_${name}` : whole))
+    .replace(/url\(__PKY_URL_(\d+)__\)/g, (whole, index) => urls[Number(index)] ?? whole);
   const exportsMap = {};
   for (const name of declared) {
     const base = composedOf.get(name);

@@ -46,7 +46,9 @@ export function FeishuConnCard({
       <p className={styles.cardHint}>{t("feishu.hint")}</p>
       <div className={styles.filterRow}>
         <span style={{ flex: 1 }}>{t("feishu.myNames")}</span>
+        {/* 定宽 250 右档（背包设置页统一口径，与设置行下拉同宽） */}
         <TextInput
+          className={styles.w250}
           ariaLabel={t("feishu.myNames")}
           value={draft["feishu_my_names"]}
           onChange={(v) => onField("feishu_my_names", v)}

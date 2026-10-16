@@ -6,7 +6,13 @@
  */
 import type { CommandTable, HostCommandDeps } from "./context";
 import { loadAgents, primaryAgent, type AgentConfig } from "../domain/settings";
-import { bundledSkillVersion, kindForCommand, localSkillInstall, localSkillStatus, skillDirFor } from "../domain/skills";
+import {
+  bundledSkillVersion,
+  kindForCommand,
+  localSkillInstall,
+  localSkillStatus,
+  skillDirFor,
+} from "../domain/skills";
 import { createLocalExecutor } from "../dispatch/executor";
 import { paramError } from "../storage/errors";
 
@@ -53,7 +59,10 @@ function probeMessage(stdout: string): { connected: boolean; message: string } {
 }
 
 /** 探针执行：执行器选择（注入 provider 优先）→ launch → 四路文案收口 */
-async function probeAgent(deps: Pick<HostCommandDeps, "dispatchDeps">, agent: AgentConfig): Promise<{ connected: boolean; message: string }> {
+async function probeAgent(
+  deps: Pick<HostCommandDeps, "dispatchDeps">,
+  agent: AgentConfig,
+): Promise<{ connected: boolean; message: string }> {
   const executor =
     deps.dispatchDeps.executorFor?.(agent, {
       agent,

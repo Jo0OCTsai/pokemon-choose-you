@@ -1,7 +1,8 @@
 /**
- * 任务详情抽屉（UIUX §3.1）：FollowupStream + DispatchTimeline + DispatchOps +
- * ReleaseGuard 四件（各自文件）+ 操作历史段（taskHistory 倒序只读）+ 底部「编辑」
- * 入口（TaskEditModal，桌面同款）；focus trap + Esc 关闭 + 焦点回归（a11y 断言②）。
+ * 任务详情抽屉（桌面 TaskDetailDrawer 同构）：属性总览 kv 栅格（分类/优先级/状态/截止/
+ * 提醒/标签/来源/专注/创建/完成）+ 跟进记录（FollowupStream）+ Agent 派发（DispatchOps）
+ * + Agent 执行时间线（DispatchTimeline）+ 操作历史段 + 底部「编辑」入口（TaskEditModal）；
+ * focus trap + Esc 关闭 + 焦点回归。放生走卡片 ✕（桌面同位），抽屉不设危险区。
  * 跟进流与该任务的 agent 时间线经 taskDetail 懒载（实体读域按需命令）——拉回后以
  * overlay PanelData 下传，FollowupStream/DispatchTimeline 契约不变；旧 host 无此
  * 命令或加载中保持快照面（空跟进/全局账本过滤）。跟进写命令成功后重拉 taskDetail
@@ -19,7 +20,6 @@ import ui from "../ui/ui.module.css";
 import { DispatchOps } from "./DispatchOps";
 import { DispatchTimeline } from "./DispatchTimeline";
 import { FollowupStream } from "./FollowupStream";
-import { ReleaseGuard } from "./ReleaseGuard";
 import { TaskEditModal } from "./TaskEditModal";
 import styles from "./tasks.module.css";
 
@@ -69,28 +69,76 @@ export function TaskDetailDrawer({
           </button>
         </header>
         <div className={styles.drawerBody}>
-          <div>
-            <h4 className={styles.drawerSectionTitle}>{t("detail.status")}</h4>
-            <div className={ui.muted}>
-              {t(`status.${task.status}`)} · {t("edit.category")}：{category?.name ?? "-"} · {t("detail.focus")}：
-              {Math.floor(task.focusSeconds / 60)} min
-            </div>
-          </div>
+          <SummaryGrid task={task} categoryName={category?.name ?? "-"} />
           <FollowupStream data={overlay} taskId={task.id} onRefresh={reloadDetail} readonly={readonly} />
-          <DispatchTimeline data={overlay} taskId={task.id} />
           <DispatchOps task={task} data={data} readonly={readonly} onChanged={onChanged} />
-          <ReleaseGuard task={task} readonly={readonly} onChanged={onChanged} />
+          <DispatchTimeline data={overlay} taskId={task.id} />
           <HistorySection logs={logs} />
           <div>
             <button type="button" className={ui.button} disabled={readonly} onClick={() => setEditing(true)}>
               ✎ {t("detail.edit")}
             </button>
           </div>
-          {/* 编辑弹层在抽屉容器内渲染（与 DispatchConfirm 同位：overlay z-index 低于抽屉面板） */}
+          {/* 编辑弹层在抽屉容器内渲染（overlay z-index 低于抽屉面板） */}
           {editing && <TaskEditModal task={task} data={data} onClose={() => setEditing(false)} onChanged={onChanged} />}
         </div>
       </aside>
     </>
+  );
+}
+
+/** 属性总览 kv 栅格（桌面 .d-summary 同构：两列 kv，项目标签 ⛴⛳ 高亮） */
+function SummaryGrid({ task, categoryName }: { task: Task; categoryName: string }): React.JSX.Element {
+  const t = useT();
+  const fmt = (iso: string | null): string => (iso === null ? "—" : iso.slice(0, 16).replace("T", " "));
+  const sourceText =
+    task.source === "feishu" ? t("entry.feishu") : task.source === "capture" ? t("entry.capture") : task.source;
+  return (
+    <div className={styles.summaryGrid} data-testid="task-summary">
+      <Kv k={t("edit.category")} v={categoryName} />
+      <Kv k={t("edit.priority")} v={t(`priority.${task.priority}`)} />
+      <Kv k={t("detail.status")} v={t(`status.${task.status}`)} />
+      <Kv k={t("edit.due")} v={fmt(task.dueAt)} />
+      <Kv k={t("edit.remind")} v={fmt(task.remindAt)} />
+      <Kv
+        k={t("edit.tags")}
+        v={
+          task.tags.length === 0 ? (
+            "—"
+          ) : (
+            <span className={styles.summaryTags}>
+              {task.tags.map((ref) => (
+                <i
+                  key={`${ref.dimension}:${ref.name}`}
+                  className={styles.metaTagChip}
+                  data-project={ref.dimension === "project"}
+                >
+                  {ref.dimension === "project" ? "⛳ " : "# "}
+                  {ref.name}
+                </i>
+              ))}
+            </span>
+          )
+        }
+      />
+      <Kv k={t("detail.source")} v={sourceText} />
+      <Kv k={t("detail.focus")} v={`${Math.round(task.focusSeconds / 60)} min`} />
+      <Kv k={t("detail.created")} v={fmt(task.createdAt)} mono />
+      <Kv
+        k={task.status === "cancelled" ? t("detail.escaped") : t("detail.completed")}
+        v={fmt(task.completedAt ?? task.cancelledAt)}
+        mono
+      />
+    </div>
+  );
+}
+
+function Kv({ k, v, mono = false }: { k: string; v: React.ReactNode; mono?: boolean }): React.JSX.Element {
+  return (
+    <div className={styles.summaryKv}>
+      <span className={styles.summaryKey}>{k}</span>
+      <span className={mono ? styles.summaryValMono : styles.summaryVal}>{v}</span>
+    </div>
   );
 }
 

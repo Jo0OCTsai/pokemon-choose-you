@@ -70,7 +70,7 @@ describe("SectionNav 八分区（U21）", () => {
     gotoSection("专注");
     const focus2 = getVisiblePage("专注");
     expect((within(focus2).getAllByDisplayValue("45 分钟")[0] as HTMLSelectElement).value).toBe("45");
-    expect(within(focus2).getAllByTestId("section-save")[0].getAttribute("data-dirty")).toBe("true");
+    expect(screen.getByTestId("section-save").getAttribute("data-dirty")).toBe("true");
   });
 });
 
@@ -90,7 +90,7 @@ describe("保存制（U21）", () => {
     const focus = getVisiblePage("专注");
     const toggle = within(focus).getAllByRole("switch")[0];
     fireEvent.click(toggle);
-    const save = within(focus).getAllByTestId("section-save")[0];
+    const save = screen.getByTestId("section-save");
     expect(save.getAttribute("data-dirty")).toBe("true");
     expect(save.getAttribute("title")).toBe("有未保存的修改");
     expect(save.querySelector('[data-testid="unsaved-dot"]')).toBeTruthy();
@@ -100,17 +100,17 @@ describe("保存制（U21）", () => {
     const { host } = renderSettings();
     const focus = getVisiblePage("专注");
     fireEvent.click(within(focus).getAllByRole("switch")[0]); // pomodoro_enabled true→false
-    fireEvent.click(within(focus).getAllByTestId("section-save")[0]);
+    fireEvent.click(screen.getByTestId("section-save"));
     await vi.runAllTimersAsync();
     const write = host.calls.find((c) => c.command === "configWrite");
     expect(write?.params).toEqual({ keyValues: { pomodoro_enabled: "false" } });
-    const hint = within(focus).getAllByText("已保存")[0];
+    const hint = screen.getByText("已保存");
     expect(hint.getAttribute("role")).toBe("status");
     expect(screen.queryByTestId("undo-toast")).toBeNull();
     await act(async () => {
       await vi.advanceTimersByTimeAsync(4200);
     });
-    expect(within(getPage("focus")).queryByText("已保存")).toBeNull();
+    expect(screen.queryByText("已保存")).toBeNull();
   });
 
   it("勿扰起=止：行内防呆阻断保存（saveBlocked）+ 后端兜底 CONFIG_VALIDATION_FAILED", async () => {
@@ -118,9 +118,9 @@ describe("保存制（U21）", () => {
     renderSettings(makeData(), host);
     const focus = getVisiblePage("专注");
     fireEvent.change(within(focus).getByLabelText("勿扰结束"), { target: { value: "22:00" } });
-    const save = within(focus).getAllByTestId("section-save")[0] as HTMLButtonElement;
+    const save = screen.getByTestId("section-save") as HTMLButtonElement;
     expect(save.hasAttribute("disabled")).toBe(true);
-    expect(within(focus).getAllByRole("alert").length).toBeGreaterThan(0);
+    expect(screen.getAllByRole("alert").length).toBeGreaterThan(0);
     // 后端兜底路径（写入侧校验）
     const fail = await host.configWrite({ keyValues: { quiet_start: "22:00", quiet_end: "22:00" } });
     expect(fail.ok).toBe(false);
@@ -174,7 +174,7 @@ describe("未保存离开确认（U21）", () => {
     await vi.runAllTimersAsync();
     expect(resolved).toHaveBeenCalledWith(true);
     rerender(null);
-    expect(within(getVisiblePage("专注")).getAllByTestId("section-save")[0].getAttribute("data-dirty")).toBeNull();
+    expect(screen.getByTestId("section-save").getAttribute("data-dirty")).toBeNull();
   });
 
   it("留在这里 / Esc：不放行（resolved false）", () => {

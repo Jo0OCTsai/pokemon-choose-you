@@ -1,11 +1,15 @@
 /**
- * 任务详情抽屉：focus trap / Esc / 焦点回归（a11y 断言②的主落点）+ FollowupStream +
- * DispatchTimeline 来源过滤 + DispatchOps（双通道确认弹层/收口/重派/取消排队/互斥冲突
- * 中性提示）+ ReleaseGuard 两层确认与 5 秒撤销。
- * 跟进写路径/操作历史/编辑入口 → drawer-followups.spec；渲染壳 → drawerHarness。
+ * 任务详情抽屉（桌面 TaskDetailDrawer 同构）：focus trap / Esc / 焦点回归（a11y 断言②
+ * 的主落点）+ 属性总览 kv 栅格 + FollowupStream + DispatchTimeline 来源过滤 +
+ * DispatchOps（通道/agent 下拉 + ⚡派发 + 手动收口 + running 禁用）。放生走卡片 ✕
+ * （桌面同位，抽屉无危险区）；跟进写路径/操作历史/编辑入口 → drawer-followups.spec。
  */
-import { act, cleanup, fireEvent, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { ClientProvider } from "../../src/client/clientContext";
+import { I18nProvider } from "../../src/client/i18n";
+import { mockHost } from "../../src/client/rpc";
+import { TaskDetailDrawer } from "../../src/client/tasks/TaskDetailDrawer";
 import { renderDrawer } from "./drawerHarness";
 import { makeData, makeTask } from "./fixtures";
 
@@ -103,74 +107,107 @@ describe("FollowupStream / DispatchTimeline", () => {
   });
 });
 
+describe("属性总览 kv 栅格（桌面 d-summary 同构）", () => {
+  it("分类/优先级/状态/截止/标签（⛳项目高亮）/来源/创建/完成 全量呈现", () => {
+    const data = makeData({
+      tasks: [
+        makeTask({
+          id: 2,
+          tags: [
+            { name: "pokemon", dimension: "project" },
+            { name: "周报", dimension: "topic" },
+          ],
+          dueAt: "2026-10-12T18:00:00+08:00",
+        }),
+      ],
+    });
+    renderDrawer(2, data);
+    const summary = screen.getByTestId("task-summary");
+    expect(summary.textContent).toContain("分类");
+    expect(summary.textContent).toContain("优先级");
+    expect(summary.textContent).toContain("⛳ pokemon");
+    expect(summary.textContent).toContain("# 周报");
+    expect(summary.textContent).toContain("2026-10-12 18:00");
+  });
+});
+
+/** 派发测试数据：项目标签任务 + 启用中 agent（桌面 dsp-row 同构的数据面） */
+function dispatchData(taskOverrides: Parameters<typeof makeTask>[0]): ReturnType<typeof makeData> {
+  const data = makeData({ tasks: [makeTask(taskOverrides)] });
+  data.agents = [
+    {
+      id: "claude",
+      name: "claude",
+      command: "claude",
+      args: "",
+      historyArgs: "",
+      workdir: "",
+      timeoutSecs: 600,
+      enabled: true,
+    },
+  ];
+  return data;
+}
+
 describe("DispatchOps", () => {
-  it("派发先出路由确认弹层（可临时改选说明），确认后 dispatchInteractive", async () => {
-    const data = makeData({ tasks: [makeTask({ id: 1, tags: [{ name: "pokemon", dimension: "project" }] })] });
+  it("通道/agent 同行 + ⚡派发一步直发（无确认弹层）→ dispatchInteractive", async () => {
+    const data = dispatchData({ id: 1, tags: [{ name: "pokemon", dimension: "project" }] });
     data.routes = [{ tag: "pokemon", agentId: "claude", workdir: "~/projects/pkm", context: "" }];
     const { host } = renderDrawer(1, data);
-    fireEvent.click(screen.getByText("🖥 交互（新终端）"));
-    expect(screen.getByText(/即将派发：claude · 本机/)).toBeTruthy();
-    expect(screen.getByText(/交互通道将在终端面板启动/)).toBeTruthy();
-    fireEvent.click(screen.getByRole("button", { name: "派发" }));
+    // 桌面 dsp-row 同构：agent 徽章 + 工作目录 + ⚡派发（不弹路由确认层）
+    expect(screen.getByText(/claude · 本机/)).toBeTruthy();
+    expect(screen.getByText(/📂 ~/)).toBeTruthy();
+    expect(screen.queryByText(/即将派发：/)).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "⚡ 派发" }));
     await vi.runAllTimersAsync();
     expect(host.calls.map((c) => c.command)).toContain("dispatchInteractive");
   });
 
-  it("互斥冲突（DISPATCH_ALREADY_ACTIVE）中性提示，不弹窗", async () => {
-    const data = makeData({ tasks: [makeTask({ id: 1, dispatchState: "running" })] });
-    const { host } = renderDrawer(1, data);
-    fireEvent.click(screen.getByText("🤖 无头（自动回传）"));
-    fireEvent.click(screen.getByRole("button", { name: "派发" }));
-    await vi.runAllTimersAsync();
-    expect(host.calls.map((c) => c.command)).toContain("dispatchHeadless");
-    expect(screen.getByText("该任务已有进行中的派发，请先收口或重置")).toBeTruthy();
+  it("无项目标签 → 引导 hint（不渲染派发行）", () => {
+    renderDrawer();
+    expect(screen.getByText(/先给待办挂上「项目」维度标签/)).toBeTruthy();
+    expect(screen.queryByRole("button", { name: /⚡ 派发/ })).toBeNull();
   });
 
-  it("收口三键 + 重派 + 取消排队（排队态才可取消）", async () => {
-    const data = makeData({ tasks: [makeTask({ id: 1, dispatchState: "queued" })] });
-    const { host } = renderDrawer(1, data);
-    fireEvent.click(screen.getByText("取消排队"));
-    await vi.runAllTimersAsync();
-    expect(host.calls.map((c) => c.command)).toContain("dispatchCancel");
+  it("running 态 ⚡派发禁用（桌面 busyHint 同款）；冲突走行内中性提示不弹窗", () => {
+    const data = dispatchData({ id: 1, dispatchState: "running", tags: [{ name: "pokemon", dimension: "project" }] });
+    renderDrawer(1, data);
+    const go = screen.getByRole("button", { name: "⚡ 派发" }) as HTMLButtonElement;
+    expect(go.disabled).toBe(true);
+    expect(go.title).toContain("agent 执行中");
+    expect(screen.queryByTestId("modal-overlay")).toBeNull();
+  });
+
+  it("手动收口行（queued/running 才出）：标记完成/失败/重置 → dispatchClose/dispatchReset", async () => {
+    const { host } = renderDrawer(
+      1,
+      dispatchData({ id: 1, dispatchState: "queued", tags: [{ name: "pokemon", dimension: "project" }] }),
+    );
+    expect(screen.getByText("排队中")).toBeTruthy();
     fireEvent.click(screen.getByText("标记完成"));
     await vi.runAllTimersAsync();
     expect(host.calls.map((c) => c.command)).toContain("dispatchClose");
-    fireEvent.click(screen.getByText("重派"));
+    // 收口后行消失（仅 queued/running 呈现）——每档标记独立渲染验证
+    cleanup();
+    const host2 = mockHost();
+    render(
+      <ClientProvider client={host2}>
+        <I18nProvider locale="zh-Hans">
+          <TaskDetailDrawer
+            task={makeTask({ id: 1, dispatchState: "queued", tags: [{ name: "pokemon", dimension: "project" }] })}
+            data={dispatchData({ id: 1, dispatchState: "queued", tags: [{ name: "pokemon", dimension: "project" }] })}
+            categories={[]}
+            onClose={() => undefined}
+            onChanged={() => undefined}
+          />
+        </I18nProvider>
+      </ClientProvider>,
+    );
+    fireEvent.click(screen.getByText("标记失败"));
     await vi.runAllTimersAsync();
-    expect(host.calls.map((c) => c.command)).toContain("dispatchRedo");
-  });
-});
-
-describe("ReleaseGuard", () => {
-  it("两层确认 → taskDelete → 撤销 toast（role=status）；5 秒窗口内撤销恢复", async () => {
-    const { host, onChanged } = renderDrawer(1);
-    fireEvent.click(screen.getByRole("button", { name: "放生（删除）" }));
-    expect(screen.getByText(/执行后 5 秒内可撤销/)).toBeTruthy();
-    fireEvent.click(screen.getByText("确认放生"));
+    expect(host2.calls.map((c) => c.command)).toContain("dispatchClose");
+    fireEvent.click(screen.getByText("重置"));
     await vi.runAllTimersAsync();
-    expect(host.calls.map((c) => c.command)).toContain("taskDelete");
-    const toast = screen.getByTestId("undo-toast");
-    expect(toast.getAttribute("role")).toBe("status");
-    expect(toast.getAttribute("aria-live")).toBe("polite");
-    expect(toast.textContent).toContain("已放生「任务 1」");
-    fireEvent.click(screen.getByText(/撤销 5s/));
-    await vi.runAllTimersAsync();
-    expect(host.calls.map((c) => c.command)).toContain("taskDeleteUndo");
-    expect(onChanged).toHaveBeenCalled();
-  });
-
-  it("撤销窗 5 秒超时自动收口", async () => {
-    renderDrawer(1);
-    fireEvent.click(screen.getByRole("button", { name: "放生（删除）" }));
-    fireEvent.click(screen.getByText("确认放生"));
-    // 先挂 toast（异步链），再推进撤销窗 5s
-    await act(async () => {
-      await vi.advanceTimersByTimeAsync(0);
-    });
-    expect(screen.getByTestId("undo-toast")).toBeTruthy();
-    await act(async () => {
-      await vi.advanceTimersByTimeAsync(5100);
-    });
-    expect(screen.queryByTestId("undo-toast")).toBeNull();
+    expect(host2.calls.map((c) => c.command)).toContain("dispatchReset");
   });
 });

@@ -1,8 +1,12 @@
 /**
- * health/logRing：环形缓冲容量、级别/来源过滤、limit 口径、最新在上、出口脱敏。
+ * health/logRing：环形缓冲容量、级别/来源过滤、limit 口径、最新在上、出口脱敏、
+ * 磁盘日志合并（主应用共享 <appHome>/logs/*.log——logQuery 第四参显式注入）。
  */
+import { mkdtempSync, mkdirSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { LogRing, LOG_RING_CAPACITY, logQuery, LOG_TAIL_DEFAULT } from "../src/host/health/logRing";
+import { LogRing, LOG_RING_CAPACITY, logQuery, LOG_TAIL_DEFAULT, parseDiskLogLines } from "../src/host/health/logRing";
 import { createTestDb, type TestDb } from "./helpers";
 
 let db: TestDb;
@@ -79,5 +83,41 @@ describe("logQuery 出口脱敏", () => {
     expect(out.entries[0].message).toBe("拉取失败 token=*** ***说的");
     // 缓冲内的原文未被改写（脱敏只发生在出口拷贝）
     expect(ring.query().entries[0].message).toContain("abc123def456");
+  });
+});
+
+describe("磁盘日志合并", () => {
+  it("合并 <appHome>/logs 最新文件：按时间倒序混排、来源包含匹配、出口同样脱敏", () => {
+    db.conn.prepare("INSERT INTO settings (key, value) VALUES ('feishu_my_name', '蔡乔蓉')").run();
+    const home = mkdtempSync(join(tmpdir(), "pky-logs-"));
+    const logDir = join(home, "logs");
+    mkdirSync(logDir);
+    writeFileSync(
+      join(logDir, "2026-10-12.log"),
+      "[2026-10-12][10:00:00][app/poll][INFO] 桌面轮询 蔡乔蓉\n[2026-10-12][09:00:00][app/ui][WARN] 旧一行",
+      "utf8",
+    );
+    const ring = new LogRing();
+    ring.log("info", "radio/fetcher", "插件环一条", "2026-10-13T08:00:00+00:00");
+    const out = logQuery(db.conn, ring, {}, logDir);
+    // 时间倒序：环内 10-13 > 磁盘 10-12 10:00 > 09:00
+    expect(out.entries.map((e) => e.message)).toEqual(["插件环一条", "桌面轮询 ***", "旧一行"]);
+    expect(out.total).toBe(3);
+    // 来源过滤子串命中（target 或 message，桌面 LogViewer 同口径）
+    expect(logQuery(db.conn, ring, { target: "POLL" }, logDir).entries.map((e) => e.target)).toEqual(["app/poll"]);
+    expect(logQuery(db.conn, ring, { target: "插件环" }, logDir).entries.map((e) => e.target)).toEqual([
+      "radio/fetcher",
+    ]);
+    // 未注入 logDir（undefined）只读环——测试确定性口径
+    expect(logQuery(db.conn, ring, {}).total).toBe(1);
+  });
+
+  it("目录缺失 / 无 .log 文件 / 空目录 = 空集不报错；续行并入上一条", () => {
+    expect(logQuery(db.conn, new LogRing(), {}, join(tmpdir(), "pky-missing-logs")).total).toBe(0);
+    const emptyDir = mkdtempSync(join(tmpdir(), "pky-empty-logs-"));
+    expect(logQuery(db.conn, new LogRing(), {}, emptyDir).total).toBe(0);
+    expect(
+      parseDiskLogLines("[a][b][t][INFO] 第一行\n多行消息的续行\n[c][d][t2][ERROR] 第二条").map((e) => e.level),
+    ).toEqual(["info", "error"]);
   });
 });

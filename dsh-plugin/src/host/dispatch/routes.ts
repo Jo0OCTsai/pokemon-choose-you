@@ -74,13 +74,16 @@ export function listRoutes(conn: Conn): Record<string, DispatchRoute> {
   }
 }
 
-/** 路由条目校验：agentId 必填非空；deployment.target 非空；maxConcurrent 正整数 */
+/**
+ * 路由条目校验：tag 必填；agentId 允许空（空 = 不指定，解析时回落标签 meta / 全局默认——
+ * 与主应用 tags.meta 双轨语义一致）；deployment.target 非空；maxConcurrent 正整数
+ */
 function validateRoute(tag: string, route: DispatchRoute): void {
   if (tag.trim() === "") {
     throw paramError("项目标签名不能为空");
   }
-  if (typeof route.agentId !== "string" || route.agentId.trim() === "") {
-    throw paramError(`路由「${tag}」缺少 agentId（先在 Agent 分区添加）`);
+  if (route.agentId !== undefined && typeof route.agentId !== "string") {
+    throw paramError(`路由「${tag}」的 agentId 必须是字符串`);
   }
   if (route.deployment !== undefined) {
     if (route.deployment.ref.trim() === "" || route.deployment.target.trim() === "") {

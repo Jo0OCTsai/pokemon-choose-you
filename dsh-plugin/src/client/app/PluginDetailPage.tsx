@@ -54,6 +54,9 @@ function PluginDetailPageInner({
   const settingsDirtyRef = useRef(false);
   // 语言即时跟随（U21/U8）：显示分区语言控件随选随切，落库走保存
   const [localeOverride, setLocaleOverride] = useState<Locale | null>(null);
+  // 收音机段填充窗口剩余高度（段体顶缘实测 → --pcy-remaining；切进收音机段才激活）
+  const segmentBodyRef = useRef<HTMLDivElement | null>(null);
+  useFillRemainingHeight(segmentBodyRef, segment === "radio");
   const refresh = useCallback(() => {
     onChanged?.();
   }, [onChanged]);
@@ -69,14 +72,17 @@ function PluginDetailPageInner({
     <I18nProvider locale={localeOverride ?? data.locale}>
       <div className={styles.page}>
         {readonly && <SchemaBanner />}
-        <PageHeader pendingCount={pendingCount} />
+        <PageHeader pendingCount={pendingCount} segment={segment} data={data} />
         <SegmentNav
           active={segment}
           onChange={requestSegment}
           radioPending={data.health.pendingCount}
           radioFailures={data.health.consecutiveFailures}
         />
-        <div className={styles.segmentBody}>
+        <div
+          ref={segmentBodyRef}
+          className={segment === "radio" ? `${styles.segmentBody} ${styles.segmentFill}` : styles.segmentBody}
+        >
           <SegmentBody
             segment={segment}
             data={data}
@@ -166,6 +172,30 @@ function usePageOpenAnchor(client: HostClient, requestSegment: (next: SegmentKey
       requestRef.current(event.section === "settings" ? "settings" : "adventure");
     });
   }, [client]);
+}
+
+/**
+ * 收音机段填充窗口剩余高度（#1 验收口径：整页高度恒等于窗口剩余高，展开消息不撑页、
+ * 收发报条不需滚动即可见）：--pcy-remaining = 视口高 − 段体顶缘（实测——宿主 chrome
+ * 高度不定）。挂载/切段/窗口尺寸变化时重算；失活时清属性交还文档流。
+ */
+function useFillRemainingHeight(ref: React.RefObject<HTMLDivElement | null>, active: boolean): void {
+  useEffect(() => {
+    const el = ref.current;
+    if (!active || el === null) {
+      return;
+    }
+    const update = (): void => {
+      const top = Math.max(0, Math.round(el.getBoundingClientRect().top));
+      el.style.setProperty("--pcy-remaining", `calc(100dvh - ${top}px)`);
+    };
+    update();
+    window.addEventListener("resize", update);
+    return () => {
+      window.removeEventListener("resize", update);
+      el.style.removeProperty("--pcy-remaining");
+    };
+  }, [active, ref]);
 }
 
 /** 背包未保存离开守卫（U21）：离开背包分段时若有未保存草稿先拦下（弹层由 SettingsSegment 呈现） */

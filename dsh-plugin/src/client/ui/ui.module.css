@@ -5,6 +5,12 @@
  * 只挂小图形容器。命中区 ≥32px（a11y 断言④）。零闪烁（无 animation 声明，NFR-6）。
  */
 
+/* 表单控件统一高度档（border-box；输入/下拉/按钮等单行控件全走此档——同排等高，
+ * dsw 宿主无全局 box-sizing 复位，各控件显式声明）。消费方带回落值兜底。 */
+:root {
+  --pcy-control-h: 32px;
+}
+
 /* ---- Modal / 确认弹层 ---- */
 .overlay {
   position: fixed;
@@ -44,9 +50,10 @@
 
 /* ---- 抽屉（任务详情）——样式在组件消费侧 tasks.module.css（drawer/drawerOverlay），此处不重复 ---- */
 
-/* ---- 按钮 / 控件（命中区 ≥32px） ---- */
+/* ---- 按钮 / 控件（命中区 ≥32px；border-box + 统一高度档——同排输入/下拉/按钮等高） ---- */
 .button {
-  min-height: 32px;
+  box-sizing: border-box;
+  min-height: var(--pcy-control-h, 32px);
   padding: 4px 12px;
   border-radius: 8px;
   border: 1px solid var(--dsw-alias-border-l2, #d0d7de);
@@ -146,12 +153,18 @@
   cursor: not-allowed;
 }
 
+/* 下拉（appearance:none 自绘箭头——原生箭头贴右缘且不随 padding 收进，
+ * 与左内边距不对称；背景箭头右缩进 10px 与文字左缩进 8px 视觉对齐，中性灰明暗两用） */
 .select {
-  min-height: 32px;
-  padding: 2px 8px;
+  appearance: none;
+  box-sizing: border-box;
+  height: var(--pcy-control-h, 32px);
+  padding: 2px 26px 2px 8px;
   border-radius: 8px;
   border: 1px solid var(--dsw-alias-border-l2, #d0d7de);
-  background: var(--dsw-alias-bg-layer-1, #ffffff);
+  background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath d='M1 1l4 4 4-4' fill='none' stroke='%238b949e' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E")
+    no-repeat right 10px center;
+  background-color: var(--dsw-alias-bg-layer-1, #ffffff);
   color: var(--dsw-alias-label-primary, #1f2328);
   font-size: 13px;
 }
@@ -162,9 +175,14 @@
 .select:disabled {
   opacity: 0.45;
 }
+/* 带 label 的设置行下拉（单独靠右档）：定宽 250（背包设置页统一口径） */
+.labelSelect {
+  width: 250px;
+}
 
 .input {
-  min-height: 32px;
+  box-sizing: border-box;
+  height: var(--pcy-control-h, 32px);
   padding: 4px 8px;
   border-radius: 8px;
   border: 1px solid var(--dsw-alias-border-l2, #d0d7de);
@@ -277,11 +295,23 @@
 }
 .row[data-wide="true"] .rowLabel {
   flex: 0 0 128px;
+  box-sizing: border-box;
   padding-right: 12px;
 }
 .row[data-wide="true"] > :not(.rowLabel) {
   flex: 1 1 auto;
   min-width: 0;
+}
+/* labelWidth 定宽行（非 wide，对齐主应用 SettingRow label-width）：标签列 border-box
+ * 定宽（含内边距——桌面首行名称 120 + 间隙 8 = 标签列 128 同轴），控件贴行右缘 */
+.row[data-right="true"] > :not(.rowLabel) {
+  margin-left: auto;
+}
+.row[data-right="true"] .input {
+  width: 200px;
+}
+.row[data-right="true"] .select {
+  width: 250px;
 }
 .sectionTitle {
   margin: 0 0 4px;

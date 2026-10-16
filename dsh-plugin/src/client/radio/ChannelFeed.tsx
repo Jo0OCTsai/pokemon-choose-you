@@ -3,19 +3,13 @@
  * 组内待处理信号（todo/update）排前、其余待处理居中、已捕捉/已逃走垫底（并入各自
  * 频道组尾）；组头 = 📡 会话名 + 「{n} 待处理」（组内有信号时高亮）+ 「{n} 条」总数，
  * 折叠状态由 SuggestionFeed 集中管理（键 `ch:<会话名>`，桌面同构）。
- * 待处理消息走建议卡（内联展开分诊），已处理走归档行（✔ 回执 / ✕ 原因）。
+ * 行统一走 MessageRow（点击选中，详情在右栏）。
  */
 import { useMemo } from "react";
 import { useT } from "../i18n";
 import type { RadioMessage } from "../rpc";
 import { FeedGroup } from "./FeedGroup";
-import { SuggestionCard } from "./SuggestionCard";
-import styles from "./radio.module.css";
-
-/** 待办信号（桌面 isSignal 同口径）：AI 挑出的待办/更新建议 */
-function isSignal(message: RadioMessage): boolean {
-  return message.aiStatus === "todo" || message.aiStatus === "update";
-}
+import { isSignal, MessageRow } from "./MessageRow";
 
 interface ChannelGroup {
   name: string;
@@ -41,17 +35,18 @@ function groupByChannel(messages: RadioMessage[]): ChannelGroup[] {
 
 export function ChannelFeed({
   messages,
+  selectedId,
+  onSelect,
   collapsed,
   onToggleGroup,
-  readonly,
-  onChanged,
 }: {
   messages: RadioMessage[];
+  /** 当前选中电波（右栏详情跟随） */
+  selectedId: string | null;
+  onSelect: (messageId: string) => void;
   /** 集中折叠态（与状态分组共用一套 Set；频道组键 = `ch:<会话名>`） */
   collapsed: Set<string>;
   onToggleGroup: (key: string) => void;
-  readonly: boolean;
-  onChanged: () => void;
 }): React.JSX.Element {
   const t = useT();
   const groups = useMemo(() => groupByChannel(messages), [messages]);
@@ -72,29 +67,18 @@ export function ChannelFeed({
             collapsed={collapsed.has(key)}
             onToggle={() => onToggleGroup(key)}
           >
-            {group.list.map((message) =>
-              message.reviewStatus === "pending" ? (
-                <SuggestionCard key={message.messageId} message={message} readonly={readonly} onChanged={onChanged} />
-              ) : (
-                <ArchivedChannelRow key={message.messageId} message={message} />
-              ),
-            )}
+            {group.list.map((message) => (
+              <MessageRow
+                key={message.messageId}
+                message={message}
+                variant="channel"
+                selected={selectedId === message.messageId}
+                onSelect={onSelect}
+              />
+            ))}
           </FeedGroup>
         );
       })}
-    </div>
-  );
-}
-
-/** 频道内已处理行（呈现同归档组：✔ 已捕捉回执 / ✕ 已逃走原因） */
-function ArchivedChannelRow({ message }: { message: RadioMessage }): React.JSX.Element {
-  const t = useT();
-  const accepted = message.reviewStatus === "accepted";
-  return (
-    <div className={styles.archivedRow} data-testid="channel-archived-row">
-      {accepted ? "✔" : "✕"} {message.content}
-      {accepted && message.taskId !== null && <span>{t("im.caughtTask", { id: message.taskId })}</span>}
-      {!accepted && message.dismissReason !== "" && <span>{t(`im.escapeReasons.${message.dismissReason}`)}</span>}
     </div>
   );
 }

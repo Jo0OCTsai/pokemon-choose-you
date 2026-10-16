@@ -1,24 +1,30 @@
 /**
- * 判定失败组（从 SuggestionFeed 等量迁出）：AI 判定失败 · N 条 + 组头一键重判（整组）/
- * 强制捕捉 / 强制逃走（可折叠）；单条重试与原因码菜单。
+ * 判定失败组（桌面噪音分组的失败行同位）：AI 判定失败 · N 条 + 组头一键重判（整组）/
+ * 强制捕捉 / 强制逃走（可折叠）；行点击选中（单条重判/分诊在右栏操作行）。
  */
 import { useState } from "react";
 import { useClient } from "../clientContext";
 import { useT } from "../i18n";
-import { ESCAPE_REASON_CODES, type RadioMessage } from "../rpc";
+import type { RadioMessage } from "../rpc";
 import ui from "../ui/ui.module.css";
 import { FeedGroup } from "./FeedGroup";
+import { MessageRow } from "./MessageRow";
 import styles from "./radio.module.css";
 
 /** 判定失败组：AI 判定失败 · N 条 + 组头一键重判（整组）/ 强制捕捉 / 强制逃走（可折叠） */
 export function FailedGroup({
   messages,
+  selectedId,
+  onSelect,
   collapsed,
   onToggle,
   readonly,
   onChanged,
 }: {
   messages: RadioMessage[];
+  /** 当前选中电波（右栏详情跟随） */
+  selectedId: string | null;
+  onSelect: (messageId: string) => void;
   collapsed: boolean;
   onToggle: () => void;
   readonly: boolean;
@@ -27,7 +33,6 @@ export function FailedGroup({
   const t = useT();
   const client = useClient();
   const [busy, setBusy] = useState(false);
-  const [forceTarget, setForceTarget] = useState<RadioMessage | null>(null);
   return (
     <FeedGroup
       testId="failed-group"
@@ -52,14 +57,6 @@ export function FailedGroup({
           <button
             type="button"
             className={`${ui.button} ${styles.headAction}`}
-            disabled={readonly || messages.length !== 1}
-            onClick={() => setForceTarget(messages[0])}
-          >
-            {t("dsh.failed.forceCapture")}
-          </button>
-          <button
-            type="button"
-            className={`${ui.button} ${styles.headAction}`}
             disabled={readonly || busy}
             onClick={async () => {
               setBusy(true);
@@ -76,39 +73,14 @@ export function FailedGroup({
       }
     >
       {messages.map((message) => (
-        <div key={message.messageId} className={styles.failedCard}>
-          <span className={styles.failedText}>{message.content}</span>
-          <button
-            type="button"
-            className={ui.button}
-            disabled={readonly}
-            onClick={async () => {
-              await client.retryJudge({ messageIds: [message.messageId] });
-              onChanged();
-            }}
-          >
-            {t("im.retry")}
-          </button>
-        </div>
+        <MessageRow
+          key={message.messageId}
+          message={message}
+          variant="noise"
+          selected={selectedId === message.messageId}
+          onSelect={onSelect}
+        />
       ))}
-      {forceTarget !== null && (
-        <div className={styles.reasonMenu} role="menu">
-          {ESCAPE_REASON_CODES.map((code) => (
-            <button
-              key={code}
-              type="button"
-              role="menuitem"
-              onClick={async () => {
-                await client.forceDismiss({ messageId: forceTarget.messageId, reasonCode: code });
-                setForceTarget(null);
-                onChanged();
-              }}
-            >
-              {t(`im.escapeReasons.${code}`)}
-            </button>
-          ))}
-        </div>
-      )}
     </FeedGroup>
   );
 }

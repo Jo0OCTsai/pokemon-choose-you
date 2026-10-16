@@ -4,6 +4,9 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>桌宠 · 就决定是你了</title>
+    <!-- 渲染层样式单（esbuild 产出 renderer.css；HTML 不会被构建器改写，link 必须手写——
+         缺失即整页裸 HTML：stage 不居中、色环/对话框/胶囊全无样式） -->
+    <link rel="stylesheet" href="./renderer.css" />
     <!--
       PokeAPI sprites 版权声明（NFR-9）：本 helper 分发的精灵素材来自 PokeAPI/sprites
       （https://github.com/PokeAPI/sprites），沿用主应用 public/pokemon/ 分发口径；

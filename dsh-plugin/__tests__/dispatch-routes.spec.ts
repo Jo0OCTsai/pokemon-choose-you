@@ -49,13 +49,15 @@ describe("路由 CRUD（dsh:dispatch_routes）", () => {
     expect(listRoutes(db.conn)).toEqual({});
   });
 
-  it("校验：空 tag / 空 agentId / deployment 缺字段 / maxConcurrent 非法 → 参数错", () => {
+  it("校验：空 tag / deployment 缺字段 / maxConcurrent 非法 → 参数错；空 agentId 合法（回落全局默认）", () => {
     expect(() => routeUpsert(db.conn, "  ", { agentId: "a" })).toThrowError(/标签名/);
-    expect(() => routeUpsert(db.conn, "T", { agentId: " " })).toThrowError(/agentId/);
     expect(() => routeUpsert(db.conn, "T", { agentId: "a", deployment: { ref: "", target: "u@h" } })).toThrowError(
       /deployment/,
     );
     expect(() => routeUpsert(db.conn, "T", { agentId: "a", maxConcurrent: 0 })).toThrowError(/maxConcurrent/);
+    // 空 agentId = 只配目录/上下文，解析时回落 meta / 全局默认（桌面 tags.meta 双轨语义）
+    routeUpsert(db.conn, "T", { agentId: "", workdir: "~/only-dir" });
+    expect(listRoutes(db.conn)["T"]).toEqual({ agentId: "", workdir: "~/only-dir" });
   });
 
   it("deployment 引用只存 ref + target（不存连接细节——A13）", () => {

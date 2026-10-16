@@ -13,6 +13,7 @@ import { nowRfc3339 } from "../storage/db";
 import { paramError } from "../storage/errors";
 import { getCurrentTask, getTask, listTasks, type Task } from "../domain/tasks";
 import { listCategories, type Category } from "../domain/vocabulary";
+import { listTagDimensions, listTags, type Tag, type TagDimension } from "../domain/vocabulary-tags";
 import {
   panelRadioHealth,
   panelSessions,
@@ -49,6 +50,9 @@ export interface PanelSnapshot {
   currentTask: Task | null;
   /** 分类清单（任务卡精灵/徽章渲染；与 categoriesList 同源） */
   categories: Category[];
+  /** 标签维度 + 标签清单（背包标签卡/标签管理卡消费；与 categories 同快照只读） */
+  dimensions: TagDimension[];
+  tags: Tag[];
 }
 
 /** 跟进记录行（task_notes 投影） */
@@ -192,6 +196,8 @@ export function readCommands(): CommandTable {
         logs: panelSessions(conn, SQL_SESSION_LOGS),
         currentTask: getCurrentTask(conn),
         categories: listCategories(conn),
+        dimensions: listTagDimensions(conn),
+        tags: listTags(conn),
       } satisfies PanelSnapshot;
     },
     taskDetail: (p, deps) => {

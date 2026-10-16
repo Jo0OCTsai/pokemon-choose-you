@@ -76,18 +76,12 @@ export function PromptOverrideEditor({
       <div className={styles.entityList}>
         {editableSpecs.map((spec) => (
           <div key={spec.id} className={styles.promptPanel} data-testid="prompt-panel">
-            <div className={styles.filterRow}>
-              <b>{t(`prompts.feature.${spec.id}`)}</b>
-              <span className={styles.promptBadge} data-source={spec.source}>
-                {spec.source === "custom"
-                  ? t("prompts.badgeCustom")
-                  : spec.source === "default_warned"
-                    ? t("prompts.badgeWarn")
-                    : t("prompts.badgeDefault")}
-              </span>
+            {/* 面板头行（桌面 PromptFeaturePanel .panel-head 同构）：折叠钮占主宽，
+                编辑 / 恢复默认贴标题行右缘（展开且非编辑态时呈现） */}
+            <div className={styles.promptHeadRow}>
               <button
                 type="button"
-                className={ui.button}
+                className={styles.promptHead}
                 aria-expanded={openKey === spec.storageKey}
                 onClick={() => {
                   setOpenKey(openKey === spec.storageKey ? null : (spec.storageKey ?? null));
@@ -95,8 +89,36 @@ export function PromptOverrideEditor({
                   setError(null);
                 }}
               >
-                {t("prompts.edit")}
+                <span className={styles.promptCaret} aria-hidden="true">
+                  {openKey === spec.storageKey ? "▾" : "▸"}
+                </span>
+                <b>{t(`prompts.feature.${spec.id}`)}</b>
+                <span className={styles.promptBadge} data-source={spec.source}>
+                  {spec.source === "custom"
+                    ? t("prompts.badgeCustom")
+                    : spec.source === "default_warned"
+                      ? t("prompts.badgeWarn")
+                      : t("prompts.badgeDefault")}
+                </span>
               </button>
+              {openKey === spec.storageKey && !editing && (
+                <span className={styles.promptHeadActions}>
+                  {/* 编辑直达（桌面同款：展开后一次点击即进编辑态，不重复点「编辑」） */}
+                  <button
+                    type="button"
+                    className={ui.button}
+                    onClick={() => {
+                      setValue(spec.overrideText ?? spec.defaultText);
+                      setEditing(true);
+                    }}
+                  >
+                    {t("prompts.edit")}
+                  </button>
+                  <button type="button" className={ui.button} onClick={() => setConfirmReset(true)}>
+                    {t("prompts.restore")}
+                  </button>
+                </span>
+              )}
             </div>
             {openKey === spec.storageKey && (
               <>
@@ -125,26 +147,9 @@ export function PromptOverrideEditor({
                     </div>
                   </>
                 ) : (
-                  <>
-                    <pre className={styles.previewLine} style={{ whiteSpace: "pre-wrap" }}>
-                      {spec.text}
-                    </pre>
-                    <div className={styles.filterRow}>
-                      <button
-                        type="button"
-                        className={ui.button}
-                        onClick={() => {
-                          setValue(spec.overrideText ?? spec.defaultText);
-                          setEditing(true);
-                        }}
-                      >
-                        {t("prompts.edit")}
-                      </button>
-                      <button type="button" className={ui.button} onClick={() => setConfirmReset(true)}>
-                        {t("prompts.restore")}
-                      </button>
-                    </div>
-                  </>
+                  <pre className={styles.previewLine} style={{ whiteSpace: "pre-wrap" }}>
+                    {spec.text}
+                  </pre>
                 )}
                 {error !== null && <span className={styles.saveFailHint}>{error}</span>}
               </>

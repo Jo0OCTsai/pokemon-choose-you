@@ -231,9 +231,16 @@ describe("panelData 派生件", () => {
     expect(routesOf({ "dsh:dispatch_routes": '"x"' })).toEqual([]);
   });
 
-  it("换装搜索：中文名/英文名/key/编号命中，locale 决定显示名，空查询空集", async () => {
+  it("换装搜索：中文名/英文名/key/编号命中，locale 决定显示名；空查询回落内置 6 只（桌面同口径）", async () => {
     const zh = createPokemonSearch("zh-Hans");
-    expect(await zh("")).toEqual([]);
+    expect((await zh("")).map((c) => c.key)).toEqual([
+      "pikachu",
+      "psyduck",
+      "bulbasaur",
+      "chansey",
+      "eevee",
+      "snorlax",
+    ]);
     const byHans = await zh("皮卡");
     expect(byHans[0]).toMatchObject({ key: "pikachu", number: 25, english: "Pikachu", name: "皮卡丘" });
     const byEn = await zh("bulba");

@@ -5,35 +5,29 @@
  * 主应用桌宠」badge；减弱动效（默认跟随系统，U15——dsh helper 同读）；显示桌宠
  * （petShow/petHide 即时动作；hello 握手 5 秒未完成时行内警告，恢复入口 U4）+ 随 dsh 启动
  * （dsh Config schema，A2 双轨——插件私有配置在宿主 ConfigEditor）。
+ * 宝可梦选择 = PokemonPicker 内联下拉（桌面 PokemonPicker 同构交互）。
  */
 import { useMemo, useState } from "react";
-import catalogJson from "@app-pokemon/catalog.json";
 import { useClient } from "../../clientContext";
 import { useI18n, useT } from "../../i18n";
-import { Select, TextInput, Toggle } from "../../ui/controls";
+import { createPokemonName, createPokemonSearch } from "../../dsh/panelData";
+import { TextInput, Toggle } from "../../ui/controls";
 import { Sprite } from "../../ui/Sprite";
 import ui from "../../ui/ui.module.css";
 import type { SectionProps } from "../sectionProps";
-import { PET_KEYS } from "../sectionKeys";
 import { SectionShell } from "../SectionShell";
 import styles from "../settings.module.css";
-import { PokeSearchModal, type PokemonCandidate } from "./CategoryTagSection";
+import { PokemonPicker, type PokemonCandidate } from "./PokemonPicker";
 
-type CatalogRow = [number, string, string, string, string];
-const CATALOG: readonly CatalogRow[] = (catalogJson as { v: number; entries: CatalogRow[] }).entries;
-
-/** 随应用打包精灵图的内置宝可梦（主应用 src/pokemon.ts BUNDLED_POKEMON 同表） */
-const BUNDLED_KEYS = ["pikachu", "psyduck", "bulbasaur", "chansey", "eevee", "snorlax"];
-
-/** key → 当前语言名（名录外 key 回退 key 本身——主应用 pokemonName 同口径） */
-function usePokemonName(): (key: string) => string {
-  const { locale } = useI18n();
-  return useMemo(() => {
-    const names = new Map(
-      CATALOG.map((row) => [row[1], locale === "zh-Hant" ? row[3] : locale === "en" ? row[4] : row[2]]),
-    );
-    return (key: string) => names.get(key) ?? key;
-  }, [locale]);
+/** key → 当前语言名 + 名录搜索（桌面 pokemonName/searchPokemon 同源；适配层未注入搜索时本地名录兜底） */
+function usePokemonCatalog(locale: "zh-Hans" | "zh-Hant" | "en"): {
+  pokemonName: (key: string) => string;
+  pokemonSearch: (query: string) => Promise<PokemonCandidate[]>;
+} {
+  return useMemo(
+    () => ({ pokemonName: createPokemonName(locale), pokemonSearch: createPokemonSearch(locale) }),
+    [locale],
+  );
 }
 
 /** 解析 pokemon_quotes JSON map（解析失败按 {} 起步——容忍旧版平面写坏的存量） */
@@ -58,12 +52,12 @@ export function PetSection({
     pokemonSearch?: (query: string) => Promise<PokemonCandidate[]>;
   };
 }): React.JSX.Element {
-  const { draft, saved, onField, onSavedKeys } = props;
+  const { draft, onField } = props;
   const t = useT();
   const client = useClient();
-  const pokemonName = usePokemonName();
-  const [mainPickOpen, setMainPickOpen] = useState(false);
-  const [quotePickOpen, setQuotePickOpen] = useState(false);
+  const { locale } = useI18n();
+  const { pokemonName, pokemonSearch: localPokemonSearch } = usePokemonCatalog(locale);
+  const pokemonSearch = data.pokemonSearch ?? localPokemonSearch;
   const [quotePokemon, setQuotePokemon] = useState(draft["main_pokemon"] || DEFAULT_QUOTE_POKEMON);
   /** petShow ready=false 警告（hello 握手 5 秒超时；简单起见不自隐，下次动作自然覆盖） */
   const [showWarn, setShowWarn] = useState<string | null>(null);
@@ -71,14 +65,6 @@ export function PetSection({
   const mainKey = draft["main_pokemon"];
   const quotesMap = parseQuotes(draft["pokemon_quotes"]);
   const quoteText = quotesMap[quotePokemon] ?? "";
-
-  /** 台词编辑器候选：主宝可梦 + 内置 6 只 + 已写过台词的 key（含当前选中兜底） */
-  const quoteOptions = useMemo(() => {
-    const keys = [
-      ...new Set([mainKey, ...BUNDLED_KEYS, ...Object.keys(quotesMap), quotePokemon].filter((k) => k !== "")),
-    ];
-    return keys.map((key) => ({ value: key, label: pokemonName(key) }));
-  }, [mainKey, quotesMap, quotePokemon, pokemonName]);
 
   /** 台词写回：merge 该精灵的行（空文本 = 删除该 key），其他精灵保留——主应用 mergePokemonQuotes 同构 */
   function writeQuotes(key: string, text: string): void {
@@ -100,7 +86,7 @@ export function PetSection({
   }
 
   return (
-    <SectionShell title={`🐾 ${t("stabs.pets")}`} keys={PET_KEYS} draft={draft} saved={saved} onSavedKeys={onSavedKeys}>
+    <SectionShell>
       <div className={ui.card}>
         <h4 className={styles.cardTitle}>{t("cats.mainTitle")}</h4>
         <div className={styles.filterRow} data-testid="main-pokemon-row">
@@ -112,19 +98,14 @@ export function PetSection({
           <span style={{ flex: 1 }}>
             {t("cats.mainLabel")}：{mainKey === "" ? t("cats.mainFollow") : pokemonName(mainKey)}
           </span>
-          <button type="button" className={ui.button} onClick={() => setMainPickOpen(true)}>
-            {t("pk.searchPh")}
-          </button>
-          {mainKey !== "" && (
-            <button
-              type="button"
-              className={ui.button}
-              onClick={() => onField("main_pokemon", "")}
-              title={t("cats.mainFollow")}
-            >
-              {t("dsh.pet.clearMain")}
-            </button>
-          )}
+          <PokemonPicker
+            value={mainKey}
+            onPick={(key) => onField("main_pokemon", key)}
+            search={pokemonSearch}
+            nameOf={pokemonName}
+            allowEmptyLabel={t("cats.mainFollow")}
+            ariaLabel={t("cats.mainLabel")}
+          />
         </div>
         <p className={styles.cardHint}>{t("cats.mainDesc")}</p>
         <p className={styles.cardHint}>{t("cats.spriteHint")}</p>
@@ -132,15 +113,13 @@ export function PetSection({
       <div className={ui.card}>
         <h4 className={styles.cardTitle}>{t("cats.quotesTitle")}</h4>
         <div className={styles.filterRow}>
-          <Select
-            ariaLabel={t("cats.quotesTitle")}
+          <PokemonPicker
             value={quotePokemon}
-            options={quoteOptions}
-            onChange={setQuotePokemon}
+            onPick={setQuotePokemon}
+            search={pokemonSearch}
+            nameOf={pokemonName}
+            ariaLabel={t("cats.quotesTitle")}
           />
-          <button type="button" className={ui.button} onClick={() => setQuotePickOpen(true)}>
-            {t("pk.searchPh")}
-          </button>
           <span className={styles.dimCount}>
             {t("cats.quotesCount", {
               n: quoteText.split("\n").filter((l) => l.trim() !== "").length,
@@ -224,29 +203,6 @@ export function PetSection({
           disabled
         />
       </div>
-      {mainPickOpen && (
-        <PokeSearchModal
-          title={`${t("cats.mainTitle")} · ${t("dsh.pokeSearch.placeholder")}`}
-          search={data.pokemonSearch}
-          onClose={() => setMainPickOpen(false)}
-          onPick={(candidate) => {
-            // 存 PokeAPI 裸 key（与分类换装 sprite 同约定，主应用 PokemonPicker 同口径）
-            onField("main_pokemon", candidate.key);
-            setMainPickOpen(false);
-          }}
-        />
-      )}
-      {quotePickOpen && (
-        <PokeSearchModal
-          title={`${t("cats.quotesTitle")} · ${t("dsh.pokeSearch.placeholder")}`}
-          search={data.pokemonSearch}
-          onClose={() => setQuotePickOpen(false)}
-          onPick={(candidate) => {
-            setQuotePokemon(candidate.key);
-            setQuotePickOpen(false);
-          }}
-        />
-      )}
     </SectionShell>
   );
 }

@@ -1,28 +1,29 @@
 /**
  * 分类与标签分区页（🗂，U19：实体 CRUD 不走保存制——行内确认提交即时生效）：
- * 分类卡（名称/描述可编辑 = AI 判定参考规则 · 绑定宝可梦缩略图 · 换装入口（搜索 1025 只
- * 名称/编号/英文名）· 停用/启用 · 放生分类级联确认）+ 标签维度卡（名称/上限/停用；key
- * 与单多选建后只读呈现）+ 标签管理卡（按维度分组：改名/描述/维度迁移/保存/两段式删除，
- * ⚡ = 已配置项目派发）。新标签提议「＋」接受入口在建议卡侧（SuggestionCard）。
- * 图鉴搜索弹层 → PokeSearchModal.tsx；标签管理卡 → TagsManagerCard.tsx（均再出口）。
+ * 分类卡（名称/描述可编辑 = AI 判定参考规则 · 绑定宝可梦缩略图 · 换装入口（PokemonPicker
+ * 内联下拉搜 1025 只名称/编号/英文名）· 停用/启用 · 放生分类级联确认）+ 标签管理卡
+ * （按维度分组：改名/描述/维度迁移/保存/两段式删除，⚡ = 已配置项目派发）+ 标签维度卡
+ * （名称/上限/停用；key 与单多选建后只读呈现——桌面 SectionTaxonomy 同序：维度卡最下）。
+ * 新标签提议「＋」接受入口在建议卡侧（SuggestionFeed）。宝可梦选择 → PokemonPicker.tsx；
+ * 标签管理卡 → TagsManagerCard.tsx（均再出口）。
  */
 import { useState } from "react";
 import type { Category } from "../../../host/domain/vocabulary";
 import type { Tag, TagDimension } from "../../../host/domain/vocabulary-tags";
 import { useClient } from "../../clientContext";
-import { useT } from "../../i18n";
+import { useI18n, useT } from "../../i18n";
+import { createPokemonName, createPokemonSearch } from "../../dsh/panelData";
 import type { DispatchRoute } from "../../rpc";
 import { ConfirmDialog } from "../../ui/Modal";
-import { Sprite } from "../../ui/Sprite";
 import { TextInput, Toggle } from "../../ui/controls";
 import ui from "../../ui/ui.module.css";
 import styles from "../settings.module.css";
-import { PokeSearchModal, type PokemonCandidate } from "./PokeSearchModal";
+import { PokemonPicker, type PokemonCandidate } from "./PokemonPicker";
 import { TagsManagerCard } from "./TagsManagerCard";
 
-// 图鉴搜索弹层拆件再出口（PetSection/model/panelData 消费面 import 路径不变）
-export { PokeSearchModal } from "./PokeSearchModal";
-export type { PokemonCandidate } from "./PokeSearchModal";
+// 图鉴选择器拆件再出口（PetSection/model/panelData 消费面 import 路径不变）
+export { PokemonPicker } from "./PokemonPicker";
+export type { PokemonCandidate } from "./PokemonPicker";
 
 export function CategoryTagSection({
   categories,
@@ -30,6 +31,7 @@ export function CategoryTagSection({
   tags,
   routes = [],
   pokemonSearch,
+  nameOf,
   onChanged,
 }: {
   categories: Category[];
@@ -39,12 +41,14 @@ export function CategoryTagSection({
   routes?: DispatchRoute[];
   /** 搜索函数（异步；适配层接 host 名录） */
   pokemonSearch?: (query: string) => Promise<PokemonCandidate[]>;
+  /** key → 展示名（名录外回落 key；选择器与缩略图 alt 共用） */
+  nameOf?: (key: string) => string;
   onChanged: () => void;
 }): React.JSX.Element {
   const t = useT();
   const client = useClient();
+  const { locale } = useI18n();
   const [releaseTarget, setReleaseTarget] = useState<Category | null>(null);
-  const [dressTarget, setDressTarget] = useState<Category | null>(null);
   const [newCategory, setNewCategory] = useState("");
   /** 停用/启用失败行内错误（「至少保留一个启用分类」守卫等，不弹窗） */
   const [toggleError, setToggleError] = useState<{ id: number; message: string } | null>(null);
@@ -65,11 +69,11 @@ export function CategoryTagSection({
     }
   }
 
+  const pokemonName = nameOf ?? createPokemonName(locale);
+  const search = pokemonSearch ?? createPokemonSearch(locale);
+
   return (
     <section className={styles.sectionPage} data-testid="section-page">
-      <div className={styles.sectionHeader}>
-        <h3 className={styles.sectionHeading}>🗂 {t("stabs.taxonomy")}</h3>
-      </div>
       <div className={ui.card}>
         <h4 className={styles.cardTitle}>{t("cats.title")}</h4>
         <p className={styles.cardHint}>{t("cats.hint")}</p>
@@ -81,11 +85,8 @@ export function CategoryTagSection({
               data-testid="category-ui.card"
               data-off={category.enabled ? undefined : "true"}
             >
-              {/* 上行：精灵 + 名称 + 停用开关 + 换装/放生 同行排齐（桌面 cat-line 同构） */}
+              {/* 上行：名称 + 换装选择器（自带精灵）+ 停用开关 + 放生 同行排齐（桌面 cat-line 同构） */}
               <div className={styles.entityLine}>
-                <span className={styles.entitySprite}>
-                  {category.sprite !== "" && <Sprite spriteKey={category.sprite} size={28} alt={category.pokemon} />}
-                </span>
                 <TextInput
                   className={styles.w110}
                   ariaLabel={t("tags.namePh")}
@@ -99,15 +100,19 @@ export function CategoryTagSection({
                   checked={category.enabled}
                   onChange={(enabled) => void toggleCategory(category, enabled)}
                 />
-                <button
-                  type="button"
-                  className={ui.button}
-                  onClick={() => {
-                    setDressTarget(category);
+                {/* 换装 = 常驻宝可梦下拉（桌面 cat-line 内 PokemonPicker v-model 同构；
+                    sprite 存 PokeAPI 裸 key——共享库约定，主应用 PokemonSprite 按此解析） */}
+                <PokemonPicker
+                  value={category.sprite}
+                  onPick={(key) => {
+                    void client
+                      .categoryUpsert({ id: category.id, pokemon: pokemonName(key), sprite: key })
+                      .then(onChanged);
                   }}
-                >
-                  {t("pk.searchPh")}
-                </button>
+                  search={search}
+                  nameOf={pokemonName}
+                  ariaLabel={`${category.name} · ${t("dsh.pokeSearch.placeholder")}`}
+                />
                 <button type="button" className={ui.button} onClick={() => setReleaseTarget(category)}>
                   {t("cats.release")}
                 </button>
@@ -148,6 +153,7 @@ export function CategoryTagSection({
           </button>
         </div>
       </div>
+      <TagsManagerCard dimensions={dimensions} tags={tags} routes={routes} onChanged={onChanged} />
       <div className={ui.card}>
         <h4 className={styles.cardTitle}>{t("tags.dimTitle")}</h4>
         <p className={styles.cardHint}>{t("tags.dimManageHint")}</p>
@@ -160,7 +166,6 @@ export function CategoryTagSection({
           {t("tags.dimHint")} · {tags.length} {t("tags.title")}
         </p>
       </div>
-      <TagsManagerCard dimensions={dimensions} tags={tags} routes={routes} onChanged={onChanged} />
       {releaseTarget !== null && (
         <ConfirmDialog
           title={t("cats.release")}
@@ -177,22 +182,6 @@ export function CategoryTagSection({
               setReleaseTarget(null);
               onChanged();
             });
-          }}
-        />
-      )}
-      {dressTarget !== null && (
-        <PokeSearchModal
-          title={`${dressTarget.name} · ${t("dsh.pokeSearch.placeholder")}`}
-          search={pokemonSearch}
-          onClose={() => setDressTarget(null)}
-          onPick={(candidate) => {
-            void client
-              // sprite 存 PokeAPI 裸 key（共享库约定，主应用 PokemonSprite 按此解析）
-              .categoryUpsert({ id: dressTarget.id, pokemon: candidate.name, sprite: candidate.key })
-              .then(() => {
-                setDressTarget(null);
-                onChanged();
-              });
           }}
         />
       )}

@@ -1,7 +1,9 @@
 /**
- * 背包分区壳（U21 保存制）：分区标题行右侧「保存」按钮（未保存静态角标● title「有未保存
- * 的修改」——不闪烁）+ 保存中禁用转「保存中…」+ 成功 hint「已保存」自隐 4s（role=status
- * 无 toast）+ 失败行内「保存失败：{原因}」草稿保留可重试。
+ * 背包分区壳：SectionShell = 分区整页容器（保存按钮不在分区页内——与分区选单同行
+ * 靠右，由 SettingsSegment 装配 SaveControls，桌面「标题行右侧保存」同位）；
+ * SaveControls = 保存控件组（U21 保存制：「保存」按钮 + 未保存静态角标● title「有未
+ * 保存的修改」——不闪烁 + 保存中禁用转「保存中…」+ 成功 hint「已保存」自隐 4s
+ * （role=status 无 toast）+ 失败/防呆行内「保存失败：{原因}」草稿保留可重试）。
  */
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { useClient } from "../clientContext";
@@ -49,18 +51,24 @@ export function useSectionSave(): {
   return { saving, hint, save };
 }
 
-/** 分区整页壳：标题行 + 保存按钮 + hint + 表单体 */
-export function SectionShell({
-  title,
+/** 分区整页容器（纯壳：保存控件在分区选单行，见 SaveControls） */
+export function SectionShell({ children }: { children: ReactNode }): React.JSX.Element {
+  return (
+    <section className={styles.sectionPage} data-testid="section-page">
+      {children}
+    </section>
+  );
+}
+
+/** 保存控件组（分区选单行右位；display:contents 让 hint/按钮/失败行并入选单行排布） */
+export function SaveControls({
   keys,
   draft,
   saved,
   onSavedKeys,
   saveBlocked = false,
   blockedReason,
-  children,
 }: {
-  title: string;
   /** 本分区草稿键（dirty 计算 = 任一键离开已保存值） */
   keys: readonly string[];
   draft: Record<string, string>;
@@ -70,7 +78,6 @@ export function SectionShell({
   /** 行内防呆阻断（如勿扰起=止）：阻断保存不落库（后端兜底 CONFIG_VALIDATION_FAILED） */
   saveBlocked?: boolean;
   blockedReason?: string;
-  children: ReactNode;
 }): React.JSX.Element {
   const { saving, hint, save } = useSectionSave();
   const dirtyKeys = keys.filter((key) => draft[key] !== saved[key]);
@@ -82,15 +89,13 @@ export function SectionShell({
     });
   }
   return (
-    <section className={styles.sectionPage} data-testid="section-page">
-      <div className={styles.sectionHeader}>
-        <h3 className={styles.sectionHeading}>{title}</h3>
-        <SaveStateHint hint={hint} />
-        <SaveButton saving={saving} dirty={dirty} blocked={saveBlocked} onSave={() => void doSave()} />
-      </div>
-      <SaveFailHint hint={hint} blockedReason={saveBlocked ? blockedReason : undefined} />
-      {children}
-    </section>
+    <span className={styles.saveControls} data-testid="section-save-controls">
+      <SaveStateHint hint={hint} />
+      <SaveButton saving={saving} dirty={dirty} blocked={saveBlocked} onSave={() => void doSave()} />
+      <span className={styles.saveFailWrap}>
+        <SaveFailHint hint={hint} blockedReason={saveBlocked ? blockedReason : undefined} />
+      </span>
+    </span>
   );
 }
 

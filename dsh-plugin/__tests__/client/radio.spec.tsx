@@ -1,7 +1,8 @@
 /**
- * 收音机分段：HealthStrip（三档状态点 + 文字 + 立即拉取）/ AuthBanner（未授权/失效单次）/
- * SuggestionCard 内联展开（四动作 + 置信档文字 + 新标签「＋」/ 逃走 6 原因码）/ BatchBar
- * （选中 ≥1 浮现 + 批量分诊）/ FailedGroup / EscapedGroup 恢复 / CaptureBar 判定与撤销。
+ * 收音机分段（桌面 RadioTab 双栏同构）：HealthStrip（三档状态点 + 文字 + 立即拉取）/
+ * AuthBanner（未授权/失效单次）/ 电波行选中 → 右栏 MessageDetail（四动作 + 置信色点 +
+ * 新标签「＋」/ 逃走 ▾ 6 原因码）/ BatchBar（常驻 + 批量分诊）/ FailedGroup /
+ * EscapedGroup 恢复 / CaptureBar 判定与撤销。
  */
 import { act, cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -18,6 +19,11 @@ async function flush(): Promise<void> {
   await act(async () => {
     await new Promise((resolve) => setTimeout(resolve, 0));
   });
+}
+
+/** 按 messageId 选中电波行（行点击 = 选中，详情在右栏） */
+function selectRow(messageId: string): void {
+  fireEvent.click(document.querySelector(`[data-testid="radio-row"][data-message-id="${messageId}"]`)!);
 }
 
 function renderRadio(
@@ -81,13 +87,15 @@ describe("AuthBanner", () => {
   });
 });
 
-describe("SuggestionCard", () => {
-  it("内联展开：AI 建议盒（标题/理由/置信档文字）+ todo 动作 ◎ 捕捉", async () => {
+describe("MessageDetail（右栏选中详情）", () => {
+  it("行选中：AI 建议盒（标题/理由）+ 置信色点文字档 + todo 动作 ◎ 捕捉", async () => {
     const { host } = renderRadio([makeMessage({ messageId: "m1", confidence: "medium" })]);
-    expect(screen.getByText("中置信")).toBeTruthy();
-    fireEvent.click(screen.getByText(/帮我看一下周报的数字/));
+    selectRow("m1");
+    const detail = screen.getByTestId("message-detail");
+    expect(detail.getAttribute("data-message-id")).toBe("m1");
     expect(screen.getByTestId("ai-suggestion").textContent).toContain("核对周报数字");
-    expect(screen.getByTestId("suggestion-card").getAttribute("data-confidence")).toBe("medium");
+    // 置信三档：色点形色 + title 文字档位（非颜色冗余，a11y 断言③）
+    expect(document.querySelector('[data-conf="medium"]')?.getAttribute("title")).toBe("中置信");
     fireEvent.click(screen.getByText("◎ 捕捉"));
     await flush();
     expect(host.calls).toContainEqual({ command: "reviewAccept", params: { messageId: "m1" } });
@@ -98,33 +106,50 @@ describe("SuggestionCard", () => {
       makeMessage({ messageId: "m2", aiStatus: "update", updateTaskId: 9, content: "周报改成周五发" }),
       makeMessage({ messageId: "m3", aiStatus: "none", suggestedTitle: null, content: "中午吃什么" }),
     ]);
-    const updateCard = screen.getAllByTestId("suggestion-card")[0];
-    fireEvent.click(within(updateCard).getByRole("button", { name: /周报改成周五发/ }));
-    fireEvent.click(within(updateCard).getByText("◎ 应用更新"));
+    selectRow("m2");
+    fireEvent.click(screen.getByText("◎ 应用更新"));
     await flush();
     expect(host.calls).toContainEqual({ command: "reviewApplyUpdate", params: { messageId: "m2" } });
-    // 无动作建议进无信号组（建议卡呈现，U2 原型 a-none 卡）——展开后无捕捉/逃走键，
-    // 仅桌面 F 键语义的 ⚡ 强制捕捉（AI 判无信号时人工拍板）
-    expect(screen.getByText("中午吃什么")).toBeTruthy();
-    const noneCard = screen.getAllByTestId("suggestion-card")[1];
-    fireEvent.click(within(noneCard).getByRole("button", { name: /中午吃什么/ }));
-    expect(within(noneCard).queryByText("◎ 捕捉")).toBeNull();
-    expect(within(noneCard).queryByText("◎ 应用更新")).toBeNull();
-    expect(within(noneCard).queryByText("✕ 逃走")).toBeNull();
-    fireEvent.click(within(noneCard).getByText("⚡ 强制捕捉"));
+    // 无动作建议进无信号组——无捕捉/应用更新/逃走键，仅桌面 F 键语义的 ⚡ 强制捕捉
+    selectRow("m3");
+    const detail = screen.getByTestId("message-detail");
+    expect(detail.textContent).toContain("中午吃什么");
+    expect(within(detail).queryByText("◎ 捕捉")).toBeNull();
+    expect(within(detail).queryByText("◎ 应用更新")).toBeNull();
+    expect(within(detail).queryByText("✕ 逃走")).toBeNull();
+    fireEvent.click(within(detail).getByText(/⚡ 强制捕捉/));
     await flush();
     expect(host.calls).toContainEqual({ command: "forceCapture", params: { messageId: "m3" } });
   });
 
-  it("逃走展开 6 原因码菜单 → reviewDismiss(reasonCode)", async () => {
+  it("✕ 逃走一步直发（reasonCode=other）；▾ 展开 6 原因码菜单 → reviewDismiss(reasonCode)", async () => {
     const { host } = renderRadio([makeMessage({ messageId: "m4" })]);
-    fireEvent.click(screen.getByText(/帮我看一下周报的数字/));
+    selectRow("m4");
     fireEvent.click(screen.getByText("✕ 逃走"));
-    fireEvent.click(screen.getByText("已有类似待办"));
     await flush();
     expect(host.calls).toContainEqual({
       command: "reviewDismiss",
-      params: { messageId: "m4", reasonCode: "duplicate" },
+      params: { messageId: "m4", reasonCode: "other" },
+    });
+    cleanup();
+    const host2 = mockHost();
+    render(
+      <ClientProvider client={host2}>
+        <I18nProvider locale="zh-Hans">
+          <RadioSegment
+            data={makeData({ messages: [makeMessage({ messageId: "m4b" })] })}
+            readonly={false}
+            onChanged={() => undefined}
+          />
+        </I18nProvider>
+      </ClientProvider>,
+    );
+    fireEvent.click(screen.getByRole("button", { name: "为什么逃走？（帮 AI 越判越准）" }));
+    fireEvent.click(screen.getByText("已有类似待办"));
+    await flush();
+    expect(host2.calls).toContainEqual({
+      command: "reviewDismiss",
+      params: { messageId: "m4b", reasonCode: "duplicate" },
     });
   });
 
@@ -134,7 +159,7 @@ describe("SuggestionCard", () => {
       suggestedTags: [{ name: "周报", dimension: "topic", isNew: true }],
     });
     renderRadio([message]);
-    fireEvent.click(screen.getByText(/帮我看一下周报的数字/));
+    selectRow("m5");
     const accept = screen.getByTitle("＋ 接受新标签提议");
     expect(accept.getAttribute("aria-pressed")).toBe("false");
     fireEvent.click(accept);
@@ -145,7 +170,7 @@ describe("SuggestionCard", () => {
     // 另一形态先落库：host 侧 reviewStatus 已非 pending，CAS affected=0
     const host = mockHost({ messages: [makeMessage({ messageId: "m1", reviewStatus: "accepted" })] });
     renderRadio([makeMessage({ messageId: "m1" })], undefined, undefined, host);
-    fireEvent.click(screen.getByText(/帮我看一下周报的数字/));
+    selectRow("m1");
     fireEvent.click(screen.getByText("◎ 捕捉"));
     await flush();
     expect(host.calls.map((c) => c.command)).toContain("reviewAccept");
@@ -208,11 +233,13 @@ describe("失败组与逃走组", () => {
     expect(host.calls.map((c) => c.command)).toContain("forceDismiss");
   });
 
-  it("逃走留档组默认折叠，展开可 ↩恢复（reviewRestore）", async () => {
+  it("逃走留档组默认折叠，展开选中行 → 右栏 ↩恢复（reviewRestore）", async () => {
     const { host } = renderRadio([makeMessage({ messageId: "e1", reviewStatus: "dismissed", dismissReason: "noise" })]);
     // 组头折叠钮（FeedGroup：caret + 标题 + 计数 + 状态字）；默认折叠，点一次展开
     fireEvent.click(screen.getByRole("button", { name: /已逃走/ }));
-    expect(screen.getByText("闲聊/噪音")).toBeTruthy();
+    selectRow("e1");
+    // 详情条：AI 原判 + 逃走原因（桌面 dim-banner 同构）
+    expect(screen.getByTestId("message-detail").textContent).toContain("闲聊/噪音");
     fireEvent.click(screen.getByText("↩ 恢复"));
     await flush();
     expect(host.calls).toContainEqual({ command: "reviewRestore", params: { messageId: "e1" } });

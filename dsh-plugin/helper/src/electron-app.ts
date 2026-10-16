@@ -24,6 +24,10 @@ export interface ElectronAppOptions {
 /** 置顶看门狗间隔（AD §3.3：每 5s 重申） */
 const ALWAYS_ON_TOP_REASSERT_MS = 5_000;
 
+// accessory 激活策略（app.dock.hide，仅 macOS 有 dock 面）：桌宠是纯悬浮窗，
+// 不该在 Dock 占一个图标位（Electron 默认按 Electron.app bundle 出图标）
+app.dock?.hide();
+
 export function startElectronApp(runtime: HelperRuntime, opts: ElectronAppOptions): void {
   injectCatalog(runtime, path.join(__dirname, "renderer", "pokemon-catalog.json"));
   app.whenReady().then(() => {

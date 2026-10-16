@@ -1,12 +1,9 @@
 /**
- * 建议流：工具栏（电波搜索 + ⏱按状态/📡按频道视图切换，桌面 RadioTab parity）+
- * 折叠分组（桌面 ImListGroup 同构，collapsed Set 集中管理）——状态模式五分组：
- * 待处理组（复选框 + 内联展开建议卡 + BatchBar 批量条：全选待处理/只选高置信）/
- * 判定失败组（一键重判 · 强制捕捉/逃走）/ 无动作组（组头「✕ 一键清空」= 整组批逃
- * noise）/ 已捕捉组、已逃走组（默认折叠；逃走留档 ↩恢复）。频道模式整列切
- * ChannelFeed（按会话聚拢，信号在前、已处理垫底，组同样可折叠）。键盘流（U9：仅
- * 插件页面聚焦域内）：J/K 移动、Esc 收起展开卡。
- * 失败组/批量条/已捕捉已逃走组拆件 → FailedGroup / BatchBar / ArchivedGroups。
+ * 电波列表（左栏，桌面 RadioTab .im-left 同构）：工具栏（搜索 + ⏱/📡 视图切换）+
+ * 折叠分组行列表（状态五分组/频道分组，行点击选中——详情在右栏 MessageDetail）+
+ * 底部批量条（全选待处理/只选高置信/批量捕捉/逃走）。分组折叠状态集中管理；
+ * 分诊动作经 host 命令直发（批量）或由右栏操作行承接（单条）。
+ * 失败组/归档组拆件 → FailedGroup / ArchivedGroups；频道模式 → ChannelFeed。
  */
 import { useMemo, useState } from "react";
 import { useClient } from "../clientContext";
@@ -19,7 +16,7 @@ import { BatchBar } from "./BatchBar";
 import { ChannelFeed } from "./ChannelFeed";
 import { FailedGroup } from "./FailedGroup";
 import { FeedGroup } from "./FeedGroup";
-import { SuggestionCard } from "./SuggestionCard";
+import { MessageRow } from "./MessageRow";
 import styles from "./radio.module.css";
 
 /** 视图模式：⏱ 按状态分区 / 📡 按频道聚拢（组件 state，桌面 mode 同构） */
@@ -56,10 +53,15 @@ function filterMessages(messages: RadioMessage[], query: string): RadioMessage[]
 export function SuggestionFeed({
   messages,
   readonly,
+  selectedId,
+  onSelect,
   onChanged,
 }: {
   messages: RadioMessage[];
   readonly: boolean;
+  /** 当前选中电波（右栏详情跟随） */
+  selectedId: string | null;
+  onSelect: (messageId: string) => void;
   onChanged: () => void;
 }): React.JSX.Element {
   const t = useT();
@@ -120,7 +122,7 @@ export function SuggestionFeed({
   }
 
   return (
-    <div className={styles.feedGroup} data-testid="suggestion-feed">
+    <div className={styles.feedColumn} data-testid="suggestion-feed">
       {/* 工具栏：电波搜索 + 视图切换（⏱ 按状态 / 📡 按频道） */}
       <div className={styles.toolbar} data-testid="radio-toolbar">
         <input
@@ -141,107 +143,115 @@ export function SuggestionFeed({
         </div>
       </div>
 
-      {mode === "channel" ? (
-        <ChannelFeed
-          messages={filtered}
-          collapsed={collapsed}
-          onToggleGroup={toggleGroup}
-          readonly={readonly}
-          onChanged={onChanged}
-        />
-      ) : (
-        <>
-          {/* 待处理组 */}
-          {groups.pending.length > 0 && (
-            <FeedGroup
-              testId="pending-group"
-              title={t("im.groupSignal")}
-              count={groups.pending.length}
-              hot
-              collapsed={collapsed.has("pending")}
-              onToggle={() => toggleGroup("pending")}
-            >
-              {groups.pending.map((message) => (
-                <div key={message.messageId} style={{ display: "flex", alignItems: "flex-start" }}>
-                  <label className={styles.selectCheckbox}>
-                    <input
-                      type="checkbox"
-                      checked={selected.has(message.messageId)}
-                      onChange={() => toggleSelect(message.messageId)}
-                      aria-label={t("im.selectAll")}
-                    />
-                  </label>
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <SuggestionCard message={message} readonly={readonly} onChanged={onChanged} />
-                  </div>
-                </div>
-              ))}
-              {/* BatchBar（U13：随待处理组常驻，桌面批量条 parity；未选中时动作钮禁用） */}
-              <BatchBar
-                selected={selected}
-                allChecked={allChecked}
-                readonly={readonly}
-                batchBusy={batchBusy}
-                batchReason={batchReason}
-                onToggleAll={toggleAll}
-                onSelectHighConfidence={selectHighConfidence}
-                onRunBatch={runBatch}
-                onToggleReason={() => setBatchReason((v) => !v)}
-                onClear={() => setSelected(new Set())}
-              />
-            </FeedGroup>
-          )}
-
-          {/* 判定失败组（中性命名 + 一键重判/强制） */}
-          {groups.failed.length > 0 && (
-            <FailedGroup
-              messages={groups.failed}
-              collapsed={collapsed.has("failed")}
-              onToggle={() => toggleGroup("failed")}
-              readonly={readonly}
-              onChanged={onChanged}
-            />
-          )}
-
-          {/* 无动作组（组头一键清空 = 整组确认为噪音；卡内可强制捕捉） */}
-          {groups.none.length > 0 && (
-            <FeedGroup
-              title={t("im.groupNoise")}
-              headTitle={t("im.groupNoiseTitle")}
-              count={groups.none.length}
-              collapsed={collapsed.has("none")}
-              onToggle={() => toggleGroup("none")}
-              actions={
-                <button
-                  type="button"
-                  className={`${ui.button} ${styles.headAction}`}
-                  title={t("im.clearNoiseTitle")}
-                  disabled={readonly || clearBusy}
-                  data-testid="clear-noise"
-                  onClick={() => void clearNoise()}
-                >
-                  {t("im.clearNoise")}
-                </button>
-              }
-            >
-              {groups.none.map((message) => (
-                <SuggestionCard key={message.messageId} message={message} readonly={readonly} onChanged={onChanged} />
-              ))}
-            </FeedGroup>
-          )}
-
-          <ArchivedGroups
-            caught={groups.caught}
-            escaped={groups.escaped}
+      {/* 列表容器（内部滚动，桌面 .im-list-box 同构） */}
+      <div className={styles.listBox}>
+        {mode === "channel" ? (
+          <ChannelFeed
+            messages={filtered}
+            selectedId={selectedId}
+            onSelect={onSelect}
             collapsed={collapsed}
             onToggleGroup={toggleGroup}
-            readonly={readonly}
-            onChanged={onChanged}
           />
-        </>
-      )}
+        ) : (
+          <>
+            {/* 待处理组 */}
+            {groups.pending.length > 0 && (
+              <FeedGroup
+                testId="pending-group"
+                title={t("im.groupSignal")}
+                count={groups.pending.length}
+                hot
+                collapsed={collapsed.has("pending")}
+                onToggle={() => toggleGroup("pending")}
+              >
+                {groups.pending.map((message) => (
+                  <MessageRow
+                    key={message.messageId}
+                    message={message}
+                    variant="signal"
+                    selected={selectedId === message.messageId}
+                    checked={selected.has(message.messageId)}
+                    onSelect={onSelect}
+                    onToggleCheck={toggleSelect}
+                  />
+                ))}
+              </FeedGroup>
+            )}
+
+            {/* 判定失败组（中性命名 + 组头一键重判/强制） */}
+            {groups.failed.length > 0 && (
+              <FailedGroup
+                messages={groups.failed}
+                selectedId={selectedId}
+                onSelect={onSelect}
+                collapsed={collapsed.has("failed")}
+                onToggle={() => toggleGroup("failed")}
+                readonly={readonly}
+                onChanged={onChanged}
+              />
+            )}
+
+            {/* 无动作组（组头一键清空 = 整组确认为噪音） */}
+            {groups.none.length > 0 && (
+              <FeedGroup
+                title={t("im.groupNoise")}
+                headTitle={t("im.groupNoiseTitle")}
+                count={groups.none.length}
+                collapsed={collapsed.has("none")}
+                onToggle={() => toggleGroup("none")}
+                actions={
+                  <button
+                    type="button"
+                    className={`${ui.button} ${styles.headAction}`}
+                    title={t("im.clearNoiseTitle")}
+                    disabled={readonly || clearBusy}
+                    data-testid="clear-noise"
+                    onClick={() => void clearNoise()}
+                  >
+                    {t("im.clearNoise")}
+                  </button>
+                }
+              >
+                {groups.none.map((message) => (
+                  <MessageRow
+                    key={message.messageId}
+                    message={message}
+                    variant="noise"
+                    selected={selectedId === message.messageId}
+                    checked={selected.has(message.messageId)}
+                    onSelect={onSelect}
+                    onToggleCheck={toggleSelect}
+                  />
+                ))}
+              </FeedGroup>
+            )}
+
+            <ArchivedGroups
+              caught={groups.caught}
+              escaped={groups.escaped}
+              selectedId={selectedId}
+              onSelect={onSelect}
+              collapsed={collapsed}
+              onToggleGroup={toggleGroup}
+            />
+          </>
+        )}
+      </div>
+
+      {/* 批量条（左栏底部，桌面 .batch-bar 同位：未选中时动作钮禁用） */}
+      <BatchBar
+        selected={selected}
+        allChecked={allChecked}
+        readonly={readonly}
+        batchBusy={batchBusy}
+        batchReason={batchReason}
+        onToggleAll={toggleAll}
+        onSelectHighConfidence={selectHighConfidence}
+        onRunBatch={runBatch}
+        onToggleReason={() => setBatchReason((v) => !v)}
+        onClear={() => setSelected(new Set())}
+      />
     </div>
   );
 }
-
-export { FailedGroup } from "./FailedGroup";

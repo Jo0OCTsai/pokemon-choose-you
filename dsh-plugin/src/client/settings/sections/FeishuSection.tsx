@@ -13,7 +13,6 @@ import { useT } from "../../i18n";
 import { Select, TextInput } from "../../ui/controls";
 import ui from "../../ui/ui.module.css";
 import type { SectionProps } from "../sectionProps";
-import { FEISHU_KEYS } from "../sectionKeys";
 import { SectionShell } from "../SectionShell";
 import { POLL_INTERVAL_SECS } from "../optionSets";
 import styles from "../settings.module.css";
@@ -78,7 +77,7 @@ export function FeishuSection({
   lastPollAt,
   ...props
 }: SectionProps & { filters: FilterItem[]; lastPollAt?: string | null }): React.JSX.Element {
-  const { draft, saved, onField, onSavedKeys } = props;
+  const { draft, onField } = props;
   const t = useT();
   const client = useClient();
   const [chatList, setChatList] = useState(filters);
@@ -128,13 +127,7 @@ export function FeishuSection({
   }
 
   return (
-    <SectionShell
-      title={`📡 ${t("stabs.feishu")}`}
-      keys={FEISHU_KEYS}
-      draft={draft}
-      saved={saved}
-      onSavedKeys={onSavedKeys}
-    >
+    <SectionShell>
       <FeishuConnCard draft={draft} onField={onField} />
       <div className={ui.card}>
         <h4 className={styles.cardTitle}>{t("feishu.filter.title")}</h4>
@@ -160,16 +153,19 @@ export function FeishuSection({
               {t("feishu.filter.staleOk", { time: (lastPoll ?? "").slice(0, 16).replace("T", " ") })}
             </p>
           ))}
-        <div className={styles.filterRow}>
+        {/* 工具行（桌面 .cf-toolbar 同构）：搜索框伸缩占主宽、三维筛选下拉定宽、控件等高 */}
+        <div className={`${styles.filterRow} ${styles.filterToolbar}`}>
           <TextInput
             ariaLabel={t("feishu.filter.searchLabel")}
             value={query}
             onChange={setQuery}
             placeholder={t("feishu.filter.searchPh")}
+            className={styles.filterSearch}
           />
           <Select
             ariaLabel={t("feishu.filter.chipsLabel")}
             value={effFilter}
+            className={styles.filterSelect}
             options={[
               { value: "all", label: t("feishu.filter.fAll", { n: counts.total }) },
               { value: "pull", label: t("feishu.filter.fPull", { n: counts.pulling }) },
@@ -180,6 +176,7 @@ export function FeishuSection({
           <Select
             ariaLabel={t("feishu.filter.prefChipsLabel")}
             value={prefFilter}
+            className={styles.filterSelect}
             options={[
               { value: "all", label: t("feishu.filter.pAll", { n: counts.total }) },
               { value: "follow", label: t("feishu.filter.fFollow", { n: counts.total - counts.manual }) },
@@ -190,6 +187,7 @@ export function FeishuSection({
           <Select
             ariaLabel={t("feishu.filter.typeChipsLabel")}
             value={typeFilter}
+            className={styles.filterSelect}
             options={[
               {
                 value: "all",

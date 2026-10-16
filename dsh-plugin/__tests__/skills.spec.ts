@@ -41,9 +41,7 @@ describe("技能目录定位（skill_dir_for 同构）", () => {
     expect(skillDirFor("dsh")).toBe(join(homedir(), ".dsh/skills/pokemon-choose-you"));
   });
   it("覆盖值 = 技能根目录（~ 展开；空白忽略回落默认）", () => {
-    expect(skillDirFor("claude-code", "~/custom/skills")).toBe(
-      join(homedir(), "custom/skills/pokemon-choose-you"),
-    );
+    expect(skillDirFor("claude-code", "~/custom/skills")).toBe(join(homedir(), "custom/skills/pokemon-choose-you"));
     expect(skillDirFor("claude-code", "  ")).toBe(join(homedir(), ".claude/skills/pokemon-choose-you"));
   });
   it("未知 kind 且无覆盖 → 带指引错误", () => {
@@ -92,7 +90,10 @@ describe("安装状态与落盘（local_status / local_install 同构）", () =>
     expect(status.installedVersion).toBe(bundledSkillVersion());
     expect(readFileSync(join(dir, "references/commands.md"), "utf8")).toContain("pk");
     // 升级路径：手写旧版本 → 重装返回旧版本号
-    const skMd = readFileSync(join(dir, "SKILL.md"), "utf8").replace(`version: "${bundledSkillVersion()}"`, 'version: "8"');
+    const skMd = readFileSync(join(dir, "SKILL.md"), "utf8").replace(
+      `version: "${bundledSkillVersion()}"`,
+      'version: "8"',
+    );
     writeFileSync(join(dir, "SKILL.md"), skMd);
     const second = localSkillInstall(dir);
     expect(second.previousVersion).toBe("8");

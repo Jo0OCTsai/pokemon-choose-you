@@ -1,48 +1,20 @@
 /**
- * 派发操作：交互/无头双通道（路由确认弹层——可临时改选不回写路由）+ 收口三键 +
- * 取消排队 + 重派（续接）；互斥冲突（DISPATCH_ALREADY_ACTIVE）中性提示不弹窗。
+ * 派发操作（桌面抽屉 .dsp-row 同构）：通道下拉（交互/无头）+ agent 改选下拉（多 agent
+ * 时）+ agent 徽章（SSH 标注）+ 工作目录 + ⚡出发（running/queued 禁用）；排队中/执行中
+ * 另有手动收口行（标记完成/失败/重置——agent 未回传时的救援）。无项目标签/无可用 agent
+ * 给引导 hint；DISPATCH_ALREADY_ACTIVE 中性提示不弹窗。
+ * 呈现拆件 → DispatchRow.tsx（状态徽章/收口行/派发行 + 派生 helper）。
  */
 import { useState } from "react";
 import type { Task } from "../../host/domain/tasks";
 import { useClient } from "../clientContext";
 import { useT } from "../i18n";
 import type { PanelData } from "../model";
-import { Modal } from "../ui/Modal";
 import ui from "../ui/ui.module.css";
+import { DispatchBody, MarkRow, StateBadge } from "./DispatchRow";
 import styles from "./tasks.module.css";
 
-/** 派发操作：交互/无头双通道（路由确认弹层）+ 收口三键 + 取消排队 + 重派 */
-/** 单个派发操作（command 直发或 channel 先弹确认层） */
-interface DispatchOp {
-  labelKey: string;
-  channel?: "interactive" | "headless";
-  command?: string;
-  queuedOnly?: boolean;
-  run?: (client: import("../rpc").HostClient, taskId: number) => Promise<unknown>;
-}
-
-const OPS: readonly DispatchOp[] = [
-  { labelKey: "dispatch.chInteractive", channel: "interactive" },
-  { labelKey: "dispatch.chHeadless", channel: "headless" },
-  { labelKey: "dsh.dispatch.redo", command: "dispatchRedo", run: (c, id) => c.dispatchRedo({ taskId: id }) },
-  {
-    labelKey: "dispatch.markDone",
-    command: "dispatchClose",
-    run: (c, id) => c.dispatchClose({ taskId: id, result: "done" }),
-  },
-  {
-    labelKey: "dispatch.markFailed",
-    command: "dispatchClose",
-    run: (c, id) => c.dispatchClose({ taskId: id, result: "failed" }),
-  },
-  { labelKey: "dispatch.markReset", command: "dispatchReset", run: (c, id) => c.dispatchReset({ taskId: id }) },
-  {
-    labelKey: "dsh.dispatch.cancelQueued",
-    command: "dispatchCancel",
-    queuedOnly: true,
-    run: (c, id) => c.dispatchCancel({ taskId: id }),
-  },
-];
+type Channel = "interactive" | "headless";
 
 export function DispatchOps({
   task,
@@ -57,99 +29,82 @@ export function DispatchOps({
 }): React.JSX.Element {
   const t = useT();
   const client = useClient();
-  const [channel, setChannel] = useState<"interactive" | "headless" | null>(null);
+  const [channel, setChannel] = useState<Channel>("interactive");
   const [busy, setBusy] = useState(false);
   const [conflict, setConflict] = useState<string | null>(null);
+  const [message, setMessage] = useState<string | null>(null);
+  const [dispatchState, setDispatchState] = useState(task.dispatchState);
   const route = data.routes.find((r) => task.tags.some((tag) => tag.name === r.tag));
-  const agentId = route?.agentId ?? "";
+  /** 改选值（预填路由解析结果；空串 = 跟随路由/全局默认） */
+  const [agentId, setAgentId] = useState(route?.agentId ?? "");
+  const agents = (data.agents ?? []).filter((a) => a.enabled);
 
   async function dispatch(): Promise<void> {
-    if (channel === null) {
-      return;
-    }
     setBusy(true);
+    setConflict(null);
+    setMessage(null);
+    const override = agentId !== "" && agentId !== route?.agentId ? { routeOverride: { agentId } } : {};
     const result =
       channel === "interactive"
-        ? await client.dispatchInteractive({ taskId: task.id })
-        : await client.dispatchHeadless({ taskId: task.id });
+        ? await client.dispatchInteractive({ taskId: task.id, ...override })
+        : await client.dispatchHeadless({ taskId: task.id, ...override });
     setBusy(false);
-    setChannel(null);
-    if (!result.ok && result.error.code === "DISPATCH_ALREADY_ACTIVE") {
-      setConflict(t("dsh.toast.dispatchBusy"));
-    } else {
-      setConflict(null);
+    if (!result.ok) {
+      if (result.error.code === "DISPATCH_ALREADY_ACTIVE") {
+        setConflict(t("dsh.toast.dispatchBusy"));
+      } else {
+        setMessage(`❌ ${result.error.message}`);
+      }
+      return;
     }
+    setDispatchState(result.data.state);
     onChanged();
   }
 
-  async function runOp(op: DispatchOp): Promise<void> {
-    if (op.command !== undefined && op.run !== undefined) {
-      setBusy(true);
-      await op.run(client, task.id);
-      setBusy(false);
+  /** 手动收口（救援）：完成/失败/重置 */
+  async function mark(state: "done" | "failed" | "reset"): Promise<void> {
+    setBusy(true);
+    const result =
+      state === "reset"
+        ? await client.dispatchReset({ taskId: task.id })
+        : await client.dispatchClose({ taskId: task.id, result: state });
+    setBusy(false);
+    if (result.ok) {
+      setDispatchState(result.data.state);
       onChanged();
-      return;
     }
-    setChannel(op.channel === "headless" ? "headless" : "interactive");
   }
 
-  const routeInfo =
-    route === undefined
-      ? { agent: t("dispatchCfg.auto"), dir: t("dispatch.dirDefault"), project: t("dsh.dispatch.sourceDefault") }
-      : {
-          agent: agentId === "" ? t("dispatchCfg.auto") : agentId,
-          dir: route.workdir === "" ? t("dispatch.dirDefault") : route.workdir,
-          project: route.tag,
-        };
   return (
     <div data-testid="dispatch-ops">
-      <h4 className={styles.drawerSectionTitle}>{t("dispatch.title")}</h4>
-      <div className={styles.opsRow}>
-        {OPS.map((op) => (
-          <button
-            key={op.labelKey}
-            type="button"
-            className={ui.button}
-            disabled={readonly || busy || (op.queuedOnly === true && task.dispatchState !== "queued")}
-            onClick={() => void runOp(op)}
-          >
-            {t(op.labelKey)}
-          </button>
-        ))}
-      </div>
+      <h4 className={styles.drawerSectionTitle}>
+        {t("dispatch.title")} <StateBadge state={dispatchState} />
+      </h4>
+      <MarkRow
+        state={dispatchState}
+        readonly={readonly}
+        busy={busy}
+        onMark={(state: "done" | "failed" | "reset") => void mark(state)}
+      />
+      <DispatchBody
+        task={task}
+        route={route}
+        agents={agents}
+        channel={channel}
+        agentId={agentId}
+        busy={busy}
+        dispatchState={dispatchState}
+        readonly={readonly}
+        onChannel={setChannel}
+        onAgent={setAgentId}
+        onDispatch={() => void dispatch()}
+      />
       {conflict !== null && (
         <div role="status" className={ui.muted}>
           {conflict}
         </div>
       )}
-      {channel !== null && (
-        <DispatchConfirm routeInfo={routeInfo} onCancel={() => setChannel(null)} onConfirm={() => void dispatch()} />
-      )}
+      {message !== null && <p className={styles.drawerErr}>{message}</p>}
     </div>
-  );
-}
-
-/** 路由确认弹层（可临时改选不回写路由；交互通道在终端面板启动说明） */
-function DispatchConfirm({
-  routeInfo,
-  onCancel,
-  onConfirm,
-}: {
-  routeInfo: { agent: string; dir: string; project: string };
-  onCancel: () => void;
-  onConfirm: () => void;
-}): React.JSX.Element {
-  const t = useT();
-  return (
-    <Modal
-      title={t("dispatch.title")}
-      actions={[
-        { label: t("cancel"), onChoose: onCancel },
-        { label: t("dispatch.go"), onChoose: onConfirm, variant: "primary" },
-      ]}
-      onClose={onCancel}
-    >
-      {t("dsh.dispatch.confirm", { ...routeInfo, scope: t("dsh.dispatch.scopeLocal") })}
-    </Modal>
   );
 }

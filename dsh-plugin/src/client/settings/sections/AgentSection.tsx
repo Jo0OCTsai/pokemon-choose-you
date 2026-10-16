@@ -6,8 +6,9 @@
  * - 项目派发路由（routeUpsert 实体 CRUD）/ 自动派发/并发/worktree（保存制）
  * - PromptOverrideEditor（4 处提示词查看/编辑覆盖/恢复默认——自持保存 + hint 自隐 4s）
  */
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import type { AgentConfig } from "../../../host/domain/settings";
+import type { Tag } from "../../../host/domain/vocabulary-tags";
 import { useClient } from "../../clientContext";
 import { useT } from "../../i18n";
 import { ScopeBadge, Select, Toggle } from "../../ui/controls";
@@ -16,7 +17,6 @@ import ui from "../../ui/ui.module.css";
 import { AgentConfigCard, RouteRow } from "./AgentConfigCard";
 import { PromptOverrideEditor } from "./PromptOverrideEditor";
 import type { SectionProps } from "../sectionProps";
-import { AGENT_KEYS } from "../sectionKeys";
 import type { DispatchRoute } from "../../rpc";
 import { SectionShell } from "../SectionShell";
 import styles from "../settings.module.css";
@@ -46,15 +46,18 @@ const PRESET_OPTIONS = (t: (key: string) => string): Array<{ value: string; labe
 export function AgentSection({
   agents,
   routes,
+  tags,
   promptSpecs,
   ...props
 }: SectionProps & {
   agents: AgentConfig[];
   routes: DispatchRoute[];
+  /** 标签清单（项目派发行 = 全部 project 维度标签，桌面 TagDispatchCard 同构） */
+  tags: Tag[];
   /** promptList 结果（适配层预取注入；空数组时面板内自取） */
   promptSpecs: PromptSpecInfo[];
 }): React.JSX.Element {
-  const { draft, saved, onField, onSavedKeys } = props;
+  const { draft, onField } = props;
   const t = useT();
   const client = useClient();
   const [agentList, setAgentList] = useState(agents);
@@ -77,6 +80,15 @@ export function AgentSection({
     { value: "", label: t("ai.primaryNone") },
     ...agentList.map((a) => ({ value: a.id, label: a.name })),
   ];
+
+  /** 项目派发行（桌面 TagDispatchCard 同构：全部 project 维度标签各一行一目了然，
+   * 已配置路由按标签名并入；未配置行 = 空路由，agent 留空即按全局默认派发） */
+  const routeRows = useMemo(() => {
+    const byTag = new Map(routes.map((route) => [route.tag, route]));
+    return tags
+      .filter((tag) => tag.dimension === "project")
+      .map((tag) => byTag.get(tag.name) ?? { tag: tag.name, agentId: "", workdir: "", context: "" });
+  }, [routes, tags]);
 
   /** 预设名已被占用时加序号后缀（同类型配多个时列表仍可辨——主应用 dedupeName 同口径） */
   function dedupeName(base: string): string {
@@ -113,13 +125,7 @@ export function AgentSection({
   }
 
   return (
-    <SectionShell
-      title={`🤖 ${t("stabs.agents")}`}
-      keys={AGENT_KEYS}
-      draft={draft}
-      saved={saved}
-      onSavedKeys={onSavedKeys}
-    >
+    <SectionShell>
       <div className={ui.card}>
         <h4 className={styles.cardTitle}>{t("ai.title")}</h4>
         <p className={styles.cardHint}>{t("ai.hint")}</p>
@@ -192,10 +198,10 @@ export function AgentSection({
       <div className={ui.card}>
         <h4 className={styles.cardTitle}>{t("tagDispatch.title")}</h4>
         <p className={styles.cardHint}>{t("tagDispatch.hint")}</p>
-        {routes.length === 0 ? (
+        {routeRows.length === 0 ? (
           <p className={ui.muted}>{t("tagDispatch.empty")}</p>
         ) : (
-          routes.map((route) => <RouteRow key={route.tag} route={route} agents={agentList} />)
+          routeRows.map((route) => <RouteRow key={route.tag} route={route} agents={agentList} />)
         )}
         <p className={styles.cardHint}>{t("tagDispatch.foot")}</p>
       </div>

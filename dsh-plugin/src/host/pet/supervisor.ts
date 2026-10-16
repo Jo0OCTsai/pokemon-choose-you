@@ -57,13 +57,18 @@ export function nodeScriptSpawner(scriptPath: string, env: Record<string, string
  * electron 形态 spawner（真实 helper 拉起）：入口必须是 dist/main.js **文件**——
  * 传 dist 目录时 Electron default_app 因目录内无 package.json/index.js 解析失败，
  * 弹原生错误框后 exit(1)（supervisor 再每秒重启成死循环，桌宠永远不显示）。
+ * env 剥离 ELECTRON_RUN_AS_NODE——desktop 宿主进程自身以 node 模式跑 Electron
+ * （进程 env 带该变量），完整继承会把 helper 的 Electron 二进制也打成纯 node：
+ * import electron 即崩、进程秒退，supervisor 静默死循环（桌宠不显示真机根因）。
  */
 export function electronSpawner(electronBin: string, helperMain: string): HelperSpawner {
   return {
     spawn(args: string[]) {
+      const env = { ...process.env };
+      delete env.ELECTRON_RUN_AS_NODE;
       const child = spawn(electronBin, [helperMain, ...args], {
         stdio: ["pipe", "pipe", "pipe"],
-        env: { ...process.env },
+        env,
       });
       return {
         pid: child.pid,

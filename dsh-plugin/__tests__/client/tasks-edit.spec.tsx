@@ -178,8 +178,8 @@ describe("TaskEditModal 标签维度规则", () => {
   });
 });
 
-describe("TaskCard 溢出菜单编辑入口", () => {
-  it("「…」菜单含编辑项 → onEdit 回调携任务；未传 onEdit 不渲染编辑项", () => {
+describe("TaskCard ✎ 编辑入口（内联按钮，桌面同构）", () => {
+  it("✎ 钮 → onEdit 回调携任务；未传 onEdit 不渲染编辑钮", () => {
     const onEdit = vi.fn();
     const task = makeTask({ id: 3 });
     render(
@@ -196,11 +196,10 @@ describe("TaskCard 溢出菜单编辑入口", () => {
         </I18nProvider>
       </ClientProvider>,
     );
-    fireEvent.click(screen.getByLabelText("查看详情"));
-    fireEvent.click(screen.getByText("✎ 编辑"));
+    fireEvent.click(screen.getByTitle("编辑"));
     expect(onEdit).toHaveBeenCalledWith(task);
     cleanup();
-    // 缺省 onEdit：菜单不含编辑项
+    // 缺省 onEdit：不渲染编辑钮
     render(
       <ClientProvider client={mockHost()}>
         <I18nProvider locale="zh-Hans">
@@ -208,7 +207,6 @@ describe("TaskCard 溢出菜单编辑入口", () => {
         </I18nProvider>
       </ClientProvider>,
     );
-    fireEvent.click(screen.getByLabelText("查看详情"));
-    expect(screen.queryByText("✎ 编辑")).toBeNull();
+    expect(screen.queryByTitle("编辑")).toBeNull();
   });
 });

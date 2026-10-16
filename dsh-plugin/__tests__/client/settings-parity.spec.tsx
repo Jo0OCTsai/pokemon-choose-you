@@ -19,7 +19,7 @@ afterEach(cleanup);
 vi.useFakeTimers();
 
 describe("桌宠分区对齐（主宝可梦搜索 + 台词分组编辑）", () => {
-  it("主宝可梦：搜索弹窗选中写裸 key，清除回到「跟随第一个分类」", async () => {
+  it("主宝可梦：下拉搜索选中写裸 key，清空档回到「跟随第一个分类」", async () => {
     const data = makeData();
     data.pokemonSearch = async (q) =>
       q === "" ? [] : [{ key: "togepi", name: "波克比", number: 175, english: "Togepi" }];
@@ -28,24 +28,25 @@ describe("桌宠分区对齐（主宝可梦搜索 + 台词分组编辑）", () =
     const page = getPage("pets");
     const mainRow = within(page).getByTestId("main-pokemon-row");
     expect(mainRow.textContent).toContain("跟随第一个分类");
-    fireEvent.click(within(mainRow).getByText("搜索宝可梦：名 / 编号 / 英文名"));
-    const dialog = screen.getByRole("dialog");
-    fireEvent.change(within(dialog).getByLabelText("搜索宝可梦（1025 只 · 名称 / 编号 / 英文名）"), {
+    // 展开选择器（按钮 aria-label = 主宝可梦）→ 搜索 → 点结果行（桌面 PokemonPicker 同交互）
+    fireEvent.click(within(mainRow).getByLabelText("主宝可梦"));
+    fireEvent.change(within(mainRow).getByLabelText("搜索宝可梦（1025 只 · 名称 / 编号 / 英文名）"), {
       target: { value: "波克比" },
     });
     // 搜索 promise 的 setState 在 act 外排队——act 内冲一把微任务再取结果
     await act(async () => {
       await vi.runAllTimersAsync();
     });
-    fireEvent.click(within(dialog).getByText(/波克比/));
+    fireEvent.click(within(mainRow).getByText(/波克比/));
     expect(within(page).getByTestId("main-pokemon-row").textContent).toContain("波克比");
     // 保存 → main_pokemon 存 PokeAPI 裸 key
-    fireEvent.click(within(page).getAllByTestId("section-save")[0]);
+    fireEvent.click(screen.getByTestId("section-save"));
     await vi.runAllTimersAsync();
     const write = host.calls.find((c) => c.command === "configWrite");
     expect(write?.params).toEqual({ keyValues: { main_pokemon: "togepi" } });
-    // 清除 → 回到「跟随第一个分类」
-    fireEvent.click(within(page).getByTestId("main-pokemon-row").querySelectorAll("button")[1]);
+    // 清空档（allowEmptyLabel）→ 回到「跟随第一个分类」
+    fireEvent.click(within(mainRow).getByLabelText("主宝可梦"));
+    fireEvent.click(within(mainRow).getByText("跟随第一个分类"));
     expect(within(page).getByTestId("main-pokemon-row").textContent).toContain("跟随第一个分类");
   });
 
@@ -56,28 +57,27 @@ describe("桌宠分区对齐（主宝可梦搜索 + 台词分组编辑）", () =
     gotoSection("桌宠");
     const page = getPage("pets");
     // 默认选中皮卡丘（主宝可梦未设）——textarea 只显示该精灵的台词
-    const editor = within(page).getByLabelText("🎙 宝可梦台词", { selector: "textarea" }) as HTMLTextAreaElement;
-    expect(editor.value).toContain("皮卡皮卡！");
-    // 切到伊布 → 跟随已保存内容
-    fireEvent.change(within(page).getByLabelText("🎙 宝可梦台词", { selector: "select" }), {
-      target: { value: "eevee" },
+    const editor = () => within(page).getByLabelText("🎙 宝可梦台词", { selector: "textarea" }) as HTMLTextAreaElement;
+    const quotesButton = () => within(page).getByLabelText("🎙 宝可梦台词", { selector: "button" });
+    expect(editor().value).toContain("皮卡皮卡！");
+    // 切到伊布：展开台词选择器（本地名录兜底，空查询列内置 6 只）→ 点伊布行
+    fireEvent.click(quotesButton());
+    await act(async () => {
+      await vi.runAllTimersAsync();
     });
-    expect((within(page).getByLabelText("🎙 宝可梦台词", { selector: "textarea" }) as HTMLTextAreaElement).value).toBe(
-      "伊布台词",
-    );
+    fireEvent.click(within(page).getByText("伊布"));
+    expect(editor().value).toBe("伊布台词");
     // 改写伊布台词 → 皮卡丘台词不受影响（merge 保留）
-    fireEvent.change(within(page).getByLabelText("🎙 宝可梦台词", { selector: "textarea" }), {
-      target: { value: "改写伊布" },
+    fireEvent.change(editor(), { target: { value: "改写伊布" } });
+    fireEvent.click(quotesButton());
+    await act(async () => {
+      await vi.runAllTimersAsync();
     });
-    fireEvent.change(within(page).getByLabelText("🎙 宝可梦台词", { selector: "select" }), {
-      target: { value: "pikachu" },
-    });
-    expect(
-      (within(page).getByLabelText("🎙 宝可梦台词", { selector: "textarea" }) as HTMLTextAreaElement).value,
-    ).toContain("皮卡皮卡！");
+    fireEvent.click(within(page).getByText("皮卡丘"));
+    expect(editor().value).toContain("皮卡皮卡！");
     // 清空皮卡丘台词 = 删除该 key；保存后 pokemon_quotes 只剩伊布
-    fireEvent.change(within(page).getByLabelText("🎙 宝可梦台词", { selector: "textarea" }), { target: { value: "" } });
-    fireEvent.click(within(page).getAllByTestId("section-save")[0]);
+    fireEvent.change(editor(), { target: { value: "" } });
+    fireEvent.click(screen.getByTestId("section-save"));
     await vi.runAllTimersAsync();
     const write = host.calls.find((c) => c.command === "configWrite");
     expect(write?.params).toEqual({ keyValues: { pokemon_quotes: JSON.stringify({ eevee: "改写伊布" }) } });

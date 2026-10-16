@@ -7,7 +7,6 @@ import { useT, type Locale } from "../../i18n";
 import { Select, Toggle } from "../../ui/controls";
 import ui from "../../ui/ui.module.css";
 import type { SectionProps } from "../sectionProps";
-import { DISPLAY_KEYS } from "../sectionKeys";
 import { SectionShell } from "../SectionShell";
 import { DATE_FORMATS } from "../optionSets";
 import styles from "../settings.module.css";
@@ -31,16 +30,10 @@ export function DisplaySection({
   onLocalePreview,
   ...props
 }: SectionProps & { onLocalePreview?: (locale: Locale) => void }): React.JSX.Element {
-  const { draft, saved, onField, onSavedKeys } = props;
+  const { draft, onField } = props;
   const t = useT();
   return (
-    <SectionShell
-      title={`👀 ${t("stabs.display")}`}
-      keys={DISPLAY_KEYS}
-      draft={draft}
-      saved={saved}
-      onSavedKeys={onSavedKeys}
-    >
+    <SectionShell>
       <div className={ui.card}>
         <h4 className={styles.cardTitle}>{t("display.title")}</h4>
         <Select

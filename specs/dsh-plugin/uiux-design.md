@@ -1,5 +1,13 @@
 # dsh 插件形态（第二形态）UIUX 设计
 
+> **追记（2026-10-15，用户裁决：桌面 parity 全量对齐）**：本文档中与主应用布局/交互不一致的偏差点已按「布局与 uiux 跟桌面 app 完全统一（仅视觉样式保留 dsh 皮肤）」覆盖重做，**以本次追记为准**：
+> - **U2 单卡展开作废**：收音机由「纵向流 + 建议卡内联展开」改为桌面 RadioTab 同构双栏（左列表行选中 + 右详情面板固定操作行 + 底部通栏捕捉条），组件面 = MessageRow / MessageDetail / MessageActions / useRadioKeyboard（SuggestionCard 删除）。
+> - **U12 详情抽屉放生危险区作废**：放生唯一入口回到任务卡 ✕（桌面同位），TaskDetailDrawer 为只读属性总览 kv 栅格 + 跟进/派发/时间线/历史；DispatchOps 改桌面 dsp-row 同构（通道/agent 下拉 + ⚡派发 + queued/running 手动收口行）。
+> - **卡尾「…」溢出菜单作废**：任务卡操作改桌面内联按钮行（出发/暂停 · 📅改期弹窗 · ✎ · ✔ · 🚪 · ✕），标签 chips（⛳项目黄 / # 其他）补齐。
+> - **背包分区重复标题移除**：SectionShell 不再渲染与 tab 同名的分区标题（保存行右对齐）；提示词面板改「面板头折叠 + 编辑直达」（不再点两次编辑）；备份卡保留份数/选择框/立即备份同行；飞书会话过滤工具行等高 + 搜索框伸缩占主宽。
+>
+> 下文涉及以上各点的章节为历史记录，不再代表现状。
+
 > 输入：`requirements.md`（SDD 定稿，含 16 处【待确认 D#】）、`design.md`（方案 B 方向）、`README.md`（注意力友好七原则）、`docs/design/DESIGN_SYSTEM.md`、`docs/design/COPYWRITING.md`、`docs/design/PET_INTERACTION_DESIGN.md`、`src/views/`（TaskTab / RadioTab / SessionsTab / SettingsTab 信息架构参照）。
 >
 > **双表面体系（本文档的组织轴）**：dsh 形态的 UI 由两个约束完全不同的表面构成——

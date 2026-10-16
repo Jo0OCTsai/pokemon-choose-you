@@ -12,7 +12,7 @@ import { I18nProvider } from "../../src/client/i18n";
 import { ConfirmDialog, Modal } from "../../src/client/ui/Modal";
 import { StatusDot } from "../../src/client/ui/controls";
 import { UndoToast, UNDO_WINDOW_MS } from "../../src/client/ui/Toast";
-import { SuggestionCard } from "../../src/client/radio/SuggestionCard";
+import { MessageRow } from "../../src/client/radio/MessageRow";
 import { mockHost } from "../../src/client/rpc";
 import { makeMessage } from "./fixtures";
 
@@ -100,26 +100,25 @@ describe("② 弹层 focus trap + Esc + 焦点回归", () => {
 });
 
 describe("③ 置信档位与健康状态非颜色冗余", () => {
-  it("建议卡置信三档：边框形色（data-confidence）+ 行内文字档位标（高/中/低置信）", () => {
-    const host = mockHost();
-    const card = (confidence: "high" | "medium" | "low") => (
-      <ClientProvider client={host}>
-        <I18nProvider locale="zh-Hans">
-          <SuggestionCard
-            message={makeMessage({ messageId: `c-${confidence}`, confidence })}
-            readonly={false}
-            onChanged={() => undefined}
-          />
-        </I18nProvider>
-      </ClientProvider>
-    );
+  it("电波行置信三档：色点形色（data-conf）+ 可访问名文字档位（高/中/低置信）", () => {
     const labels = { high: "高置信", medium: "中置信", low: "低置信" };
     for (const confidence of ["high", "medium", "low"] as const) {
       cleanup();
-      render(card(confidence));
-      const node = screen.getByTestId("suggestion-card");
-      expect(node.getAttribute("data-confidence")).toBe(confidence);
-      expect(screen.getByText(labels[confidence])).toBeTruthy();
+      render(
+        <I18nProvider locale="zh-Hans">
+          <MessageRow
+            message={makeMessage({ messageId: `c-${confidence}`, confidence })}
+            variant="signal"
+            selected={false}
+            onSelect={() => undefined}
+          />
+        </I18nProvider>,
+      );
+      const dot = document.querySelector<HTMLElement>("[data-conf]");
+      expect(dot?.getAttribute("data-conf")).toBe(confidence);
+      // 色点携带文字档位（aria-label + title）——色觉不依赖
+      expect(dot?.getAttribute("aria-label")).toBe(labels[confidence]);
+      expect(dot?.getAttribute("title")).toBe(labels[confidence]);
     }
   });
 
@@ -163,11 +162,11 @@ describe("④ 命中区 ≥32px（对交付 CSS 源断言）", () => {
     }
   });
 
-  it("分段导航 / 分区选单 / chip 按钮 / 三态组 / 建议卡复选与标签接受 ≥32px", () => {
+  it("分段导航 / 分区选单 / chip 按钮 / 三态组 / 电波行复选与标签接受 ≥32px", () => {
     const checks: Array<[string, string[]]> = [
       ["app/app.module.css", [".segmentButton"]],
-      ["settings/settings.module.css", [".sectionNavButton", ".saveButton", ".triStateButton", ".pokeResultRow"]],
-      ["radio/radio.module.css", [".selectCheckbox", ".tagProposalAccept"]],
+      ["settings/settings.module.css", [".sectionNavButton", ".saveButton", ".triStateButton", ".pkButton"]],
+      ["radio/radio.module.css", [".rowCheck", ".tagProposalAccept"]],
       ["chip/chip.module.css", [".chip", ".chipButton"]],
       ["tasks/tasks.module.css", [".filterButton", ".taskCard"]],
     ];
@@ -202,11 +201,13 @@ function effective(source: string, cls: string): string {
   return `${block}\n${cssBlock(source, `.${composed[1]}`)}`;
 }
 
-/** 解析块内 min-height/min-width 的最小值（px） */
+/** 解析块内 min-height/min-width 的最小值（px；值可为 var(--token, 32px)——取回落字面量） */
 function minSize(block: string): number {
-  const heights = [...block.matchAll(/min-(?:height|width)\s*:\s*(\d+)px/g)].map((m) => Number(m[1]));
+  const heights = [...block.matchAll(/min-(?:height|width)\s*:\s*(?:var\([\w-]+,\s*)?(\d+)px/g)].map((m) =>
+    Number(m[1]),
+  );
   if (heights.length === 0) {
-    const height = /(?:^|;)\s*(?:height|width)\s*:\s*(\d+)px/.exec(block);
+    const height = /(?:^|;)\s*(?:height|width)\s*:\s*(?:var\([\w-]+,\s*)?(\d+)px/.exec(block);
     return height === null ? 0 : Number(height[1]);
   }
   return Math.min(...heights);

@@ -114,19 +114,25 @@ export function AgentConfigCard({
   );
 }
 
-/** 项目派发路由行（routeUpsert 实体 CRUD；桌面 dispatch-block 同构：头行标签+上下文，
- * 128px 标签列字段行 = 派发 agent 下拉 / 工作目录） */
+/** 项目派发路由行（routeUpsert 实体 CRUD；桌面 dispatch-block 同构：头行标签+配置状态，
+ * 128px 标签列字段行 = 派发 agent 下拉 / 工作目录。configured 口径同桌面：agent 或目录
+ * 任一指定 = 已配置；都留空按全局默认派发） */
 export function RouteRow({ route, agents }: { route: DispatchRoute; agents: AgentConfig[] }): React.JSX.Element {
   const t = useT();
   const client = useClient();
   const [workdir, setWorkdir] = useState(route.workdir);
   const [agentId, setAgentId] = useState(route.agentId);
+  const configured = route.agentId.trim() !== "" || route.workdir.trim() !== "";
   return (
     <div className={styles.entityCardStack} data-testid="route-row">
       <div className={styles.entityLine}>
         <b>{route.tag}</b>
         <span className={`${styles.grow} ${ui.muted}`}>
-          {route.context === "" ? t("tagDispatch.unconfigured") : route.context}
+          {configured
+            ? route.context !== ""
+              ? route.context
+              : t("tagDispatch.configured")
+            : t("tagDispatch.unconfigured")}
         </span>
         <button
           type="button"

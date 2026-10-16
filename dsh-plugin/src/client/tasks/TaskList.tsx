@@ -13,6 +13,7 @@ export function TaskList({
   tasks,
   categories,
   readonly,
+  allowSchedule = false,
   onOpen,
   onChanged,
   onEdit,
@@ -20,9 +21,11 @@ export function TaskList({
   tasks: Task[];
   categories: Category[];
   readonly: boolean;
+  /** 草丛（inbox）卡显示改期入口——桌面 allow-schedule 同口径 */
+  allowSchedule?: boolean;
   onOpen: (taskId: number) => void;
   onChanged: () => void;
-  /** 溢出菜单「编辑」入口（缺省 = 不渲染编辑项，如只读快照面） */
+  /** ✎ 编辑入口（缺省 = 不渲染编辑钮，如只读快照面） */
   onEdit?: (task: Task) => void;
 }): React.JSX.Element {
   return (
@@ -33,6 +36,7 @@ export function TaskList({
           task={task}
           category={categories.find((c) => c.id === task.categoryId)}
           readonly={readonly}
+          allowSchedule={allowSchedule}
           onOpen={() => onOpen(task.id)}
           onChanged={onChanged}
           onEdit={onEdit !== undefined ? () => onEdit(task) : undefined}

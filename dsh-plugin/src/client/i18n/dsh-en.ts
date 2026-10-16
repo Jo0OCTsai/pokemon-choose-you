@@ -111,9 +111,6 @@ export default {
     leaveDiscard: "Discard",
     leaveStay: "Stay",
     judgeSource: "Currently consuming results from the main app (dsh doesn't judge on its own)",
-    dualFormTitle: "Two forms, one database",
-    dualFormBody:
-      "Two forms, one database & settings — suggestions never duplicate. Both desktop pets can coexist (hide either). Reminders come from the main app when it's running. Prompts are editable on both sides; simultaneous edits prompt a refresh to the latest. Radio chat filters are editable in Backpack · Feishu.",
     dbStatusTitle: "Todo database status",
     dbStatusQuery: "Query database status",
     dbUserVersion: "Schema v{v} · {mode}",
@@ -132,6 +129,7 @@ export default {
     placeholder: "Search Pokémon (1025 · name / No. / English)",
     searching: "Searching…",
     noResult: "No match — try another name or number",
+    bundled: "Bundled",
   },
   category: {
     releaseConfirm:

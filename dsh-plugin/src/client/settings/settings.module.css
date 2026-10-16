@@ -14,7 +14,8 @@
   padding-bottom: 4px;
 }
 .sectionNavButton {
-  min-height: 32px;
+  box-sizing: border-box;
+  min-height: var(--pcy-control-h, 32px);
   padding: 4px 14px;
   border: 1px solid var(--dsw-alias-border-l1, #e3e7ec);
   border-radius: 999px;
@@ -39,22 +40,31 @@
   outline-offset: 1px;
 }
 
-/* 分区整页标题行（保存按钮右侧，U21；标题行 2px 分隔——原型 sec-title-row） */
-.sectionHeader {
+/* 分区选单行（保存控件同行靠右，无独立保存行——桌面「标题行右侧保存」同位） */
+.settingsHeadRow {
   display: flex;
   align-items: center;
   gap: 10px;
-  border-bottom: 2px solid var(--dsw-alias-border-l1, #e3e7ec);
-  padding-bottom: 10px;
+  flex-wrap: wrap;
 }
-.sectionHeading {
-  font-size: 15px;
-  font-weight: 700;
+.settingsHeadRow .sectionNav {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+/* 保存控件组：display:contents 让 hint/按钮/失败行直接并入选单行 flex 排布 */
+.saveControls {
+  display: contents;
+}
+/* 失败/防呆行：独占一行（换行到选单行下方，不挤压选单） */
+.saveFailWrap {
+  flex-basis: 100%;
+}
+.saveFailWrap .saveFailHint {
   margin: 0;
-  flex: 1;
 }
 .saveButton {
-  min-height: 32px;
+  box-sizing: border-box;
+  min-height: var(--pcy-control-h, 32px);
   padding: 4px 14px;
   position: relative;
   border-radius: 8px;
@@ -104,8 +114,10 @@
 }
 
 /* 分区整页布局（原型 sectionpage：卡片容器承载整页表单；920px 上限 + 水平居中——
- * 桌面 .set-card 同口径，宽宿主下不留右侧死区） */
+ * 桌面 .set-card 同口径，宽宿主下不留右侧死区。box-sizing 显式声明——宿主无全局
+ * 复位，width:100% + padding/border 不收口会右溢出） */
 .sectionPage {
+  box-sizing: border-box;
   display: flex;
   flex-direction: column;
   gap: 14px;
@@ -127,6 +139,16 @@
   color: var(--dsw-alias-label-secondary, #57606a);
   margin: 0;
   line-height: 1.6;
+  /* 说明文案紧贴上一行控件（桌面 SettingRow label+desc gap 2px 同口径；卡 gap 10 − 8） */
+  margin-top: -8px;
+}
+/* 卡标题下的区块副标题不收紧过头（桌面 .set-sub 对 h3 约 6px） */
+.cardTitle + .cardHint {
+  margin-top: -4px;
+}
+/* 连续说明行之间保持常规行距，不做控件说明的贴身收紧 */
+.cardHint + .cardHint {
+  margin-top: 0;
 }
 
 /* 分类卡 / 标签维度卡 / agent 卡 */
@@ -159,9 +181,14 @@
   gap: 8px;
   min-width: 0;
 }
-/* 行内定宽档（对齐桌面：名称 110 / agent 名 120 / 维度 key 84 / 端口·上限 64 / 维度下拉 92） */
+/* 行内定宽档（对齐桌面：名称 110 / agent 名 120 / 维度 key 84 / 端口·上限 64 / 维度下拉 92 /
+ * 我的称呼等右档输入 250——背包设置页统一口径） */
 .w110 {
   width: 110px;
+  flex: none;
+}
+.w250 {
+  width: 250px;
   flex: none;
 }
 .w120 {
@@ -232,7 +259,8 @@
   font-size: 13px;
 }
 .entityNameInput {
-  min-height: 32px;
+  box-sizing: border-box;
+  height: var(--pcy-control-h, 32px);
   padding: 2px 8px;
   border-radius: 6px;
   border: 1px solid var(--dsw-alias-border-l2, #d0d7de);
@@ -241,7 +269,9 @@
   font-size: 13px;
 }
 .entityDescInput {
-  min-height: 32px;
+  box-sizing: border-box;
+  /* min-height 档（QuotesEditor 台词 textarea 也挂此类——textarea 不可钉死单行高） */
+  min-height: var(--pcy-control-h, 32px);
   padding: 2px 8px;
   border-radius: 6px;
   border: 1px solid var(--dsw-alias-border-l2, #d0d7de);
@@ -303,30 +333,149 @@
   border-left: 3px solid var(--dsw-alias-border-l1, #e3e7ec);
 }
 
-/* 换装搜索弹层 */
-.pokeResults {
-  max-height: 260px;
-  overflow-y: auto;
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
+/* 宝可梦下拉选择器（桌面 PokemonPicker 同构）：按钮 → 内联面板（搜索 + 名录列表） */
+.pkPicker {
+  position: relative;
+  flex: none;
 }
-.pokeResultRow {
-  min-height: 32px;
+.pkButton {
+  box-sizing: border-box;
   display: flex;
   align-items: center;
   gap: 8px;
-  border: none;
-  background: none;
-  cursor: pointer;
-  text-align: left;
+  min-height: var(--pcy-control-h, 32px);
+  min-width: 150px;
+  padding: 3px 10px;
+  border: 1px solid var(--dsw-alias-border-l2, #d0d7de);
+  border-radius: 8px;
+  background: var(--dsw-alias-bg-layer-1, #ffffff);
+  color: var(--dsw-alias-label-primary, #1f2328);
   font-size: 13px;
-  color: inherit;
-  border-radius: 6px;
-  padding: 2px 8px;
+  font-weight: 600;
+  font-family: inherit;
+  cursor: pointer;
 }
-.pokeResultRow:hover {
+.pkButton:hover {
   background: var(--dsw-alias-interactive-bg-hover, #f0f2f5);
+}
+.pkButton[data-open="true"] {
+  background: var(--dsw-alias-interactive-bg-active, #e4e7eb);
+}
+.pkButton:focus-visible {
+  outline: 2px solid var(--dsw-alias-state-business-primary, #316dca);
+  outline-offset: 1px;
+}
+.pkThumb {
+  width: 24px;
+  height: 24px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+}
+.pkLabel {
+  flex: 1;
+  min-width: 0;
+  text-align: left;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.pkArrow {
+  flex: none;
+  font-size: 10px;
+}
+.pkPanel {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  z-index: 60;
+  width: min(320px, 78vw);
+  background: var(--dsw-alias-bg-layer-1, #ffffff);
+  border: 1px solid var(--dsw-alias-border-l2, #d0d7de);
+  border-radius: 10px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.14);
+  padding: 8px;
+}
+.pkSearch {
+  box-sizing: border-box;
+  width: 100%;
+  height: var(--pcy-control-h, 32px);
+  padding: 4px 9px;
+  border: 1px solid var(--dsw-alias-border-l2, #d0d7de);
+  border-radius: 8px;
+  background: var(--dsw-alias-bg-layer-1, #ffffff);
+  color: inherit;
+  font-size: 13px;
+  font-family: inherit;
+  margin-bottom: 6px;
+}
+.pkSearch:focus-visible {
+  outline: 2px solid var(--dsw-alias-state-business-primary, #316dca);
+  outline-offset: 1px;
+}
+.pkList {
+  list-style: none;
+  margin: 0;
+  padding: 2px;
+  max-height: 260px;
+  overflow-y: auto;
+}
+.pkItem {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  padding: 4px 6px;
+  border-radius: 6px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.pkItem:hover {
+  background: var(--dsw-alias-interactive-bg-hover, #f0f2f5);
+}
+.pkItem[data-sel="true"] {
+  background: var(--dsw-alias-interactive-bg-active, #e4e7eb);
+}
+.pkCursor {
+  width: 10px;
+  flex: none;
+  font-size: 10px;
+  opacity: 0;
+}
+.pkItem[data-sel="true"] .pkCursor {
+  opacity: 1;
+}
+.pkName {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.pkId {
+  flex: none;
+  font-size: 9px;
+  opacity: 0.65;
+  font-variant-numeric: tabular-nums;
+}
+.pkBundled {
+  flex: none;
+  font-size: 10.5px;
+  border: 1px solid var(--dsw-alias-border-l2, #d0d7de);
+  border-radius: 4px;
+  padding: 0 4px;
+  line-height: 14px;
+  color: var(--dsw-alias-label-secondary, #57606a);
+}
+.pkNone {
+  font-size: 12.5px;
+  color: var(--dsw-alias-label-secondary, #57606a);
+  text-align: center;
+  padding: 14px 0;
+  cursor: default;
+}
+.pkNone:hover {
+  background: none;
 }
 
 /* 会话过滤行 */
@@ -336,6 +485,20 @@
   gap: 10px;
   min-height: 32px;
   font-size: 13px;
+}
+/* 过滤工具行（桌面 .cf-toolbar 同构）：搜索框伸缩占主宽 + 三维下拉定宽，控件统一 32px 等高 */
+.filterToolbar input,
+.filterToolbar select {
+  height: var(--pcy-control-h, 32px);
+  box-sizing: border-box;
+}
+.filterSearch {
+  flex: 1 1 200px;
+  min-width: 0;
+}
+.filterSelect {
+  width: 120px;
+  flex: none;
 }
 .filterChatName {
   flex: 1;
@@ -351,7 +514,8 @@
   overflow: hidden;
 }
 .triStateButton {
-  min-height: 32px;
+  box-sizing: border-box;
+  min-height: var(--pcy-control-h, 32px);
   padding: 2px 12px;
   border: none;
   background: transparent;
@@ -368,32 +532,109 @@
   cursor: not-allowed;
 }
 
-/* 诊断链路面板 */
-.linkPanel {
+/* 诊断 · 集成健康行（桌面 HealthCard .health-row 同构：点 + 名称 + 状态章 + 元信息伸缩 + 动作钮右置） */
+.healthItem {
+  margin-bottom: 10px;
+}
+.healthItem:last-of-type {
+  margin-bottom: 0;
+}
+.healthRow {
   display: flex;
-  flex-direction: column;
-  gap: 4px;
-  padding: 10px 12px;
-  border: 1px solid var(--dsw-alias-border-l1, #e3e7ec);
-  border-radius: 8px;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.healthDot {
+  flex: none;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  border: 1px solid rgba(0, 0, 0, 0.25);
+  font-size: 0;
+  line-height: 0;
+}
+.healthDot[data-level="ok"] {
+  background: var(--pcy-ok, #2e9e5b);
+}
+.healthDot[data-level="warn"] {
+  background: var(--pcy-warn, #ffcb05);
+}
+.healthDot[data-level="fail"] {
+  background: var(--pcy-fail, #ee1515);
+}
+.healthName {
+  flex: none;
   font-size: 13px;
+  font-weight: 800;
+}
+.healthState {
+  flex: none;
+  font-size: 12px;
+  font-weight: 700;
+  border: 1px solid var(--dsw-alias-border-l2, #d0d7de);
+  border-radius: 4px;
+  padding: 1px 8px;
+  background: var(--dsw-alias-bg-layer-1, #ffffff);
+  color: var(--dsw-alias-label-secondary, #57606a);
+}
+.healthState[data-level="fail"] {
+  background: var(--pcy-fail-soft, #fdeaea);
+  border-color: var(--pcy-fail, #ee1515);
+  color: var(--pcy-fail, #ee1515);
+}
+.healthState[data-level="warn"] {
+  background: var(--pcy-conf-mid-soft, #fff3d6);
+  border-color: var(--pcy-warn-ink, #8a5e06);
+  color: var(--pcy-warn-ink, #8a5e06);
+}
+.healthMeta {
+  flex: 1;
+  min-width: 200px;
+  font-size: 12px;
+  color: var(--dsw-alias-label-secondary, #57606a);
+}
+.healthErr {
+  margin: 4px 0 0 20px;
+  font-size: 12px;
+  color: var(--pcy-fail, #ee1515);
+  overflow-wrap: break-word;
 }
 
-/* LogViewer */
+/* LogViewer（桌面 LogViewer 同构：元数据一行（时间/级别/来源）+ message 独立一行全宽） */
 .logList {
   display: flex;
   flex-direction: column;
 }
 .logRow {
   display: flex;
-  gap: 10px;
+  flex-direction: column;
+  gap: 1px;
   font-size: 12px;
   padding: 2px 0;
   font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
 }
+.logRow + .logRow {
+  margin-top: 4px;
+}
+.logMeta {
+  display: flex;
+  gap: 10px;
+  align-items: baseline;
+  min-width: 0;
+}
 .logTime {
   color: var(--dsw-alias-label-secondary, #57606a);
   flex: none;
+}
+.logTarget {
+  color: var(--dsw-alias-label-secondary, #57606a);
+  flex: none;
+  word-break: break-all;
+}
+.logMsg {
+  white-space: pre-wrap;
+  word-break: break-word;
 }
 .logLevel {
   flex: none;
@@ -421,6 +662,44 @@
   display: flex;
   flex-direction: column;
   gap: 6px;
+}
+/* 面板头行（桌面 .panel-head 同构 + 动作钮右置）：折叠钮占主宽 + 编辑/恢复默认贴右缘 */
+.promptHeadRow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.promptHeadRow .promptHead {
+  flex: 1;
+  min-width: 0;
+}
+.promptHeadActions {
+  display: flex;
+  gap: 6px;
+  flex: none;
+}
+/* 面板头折叠钮（桌面 .panel-head 同构：caret + 名称 + 徽章，整行命中区） */
+.promptHead {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 32px;
+  border: none;
+  background: none;
+  cursor: pointer;
+  text-align: left;
+  font-size: 13px;
+  color: inherit;
+  padding: 2px 4px;
+  border-radius: 6px;
+}
+.promptHead:hover {
+  background: var(--dsw-alias-interactive-bg-hover, #f0f2f5);
+}
+.promptCaret {
+  font-size: 10px;
+  width: 12px;
+  flex: none;
 }
 .promptTextarea {
   min-height: 120px;
@@ -455,11 +734,18 @@
   font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
 }
 
-/* 通用说明块 */
-.noteBlock {
+/* 使用指南链接（GitHub 文档 · 新窗口打开；次级文字色 + 下划线可点暗示） */
+.guideLink {
   font-size: 12px;
   color: var(--dsw-alias-label-secondary, #57606a);
-  line-height: 1.7;
-  padding: 8px 10px;
-  border-left: 3px solid var(--dsw-alias-border-l1, #e3e7ec);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.guideLink:hover {
+  color: var(--dsw-alias-state-business-primary, #316dca);
+}
+.guideLink:focus-visible {
+  outline: 2px solid var(--dsw-alias-state-business-primary, #316dca);
+  outline-offset: 1px;
+  border-radius: 4px;
 }

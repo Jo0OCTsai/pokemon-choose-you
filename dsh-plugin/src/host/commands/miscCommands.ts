@@ -10,6 +10,7 @@ import { buildSupportReport } from "../health/supportReport";
 import { logQuery } from "../health/logRing";
 import { setPetPos } from "../pet/stateFeed";
 import type { LogQueryParams } from "../health/logRing";
+import { logDirFrom } from "../storage/paths";
 
 /** 诊断/桌宠/通用/专注命令表（8 条） */
 export function miscCommands(): CommandTable {
@@ -23,7 +24,8 @@ export function miscCommands(): CommandTable {
         dshVersion: deps.meta.dshVersion,
       }),
     }),
-    logQuery: (p, deps) => logQuery(deps.conn, deps.logs, p as LogQueryParams),
+    // 磁盘侧合并主应用共享日志目录（桌面写 <appHome>/logs/*.log——单读内存环恒近空）
+    logQuery: (p, deps) => logQuery(deps.conn, deps.logs, p as LogQueryParams, logDirFrom()),
     // ready = hello 握手在超时窗内完成；false 不代表失败（迟到仍会触发 onBridgeReady），
     // 但必须如实带回——否则 helper 启动死循环时 UI 静默假成功
     petShow: async (_p, deps) => {

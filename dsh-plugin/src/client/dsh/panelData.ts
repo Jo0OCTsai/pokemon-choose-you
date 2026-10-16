@@ -139,14 +139,24 @@ function matchesRow(row: CatalogRow, query: string, lower: string): boolean {
   );
 }
 
-/** 换装搜索（1025 只名录本地搜索：名称/繁名/英文名/key/编号包含匹配，上限 30 条） */
+/** PokeAPI key → 本地化精灵名（名录外回落 key 本身；换装/主宝可梦/台词编辑器共用） */
+export function createPokemonName(locale: Locale): (key: string) => string {
+  return (key: string) => pokemonNameOf(key, locale);
+}
+
+/** 换装搜索（1025 只名录本地搜索：名称/繁名/英文名/key/编号包含匹配，上限 30 条；
+ * 空查询回落内置 6 只——桌面 searchPokemon("") 置顶内置同口径） */
 export function createPokemonSearch(locale: Locale): (query: string) => Promise<PokemonCandidate[]> {
   const nameOf = (row: CatalogRow): string => (locale === "zh-Hant" ? row[3] : locale === "en" ? row[4] : row[2]);
+  const bundled: PokemonCandidate[] = ["pikachu", "psyduck", "bulbasaur", "chansey", "eevee", "snorlax"]
+    .map((key) => CATALOG.find((row) => row[1] === key))
+    .filter((row) => row !== undefined)
+    .map((row) => ({ key: row[1], name: nameOf(row), number: row[0], english: row[4] }));
   return (query) => {
     const trimmed = query.trim();
     const lower = trimmed.toLowerCase();
     if (trimmed === "") {
-      return Promise.resolve([]);
+      return Promise.resolve(bundled);
     }
     const hits: PokemonCandidate[] = [];
     for (const row of CATALOG) {
@@ -205,6 +215,18 @@ function snapshotMessages(snapshot: PanelSnapshot | null): PanelData["messages"]
   ];
 }
 
+/** 快照实体面（任务/分类/标签维度/消息/健康；快照缺勤回落诊断派生与空集——fetchPanelData 拆分控复杂度） */
+function entityViews(snapshot: PanelSnapshot | null, links: readonly DiagnosticsLink[]) {
+  return {
+    tasks: snapshotTasks(snapshot),
+    categories: snapshot?.categories ?? [],
+    dimensions: snapshot?.dimensions ?? [],
+    tags: snapshot?.tags ?? [],
+    messages: snapshotMessages(snapshot),
+    health: snapshot?.radio.health ?? healthFromLinks(links),
+  };
+}
+
 /** 组装面板快照（读命令并行、逐项兜底；实体段从 panelSnapshot 灌入） */
 export async function fetchPanelData(client: HostClient): Promise<PanelData> {
   const [configR, dbR, diagR, filtersR, promptsR, snapR] = await Promise.all([
@@ -218,13 +240,11 @@ export async function fetchPanelData(client: HostClient): Promise<PanelData> {
   const config = dataOf(configR, { keyValues: {} as Record<string, string> }).keyValues;
   const links = dataOf(diagR, { links: [] as DiagnosticsLink[] }).links;
   const snapshot = snapR?.ok === true ? snapR.data : null;
+  const filters = dataOf(filtersR, { chats: [], counts: {}, lastPollAt: null });
   return {
     locale: localeOf(config),
     today: localToday(),
-    tasks: snapshotTasks(snapshot),
-    categories: snapshot?.categories ?? [],
-    messages: snapshotMessages(snapshot),
-    health: snapshot?.radio.health ?? healthFromLinks(links),
+    ...entityViews(snapshot, links),
     auth: authFromLinks(links),
     followups: {},
     dispatches: {},
@@ -234,8 +254,8 @@ export async function fetchPanelData(client: HostClient): Promise<PanelData> {
     dbStatus: dataOf(dbR, null as PanelData["dbStatus"]),
     agents: agentsOf(config),
     promptSpecs: dataOf(promptsR, { specs: [] as NonNullable<PanelData["promptSpecs"]> }).specs,
-    filters: dataOf(filtersR, { chats: [], counts: {}, lastPollAt: null }).chats,
-    filterLastPollAt: dataOf(filtersR, { chats: [], counts: {}, lastPollAt: null }).lastPollAt ?? null,
+    filters: filters.chats,
+    filterLastPollAt: filters.lastPollAt ?? null,
     pokemonSearch: createPokemonSearch(localeOf(config)),
   };
 }

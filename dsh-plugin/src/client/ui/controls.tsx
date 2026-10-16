@@ -65,11 +65,18 @@ export function Select({
   /** 追加类（实体行内定宽，如标签行维度下拉 92px） */
   className?: string;
 }): React.JSX.Element {
+  const selectClass =
+    className !== undefined
+      ? `${styles.select} ${className}`
+      : // 带 label 的设置行下拉（单独靠右档）：定宽 250
+        label !== undefined
+        ? `${styles.select} ${styles.labelSelect}`
+        : styles.select;
   return (
     <label className={styles.row}>
       {label !== undefined && <span className={styles.rowLabel}>{label}</span>}
       <select
-        className={className !== undefined ? `${styles.select} ${className}` : styles.select}
+        className={selectClass}
         value={value}
         disabled={disabled}
         aria-label={ariaLabel}
@@ -139,7 +146,7 @@ export function StatusDot({ level, text }: { level: "ok" | "warn" | "fail"; text
   );
 }
 
-/** 表单行容器（label + 控件 + 可选 badge/说明行；labelWidth=标签列定宽 + 控件左对齐，
+/** 表单行容器（label + 控件 + 可选 badge/说明行；labelWidth=标签列定宽 + 控件贴右缘，
  * wide=控件占满标签右侧整行——对齐主应用 SettingRow 的 label-width / wide 两档） */
 export function FormRow({
   label,
@@ -152,7 +159,7 @@ export function FormRow({
   label: ReactNode;
   badge?: string;
   desc?: string;
-  /** 标签列定宽像素（如 agent 卡 128：与上方名称/命令行输入列左缘对齐） */
+  /** 标签列定宽像素（如 agent 卡 128：与首行名称 120+间隙 8 同轴，命令框左缘对齐下方输入列） */
   labelWidth?: number;
   /** 控件占满标签右侧整行（附加参数/工作目录这类长文本输入） */
   wide?: boolean;
@@ -162,11 +169,16 @@ export function FormRow({
     <div
       className={styles.row}
       data-wide={wide ? "true" : undefined}
+      data-right={labelWidth !== undefined && !wide ? "true" : undefined}
       style={labelWidth !== undefined ? { gap: 0 } : undefined}
     >
       <span
         className={styles.rowLabel}
-        style={labelWidth !== undefined ? { flex: `0 0 ${labelWidth}px`, paddingRight: 12 } : undefined}
+        style={
+          labelWidth !== undefined
+            ? { flex: `0 0 ${labelWidth}px`, paddingRight: 12, boxSizing: "border-box" }
+            : undefined
+        }
       >
         {label}
         {badge !== undefined && <span className={styles.scopeBadge}>{badge}</span>}
