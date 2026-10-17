@@ -1,0 +1,1036 @@
+<!DOCTYPE html>
+<html lang="zh-Hans">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>dsh-plugin-full-parity · UIUX 视觉保真原型</title>
+<!--
+  规格可视化原型（L 级视觉保真）—— specs/dsh-plugin-full-parity/uiux-design.md §11
+  · 视觉单源：specs/dsh-plugin-style（「副屏」渗透体系 T0/T1/T2）——本原型只做新面归档验证
+  · token：--pcy-* 全取 style 稿 §4 表（亮/暗配对）；宿主档位以示意值呈现（非最终宿主视觉）
+  · 精灵图 PokeAPI CDN，断线回落 emoji；面板无像素字体（U6 纪律），helper 示意区用 Press Start 2P
+  · 零 animation；唯一 transition = 主行动按钮 80ms 按压（右上角可切 reduced-motion 归零）
+  · 交互态切换器均为原型开关（演示用），非业务实现
+-->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
+<style>
+  /* ============ token 层（--pcy-* 单源 specs/dsh-plugin-style §4；宿主档示意值） ============ */
+  :root{
+    --ink:#1f2328;            /* 重墨线 = alias label-primary（暗色翻白描线） */
+    --ink-soft:#c7cdd4;       /* 轻墨线 = border-l3 */
+    --host-surface:#ffffff;
+    --host-raised:#f6f7f9;
+    --host-text:#1f2328;
+    --host-muted:#6b7280;
+    --host-border:#e4e7eb;
+    --host-focus:#2563eb;
+    --r-s:4px; --r-m:8px; --r-l:12px;
+    --pcy-paper:#f5f0dc; --pcy-paper-ink:#1a1b25; --pcy-paper-dim:#f3efe6;
+    --pcy-hover:#fff3c4;
+    --pcy-running:#ffcb05;
+    --pcy-lcd:#c4cfa1; --pcy-lcd-text:#3a4a32; --pcy-lcd-dim:#4a563f; --pcy-lcd-dark:#9caa86;
+    --pcy-lcd-log-error:#d64545; --pcy-lcd-log-warn:#b8860b;
+    --pcy-ok:#2f7d3c; --pcy-warn:#b58900; --pcy-fail:#b3590f; --pcy-danger:#b3590f;
+    --mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+  }
+  @media (prefers-color-scheme: dark){
+    :root:not([data-theme="light"]){
+      --ink:#dfe3ea; --ink-soft:#4a5058;
+      --host-surface:#1b1d23; --host-raised:#23262e;
+      --host-text:#e6e8ec; --host-muted:#9aa1ab; --host-border:#33363e;
+      --pcy-paper:#2a2b35; --pcy-paper-ink:#dfe3ea; --pcy-paper-dim:#23242c;
+      --pcy-hover:#3f3a1c;
+      --pcy-lcd:#2b3327; --pcy-lcd-text:#cddcb4; --pcy-lcd-dim:#93a887; --pcy-lcd-dark:#1e241c;
+      --pcy-lcd-log-error:#e58585; --pcy-lcd-log-warn:#d4b05e;
+    }
+  }
+  :root[data-theme="dark"]{
+    --ink:#dfe3ea; --ink-soft:#4a5058;
+    --host-surface:#1b1d23; --host-raised:#23262e;
+    --host-text:#e6e8ec; --host-muted:#9aa1ab; --host-border:#33363e;
+    --pcy-paper:#2a2b35; --pcy-paper-ink:#dfe3ea; --pcy-paper-dim:#23242c;
+    --pcy-hover:#3f3a1c;
+    --pcy-lcd:#2b3327; --pcy-lcd-text:#cddcb4; --pcy-lcd-dim:#93a887; --pcy-lcd-dark:#1e241c;
+    --pcy-lcd-log-error:#e58585; --pcy-lcd-log-warn:#d4b05e;
+  }
+
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{
+    font:14px/1.65 -apple-system,"Segoe UI","PingFang SC","Noto Sans CJK SC",sans-serif;
+    background:var(--host-surface);color:var(--host-text);
+    padding:20px 24px 80px;max-width:1120px;margin:0 auto;
+  }
+  code,.mono{font-family:var(--mono)}
+  img.sprite{image-rendering:pixelated;width:32px;height:32px;flex:none}
+
+  /* ============ 原型驾驶舱（非产品 UI） ============ */
+  .cockpit{position:sticky;top:0;z-index:50;background:var(--host-raised);border:1.5px solid var(--ink);
+    border-radius:var(--r-m);padding:10px 14px;display:flex;flex-wrap:wrap;gap:8px 16px;align-items:center;
+    box-shadow:2px 2px 0 var(--ink)}
+  .cockpit b{font-size:13px}
+  .cockpit .sp{flex:1}
+  .cg{display:flex;gap:4px;align-items:center;font-size:12px;color:var(--host-muted)}
+  .cg button{font:12px/1 inherit;padding:5px 10px;border-radius:999px;border:1.5px solid transparent;
+    background:transparent;color:var(--host-muted);cursor:pointer}
+  .cg button[aria-pressed="true"]{background:var(--pcy-running);color:#1a1b25;border-color:var(--ink);font-weight:700}
+
+  .sec{margin-top:36px}
+  .sec>h2{font-size:15px;margin-bottom:4px}
+  .sec>p.note{font-size:12px;color:var(--host-muted);margin-bottom:12px}
+  .switchrow{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px}
+  .switchrow button{font:12px/1 inherit;padding:5px 12px;border-radius:999px;border:1.5px solid transparent;
+    background:transparent;color:var(--host-muted);cursor:pointer}
+  .switchrow button[aria-pressed="true"]{background:var(--pcy-running);color:#1a1b25;border-color:var(--ink);font-weight:700}
+
+  /* ============ T0 壳：宿主档控件（示意） ============ */
+  .btn{font:13px/1 inherit;padding:8px 14px;border-radius:var(--r-m);border:1px solid var(--host-border);
+    background:var(--host-surface);color:var(--host-text);cursor:pointer;min-height:32px}
+  .btn:hover{background:var(--host-raised)}
+  .btn:focus-visible{outline:2px solid var(--host-focus);outline-offset:2px}
+  .btn:disabled{opacity:.45;cursor:not-allowed}
+  .btn.primary{background:var(--host-focus);border-color:var(--host-focus);color:#fff}
+  /* 主行动 buttonDex：黄底墨字 + 1.5px 墨线 + 2px 硬阴影 + 按压位移（80ms，reduce 归零） */
+  .btn.dex{background:var(--pcy-running);color:#1a1b25;border:1.5px solid var(--ink);font-weight:700;
+    box-shadow:2px 2px 0 var(--ink);transition:transform 80ms,box-shadow 80ms}
+  .btn.dex:hover{filter:brightness(.97)}
+  .btn.dex:active{transform:translate(1px,1px);box-shadow:1px 1px 0 var(--ink)}
+  :root[data-reduce="1"] .btn.dex{transition:none}
+  .btn.danger{color:var(--pcy-danger)}
+  .field{display:flex;flex-direction:column;gap:4px;font-size:12px;color:var(--host-muted)}
+  .field input,.field select,.field textarea{font:13px/1.5 inherit;padding:7px 10px;border-radius:var(--r-m);
+    border:1px solid var(--host-border);background:var(--host-surface);color:var(--host-text)}
+  .field input:focus-visible,.field select:focus-visible,.field textarea:focus-visible{outline:2px solid var(--host-focus);outline-offset:1px}
+  .field .err{color:var(--pcy-danger);font-size:12px}
+  .toggle{display:inline-flex;align-items:center;gap:8px;font-size:13px;cursor:pointer;user-select:none}
+  .toggle input{appearance:none;width:34px;height:20px;border-radius:999px;background:var(--host-border);position:relative;cursor:pointer;margin:0}
+  .toggle input:checked{background:var(--host-focus)}
+  .toggle input::after{content:"";position:absolute;top:2px;left:2px;width:16px;height:16px;border-radius:50%;background:#fff;transition:left 80ms}
+  :root[data-reduce="1"] .toggle input::after{transition:none}
+  .toggle input:checked::after{left:16px}
+
+  /* ============ T1 墨：渗透容器 ============ */
+  .card{background:var(--host-surface);border:1.5px solid var(--ink-soft);border-radius:var(--r-l);padding:16px}
+  .paper{background:var(--pcy-paper);color:var(--pcy-paper-ink);border:1.5px solid var(--ink);border-radius:var(--r-l)}
+  .entity{display:flex;gap:12px;align-items:flex-start;border:1.5px solid var(--ink-soft);border-radius:var(--r-m);
+    padding:12px 14px;background:var(--host-surface)}
+  .entity:hover{background:var(--pcy-hover)}
+  .entity.running{border-color:var(--ink);box-shadow:2px 2px 0 var(--ink)}
+  .ghost-btn{font:12px/1 inherit;padding:6px 10px;border-radius:var(--r-s);border:1px solid var(--host-border);
+    background:transparent;color:var(--host-muted);cursor:pointer;min-height:32px}
+  .ghost-btn:hover{background:var(--host-raised);color:var(--host-text)}
+
+  /* 状态徽章：点 + 文字双冗余——文字恒墨色（L2），仅状态点着色 */
+  .badge{display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:600;
+    padding:2px 10px;border-radius:999px;border:1px solid var(--host-border);background:var(--host-raised);
+    color:var(--host-text)}
+  .badge i{width:8px;height:8px;border-radius:50%;flex:none;border:1px solid rgba(0,0,0,.25)}
+  .badge.ready i{background:var(--pcy-ok)}
+  .badge.direct i{background:var(--pcy-warn)}
+  .badge.notready i{background:var(--pcy-warn)}
+  .badge.disc i{background:var(--pcy-fail)}
+  .badge.busy i{background:var(--host-muted)}
+  .tagchip{display:inline-block;font:11px/1 var(--mono);letter-spacing:.5px;padding:3px 8px;border-radius:var(--r-s);
+    border:1px solid var(--ink);color:var(--host-text);background:var(--pcy-paper)}
+  .alias{font-family:var(--mono);letter-spacing:1px;font-weight:700}
+  .path{font-family:var(--mono);font-size:12px;color:var(--host-muted);word-break:break-all}
+  .scope-badge{font-size:11px;color:var(--host-muted);border:1px solid var(--host-border);border-radius:999px;
+    padding:1px 8px;margin-left:6px;white-space:nowrap}
+
+  /* ============ T2 屏：LCD（静态扫描线 + 内阴影） ============ */
+  .lcd{position:relative;background:var(--pcy-lcd);color:var(--pcy-lcd-text);border:1.5px solid var(--ink);
+    border-radius:var(--r-m);padding:12px 14px;font-family:var(--mono);font-size:12.5px;line-height:1.7;
+    box-shadow:inset 2px 2px 0 var(--pcy-lcd-dark);overflow:hidden}
+  .lcd::after{content:"";position:absolute;inset:0;pointer-events:none;
+    background:repeating-linear-gradient(0deg,rgba(0,0,0,.05) 0 1px,transparent 1px 3px)}
+  .lcd .t{color:var(--pcy-lcd-dim)}
+  .lcd .e{color:var(--pcy-lcd-log-error)}
+  .lcd .w{color:var(--pcy-lcd-log-warn)}
+
+  /* ============ 过滤胶囊（一等选中黄 / 恒定边框防抖） ============ */
+  .caps{display:flex;gap:8px;flex-wrap:wrap}
+  .cap{font:13px/1 inherit;padding:7px 14px;border-radius:999px;border:1.5px solid transparent;cursor:pointer;
+    background:transparent;color:var(--host-muted)}
+  .cap[aria-pressed="true"]{background:var(--pcy-running);color:#1a1b25;border-color:var(--ink);font-weight:700}
+  .cap:not([aria-pressed="true"]){border-color:transparent}
+  .cap:not([aria-pressed="true"]):hover{background:var(--pcy-hover)}
+
+  /* ============ 步骤条（真实序列才用编号；黄只标当前步） ============ */
+  .steps{display:flex;gap:0;list-style:none;margin:0 0 14px;padding:0;overflow-x:auto}
+  .steps li{flex:1;min-width:120px;padding:8px 10px;font-size:12px;border-top:1.5px solid var(--ink);
+    border-bottom:1.5px solid var(--ink);border-left:1.5px solid var(--ink);background:var(--host-raised);
+    color:var(--host-muted);display:flex;gap:6px;align-items:center;white-space:nowrap}
+  .steps li:first-child{border-radius:var(--r-m) 0 0 var(--r-m)}
+  .steps li:last-child{border-right:1.5px solid var(--ink);border-radius:0 var(--r-m) var(--r-m) 0}
+  .steps li.cur{background:var(--pcy-running);color:#1a1b25;font-weight:700}
+  .steps li.done{color:var(--ink);background:var(--host-surface)}
+  .steps li.done::before{content:"✓ ";color:var(--pcy-ok);font-weight:700}
+  .steps li.fail{color:var(--ink);font-weight:700;background:var(--host-surface)}
+  .steps li.fail::before{content:"▲ ";color:var(--pcy-fail);font-weight:700}
+  .steps li.skip{text-decoration:line-through 1px;color:var(--host-muted)}
+  .steps .num{font-family:var(--mono);font-size:11px;letter-spacing:1px}
+
+  /* ============ Modal（T0 壳：软阴影 + 遮罩） ============ */
+  .modal-wrap{position:relative}
+  .modal{max-width:560px;border:1px solid var(--host-border);border-radius:var(--r-l);background:var(--host-surface);
+    box-shadow:0 12px 32px rgba(0,0,0,.18);padding:18px 20px;margin:0 auto}
+  .modal h3{font-size:14px;margin-bottom:10px}
+  .modal .acts{display:flex;gap:8px;justify-content:flex-end;margin-top:16px}
+  .overlay-note{font-size:11px;color:var(--host-muted);text-align:center;margin-top:8px}
+
+  /* ============ 横幅（SchemaBanner 同族：纸底墨线静态） ============ */
+  .banner{display:flex;gap:10px;align-items:center;padding:10px 14px;border:1.5px solid var(--ink);
+    border-radius:var(--r-m);background:var(--pcy-paper);color:var(--pcy-paper-ink);font-size:13px}
+  .banner .btn{margin-left:auto;flex:none}
+
+  /* ============ helper 示意区（DESIGN_SYSTEM 全保真；面板纪律外） ============ */
+  .helper-zone{border:1.5px dashed var(--ink-soft);border-radius:var(--r-l);padding:18px;display:grid;
+    grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:34px 28px;background:transparent}
+  .petwin{width:300px;height:330px;position:relative;background:transparent}
+  .petwin .sprite-big{image-rendering:pixelated;width:104px;height:104px;position:absolute;left:98px;top:96px}
+  .dialog{position:absolute;left:10px;right:10px;bottom:12px;border:2px solid #1a1b25;outline:2px solid #1a1b25;
+    outline-offset:-5px;background:#f8f4de;color:#2a2b35;font-family:var(--mono);font-size:11px;line-height:1.7;
+    padding:14px 30px 10px 14px;border-radius:4px}
+  .dialog .tri{position:absolute;right:10px;bottom:10px;color:#1a1b25}
+  .dialog.chat{font-size:11px;padding:8px 10px}
+  .chat-log{max-height:76px;overflow:hidden;display:flex;flex-direction:column;gap:2px}
+  .chat-msg{font-family:inherit}
+  .chat-msg.bot{color:#274156}
+  .chat-msg.me{color:#5a4a12;text-align:right}
+  .chat-msg.thinking i{display:inline-block;width:5px;height:5px;border-radius:50%;background:#7d8a6e;margin-right:3px;vertical-align:middle}
+  .chat-in{display:flex;gap:6px;margin-top:6px}
+  .chat-in input{flex:1;font:11px/1.4 var(--mono);padding:5px 8px;border:1.5px solid #1a1b25;border-radius:4px;background:#fff;color:#1a1b25;min-width:0}
+  .chat-in button{font:11px/1 "Press Start 2P",var(--mono);padding:5px 8px;border:1.5px solid #1a1b25;border-radius:4px;
+    background:#ffcb05;color:#1a1b25;cursor:pointer;box-shadow:2px 2px 0 #1a1b25}
+  .chat-in button:active{transform:translate(1px,1px);box-shadow:1px 1px 0 #1a1b25}
+  :root[data-reduce="1"] .chat-in button{transition:none}
+  .traybox{width:230px}
+  .tray-icon{display:flex;align-items:center;gap:8px;margin-bottom:8px}
+  .tray-menu{border:1px solid var(--host-border);border-radius:var(--r-m);background:var(--host-raised);
+    box-shadow:0 6px 18px rgba(0,0,0,.15);padding:4px;font-size:13px}
+  .tray-menu div{padding:7px 12px;border-radius:var(--r-s);cursor:default}
+  .tray-menu div:hover{background:var(--pcy-hover)}
+  .tray-menu hr{border:none;border-top:1px solid var(--host-border);margin:4px 6px}
+  .ctx-menu{border:1.5px solid #1a1b25;border-radius:6px;background:#fff;color:#1a1b25;padding:4px;font-size:12px;
+    box-shadow:3px 3px 0 rgba(26,27,37,.9);max-width:190px}
+  .ctx-menu div{padding:6px 10px;border-radius:4px;cursor:default}
+  .ctx-menu div:hover{background:#ffcb05}
+  .helper-note{font-size:11px;color:var(--host-muted);max-width:230px}
+
+  /* 空态 */
+  .empty{display:flex;flex-direction:column;align-items:center;gap:10px;padding:34px 20px;text-align:center;
+    border:1.5px dashed var(--ink-soft);border-radius:var(--r-l);color:var(--host-muted);font-size:13px}
+
+  /* 分页器 */
+  .pager{display:flex;align-items:center;gap:10px;font-size:12px;color:var(--host-muted)}
+  .pager .pages{display:flex;gap:4px}
+  .pager .pg{min-width:32px;height:32px;display:inline-flex;align-items:center;justify-content:center;
+    border-radius:var(--r-s);border:1px solid var(--host-border);background:transparent;cursor:pointer;font-size:12px}
+  .pager .pg[aria-current="true"]{background:var(--pcy-running);color:#1a1b25;border-color:var(--ink);font-weight:700}
+  .pager .pg:disabled{opacity:.4;cursor:not-allowed}
+
+  /* 矩阵行 */
+  .mrow{display:flex;align-items:center;gap:10px;padding:7px 0;border-bottom:1px solid var(--host-border);font-size:13px}
+  .mrow:last-child{border-bottom:none}
+  .dot{width:9px;height:9px;border-radius:50%;border:1px solid rgba(0,0,0,.3);flex:none}
+  .dot.ok{background:var(--pcy-ok)} .dot.down{background:var(--pcy-fail)}
+  .mrow .guide{margin-left:auto;font-size:12px;color:var(--host-muted)}
+
+  .row{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+  .grow{flex:1;min-width:180px}
+  hr.sep{border:none;border-top:1.5px solid var(--ink-soft);margin:14px 0}
+  .kv{font-size:12px;color:var(--host-muted)}
+  table.plain{border-collapse:collapse;font-size:12.5px;width:100%}
+  table.plain th{text-align:left;color:var(--host-muted);font-weight:600;padding:4px 8px;border-bottom:1.5px solid var(--ink-soft)}
+  table.plain td{padding:6px 8px;border-bottom:1px solid var(--host-border);vertical-align:top}
+  .demo-hide{display:none}
+</style>
+</head>
+<body>
+
+<!-- ================= 原型驾驶舱 ================= -->
+<div class="cockpit" role="group" aria-label="原型驾驶舱">
+  <b>dsh-plugin-full-parity · 视觉保真原型</b>
+  <span class="kv">单源：specs/dsh-plugin-style「副屏」体系 · 新面归档验证</span>
+  <span class="sp"></span>
+  <span class="cg" id="themeCtl">主题
+    <button data-theme="light" aria-pressed="false">亮</button>
+    <button data-theme="dark" aria-pressed="true">暗</button>
+  </span>
+  <span class="cg" id="reduceCtl">动效
+    <button data-reduce="0" aria-pressed="true">常规</button>
+    <button data-reduce="1" aria-pressed="false">reduced-motion</button>
+  </span>
+</div>
+
+<!-- ================= 1. 面板顶部横幅族 ================= -->
+<section class="sec" id="sec-banner">
+  <h2>① 面板顶部 · HelperBanner（系统能力面降级横幅 · SchemaBanner 同族）</h2>
+  <p class="note">helper 缺席 / 运行时获取失败时呈现；静态常驻、不闪烁；schema 拒绝时 SchemaBanner 优先在上不叠抢。</p>
+  <div class="banner" role="status">
+    <span aria-hidden="true">⚠</span>
+    <span>系统能力面降级：桌宠与系统通知暂不可用（helper 未运行）。核心待办不受影响</span>
+    <button class="btn" type="button">查看诊断</button>
+  </div>
+  <p class="overlay-note">↑ 点击「查看诊断」锚到 ⑧ 诊断分区能力矩阵（联动归宿）</p>
+</section>
+
+<!-- ================= 2. 远程部署卡 ================= -->
+<section class="sec" id="sec-deploy">
+  <h2>② 背包 · Agent 分区 · 远程部署卡（「远方的图鉴机」——次级 signature）</h2>
+  <p class="note">部署 = 跨 agent 共享的执行世界资产；别名走等宽「编号位」；徽章点 + 文字双冗余；凭据零存储 = 卡上没有密钥栏。</p>
+  <div class="switchrow" role="group" aria-label="部署状态切换">
+    <button data-deploy="list" aria-pressed="true">就绪 + 未就绪 + 断开（三态列表）</button>
+    <button data-deploy="direct" aria-pressed="false">就绪（直连）（D31 留痕 · 可派发）</button>
+    <button data-deploy="provisioning" aria-pressed="false">向导执行中（Esc/✕ 后台继续）</button>
+    <button data-deploy="nossh" aria-pressed="false">SSH 家族缺失（指引态）</button>
+    <button data-deploy="empty" aria-pressed="false">空态</button>
+  </div>
+
+  <div class="card" id="deployCard">
+    <div class="row" style="margin-bottom:12px">
+      <b style="font-size:14px">远程部署</b>
+      <span class="kv">凭据与主机身份由 OpenSSH 别名承载，插件不存私钥/密码</span>
+      <span class="grow"></span>
+      <button class="btn dex" type="button" id="deployAddBtn">＋ 添加部署</button>
+    </div>
+
+    <!-- 三态列表 -->
+    <div id="deployList" style="display:flex;flex-direction:column;gap:10px">
+      <div class="entity running">
+        <div class="grow">
+          <div class="row">
+            <span class="alias">gpu-1</span>
+            <span class="badge ready"><i></i>就绪</span>
+            <span class="path">/usr/local/bin/node · ~/work/pokemon</span>
+          </div>
+          <div class="kv" style="margin-top:2px">备注：训练主力机 · 上次复核 3 分钟前</div>
+        </div>
+        <div class="row" style="flex:none">
+          <button class="ghost-btn" type="button">编辑</button>
+          <button class="ghost-btn" type="button">移除</button>
+        </div>
+      </div>
+      <div class="entity">
+        <div class="grow">
+          <div class="row">
+            <span class="alias">homelab</span>
+            <span class="badge notready"><i></i>未就绪</span>
+            <span class="path">/opt/node22/bin/node · ~/agents</span>
+          </div>
+          <div class="kv" style="margin-top:2px">最近错误：远端 Node 探测失败（v18 低于要求）· 2 小时前</div>
+        </div>
+        <div class="row" style="flex:none">
+          <button class="btn dex" type="button">开通</button>
+          <button class="ghost-btn" type="button">编辑</button>
+          <button class="ghost-btn" type="button">移除</button>
+        </div>
+      </div>
+      <div class="entity">
+        <div class="grow">
+          <div class="row">
+            <span class="alias">vps-tokyo</span>
+            <span class="badge disc"><i></i>断开</span>
+            <span class="path">/usr/bin/node · ~/work</span>
+          </div>
+          <div class="kv" style="margin-top:2px">最近错误：SSH 传输层断开（不自动重连）· 25 分钟前</div>
+        </div>
+        <div class="row" style="flex:none">
+          <button class="btn dex" type="button">重连并检查</button>
+          <button class="ghost-btn" type="button">编辑</button>
+          <button class="ghost-btn" type="button">移除</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 直连角标变体（就绪（直连）：可派发，H1） -->
+    <div id="deployDirect" class="demo-hide">
+      <div class="entity running">
+        <div class="grow">
+          <div class="row">
+            <span class="alias">gpu-1</span>
+            <span class="badge direct"><i></i>就绪（直连）</span>
+            <span class="tagchip">直连模式（未经摘要校验）</span>
+          </div>
+          <div class="path" style="margin-top:2px">/usr/local/bin/node · ~/work/pokemon</div>
+          <div class="kv" style="margin-top:2px">最近错误：helper 摘要不符 · 已于 10-15 18:42 经训练家显式确认降级（留痕诊断段）</div>
+          <div class="kv" style="margin-top:2px">degraded 标记随实体保留——编辑不丢，重跑向导全过方清除；派发确认处带「⚠ 直连模式」警示行</div>
+        </div>
+        <div class="row" style="flex:none">
+          <button class="btn dex" type="button">重跑向导</button>
+          <button class="ghost-btn" type="button">编辑</button>
+          <button class="ghost-btn" type="button">移除</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 向导执行中变体（Esc/✕ 后台继续，M8） -->
+    <div id="deployProvisioning" class="demo-hide">
+      <div class="entity running">
+        <div class="grow">
+          <div class="row">
+            <span class="alias">homelab</span>
+            <span class="badge busy"><i></i>向导执行中</span>
+            <span class="path">/opt/node22/bin/node · ~/agents</span>
+          </div>
+          <div class="kv" style="margin-top:2px">开通向导在后台执行（步③ helper 上传安装）——关闭向导不中止，重开续看</div>
+        </div>
+        <div class="row" style="flex:none">
+          <button class="btn dex" type="button">重开向导续看</button>
+          <button class="ghost-btn" type="button">中止（停当前态）</button>
+          <button class="ghost-btn" type="button">移除</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- SSH 家族缺失指引态 -->
+    <div id="deployNossh" class="demo-hide">
+      <div class="empty">
+        <span style="font-size:22px" aria-hidden="true">📡</span>
+        <div>需要 dsh-ssh 家族——远程派发依赖它</div>
+        <div class="path">装载指引：dsh plugin add @deepseek-ai/dsh-ssh（含 subprocess-ssh / fs-ssh）</div>
+        <button class="btn" type="button">复制装载指引</button>
+        <span class="kv">添加入口转为指引态——不出现点击后无响应的入口（FR-RD7）</span>
+      </div>
+    </div>
+
+    <!-- 空态 -->
+    <div id="deployEmpty" class="demo-hide">
+      <div class="empty">
+        <img class="sprite" src="https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/133.png"
+             alt="伊布" onerror="this.outerHTML='<span style=&quot;font-size:26px&quot;>🦊</span>'">
+        <div>还没有远程部署。添加一台远端机器，把 agent 派去远方</div>
+        <button class="btn dex" type="button">＋ 添加部署</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 部署表单 Modal（T0 壳 · 添加/编辑两模式，M4/评审同步） -->
+  <div class="modal-wrap" style="margin-top:16px" id="deployFormWrap">
+    <div class="switchrow" role="group" aria-label="表单模式">
+      <button data-dform="add" aria-pressed="true">添加模式</button>
+      <button data-dform="edit" aria-pressed="false">编辑模式（含回落提示）</button>
+    </div>
+    <div class="modal">
+      <h3 id="dformTitle">添加部署</h3>
+      <div style="display:grid;gap:10px">
+        <label class="field">OpenSSH 别名（凭据由别名承载，插件不存私钥）
+          <input value="gpu-1" class="mono"></label>
+        <label class="field">远端 Node 路径
+          <input value="/usr/local/bin/node" class="mono"></label>
+        <label class="field">默认远端工作目录
+          <input value="~/work/pokemon" class="mono"></label>
+        <label class="field">备注
+          <input value="训练主力机" placeholder="可选"></label>
+      </div>
+      <div class="banner demo-hide" id="dformFallback" style="margin-top:12px;padding:8px 12px;font-size:12px">
+        <span aria-hidden="true">↩</span> 保存后部署回落为未就绪——路径变更后请重跑开通向导复核（编辑不丢「直连模式」留痕）
+      </div>
+      <div class="acts">
+        <button class="btn" type="button">取消</button>
+        <button class="btn dex" type="button" id="dformSave">保存（转开通向导）</button>
+      </div>
+    </div>
+    <p class="overlay-note">DeployFormModal：别名/路径行内校验；新增保存自动进向导（草稿→探测中）；编辑保存回落未就绪 + 提示复核（漂移 1/M4）</p>
+  </div>
+</section>
+
+<!-- ================= 3. 开通向导 ================= -->
+<section class="sec" id="sec-wizard">
+  <h2>③ 开通向导（四步 · DeploymentWizard Modal）</h2>
+  <p class="note">真实序列才用编号；黄只标当前步；失败即停可重试；幂等重跑显示「跳过（已完成）」；输出屏 = LCD「诊断日志屏」类目复用。</p>
+  <div class="switchrow" role="group" aria-label="向导状态切换">
+    <button data-wiz="run" aria-pressed="false">执行中（步②进行）</button>
+    <button data-wiz="authfail" aria-pressed="true">步①失败（ssh-copy-id 指引）</button>
+    <button data-wiz="fail" aria-pressed="false">步②失败</button>
+    <button data-wiz="skip3" aria-pressed="false">步③ helper 未装（跳过安装入口，D31 第一分支）</button>
+    <button data-wiz="rerun" aria-pressed="false">幂等重跑（①②跳过）</button>
+    <button data-wiz="digest" aria-pressed="false">摘要不符（步④ + D31 入口）</button>
+  </div>
+
+  <div class="modal-wrap">
+    <div class="modal">
+      <h3>开通部署 <span class="alias">gpu-1</span></h3>
+
+      <ol class="steps" id="wizSteps">
+        <li class="done" data-step="1"><span class="num">01</span>免密连接探测 <span id="s1x">✓</span></li>
+        <li class="cur"  data-step="2"><span class="num">02</span>远端 Node 探测 <span id="s2x">…</span></li>
+        <li data-step="3"><span class="num">03</span>helper 上传安装 <span id="s3x"></span></li>
+        <li data-step="4"><span class="num">04</span>摘要校验 <span id="s4x"></span></li>
+      </ol>
+
+      <div class="lcd" id="wizLog" aria-label="向导输出屏" style="min-height:120px">
+        <div id="wizLog1"><span class="t">18:41:02</span> ssh -o BatchMode=yes gpu-1 true … <span class="w">ok (1.2s)</span></div>
+        <div id="wizLog2"><span class="t">18:41:04</span> ssh gpu-1 /usr/local/bin/node --version …</div>
+        <div id="wizLog3"><span class="t">18:41:05</span> v22.11.0 <span class="w">满足 ≥18 要求</span></div>
+      </div>
+
+      <div id="wizAuthfail" class="demo-hide" style="margin-top:12px">
+        <div class="banner" style="background:var(--host-raised);color:var(--host-text);border-color:var(--ink-soft)">
+          <span aria-hidden="true">▲</span>
+          <div class="grow">
+            <b>免密连接未通过</b>
+            <div class="kv">先在本机跑 ssh-copy-id（或把公钥加入 ssh-agent），再回到这里重试</div>
+            <div class="path" style="margin-top:4px">$ ssh-copy-id gpu-1</div>
+          </div>
+          <button class="btn dex" type="button">重试此步</button>
+        </div>
+      </div>
+
+      <div id="wizSkip3" class="demo-hide" style="margin-top:12px">
+        <div class="banner" style="background:var(--host-raised);color:var(--host-text);border-color:var(--ink-soft)">
+          <span aria-hidden="true">📡</span>
+          <div class="grow">
+            <b>远端 helper 未安装</b>
+            <div class="kv">即将上传安装（默认路径）。也可以跳过安装转直连——仅适用于从未安装 helper 的部署，需显式确认并留痕（D31）。</div>
+            <div style="margin-top:6px">
+              <button class="btn dex" type="button">开始上传安装</button>
+              <button class="ghost-btn" type="button" id="btnSkipInstall">跳过安装，转直连…</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div id="wizFail" class="demo-hide" style="margin-top:12px">
+        <div class="banner" style="background:var(--host-raised);color:var(--host-text);border-color:var(--ink-soft)">
+          <span aria-hidden="true">▲</span>
+          <div class="grow">
+            <b>远端 Node 探测失败</b>
+            <div class="kv">v18.20.4 低于要求（≥18 且支持 helper 运行）。远端 Node 缺失时同样停在此步。</div>
+          </div>
+          <button class="btn dex" type="button">重试此步</button>
+        </div>
+      </div>
+
+      <div id="wizDigest" class="demo-hide" style="margin-top:12px">
+        <div class="banner" style="background:var(--host-raised);color:var(--host-text);border-color:var(--ink-soft)">
+          <span aria-hidden="true">▲</span>
+          <div class="grow">
+            <b>远端 helper 摘要与预期不符——拒绝置为就绪</b>
+            <div class="kv">预期 SHA-256 <span class="mono">9f2c…ab41</span> · 实测 <span class="mono">77d0…03ff</span></div>
+            <div style="margin-top:6px"><button class="btn dex" type="button" id="btnReinstall">重新安装</button>
+              <button class="ghost-btn" type="button" id="btnDegrade">转直连（显式确认）…</button></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="acts">
+        <button class="btn" type="button">中止（部署停当前态，可幂等续跑）</button>
+        <span class="grow"></span>
+      </div>
+    </div>
+
+    <!-- D31 显式降级确认（嵌套演示） -->
+    <div class="modal-wrap demo-hide" id="degradeConfirm" style="margin-top:14px">
+      <div class="modal" style="max-width:480px;border:1.5px solid var(--ink)">
+        <h3>转为直连模式？</h3>
+        <p style="font-size:13px">转为直连后，<span class="alias">gpu-1</span> 的派发不再经过 helper 摘要校验，安全性下降。此选择会<b>留痕到诊断段</b>。</p>
+        <div class="acts">
+          <button class="btn" type="button">取消</button>
+          <button class="btn dex" type="button">确认转直连</button>
+        </div>
+      </div>
+      <p class="overlay-note">DegradeConfirm：风险 + 留痕声明两键；确认后部署卡出现「直连模式」角标（见 ② 切换器第二态）</p>
+    </div>
+    <p class="overlay-note">向导 Gherkin 校验点：失败即停 / 步级重试 / 幂等跳过 / 摘要不符不降级（D31 显式确认留痕）</p>
+  </div>
+</section>
+
+<!-- ================= 4. 导入 / 恢复流 ================= -->
+<section class="sec" id="sec-import">
+  <h2>④ 背包 · 通用分区 · 导入 / 恢复（危险操作三防线）</h2>
+  <p class="note">导出卡新增「导入 JSON」「打开导出目录」；确认 = 弹层二次确认（升级桌面 4 秒红字——D25 前置自动备份防线信息量超出内联承载）。</p>
+
+  <div class="card" style="max-width:560px">
+    <b style="font-size:13px">数据导出</b>
+    <div class="row" style="margin-top:10px">
+      <button class="btn" type="button">导出全量 JSON</button>
+      <button class="btn" type="button">任务 CSV</button>
+      <button class="btn" type="button">今日日报</button>
+    </div>
+    <hr class="sep">
+    <div class="row">
+      <button class="btn dex" type="button">导入 JSON…</button>
+      <button class="btn" type="button">打开导出目录</button>
+      <span class="kv">helper 文件对话框选文件 · 目录不存在先建</span>
+    </div>
+  </div>
+
+  <div class="switchrow" role="group" aria-label="导入确认态切换" style="margin-top:14px">
+    <button data-imp="invalid" aria-pressed="false">校验失败（整体拒绝）</button>
+    <button data-imp="confirm" aria-pressed="true">二次确认（含自动备份实文件名）</button>
+    <button data-imp="backupfail" aria-pressed="false">导入前备份失败中止</button>
+    <button data-imp="restorewin" aria-pressed="false">恢复版本超窗拒绝</button>
+  </div>
+
+  <div class="modal-wrap">
+    <div class="modal" id="impModal">
+      <!-- 校验失败态 -->
+      <div id="impInvalid" class="demo-hide">
+        <h3>导入校验未通过</h3>
+        <ul style="font-size:13px;padding-left:18px;line-height:1.9">
+          <li>app 字段不符：期望 <span class="mono">pokemon-choose-you</span>，文件为 <span class="mono">other-app</span></li>
+          <li>tasks[3].due_at 格式非法：<span class="mono">"明天"</span></li>
+        </ul>
+        <p class="kv" style="margin-top:8px">库内容未改动（0 行变更）。</p>
+        <div class="acts"><button class="btn dex" type="button">换一个文件</button></div>
+      </div>
+      <!-- 二次确认态 -->
+      <div id="impConfirm">
+        <h3>确认导入？</h3>
+        <p style="font-size:13px">导入将<b>整体替换</b>当前待办数据（秘钥与提示词覆盖行保留）。</p>
+        <p style="font-size:13px;margin-top:6px">已自动备份：<span class="mono" style="word-break:break-all">backup-20261016-184210.db</span></p>
+        <p class="kv" style="margin-top:6px">执行后不可撤销，请确认。</p>
+        <div class="acts">
+          <button class="btn" type="button">取消</button>
+          <button class="btn dex" type="button">确认导入</button>
+        </div>
+      </div>
+      <!-- 备份失败中止态 -->
+      <div id="impBackupfail" class="demo-hide">
+        <h3>导入已中止</h3>
+        <p style="font-size:13px">导入前自动备份失败：磁盘空间不足（需要 24 MB，可用 3 MB）。</p>
+        <p class="kv" style="margin-top:6px">库内容未改动。清理空间后可重新发起。</p>
+        <div class="acts"><button class="btn dex" type="button">知道了</button></div>
+      </div>
+      <!-- 恢复超窗态 -->
+      <div id="impRestorewin" class="demo-hide">
+        <h3>恢复「backup-old.db」</h3>
+        <div class="lcd" style="margin:8px 0"><span class="e">user_version = 3</span> ＞ 本插件兼容窗口上限 2</div>
+        <p style="font-size:13px">该备份版本（v3）超出本插件兼容窗口，需升级插件后恢复。当前库未改动。</p>
+        <div class="acts">
+          <button class="btn" type="button">关闭</button>
+          <button class="btn dex" type="button" disabled>确认恢复</button>
+        </div>
+      </div>
+    </div>
+    <p class="overlay-note">ImportConfirmModal / RestoreConfirmModal 共用壳；「实备份文件名」非承诺语；超窗态确认键禁用 + 原因行</p>
+  </div>
+</section>
+
+<!-- ================= 5. 任务段：新建任务 ================= -->
+<section class="sec" id="sec-newtask">
+  <h2>⑤ 任务三段 · 「＋ 新建任务」+ 空态 + 建卡表单（TaskEditModal · create 模式）</h2>
+  <p class="note">段头工具行常驻（宿主档次按钮，非主行动黄——避免每段一个大黄钮）；空态主行动 = buttonDex；表单全字段同构编辑弹窗。</p>
+
+  <div class="card">
+    <div class="row" style="margin-bottom:10px">
+      <span style="font-size:13px;font-weight:600">冒险 · 今天</span>
+      <span class="kv">10月16日</span>
+      <span class="tagchip">CAUGHT 2/5</span>
+      <span class="grow"></span>
+      <button class="btn" type="button">＋ 新建任务</button>
+    </div>
+    <div class="entity running">
+      <img class="sprite" src="https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/25.png"
+           alt="皮卡丘" onerror="this.style.display='none'">
+      <div class="grow">
+        <div class="row"><b style="font-size:13px">写周报</b><span class="tagchip">⛳ 工作</span></div>
+        <div class="kv">今天 18:00 截止 · 专注 32 分钟</div>
+      </div>
+      <span class="badge ready" style="border-color:transparent;background:transparent"><i></i>进行中</span>
+    </div>
+  </div>
+
+  <div class="empty" style="margin-top:12px">
+    <img class="sprite" src="https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/25.png"
+         alt="皮卡丘" onerror="this.outerHTML='<span style=&quot;font-size:26px&quot;>⚡</span>'">
+    <div>草丛静悄悄——在会话里说一句、用 ⚡发报，或直接新建第一只</div>
+    <button class="btn dex" type="button">＋ 新建任务</button>
+  </div>
+
+  <div class="modal-wrap" style="margin-top:14px">
+    <div class="modal">
+      <h3>新建任务</h3>
+      <div style="display:grid;gap:10px">
+        <label class="field">标题（必填）
+          <input value="  " aria-invalid="true">
+          <span class="err">标题不能为空</span></label>
+        <label class="field">备注
+          <textarea rows="2" placeholder="可选"></textarea></label>
+        <div class="row">
+          <label class="field grow">分类
+            <select><option>工作（皮卡丘）</option><option>学习（杰尼龟）</option></select></label>
+          <label class="field grow">优先级
+            <select><option>普通</option><option>高</option><option>紧急</option><option>低</option></select></label>
+        </div>
+        <div class="row">
+          <label class="field grow">截止
+            <input class="mono" placeholder="2026-10-17 18:00（可选）"></label>
+          <label class="field grow">提醒
+            <input class="mono" placeholder="提前 15 分钟（可选）"></label>
+        </div>
+        <label class="field">标签（全量替换关联）
+          <input placeholder="⛳ 项目 / # 话题，逗号分隔（可选）"></label>
+      </div>
+      <p class="kv" style="margin-top:8px">未填排期 → 状态 = 草丛（inbox）；分类缺省第一个启用分类；优先级默认普通。</p>
+      <div class="acts">
+        <button class="btn" type="button">取消</button>
+        <button class="btn dex" type="button" disabled>创建</button>
+      </div>
+    </div>
+    <p class="overlay-note">呈现校验阻断态：标题 trim 后为空 → 行内提示 + 创建禁用；成功无 toast（入列即反馈）</p>
+  </div>
+</section>
+
+<!-- ================= 6. 日志段：分页与回放 ================= -->
+<section class="sec" id="sec-sessions">
+  <h2>⑥ 日志段 · 分组过滤 + 分页 + 回放（FR-C2）</h2>
+  <p class="note">胶囊四选（未知分组归「全部」）；counts 汇总常显不随翻页变化；回放按执行世界快照路由（远端快照压过当前配置）。</p>
+
+  <div class="card">
+    <div class="caps" role="group" aria-label="会话分组过滤">
+      <button class="cap" aria-pressed="false">全部</button>
+      <button class="cap" aria-pressed="false">收音机</button>
+      <button class="cap" aria-pressed="true">派发</button>
+      <button class="cap" aria-pressed="false">其他</button>
+      <span class="grow"></span>
+      <span class="kv" style="align-self:center">共 57 条 · 第 3/3 页</span>
+    </div>
+    <hr class="sep">
+    <table class="plain">
+      <thead><tr><th>会话</th><th>Agent</th><th>执行世界</th><th>时长 / 退出码</th><th></th></tr></thead>
+      <tbody>
+        <tr>
+          <td class="mono">a3f9c2</td><td>claude</td>
+          <td><span class="tagchip">gpu-1</span></td>
+          <td class="kv">14m02s · 0</td>
+          <td><button class="ghost-btn" type="button">回放</button></td>
+        </tr>
+        <tr>
+          <td class="mono">b88e01</td><td>claude</td>
+          <td><span class="tagchip">本机</span></td>
+          <td class="kv">3m41s · 0</td>
+          <td><button class="ghost-btn" type="button">回放</button></td>
+        </tr>
+        <tr>
+          <td class="mono">c17d55</td><td>codex</td>
+          <td><span class="tagchip" style="text-decoration:line-through">vps-tokyo</span></td>
+          <td class="kv">9m18s · 1（失败）</td>
+          <td><button class="ghost-btn" type="button">回放</button></td>
+        </tr>
+      </tbody>
+    </table>
+    <div class="row" style="margin-top:12px">
+      <div class="pager">
+        <button class="pg" disabled>‹</button>
+        <button class="pg" aria-current="true">1</button>
+        <button class="pg">2</button>
+        <button class="pg">3</button>
+        <span class="kv">…</span>
+        <button class="pg">›</button>
+      </div>
+      <span class="grow"></span>
+      <span class="kv">回放 c17d55 → 「该会话的远程部署已被移除，无法回放」（中性提示）</span>
+    </div>
+    <div class="lcd" style="margin-top:10px"><span class="t">回放路由</span>　gpu-1 的会话在 gpu-1 唤起（tmux attach 优先 → --resume 次之 → 兜底选择器）；本机会话在终端面板唤起；快照压过当前 agent 配置</div>
+  </div>
+</section>
+
+<!-- ================= 7. AX 授权引导 ================= -->
+<section class="sec" id="sec-ax">
+  <h2>⑦ 背包 · 桌宠分区 · 输入响应授权引导（FR-A9 / D22 / D32）</h2>
+  <p class="note">对齐桌面 SectionPets perm-hint 同位；授权是开关伴随态；非 macOS 整卡隐藏（非置灰）。</p>
+  <div class="switchrow" role="group" aria-label="授权态切换">
+    <button data-ax="unauth" aria-pressed="true">未授权（指引块）</button>
+    <button data-ax="revoked" aria-pressed="false">授权被撤销</button>
+  </div>
+
+  <div class="card" style="max-width:640px">
+    <div class="row">
+      <label class="toggle"><input type="checkbox" checked>输入响应（空闲时随你敲键盘的节奏做小回应）</label>
+    </div>
+    <div class="row" style="margin-top:6px;padding-left:24px">
+      <label class="toggle"><input type="checkbox">专注时也响应</label>
+    </div>
+    <p class="kv" style="margin-top:4px;padding-left:24px">只统计按键频率——不记录键值、键名、窗口或应用（0 采集）。</p>
+
+    <div id="axHint" style="margin-top:12px">
+      <div class="paper" style="padding:12px 14px">
+        <div style="font-size:13px">输入响应需要「辅助功能」授权，且只统计按键频率——不记录键值、键名、窗口或应用。</div>
+        <div class="row" style="margin-top:8px">
+          <button class="btn dex" type="button">去授权（直达系统设置 · 辅助功能）</button>
+        </div>
+        <div style="font-size:12px;margin-top:10px">若列表中找不到，把此路径拖入或复制后 ⌘⇧G 定位：
+          <code class="mono" style="word-break:break-all;cursor:pointer;border-bottom:1px dashed var(--pcy-paper-ink)"
+                title="点击复制">~/.dsh/plugins/pokemon-choose-you/helper/pky-helper</code>（点击复制）
+        </div>
+      </div>
+    </div>
+
+    <div id="axRevoked" class="demo-hide" style="margin-top:12px">
+      <div class="banner">
+        <span aria-hidden="true">⚠</span>
+        <span>授权已失效，需重新授权。授权恢复前输入响应保持停止</span>
+        <button class="btn dex" type="button">重新去授权</button>
+      </div>
+    </div>
+  </div>
+  <p class="overlay-note">授权后指引块消失；「作用于主应用桌宠」badge 已随 D4 翻案移除（U29）</p>
+</section>
+
+<!-- ================= 8. 诊断段能力矩阵 ================= -->
+<section class="sec" id="sec-diag">
+  <h2>⑧ 背包 · 诊断分区 · 系统能力面（HelperBanner 的联动归宿）</h2>
+  <p class="note">六能力 × 可用/降级 + 缺失指引；快捷键与 SSH 家族探测行；全部静态换态。</p>
+  <div class="card" style="max-width:640px">
+    <b style="font-size:13px">系统能力面（helper）</b>
+    <div style="margin-top:8px">
+      <div class="mrow"><span class="dot down"></span>托盘 <span class="guide">helper 未运行 · 手动放置指引</span></div>
+      <div class="mrow"><span class="dot down"></span>全局快捷键 <span class="guide">注册失败（可能被占用）——面板聚焦时 ⌘⇧K 仍可快捕</span></div>
+      <div class="mrow"><span class="dot down"></span>通知 <span class="guide">降级为页内 toast + 分段计数</span></div>
+      <div class="mrow"><span class="dot down"></span>文件对话框 <span class="guide">导入/恢复暂不可用</span></div>
+      <div class="mrow"><span class="dot down"></span>语音（TTS） <span class="guide">郑重时刻静默</span></div>
+      <div class="mrow"><span class="dot down"></span>输入计数 <span class="guide">未启动（授权门槛未过）</span></div>
+    </div>
+    <hr class="sep">
+    <div class="mrow" style="border:none"><span class="dot down"></span>electron 运行时
+      <span class="guide">获取失败 · 手动放置：<code class="mono">~/.dsh/electron/</code>（校验说明见文档）</span></div>
+    <hr class="sep">
+    <div class="mrow" style="border:none"><span class="dot ok"></span>dsh-ssh 家族 <span class="guide">已装载（subprocess-ssh / fs-ssh 就绪）</span></div>
+  </div>
+</section>
+
+<!-- ================= 9. 派发确认弹层 ================= -->
+<section class="sec" id="sec-dispatch">
+  <h2>⑨ 派发确认弹层 · 执行世界 + 降级明示（FR-RD4/RD6）</h2>
+  <p class="note">既有 DispatchOps 确认弹层的增量：执行世界徽章 + 直连警示行 + 终端面板通道说明。</p>
+  <div class="modal-wrap">
+    <div class="modal" style="max-width:520px">
+      <h3>派发确认</h3>
+      <div class="kv" style="line-height:2">
+        即将派发：<b>claude</b> · <span class="tagchip">gpu-1</span> · <span class="mono">~/work/pokemon</span> · 来源：⛳ parity<br>
+        远端执行时模型与会话留本机。交互通道将在终端面板启动，可随时观察接管。
+      </div>
+      <div class="banner" style="margin-top:10px;padding:8px 12px;font-size:12px">
+        <span aria-hidden="true">⚠</span> 直连模式：未经 helper 摘要校验（该部署经显式确认降级）
+      </div>
+      <div class="acts">
+        <button class="btn" type="button">取消</button>
+        <button class="btn dex" type="button">⚡ 出发</button>
+      </div>
+    </div>
+    <p class="overlay-note">降级态行三枚举（M1）：⚠ 直连模式（本例）· ⚠ 交互通道降级：将复制完整命令行，请自行在终端运行 · ⚠ 目标非 POSIX：仅支持无头直连派发；占用探测条件行（M2）：「远端仍有该任务的活动进程（会话 {id}）——继续派发将共用同一 worktree 并行运行，建议先收口」</p>
+  </div>
+</section>
+
+<!-- ================= 10. helper 桌宠面 ================= -->
+<section class="sec" id="sec-helper">
+  <h2>⑩ helper 侧 · 托盘 / 右键对话 / ChatBox / 行为组静帧（DESIGN_SYSTEM 保真区）</h2>
+  <p class="note">面板纪律之外的原样保真：300×330 局部小窗 + 初代双线框对话框；面板不加载像素字体（U6），本区 Press Start 2P 仅为 helper 实态示意。</p>
+
+  <div class="helper-zone">
+    <!-- 托盘菜单（三语切换） -->
+    <div class="traybox">
+      <div class="tray-icon">
+        <img class="sprite" src="https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/25.png"
+             alt="托盘图标" onerror="this.outerHTML='<span style=&quot;font-size:20px&quot;>⚡</span>'">
+        <span class="kv">系统托盘 · tooltip「就决定是你了」</span>
+      </div>
+      <div class="switchrow" role="group" aria-label="托盘语言" id="trayLang">
+        <button data-lang="zh" aria-pressed="true">简体</button>
+        <button data-lang="tw" aria-pressed="false">繁體</button>
+        <button data-lang="en" aria-pressed="false">EN</button>
+      </div>
+      <div class="tray-menu" id="trayMenu">
+        <div data-k="open">打开图鉴机</div>
+        <div data-k="pet">隐藏桌宠</div>
+        <div data-k="set">设置</div>
+        <hr>
+        <div data-k="quit">退出</div>
+      </div>
+      <p class="helper-note" style="margin-top:8px">左键 = 打开图鉴机（插件页面）；「设置」直达背包分区；「退出」一次确认（helper 连同桌宠托盘退出，宿主不受影响）。</p>
+    </div>
+
+    <!-- 桌宠窗 + 右键菜单 + ChatBox -->
+    <div style="position:relative">
+      <div class="petwin" aria-label="桌宠窗示意">
+        <img class="sprite-big" src="https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/133.png"
+             alt="伊布（坐栖姿态 · 幅度减半）" onerror="this.outerHTML='<span style=&quot;font-size:64px;position:absolute;left:98px;top:96px&quot;>🦊</span>'">
+        <div class="dialog" id="petDialog">
+          <div id="petBubble">伊布在桌沿坐下来了</div>
+          <span class="tri">▼</span>
+        </div>
+      </div>
+      <div class="ctx-menu" style="position:absolute;left:200px;top:6px" id="ctxMenu">
+        <div>💬 对话</div>
+        <div>⇄ 换目标</div>
+        <div>打开图鉴机页面</div>
+        <div>隐藏桌宠</div>
+      </div>
+      <p class="helper-note" style="margin-top:4px">右键菜单：「💬 对话」仅配了 agent 才出现（D 项条件入口）</p>
+    </div>
+
+    <!-- ChatBox 对话态 -->
+    <div style="position:relative">
+      <div class="petwin" aria-label="AI 聊聊对话态">
+        <img class="sprite-big" src="https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/133.png"
+             alt="伊布" onerror="this.outerHTML='<span style=&quot;font-size:64px;position:absolute;left:98px;top:88px&quot;>🦊</span>'">
+        <div class="dialog chat">
+          <div class="chat-log">
+            <div class="chat-msg me">今天连胜几天了？</div>
+            <div class="chat-msg bot">连胜 5 天啦！今天的皮卡丘也在等你。</div>
+            <div class="chat-msg bot thinking"><i></i><i></i><i></i></div>
+          </div>
+          <div class="chat-in">
+            <input value="陪我写周报" maxlength="200" aria-label="问宝可梦（≤200 字）">
+            <button type="button">▶</button>
+          </div>
+        </div>
+      </div>
+      <p class="helper-note" style="margin-top:4px">原位 ≤4 行（展开窗口调高，透明窗余高不可见）；回答截前 2 句；失败回退气泡「（伊布没听清，再说一次？）」；历史内存 3 条不持久化；Esc/✕ 收起</p>
+    </div>
+
+    <!-- 行为组静帧说明 -->
+    <div style="max-width:220px">
+      <table class="plain">
+        <thead><tr><th>行为组</th><th>静帧语义</th></tr></thead>
+        <tbody>
+          <tr><td>坐栖</td><td>底边 ≤72px 姿态减半；拎起即走</td></tr>
+          <tr><td>时刻台词</td><td>生日＞深夜＞周五晚＞整点；每类闸门一次</td></tr>
+          <tr><td>连胜演出</td><td>双球三摇；点击跳过；reduce = 0ms 结算</td></tr>
+          <tr><td>陪跑</td><td>满 25 分钟一位；reduce = 直接 sit</td></tr>
+          <tr><td>打盹</td><td>无任务 + 5min 无交互；任意交互唤醒</td></tr>
+          <tr><td>输入响应</td><td>cps 三档微抖；reduce = 不启动</td></tr>
+        </tbody>
+      </table>
+      <p class="helper-note" style="margin-top:6px">里程碑（10/50/100…）双排星星，优先于连胜且互不叠加</p>
+    </div>
+  </div>
+</section>
+
+<p class="overlay-note" style="margin-top:40px">
+  全部文案取 uiux-design.md §8（简中源）· token 单源 specs/dsh-plugin-style §4 · 反模板自查截图已执行（§6.1）
+</p>
+
+<script>
+/* ============ 原型开关（演示态切换，非业务实现） ============ */
+(function(){
+  const root = document.documentElement;
+  root.setAttribute("data-theme","dark"); root.setAttribute("data-reduce","0");
+
+  function bindGroup(id, attr, fn){
+    const g = document.getElementById(id);
+    if(!g) return;
+    g.addEventListener("click", e => {
+      const b = e.target.closest("button"); if(!b) return;
+      g.querySelectorAll("button").forEach(x => x.setAttribute("aria-pressed", String(x===b)));
+      fn(b.dataset);
+    });
+  }
+  /* 主题 / 动效 */
+  bindGroup("themeCtl","theme", d => root.setAttribute("data-theme", d.theme));
+  bindGroup("reduceCtl","reduce", d => root.setAttribute("data-reduce", d.reduce));
+
+  /* 部署卡状态 */
+  const deployViews = {list:"deployList", direct:"deployDirect", provisioning:"deployProvisioning", nossh:"deployNossh", empty:"deployEmpty"};
+  document.querySelectorAll('[data-deploy]').forEach(btn => {
+    btn.addEventListener("click", () => {
+      document.querySelectorAll('[data-deploy]').forEach(x => x.setAttribute("aria-pressed", String(x===btn)));
+      Object.entries(deployViews).forEach(([k,id]) => {
+        document.getElementById(id).classList.toggle("demo-hide", k !== btn.dataset.deploy);
+      });
+      document.getElementById("deployAddBtn").classList.toggle("demo-hide", btn.dataset.deploy === "nossh");
+    });
+  });
+
+  /* 向导状态 */
+  const wiz = {
+    run(){ setSteps([["done","✓"],["cur","探测中…"],["wait",""],["wait",""]], "run"); },
+    authfail(){ setSteps([["fail","▲ 失败"],["wait",""],["wait",""],["wait",""]], "authfail"); },
+    fail(){ setSteps([["done","✓"],["fail","▲ 失败"],["wait",""],["wait",""]], "fail"); },
+    skip3(){ setSteps([["done","✓"],["done","✓"],["cur","未安装"],["wait",""]], "skip3"); },
+    rerun(){ setSteps([["skip","跳过（已完成）"],["skip","跳过（已完成）"],["cur","安装中…"],["wait",""]], "run"); },
+    digest(){ setSteps([["done","✓"],["done","✓"],["done","✓"],["fail","▲ 不符"]], "digest"); },
+  };
+  function setSteps(arr, mode){
+    document.querySelectorAll("#wizSteps li").forEach((li,i) => {
+      li.className = arr[i][0];
+      const mark = li.querySelector('[id^="s"]');
+      mark.textContent = arr[i][1];
+    });
+    ["wizFail","wizDigest","wizAuthfail","wizSkip3"].forEach(id =>
+      document.getElementById(id).classList.add("demo-hide"));
+    const box = {fail:"wizFail", digest:"wizDigest", authfail:"wizAuthfail", skip3:"wizSkip3"}[mode];
+    if(box) document.getElementById(box).classList.remove("demo-hide");
+    const l1 = document.getElementById("wizLog1"), l3 = document.getElementById("wizLog3");
+    if(mode === "authfail"){
+      l1.innerHTML = '<span class="t">18:41:02</span> ssh -o BatchMode=yes gpu-1 true … <span class="e">Permission denied (publickey)</span>';
+      document.getElementById("wizLog2").innerHTML = '<span class="t">—</span> 等待步①通过';
+      l3.innerHTML = '<span class="t">—</span> 等待步①通过';
+    } else if(mode === "skip3"){
+      l1.innerHTML = '<span class="t">18:41:02</span> ssh -o BatchMode=yes gpu-1 true … <span class="w">ok (1.2s)</span>';
+      l3.innerHTML = '<span class="t">18:41:06</span> helper 入口 ~/.dsh/pky-helper <span class="e">不存在（从未安装）</span>';
+    } else {
+      l1.innerHTML = '<span class="t">18:41:02</span> ssh -o BatchMode=yes gpu-1 true … <span class="w">ok (1.2s)</span>';
+      document.getElementById("wizLog2").innerHTML = '<span class="t">18:41:04</span> ssh gpu-1 /usr/local/bin/node --version …';
+      l3.innerHTML = mode === "fail"
+        ? '<span class="t">18:41:05</span> v18.20.4 <span class="e">低于要求（需 ≥18）</span>'
+        : mode === "digest"
+          ? '<span class="t">18:43:10</span> sha256 校验 <span class="e">mismatch</span>：预期 9f2c…ab41 实测 77d0…03ff'
+          : '<span class="t">18:41:05</span> v22.11.0 <span class="w">满足 ≥18 要求</span>';
+    }
+  }
+  document.querySelectorAll('[data-wiz]').forEach(btn => {
+    btn.addEventListener("click", () => {
+      document.querySelectorAll('[data-wiz]').forEach(x => x.setAttribute("aria-pressed", String(x===btn)));
+      wiz[btn.dataset.wiz]();
+    });
+  });
+  const btnDegrade = document.getElementById("btnDegrade");
+  if(btnDegrade) btnDegrade.addEventListener("click", () =>
+    document.getElementById("degradeConfirm").classList.remove("demo-hide"));
+  const btnSkip = document.getElementById("btnSkipInstall");
+  if(btnSkip) btnSkip.addEventListener("click", () =>
+    document.getElementById("degradeConfirm").classList.remove("demo-hide"));
+
+  /* 部署表单模式（添加/编辑） */
+  document.querySelectorAll('[data-dform]').forEach(btn => {
+    btn.addEventListener("click", () => {
+      document.querySelectorAll('[data-dform]').forEach(x => x.setAttribute("aria-pressed", String(x===btn)));
+      const edit = btn.dataset.dform === "edit";
+      document.getElementById("dformTitle").textContent = edit ? "编辑部署 gpu-1" : "添加部署";
+      document.getElementById("dformFallback").classList.toggle("demo-hide", !edit);
+      document.getElementById("dformSave").textContent = edit ? "保存（回落未就绪）" : "保存（转开通向导）";
+    });
+  });
+
+  /* 导入确认态 */
+  const impViews = {invalid:"impInvalid", confirm:"impConfirm", backupfail:"impBackupfail", restorewin:"impRestorewin"};
+  document.querySelectorAll('[data-imp]').forEach(btn => {
+    btn.addEventListener("click", () => {
+      document.querySelectorAll('[data-imp]').forEach(x => x.setAttribute("aria-pressed", String(x===btn)));
+      Object.entries(impViews).forEach(([k,id]) =>
+        document.getElementById(id).classList.toggle("demo-hide", k !== btn.dataset.imp));
+    });
+  });
+
+  /* AX 态 */
+  document.querySelectorAll('[data-ax]').forEach(btn => {
+    btn.addEventListener("click", () => {
+      document.querySelectorAll('[data-ax]').forEach(x => x.setAttribute("aria-pressed", String(x===btn)));
+      document.getElementById("axHint").classList.toggle("demo-hide", btn.dataset.ax !== "unauth");
+      document.getElementById("axRevoked").classList.toggle("demo-hide", btn.dataset.ax !== "revoked");
+    });
+  });
+
+  /* 托盘三语 */
+  const trayText = {
+    zh:{open:"打开图鉴机",pet:"隐藏桌宠",set:"设置",quit:"退出"},
+    tw:{open:"打開圖鑑機",pet:"隱藏桌寵",set:"設定",quit:"退出"},
+    en:{open:"Open Pokédex",pet:"Hide pet",set:"Settings",quit:"Quit"},
+  };
+  document.querySelectorAll('#trayLang button').forEach(btn => {
+    btn.addEventListener("click", () => {
+      document.querySelectorAll('#trayLang button').forEach(x => x.setAttribute("aria-pressed", String(x===btn)));
+      const m = trayText[btn.dataset.lang];
+      document.querySelectorAll("#trayMenu div[data-k]").forEach(d => d.textContent = m[d.dataset.k]);
+    });
+  });
+
+  /* 初始态与默认按压按钮对齐 */
+  wiz.authfail();
+})();
+</script>
+</body>
+</html>

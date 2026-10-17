@@ -1,0 +1,4 @@
+# spike 探针 bundle patch：仅插入 pky-spike 探针条目（PKY_SPIKE=1 时才动作，否则 inert）
+- insert:
+    - id: pky-spike
+      name: "pky-spike"

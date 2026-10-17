@@ -1,0 +1,14 @@
+{
+  "name": "pky-spike",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "description": "dsh-ssh isolate 多实例装配 spike 探针（AD §9 · 验证点①②；非产品代码，env 门控）",
+  "main": "index.js",
+  "dsh": {
+    "manifestVersion": 1,
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    }
+  }
+}
