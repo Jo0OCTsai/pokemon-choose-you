@@ -157,6 +157,29 @@ jobs:
         run: pnpm --filter dsh-plugin-helper typecheck
       - name: helper 单元测试（bridge 契约真 stdio fake host + 状态机纯逻辑 + headless 运行时集成）
         run: pnpm --filter dsh-plugin-helper test
+      - name: 分发物断言（D30/debt ⑥：helper 产物随包 + uiohook prebuild 在场——NFR-12①）
+        # 构建后以 file: 形态装进 scratch 目录（模拟 profile 安装），断言三件：
+        # ①插件包内 helper/dist/main.js 在场（files 分发面）②dist/host.js 在场
+        # ③uiohook-napi 经插件闭包解析可达且平台 prebuild 在场（spike ③ 同口径——解析锚定
+        #   优于裸路径：pnpm isolated 布局依赖在 virtual store，裸路径断言会假红）
+        run: |
+          pnpm --filter dsh-plugin build
+          tmp=$(mktemp -d)
+          cd "$tmp"
+          echo '{"name":"pky-dist-check","private":true}' > package.json
+          cat > pnpm-workspace.yaml <<'YAML'
+          packages:
+            - .
+          allowBuilds:
+            "@deepseek-ai/dsh-subprocess-local": false
+            koffi: false
+            node-pty: false
+            uiohook-napi: false
+          YAML
+          pnpm add "file:$GITHUB_WORKSPACE/dsh-plugin"
+          test -f node_modules/dsh-plugin/dist/host.js
+          test -f node_modules/dsh-plugin/helper/dist/main.js
+          node -e "const {createRequire}=require('node:module'); const fs=require('node:fs'); const path=require('node:path'); const real=fs.realpathSync('node_modules/dsh-plugin/dist/host.js'); const r=createRequire(real); const u=path.join(path.dirname(r.resolve('uiohook-napi')), '..', 'prebuilds', 'linux-x64', 'uiohook-napi.node'); fs.accessSync(u); console.log('uiohook prebuild OK:', u); console.log('dsh-ssh closure OK:', r.resolve('@deepseek-ai/dsh-ssh/package.json'))"
       # schema 字节同源断言在 rust job 的 contracts_schema_single_source（include_str! × 磁盘）；
       # i18n 三语键集断言随 i18n 装配模块（并行组后续任务）挂入本 job
 

@@ -10,6 +10,12 @@ allowBuilds:
   #   AD §3.3）；CI 经 ELECTRON_SKIP_BINARY_DOWNLOAD=1 跳过下载（headless 测试不起窗体）
   esbuild: true
   electron: true
+  # dsh-ssh 家族运行时消费包内 prebuilds（darwin-arm64 在场），不跑 install 脚本：
+  # - uiohook-napi/node-pty 携带 prebuilds/；koffi 平台二进制走 optionalDependencies
+  "@deepseek-ai/dsh-subprocess-local": false
+  koffi: false
+  node-pty: false
+  uiohook-napi: false
 auditConfig:
   ignoreGhsas:
     - GHSA-vfj7-8cjw-p6xm
