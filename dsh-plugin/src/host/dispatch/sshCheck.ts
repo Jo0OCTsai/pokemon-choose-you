@@ -50,17 +50,22 @@ export function systemSshProbe(sshBin = "ssh"): SshProbeRunner {
 /** 缺省探测执行器（系统 ssh） */
 export const defaultSshProbe: SshProbeRunner = systemSshProbe();
 
+/** ssh 连接公共参数（BatchMode + ConnectTimeout + 端口解析；probe 与直连降级 ShellRunner 共用） */
+export function sshConnectArgs(target: string, connectTimeoutSecs: number): string[] {
+  const portMatch = /:(\d+)$/.exec(target.trim());
+  const argv = ["-o", "BatchMode=yes", "-o", `ConnectTimeout=${connectTimeoutSecs}`];
+  if (portMatch !== null) {
+    argv.push("-p", portMatch[1]);
+  }
+  return argv;
+}
+
 /** 解析 [user@]host[:port] 连接目标（端口 → -p；user@host[:port] 整体作 ssh 目标） */
 export function sshProbeArgv(target: string, connectTimeoutSecs = SSH_CONNECT_TIMEOUT_SECS): string[] {
   const t = target.trim();
   const portMatch = /:(\d+)$/.exec(t);
   const hostPart = portMatch !== null ? t.slice(0, portMatch.index) : t;
-  const argv = ["-o", "BatchMode=yes", "-o", `ConnectTimeout=${connectTimeoutSecs}`];
-  if (portMatch !== null) {
-    argv.push("-p", portMatch[1]);
-  }
-  argv.push("--", hostPart, "true");
-  return argv;
+  return [...sshConnectArgs(t, connectTimeoutSecs), "--", hostPart, "true"];
 }
 
 export type SshCheckOutcome = { ok: true } | { ok: false; error: PkyErrorShape };

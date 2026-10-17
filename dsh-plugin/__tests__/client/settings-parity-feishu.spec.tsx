@@ -3,7 +3,7 @@
  * 三维筛选 + 汇总计数行。从 settings-parity.spec 拆出（棘轮 max-lines，等量迁移）；
  * 渲染壳/分区导航 → settingsHarness。
  */
-import { cleanup, fireEvent, within } from "@testing-library/react";
+import { act, cleanup, fireEvent, within } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { makeData } from "./fixtures";
 import { getPage, gotoSection, renderSettings } from "./settingsHarness";
@@ -119,5 +119,17 @@ describe("飞书分区对齐（会话过滤搜索/筛选/汇总/生效 chip）",
     const rows = within(page).getAllByTestId("filter-row");
     expect(rows).toHaveLength(1);
     expect(rows[0].textContent).toContain("机器人小助手");
+  });
+
+  it("U28 授权登录一键启动：点击后呈现终端面板启动反馈（larkLoginStart）", async () => {
+    renderSettings(feishuData());
+    gotoSection("飞书");
+    const page = getPage("feishu");
+    const btn = within(page).getByTestId("lark-login-btn");
+    await act(async () => {
+      fireEvent.click(btn);
+    });
+    expect(within(page).getByTestId("lark-launched").textContent).toContain("已在终端面板启动登录");
+    expect(within(page).queryByTestId("lark-launch-failed")).toBeNull();
   });
 });

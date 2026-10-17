@@ -8,7 +8,7 @@ export default tseslint.config(
   {
     // helper/dist/** 是 esbuild 产物（build.mjs 生成，本地 pnpm build 后存在）——生成物不入
     // lint/棘轮口径；注意 flat config 的含斜杠 pattern 锚定本包根，需为子包显式列条目
-    ignores: ["dist/**", "node_modules/**", "coverage/**", "helper/dist/**", "helper/coverage/**"],
+    ignores: ["dist/**", "node_modules/**", "coverage/**", "helper/dist/**", "helper/coverage/**", "e2e/harness/**"],
   },
   ...tseslint.configs.recommended,
   {

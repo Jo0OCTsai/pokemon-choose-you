@@ -1,14 +1,14 @@
-/** storage/errors：15 错误码单源、PkyError、ok/fail 响应包装 */
+/** storage/errors：错误码单源（PROTOCOL.md §2 · 21 枚）、PkyError、ok/fail 响应包装 */
 import { describe, expect, it } from "vitest";
 import { ERROR_CODES, fail, notFound, ok, paramError, PkyError, toResult } from "../src/host/storage/errors";
 
-describe("错误码（PROTOCOL.md §2：15 枚举单源）", () => {
-  it("恰好 15 个且无重复", () => {
-    expect(ERROR_CODES.length).toBe(15);
-    expect(new Set(ERROR_CODES).size).toBe(15);
+describe("错误码（PROTOCOL.md §2 单源 · 21 枚 = 15 既有 + full-parity AD §4.2 增量 6 枚）", () => {
+  it("恰好 21 个且无重复", () => {
+    expect(ERROR_CODES.length).toBe(21);
+    expect(new Set(ERROR_CODES).size).toBe(21);
   });
 
-  it("枚举内容与协议表格逐字一致", () => {
+  it("枚举内容与协议表格逐字一致（+ 导入/恢复 2 + helper 能力 1 + 远程部署 3）", () => {
     expect([...ERROR_CODES]).toEqual([
       "JUDGE_TIMEOUT",
       "JUDGE_INVALID_RESULT",
@@ -25,6 +25,12 @@ describe("错误码（PROTOCOL.md §2：15 枚举单源）", () => {
       "AGENT_COMMAND_INVALID",
       "PROMPT_VALIDATION_FAILED",
       "SETTING_MODIFIED_ELSEWHERE",
+      "IMPORT_VALIDATION_FAILED",
+      "BACKUP_FAILED",
+      "HELPER_CAPABILITY_MISSING",
+      "DEPLOYMENT_NOT_READY",
+      "PROVISION_STEP_FAILED",
+      "HELPER_HASH_MISMATCH",
     ]);
   });
 });

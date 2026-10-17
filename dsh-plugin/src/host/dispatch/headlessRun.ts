@@ -16,7 +16,7 @@ import {
   type ExecOutcome,
 } from "./executor";
 import { dispatchArgs, summarizeLine } from "./cmdline";
-import { kindForCommand, logAgentSession, remoteSnapshot, sessionFlags } from "./sessions";
+import { executionWorld, kindForCommand, logAgentSession, sessionFlags } from "./sessions";
 import { noOpWorktree } from "./worktree";
 import type { AgentConfig } from "../domain/settings";
 import type { ResolvedDispatchRoute } from "./routes";
@@ -38,10 +38,11 @@ interface HeadlessPlan {
   summary: string;
   preSession: string | null;
   wtNote: string | null;
-  remote: ReturnType<typeof remoteSnapshot>;
+  remote: ReturnType<typeof executionWorld>;
 }
 
-/** worktree 预备（配置驱动：route.worktree 开 + workdir 非空才隔离；否则原目录） */
+/** worktree 预备（配置驱动：route.worktree 开 + workdir 非空才隔离；否则原目录）。
+ * worktreeFor（远端路由经 SSH runner 执行同款脚本）优先，回落既有 worktree 缺省链。 */
 async function ensureWorktreeDir(
   deps: HeadlessDeps,
   prep: DispatchPromptPrep,
@@ -49,7 +50,8 @@ async function ensureWorktreeDir(
   if (!prep.route.worktree || prep.route.workdir.trim() === "") {
     return { dir: null, note: null };
   }
-  return (deps.worktree ?? noOpWorktree()).ensure({ workdir: prep.route.workdir, taskId: prep.task.id });
+  const strategy = deps.worktreeFor?.(prep.route) ?? deps.worktree ?? noOpWorktree();
+  return strategy.ensure({ workdir: prep.route.workdir, taskId: prep.task.id });
 }
 
 /** worktree 策略 + 续接旗标 + 预生成会话落库（进程被杀也留续接线索） */
@@ -71,7 +73,7 @@ async function planHeadlessRun(conn: Conn, deps: HeadlessDeps, prep: DispatchPro
     )}`,
     preSession,
     wtNote: wt.note,
-    remote: remoteSnapshot(agent),
+    remote: executionWorld(agent, route),
   };
 }
 
@@ -201,7 +203,7 @@ function providerMissingOutcome(
     command: plan.summary,
     status: "error",
     workdir: plan.effectiveDir,
-    ...plan.remote,
+    ...executionWorld(prep.agent, prep.route),
   });
   safeTransition(conn, prep.task.id, DS_FAILED, "dsh:dispatch-headless");
   releaseSlot(conn, hostKey, prep.task.id);
@@ -219,7 +221,7 @@ function containedFailure(conn: Conn, prep: DispatchPromptPrep, hostKey: string,
       kind: "dispatch_headless",
       command: `无头派发 · ${prep.agent.command}`,
       status: "error",
-      ...remoteSnapshot(prep.agent),
+      ...executionWorld(prep.agent, prep.route),
     });
     safeTransition(conn, prep.task.id, DS_FAILED, "dsh:dispatch-headless");
   } catch {

@@ -137,3 +137,45 @@ describe("心跳（15 秒供给侧，timer 注入）", () => {
     expect(out).toHaveLength(2); // stop 后不再发
   });
 });
+
+describe("sys 上行分发（full-parity §4.3 扩展）", () => {
+  it("tray-action/shortcut-fired/notify-clicked/input-activity/sys-unsupported → 可选处理器逐条派发", () => {
+    const helperToHost = new PassThrough();
+    const seen: string[] = [];
+    const client = new BridgeClient({
+      handlers: {
+        onCmd: () => undefined,
+        onFocusSettle: () => undefined,
+        onTrayAction: (m) => seen.push(`tray:${m.action}`),
+        onShortcutFired: (m) => seen.push(`shortcut:${m.id}`),
+        onNotifyClicked: (m) => seen.push(`click:${m.kind}`),
+        onInputActivity: (m) => seen.push(`cps:${m.cps}`),
+        onSysUnsupported: (m) => seen.push(`unsup:${m.unsupported}`),
+      },
+    });
+    client.attach(helperToHost, new PassThrough());
+    helperToHost.write('{"type":"tray-action","action":"pet-toggle"}\n');
+    helperToHost.write('{"type":"shortcut-fired","id":"togglePet"}\n');
+    helperToHost.write('{"type":"notify-clicked","kind":"pomo-chime"}\n');
+    helperToHost.write('{"type":"input-activity","cps":2.5}\n');
+    helperToHost.write('{"type":"sys-unsupported","unsupported":"sys-dialog"}\n');
+    expect(seen).toEqual(["tray:pet-toggle", "shortcut:togglePet", "click:pomo-chime", "cps:2.5", "unsup:sys-dialog"]);
+    expect(client.stats.messagesIn).toBe(5);
+  });
+
+  it("未知上行类型 → invalidMessages 计数不崩（旧 host 安全忽略立场的对端面）", () => {
+    const { client, helperToHost } = makeBridge();
+    helperToHost.write('{"type":"future-msg"}\n{"type":"tray-action","action":"quit"}\n');
+    expect(client.stats.invalidMessages).toBe(1);
+    expect(client.stats.messagesIn).toBe(1); // 合法的 tray-action 照常送达（未注册处理器 = 静默忽略）
+  });
+
+  it("cmd pet-chat op 合法送达 onCmd（消费面 onPetChat 归 cmdHandler）", () => {
+    const ops: string[] = [];
+    const withChat = new BridgeClient({ handlers: { onCmd: (m) => ops.push(m.op), onFocusSettle: () => undefined } });
+    const chatUp = new PassThrough();
+    withChat.attach(chatUp, new PassThrough());
+    chatUp.write('{"type":"cmd","op":"pet-chat","text":"在吗"}\n');
+    expect(ops).toEqual(["pet-chat"]);
+  });
+});

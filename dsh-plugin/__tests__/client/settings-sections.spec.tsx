@@ -57,17 +57,19 @@ function getVisiblePage(label: string): HTMLElement {
 }
 
 describe("分区内容对齐主应用（U20）", () => {
-  it("专注分区触达类键带「作用于主应用触达」badge", () => {
+  it("专注分区触达类键 badge 已翻案移除（U29——dsh 形态自执行）", () => {
     renderSettings();
     const focus = getVisiblePage("专注");
-    expect(within(focus).getAllByText("作用于主应用触达").length).toBeGreaterThanOrEqual(4);
+    expect(within(focus).queryAllByText("作用于主应用触达")).toHaveLength(0);
   });
 
-  it("桌宠分区：主宝可梦/台词/输入响应×2/语音/陪跑（作用于主应用桌宠 badge）", () => {
+  it("桌宠分区：badge 已翻案移除（U29）；语音/陪跑仍在（测试环境非 macOS——输入响应整卡隐藏 D32）", () => {
     renderSettings();
     gotoSection("桌宠");
     const page = getPage("pets");
-    expect(within(page).getAllByText("作用于主应用桌宠").length).toBeGreaterThanOrEqual(4);
+    expect(within(page).queryAllByText("作用于主应用桌宠")).toHaveLength(0);
+    expect(within(page).getByText("桌宠语音")).toBeTruthy();
+    expect(within(page).getByText("陪跑精灵")).toBeTruthy();
   });
 
   it("显示分区：时间制式带实时预览（24h ↔ 12h）", () => {
@@ -199,11 +201,13 @@ describe("分区内容对齐主应用（U20）", () => {
     expect(host.calls.map((c) => c.command)).toContain("supportReport");
   });
 
-  it("通用分区：复盘/备份/托盘 badge + 库状态查询 + 使用指南链接", async () => {
+  it("通用分区：仅关闭到托盘保留 badge（U29/D33——复盘/备份已移除）+ 库状态 + 使用指南", async () => {
     const { host } = renderSettings();
     gotoSection("通用");
     const page = getPage("general");
-    expect(within(page).getAllByText("作用于主应用").length).toBeGreaterThanOrEqual(3);
+    expect(within(page).getAllByText("作用于主应用").length).toBe(1);
+    // 复盘/备份 badge 翻案（dsh 自执行——D24/D33）
+    expect(within(page).queryAllByText("作用于主应用触达")).toHaveLength(0);
     // 使用指南 = GitHub 文档外链（dsh 形态章节锚点，新窗口打开）
     const guide = within(page).getByTestId("guide-link");
     expect(guide.getAttribute("href")).toContain(

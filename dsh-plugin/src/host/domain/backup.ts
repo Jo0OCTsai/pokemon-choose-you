@@ -1,13 +1,15 @@
 /**
  * 数据备份域（行为基准 = src-tauri/src/backup.rs）：`VACUUM INTO` 生成压缩快照（不含
  * WAL、可直接打开——与桌面产物完全一致），手动入口同样参与 backup_keep 滚动保留。
- * 导出域拆件 → export.ts（公共面在此再出口，消费面 import 不变）。恢复 / 导入 /
- * 每日自动备份调度不在本域（恢复需关库重开牵动 conn 生命周期、导入是整体替换语义、
- * 调度归桌面 Rust——dsh host 只做手动触发）。
+ * 拆件索引（复杂度棘轮——各件公共面从各自文件直接 import）：
+ * - export.ts：三种导出产物（公共面在本文件再出口，消费面 import 不变）；
+ * - backup-restore.ts：导入校验/执行与恢复（D25 前置快照、超窗拒、白名单）；
+ * - backup-loop.ts：每日备份循环决策（A36 备份成功后条件写键时序；timer 注入归装配层）。
  */
 import { mkdirSync, readdirSync, rmSync, statSync } from "node:fs";
 import { join } from "node:path";
 import type { Conn } from "../storage/db";
+import { PkyError } from "../storage/errors";
 import { getSetting } from "./settings";
 import { stampNow } from "./export";
 
@@ -23,7 +25,8 @@ export function backupDir(dataDir: string): string {
   return join(dataDir, "backups");
 }
 
-function isBackupName(name: string): boolean {
+/** 备份文件名合法性（前缀 + 后缀；恢复域白名单共用——路径分隔符拒收在其调用侧） */
+export function isBackupName(name: string): boolean {
   return name.startsWith(NAME_PREFIX) && name.endsWith(NAME_SUFFIX);
 }
 
@@ -123,4 +126,13 @@ export function runBackupNow(
   const file = createBackup(dataDir, conn, now);
   pruneBackups(dataDir, keep);
   return { file, files: listBackups(dataDir) };
+}
+
+/** 导入/恢复前置自动备份原语（D25）：失败包装为 BACKUP_FAILED 上抛（调用方即中止整体操作） */
+export function preBackupOrThrow(dataDir: string, conn: Conn, now: Date): string {
+  try {
+    return createBackup(dataDir, conn, now);
+  } catch (error) {
+    throw new PkyError("BACKUP_FAILED", `操作前自动备份失败，已中止：${String(error)}`);
+  }
 }

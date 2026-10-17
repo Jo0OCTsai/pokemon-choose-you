@@ -16,14 +16,17 @@ import {
 } from "../domain/task-lifecycle";
 import {
   addTaskNote,
+  createTaskManual,
   deleteTaskNote,
   getCurrentTask,
   getTask,
   listTaskLogs,
   updateTask,
+  type ManualTaskCreateInput,
   type TaskPatch,
 } from "../domain/tasks";
 import { validEscapeReason } from "../domain/suggest-types";
+import { celebrateSolemn, caughtVariantOf, dexDoneCount } from "../pet/solemn";
 import type { CommandFn, CommandTable, DeleteUndoSnapshot } from "./context";
 
 const ORIGIN = "dsh";
@@ -103,6 +106,24 @@ const taskDeleteUndo: CommandFn<{ taskId: number }> = (p, deps) => {
   return getTask(conn, p.taskId);
 };
 
+/** taskComplete 命令实现（郑重时刻接线独立成 const——控表函数行数棘轮） */
+const taskComplete: CommandFn<{ taskId?: number }> = (p, deps) => {
+  // 郑重时刻（A30 · 2.7 接线）：完成动作发生在本形态 → 前后图鉴计数喂 milestone 判定；
+  // 判定命中 → task-state.caught 变体直推（A1——helper CatchShow 消费）；出声由
+  // celebrateSolemn 内部门控（pet_voice 默认静音 / helper 缺席不发）
+  const before = dexDoneCount(deps.conn);
+  const task = completeTask(deps.conn, p.taskId ?? getCurrentTask(deps.conn)?.id, ORIGIN);
+  const solemn = celebrateSolemn(deps.conn, () => deps.petBridge?.() ?? null, {
+    before,
+    after: dexDoneCount(deps.conn),
+  });
+  if (solemn !== null) {
+    deps.announceCaught?.(caughtVariantOf(solemn));
+  }
+  deps.onWrites();
+  return task;
+};
+
 /** 最近暂停的一只（taskResume 缺省目标；无暂停任务报参数错） */
 function mostRecentPaused(conn: import("../storage/db").Conn): number {
   const row = conn.prepare("SELECT id FROM tasks WHERE status='paused' ORDER BY focus_seconds DESC LIMIT 1").get() as
@@ -113,8 +134,8 @@ function mostRecentPaused(conn: import("../storage/db").Conn): number {
   return Number(row.id);
 }
 
-/** 任务域命令表（8 + 放生撤销） */
-export function taskCommands(): CommandTable {
+/** 任务生命周期段（start/pause/resume/complete/cancel/delete/undo/reschedule） */
+function taskLifecycleSet(): CommandTable {
   return {
     taskStart: (p, deps) => startTask(deps.conn, (p as { taskId: number }).taskId, ORIGIN),
     taskPause: (p, deps) => pauseCurrentTask(deps.conn, ORIGIN, undefined, (p as { taskId?: number }).taskId),
@@ -122,8 +143,7 @@ export function taskCommands(): CommandTable {
       const id = (p as { taskId?: number }).taskId ?? mostRecentPaused(deps.conn);
       return resumeTask(deps.conn, id, ORIGIN);
     },
-    taskComplete: (p, deps) =>
-      completeTask(deps.conn, (p as { taskId?: number }).taskId ?? getCurrentTask(deps.conn)?.id, ORIGIN),
+    taskComplete,
     taskCancel: (p, deps) => {
       const args = p as { taskId: number; reasonCode: string };
       validEscapeReason(args.reasonCode);
@@ -137,6 +157,12 @@ export function taskCommands(): CommandTable {
       deps.onWrites();
       return task;
     },
+  };
+}
+
+/** 任务编辑/跟进/历史/新建段 */
+function taskEditSet(): CommandTable {
+  return {
     // 全字段编辑（桌面 TaskEditModal 同位：updateTask 域内含 diff 审计）
     taskUpdate: (p, deps) => {
       const task = updateTask(deps.conn, p as TaskPatch, ORIGIN);
@@ -155,5 +181,17 @@ export function taskCommands(): CommandTable {
       return { ok: true };
     },
     taskHistory: (p, deps) => ({ logs: listTaskLogs(deps.conn, (p as { taskId: number }).taskId) }),
+    // 面板手动新建（FR-C1）：多分类/标签存在性前置校验在 domain——校验失败 0 行变更；
+    // 响应 = 任务本体（客户端 HostClient 契约 PkyResult<Task>——联调对齐口径）
+    taskCreate: (p, deps) => {
+      const task = createTaskManual(deps.conn, p as ManualTaskCreateInput, "panel");
+      deps.onWrites();
+      return task;
+    },
   };
+}
+
+/** 任务域命令表（13 条） */
+export function taskCommands(): CommandTable {
+  return { ...taskLifecycleSet(), ...taskEditSet() };
 }

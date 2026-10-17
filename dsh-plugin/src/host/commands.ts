@@ -1,9 +1,10 @@
 /**
- * host 命令装配（AD §4.1.1：49 client→host RPC + 1 条 host→客户端 pageOpen 推送，
- * 共 50 条目——49 命令含放生撤销 taskDeleteUndo 的显式撤销面；实体读域 5 条为
- * Phase B 契约缺口补齐 + 任务编辑/跟进/历史 4 条 + 备份/导出域 3 条 + 复盘向导
- * 标签体检 3 条 + agent 工具面 3 条（连接探针 / pk 技能检查与安装）+ 桌宠显隐状态 1 条，
- * 共 69 条目）。
+ * host 命令装配（AD §4.1.1 既有 69 + full-parity AD §4.1 新增 17 条 + 联调对齐
+ * macAuthPaneOpen 1 条，共 87 条目）：实体读域 5 条为 Phase B 契约缺口补齐 + 任务
+ * 编辑/跟进/历史 4 条 + 备份/导出域（full-parity 扩导入恢复与导出目录）7 条 + 复盘向导
+ * 标签体检 3 条 + agent 工具面 3 条（连接探针 / pk 技能检查与安装）+ 桌宠显隐状态 1 条 +
+ * 远程部署/开通向导 8 条 + 会话分页回放 2 条 + 图鉴连胜 1 条 + lark 一键登录 1 条 +
+ * AX 授权 2 条（macAuthorizationStatus + macAuthPaneOpen——纪要 §1 联调对齐）。
  * 分域实现表见 commands/ 目录；本文件装配统一调用面（ok/fail 信封）+ pageOpen 推送出口 +
  * conversation chip 数据源接口（dsh 适配层后续接线）。
  */
@@ -16,10 +17,19 @@ import { agentToolsCommands } from "./commands/agentToolsCommands";
 import { miscCommands } from "./commands/miscCommands";
 import { readCommands } from "./commands/readCommands";
 import { backupCommands } from "./commands/backupCommands";
+import { remoteCommands } from "./commands/remoteCommands";
 
-export type { HostCommandDeps, HostCommandCaller } from "./commands/context";
+export type {
+  HostCommandDeps,
+  HostCommandCaller,
+  RemoteCommandPlatform,
+  TerminalLineInjector,
+} from "./commands/context";
 
-/** 命令名全集（装配完整性断言单源；AD §4.1.1 表逐行 + taskDeleteUndo 撤销面 + petStatus 显隐状态） */
+/**
+ * 命令名全集（装配完整性断言单源；AD §4.1.1 表逐行 + taskDeleteUndo 撤销面 + petStatus
+ * 显隐状态 + full-parity §4.1 新增 17 条 + macAuthPaneOpen 联调对齐 1 条）
+ */
 export const HOST_COMMAND_NAMES = [
   "taskStart",
   "taskPause",
@@ -89,10 +99,36 @@ export const HOST_COMMAND_NAMES = [
   "taskSearch",
   "todayTasks",
   "categoriesList",
-  // 备份/导出域（手动快照 + 滚动保留 + 三种导出；恢复/导入不在命令面）
+  // 备份/导出域（手动快照 + 滚动保留 + 三种导出；full-parity 扩导入/恢复/导出目录）
   "backupRun",
   "backupList",
   "exportRun",
+  // ---- full-parity 增量（AD §4.1 · 69→86 + macAuthPaneOpen 联调对齐 = 87） ----
+  // 任务（FR-C1 面板手动新建）
+  "taskCreate",
+  // 会话（FR-C2 分页 + 回放）
+  "sessionsPage",
+  "sessionReplay",
+  // 远程部署/开通向导（FR-RD1/RD2 · D31）
+  "deploymentList",
+  "deploymentUpsert",
+  "deploymentDelete",
+  "deploymentRecheck",
+  "provisionRun",
+  "provisionStatus",
+  "deploymentDegradeConfirm",
+  // 导入/恢复/导出目录（FR-A5/A6 · D25 前置备份）
+  "importValidate",
+  "importRun",
+  "restoreRun",
+  "exportDirOpen",
+  // 图鉴连胜（FR-B3 数据面）
+  "streakInfo",
+  // lark 一键登录（FR-C3：终端注入）
+  "larkLoginStart",
+  // AX 授权（FR-A9；macAuthPaneOpen = 纪要 §1 联调对齐——AD §4.1 未列名）
+  "macAuthorizationStatus",
+  "macAuthPaneOpen",
 ] as const;
 
 /** 全量命令实现表（分域合并） */
@@ -106,6 +142,7 @@ export function hostCommandTable(): CommandTable {
     ...miscCommands(),
     ...readCommands(),
     ...backupCommands(),
+    ...remoteCommands(),
   };
 }
 

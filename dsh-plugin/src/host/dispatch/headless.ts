@@ -30,8 +30,17 @@ export interface HeadlessDeps {
   /** 按路由构造执行器：local 子进程 / subagent 适配 / SSH provider（null = 该路由不可执行） */
   executorFor?(agent: AgentConfig, route: ResolvedDispatchRoute): DispatchExecutor | null;
   worktree?: WorktreeStrategy;
+  /** 按路由取 worktree 策略（远端路由经 SSH runner 跑同款脚本；undefined = 回落 worktree 缺省链） */
+  worktreeFor?(route: ResolvedDispatchRoute): WorktreeStrategy | undefined;
   /** deployment 路由的免密预检（缺省不做——真实 dsh SSH provider 装配时注入） */
   sshCheck?(target: string): Promise<SshCheckOutcome>;
+  /**
+   * 派发前部署就绪复核（deployment 路由统一前置，remote/sshExecutor 装配面注入）：
+   * 家族链 = recheckDeployment 即时复核；直连降级链 = 免密预检先行。失败前置拒绝
+   * （不发派发执行 SSH、不占槽）——抛 RemoteDispatchRejection（tag 机器稳定，
+   * 命令层 2.9 映射 PROTOCOL §2 错误码）。注入本钩子后 sshCheck 不再重复执行。
+   */
+  deploymentPrecheck?(route: ResolvedDispatchRoute): Promise<void>;
 }
 
 /** 无头执行结果（失败不抛错：状态 + 原因 + 会话行，调用方按 state 呈现——HeadlessOutcome 同构） */
@@ -78,8 +87,25 @@ function claimManualWithSlot(
   });
 }
 
+/** deployment 路由前置（claim 前）：统一就绪复核优先（远端分支内含免密预检），回落既有 sshCheck */
+async function preflightDeployment(connDeps: HeadlessDeps, route: ResolvedDispatchRoute): Promise<void> {
+  if (route.deployment === null) {
+    return;
+  }
+  if (connDeps.deploymentPrecheck !== undefined) {
+    await connDeps.deploymentPrecheck(route);
+    return;
+  }
+  if (connDeps.sshCheck !== undefined) {
+    const check = await connDeps.sshCheck(route.deployment.target);
+    if (!check.ok) {
+      throw new PkyError(check.error.code, check.error.message, check.error.hint);
+    }
+  }
+}
+
 /**
- * 手动无头派发（host 命令 dispatchHeadless）：取数 →（deployment 免密预检
+ * 手动无头派发（host 命令 dispatchHeadless）：取数 →（部署前置：就绪复核 / 免密预检
  * SSH_AUTH_REQUIRED）→ 领取 + 占槽（原子；重复派发 DISPATCH_ALREADY_ACTIVE、槽满
  * DISPATCH_LAUNCH_FAILED）→ 执行收口。
  * 与 Rust 差异（有意）：主应用手动无头不占槽（用户发起），dsh 形态无头一律占机器槽
@@ -92,12 +118,7 @@ export async function dispatchHeadless(
   opts: { routeOverride?: string } = {},
 ): Promise<HeadlessOutcome> {
   const prep = prepareDispatchPrompt(conn, taskId, opts.routeOverride);
-  if (prep.route.deployment !== null && deps.sshCheck !== undefined) {
-    const check = await deps.sshCheck(prep.route.deployment.target);
-    if (!check.ok) {
-      throw new PkyError(check.error.code, check.error.message, check.error.hint);
-    }
-  }
+  await preflightDeployment(deps, prep.route);
   claimManualWithSlot(conn, {
     taskId,
     hostKey: prep.route.hostKey,
@@ -114,6 +135,14 @@ export async function runQueuedHeadless(
   taskId: number,
 ): Promise<{ started: false } | { started: true; outcome: HeadlessOutcome }> {
   const route = resolveDispatchRoute(conn, taskId);
+  if (route.deployment !== null && deps.deploymentPrecheck !== undefined) {
+    try {
+      await deps.deploymentPrecheck(route);
+    } catch {
+      // 部署未就绪/家族缺失：不领取不占槽，保持 queued 下轮再试（不自动重放远端操作）
+      return { started: false };
+    }
+  }
   const acquired = acquireSlot(conn, {
     taskId,
     hostKey: route.hostKey,

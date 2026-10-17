@@ -98,9 +98,10 @@ describe("PluginDetailPage · 只读传播（DB_SCHEMA_TOO_NEW）", () => {
 });
 
 describe("空态文案（§8）", () => {
-  it("任务分段冷启动：草丛静悄悄（被动引导，无按钮）", () => {
+  it("任务分段冷启动：草丛静悄悄 + 主行动「＋ 新建任务」（U22 空态升级）", () => {
     renderPage();
     expect(screen.getByText(/草丛静悄悄——在会话里说一句/)).toBeTruthy();
+    expect(screen.getByTestId("task-create-empty")).toBeTruthy();
   });
 
   it("收音机无消息：电波安静", () => {
@@ -109,9 +110,12 @@ describe("空态文案（§8）", () => {
     expect(screen.getByText(/电波安静。有新消息会以计数提醒/)).toBeTruthy();
   });
 
-  it("日志空态：还没有派出过 agent", () => {
+  it("日志空态：还没有派出过 agent（sessionsPage 拉式首载后呈现）", async () => {
     renderPage();
     fireEvent.click(screen.getByText("日志"));
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
     expect(screen.getByText("还没有派出过 agent")).toBeTruthy();
   });
 

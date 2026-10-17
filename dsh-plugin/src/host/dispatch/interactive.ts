@@ -25,7 +25,7 @@ import { getTask } from "../domain/tasks";
 import { agentLine, interactiveArgs, summarizeLine } from "./cmdline";
 import { prepareDispatchPrompt, type DispatchPromptPrep } from "./prompt";
 import type { ResolvedDispatchRoute } from "./routes";
-import { logAgentSession, remoteSnapshot } from "./sessions";
+import { logAgentSession, executionWorld } from "./sessions";
 import type { SshCheckOutcome } from "./sshCheck";
 
 /**
@@ -73,6 +73,14 @@ export interface InteractiveDeps {
   terminal: TerminalAdapter;
   /** deployment 路由免密预检（真实 ssh / 测试注入） */
   sshCheck?(target: string): Promise<SshCheckOutcome>;
+  /** 按路由取终端适配器（远端路由 = spawnTerminal 真 PTY 分支；undefined = 回落 terminal） */
+  terminalFor?(route: ResolvedDispatchRoute): TerminalAdapter | undefined;
+  /**
+   * 派发前部署就绪复核（remote/sshExecutor 装配面注入；语义同 HeadlessDeps 同名钩子：
+   * 失败前置拒绝，抛 RemoteDispatchRejection——tag 机器稳定，命令层 2.9 映射错误码）。
+   * 注入本钩子后 sshCheck 不再重复执行。
+   */
+  deploymentPrecheck?(route: ResolvedDispatchRoute): Promise<void>;
 }
 
 export interface InteractiveOutcome {
@@ -104,9 +112,13 @@ export function localDispatchDir(workdir: string): string | null {
   return configured;
 }
 
-/** 前置校验：deployment 免密预检（SSH_AUTH_REQUIRED）+ 本地目录先验（exec.rs 同款） */
+/** 前置校验：deployment 就绪复核 / 免密预检（SSH_AUTH_REQUIRED）+ 本地目录先验（exec.rs 同款） */
 async function assertInteractiveRoute(connDeps: InteractiveDeps, route: ResolvedDispatchRoute): Promise<void> {
   if (route.deployment !== null) {
+    if (connDeps.deploymentPrecheck !== undefined) {
+      await connDeps.deploymentPrecheck(route);
+      return;
+    }
     if (connDeps.sshCheck !== undefined) {
       const check = await connDeps.sshCheck(route.deployment.target);
       if (!check.ok) {
@@ -142,7 +154,7 @@ function logInteractiveSession(
       command: summarizeLine(agent.command, interactiveArgs(agent.historyArgs), prep.prompt),
       status: "ok",
       workdir: route.workdir,
-      ...remoteSnapshot(agent),
+      ...executionWorld(agent, route),
     },
     nowRfc3339(),
   );
@@ -182,7 +194,8 @@ export async function dispatchInteractive(
   }
   const line = agentLine(agent.command, interactiveArgs(agent.historyArgs), prep.prompt);
   try {
-    const launched = await deps.terminal.inject({
+    const terminal = deps.terminalFor?.(route) ?? deps.terminal;
+    const launched = await terminal.inject({
       line,
       agent,
       taskId,

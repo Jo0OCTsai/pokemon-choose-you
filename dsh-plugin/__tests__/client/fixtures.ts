@@ -124,3 +124,47 @@ export function makeData(overrides: Partial<PanelData> = {}): PanelData {
     ...overrides,
   };
 }
+
+// ---- full-parity 夹具（specs/dsh-plugin-full-parity 组件测试） ----
+import type { DeploymentEntity, SessionRow } from "../../src/client/rpc";
+
+/** 部署实体夹具（缺省未就绪 + 凭据零存储字段形态） */
+export function makeDeployment(overrides: Partial<DeploymentEntity> & { id: string; alias: string }): DeploymentEntity {
+  return {
+    nodePath: "/usr/local/bin/node",
+    helperPath: "",
+    helperHash: null,
+    workdir: "/srv/work",
+    note: "",
+    status: "not_ready",
+    lastError: null,
+    provision: null,
+    degraded: false,
+    ...overrides,
+  };
+}
+
+/** 会话账本行夹具（缺省本机无头派发、带回放句柄） */
+export function makeSessionRow(overrides: Partial<SessionRow> & { id: number }): SessionRow {
+  return {
+    taskId: null,
+    agentId: "agent-1",
+    agentName: "Claude Code",
+    sessionId: "sess-abc",
+    command: "claude",
+    exitCode: 0,
+    status: "ok",
+    durationMs: 61000,
+    costUsd: 0.012,
+    inputTokens: null,
+    outputTokens: null,
+    kind: "dispatch_headless",
+    workdir: "",
+    tmuxSession: "",
+    remoteHost: "",
+    remotePort: 0,
+    remoteKey: "",
+    createdAt: "2026-10-17T08:00:00+08:00",
+    ...overrides,
+  };
+}

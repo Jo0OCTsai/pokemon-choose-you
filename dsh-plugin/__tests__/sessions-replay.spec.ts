@@ -1,0 +1,228 @@
+/**
+ * dispatch/sessions · sessionReplay 回放路由（从 sessions-page.spec 拆出——棘轮
+ * max-lines，等量迁移）：本机三分支 / 远端部署唤起 / 快照压过当前配置 /
+ * ReplayLauncher 注入与错误转发映射。夹具（seedRow/db 生命周期）与原文件同构复制。
+ */
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import {
+  logAgentSession,
+  replayBranchOf,
+  sessionReplay,
+  sessionReplayable,
+  type ReplayLauncher,
+} from "../src/host/dispatch/sessions";
+import { PkyError } from "../src/host/storage/errors";
+import { createTestDb, seedAgents, type TestDb } from "./helpers";
+
+let db: TestDb;
+beforeEach(() => {
+  db = createTestDb();
+});
+afterEach(() => {
+  db.close();
+});
+
+/** 插一行会话并返回行 id（快照字段按需覆盖） */
+function seedRow(kind: string, extra: Partial<Parameters<typeof logAgentSession>[1]> = {}): number {
+  return logAgentSession(db.conn, { agentId: "ag-1", kind, status: "ok", ...extra });
+}
+
+// ---- sessionReplay 回放路由 ----
+
+interface Recorded {
+  local: Array<Record<string, unknown>>;
+  remote: Array<Record<string, unknown>>;
+}
+
+/** fake 注入执行体：记录唤起参数；可编程部署解析与唤起失败 */
+function makeLauncher(
+  opts: {
+    deployment?: (target: string) => { alias: string; ready: boolean } | null;
+    localError?: () => void;
+    remoteError?: () => void;
+  } = {},
+): { launcher: ReplayLauncher; rec: Recorded } {
+  const rec: Recorded = { local: [], remote: [] };
+  return {
+    rec,
+    launcher: {
+      resolveDeployment: opts.deployment ?? (() => null),
+      launchLocal: (l) => {
+        rec.local.push({ ...l });
+        opts.localError?.();
+      },
+      launchRemote: (l) => {
+        rec.remote.push({ ...l });
+        opts.remoteError?.();
+      },
+    },
+  };
+}
+
+describe("sessionReplay：路由三分支与可回放判定", () => {
+  it("branch 判定三分支完备（桌面 resume_route 同构）：tmux 优先 → resume → picker", () => {
+    expect(replayBranchOf({ tmuxSession: "t1", sessionId: "s1" })).toBe("tmux");
+    expect(replayBranchOf({ tmuxSession: "", sessionId: "s1" })).toBe("resume");
+    expect(replayBranchOf({ tmuxSession: "", sessionId: null })).toBe("picker");
+  });
+
+  it("本机行有 tmux 会话名 → tmux 分支唤起（优先级最高）", () => {
+    const rowId = seedRow("dispatch_interactive", { tmuxSession: "t1", sessionId: "s1", workdir: "/ws" });
+    const { launcher, rec } = makeLauncher();
+    const out = sessionReplay(db.conn, rowId, launcher);
+    expect(out).toEqual({ kind: "routed", world: "local", branch: "tmux" });
+    expect(rec.local).toHaveLength(1);
+    expect(rec.local[0]).toMatchObject({ branch: "tmux", tmuxSession: "t1", sessionId: "s1", workdir: "/ws" });
+    expect(rec.remote).toHaveLength(0);
+  });
+
+  it("本机行无 tmux 有 session_id → --resume 分支唤起", () => {
+    const rowId = seedRow("dispatch_headless", {
+      sessionId: "s9",
+      command: "claude",
+      workdir: "/local/ws",
+      agentId: "ag-2",
+    });
+    const { launcher, rec } = makeLauncher();
+    const out = sessionReplay(db.conn, rowId, launcher);
+    expect(out).toEqual({ kind: "routed", world: "local", branch: "resume" });
+    expect(rec.local[0]).toMatchObject({
+      branch: "resume",
+      sessionId: "s9",
+      tmuxSession: null,
+      agentId: "ag-2",
+      agentCommand: "claude",
+      workdir: "/local/ws",
+    });
+  });
+
+  it("无 session_id 且无 tmux 的行 → 明确不可回放值，唤起执行体零调用", () => {
+    const rowId = seedRow("classify");
+    const { launcher, rec } = makeLauncher();
+    expect(sessionReplay(db.conn, rowId, launcher)).toEqual({ kind: "not-replayable" });
+    expect(rec.local).toHaveLength(0);
+    expect(rec.remote).toHaveLength(0);
+  });
+});
+
+describe("sessionReplay：可回放判定与 NOT_FOUND", () => {
+  it("sessionReplayable：session_id 或 tmux 会话名任一非空即可回放", () => {
+    expect(sessionReplayable({ sessionId: "s", tmuxSession: "" })).toBe(true);
+    expect(sessionReplayable({ sessionId: null, tmuxSession: "t" })).toBe(true);
+    expect(sessionReplayable({ sessionId: null, tmuxSession: "" })).toBe(false);
+    expect(sessionReplayable({ sessionId: "  ", tmuxSession: " " })).toBe(false);
+  });
+
+  it("rowId 不存在 → NOT_FOUND", () => {
+    const { launcher } = makeLauncher();
+    expect(() => sessionReplay(db.conn, 999, launcher)).toThrowError(PkyError);
+  });
+});
+
+describe("sessionReplay：远端路由与快照压配置", () => {
+  it("快照 remote_host 非空 → 对应部署唤起（routed.world = 部署别名），带快照三元组", () => {
+    const rowId = seedRow("dispatch_headless", {
+      sessionId: "s-r",
+      workdir: "/remote/ws",
+      remoteHost: "gpu-1",
+      remotePort: 2222,
+      remoteKey: "/keys/id",
+    });
+    const { launcher, rec } = makeLauncher({ deployment: () => ({ alias: "gpu-1", ready: true }) });
+    const out = sessionReplay(db.conn, rowId, launcher);
+    expect(out).toEqual({ kind: "routed", world: { deploymentAlias: "gpu-1" }, branch: "resume" });
+    expect(rec.remote).toHaveLength(1);
+    expect(rec.remote[0]).toMatchObject({
+      target: "gpu-1",
+      deploymentAlias: "gpu-1",
+      sessionId: "s-r",
+      workdir: "/remote/ws",
+      port: 2222,
+      keyPath: "/keys/id",
+    });
+    expect(rec.local).toHaveLength(0);
+  });
+
+  it("快照压过当前配置（正向）：agent 现已改绑本机，行快照仍指向远端 → 远端唤起", () => {
+    seedAgents(db.conn, [{ id: "ag-1" }]); // 当前配置无 remote（本机）
+    const rowId = seedRow("dispatch_headless", { sessionId: "s", remoteHost: "gpu-1" });
+    const { launcher, rec } = makeLauncher({ deployment: () => ({ alias: "gpu-1", ready: true }) });
+    expect(sessionReplay(db.conn, rowId, launcher)).toMatchObject({
+      kind: "routed",
+      world: { deploymentAlias: "gpu-1" },
+    });
+    expect(rec.remote).toHaveLength(1);
+  });
+
+  it("快照压过当前配置（反向）：agent 现已绑远端，行快照为本机 → 本机唤起", () => {
+    seedAgents(db.conn, [{ id: "ag-1", host: "other-host" }]); // 当前配置绑远端
+    const rowId = seedRow("dispatch_headless", { sessionId: "s", remoteHost: "" });
+    const { launcher, rec } = makeLauncher({ deployment: () => ({ alias: "other-host", ready: true }) });
+    expect(sessionReplay(db.conn, rowId, launcher)).toEqual({ kind: "routed", world: "local", branch: "resume" });
+    expect(rec.local).toHaveLength(1);
+  });
+});
+
+describe("sessionReplay：错误语义 tag（转发映射）", () => {
+  it("快照指向的部署已删除 → DEPLOYMENT_NOT_READY + hint 替代", () => {
+    const rowId = seedRow("dispatch_headless", { sessionId: "s", remoteHost: "gone-1" });
+    const { launcher, rec } = makeLauncher({ deployment: () => null });
+    const out = sessionReplay(db.conn, rowId, launcher);
+    expect(out.kind).toBe("error");
+    if (out.kind === "error") {
+      expect(out.tag).toBe("DEPLOYMENT_NOT_READY");
+      expect(out.message).toContain("gone-1");
+      expect(out.hint).toBeTruthy();
+    }
+    expect(rec.remote).toHaveLength(0);
+  });
+
+  it("快照指向的部署未就绪 → DEPLOYMENT_NOT_READY", () => {
+    const rowId = seedRow("dispatch_headless", { sessionId: "s", remoteHost: "gpu-1" });
+    const { launcher } = makeLauncher({ deployment: () => ({ alias: "gpu-1", ready: false }) });
+    const out = sessionReplay(db.conn, rowId, launcher);
+    expect(out).toMatchObject({ kind: "error", tag: "DEPLOYMENT_NOT_READY" });
+  });
+});
+
+describe("sessionReplay：唤起失败的 tag 转发", () => {
+  it("本机唤起终端能力缺失（launcher 抛 DISPATCH_LAUNCH_FAILED）→ tag 转发", () => {
+    const rowId = seedRow("dispatch_headless", { sessionId: "s" });
+    const { launcher } = makeLauncher({
+      localError: () => {
+        throw new PkyError("DISPATCH_LAUNCH_FAILED", "dsh 终端面板不可用", "确认 dsh 终端面板可用");
+      },
+    });
+    expect(sessionReplay(db.conn, rowId, launcher)).toEqual({
+      kind: "error",
+      tag: "DISPATCH_LAUNCH_FAILED",
+      message: "dsh 终端面板不可用",
+      hint: "确认 dsh 终端面板可用",
+    });
+  });
+
+  it("远端唤起免密/连接失败（launcher 抛 SSH_AUTH_REQUIRED）→ tag 转发", () => {
+    const rowId = seedRow("dispatch_headless", { sessionId: "s", remoteHost: "gpu-1" });
+    const { launcher } = makeLauncher({
+      deployment: () => ({ alias: "gpu-1", ready: true }),
+      remoteError: () => {
+        throw new PkyError("SSH_AUTH_REQUIRED", "免密连接失败");
+      },
+    });
+    expect(sessionReplay(db.conn, rowId, launcher)).toEqual({
+      kind: "error",
+      tag: "SSH_AUTH_REQUIRED",
+      message: "免密连接失败",
+    });
+  });
+
+  it("launcher 抛预期之外的错误 → 原样上抛（不吞）", () => {
+    const rowId = seedRow("dispatch_headless", { sessionId: "s" });
+    const { launcher } = makeLauncher({
+      localError: () => {
+        throw new Error("boom");
+      },
+    });
+    expect(() => sessionReplay(db.conn, rowId, launcher)).toThrowError("boom");
+  });
+});

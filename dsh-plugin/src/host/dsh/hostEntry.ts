@@ -18,26 +18,31 @@ import { homedir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import z from "@deepseek-ai/schemastery";
-import { defineTool } from "@deepseek-ai/dsh-tools";
 import type { Context } from "@deepseek-ai/cordis";
 import type {} from "@deepseek-ai/cordis-plugin-timer"; // 类型面：ctx.interval/ctx.timeout 增强
 import type {} from "@deepseek-ai/dsh-client-connection"; // 类型面：Context.connection 增强
 import { createPlugin, probeNodeSqlite, unsupportedSqliteError, type Plugin } from "../index";
+import { ensureElectronDist } from "../pet/electronGet";
 import { electronSpawner } from "../pet/supervisor";
 import { dbFileFrom } from "../storage/paths";
 import { registerEmbeddedSchemas } from "../storage/migrate";
 import schemaRaw from "../storage/schema-raw";
-import type { PkyResult } from "../storage/errors";
 import { subagentExecutorPlaceholder } from "../judge/adapters";
-import type { ToolContext } from "../tools/registry";
 import type { HelperSpawner } from "../pet/supervisor";
 import type { TimerApi as LoopTimer } from "../dispatch/autoDispatch";
-import { toDslParameters, TODO_TOOL_PARAM_DECLS } from "./toolSchema";
+import { registerTodoTools } from "./toolRegister";
 import { PkyRemoteService } from "./remoteService";
+import { remotePlatformOf, wireRemoteGuard, type RemoteAssembly } from "./remoteAssembly";
 
 // 契约 SQL 编译期内嵌注册（migrate 双 loader 的内嵌侧）：安装形态磁盘相对路径不可达，
 // dist 产物经 build.mjs 的 ?raw loader 内嵌——模块加载期注册一次（fs 回落留给仓内 dev 直跑）
 registerEmbeddedSchemas({ ...schemaRaw });
+
+// 远程派发适配面（任务 2.1/2.2 产出；接线归任务 2.9）：此处仅再出口使模块进构建图——
+// 保持 `import("@deepseek-ai/dsh-ssh")` 动态字面量落进 dist（external 口径，运行时从
+// 插件包闭包解析——spike 验证点③）；不改变 apply 行为（惰性装载语义不变）
+export { createSshScopeHost, type CordisHostContext, type SshScopeHost } from "./sshScope";
+export { DSH_CAPABILITY_KEYS, probeDshCapabilities, sshFamilyOf } from "./probeDsh";
 
 /** 入口 id（cordis.patch.yml 的 insert id 同名；包名 dsh-plugin 是安装定位面） */
 export const name = "pokemon-choose-you";
@@ -75,11 +80,65 @@ function readSetting<T>(field: { get(): T } | T): T {
     : (field as T);
 }
 
-/** 工具输出 schema：ok/fail 信封本身（json = 注解式放行，信封结构归 PROTOCOL §2 单源） */
-const TOOL_OUTPUT_SCHEMA = {
-  type: "json",
-  description: "ok/fail 信封（PROTOCOL §2）：{ok:true,data} | {ok:false,error:{code,message,hint?}}",
-} as const;
+/** createPlugin 依赖注入面（timer/桌宠 spawner/判定执行方/远程平台——接线单源） */
+function pluginDepsOf(
+  ctx: Context,
+  config: ResolvedPkyConfig,
+  dbPath: string,
+  petSpawner: HelperSpawner | undefined,
+  remote: RemoteAssembly,
+): Parameters<typeof createPlugin>[0] {
+  return {
+    dbPath,
+    pollTimer: (cb, ms) => ctx.interval(cb, ms),
+    autoTimer: loopTimerOf(ctx),
+    feedTimer: loopTimerOf(ctx),
+    reminderTimer: (cb, ms) => ctx.interval(cb, ms),
+    backupTimer: (cb, ms) => ctx.interval(cb, ms),
+    petSpawner,
+    helperPath: () => locateHelperMain() ?? "",
+    remote: remote.platform,
+    sshFamily: () => remote.familyProjection(),
+    petAutoStart: {
+      // D18「随 dsh 启动」默认开：宿主配置面未显式写 false 时视为开（schemastery
+      // default(true) 在 dsh 配置面未落值时不生效——真机冒烟实测，未设值 = undefined）
+      get: () => readSetting(config.petAutoStart) !== false,
+      set: () => undefined, // 平台持久化归 dsh 配置面（Phase B 客户端设置段写回）
+    },
+    // 判定执行方：cli = 业务核心缺省（主 agent CLI 子进程）；subagent = 占位桥
+    // （调用即明确报错不静默——Phase B 换 dsh subagents 真实接面）
+    newExecutor: readSetting(config.judgeExecutor) === "cli" ? undefined : () => subagentExecutorPlaceholder(),
+    // dispatchDeps/terminal/larkBin 缺省：lark-cli 走 PATH；交互终端 fake 占位
+    // （dsh terminal 表面后续任务接面；无头派发 executorFor 缺省走 local 子进程）
+  };
+}
+
+/** 桌宠降级面收口（A20）：helper 产物在而 electron 缺失 → 后台按需获取 + 降级明示 */
+function degradePetRuntime(plugin: Plugin, petSpawner: HelperSpawner | undefined): void {
+  if (petSpawner !== undefined) {
+    return;
+  }
+  if (locateHelperMain() === undefined) {
+    warnDegrade(plugin, "桌宠降级停用（A20）：未定位到 helper/dist/main.js（插件包分发面缺件）");
+    return;
+  }
+  // D30：helper 产物在、electron 二进制缺失 → electronGet 后台按需获取（NFR-15：下载不阻塞
+  // 冷启动——本次会话降级明示，落位 ~/.dsh/electron/dist/ 即被探测链命中，下次启动恢复）
+  void ensureElectronDist().then(
+    (result) => {
+      if (result.status === "failed") {
+        warnDegrade(plugin, `electron 运行时获取失败：${result.reason}——手动放置指引：${result.guidance}`);
+      } else {
+        warnDegrade(plugin, `electron 运行时已就绪（${result.binPath}）——本次为下载期降级，下次启动桌宠自动恢复`);
+      }
+    },
+    (error) => warnDegrade(plugin, `electron 运行时获取异常：${String(error)}`),
+  );
+  warnDegrade(
+    plugin,
+    "桌宠降级停用（A20）：electron 二进制缺失——已发起后台按需获取（~/.dsh/electron/dist/），就绪后下次启动生效",
+  );
+}
 
 /**
  * 插件 apply：能力探测（node:sqlite 硬拒绝——NFR-3 不静默半工作）→ createPlugin 真实
@@ -96,25 +155,11 @@ export function apply(ctx: Context, config: ResolvedPkyConfig): void {
   }
   process.stderr.write(`[pokemon-choose-you] 待办库：${dbPath}\n`);
   const petSpawner = detectPetSpawner();
-  const plugin = createPlugin({
-    dbPath,
-    pollTimer: (cb, ms) => ctx.interval(cb, ms),
-    autoTimer: loopTimerOf(ctx),
-    feedTimer: loopTimerOf(ctx),
-    petSpawner,
-    petAutoStart: {
-      get: () => readSetting(config.petAutoStart) === true,
-      set: () => undefined, // 平台持久化归 dsh 配置面（Phase B 客户端设置段写回）
-    },
-    // 判定执行方：cli = 业务核心缺省（主 agent CLI 子进程）；subagent = 占位桥
-    // （调用即明确报错不静默——Phase B 换 dsh subagents 真实接面）
-    newExecutor: readSetting(config.judgeExecutor) === "cli" ? undefined : () => subagentExecutorPlaceholder(),
-    // dispatchDeps/terminal/larkBin 缺省：lark-cli 走 PATH；交互终端 fake 占位
-    // （dsh terminal 表面后续任务接面；无头派发 executorFor 缺省走 local 子进程）
-  });
-  if (petSpawner === undefined) {
-    warnDegrade(plugin, "桌宠降级停用（A20）：未定位到 helper/dist/main.js 或 electron 二进制");
-  }
+  // 远程部署平台面（full-parity 2.9）：scope 宿主 + 家族探测投影 + 闭包 helper 制品
+  const remote = remotePlatformOf(ctx);
+  const plugin = createPlugin(pluginDepsOf(ctx, config, dbPath, petSpawner, remote));
+  wireRemoteGuard(ctx, plugin, remote);
+  degradePetRuntime(plugin, petSpawner);
   // 装配逆序注册：dispose 最先进 effect → 卸载时最后执行（先注销工具/RPC，再收口循环与连接）
   ctx.effect((): (() => void) => plugin.dispose);
   try {
@@ -128,46 +173,15 @@ export function apply(ctx: Context, config: ResolvedPkyConfig): void {
   }
 }
 
+// ---- 远程部署平台面装配（full-parity 2.9）：platform/断连守卫/家族探测拆在
+// remoteAssembly.ts（控本文件行数棘轮）；此处再出口使装配件进构建图
+
 /** 循环 timer 面（autoDispatch 与 stateFeed 同形：every/cancel → ctx.interval 反注册函数） */
 function loopTimerOf(ctx: Context): LoopTimer {
   return {
     every: (ms, fn) => ctx.interval(fn, ms),
     cancel: (handle) => (handle as () => void)(),
   };
-}
-
-/** 22 工具 → ctx.tools.register(defineTool(...))；信封经 output/render 投影文本块 */
-function registerTodoTools(ctx: Context, plugin: Plugin): void {
-  const supervisor = plugin.supervisor;
-  const toolCtx: ToolContext = {
-    conn: plugin.conn,
-    origin: "dsh:tools",
-    pet: supervisor === null ? undefined : { show: () => supervisor.show(), hide: () => supervisor.hide() },
-  };
-  for (const def of plugin.tools.defs) {
-    const definition = defineTool({
-      name: def.name,
-      description: def.summary,
-      parameters: toDslParameters(TODO_TOOL_PARAM_DECLS[def.name] ?? {}),
-      output: {
-        schema: TOOL_OUTPUT_SCHEMA,
-        render: (_args: unknown, value: unknown) => [{ type: "text", text: renderEnvelope(value) }],
-      },
-      execute: (args: unknown) =>
-        plugin.tools.call(def.name, args, toolCtx).then((result) => result as unknown as never),
-    });
-    ctx.effect(() => ctx.tools.register(definition));
-  }
-}
-
-/** 信封 → 模型可读文本（失败行首标错误码，hint 换行跟随） */
-function renderEnvelope(value: unknown): string {
-  const result = value as PkyResult<unknown>;
-  if (result.ok) {
-    return JSON.stringify(result.data ?? {}, null, 2);
-  }
-  const error = result.error;
-  return `[${error.code}] ${error.message}${error.hint === undefined ? "" : `\nhint: ${error.hint}`}`;
 }
 
 // ---- 桌宠 helper 拉起面（spawner 定位 + electron 探测；找不到 = 降级停用不报错 A20） ----
@@ -214,9 +228,11 @@ function locateHelperMain(): string | undefined {
   return undefined;
 }
 
-/** electron 平台二进制相对 dist 位：darwin = Electron.app 包内执行档，其余 = 平铺 electron */
+/** electron 平台二进制相对 dist 位：darwin = Electron.app 包内执行档；win32 = electron.exe；
+ * 其余 = 平铺 electron（electronGet 落位产物同名——落位即被探测，full-parity AD §3.4） */
 function electronDistBin(): string {
-  return process.platform === "darwin" ? join("Electron.app", "Contents", "MacOS", "Electron") : "electron";
+  if (process.platform === "darwin") return join("Electron.app", "Contents", "MacOS", "Electron");
+  return process.platform === "win32" ? "electron.exe" : "electron";
 }
 
 /** electron 二进制候选定位（真实二进制，顺序见 detectPetSpawner 注释；全部 miss = undefined） */

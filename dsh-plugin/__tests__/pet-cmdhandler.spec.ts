@@ -83,6 +83,16 @@ describe("cmd 转发面（pos 持久化 / 回关注入）", () => {
     );
     expect(writes).toBe(1);
   });
+
+  it("pet-chat → onPetChat 回调（FR-A8 问题上载；未接线丢弃不抛错）", () => {
+    const seen: string[] = [];
+    handleCmd(
+      { conn: db.conn, onPetChat: (t) => seen.push(t) },
+      { type: "cmd", op: "pet-chat", text: "今天心情如何？" },
+    );
+    expect(() => handleCmd({ conn: db.conn }, { type: "cmd", op: "pet-chat" })).not.toThrow();
+    expect(seen).toEqual(["今天心情如何？"]);
+  });
 });
 
 describe("focus-settle → domain/focus（D16 幂等）", () => {

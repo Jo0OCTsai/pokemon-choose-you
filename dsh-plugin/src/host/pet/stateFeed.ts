@@ -8,9 +8,17 @@
  *   （sprites builtin 清单 = helper 的六只内置 + cdnBase，单一来源 import）。
  */
 import type { Conn } from "../storage/db";
-import { getSetting, setSetting } from "../domain/settings";
+import { getSetting, primaryAgent, setSetting } from "../domain/settings";
 import { DEFAULT_BUILTIN, DEFAULT_CDN_BASE } from "../../../helper/src/sprites";
-import type { ActiveTask, Badge, Lang, QuickTask, SpritesMsg } from "../../../helper/src/bridge/protocol";
+import type {
+  ActiveTask,
+  Badge,
+  Lang,
+  QuickTask,
+  SpritesMsg,
+  SysConfigMsg,
+  TaskStateMsg,
+} from "../../../helper/src/bridge/protocol";
 import { BridgeClient } from "./bridge";
 
 /** 桌宠位置持久化键（AD §4.1.1 petMove / §5.2 dsh: 内部态） */
@@ -163,6 +171,31 @@ export function buildPomodoroConfig(conn: Conn): {
   };
 }
 
+/** 全局快捷键缺省组合（AD §4.3 sys-config.shortcuts 行——设置面覆写归后续配置键） */
+export const DEFAULT_SHORTCUTS = { capture: "CmdOrCtrl+Shift+K", togglePet: "CmdOrCtrl+Shift+D" } as const;
+
+/**
+ * sys-config 组装（full-parity 2.7 补充接线 A2/A3）：tray（tooltip + 桌宠可见性回传）/
+ * shortcuts（缺省组合）/ inputResponse（pet_input_response 共享键 + 非 macOS 恒关由
+ * 装配层保证）/ tts（pet_voice）/ pet（mate = pet_mate 陪跑闸门 + agentConfigured =
+ * 已配置 agent——ChatBox 菜单条件项）。分节能力位过滤在 sysChannel（缺位不发该节）。
+ */
+export function buildSysConfig(
+  conn: Conn,
+  opts: { petVisible: boolean } = { petVisible: false },
+): Omit<SysConfigMsg, "type"> {
+  return {
+    tray: { tooltip: "就决定是你了", petVisible: opts.petVisible },
+    shortcuts: { ...DEFAULT_SHORTCUTS },
+    inputResponse: { enabled: getSetting(conn, "pet_input_response") === "true" },
+    tts: { enabled: getSetting(conn, "pet_voice") === "true" },
+    pet: {
+      mate: getSetting(conn, "pet_mate") === "true",
+      agentConfigured: primaryAgent(conn) !== null,
+    },
+  };
+}
+
 // ---- 事件流本体 ----
 
 export interface StateFeedOptions {
@@ -170,6 +203,8 @@ export interface StateFeedOptions {
   timer?: FeedTimerApi;
   /** 推送落点（supervisor 当前 bridge；helper 不在时推送丢弃） */
   bridgeProvider(): BridgeClient | null;
+  /** 桌宠可见性（sys-config.tray.petVisible 投影——supervisor 显隐状态；缺省 false） */
+  petVisible?(): boolean;
 }
 
 export class StateFeed {
@@ -185,17 +220,34 @@ export class StateFeed {
     this.timer = opts.timer ?? feedSystemTimer;
   }
 
-  /** 推送当前任务状态快照（写后直推 / 轮询命中 / 重启恢复共用出口） */
-  pushTaskState(): void {
+  /** 推送当前任务状态快照（写后直推 / 轮询命中 / 重启恢复共用出口；caught 变体随行可选） */
+  pushTaskState(caught?: TaskStateMsg["caught"]): void {
     const bridge = this.opts.bridgeProvider();
     if (bridge === null) {
       return;
     }
     const snap = snapshotTaskState(this.conn);
-    bridge.sendTaskState(snap.activeTask, snap.badge, Date.now(), snap.todayTasks);
+    bridge.sendTaskState(snap.activeTask, snap.badge, Date.now(), snap.todayTasks, caught);
   }
 
-  /** 下发配置全集（helper 拉起/重启后恢复：lang + sprites + pomodoro-config + task-state） */
+  /**
+   * 捕获演出变体直推（full-parity A1：完成动作路径郑重判定结果随 task-state 下发——
+   * helper CatchShow 消费；无变体（非郑重时刻）不推，保持写后直推的 plain 快照）。
+   */
+  announceCaught(caught: NonNullable<TaskStateMsg["caught"]>): void {
+    this.pushTaskState(caught);
+  }
+
+  /** sys-config 下发（分节能力位过滤在 sysChannel；tray.petVisible 取当前可见性） */
+  pushSysConfig(): void {
+    const bridge = this.opts.bridgeProvider();
+    if (bridge === null) {
+      return;
+    }
+    bridge.sys.sendSysConfig(buildSysConfig(this.conn, { petVisible: this.opts.petVisible?.() ?? false }));
+  }
+
+  /** 下发配置全集（helper 拉起/重启后恢复：lang + sprites + pomodoro-config + sys-config + task-state） */
   republishAll(): void {
     const bridge = this.opts.bridgeProvider();
     if (bridge === null) {
@@ -204,6 +256,7 @@ export class StateFeed {
     bridge.sendLang(resolveLang(this.conn));
     bridge.sendSprites(buildSpritesMsg(this.conn));
     bridge.sendPomodoroConfig(buildPomodoroConfig(this.conn));
+    this.pushSysConfig();
     this.pushTaskState();
   }
 

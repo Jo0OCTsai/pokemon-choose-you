@@ -1,8 +1,8 @@
 /**
- * storage/migrate + seed：guarded 迁移（封顶 minSchema、超窗只读）、schema 字节同源
- * 断言（AD §4.4）、冷启动种子幂等（D15，与 db.rs 常量逐字段一致）。
+ * storage/migrate + seed：guarded 迁移（D29 封顶 = 打包契约版、超窗只读）、schema 字节
+ * 同源断言（AD §4.4）、D29 同版发版断言（发布检查单机器面）、冷启动种子幂等（D15）。
  */
-import { readFileSync } from "node:fs";
+import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import schemaRaw from "../src/host/storage/schema-raw";
@@ -76,9 +76,24 @@ describe("guarded 迁移（AD §5.3 / A19）", () => {
     }
   });
 
-  it("迁移目标封顶 minSchema：绝不把库推过 2（A19）", () => {
+  it("迁移封顶 = 打包契约版（D29）：当前打包 2 份 SQL，冷启动迁满到 2", () => {
     expect(MIN_SCHEMA).toBe(2);
     expect(MAX_SCHEMA).toBe(2);
+    expect(MAX_SCHEMA).toBe(SCHEMA_FILES.length);
+  });
+});
+
+describe("D29 同版发版断言（FR-X9-2 发布检查单机器面）", () => {
+  it("窗口上限与打包 SQL 数量同版：MAX_SCHEMA === SCHEMA_FILES.length", () => {
+    expect(MAX_SCHEMA).toBe(SCHEMA_FILES.length);
+  });
+
+  it("内嵌键集 === SCHEMA_FILES 文件集 === contracts/schema 磁盘文件集（三方同版）", () => {
+    const disk = readdirSync(REPO_CONTRACTS)
+      .filter((f) => f.endsWith(".sql"))
+      .sort();
+    expect([...SCHEMA_FILES].sort()).toEqual(disk);
+    expect(Object.keys(schemaRaw).sort()).toEqual(disk);
   });
 });
 

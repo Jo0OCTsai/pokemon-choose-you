@@ -1,8 +1,9 @@
 /**
  * 上行 cmd 处理（AD §4.3 桥协议 helper → 插件）：start/pause/resume/done/switch/
- * capture/hide/open-page/pet-interact → domain 调用 + pos 持久化（任意 cmd 携带 pos
+ * capture/hide/open-page/pet-interact/pet-chat → domain 调用 + pos 持久化（任意 cmd 携带 pos
  * 即存 dsh:pet_pos——协议注记：拖动归为 pet-interact + pos）；open-page 转发给注册的
- * 页面回调接口（host→客户端 pageOpen 推送，装配层接 dsh 客户端导航通道）。
+ * 页面回调接口（host→客户端 pageOpen 推送，装配层接 dsh 客户端导航通道）；pet-chat =
+ * AI 聊聊问题上载（FR-A8，主 agent 执行方经 onPetChat 注入）。
  * focus-settle → domain/focus 入账（D16 整分钟 + localSessionId 幂等账本）。
  * op → 小处理函数映射表（每 op 独立可测、复杂度摊薄）。
  */
@@ -16,6 +17,8 @@ import type { CmdMsg, CmdOp, FocusSettleMsg } from "../../../helper/src/bridge/p
 /** open-page 页面回调（host→客户端 pageOpen 推送面——装配层注册） */
 export interface PageOpenPayload {
   section?: "panel" | "settings";
+  /** 聚焦收音机快捕提示（⌘⇧K 快捷键触发；客户端消费面归组 3——后向兼容可选位） */
+  focus?: "capture";
 }
 
 export interface CmdHandlerDeps {
@@ -30,6 +33,8 @@ export interface CmdHandlerDeps {
   onPetInteract?(pos: CmdMsg["pos"]): void;
   /** domain 写后直推（stateFeed.notifyLocalWrite 装配注入） */
   onWrites?(): void;
+  /** AI 聊聊问题上载（FR-A8：主 agent 执行方注入——回答经 bridge.sys.sendChatReply 回送；2.5/2.9 装配接线） */
+  onPetChat?(text: string): void;
 }
 
 /** taskId 归一（桥协议 number | string → number；缺失/非法 → 参数错） */
@@ -88,6 +93,11 @@ const handlePetInteract: OpHandler = (deps, msg) => {
   deps.onPetInteract?.(msg.pos);
 };
 
+/** AI 聊聊问题上载（FR-A8）：主 agent 执行方回调注入；未接线时丢弃（回答回送链归装配层） */
+const handlePetChat: OpHandler = (deps, msg) => {
+  deps.onPetChat?.(msg.text ?? "");
+};
+
 const OP_HANDLERS: Record<CmdOp, OpHandler> = {
   start: handleStart,
   switch: handleStart,
@@ -98,6 +108,7 @@ const OP_HANDLERS: Record<CmdOp, OpHandler> = {
   hide: handleHide,
   "open-page": handleOpenPage,
   "pet-interact": handlePetInteract,
+  "pet-chat": handlePetChat,
 };
 
 /**

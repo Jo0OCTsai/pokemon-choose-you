@@ -1,7 +1,7 @@
 /**
  * 契约回放套件（FR-X3 / PROTOCOL §5 · M3a+M3b）：遍历 contracts/scenarios 全部场景
- * json（43 个）执行 TS 实现 → 与 contracts/fixtures 逐字段比对（toStrictEqual：键序
- * 不敏感、数组序敏感）。完备性机检（M3a）：执行场景数 == 目录文件集；夹具零孤儿。
+ * json 执行 TS 实现 → 与 contracts/fixtures 逐字段比对（toStrictEqual：键序不敏感、
+ * 数组序敏感）。完备性机检（M3a）：执行场景数 == 目录文件集；夹具零孤儿。
  */
 import { describe, expect, it } from "vitest";
 import { discoverScenarios, loadJson, type Fixture, type Scenario } from "./contracts/harness";

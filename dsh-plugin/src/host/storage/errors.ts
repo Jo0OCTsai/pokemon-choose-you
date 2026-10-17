@@ -1,13 +1,18 @@
 /**
- * 错误码与响应包装（contracts/PROTOCOL.md §2 单源：15 枚举 · code 机器稳定，
+ * 错误码与响应包装（contracts/PROTOCOL.md §2 单源：code 机器稳定，
  * message 三语由 UI 层本地化）。
  *
- * 业务错误（15 码）用 PkyError 抛出；参数错 / 目标不存在属传输层通用语义，
+ * 业务错误用 PkyError 抛出；参数错 / 目标不存在属传输层通用语义，
  * 使用 INVALID_ARGUMENT / NOT_FOUND 两个非业务码（pk 面的 `{"error":"..."}` 同位对应）。
  * 响应统一 `{ ok: true, data? }` / `{ ok: false, error: { code, message, hint? } }`（ok/fail）。
  */
 
-/** 15 个业务错误码（PROTOCOL.md §2 表格逐字） */
+/**
+ * 业务错误码 21 枚（PROTOCOL.md §2 表格逐字单源；15→21 = full-parity AD §4.2 增量：
+ * 导入/恢复域 2 枚（任务 1.7 先行）+ helper 系统能力域 1 枚（任务 2.3/2.6 先行）+
+ * 远程部署域 3 枚（任务 2.9 收口追加——DEPLOYMENT_NOT_READY / PROVISION_STEP_FAILED /
+ * HELPER_HASH_MISMATCH），PROTOCOL §2 已由任务 2.9 同步追加至同集）。
+ */
 export const ERROR_CODES = [
   "JUDGE_TIMEOUT",
   "JUDGE_INVALID_RESULT",
@@ -24,6 +29,15 @@ export const ERROR_CODES = [
   "AGENT_COMMAND_INVALID",
   "PROMPT_VALIDATION_FAILED",
   "SETTING_MODIFIED_ELSEWHERE",
+  // ---- full-parity 增量（AD §4.2 · 15→21）：导入/恢复域 ----
+  "IMPORT_VALIDATION_FAILED",
+  "BACKUP_FAILED",
+  // ---- full-parity 增量（AD §4.2）：helper 系统能力域 ----
+  "HELPER_CAPABILITY_MISSING",
+  // ---- full-parity 增量（AD §4.2）：远程部署域（任务 2.9 收口） ----
+  "DEPLOYMENT_NOT_READY",
+  "PROVISION_STEP_FAILED",
+  "HELPER_HASH_MISMATCH",
 ] as const;
 
 export type ErrorCode = (typeof ERROR_CODES)[number];

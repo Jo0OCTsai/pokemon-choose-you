@@ -36,8 +36,12 @@ export interface Fixture {
 export type OpResult = { ok: true; value: unknown } | { ok: false; error: string };
 
 export interface OpCtx {
-  /** 第 idx 号连接（concurrency 组 = 同一临时文件库的两条连接） */
+  /** 第 idx 号连接（concurrency / reminder 组 = 同一临时文件库的两条连接） */
   conn(idx: number): Conn;
+  /** 场景 now（PROTOCOL §5 确定性时钟基点；reminder_tick 的缺省时刻） */
+  now: string;
+  /** 本步 args.conn 的连接路由（Rust conn_idx 镜像：缺省 0；只路由不进域原语参数） */
+  route: number;
 }
 
 export type OpFn = (ctx: OpCtx, args: Record<string, unknown>) => OpResult;
@@ -128,13 +132,14 @@ function seedSetup(conn: Conn, setup: Record<string, unknown> | undefined): void
   }
 }
 
-/** 场景连接集：concurrency 组 = 临时文件库双连接；其余 = 内存单连接 */
+/** 场景连接集：concurrency / reminder 组 = 临时文件库双连接（两形态跨连接竞争，
+ * Rust oracle Harness::new 同款 kind 判定）；其余 = 内存单连接 */
 export function openScenarioDb(
   kind: string,
   name: string,
   setup: Record<string, unknown> | undefined,
 ): { conns: Conn[]; cleanup(): void } {
-  if (kind === "concurrency") {
+  if (kind === "concurrency" || kind === "reminder") {
     const dir = mkdtempSync(join(tmpdir(), `cy-contracts-${name}-`));
     const path = join(dir, "db.sqlite");
     const conns: Conn[] = [];

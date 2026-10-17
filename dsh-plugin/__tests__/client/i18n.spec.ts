@@ -107,6 +107,16 @@ const KEY_FAMILIES: ReadonlyArray<readonly [string, readonly string[]]> = [
   ["dexStats.milestone.", ["m0", "m1", "m10", "m50", "m100", "m200"]],
   ["reviewDow.", ["1", "2", "3", "4", "5", "6", "7"]],
   ["prompts.feature.", ["im_classify", "capture", "tag_health", "dispatch"]],
+  // ---- full-parity 增量动态键族（UIUX §3/§8）----
+  ["dsh.sess.group.", ["all", "radio", "dispatch", "other"]],
+  ["dsh.deploy.status.", ["ready", "readyDirect", "notReady", "disconnected"]],
+  ["dsh.deploy.wizard.step.", ["probe-ssh", "probe-node", "upload", "verify"]],
+  ["dsh.deploy.wizard.state.", ["pending", "probing", "installing", "verifying", "done", "failed", "skipped"]],
+  ["dsh.deploy.wizard.fail.", ["probe-ssh", "probe-node", "upload", "verify"]],
+  [
+    "dsh.diag.caps.",
+    ["tray", "shortcut", "notify", "dialog", "tts", "input", "ok", "degraded", "guide", "absent", "version"],
+  ],
 ];
 
 /** 展开全部动态键族到键集合 */

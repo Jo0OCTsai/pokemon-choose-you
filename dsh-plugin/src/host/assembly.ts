@@ -9,7 +9,7 @@ import { dbFileFrom } from "./storage/paths";
 import { openAndInit } from "./storage/init";
 import { LogRing } from "./health/logRing";
 import { HealthState } from "./health/snapshot";
-import { createPollLoop, realTimer, type PollLoop, type TimerApi } from "./radio/pollLoop";
+import { type PollLoop, type TimerApi } from "./radio/pollLoop";
 import { createLark, type LarkCli } from "./radio/lark";
 import { createTodoTools } from "./tools/todoTools";
 import type { ToolRegistry } from "./tools/registry";
@@ -20,12 +20,7 @@ import {
   type HostCommandCaller,
   type HostCommandDeps,
 } from "./commands";
-import {
-  startAutoDispatchLoop,
-  systemTimer,
-  type AutoDispatchLoop,
-  type TimerApi as AutoTimer,
-} from "./dispatch/autoDispatch";
+import { type AutoDispatchLoop, type TimerApi as AutoTimer } from "./dispatch/autoDispatch";
 import type { HeadlessDeps } from "./dispatch/headless";
 import { createFakeTerminal, type TerminalAdapter } from "./dispatch/interactive";
 import { cliJudgeExecutor, type JudgeExecutor } from "./judge/adapters";
@@ -34,6 +29,12 @@ import { StateFeed, type FeedTimerApi } from "./pet/stateFeed";
 import { PetSupervisor, memoryPetAutoStartStore, type HelperSpawner } from "./pet/supervisor";
 import type { PageOpenPayload } from "./pet/cmdHandler";
 import { assemblePet, type PluginSlots } from "./petSection";
+import { assembleLoopsFull, assemblePollLoops, parityCommandDeps } from "./loopSection";
+import type { RemoteCommandPlatform } from "./commands";
+import type { SshFamilyProjection } from "./dsh/probeDsh";
+import type { ReminderLoop } from "./reminder/loop";
+import { ReminderDelivery } from "./reminder/deliver";
+import type { DailyBackupOutcome } from "./domain/backup-loop";
 
 /** 判定执行方工厂缺省实现：主 agent（收音机分类指定/首个启用）CLI 形态 */
 function defaultJudgeExecutor(conn: Conn): JudgeExecutor | null {
@@ -69,6 +70,17 @@ export interface PluginDeps {
   feishuConfigured?: boolean;
   /** 启动轮询（默认 true；纯命令面测试可关） */
   startPoll?: boolean;
+  // ---- full-parity 2.7/2.9 增量装配面 ----
+  /** 提醒循环 timer（20s tick；缺省 setInterval） */
+  reminderTimer?: TimerApi;
+  /** 备份循环 timer（30min tick；缺省 setInterval） */
+  backupTimer?: TimerApi;
+  /** 远程部署平台面（deployment、provision 族命令与远程派发路由；缺省 = 远端能力降级不装配） */
+  remote?: RemoteCommandPlatform;
+  /** dsh-ssh 家族探测投影（diagnosticsSnapshot.sshFamily 数据源；缺省 null 不显行） */
+  sshFamily?: () => SshFamilyProjection | null;
+  /** helper 入口路径（macAuthorizationStatus 回显；缺省空串） */
+  helperPath?: () => string;
 }
 
 /** 装配完成的插件实例（dsh 适配层与测试的消费面） */
@@ -83,40 +95,20 @@ export interface Plugin {
   readonly poll: PollLoop;
   readonly stateFeed: StateFeed;
   readonly supervisor: PetSupervisor | null;
+  /** 提醒循环（20s tick；runTick 供测试/手动单轮） */
+  readonly reminder: ReminderLoop;
+  /** 提醒送达通道（降级/丢弃计数——诊断面） */
+  readonly reminderDelivery: ReminderDelivery;
+  /** 每日备份循环（30min tick；runOnce 供测试/手动单轮） */
+  readonly backupLoop: { stop(): void; runOnce(): DailyBackupOutcome };
   /** host→客户端 pageOpen 推送订阅（桌宠双击/chip 点击经宿主导航打开插件页面） */
   onPageOpen(listener: (event: PageOpenPayload) => void): () => void;
   /** 生命周期收口：停循环 + 停 helper + 关连接 */
   dispose(): void;
 }
 
-/** 轮询/自动派发循环段装配（timer 全注入；启动即跑一轮轮询） */
-function assembleLoops(
-  conn: Conn,
-  deps: PluginDeps,
-  lark: LarkCli,
-  health: HealthState,
-  log: (l: "debug" | "info" | "warn" | "error", t: string, m: string) => void,
-  newExecutor: (c: Conn) => JudgeExecutor | null,
-  onWrites: () => void,
-): { poll: PollLoop; auto: AutoDispatchLoop } {
-  void onWrites;
-  const poll = createPollLoop({
-    conn,
-    lark,
-    health,
-    newExecutor: () => newExecutor(conn),
-    timer: deps.pollTimer ?? realTimer,
-    log: (level, message) => log(level, "radio", message),
-    onEvent: (event) => log("warn", "radio", `event: ${event}`),
-  });
-  const auto = startAutoDispatchLoop(conn, deps.dispatchDeps ?? {}, {
-    timer: deps.autoTimer ?? systemTimer,
-    onError: (error) => log("warn", "dispatch-auto", String(error)),
-  });
-  return { poll, auto };
-}
-
-/** host 命令依赖组装（缺省值兜底全部收拢在此——createPlugin 保持线性装配） */
+/** host 命令依赖组装（缺省值兜底全部收拢在此——createPlugin 保持线性装配；
+ *  full-parity 可选面在 loopSection.parityCommandDeps） */
 function buildCommandDeps(args: {
   conn: Conn;
   deps: PluginDeps;
@@ -140,13 +132,14 @@ function buildCommandDeps(args: {
     lark: args.lark,
     larkBin: deps.larkBin ?? "lark-cli",
     newExecutor: () => args.newExecutor(conn),
-    dispatchDeps: deps.dispatchDeps ?? {},
     terminal: deps.terminal ?? createFakeTerminal(),
     pet: petFaceOf(args.supervisor),
     onWrites: () => args.stateFeed.notifyLocalWrite(),
     openPage: args.openPage,
     feishuConfigured: deps.feishuConfigured ?? true,
     meta: { pluginVersion: deps.meta?.pluginVersion ?? "0.1.0", dshVersion: deps.meta?.dshVersion ?? null },
+    // ---- full-parity 2.7/2.9 增量面（可选注入，缺省按能力缺失降级） ----
+    ...parityCommandDeps({ conn, deps, supervisor: args.supervisor, stateFeed: args.stateFeed }),
   };
 }
 
@@ -166,10 +159,11 @@ function petFaceOf(supervisor: PetSupervisor | null): HostCommandDeps["pet"] {
   };
 }
 
-/** 装配后的启动收尾（轮询启动 + 桌宠随宿主开关） */
+/** 装配后的启动收尾（轮询启动 + 提醒/备份循环 + 桌宠随宿主开关） */
 function startExtras(plugin: Plugin, deps: PluginDeps, log: HostCommandDeps["log"]): void {
   if (deps.startPoll !== false) {
     plugin.poll.start();
+    plugin.reminder.start();
   }
   const autoStart = deps.petAutoStart ?? memoryPetAutoStartStore();
   if (plugin.supervisor !== null && autoStart.get()) {
@@ -177,6 +171,22 @@ function startExtras(plugin: Plugin, deps: PluginDeps, log: HostCommandDeps["log
       log("warn", "pet", `helper 拉起失败：${String(error)}`);
     });
   }
+}
+
+/** LogRing 落日志回调（时间戳 = nowRfc3339 同形态 +00:00） */
+function ringLogger(logs: LogRing): HostCommandDeps["log"] {
+  return (level, target, message) => {
+    logs.log(level, target, message, new Date().toISOString().replace("Z", "+00:00"));
+  };
+}
+
+/** openPage 广播器（section/focus 事件 → 已注册监听器集合逐一转发） */
+function pageOpener(
+  listeners: Set<(event: PageOpenPayload) => void>,
+): (section?: "panel" | "settings", focus?: "capture") => void {
+  return (section, focus) => {
+    listeners.forEach((l) => l({ section, ...(focus !== undefined ? { focus } : {}) }));
+  };
 }
 
 /** 装配插件（storage → health/log → pet/feed → loops → tools/commands → 启动收尾） */
@@ -188,16 +198,15 @@ export function createPlugin(deps: PluginDeps = {}): Plugin {
   const { conn, migration } = openAndInit(dbPath);
   const logs = new LogRing();
   const health = new HealthState();
-  const log = (level: "debug" | "info" | "warn" | "error", target: string, message: string): void => {
-    logs.log(level, target, message, new Date().toISOString().replace("Z", "+00:00"));
-  };
+  const log = ringLogger(logs);
   const lark: LarkCli = createLark(deps.larkBin ?? "lark-cli");
   const newExecutor = deps.newExecutor ?? defaultJudgeExecutor;
   const slots: PluginSlots = { feed: null, supervisor: null };
   const openPageListeners = new Set<(event: PageOpenPayload) => void>();
-  const openPage = (section?: "panel" | "settings"): void => openPageListeners.forEach((l) => l({ section }));
+  const openPage = pageOpener(openPageListeners);
   const { supervisor, stateFeed } = assemblePet({ conn, deps, log, slots, openPage, health, newExecutor });
-  const { poll, auto } = assembleLoops(conn, deps, lark, health, log, newExecutor, () => stateFeed.notifyLocalWrite());
+  const { poll, auto } = assemblePollLoops({ conn, deps, lark, health, log, newExecutor });
+  const { reminder, reminderDelivery, backupLoop } = assembleLoopsFull({ conn, deps, supervisor, log, stateFeed });
   stateFeed.start();
   const commandDeps = buildCommandDeps({
     conn,
@@ -223,6 +232,9 @@ export function createPlugin(deps: PluginDeps = {}): Plugin {
     supervisor,
     openPageListeners,
     auto,
+    reminder,
+    reminderDelivery,
+    backupLoop,
   });
   startExtras(plugin, deps, log);
   return plugin;
@@ -240,6 +252,9 @@ function buildPluginObject(args: {
   supervisor: PetSupervisor | null;
   openPageListeners: Set<(event: PageOpenPayload) => void>;
   auto: AutoDispatchLoop;
+  reminder: ReminderLoop;
+  reminderDelivery: ReminderDelivery;
+  backupLoop: { stop(): void; runOnce(): DailyBackupOutcome };
 }): Plugin {
   return {
     conn: args.conn,
@@ -252,6 +267,9 @@ function buildPluginObject(args: {
     poll: args.poll,
     stateFeed: args.stateFeed,
     supervisor: args.supervisor,
+    reminder: args.reminder,
+    reminderDelivery: args.reminderDelivery,
+    backupLoop: args.backupLoop,
     onPageOpen(listener) {
       args.openPageListeners.add(listener);
       return () => {
@@ -261,6 +279,8 @@ function buildPluginObject(args: {
     dispose() {
       args.poll.stop();
       args.auto.stop();
+      args.reminder.stop();
+      args.backupLoop.stop();
       args.stateFeed.stop();
       args.supervisor?.dispose();
       args.conn.close();

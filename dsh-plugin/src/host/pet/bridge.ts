@@ -1,5 +1,6 @@
 /**
- * 桥客户端（host 侧）：与 helper 的 stdio JSON 行通道（AD §4.3 协议全集）。
+ * 桥客户端（host 侧）：与 helper 的 stdio JSON 行通道（AD §4.3 协议全集——基础五种下行 +
+ * full-parity 系统能力扩展；`sys` 子面 = SysChannel）。
  *
  * 类型对齐方式：**直接 import helper 子包的 protocol.ts**（workspace 内相对路径，
  * 零依赖纯 TS 单源——pet 侧与 helper 的对接单源，不做对等复制防漂移）。
@@ -16,12 +17,19 @@ import {
   type DownstreamMsg,
   type FocusSettleMsg,
   type HelloMsg,
+  type InputActivityMsg,
   type Lang,
+  type MacAuthResultMsg,
+  type NotifyClickedMsg,
   type PomodoroConfigMsg,
+  type ShortcutFiredMsg,
   type SpritesMsg,
+  type SysUnsupportedMsg,
   type TaskStateMsg,
+  type TrayActionMsg,
   type UpstreamMsg,
 } from "../../../helper/src/bridge/protocol";
+import { SysChannel, isSeqUpstream, isSysEventUpstream, type SysClock, type SysEventUpstream } from "./sysChannel";
 
 /** 心跳间隔（毫秒，AD §4.3——helper 看门狗超时 15s 的同值供给侧） */
 export const HEARTBEAT_INTERVAL_MS = 15_000;
@@ -50,18 +58,32 @@ export interface BridgeClientStats {
   messagesOut: number;
 }
 
-/** 上行处理分发（cmd / focus-settle / hello / crash-diag 全集） */
+/** 上行处理分发（基础四种 + 系统能力扩展六种；seq 四消息由 sys 通道内部消化） */
 export interface BridgeClientHandlers {
   onCmd(msg: CmdMsg): void;
   onFocusSettle(msg: FocusSettleMsg): void;
   onHello?(msg: HelloMsg): void;
   onCrashDiag?(msg: CrashDiagMsg): void;
+  /** 托盘菜单动作（quit = 复用 supervisor 停 helper；settings 经 pageOpen 链——A37） */
+  onTrayAction?(msg: TrayActionMsg): void;
+  /** 全局快捷键触发（capture → pageOpen + 聚焦快捕；注册失败 helper 不发） */
+  onShortcutFired?(msg: ShortcutFiredMsg): void;
+  /** 通知点击观测留痕（无动作语义） */
+  onNotifyClicked?(msg: NotifyClickedMsg): void;
+  /** 输入活动强度（仅透传桌宠状态面——不落库不外发，NFR-13） */
+  onInputActivity?(msg: InputActivityMsg): void;
+  /** 能力位与实现失配上报 → 记诊断 + 面板提示升级 helper（HELPER_CAPABILITY_MISSING 语义） */
+  onSysUnsupported?(msg: SysUnsupportedMsg): void;
+  /** 无对应请求的 mac-auth-result（seq 0 主动上报：授权撤销/恢复）→ inputResponse 状态面 */
+  onMacAuthChange?(msg: MacAuthResultMsg): void;
 }
 
 export interface BridgeClientOptions {
   handlers: BridgeClientHandlers;
   heartbeatMs?: number;
   timer?: PetTimerApi;
+  /** sys 通道时钟（seq 超时测试注入短值/手动推进） */
+  sysClock?: SysClock;
 }
 
 /** hello 握手完成的回调注册（supervisor 借此重发状态快照） */
@@ -69,6 +91,8 @@ export type ReadyListener = (hello: HelloMsg) => void;
 
 export class BridgeClient {
   readonly stats: BridgeClientStats = { linesIn: 0, badLines: 0, invalidMessages: 0, messagesIn: 0, messagesOut: 0 };
+  /** sys 系统能力扩展面（hello 门控发送 + seq 两段语义；随本 client 一代生命周期） */
+  readonly sys: SysChannel;
 
   private buffer = "";
   private output: NodeJS.WritableStream | null = null;
@@ -83,6 +107,12 @@ export class BridgeClient {
     this.handlers = opts.handlers;
     this.heartbeatMs = opts.heartbeatMs ?? HEARTBEAT_INTERVAL_MS;
     this.timer = opts.timer ?? petSystemTimer;
+    this.sys = new SysChannel({
+      transmit: (msg) => this.send(msg),
+      hello: () => this.helloSeen,
+      clock: opts.sysClock,
+      onMacAuthChange: (msg) => this.handlers.onMacAuthChange?.(msg),
+    });
   }
 
   /** 接上 helper 子进程管道（supervisor spawn 后调用） */
@@ -98,9 +128,10 @@ export class BridgeClient {
     });
   }
 
-  /** 与 helper 管道断开（进程退出后；幂等） */
+  /** 与 helper 管道断开（进程退出后；幂等）——sys pending 全部按能力缺席收口 */
   detach(): void {
     this.stopHeartbeat();
+    this.sys.dispose();
     this.output = null;
     this.buffer = "";
   }
@@ -149,6 +180,7 @@ export class BridgeClient {
     badge: Badge,
     ts: number,
     todayTasks?: TaskStateMsg["todayTasks"],
+    caught?: TaskStateMsg["caught"],
   ): boolean {
     return this.send({
       type: "task-state",
@@ -156,6 +188,7 @@ export class BridgeClient {
       badge,
       ts,
       ...(todayTasks !== undefined ? { todayTasks } : {}),
+      ...(caught !== undefined ? { caught } : {}),
     });
   }
 
@@ -199,7 +232,7 @@ export class BridgeClient {
     this.dispatchUpstream(msg);
   }
 
-  /** 上行分发（cmd / focus-settle / hello / crash-diag 全集；hello 触发 ready） */
+  /** 上行分发（基础四种直派；seq 四消息进 sys 通道；sys 事件六种派可选处理器） */
   private dispatchUpstream(msg: UpstreamMsg): void {
     if (msg.type === "cmd") {
       this.handlers.onCmd(msg);
@@ -215,6 +248,35 @@ export class BridgeClient {
       for (const cb of this.readyListeners) cb(msg);
       return;
     }
-    this.handlers.onCrashDiag?.(msg);
+    if (isSeqUpstream(msg)) {
+      this.sys.handleUpstream(msg);
+      return;
+    }
+    if (isSysEventUpstream(msg)) {
+      this.dispatchSysEvent(msg);
+      return;
+    }
+    this.handlers.onCrashDiag?.(msg as CrashDiagMsg);
+  }
+
+  /** sys 事件派发（tray-action / shortcut-fired / notify-clicked / input-activity / sys-unsupported） */
+  private dispatchSysEvent(msg: SysEventUpstream): void {
+    if (msg.type === "tray-action") {
+      this.handlers.onTrayAction?.(msg);
+      return;
+    }
+    if (msg.type === "shortcut-fired") {
+      this.handlers.onShortcutFired?.(msg);
+      return;
+    }
+    if (msg.type === "notify-clicked") {
+      this.handlers.onNotifyClicked?.(msg);
+      return;
+    }
+    if (msg.type === "input-activity") {
+      this.handlers.onInputActivity?.(msg);
+      return;
+    }
+    this.handlers.onSysUnsupported?.(msg);
   }
 }

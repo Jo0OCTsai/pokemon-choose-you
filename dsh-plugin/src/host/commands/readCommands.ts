@@ -26,6 +26,10 @@ import {
 } from "../domain/panel-read";
 import type { Conn } from "../storage/db";
 import type { CommandTable } from "./context";
+import { sessionsPage as sessionsPageDomain } from "../dispatch/sessions";
+import { streakFromDb } from "../domain/streak";
+import { MILESTONES } from "../pet/solemn";
+import { missedRemindersSinceLastSeen, touchLastSeenReminderAt, type MissedReminder } from "../reminder/deliver";
 
 export type { PanelMessage, PanelRadioHealth, PanelSession } from "../domain/panel-read";
 
@@ -53,6 +57,9 @@ export interface PanelSnapshot {
   /** 标签维度 + 标签清单（背包标签卡/标签管理卡消费；与 categories 同快照只读） */
   dimensions: TagDimension[];
   tags: Tag[];
+  /** 离开期间到期清单（补看面——AD §4.6：勿扰静默与降级送达的都「看得见」，不补送达；
+   *  可选字段向后兼容，客户端呈现归组 3） */
+  missedReminders?: { since: string | null; rows: MissedReminder[] };
 }
 
 /** 跟进记录行（task_notes 投影） */
@@ -182,24 +189,36 @@ function taskDetailOf(conn: Conn, taskId: number): TaskDetail {
 // ---- 命令表 ----
 
 /** 实体读命令表（5 条，全部只读） */
+/** panelSnapshot 聚合体（独立函数——控表函数行数棘轮；含补看面锚点更新） */
+function panelSnapshotOf(deps: Parameters<CommandTable["dbStatus"]>[1]): PanelSnapshot {
+  const conn = deps.conn;
+  // 补看面（AD §4.6 静默消费闭环）：先取「离开期间到期」清单（上一锚点 → 现在），
+  // 再把锚点推到本次面板打开时刻（dsh: 内部键单语句写——非业务数据面）
+  const nowMs = Date.now();
+  const missed = missedRemindersSinceLastSeen(conn, {
+    nowMs,
+    offsetMinutes: -new Date(nowMs).getTimezoneOffset(),
+  });
+  touchLastSeenReminderAt(conn, new Date(nowMs).toISOString().replace("Z", "+00:00"));
+  return {
+    now: nowRfc3339(),
+    adventure: adventureOf(conn),
+    grass: tasksByIds(conn, SQL_GRASS),
+    route: tasksByIds(conn, SQL_ROUTE),
+    dex: dexOf(conn),
+    radio: { ...radioGroups(conn), health: panelRadioHealth(conn, deps.health, deps.feishuConfigured) },
+    logs: panelSessions(conn, SQL_SESSION_LOGS),
+    currentTask: getCurrentTask(conn),
+    categories: listCategories(conn),
+    dimensions: listTagDimensions(conn),
+    tags: listTags(conn),
+    missedReminders: missed,
+  };
+}
+
 export function readCommands(): CommandTable {
   return {
-    panelSnapshot: (_p, deps) => {
-      const conn = deps.conn;
-      return {
-        now: nowRfc3339(),
-        adventure: adventureOf(conn),
-        grass: tasksByIds(conn, SQL_GRASS),
-        route: tasksByIds(conn, SQL_ROUTE),
-        dex: dexOf(conn),
-        radio: { ...radioGroups(conn), health: panelRadioHealth(conn, deps.health, deps.feishuConfigured) },
-        logs: panelSessions(conn, SQL_SESSION_LOGS),
-        currentTask: getCurrentTask(conn),
-        categories: listCategories(conn),
-        dimensions: listTagDimensions(conn),
-        tags: listTags(conn),
-      } satisfies PanelSnapshot;
-    },
+    panelSnapshot: (_p, deps) => panelSnapshotOf(deps),
     taskDetail: (p, deps) => {
       const taskId = (p as { taskId: number }).taskId;
       if (!Number.isInteger(taskId) || taskId <= 0) {
@@ -210,5 +229,20 @@ export function readCommands(): CommandTable {
     taskSearch: (p, deps) => ({ tasks: searchTasks(deps.conn, (p as { query: string }).query ?? "") }),
     todayTasks: (_p, deps) => ({ tasks: listTasks(deps.conn, "today") }),
     categoriesList: (_p, deps) => ({ categories: listCategories(deps.conn) }),
+    // 会话分页（FR-C2）：分组过滤 + id 倒序 + limit 钳制全在 domain（sessionsPage）
+    sessionsPage: (p, deps) => {
+      const args = p as { group?: string; limit?: number; offset?: number };
+      return sessionsPageDomain(deps.conn, {
+        ...(args.group === undefined ? {} : { group: args.group }),
+        ...(args.limit === undefined ? {} : { limit: args.limit }),
+        ...(args.offset === undefined ? {} : { offset: args.offset }),
+      });
+    },
+    // 图鉴连胜直读（FR-B3 数据面；nextMilestone = 下一连胜里程碑阈值）
+    streakInfo: (_p, deps) => {
+      const streak = streakFromDb(deps.conn);
+      const next = MILESTONES.find((m) => m > streak.days);
+      return next === undefined ? streak : { ...streak, nextMilestone: next };
+    },
   };
 }

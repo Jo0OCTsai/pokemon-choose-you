@@ -49,6 +49,12 @@ function selectByLabel(label: string): HTMLSelectElement {
   return screen.getByLabelText(label) as HTMLSelectElement;
 }
 
+/** 今日 dateKey（data-today 断言的期望单源） */
+function dateKeyOfToday(): string {
+  const now = new Date();
+  return dateKey(now.getFullYear(), now.getMonth() + 1, now.getDate());
+}
+
 describe("DateTimePicker 零键入弹层", () => {
   it("触发钮开弹层：无任何文本输入（原生 datetime-local 收编），选择全经控件", () => {
     render(<Harness initial="2026-10-12T18:30" />);
@@ -107,10 +113,12 @@ describe("DateTimePicker 空值默认 18 点", () => {
     expect(trigger().textContent).toContain(expected.replaceAll("T", " "));
     expect(selectByLabel("截止 时").value).toBe("18");
     expect(selectByLabel("截止 分").value).toBe("00");
-    const today = new Date();
-    const dayBtn = screen.getByRole("button", { name: String(today.getDate()) });
+    // 选中日 = 默认值所在日（已过 18 点 → 明天——组件契约；此前误断言恒为今日，
+    // 18:00 后本地跑必红的时间敏感缺陷）
+    const selectedDay = new Date(`${expected.slice(0, 10)}T00:00:00`);
+    const dayBtn = screen.getByRole("button", { name: String(selectedDay.getDate()) });
     expect(dayBtn.getAttribute("data-selected")).toBe("true");
-    expect(dayBtn.getAttribute("data-today")).toBe("true");
+    expect(dayBtn.getAttribute("data-today")).toBe(expected.slice(0, 10) === dateKeyOfToday() ? "true" : "false");
   });
 
   it("已过 18:00 → 默认落明天 18:00；18:00 整点仍算当天", () => {

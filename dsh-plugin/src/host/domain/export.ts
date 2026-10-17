@@ -33,8 +33,8 @@ export function todayStr(now: Date): string {
   return `${now.getFullYear()}-${p2(now.getMonth() + 1)}-${p2(now.getDate())}`;
 }
 
-/** 全量导出包含的表（顺序即桌面 DUMP_TABLES 逐字；被引用表在前） */
-const DUMP_TABLES = [
+/** 全量导出包含的表（顺序即桌面 DUMP_TABLES 逐字；被引用表在前。导入域按同序整体替换） */
+export const DUMP_TABLES = [
   "categories",
   "tasks",
   "tags",
@@ -63,8 +63,8 @@ function toJsonValue(v: unknown): unknown {
   return v;
 }
 
-/** settings 行是否随文件出库（export_json_to 同谓词：秘钥在系统钥匙串（桌面 SECRET_KEYS 现为空集）、内部迁移标记与提示词覆盖除外） */
-function exportableSettingKey(key: unknown): boolean {
+/** settings 行是否随文件出库（export_json_to 同谓词：秘钥在系统钥匙串（桌面 SECRET_KEYS 现为空集）、内部迁移标记与提示词覆盖除外）。导入端对文件内行按同谓词过滤 */
+export function exportableSettingKey(key: unknown): boolean {
   return typeof key === "string" && !INTERNAL_SETTING_KEYS.has(key) && !key.startsWith(PROMPT_KEY_PREFIX);
 }
 
