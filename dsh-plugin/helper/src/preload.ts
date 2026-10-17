@@ -20,6 +20,10 @@ contextBridge.exposeInMainWorld("petBridge", {
   reportPos: () => ipcRenderer.invoke("pet:reportPos"),
   /** 快捷图鉴屏 300 ↔ 590 宽翻转 */
   quickSize: (open: boolean) => ipcRenderer.invoke("pet:quickSize", open),
+  /** ChatBox 原位展开调高 330 ↔ 480（宽度不动） */
+  chatSize: (open: boolean) => ipcRenderer.invoke("pet:chatSize", open),
+  /** 请求即时坐栖复评（返回当前坐栖态；FR-B1） */
+  checkPerch: () => ipcRenderer.invoke("pet:checkPerch"),
   /** 上行 cmd（op 枚举校验在主进程 runtime.sendCmd） */
   cmd: (op: string, fields?: Record<string, unknown>) => ipcRenderer.invoke("pet:cmd", op, fields),
   /** 本端完成（done cmd + focus-settle 结账 + celebrating） */

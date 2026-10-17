@@ -28,7 +28,9 @@ await esbuild.build({
   format: "esm",
   platform: "node",
   target: "node24",
-  external: ["electron"],
+  // electron = 运行时注入；uiohook-napi = 原生模块（prebuild 经 dsh-plugin 根 dependencies
+  // 分发，helper/dist 向上寻址插件包 node_modules 解析——AD §7.2/A31，不可打包）
+  external: ["electron", "uiohook-napi"],
   // ESM 产物没有 __dirname（源码里 preload/renderer 路径用它）——banner 注入等价物；
   // 每个分块（electron-app 动态 import chunk）都会带上同款 banner
   banner: {

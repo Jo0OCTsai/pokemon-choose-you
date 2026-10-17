@@ -176,6 +176,84 @@ describe("桥契约 · 宿主存亡", () => {
   });
 });
 
+describe("桥契约 · sys 扩展下行（full-parity AD §4.3 双版本矩阵）", () => {
+  it("下行 sys 8 条全集按序送达（校验通过面）", async () => {
+    const rig = makeRig("sys");
+    rig.hello();
+    await rig.waitFor(() => rig.received.length >= 9);
+    expect(rig.received.map((m) => m.type)).toEqual(SYS_DOWNSTREAM_ORDER);
+    expect(rig.bridge.stats.invalidMessages).toBe(0);
+    expect(rig.bridge.stats.badLines).toBe(0);
+  });
+
+  it("sys 形状不符 → 丢弃计错不崩（4 条拒绝 + heartbeat 照常送达）", async () => {
+    const rig = makeRig("sys-bad");
+    rig.hello();
+    await rig.waitFor(() => rig.received.length >= 1);
+    expect(rig.bridge.stats.invalidMessages).toBe(4);
+    expect(rig.received.map((m) => m.type)).toEqual(["heartbeat"]);
+  });
+});
+
+describe("桥契约 · sys 扩展上行", () => {
+  it("上行 sys 9 条扩展消息真管道送达 fake host（stderr 回显逐条）", async () => {
+    const rig = makeRig();
+    rig.hello();
+    sendSysUpstreamSet(rig.bridge);
+    rig.proc.stdin!.end();
+    const got = (await rig.reports).map((r) => r.got);
+    expect(got).toEqual(["hello", ...SYS_UPSTREAM_ORDER]);
+  });
+
+  it("cmd op 扩展 pet-chat 上行送达（FR-A8 问题上载面）", async () => {
+    const rig = makeRig();
+    rig.hello();
+    rig.bridge.send({ type: "cmd", op: "pet-chat", text: "今天心情如何？" });
+    rig.proc.stdin!.end();
+    const reports = await rig.reports;
+    expect(reports[1]).toMatchObject({ got: "cmd", op: "pet-chat" });
+  });
+});
+
+/** sys 下行全集送达序（fake-host sys 模式逐条对齐） */
+const SYS_DOWNSTREAM_ORDER = [
+  "sys-config",
+  "sys-notify",
+  "tts-speak",
+  "dialog-request",
+  "dialog-cancel",
+  "open-path",
+  "mac-auth-query",
+  "chat-reply",
+  "heartbeat",
+] as const;
+
+/** sys 上行扩展回显序（hello 之后逐条） */
+const SYS_UPSTREAM_ORDER = [
+  "tray-action",
+  "shortcut-fired",
+  "notify-clicked",
+  "dialog-ack",
+  "dialog-result",
+  "mac-auth-ack",
+  "mac-auth-result",
+  "input-activity",
+  "sys-unsupported",
+] as const;
+
+/** 上行 sys 扩展 9 条一次发齐（真管道送达断言的载荷面） */
+function sendSysUpstreamSet(bridge: Bridge): void {
+  bridge.send({ type: "tray-action", action: "quit" });
+  bridge.send({ type: "shortcut-fired", id: "capture" });
+  bridge.send({ type: "notify-clicked", kind: "reminder" });
+  bridge.send({ type: "dialog-ack", seq: 1 });
+  bridge.send({ type: "dialog-result", seq: 1, canceled: false, paths: ["/tmp/a.db"] });
+  bridge.send({ type: "mac-auth-ack", seq: 2 });
+  bridge.send({ type: "mac-auth-result", seq: 0, kind: "accessibility", granted: false });
+  bridge.send({ type: "input-activity", cps: 4.5 });
+  bridge.send({ type: "sys-unsupported", unsupported: "sys-notify" });
+}
+
 /** 轮询等待条件成立 */
 async function waitForCond(cond: () => boolean, timeoutMs: number): Promise<void> {
   const start = Date.now();

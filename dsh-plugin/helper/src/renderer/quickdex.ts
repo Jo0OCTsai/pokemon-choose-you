@@ -52,6 +52,7 @@ function noEl(id: number | string): HTMLElement {
 export function toggleQuick(open?: boolean): void {
   const next = open ?? !refs.quickDex.classList.contains("on");
   refs.quickDex.classList.toggle("on", next);
+  mirror.quickOpen = next;
   void bridge.quickSize(next); // 300 ↔ 590 宽翻转（主进程 setSize，左缘不动）
 }
 

@@ -782,3 +782,278 @@ html.reduced-motion .dialog,
 html.reduced-motion .ring-fg {
   transition: none !important;
 }
+
+/* ============================== FR-B1 坐栖（perched：姿态幅度减半） ============================== */
+
+.stage.perched .pet-sprite {
+  /* 幅度减半 = 时长×2 + 缩放收束（坐/趴姿态——动画即信息的弱化版） */
+  animation-duration: calc(var(--perch-dur, 3.2s) * 2);
+  transform-origin: bottom center;
+  filter: saturate(0.96);
+}
+.stage.perched.st-working .pet-sprite {
+  --perch-dur: 1.6s;
+}
+.stage.perched.st-idle .pet-sprite,
+.stage.perched.st-paused .pet-sprite {
+  --perch-dur: 3.2s;
+}
+/* 输入响应 hop 耦合（FR-A9）：working hop 时长经 --hop-dur 轻缩放（≤+10%） */
+.st-working .pet-sprite {
+  animation-duration: var(--hop-dur, 1.6s);
+}
+
+/* 输入响应微动作：耳抖（±2°/120ms——轻微档） */
+.m-earwig .pet-sprite {
+  animation: micro-earwig 120ms var(--e-sway);
+}
+@keyframes micro-earwig {
+  0%,
+  100% {
+    transform: rotate(0);
+  }
+  30% {
+    transform: rotate(2deg);
+  }
+  70% {
+    transform: rotate(-2deg);
+  }
+}
+
+/* ============================== FR-B3 演出变体（streak 双球 / pk-star 动态造星） ============================== */
+
+.capture-ball.ball-r {
+  /* 双球右侧位（左侧由默认位承担；交替三摇时两球并立） */
+  left: calc(50% + 26px);
+}
+.capture-ball.landed {
+  opacity: 1;
+  transform: translate(0, -46px) scale(1);
+}
+
+.pk-star {
+  position: absolute;
+  left: 50%;
+  top: 34%;
+  width: 8px;
+  height: 8px;
+  background: var(--poke-yellow);
+  border: 1px solid var(--dex-navy);
+  clip-path: polygon(50% 0%, 61% 35%, 98% 35%, 68% 57%, 79% 91%, 50% 70%, 21% 91%, 32% 57%, 2% 35%, 39% 35%);
+  animation: pk-star-fly 450ms var(--e-pop) forwards;
+}
+.pk-star.big {
+  width: 12px;
+  height: 12px;
+}
+@keyframes pk-star-fly {
+  0% {
+    opacity: 1;
+    transform: translate(0, 0) scale(0.6);
+  }
+  100% {
+    opacity: 0;
+    transform: translate(var(--dx, 0), var(--dy, -20px)) scale(1.1);
+  }
+}
+
+/* ============================== FR-B4 陪跑精灵（MateSprite） ============================== */
+
+.pet-mate {
+  position: absolute;
+  left: calc(50% - 88px);
+  bottom: 10px;
+  width: 72px;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 220ms var(--e-snap);
+}
+.pet-mate.on {
+  opacity: 1;
+  pointer-events: auto;
+}
+.pet-mate img {
+  width: 64px;
+  height: 64px;
+  object-fit: contain;
+  image-rendering: pixelated;
+  cursor: pointer;
+}
+.mate-title {
+  position: absolute;
+  top: -18px;
+  left: 0;
+  width: 120px;
+  font-size: 9px;
+  color: var(--dex-navy);
+  text-shadow: 0 1px 0 rgba(255, 255, 255, 0.8);
+  white-space: nowrap;
+}
+.pet-mate.walk img {
+  animation: mate-walk 650ms var(--e-snap);
+}
+.pet-mate.sit img {
+  transform: scale(0.94);
+  transform-origin: bottom center;
+}
+.pet-mate.wave img {
+  animation: mate-wave 600ms var(--e-sway);
+}
+@keyframes mate-walk {
+  0% {
+    opacity: 0;
+    transform: translateX(-24px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+@keyframes mate-wave {
+  0%,
+  100% {
+    transform: rotate(0);
+  }
+  25% {
+    transform: rotate(-10deg);
+  }
+  55% {
+    transform: rotate(8deg);
+  }
+  80% {
+    transform: rotate(-6deg);
+  }
+}
+
+/* ============================== FR-A8 ChatBox（原位 ≤4 行） ============================== */
+
+.chat-box {
+  position: absolute;
+  inset: auto 0 0 0;
+  height: 150px;
+  display: none;
+}
+.chat-box.on {
+  display: block;
+}
+.chat-inner {
+  position: absolute;
+  inset: 6px 6px 26px 6px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 6px;
+  background: var(--dex-body);
+  border: 2px solid var(--dex-navy);
+  border-radius: 6px;
+  box-shadow: 0 2px 0 rgba(0, 0, 0, 0.25);
+}
+.chat-log {
+  flex: 1;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  scrollbar-width: none;
+}
+.chat-log::-webkit-scrollbar {
+  display: none;
+}
+.chat-entry {
+  font-size: 10px;
+  line-height: 1.5;
+  padding: 2px 6px;
+  border-radius: 4px;
+  max-width: 92%;
+}
+.chat-entry.user {
+  align-self: flex-end;
+  background: var(--poke-yellow);
+  border: 1px solid var(--dex-navy);
+  color: var(--dex-navy);
+}
+.chat-entry.bot {
+  align-self: flex-start;
+  background: rgba(255, 255, 255, 0.85);
+  border: 1px solid var(--dex-navy);
+  color: var(--dex-navy);
+}
+.chat-entry.thinking {
+  opacity: 0.85;
+}
+.chat-dots::after {
+  content: "···";
+  letter-spacing: 2px;
+  animation: chat-dots 1s steps(3) infinite;
+}
+@keyframes chat-dots {
+  0% {
+    content: "·";
+  }
+  50% {
+    content: "··";
+  }
+  100% {
+    content: "···";
+  }
+}
+.chat-chips {
+  display: flex;
+  gap: 4px;
+}
+.chat-chips button {
+  flex: 1;
+  font-size: 9px;
+  padding: 2px 4px;
+  background: transparent;
+  border: 1px solid var(--dex-navy);
+  border-radius: 999px;
+  color: var(--dex-navy);
+  cursor: pointer;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.chat-chips button:hover {
+  background: var(--pcy-hover, rgba(0, 0, 0, 0.06));
+}
+.chat-row {
+  display: flex;
+  gap: 4px;
+}
+.chat-input {
+  flex: 1;
+  font-size: 11px;
+  padding: 3px 6px;
+  border: 1px solid var(--dex-navy);
+  border-radius: 4px;
+  background: #fff;
+  color: var(--dex-navy);
+}
+.chat-input:focus {
+  outline: 2px solid var(--poke-yellow);
+  outline-offset: -1px;
+}
+.chat-send {
+  font-size: 10px;
+  padding: 3px 8px;
+  background: var(--poke-yellow);
+  border: 1px solid var(--dex-navy);
+  border-radius: 4px;
+  color: var(--dex-navy);
+  cursor: pointer;
+}
+.chat-close {
+  position: absolute;
+  top: 8px;
+  right: 10px;
+  width: 18px;
+  height: 18px;
+  font-size: 10px;
+  line-height: 1;
+  background: var(--dex-body);
+  border: 1px solid var(--dex-navy);
+  border-radius: 50%;
+  color: var(--dex-navy);
+  cursor: pointer;
+}

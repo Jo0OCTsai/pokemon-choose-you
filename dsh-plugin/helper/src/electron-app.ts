@@ -1,5 +1,6 @@
 /**
- * Electron 胶水（AD §3.3）：BrowserWindow 300×330 透明置顶局部小窗（**禁止全屏透明画布**）。
+ * Electron 胶水（AD §3.3 + full-parity §3.4）：BrowserWindow 300×330 透明置顶局部小窗
+ * （**禁止全屏透明画布**）+ sys/ 真模块装配（app ready 后挂 DeferredSys）。
  *
  * - 窗体位：transparent / alwaysOnTop('screen-saver') / skipTaskbar / focusable:false /
  *   不可最大最小不可缩放；
@@ -7,18 +8,22 @@
  *   IPC → ignoreMouseEvents(false)，离开 → (true, forward)（IPC 面见 ipc.ts）；
  * - 置顶看门狗：每 5s 重申 alwaysOnTop（防被全屏应用/别的置顶窗压下去）；
  * - keyToId 注入：构建期拷贝的全量 catalog（dist/renderer/pokemon-catalog.json，
- *   源 = 主应用 src/pokemon/catalog.json）注入 resolver，非内置宝可梦可拼 CDN 候选。
+ *   源 = 主应用 src/pokemon/catalog.json）注入 resolver，非内置宝可梦可拼 CDN 候选；
+ * - 坐栖（FR-B1）：建窗落位与拖拽落定后按 state/perch.ts 判定 → runtime.reportPerch。
  */
 import { app, BrowserWindow, screen } from "electron";
 import * as fs from "node:fs";
 import * as path from "node:path";
-import { wireIpc } from "./ipc.ts";
+import { checkPerch, wireIpc } from "./ipc.ts";
 import type { HelperRuntime, UiEvent } from "./runtime/index.ts";
+import { createElectronSys, type DeferredSys } from "./sys/index.ts";
 import { WINDOW_H, WINDOW_W } from "./windowConsts.ts";
 
 export interface ElectronAppOptions {
   initialPos?: { x: number; y: number };
   subscribeUi: (cb: (ev: UiEvent) => void) => () => void;
+  /** DeferredSys（main.ts 创建）——whenReady 后挂真模块并重放排队消息 */
+  attachSys?: DeferredSys;
 }
 
 /** 置顶看门狗间隔（AD §3.3：每 5s 重申） */
@@ -32,18 +37,33 @@ export function startElectronApp(runtime: HelperRuntime, opts: ElectronAppOption
   injectCatalog(runtime, path.join(__dirname, "renderer", "pokemon-catalog.json"));
   app.whenReady().then(() => {
     const win = createWindow(opts.initialPos);
+    void attachSysModules(runtime, win, opts);
     const unsubscribe = forwardUiEvents(win, opts.subscribeUi);
     const topWatchdog = setInterval(() => {
       if (!win.isDestroyed()) win.setAlwaysOnTop(true, "screen-saver");
     }, ALWAYS_ON_TOP_REASSERT_MS);
     wireIpc(win, runtime);
     watchRendererHealth(win, runtime);
+    checkPerch(win, runtime); // 启动时窗口记忆位置可能就在底缘
     win.on("closed", () => {
       clearInterval(topWatchdog);
       unsubscribe();
     });
     app.on("window-all-closed", () => app.quit());
   });
+}
+
+/** sys/ 真模块装配（Tray 等主进程 API 已 ready；失败记诊断不影响窗体） */
+async function attachSysModules(runtime: HelperRuntime, win: BrowserWindow, opts: ElectronAppOptions): Promise<void> {
+  try {
+    const router = await createElectronSys(runtime.sysContext, {
+      lang: runtime.lang,
+      getWindow: () => (win.isDestroyed() ? null : win),
+    });
+    opts.attachSys?.attach(router);
+  } catch (err) {
+    runtime.bridge.diag.push("sys-fail", String(err));
+  }
 }
 
 /** catalog 注入（同步、建窗前）：任意非内置宝可梦可拼 CDN 候选 */

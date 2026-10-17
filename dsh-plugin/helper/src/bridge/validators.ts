@@ -9,12 +9,15 @@ import {
   CMD_OPS,
   LANGS,
   type ActiveTask,
+  type Badge,
+  type CaughtVariant,
   type CmdMsg,
   type CmdOp,
   type DownstreamMsg,
   type Lang,
   type UpstreamMsg,
 } from "./protocol.ts";
+import { SYS_DOWNSTREAM_PARSERS, SYS_UPSTREAM_PARSERS } from "./validators-sys.ts";
 
 // ---- 字段级小工具（手写守卫，零依赖） ----
 
@@ -48,19 +51,35 @@ function isPos(v: unknown): v is { x: number; y: number } {
 
 // ---- 下行各消息解析器（helper 收到的方向） ----
 
-function parseTaskState(v: Record<string, unknown>): DownstreamMsg | null {
+/** task-state 字段集守卫（拆小函数控复杂度棘轮） */
+function isTaskStateFields(v: Record<string, unknown>): boolean {
   const activeTask = v.activeTask;
   const todayTasks = v.todayTasks;
-  if (!isBadge(v.badge) || !isNum(v.ts)) return null;
-  if (activeTask !== null && !isTaskLike(activeTask)) return null;
-  if (todayTasks !== undefined && !isTaskArray(todayTasks)) return null;
+  if (!isBadge(v.badge) || !isNum(v.ts)) return false;
+  if (activeTask !== null && !isTaskLike(activeTask)) return false;
+  if (todayTasks !== undefined && !isTaskArray(todayTasks)) return false;
+  return v.caught === undefined || isCaughtVariant(v.caught);
+}
+
+function parseTaskState(v: Record<string, unknown>): DownstreamMsg | null {
+  if (!isTaskStateFields(v)) return null;
+  const todayTasks = v.todayTasks;
+  const caught = v.caught;
   return {
     type: "task-state",
-    activeTask: activeTask as ActiveTask | null,
-    badge: v.badge,
-    ts: v.ts,
-    ...(todayTasks !== undefined ? { todayTasks } : {}),
+    activeTask: v.activeTask as ActiveTask | null,
+    badge: v.badge as Badge,
+    ts: v.ts as number,
+    ...(todayTasks !== undefined ? { todayTasks: todayTasks as ActiveTask[] } : {}),
+    ...(caught === undefined ? {} : { caught: caught as CaughtVariant }),
   };
+}
+
+/** caught 变体（2.7 补充接线）：两键均可选，存在必须是有限数 */
+function isCaughtVariant(v: unknown): v is CaughtVariant {
+  if (!isObj(v)) return false;
+  if (v.milestone !== undefined && !isNum(v.milestone)) return false;
+  return v.streakDays === undefined || isNum(v.streakDays);
 }
 
 function isTaskArray(v: unknown): v is ActiveTask[] {
@@ -142,7 +161,7 @@ function isDiagEntry(v: unknown): v is { ts: number; tag: string; detail: string
   return isObj(v) && isNum(v.ts) && isStr(v.tag) && isStr(v.detail);
 }
 
-// ---- 方向分发（薄 switch：每 case 一个解析器） ----
+// ---- 方向分发（薄 switch：每 case 一个解析器；系统能力扩展表来自 validators-sys.ts） ----
 
 const DOWNSTREAM_PARSERS: Record<string, (v: Record<string, unknown>) => DownstreamMsg | null> = {
   "task-state": parseTaskState,
@@ -150,6 +169,7 @@ const DOWNSTREAM_PARSERS: Record<string, (v: Record<string, unknown>) => Downstr
   lang: (v) => (isLang(v.lang) ? { type: "lang", lang: v.lang } : null),
   sprites: parseSprites,
   heartbeat: (v) => (isNum(v.ts) ? { type: "heartbeat", ts: v.ts } : null),
+  ...SYS_DOWNSTREAM_PARSERS,
 };
 
 const UPSTREAM_PARSERS: Record<string, (v: Record<string, unknown>) => UpstreamMsg | null> = {
@@ -157,6 +177,7 @@ const UPSTREAM_PARSERS: Record<string, (v: Record<string, unknown>) => UpstreamM
   "focus-settle": parseFocusSettle,
   hello: parseHello,
   "crash-diag": parseCrashDiag,
+  ...SYS_UPSTREAM_PARSERS,
 };
 
 export function validateDownstream(v: unknown): DownstreamMsg | null {

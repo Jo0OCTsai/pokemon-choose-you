@@ -50,12 +50,13 @@ function applySpriteCandidates(info: SpriteInfo): void {
   trySrc(0);
 }
 
-/** 状态机类上屏（st-{base} / tr-{transient} / asleep） */
+/** 状态机类上屏（st-{base} / tr-{transient} / asleep / perched[FR-B1 姿态幅度减半]） */
 export function applyPetState(): void {
   const s = mirror.petState;
   refs.stage.className = `stage st-${s.base}`;
   if (s.transient) refs.stage.classList.add(`tr-${s.transient}`);
   refs.stage.classList.toggle("asleep", s.asleep);
+  refs.stage.classList.toggle("perched", mirror.perched && s.transient === null); // 拎起即离开
   refs.zzz.classList.toggle("on", s.asleep);
 }
 
@@ -106,12 +107,13 @@ function weightedPick(pool: typeof MICRO): (typeof MICRO)[number] | null {
   return pool.find((m) => (roll -= m.w) <= 0) ?? pool[0];
 }
 
-// ---- asleep 判定（idle + 5min 无交互；任意交互揉眼醒来） ----
+// ---- asleep 判定（idle + 5min 无交互；任意交互揉眼醒来——台词在 renderer.ts 转换处） ----
 setInterval(() => {
   const s = mirror.petState;
   if (s.base !== "idle" || s.transient || s.asleep) return;
   if (Date.now() - mirror.lastInteractAt >= 5 * 60_000) {
     mirror.petState = { ...s, asleep: true };
     applyPetState();
+    showDialog(lines(mirror.lang).asleepHint); // FR-B5：入睡提示一次
   }
 }, 5_000);

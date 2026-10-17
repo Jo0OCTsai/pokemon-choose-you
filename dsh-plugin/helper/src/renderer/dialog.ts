@@ -39,6 +39,9 @@ function hideDialog(): void {
   refs.dialog.classList.remove("on");
 }
 
+/** 收起气泡公共出口（ChatBox 收起时清残留等复用） */
+export { hideDialog };
+
 // 悬停暂停计时 / 移出恢复 / 点击立即收起（UIUX §3.4 气泡时序）
 refs.dialog.addEventListener("mouseenter", () => {
   if (bubbleTimer) {

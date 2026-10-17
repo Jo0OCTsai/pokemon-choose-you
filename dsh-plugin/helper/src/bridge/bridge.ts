@@ -53,6 +53,7 @@ export class Bridge {
 
   private decoder = new LineDecoder();
   private watchdog: LivenessWatchdog;
+  private unsupportedReported = new Set<string>();
   private tickTimer: ReturnType<typeof setInterval> | null = null;
   private output: NodeJS.WritableStream | null = null;
   private downstreamHandlers = new Set<DownstreamHandler>();
@@ -116,6 +117,19 @@ export class Bridge {
     out.write(encodeLine(msg));
     this.stats.messagesOut++;
     return true;
+  }
+
+  /**
+   * sys-unsupported 兜底上报（full-parity AD §4.3 / NFR-14）：收到「认识消息类型但
+   * 能力位与实现失配」的下行 sys 消息时，每类型**节流一次**上报 + 计错进诊断
+   * （重复同类不再发）；输出侧已死静默丢弃。runtime 的 sys/ 模块实装后各自消费
+   * 对应消息，本兜底面自然收不到已实装类型。
+   */
+  reportSysUnsupported(msgType: string): boolean {
+    if (this.unsupportedReported.has(msgType)) return false;
+    this.unsupportedReported.add(msgType);
+    this.diag.push("sys-unsupported", msgType);
+    return this.send({ type: "sys-unsupported", unsupported: msgType });
   }
 
   private handleLine(line: string): void {

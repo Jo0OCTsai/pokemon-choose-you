@@ -1,8 +1,15 @@
 /**
- * 桥协议消息全集（specs/dsh-plugin AD §4.3）——stdio JSON 行，每行一个 JSON 对象。
+ * 桥协议消息全集（specs/dsh-plugin AD §4.3 + specs/dsh-plugin-full-parity AD §4.3）——
+ * stdio JSON 行，每行一个 JSON 对象。
  *
- * 信封字段 = `type`；下行（插件 → helper）五种：task-state / pomodoro-config / lang / sprites /
- * heartbeat；上行（helper → 插件）四种：cmd / focus-settle / hello / crash-diag。
+ * 信封字段 = `type`；基础下行（插件 → helper）五种：task-state / pomodoro-config / lang /
+ * sprites / heartbeat + 系统能力扩展下行八种（sys-config / sys-notify / tts-speak /
+ * dialog-request / dialog-cancel / open-path / mac-auth-query / chat-reply，见
+ * `sys-protocol.ts`）；基础上行（helper → 插件）四种：cmd / focus-settle / hello /
+ * crash-diag + 系统能力扩展上行九种（tray-action / shortcut-fired / notify-clicked /
+ * dialog-ack / dialog-result / mac-auth-ack / mac-auth-result / input-activity /
+ * sys-unsupported）。`hello.caps` 8 系统能力位 + hello 发送门控 + seq 两段语义 +
+ * 双向兼容语义（NFR-14）的声明面亦在 `sys-protocol.ts`（本模块 `export *` 并入单源）。
  *
  * 校验立场（AD §4.3 + 任务纪律）：未知 type、未知 op、缺字段/类型不符 → **丢弃 + 计错**，
  * 绝不抛异常崩掉 helper——坏消息的观测点在 `stats.invalidMessages` 与 crash-diag 环形缓冲。
@@ -17,6 +24,29 @@
 
 export type Lang = "zh-Hans" | "zh-Hant" | "en";
 export const LANGS: readonly Lang[] = ["zh-Hans", "zh-Hant", "en"];
+
+// 系统能力扩展（full-parity AD §4.3）单源：类型/枚举声明在 sys-protocol.ts，本模块
+// 并入公共导入面（host 侧 pet/ 直接 import protocol.ts 即得全集，不另开导入路径）
+import {
+  type ChatReplyMsg,
+  type DialogAckMsg,
+  type DialogCancelMsg,
+  type DialogResultMsg,
+  type DialogRequestMsg,
+  type InputActivityMsg,
+  type MacAuthAckMsg,
+  type MacAuthQueryMsg,
+  type MacAuthResultMsg,
+  type NotifyClickedMsg,
+  type OpenPathMsg,
+  type ShortcutFiredMsg,
+  type SysConfigMsg,
+  type SysNotifyMsg,
+  type SysUnsupportedMsg,
+  type TrayActionMsg,
+  type TtsSpeakMsg,
+} from "./sys-protocol.ts";
+export * from "./sys-protocol.ts";
 
 /** 进行中任务（activeTask；status 对齐任务六态，helper 只关心 active/paused） */
 export interface ActiveTask {
@@ -46,6 +76,14 @@ export interface TaskStateMsg {
   badge: Badge;
   ts: number;
   todayTasks?: QuickTask[];
+  /** 捕获演出变体（full-parity 2.7 补充接线：完成路径郑重判定结果随行；缺省 = plain 变体） */
+  caught?: CaughtVariant;
+}
+
+/** 郑重时刻变体数据（solemn 判定投影：里程碑阈值 / 连胜天数——helper CatchShow 消费） */
+export interface CaughtVariant {
+  milestone?: number;
+  streakDays?: number;
 }
 
 export interface PomodoroConfigMsg {
@@ -84,9 +122,36 @@ export interface HeartbeatMsg {
   ts: number;
 }
 
-export type DownstreamMsg = TaskStateMsg | PomodoroConfigMsg | LangMsg | SpritesMsg | HeartbeatMsg;
+export type DownstreamMsg =
+  | TaskStateMsg
+  | PomodoroConfigMsg
+  | LangMsg
+  | SpritesMsg
+  | HeartbeatMsg
+  | SysConfigMsg
+  | SysNotifyMsg
+  | TtsSpeakMsg
+  | DialogRequestMsg
+  | DialogCancelMsg
+  | OpenPathMsg
+  | MacAuthQueryMsg
+  | ChatReplyMsg;
 
-export const DOWNSTREAM_TYPES = ["task-state", "pomodoro-config", "lang", "sprites", "heartbeat"] as const;
+export const DOWNSTREAM_TYPES = [
+  "task-state",
+  "pomodoro-config",
+  "lang",
+  "sprites",
+  "heartbeat",
+  "sys-config",
+  "sys-notify",
+  "tts-speak",
+  "dialog-request",
+  "dialog-cancel",
+  "open-path",
+  "mac-auth-query",
+  "chat-reply",
+] as const;
 
 export const CMD_OPS = [
   "start",
@@ -98,6 +163,8 @@ export const CMD_OPS = [
   "hide",
   "open-page",
   "pet-interact",
+  // ---- 系统能力扩展（full-parity AD §4.3）：AI 聊聊问题上载（FR-A8）----
+  "pet-chat",
 ] as const;
 
 export type CmdOp = (typeof CMD_OPS)[number];
@@ -106,7 +173,7 @@ export interface CmdMsg {
   type: "cmd";
   op: CmdOp;
   taskId?: number | string;
-  /** capture（⚡发报文本）等载荷 */
+  /** capture（⚡发报文本）/ pet-chat（AI 聊聊问题 ≤200 字符）等载荷 */
   text?: string;
   /** 拖动后窗口位置（宿主侧持久化，§4.1.1 petMove） */
   pos?: { x: number; y: number };
@@ -133,9 +200,36 @@ export interface CrashDiagMsg {
   entries: { ts: number; tag: string; detail: string }[];
 }
 
-export type UpstreamMsg = CmdMsg | FocusSettleMsg | HelloMsg | CrashDiagMsg;
+export type UpstreamMsg =
+  | CmdMsg
+  | FocusSettleMsg
+  | HelloMsg
+  | CrashDiagMsg
+  | TrayActionMsg
+  | ShortcutFiredMsg
+  | NotifyClickedMsg
+  | DialogAckMsg
+  | DialogResultMsg
+  | MacAuthAckMsg
+  | MacAuthResultMsg
+  | InputActivityMsg
+  | SysUnsupportedMsg;
 
-export const UPSTREAM_TYPES = ["cmd", "focus-settle", "hello", "crash-diag"] as const;
+export const UPSTREAM_TYPES = [
+  "cmd",
+  "focus-settle",
+  "hello",
+  "crash-diag",
+  "tray-action",
+  "shortcut-fired",
+  "notify-clicked",
+  "dialog-ack",
+  "dialog-result",
+  "mac-auth-ack",
+  "mac-auth-result",
+  "input-activity",
+  "sys-unsupported",
+] as const;
 
 export interface ParsedLine {
   ok: boolean;

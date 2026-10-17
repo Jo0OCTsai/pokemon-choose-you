@@ -11,6 +11,8 @@
  *   sticky：两条完整消息一次 write（粘包断言）
  *   quiet：发一条 heartbeat 后永久静默（心跳超时判死断言）
  *   invalid：合法 JSON 但缺字段/未知 type（校验丢弃+计错断言）
+ *   sys：下发系统能力扩展 8 条全集 + heartbeat（full-parity AD §4.3——校验通过面）
+ *   sys-bad：4 条形状不符的 sys 消息 + heartbeat（扩展面「丢弃计错不崩」矩阵）
  */
 import { once } from "node:events";
 
@@ -58,8 +60,37 @@ function respondToHello() {
     // quiet：发一条 heartbeat 后永久静默——helper 侧心跳超时判死
     quiet: () => DOWN({ type: "heartbeat", ts: Date.now() }),
     invalid: sendInvalid,
+    sys: sysDownstreamSet,
+    "sys-bad": sysBadThenHeartbeat,
   };
   (senders[mode] ?? downstreamSet)();
+}
+
+/** 系统能力扩展下行 8 条全集（full-parity AD §4.3 表逐条——合法样本） */
+function sysDownstreamSet() {
+  DOWN({ type: "sys-config", tray: { tooltip: "就决定是你了" }, tts: { enabled: false } });
+  DOWN({ type: "sys-notify", kind: "reminder", title: "提醒", body: "交周报" });
+  DOWN({ type: "tts-speak", text: "捕捉成功，记入图鉴！" });
+  DOWN({
+    type: "dialog-request",
+    mode: "open-file",
+    seq: 1,
+    filters: [{ name: "备份文件", extensions: ["db"] }],
+  });
+  DOWN({ type: "dialog-cancel", seq: 1 });
+  DOWN({ type: "open-path", path: "/tmp/exports" });
+  DOWN({ type: "mac-auth-query", kind: "accessibility", seq: 2 });
+  DOWN({ type: "chat-reply", text: "回答前两句。", ok: true });
+  DOWN({ type: "heartbeat", ts: Date.now() });
+}
+
+/** 扩展面形状不符样本 ×4（kind 非枚举 / 缺 seq / kind 非枚举 / 嵌套类型不符）→ 计错不崩 */
+function sysBadThenHeartbeat() {
+  DOWN({ type: "sys-notify", kind: "bogus-kind", title: "t", body: "b" });
+  DOWN({ type: "dialog-request", mode: "open-file" });
+  DOWN({ type: "mac-auth-query", kind: "screen-recording", seq: 3 });
+  DOWN({ type: "sys-config", tts: { enabled: "yes" } });
+  DOWN({ type: "heartbeat", ts: Date.now() });
 }
 
 function sendBadThenHeartbeat() {

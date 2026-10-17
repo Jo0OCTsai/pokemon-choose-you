@@ -32,7 +32,8 @@ describe("番茄本地计时（D2：绝不自动续轮）", () => {
   });
 
   it("break：startBreak 配置分钟；msLeft/mmss 倒计时口径", () => {
-    const b = startBreak({ durations: [25], breakMin: 5 }, 0);
+    // enabled 为 PomoConfig 必填（pomodoro_enabled parity）——本用例只测倒计时口径，置 true
+    const b = startBreak({ durations: [25], breakMin: 5, enabled: true }, 0);
     expect(msLeft(b, 60_000)).toBe(4 * 60_000);
     expect(mmss(4 * 60_000)).toBe("04:00");
     expect(mmss(0)).toBe("00:00");
