@@ -267,6 +267,36 @@ pub fn now() -> String {
     chrono::Utc::now().to_rfc3339()
 }
 
+/// 当日去重键 CAS 抢占（P2/P4 · specs/dsh-plugin-full-parity AD §4.6）：
+/// BEGIN IMMEDIATE 内先 INSERT OR IGNORE 建行（值空串），再
+/// `UPDATE settings SET value=<今日> WHERE key=? AND value<>?<今日>`——
+/// affected=1 → 抢到当日执行权（本形态送达/执行）；affected=0 → 今日已有
+/// 形态做过（让位）。scheduler 的 fresh_start_last_run / review_last_notified
+/// 与 backup 的 last_backup_date 共用本原语实现跨形态当日仲裁。
+pub(crate) fn claim_daily_key(conn: &Connection, key: &str, today: &str) -> bool {
+    let run = || -> Result<bool, rusqlite::Error> {
+        conn.execute_batch("BEGIN IMMEDIATE")?;
+        conn.execute(
+            "INSERT INTO settings (key, value) VALUES (?1, '') ON CONFLICT(key) DO NOTHING",
+            rusqlite::params![key],
+        )?;
+        let won = conn.execute(
+            "UPDATE settings SET value=?1 WHERE key=?2 AND value<>?1",
+            rusqlite::params![today, key],
+        )? == 1;
+        conn.execute_batch("COMMIT")?;
+        Ok(won)
+    };
+    match run() {
+        Ok(won) => won,
+        Err(e) => {
+            let _ = conn.execute_batch("ROLLBACK");
+            log::warn!("db: 当日去重键 {key} 抢占失败: {e}");
+            false
+        }
+    }
+}
+
 /// 读取一条设置（找不到 key 时返回 None）
 pub fn setting<R: tauri::Runtime>(app: &tauri::AppHandle<R>, key: &str) -> Option<String> {
     let db = app.try_state::<Db>()?;
@@ -280,6 +310,57 @@ pub fn setting<R: tauri::Runtime>(app: &tauri::AppHandle<R>, key: &str) -> Optio
 #[cfg(test)]
 pub(crate) mod tests {
     use super::*;
+
+    /// 当日去重键 CAS（P2 · AD §4.6）：当日一次、跨连接让位、次日可再抢
+    #[test]
+    fn claim_daily_key_once_per_day_across_connections() {
+        let conn = test_conn();
+        // 键不存在 → 建行并抢到
+        assert!(claim_daily_key(&conn, "fresh_start_last_run", "2026-09-13"));
+        let v: String = conn
+            .query_row(
+                "SELECT value FROM settings WHERE key='fresh_start_last_run'",
+                [],
+                |r| r.get(0),
+            )
+            .unwrap();
+        assert_eq!(v, "2026-09-13");
+        // 同日再抢（同连接）→ 让位
+        assert!(!claim_daily_key(
+            &conn,
+            "fresh_start_last_run",
+            "2026-09-13"
+        ));
+        // 次日 → 可再抢
+        assert!(claim_daily_key(&conn, "fresh_start_last_run", "2026-09-14"));
+
+        // 跨连接同窗竞争（两形态）：只有一条连接抢到当日键
+        let file = std::env::temp_dir().join(format!("pk-daily-key-{}", std::process::id()));
+        let _ = std::fs::remove_file(&file);
+        let open = || {
+            let c = Connection::open(&file).unwrap();
+            c.execute_batch("PRAGMA journal_mode=WAL; PRAGMA busy_timeout=5000;")
+                .unwrap();
+            c
+        };
+        let conn1 = open();
+        init_conn(&conn1).unwrap();
+        let conn2 = open();
+        assert!(claim_daily_key(
+            &conn1,
+            "review_last_notified",
+            "2026-09-13"
+        ));
+        assert!(
+            !claim_daily_key(&conn2, "review_last_notified", "2026-09-13"),
+            "对面形态已抢到当日键 → 让位"
+        );
+        drop(conn1);
+        drop(conn2);
+        let _ = std::fs::remove_file(&file);
+        let _ = std::fs::remove_file(file.with_extension("db-wal"));
+        let _ = std::fs::remove_file(file.with_extension("db-shm"));
+    }
 
     /// 内存库 + 迁移 + 默认分类（各模块测试的公共起点）
     pub(crate) fn test_conn() -> Connection {

@@ -1,0 +1,10 @@
+{
+  "kind": "streak",
+  "name": "grace-day-mid-streak",
+  "now": "2026-09-13T09:00:00+08:00",
+  "setup": {},
+  "steps": [
+    { "op": "streak_eval", "args": { "doneDays": ["2026-09-13", "2026-09-11", "2026-09-10"], "today": "2026-09-13", "todayCount": 1 } }
+  ],
+  "expect": "exact"
+}

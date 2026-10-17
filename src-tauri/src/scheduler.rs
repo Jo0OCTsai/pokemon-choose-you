@@ -1,6 +1,5 @@
 use crate::db::Db;
 use crate::events;
-use chrono::TimeZone;
 use rusqlite::params;
 use tauri::{AppHandle, Emitter, Manager};
 use tauri_plugin_notification::NotificationExt;
@@ -19,123 +18,277 @@ pub fn spawn_reminder_loop(app: AppHandle) {
 }
 
 /// 解析 RFC3339（带时区）或本地无时区格式（datetime-local）的时间字符串
-///（提醒循环与自动派发排队共用的混排时间判定）
+///（提醒循环与自动派发排队共用的混排时间判定；本地时区按宿主 Local）
 pub(crate) fn parse_time(s: &str) -> Option<chrono::DateTime<chrono::Utc>> {
+    parse_time_in(&chrono::Local, s)
+}
+
+/// parse_time 的时区参数化形态（P1 抽取）：datetime-local 按 tz 解析；
+/// RFC3339 自带偏移不受 tz 影响。桌面 tick 传 Local，契约 oracle 传场景时区。
+pub(crate) fn parse_time_in<Tz: chrono::TimeZone>(
+    tz: &Tz,
+    s: &str,
+) -> Option<chrono::DateTime<chrono::Utc>> {
     if let Ok(d) = chrono::DateTime::parse_from_rfc3339(s) {
         return Some(d.with_timezone(&chrono::Utc));
     }
     let naive = chrono::NaiveDateTime::parse_from_str(s, "%Y-%m-%dT%H:%M")
         .or_else(|_| chrono::NaiveDateTime::parse_from_str(s, "%Y-%m-%dT%H:%M:%S"))
         .ok()?;
-    chrono::Local
-        .from_local_datetime(&naive)
+    tz.from_local_datetime(&naive)
         .earliest()
         .map(|l| l.with_timezone(&chrono::Utc))
 }
 
+/// 提醒决策的设置快照（tick 一次读齐后传给纯决策函数；缺省值与设置面一致）
+#[derive(Debug, Clone)]
+pub(crate) struct ReminderSettings {
+    /// 提前量（分钟）：到期判定用它把「现在」前移
+    pub(crate) lead_minutes: i64,
+    /// 通知开关（系统通知与桌宠事件同受它控制）
+    pub(crate) notify_on: bool,
+    /// 勿扰开关：时段内静默非紧急提醒（紧急仍敲门）；边界解析失败视为关闭（fail open）
+    pub(crate) quiet_on: bool,
+    pub(crate) quiet_start: String,
+    pub(crate) quiet_end: String,
+    pub(crate) lang: String,
+}
+
+impl ReminderSettings {
+    /// 从 settings 表读齐提醒决策相关键（P1 抽取：tick 与契约 oracle 共用同一读取口径）
+    pub(crate) fn from_conn(conn: &rusqlite::Connection) -> ReminderSettings {
+        let get = |k: &str| -> Option<String> {
+            conn.query_row("SELECT value FROM settings WHERE key=?1", params![k], |r| {
+                r.get::<_, String>(0)
+            })
+            .ok()
+        };
+        ReminderSettings {
+            lead_minutes: get("remind_ahead_minutes")
+                .and_then(|v| v.parse().ok())
+                .unwrap_or(0),
+            notify_on: get("notifications_enabled")
+                .map(|v| v != "false")
+                .unwrap_or(true),
+            quiet_on: get("quiet_hours_enabled")
+                .map(|v| v != "false")
+                .unwrap_or(true),
+            quiet_start: get("quiet_start").unwrap_or_else(|| "22:00".into()),
+            quiet_end: get("quiet_end").unwrap_or_else(|| "08:00".into()),
+            lang: get("language").unwrap_or_else(|| "zh-Hans".into()),
+        }
+    }
+}
+
+/// SQL 粗筛的到期候选行（精确判定前；datetime-local 与 RFC3339 混排都在 remind_at 里）
+#[derive(Debug, Clone)]
+pub(crate) struct DueRow {
+    pub(crate) id: i64,
+    pub(crate) title: String,
+    pub(crate) priority: String,
+    pub(crate) remind_at: String,
+    pub(crate) pokemon: Option<String>,
+}
+
+/// 到期粗筛（SQL，P1 抽取）：datetime-local 存的是无时区本地时间，与 UTC RFC3339
+/// 字典序不可比（UTC+ 时区下本地字符串普遍偏大），窗口放宽一天，精确判断交给 due_precise
+pub(crate) fn query_due_rows(
+    conn: &rusqlite::Connection,
+    now_s: &str,
+) -> Result<Vec<DueRow>, rusqlite::Error> {
+    let mut stmt = conn.prepare(
+        "SELECT t.id, t.title, t.priority, t.remind_at, c.pokemon FROM tasks t
+         LEFT JOIN categories c ON c.id = t.category_id
+         WHERE t.reminded=0 AND t.remind_at IS NOT NULL AND t.remind_at <= ?1
+           AND t.status IN ('inbox','scheduled','active','paused')",
+    )?;
+    let rows = stmt
+        .query_map(params![now_s], |r| {
+            Ok(DueRow {
+                id: r.get(0)?,
+                title: r.get(1)?,
+                priority: r.get(2)?,
+                remind_at: r.get(3)?,
+                pokemon: r.get(4)?,
+            })
+        })?
+        .collect::<Result<Vec<_>, _>>()?;
+    Ok(rows)
+}
+
+/// 到期精判（纯函数，P1 抽取）：混排时间解析（RFC3339 直接转 UTC；datetime-local
+/// 按 tz 解析），解析失败或未到期的行跳过（原 tick 内联逻辑原样抽出，行为零变化）
+pub(crate) fn due_precise<Tz: chrono::TimeZone>(
+    tz: &Tz,
+    rows: &[DueRow],
+    now: chrono::DateTime<chrono::Utc>,
+) -> Vec<Reminder> {
+    rows.iter()
+        .filter(|r| parse_time_in(tz, &r.remind_at).is_some_and(|t| t <= now))
+        .map(|r| Reminder {
+            id: r.id,
+            title: r.title.clone(),
+            priority: r.priority.clone(),
+            pokemon: r.pokemon.clone(),
+        })
+        .collect()
+}
+
+/// 抢占送达权（P2 · D28 双形态仲裁）：BEGIN IMMEDIATE 内逐条
+/// `UPDATE tasks SET reminded=1 WHERE id=? AND reminded=0`——
+/// affected=1 → 抢到（本形态送达）；affected=0 → 后到让位（另一形态已送达）。
+/// 返回抢到的子集（保持入参顺序）。单形态下守卫恒真，行为与无守卫版一致。
+pub(crate) fn claim_reminded(
+    conn: &rusqlite::Connection,
+    due: &[Reminder],
+) -> Result<Vec<Reminder>, rusqlite::Error> {
+    conn.execute_batch("BEGIN IMMEDIATE")?;
+    let mark = || -> Result<Vec<Reminder>, rusqlite::Error> {
+        let mut fired = Vec::new();
+        for r in due {
+            let n = conn.execute(
+                "UPDATE tasks SET reminded=1 WHERE id=?1 AND reminded=0",
+                params![r.id],
+            )?;
+            if n == 1 {
+                fired.push(r.clone());
+            }
+        }
+        Ok(fired)
+    };
+    match mark() {
+        Ok(fired) => {
+            conn.execute_batch("COMMIT")?;
+            Ok(fired)
+        }
+        Err(e) => {
+            let _ = conn.execute_batch("ROLLBACK");
+            Err(e)
+        }
+    }
+}
+
+/// 桌宠事件载荷（决策的一部分；tick 侧负责 emit 给桌宠窗口播敲门/催促动画）
+#[derive(Debug, Clone)]
+pub(crate) struct PetReminderEvent {
+    pub(crate) id: i64,
+    pub(crate) title: String,
+    pub(crate) urgent: bool,
+    pub(crate) pokemon: Option<String>,
+}
+
+/// 送达决策（纯函数输出，P1 抽取）
+#[derive(Debug)]
+pub(crate) struct DeliveryDecision {
+    /// 当前时刻是否在勿扰时段内
+    pub(crate) quiet: bool,
+    /// 勿扰静默掉的非紧急条数（已抢到标记但不送达、不补发）
+    pub(crate) silenced: usize,
+    /// 送达集（勿扰滤网后）
+    pub(crate) deliver: Vec<Reminder>,
+    /// 系统通知文案（通知开且送达集非空才有）
+    pub(crate) notification: Option<(String, String)>,
+    /// 桌宠事件载荷（与系统通知同门控）
+    pub(crate) pet: Option<PetReminderEvent>,
+}
+
+/// 送达决策（纯函数，无 IO；入参 = 设置快照 + 抢到送达权的到期集 + 当前本地时刻）：
+/// 单条原样；多条聚合（点名前 3 + 等 N 项，任一紧急整体 ‼ 前缀）；勿扰时段内非紧急
+/// 静默（紧急例外仍敲门）；通知关闭时系统通知与桌宠事件都不发。
+pub(crate) fn decide_delivery(
+    settings: &ReminderSettings,
+    claimed: &[Reminder],
+    now_local: chrono::NaiveTime,
+) -> DeliveryDecision {
+    // 勿扰判定：解析失败视为关闭（fail open，宁可多提醒也不静默丢事）
+    let quiet = settings.quiet_on
+        && parse_hm(&settings.quiet_start)
+            .zip(parse_hm(&settings.quiet_end))
+            .is_some_and(|(s, e)| in_quiet_hours(now_local, s, e));
+    let mut deliver = claimed.to_vec();
+    if quiet {
+        deliver.retain(|r| r.urgent());
+    }
+    let silenced = claimed.len() - deliver.len();
+    // 注意力友好：一次只强调一件事——单条原样、多条聚合成一条；桌宠只敲一次门
+    //（代表选紧急优先）。通知关闭时两通道都不发。
+    let (notification, pet) = if deliver.is_empty() || !settings.notify_on {
+        (None, None)
+    } else if deliver.len() == 1 {
+        let r = &deliver[0];
+        let (title, body) =
+            notification_text(&settings.lang, r.urgent(), &r.title, r.pokemon.as_deref());
+        (Some((title, body)), Some(pet_event_of(r)))
+    } else {
+        let any_urgent = deliver.iter().any(|r| r.urgent());
+        let titles: Vec<&str> = deliver.iter().map(|r| r.title.as_str()).collect();
+        let (title, body) = aggregated_notification_text(&settings.lang, &titles, any_urgent);
+        let repr = deliver.iter().find(|r| r.urgent()).unwrap_or(&deliver[0]);
+        (Some((title, body)), Some(pet_event_of(repr)))
+    };
+    DeliveryDecision {
+        quiet,
+        silenced,
+        deliver,
+        notification,
+        pet,
+    }
+}
+
+fn pet_event_of(r: &Reminder) -> PetReminderEvent {
+    PetReminderEvent {
+        id: r.id,
+        title: r.title.clone(),
+        urgent: r.urgent(),
+        pokemon: r.pokemon.clone(),
+    }
+}
+
 fn tick<R: tauri::Runtime>(app: &tauri::AppHandle<R>) -> Result<(), Box<dyn std::error::Error>> {
     let db = app.state::<Db>();
-    // 提前量（分钟）与通知开关从设置读取
+    let conn = db.0.lock().unwrap();
+    // 设置一次读齐（同一连接上直查，不再逐键加锁）；后半段 fresh start / 复盘键同窗读取
     let get = |k: &str| -> Option<String> {
-        let conn = db.0.lock().unwrap();
         conn.query_row("SELECT value FROM settings WHERE key=?1", params![k], |r| {
             r.get::<_, String>(0)
         })
         .ok()
     };
-    let lead_min: i64 = get("remind_ahead_minutes")
-        .and_then(|v| v.parse().ok())
-        .unwrap_or(0);
-    let notify_on = get("notifications_enabled")
-        .map(|v| v != "false")
-        .unwrap_or(true);
-    // 勿扰时段（注意力友好）：默认 22:00–08:00，时段内静默非紧急提醒（紧急仍敲门）；
-    // 边界解析失败视为关闭（fail open，宁可多提醒也不静默丢事）
-    let quiet_on = get("quiet_hours_enabled")
-        .map(|v| v != "false")
-        .unwrap_or(true);
-    let quiet_start = get("quiet_start").unwrap_or_else(|| "22:00".into());
-    let quiet_end = get("quiet_end").unwrap_or_else(|| "08:00".into());
-    let in_quiet = quiet_on
-        && parse_hm(&quiet_start)
-            .zip(parse_hm(&quiet_end))
-            .is_some_and(|(s, e)| in_quiet_hours(chrono::Local::now().time(), s, e));
-    // fresh start / 复盘提醒设置在拿 Db 锁之前读齐（tick 后半段持有 conn 锁，再调 get 会死锁）
+    let settings = ReminderSettings::from_conn(&conn);
     let overdue_mode = get("overdue_mode").unwrap_or_else(|| "collapse".into());
     let fresh_start_last_run = get("fresh_start_last_run");
     let review_enabled = get("review_enabled").map(|v| v != "false").unwrap_or(true);
     let review_dow: u32 = get("review_dow").and_then(|v| v.parse().ok()).unwrap_or(1);
     let review_last_notified = get("review_last_notified");
-    let lang = get("language").unwrap_or_else(|| "zh-Hans".into());
-    let now = chrono::Utc::now() + chrono::Duration::minutes(lead_min);
-    // SQL 预筛只是粗筛：datetime-local 存的是无时区本地时间，与 UTC RFC3339 字典序
-    // 不可比（UTC+ 时区下本地字符串普遍偏大），窗口放宽一天，精确判断交给 parse_time
+    let now = chrono::Utc::now() + chrono::Duration::minutes(settings.lead_minutes);
     let now_s = (now + chrono::Duration::days(1)).to_rfc3339();
-    let conn = db.0.lock().unwrap();
-    let due: Vec<(i64, String, String, String, Option<String>)> = {
-        let mut stmt = conn.prepare(
-            "SELECT t.id, t.title, t.priority, t.remind_at, c.pokemon FROM tasks t
-             LEFT JOIN categories c ON c.id = t.category_id
-             WHERE t.reminded=0 AND t.remind_at IS NOT NULL AND t.remind_at <= ?1
-               AND t.status IN ('inbox','scheduled','active','paused')",
-        )?;
-        let rows = stmt
-            .query_map(params![now_s], |r| {
-                Ok((
-                    r.get::<_, i64>(0)?,
-                    r.get::<_, String>(1)?,
-                    r.get::<_, String>(2)?,
-                    r.get::<_, String>(3)?,
-                    r.get::<_, Option<String>>(4)?,
-                ))
-            })?
-            .collect::<Result<Vec<_>, _>>()?;
-        rows
-    };
-    // 先全部标记 reminded 防重发，再统一决定怎么送达（聚合 + 勿扰滤网）
-    let mut fired: Vec<Reminder> = Vec::new();
-    for (id, title, priority, remind_at, pokemon) in &due {
-        // datetime-local 传入的是本地无时区时间，解析后与当前 UTC 比较
-        let due_time = parse_time(remind_at);
-        if due_time.is_none_or(|t| t > now) {
-            continue;
-        }
-        conn.execute("UPDATE tasks SET reminded=1 WHERE id=?1", params![id])?;
-        fired.push(Reminder {
-            id: *id,
-            title: title.clone(),
-            priority: priority.clone(),
-            pokemon: pokemon.clone(),
-        });
+    let due_rows = query_due_rows(&conn, &now_s)?;
+    let due = due_precise(&chrono::Local, &due_rows, now);
+    let fired = claim_reminded(&conn, &due)?;
+    let decision = decide_delivery(&settings, &fired, chrono::Local::now().time());
+    if decision.silenced > 0 {
+        log::info!(
+            "quiet hours {}-{}: {} 条非紧急提醒静默",
+            settings.quiet_start,
+            settings.quiet_end,
+            decision.silenced
+        );
     }
-    // 勿扰时段：非紧急提醒静默跳过（已标记 reminded，不在时段结束后补响——深夜的提醒清晨再响只会更吵）
-    if in_quiet {
-        let before = fired.len();
-        fired.retain(|r| r.urgent());
-        if fired.len() < before {
-            log::info!(
-                "quiet hours {quiet_start}-{quiet_end}: {} 条非紧急提醒静默",
-                before - fired.len()
-            );
-        }
-    }
-    deliver_reminders(app, &fired, notify_on, &lang);
+    deliver_reminders(app, &decision);
 
     // ---- 逾期 fresh start：自动归草丛模式每天跑一次（反羞耻：不堆「羞耻墙」） ----
     if overdue_mode == "auto_grass" {
         let today_fs = chrono::Local::now().format("%Y-%m-%d").to_string();
-        if fresh_start_last_run.as_deref() != Some(today_fs.as_str()) {
+        // 当日去重（P2 CAS）：旧值快查 + 当日键抢占——双形态同窗只跑一次
+        if fresh_start_last_run.as_deref() != Some(today_fs.as_str())
+            && crate::db::claim_daily_key(&conn, "fresh_start_last_run", &today_fs)
+        {
             let n = run_fresh_start(&conn, &today_fs);
-            let _ = conn.execute(
-                "INSERT INTO settings (key, value) VALUES ('fresh_start_last_run', ?1)
-                 ON CONFLICT(key) DO UPDATE SET value=?1",
-                params![today_fs],
-            );
             if n > 0 {
                 let _ = app.emit(crate::events::TASKS_CHANGED, ());
                 // 温和告知（反羞耻：溜回去不是失败，想好了再去看）；勿扰时段内不打扰
-                if notify_on && !in_quiet {
-                    let (fs_title, fs_body) = fresh_start_notification_text(&lang, n);
+                if settings.notify_on && !decision.quiet {
+                    let (fs_title, fs_body) = fresh_start_notification_text(&settings.lang, n);
                     let _ = app
                         .notification()
                         .builder()
@@ -149,6 +302,7 @@ fn tick<R: tauri::Runtime>(app: &tauri::AppHandle<R>) -> Result<(), Box<dyn std:
 
     // ---- 每周复盘提醒：到设定星期当天提醒一次（主流任务应用没有的 OmniFocus 式空位） ----
     let today_local = chrono::Local::now();
+    let today = today_local.format("%Y-%m-%d").to_string();
     let due_today = review_due(
         review_enabled,
         review_dow,
@@ -158,18 +312,14 @@ fn tick<R: tauri::Runtime>(app: &tauri::AppHandle<R>) -> Result<(), Box<dyn std:
             .parse::<u32>()
             .unwrap_or(1), // %u：周一=1…周日=7
         review_last_notified.as_deref(),
-        &today_local.format("%Y-%m-%d").to_string(),
+        &today,
     );
-    if due_today {
+    // 当日去重（P2 CAS）：抢到 review_last_notified 当日键才有送达权
+    if due_today && crate::db::claim_daily_key(&conn, "review_last_notified", &today) {
         let (caught, focus_min) = week_stats(&conn);
-        let (title, body) = review_notification_text(&lang, caught, focus_min);
-        conn.execute(
-            "INSERT INTO settings (key, value) VALUES ('review_last_notified', ?1)
-             ON CONFLICT(key) DO UPDATE SET value=?1",
-            params![today_local.format("%Y-%m-%d").to_string()],
-        )?;
+        let (title, body) = review_notification_text(&settings.lang, caught, focus_min);
         log::info!("review: 每周复盘提醒已发送");
-        if notify_on && !in_quiet {
+        if settings.notify_on && !decision.quiet {
             let _ = app.notification().builder().title(title).body(body).show();
         }
     }
@@ -325,51 +475,42 @@ fn notification_text(
 }
 
 /// 一条到期提醒（送达用：标题 + 优先级 + 分类宝可梦）
-struct Reminder {
-    id: i64,
-    title: String,
-    priority: String,
-    pokemon: Option<String>,
+#[derive(Debug, Clone)]
+pub(crate) struct Reminder {
+    pub(crate) id: i64,
+    pub(crate) title: String,
+    pub(crate) priority: String,
+    pub(crate) pokemon: Option<String>,
 }
 
 impl Reminder {
     /// 紧急档（urgent/high）：更强的提醒文案，且不受勿扰时段约束
-    fn urgent(&self) -> bool {
+    pub(crate) fn urgent(&self) -> bool {
         self.priority == "urgent" || self.priority == "high"
     }
 }
 
-/// 到期提醒的送达（注意力友好：一次只强调一件事）：
-/// 单条原样送达；多条聚合为一条系统通知、桌宠只敲一次门（代表选紧急优先，
-/// 气泡带就近「完成/推迟」，其余几条去冒险页看）。语言由调用方读好传入——
-/// 这里绝不能再碰设置表（调用方 tick 还持有连接锁，重复加锁会死锁）。
-fn deliver_reminders<R: tauri::Runtime>(
-    app: &tauri::AppHandle<R>,
-    fired: &[Reminder],
-    notify_on: bool,
-    lang: &str,
-) {
-    if fired.is_empty() || !notify_on {
-        return;
-    }
-    if fired.len() == 1 {
-        let r = &fired[0];
-        let (title, body) = notification_text(lang, r.urgent(), &r.title, r.pokemon.as_deref());
-        let _ = app.notification().builder().title(title).body(body).show();
-    } else {
-        let any_urgent = fired.iter().any(|r| r.urgent());
-        let titles: Vec<&str> = fired.iter().map(|r| r.title.as_str()).collect();
-        let (title, body) = aggregated_notification_text(lang, &titles, any_urgent);
+/// 到期提醒的送达（IO 侧，消费纯决策结果）：
+/// 注意力友好：一次只强调一件事——单条原样送达；多条聚合为一条系统通知、
+/// 桌宠只敲一次门（代表选紧急优先，气泡带就近「完成/推迟」，其余几条去冒险页看）。
+/// 通知与桌宠事件的门控都在 decide_delivery 里算好，这里只负责发。
+fn deliver_reminders<R: tauri::Runtime>(app: &tauri::AppHandle<R>, decision: &DeliveryDecision) {
+    if let Some((title, body)) = &decision.notification {
+        log::info!(
+            "reminder: {} 条到期聚合成一条通知送达",
+            decision.deliver.len()
+        );
         let _ = app.notification().builder().title(title).body(body).show();
     }
     // 桌宠窗口收到后播放敲门/催促动画（pokemon 附带分类宝可梦名，供气泡文案个性化）
-    let repr = fired.iter().find(|r| r.urgent()).unwrap_or(&fired[0]);
-    let _ = app.emit(
-        events::TASK_REMINDER,
-        serde_json::json!({
-            "id": repr.id, "title": repr.title, "urgent": repr.urgent(), "pokemon": repr.pokemon
-        }),
-    );
+    if let Some(pet) = &decision.pet {
+        let _ = app.emit(
+            events::TASK_REMINDER,
+            serde_json::json!({
+                "id": pet.id, "title": pet.title, "urgent": pet.urgent, "pokemon": pet.pokemon
+            }),
+        );
+    }
 }
 
 /// 聚合通知文案（三语）：N 只宝可梦同时敲门，点名前几条，其余到冒险页看
@@ -811,5 +952,269 @@ mod tests {
         .unwrap();
         app.manage(Db(Mutex::new(conn)));
         tick_app(&app); // 不应 panic
+    }
+
+    // ---- P1 抽取的纯函数面（设置快照 / 到期精判 / 送达决策） ----
+
+    fn fixed_tz() -> chrono::FixedOffset {
+        chrono::FixedOffset::east_opt(8 * 3600).unwrap()
+    }
+
+    fn reminder(id: i64, title: &str, priority: &str, pokemon: Option<&str>) -> Reminder {
+        Reminder {
+            id,
+            title: title.into(),
+            priority: priority.into(),
+            pokemon: pokemon.map(String::from),
+        }
+    }
+
+    #[test]
+    fn reminder_settings_defaults_and_overrides() {
+        let conn = test_conn();
+        let s = ReminderSettings::from_conn(&conn);
+        assert_eq!(
+            (
+                s.lead_minutes,
+                s.notify_on,
+                s.quiet_on,
+                s.quiet_start.as_str(),
+                s.quiet_end.as_str(),
+                s.lang.as_str()
+            ),
+            (0, true, true, "22:00", "08:00", "zh-Hans"),
+            "全部键缺省与设置面默认一致"
+        );
+        for (k, v) in [
+            ("remind_ahead_minutes", "30"),
+            ("notifications_enabled", "false"),
+            ("quiet_hours_enabled", "false"),
+            ("quiet_start", "23:30"),
+            ("quiet_end", "07:00"),
+            ("language", "en"),
+        ] {
+            conn.execute(
+                "INSERT INTO settings (key, value) VALUES (?1, ?2)",
+                params![k, v],
+            )
+            .unwrap();
+        }
+        let s = ReminderSettings::from_conn(&conn);
+        assert_eq!(
+            (s.lead_minutes, s.notify_on, s.quiet_on, s.lang.as_str()),
+            (30, false, false, "en")
+        );
+        assert_eq!(
+            (s.quiet_start.as_str(), s.quiet_end.as_str()),
+            ("23:30", "07:00")
+        );
+    }
+
+    #[test]
+    fn due_precise_mixes_formats_and_boundary() {
+        let tz = fixed_tz();
+        let now = chrono::DateTime::parse_from_rfc3339("2026-09-12T15:30:00Z")
+            .unwrap()
+            .with_timezone(&chrono::Utc);
+        let rows = vec![
+            DueRow {
+                id: 1,
+                title: "带偏移".into(),
+                priority: "normal".into(),
+                remind_at: "2026-09-12T22:00:00+08:00".into(), // = 14:00Z
+                pokemon: None,
+            },
+            DueRow {
+                id: 2,
+                title: "utc".into(),
+                priority: "normal".into(),
+                remind_at: "2026-09-12T14:30:00Z".into(),
+                pokemon: None,
+            },
+            DueRow {
+                id: 3,
+                title: "本地无秒".into(),
+                priority: "normal".into(),
+                remind_at: "2026-09-12T23:00".into(), // datetime-local（+08）= 15:00Z
+                pokemon: None,
+            },
+            DueRow {
+                id: 4,
+                title: "恰好到期".into(),
+                priority: "normal".into(),
+                remind_at: "2026-09-12T15:30:00Z".into(), // == now → 边界含
+                pokemon: None,
+            },
+            DueRow {
+                id: 5,
+                title: "未来".into(),
+                priority: "normal".into(),
+                remind_at: "2026-09-12T15:30:01Z".into(),
+                pokemon: None,
+            },
+            DueRow {
+                id: 6,
+                title: "解析失败".into(),
+                priority: "normal".into(),
+                remind_at: "2026-09-12".into(), // 过 SQL 粗筛但解析失败 → 跳过
+                pokemon: None,
+            },
+        ];
+        let due = due_precise(&tz, &rows, now);
+        assert_eq!(
+            due.iter().map(|r| r.id).collect::<Vec<_>>(),
+            vec![1, 2, 3, 4]
+        );
+    }
+
+    fn settings_of(
+        notify_on: bool,
+        quiet_on: bool,
+        qs: &str,
+        qe: &str,
+        lang: &str,
+    ) -> ReminderSettings {
+        ReminderSettings {
+            lead_minutes: 0,
+            notify_on,
+            quiet_on,
+            quiet_start: qs.into(),
+            quiet_end: qe.into(),
+            lang: lang.into(),
+        }
+    }
+
+    #[test]
+    fn decide_delivery_single_multi_quiet_and_notify_off() {
+        let noon = chrono::NaiveTime::from_hms_opt(12, 0, 0).unwrap();
+        let late = chrono::NaiveTime::from_hms_opt(23, 30, 0).unwrap();
+
+        // 单条原样（附分类宝可梦名）
+        let s = settings_of(true, true, "22:00", "08:00", "zh-Hans");
+        let d = decide_delivery(&s, &[reminder(1, "交周报", "normal", Some("皮卡丘"))], noon);
+        assert_eq!(
+            d.notification.as_ref().unwrap(),
+            &(
+                "🐾 训练家，别忘了".to_string(),
+                "交周报（皮卡丘）".to_string()
+            )
+        );
+        assert_eq!(d.pet.as_ref().unwrap().id, 1);
+        assert!(!d.pet.as_ref().unwrap().urgent);
+        assert_eq!(d.silenced, 0);
+
+        // 多条聚合：任一紧急整体 ‼ 前缀，桌宠代表选第一条紧急
+        let s = settings_of(true, false, "22:00", "08:00", "zh-Hans");
+        let d = decide_delivery(
+            &s,
+            &[
+                reminder(1, "一", "normal", None),
+                reminder(2, "二", "urgent", None),
+            ],
+            noon,
+        );
+        let (t, b) = d.notification.as_ref().unwrap();
+        assert!(t.starts_with("‼") && t.contains("2 只"), "{t}");
+        assert_eq!(b, "点名：一、二——到冒险页逐只看看");
+        assert_eq!(d.pet.as_ref().unwrap().id, 2, "代表选第一条紧急");
+        assert!(d.pet.as_ref().unwrap().urgent);
+
+        // 勿扰内：非紧急静默（抢到标记但不送达），紧急例外仍敲门
+        let s = settings_of(true, true, "22:00", "08:00", "zh-Hans");
+        let d = decide_delivery(
+            &s,
+            &[
+                reminder(1, "普通", "normal", None),
+                reminder(2, "紧急", "high", None),
+            ],
+            late,
+        );
+        assert!(d.quiet);
+        assert_eq!(d.silenced, 1);
+        assert_eq!(d.deliver.len(), 1);
+        assert!(
+            d.notification.as_ref().unwrap().0.starts_with("‼"),
+            "剩下的紧急仍送达"
+        );
+        assert_eq!(d.pet.as_ref().unwrap().id, 2);
+
+        // 通知关：系统通知与桌宠事件都不发（送达集保留，由调用方看决策）
+        let s = settings_of(false, false, "22:00", "08:00", "zh-Hans");
+        let d = decide_delivery(&s, &[reminder(1, "x", "normal", None)], noon);
+        assert!(d.notification.is_none() && d.pet.is_none());
+        assert_eq!(d.deliver.len(), 1);
+    }
+
+    #[test]
+    fn decide_delivery_quiet_fail_open_and_start_eq_end() {
+        let late = chrono::NaiveTime::from_hms_opt(23, 30, 0).unwrap();
+        // 边界解析失败 → fail open（不静默）
+        let s = settings_of(true, true, "bad!", "08:00", "zh-Hans");
+        let d = decide_delivery(&s, &[reminder(1, "普通", "normal", None)], late);
+        assert!(!d.quiet && d.silenced == 0 && d.notification.is_some());
+        // start == end 视为关闭
+        let s = settings_of(true, true, "23:30", "23:30", "zh-Hans");
+        let d = decide_delivery(&s, &[reminder(1, "普通", "normal", None)], late);
+        assert!(!d.quiet && d.notification.is_some());
+        // 勿扰开关整体关
+        let s = settings_of(true, false, "22:00", "08:00", "zh-Hans");
+        let d = decide_delivery(&s, &[reminder(1, "普通", "normal", None)], late);
+        assert!(!d.quiet && d.notification.is_some());
+    }
+
+    // ---- P2 提醒落库 CAS（D28 双形态仲裁 · 回归 TDD） ----
+
+    /// 双开窗口回归：两个形态（两条连接）同 20s 窗口各自粗筛到同一到期任务、
+    /// 先后抢占送达权——全系统只允许一个 affected=1（后到让位，不双发）。
+    /// 模拟的是真实竞态窗口：两形态都已在标记前看到 reminded=0 的同一任务。
+    #[test]
+    fn dual_form_claim_grants_single_delivery_right() {
+        let file = std::env::temp_dir().join(format!("pk-reminder-cas-{}", std::process::id()));
+        let _ = std::fs::remove_file(&file);
+        let open = || {
+            let conn = Connection::open(&file).unwrap();
+            conn.execute_batch("PRAGMA journal_mode=WAL; PRAGMA busy_timeout=5000;")
+                .unwrap();
+            conn
+        };
+        let conn1 = open();
+        crate::db::init_conn(&conn1).unwrap();
+        let conn2 = open();
+        let past = (chrono::Utc::now() - chrono::Duration::hours(1)).to_rfc3339();
+        conn1
+            .execute(
+                "INSERT INTO tasks (title, status, remind_at, created_at)
+                 VALUES ('双发竞态', 'scheduled', ?1, ?1)",
+                params![past],
+            )
+            .unwrap();
+        let id = conn1.last_insert_rowid();
+        // 两形态同窗：各自完成粗筛 + 精判（此刻都看到 reminded=0）
+        let now = chrono::Utc::now();
+        let now_s = (now + chrono::Duration::days(1)).to_rfc3339();
+        let due1 = due_precise(
+            &chrono::Local,
+            &query_due_rows(&conn1, &now_s).unwrap(),
+            now,
+        );
+        let due2 = due_precise(
+            &chrono::Local,
+            &query_due_rows(&conn2, &now_s).unwrap(),
+            now,
+        );
+        assert_eq!((due1.len(), due2.len()), (1, 1));
+        let won1 = claim_reminded(&conn1, &due1).unwrap();
+        let won2 = claim_reminded(&conn2, &due2).unwrap();
+        assert_eq!(
+            won1.len() + won2.len(),
+            1,
+            "全系统只有一个「送达权」（先到送达、后到让位）"
+        );
+        assert!(is_reminded(&conn2, id));
+        drop(conn1);
+        drop(conn2);
+        let _ = std::fs::remove_file(&file);
+        let _ = std::fs::remove_file(file.with_extension("db-wal"));
+        let _ = std::fs::remove_file(file.with_extension("db-shm"));
     }
 }

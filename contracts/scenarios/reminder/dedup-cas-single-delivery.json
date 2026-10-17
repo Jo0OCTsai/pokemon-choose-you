@@ -1,0 +1,22 @@
+{
+  "kind": "reminder",
+  "name": "dedup-cas-single-delivery",
+  "now": "2026-09-12T23:30:00+08:00",
+  "setup": {
+    "settings": {
+      "notifications_enabled": "false",
+      "quiet_hours_enabled": "false"
+    },
+    "tasks": [
+      { "id": 1, "title": "同窗双发", "status": "scheduled", "priority": "normal", "remind_at": "2026-09-12T22:00:00+08:00", "created_at": "2026-09-01T00:00:00Z" }
+    ]
+  },
+  "steps": [
+    { "op": "reminder_claim", "args": { "conn": 0, "taskIds": [1] } },
+    { "op": "reminder_claim", "args": { "conn": 1, "taskIds": [1] } },
+    { "op": "task_create", "args": { "title": "第二窗到期", "remindAt": "2026-09-12T22:30:00+08:00", "origin": "dsh:test" } },
+    { "op": "reminder_tick", "args": { "conn": 0 } },
+    { "op": "reminder_tick", "args": { "conn": 1 } }
+  ],
+  "expect": "exact"
+}

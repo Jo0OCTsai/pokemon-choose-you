@@ -2,16 +2,16 @@
 
 > 本文件是 TS（dsh-plugin）与 Rust（主应用）双实现共享协议的规范单源（specs/dsh-plugin AD §4/§5）。
 > 铁律（FR-X3）：文字描述与主应用代码行为冲突时，以 `contracts/fixtures/` 锁定的代码行为为准。
-> 场景/夹具机制见 §5；15 错误码见 §2；判定协议见 §3；假名化见 §4。
+> 场景/夹具机制见 §5；21 错误码见 §2；判定协议见 §3；假名化见 §4。
 
 ## 1. 数据访问常量
 
 - 库定位：`CHOOSE_YOU_HOME` 环境变量（非空时优先）否则 `<home>/.choose-you`；库文件 `data/pokemon-choose-you.db`（与 db.rs 同规则）。
 - 连接 PRAGMA（打开即执行）：`journal_mode=WAL; synchronous=NORMAL; busy_timeout=5000`。
-- schema 版本：`PRAGMA user_version`；迁移 SQL 单源 = `contracts/schema/`（编号顺序执行，guarded 协议见 AD §5.3：插件迁移封顶 minSchema=2）。
+- schema 版本：`PRAGMA user_version`；迁移 SQL 单源 = `contracts/schema/`（编号顺序执行，guarded 协议见 AD §5.3；**迁移封顶 = 插件打包的最新契约版（D29）**：独立分发后插件是唯一迁移执行方，冷启动与旧库一律迁满打包窗口——双形态并存时插件推到打包上限、主应用可推更高、任一方窗口外只读保护；contracts 追加迁移时插件侧窗口常量与内嵌 SQL 必须同版发版，`dsh-plugin/__tests__/migrate.spec.ts` 同版断言是发布检查单机器面）。
 - 写路径：全部单条 `BEGIN IMMEDIATE` 短事务；跨行不变式用 compare-and-swap（WHERE 守卫）+ affected rows 判定；禁止事务内子进程调用。
 
-## 2. 错误码（15 枚举 · 单源）
+## 2. 错误码（21 枚举 · 单源）
 
 响应统一 `{ ok: true, data? }` / `{ ok: false, error: { code, message, hint? } }`（message 三语由 UI 层本地化，code 机器稳定）。
 
@@ -32,6 +32,12 @@
 | AGENT_COMMAND_INVALID | agent 命令空/不可执行 | agentUpsert |
 | PROMPT_VALIDATION_FAILED | 提示词覆盖校验失败（缺占位符/超长/键外） | promptOverride/Reset |
 | SETTING_MODIFIED_ELSEWHERE | 修订检测失配（expectedValue/expectedAgentIds 基线被另一形态改写）；确认后 force 重发整值 | agentUpsert/Delete、promptOverride/Reset |
+| IMPORT_VALIDATION_FAILED | 导入/恢复文件结构校验失败（app/format 不符、结构坏、>100MB、解析深度超限、备份文件名不符白名单）——整体拒绝 0 行变更 | importValidate/importRun/restoreRun |
+| BACKUP_FAILED | 恢复/导入前自动备份失败——中止操作（不执行替换） | importRun/restoreRun |
+| HELPER_CAPABILITY_MISSING | helper 未运行 / hello 能力位缺失 / 宿主平台面（dsh-ssh 家族）未装配——该能力降级提示（不静默） | exportDirOpen、macAuthorizationStatus、通知/TTS 降级诊断、家族缺失的远程派发 |
+| DEPLOYMENT_NOT_READY | 部署非就绪态（未开通/断开/摘要不符）的派发/回放/连接操作前置拒绝 | 远程派发前、sessionReplay 路由 |
+| PROVISION_STEP_FAILED | 开通向导单步执行失败（probe-ssh 免密步复用 SSH_AUTH_REQUIRED；error.hint 附失败步骤 probe-node/upload/verify） | provisionRun |
+| HELPER_HASH_MISMATCH | 远端 helper SHA-256 摘要不符——拒绝就绪、不降级直连（转直连须 deploymentDegradeConfirm 显式确认留痕） | provisionRun 校验步、就绪复核 |
 
 ## 3. 判定协议（AiSuggestion）
 
@@ -77,7 +83,7 @@ contracts/fixtures/<group>/<name>.json    期望输出（Rust oracle 生成，ch
 
 ```jsonc
 {
-  "kind": "task_sm|dispatch_sm|judge_protocol|anonymize|vocabulary|config_align|redact|injection|concurrency|cold_start",
+  "kind": "task_sm|dispatch_sm|judge_protocol|anonymize|vocabulary|config_align|redact|injection|concurrency|cold_start|reminder|streak",
   "name": "start-demotes-active",          // 与文件名一致
   "now": "2026-01-15T09:00:00+08:00",      // 确定性时钟基点（场景内时间注入）
   "setup": {                                // 建库种子（在空库上按序执行）
@@ -120,9 +126,11 @@ contracts/fixtures/<group>/<name>.json    期望输出（Rust oracle 生成，ch
 
 **生成与更新**：`UPDATE_FIXTURES=1 cargo test`（Rust，契约模块）重生成 fixtures；无环境变量时仅比对（漂移即红 = 契约变更是有意的两步动作）。
 
-**操作集（op 枚举 · 两侧共用语义面）**：task_create / task_update / task_start / task_pause / task_resume / task_done / task_undone / task_escape / task_delete / task_reschedule / note_add / suggest_batch / claim_judge / judge_reclaim / apply_judge_result / review_accept / review_apply_update / review_dismiss / review_restore / force_capture / force_dismiss / dispatch_queue / dispatch_claim / dispatch_transition / dispatch_close / dispatch_reset / slot_acquire / slot_release / slot_reclaim / anon_build / anon_scrub / anon_restore / anon_preoccupy / prompt_override / prompt_reset / agent_upsert / agent_delete / category_upsert / category_delete / tag_upsert / tag_delete / dimension_update / filter_upsert / config_write / redact_report / injection_build / migrate_cold_start。
+**操作集（op 枚举 · 两侧共用语义面）**：task_create / task_update / task_start / task_pause / task_resume / task_done / task_undone / task_escape / task_delete / task_reschedule / note_add / suggest_batch / claim_judge / judge_reclaim / apply_judge_result / review_accept / review_apply_update / review_dismiss / review_restore / force_capture / force_dismiss / dispatch_queue / dispatch_claim / dispatch_transition / dispatch_close / dispatch_reset / slot_acquire / slot_release / slot_reclaim / anon_build / anon_scrub / anon_restore / anon_preoccupy / prompt_override / prompt_reset / agent_upsert / agent_delete / category_upsert / category_delete / tag_upsert / tag_delete / dimension_update / filter_upsert / config_write / redact_report / injection_build / migrate_cold_start / reminder_tick / reminder_claim / streak_eval。
 
 > op 补记（Rust oracle 落地时新增）：`judge_reclaim`（judging 超时回收——主应用侧该逻辑藏在 async 判定路径里，契约面以 `reclaim_stale_judging_conn` 原语独立驱动）；`anon_preoccupy`（构造确定性别名碰撞，驱动探测路径）。`force_capture`/`force_dismiss` 未入场景集（主应用 force 路径执行真实 agent 子进程，其持久化语义已被 suggest/apply/review 路径覆盖）。
+
+> op 补记（`reminder` / `streak` 组 · dsh-plugin-full-parity P1–P3 新增）：`reminder_tick`（入参 `now`（缺省 = 场景 now）+ `conn`；执行桌面 scheduler.rs 同构决策链 = 设置快照（setup.settings 经 `ReminderSettings::from_conn` 读齐，缺省同桌面）→ SQL 粗筛 → 混排时间精判（RFC3339 直转、datetime-local 按 now 偏移时区解析）→ `reminded` CAS 抢占（BEGIN IMMEDIATE 内 `UPDATE … WHERE reminded=0`，affected=1 得送达权）→ 勿扰滤网 + 聚合文案；出参 = `{due, claimed, quiet, silenced, notifyOn, notification, pet}` 送达决策）；`reminder_claim`（直接驱动 reminded CAS 原语——模拟「粗筛+精判已看到该任务」的抢占入口，出参 `{won, yielded}` 锁 affected=0 让位语义，不受 SQL 预筛 reminded=0 掩盖；`reminder` 组为双连接文件库（两形态竞争），同 `concurrency` 组形态）；`streak_eval`（连胜纯核心，入参 `doneDays`（done 本地日集合 = 桌面 `DISTINCT date(completed_at,'localtime')` 的结果面）+ `today` + `todayCount`（今日捕捉数，等价桌面 COUNT 查询），出参 `{days, todayCount}`——SQL 侧 `'localtime'` 依赖机器时区，契约面以显式日期集合入参保证跨时区确定性）。
 
 **FR-X3 代码优先行为发现（fixtures 已按实际行为锁定，TS 侧必须对齐；与 AD 文字矩阵的差异待回流 AD）**：
 1. 任务面 conn 层无状态迁移守卫：`inbox→done`、`done→active` 等直接放行，状态合法性校验只在前端/pk 枚举层——TS 域核心对齐「原语层不设迁移守卫、守卫在命令面」的现行结构（SDD 3.3 状态图的非法迁移拒绝发生在消费入口而非 SQL 原语）。

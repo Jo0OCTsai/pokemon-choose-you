@@ -155,11 +155,10 @@ pub fn run_daily_backup(
     match create_backup(data_dir, conn) {
         Ok(_) => {
             prune_backups(data_dir, keep.max(1));
-            let _ = conn.execute(
-                "INSERT INTO settings (key, value) VALUES ('last_backup_date', ?1)
-                 ON CONFLICT(key) DO UPDATE SET value=?1",
-                params![today],
-            );
+            // 备份成功后才落当日键（P4/A36 时序）：条件更新只在值 ≠ 今日时写入——
+            // 对面形态同窗已落键则不动；写键失败不回滚已成功备份
+            //（键未写 = 下轮读旧值自愈重跑，「失败当日可重试」按此时序成立）
+            let _ = crate::db::claim_daily_key(conn, "last_backup_date", today);
             true
         }
         Err(e) => {
@@ -386,5 +385,84 @@ mod tests {
         .unwrap();
         run_daily_backup(&dir, &conn, true, 1, "2026-09-13");
         assert_eq!(list_backups(&dir).unwrap().len(), 1, "keep=1 只留最新一份");
+    }
+
+    /// P4（A36 时序）：备份失败不烧当日键——同日下一轮读旧值自愈重跑成功
+    #[test]
+    fn failed_backup_allows_same_day_retry() {
+        let ok_dir = tmp_dir("retry-ok");
+        let bad_dir =
+            std::env::temp_dir().join(format!("pk-backup-blocked-{}", std::process::id()));
+        let _ = std::fs::remove_file(&bad_dir);
+        std::fs::write(&bad_dir, b"occupied").unwrap(); // 占位文件：create_dir_all 必失败
+        let conn = test_conn();
+        conn.execute(
+            "INSERT INTO tasks (title, status, created_at) VALUES ('任务', 'inbox', '2026-09-01T00:00:00Z')",
+            [],
+        )
+        .unwrap();
+        assert!(
+            !run_daily_backup(&bad_dir, &conn, true, 7, "2026-09-13"),
+            "目录不可建 → 备份失败"
+        );
+        let key: Option<String> = conn
+            .query_row(
+                "SELECT value FROM settings WHERE key='last_backup_date'",
+                [],
+                |r| r.get(0),
+            )
+            .ok();
+        assert_ne!(key.as_deref(), Some("2026-09-13"), "失败路径不落当日键");
+        assert!(
+            run_daily_backup(&ok_dir, &conn, true, 7, "2026-09-13"),
+            "同日重试（旧值自愈）成功"
+        );
+        let key: String = conn
+            .query_row(
+                "SELECT value FROM settings WHERE key='last_backup_date'",
+                [],
+                |r| r.get(0),
+            )
+            .unwrap();
+        assert_eq!(key, "2026-09-13", "成功后备份当日键");
+        std::fs::remove_file(&bad_dir).unwrap();
+    }
+
+    /// P4：落键 = 条件更新（与 P2 当日去重键同构）——对面形态同窗已落今日 → 让位不改写
+    #[test]
+    fn backup_daily_key_write_yields_to_same_day_value() {
+        let file = std::env::temp_dir().join(format!("pk-backup-key-{}", std::process::id()));
+        let _ = std::fs::remove_file(&file);
+        let open = || {
+            let c = Connection::open(&file).unwrap();
+            c.execute_batch("PRAGMA journal_mode=WAL; PRAGMA busy_timeout=5000;")
+                .unwrap();
+            c
+        };
+        let conn1 = open();
+        crate::db::init_conn(&conn1).unwrap();
+        let conn2 = open();
+        assert!(crate::db::claim_daily_key(
+            &conn1,
+            "last_backup_date",
+            "2026-09-13"
+        ));
+        assert!(
+            !crate::db::claim_daily_key(&conn2, "last_backup_date", "2026-09-13"),
+            "同窗对面已落当日键 → 让位"
+        );
+        let v: String = conn2
+            .query_row(
+                "SELECT value FROM settings WHERE key='last_backup_date'",
+                [],
+                |r| r.get(0),
+            )
+            .unwrap();
+        assert_eq!(v, "2026-09-13", "值保持对面写入的今日");
+        drop(conn1);
+        drop(conn2);
+        let _ = std::fs::remove_file(&file);
+        let _ = std::fs::remove_file(file.with_extension("db-wal"));
+        let _ = std::fs::remove_file(file.with_extension("db-shm"));
     }
 }

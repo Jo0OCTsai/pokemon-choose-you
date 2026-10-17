@@ -48,6 +48,8 @@ const KINDS: &[&str] = &[
     "redact",
     "injection",
     "cold_start",
+    "reminder",
+    "streak",
 ];
 
 /// final 全量行集导出的表（行内键经 BTreeMap 字典序；行序 = rowid）
@@ -258,12 +260,14 @@ fn ts_arg(args: &Value, key: &str) -> Option<String> {
 // ---- harness 主体 ----
 
 struct Harness {
-    /// mock 应用栈：apps[i] 持有第 i 号连接（in-memory 单连接；concurrency 组为
-    /// 指向同一临时文件库的两条连接、各挂一个 mock app——命令层 op 也能跨连接竞争）
+    /// mock 应用栈：apps[i] 持有第 i 号连接（in-memory 单连接；concurrency / reminder
+    /// 组为指向同一临时文件库的两条连接、各挂一个 mock app——命令层 op 也能跨连接竞争）
     apps: Vec<tauri::App<tauri::test::MockRuntime>>,
     /// invariants 组：成功落笔的写操作计数（审计守恒断言的期望侧）
     write_ops: usize,
     db_file: Option<PathBuf>,
+    /// 场景 `now`（确定性时钟基点；reminder 组 op 的缺省时刻）
+    scenario_now: String,
 }
 
 fn make_mock_app(conn: Connection) -> tauri::App<tauri::test::MockRuntime> {
@@ -277,8 +281,9 @@ fn make_mock_app(conn: Connection) -> tauri::App<tauri::test::MockRuntime> {
 }
 
 impl Harness {
-    fn new(kind: &str, name: &str, setup: &Value) -> Harness {
-        let db_file = (kind == "concurrency").then(|| {
+    fn new(kind: &str, name: &str, now: &str, setup: &Value) -> Harness {
+        // concurrency / reminder 组需要双连接（两形态跨连接竞争），走临时文件库
+        let db_file = (kind == "concurrency" || kind == "reminder").then(|| {
             let p = std::env::temp_dir().join(format!(
                 "cy-contracts-{kind}-{name}-{}.db",
                 std::process::id()
@@ -310,6 +315,7 @@ impl Harness {
             apps,
             write_ops: 0,
             db_file,
+            scenario_now: now.to_string(),
         }
     }
 
@@ -1655,6 +1661,118 @@ impl Harness {
                 Ok(json!({"userVersion": version}))
             }),
 
+            // ---- 提醒 / 连胜（桌面 P1–P3 抽取原语：scheduler.rs / pet.rs 真实决策链）----
+            // reminder_tick：args.now 缺省 = 场景 now；时区 = now 偏移（datetime-local
+            // 解析与勿扰本地时刻都按此时区）；设置快照从 setup.settings 经
+            // ReminderSettings::from_conn 读齐（缺省与桌面一致）
+            "reminder_tick" => {
+                let now_str = args
+                    .get("now")
+                    .and_then(|v| v.as_str())
+                    .map(String::from)
+                    .unwrap_or_else(|| self.scenario_now.clone());
+                self.with_conn(idx, |conn| {
+                    let dt = chrono::DateTime::parse_from_rfc3339(&now_str)
+                        .map_err(|e| format!("now-invalid:{e}"))?;
+                    let tz = *dt.offset();
+                    let settings = crate::scheduler::ReminderSettings::from_conn(conn);
+                    let now_lead = dt.with_timezone(&chrono::Utc)
+                        + chrono::Duration::minutes(settings.lead_minutes);
+                    let now_s = (now_lead + chrono::Duration::days(1)).to_rfc3339();
+                    let rows = crate::scheduler::query_due_rows(conn, &now_s).map_err(db_tag)?;
+                    let due = crate::scheduler::due_precise(&tz, &rows, now_lead);
+                    let claimed =
+                        crate::scheduler::claim_reminded(conn, &due).map_err(db_tag)?;
+                    let decision = crate::scheduler::decide_delivery(
+                        &settings,
+                        &claimed,
+                        dt.with_timezone(&tz).time(),
+                    );
+                    Ok(json!({
+                        "due": due.iter().map(|r| r.id).collect::<Vec<_>>(),
+                        "claimed": claimed.iter().map(|r| r.id).collect::<Vec<_>>(),
+                        "delivered": decision.deliver.iter().map(|r| r.id).collect::<Vec<_>>(),
+                        "quiet": decision.quiet,
+                        "silenced": decision.silenced,
+                        "notifyOn": settings.notify_on,
+                        "notification": decision
+                            .notification
+                            .as_ref()
+                            .map(|(t, b)| json!({"title": t, "body": b}))
+                            .unwrap_or(Value::Null),
+                        "pet": decision
+                            .pet
+                            .as_ref()
+                            .map(|p| json!({
+                                "id": p.id, "title": p.title,
+                                "urgent": p.urgent, "pokemon": p.pokemon
+                            }))
+                            .unwrap_or(Value::Null),
+                    }))
+                })
+            }
+            // reminder_claim：直接驱动 reminded CAS 原语（模拟「粗筛+精判已看到该任务」
+            // 的抢占入口——锁 affected=0 让位语义，不受 SQL 预筛 reminded=0 掩盖）
+            "reminder_claim" => self.with_conn(idx, |conn| {
+                let ids: Vec<i64> = args
+                    .get("taskIds")
+                    .and_then(|v| v.as_array())
+                    .map(|a| a.iter().filter_map(|x| x.as_i64()).collect())
+                    .ok_or("task-ids-missing")?;
+                let mut candidates = Vec::new();
+                for id in &ids {
+                    // harness 组合：按 id 读行构造候选（title/priority/pokemon 送达用）
+                    let r = conn
+                        .query_row(
+                            "SELECT t.id, t.title, t.priority, c.pokemon FROM tasks t
+                             LEFT JOIN categories c ON c.id = t.category_id
+                             WHERE t.id=?1",
+                            params![id],
+                            |row| {
+                                Ok(crate::scheduler::Reminder {
+                                    id: row.get(0)?,
+                                    title: row.get(1)?,
+                                    priority: row.get(2)?,
+                                    pokemon: row.get(3)?,
+                                })
+                            },
+                        )
+                        .map_err(|_| "task-not-found".to_string())?;
+                    candidates.push(r);
+                }
+                let won = crate::scheduler::claim_reminded(conn, &candidates).map_err(db_tag)?;
+                let won_ids: HashSet<i64> = won.iter().map(|r| r.id).collect();
+                Ok(json!({
+                    "won": ids.iter().filter(|i| won_ids.contains(i)).copied().collect::<Vec<_>>(),
+                    "yielded": ids.iter().filter(|i| !won_ids.contains(i)).copied().collect::<Vec<_>>(),
+                }))
+            }),
+            // streak_eval：连胜纯核心（P3 抽取的 streak_eval 直供——doneDays 为 done
+            // 本地日集合（等价桌面 DISTINCT date(completed_at,'localtime') 的结果面），
+            // todayCount 由场景显式给出（等价桌面 COUNT 查询），保证跨时区确定性）
+            "streak_eval" => {
+                let today = chrono::NaiveDate::parse_from_str(
+                    args.get("today")
+                        .and_then(|v| v.as_str())
+                        .ok_or("today-missing")?,
+                    "%Y-%m-%d",
+                )
+                .map_err(|e| format!("today-invalid:{e}"))?;
+                let done_days: std::collections::HashSet<chrono::NaiveDate> = args
+                    .get("doneDays")
+                    .and_then(|v| v.as_array())
+                    .map(|a| {
+                        a.iter()
+                            .filter_map(|x| x.as_str())
+                            .filter_map(|s| chrono::NaiveDate::parse_from_str(s, "%Y-%m-%d").ok())
+                            .collect()
+                    })
+                    .unwrap_or_default();
+                let today_count = args.get("todayCount").and_then(|v| v.as_i64()).unwrap_or(0);
+                let info = crate::commands::pet::streak_eval(&done_days, today, today_count);
+                Ok(json!({"days": info.days, "todayCount": info.today_count}))
+            }
+
             other => Err(format!("unknown-op:{other}")),
         }
     }
@@ -1840,7 +1958,7 @@ impl AliasNormalizer {
 // ---- 场景执行 → 夹具 ----
 
 fn execute_scenario(sc: &Scenario) -> Value {
-    let mut h = Harness::new(&sc.kind, &sc.name, &sc.setup);
+    let mut h = Harness::new(&sc.kind, &sc.name, &sc.now, &sc.setup);
     let mut steps = vec![];
     for step in &sc.steps {
         let res = h.run_op(&step.op, &step.args);
