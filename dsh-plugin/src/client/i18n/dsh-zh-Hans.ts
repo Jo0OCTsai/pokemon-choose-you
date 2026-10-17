@@ -10,7 +10,7 @@ export default {
     pending: "待处理 {n}",
   },
   empty: {
-    tasks: "草丛静悄悄——在会话里说一句、用 ⚡发报，或直接新建第一只",
+    tasks: "草丛静悄悄——在会话里说一句、用 ⚡发报",
     radio: "电波安静。有新消息会以计数提醒，不会打扰你",
     dispatch: "还没有派出过 agent",
   },
@@ -165,10 +165,6 @@ export default {
   },
   common: {
     close: "关闭",
-  },
-  taskCreate: {
-    entry: "＋ 新建任务",
-    scheduledFor: "排期",
   },
   sess: {
     group: {

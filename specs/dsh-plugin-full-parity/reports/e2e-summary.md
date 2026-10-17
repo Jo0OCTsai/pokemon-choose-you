@@ -3,11 +3,11 @@
 > 数据源 = `reports/raw/playwright-report/`（Playwright HTML 报告，机器产物）；
 > 截图 = `reports/screenshots/e2e-*.png`（harness 走查）+ `rm-*.png`（真机冒烟）。
 
-## 结论：全绿（5/5）
+## 结论：全绿（4/4）
 
 | 面 | 用例 | 结果 |
 |---|---|---|
-| harness（真实 dist/client.js 产物） | 5 | ✓ 面板装载/新建任务全流程（标题空校验→提交入列草丛）/日志段过滤分页/背包·Agent 部署卡（就绪徽章）/诊断段能力矩阵与 ssh 家族行 |
+| harness（真实 dist/client.js 产物） | 4 | ✓ 面板装载/日志段过滤分页/背包·Agent 部署卡（就绪徽章）/诊断段能力矩阵与 ssh 家族行（「新建任务」用例已移除——2026-10-17 用户裁决，FR-C1 回流，e2e-02/03 截图同删） |
 | 真机（dsh pky-test profile + 真实 host/DB/ssh/electron） | 8+ 段走查 | 见 acceptance-report「真机冒烟」节（全链证据） |
 
 ## harness 机制（可重跑）

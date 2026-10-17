@@ -10,7 +10,7 @@ export default {
     pending: "{n} pending",
   },
   empty: {
-    tasks: "The tall grass is quiet — say it in chat, send a wire, or create your first one",
+    tasks: "The tall grass is quiet — say it in chat, send a wire",
     radio: "The airwaves are quiet. New messages show as a count — no interruptions.",
     dispatch: "No agents dispatched yet",
   },
@@ -170,10 +170,6 @@ export default {
   },
   common: {
     close: "Close",
-  },
-  taskCreate: {
-    entry: "+ New task",
-    scheduledFor: "Scheduled for",
   },
   sess: {
     group: {

@@ -16,13 +16,11 @@ import {
 } from "../domain/task-lifecycle";
 import {
   addTaskNote,
-  createTaskManual,
   deleteTaskNote,
   getCurrentTask,
   getTask,
   listTaskLogs,
   updateTask,
-  type ManualTaskCreateInput,
   type TaskPatch,
 } from "../domain/tasks";
 import { validEscapeReason } from "../domain/suggest-types";
@@ -160,7 +158,7 @@ function taskLifecycleSet(): CommandTable {
   };
 }
 
-/** 任务编辑/跟进/历史/新建段 */
+/** 任务编辑/跟进/历史段 */
 function taskEditSet(): CommandTable {
   return {
     // 全字段编辑（桌面 TaskEditModal 同位：updateTask 域内含 diff 审计）
@@ -181,17 +179,10 @@ function taskEditSet(): CommandTable {
       return { ok: true };
     },
     taskHistory: (p, deps) => ({ logs: listTaskLogs(deps.conn, (p as { taskId: number }).taskId) }),
-    // 面板手动新建（FR-C1）：多分类/标签存在性前置校验在 domain——校验失败 0 行变更；
-    // 响应 = 任务本体（客户端 HostClient 契约 PkyResult<Task>——联调对齐口径）
-    taskCreate: (p, deps) => {
-      const task = createTaskManual(deps.conn, p as ManualTaskCreateInput, "panel");
-      deps.onWrites();
-      return task;
-    },
   };
 }
 
-/** 任务域命令表（13 条） */
+/** 任务域命令表（12 条；taskCreate 已移除——面板手动新建下线，FR-C1 回流） */
 export function taskCommands(): CommandTable {
   return { ...taskLifecycleSet(), ...taskEditSet() };
 }

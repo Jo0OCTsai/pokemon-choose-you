@@ -2,8 +2,8 @@
  * 任务域核心（六态 inbox/scheduled/active/paused/done/cancelled）：行映射 / 查询 /
  * 草丛不变量 / 创建与字段级更新——行为基准 = src-tauri/src/commands/tasks.rs
  * （FR-X3：冲突以 Rust 为准）。状态机操作（出发/暂停/逃走/放生等）见
- * task-lifecycle.ts；审计见 task-audit.ts；跟进记录与操作日志 → task-notes.ts；
- * 面板手动新建 → task-manual-create.ts（均本文件再出口，消费面不变）。
+ * task-lifecycle.ts；审计见 task-audit.ts；跟进记录与操作日志 → task-notes.ts
+ * （均本文件再出口，消费面不变）。
  */
 import { nowRfc3339, type Conn } from "../storage/db";
 import { notFound, paramError } from "../storage/errors";
@@ -214,8 +214,6 @@ export function createTask(conn: Conn, task: NewTask, origin = "dsh", now?: stri
   return getTask(conn, id);
 }
 
-// ---- 面板手动新建拆件 → task-manual-create.ts（公共面在此再出口） ----
-
 export interface TaskPatch {
   id: number;
   title?: string;
@@ -291,5 +289,3 @@ export function updateTask(conn: Conn, patch: TaskPatch, origin = "dsh", now?: s
 // ---- 跟进记录与操作日志拆件 → task-notes.ts（公共面在此再出口，消费面 import 不变） ----
 export { addTaskNote, deleteTaskNote, listTaskLogs } from "./task-notes";
 export type { TaskNote, TaskLog } from "./task-notes";
-export { createTaskManual } from "./task-manual-create";
-export type { ManualTaskCreateInput } from "./task-manual-create";

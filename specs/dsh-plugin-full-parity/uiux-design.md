@@ -242,7 +242,7 @@ AD 契约供给面（architecture.md §4）与本节四表比对完毕，**交�
 flowchart TD
     subgraph PANEL["插件页面（PluginDetailPage · 七分段不变）"]
         SEG["SegmentNav：冒险/草丛/路线/图鉴/收音机/日志/背包"]
-        SEG --> T1["任务三段 · 头部「＋ 新建任务」+ 空态主行动【U22】"]
+        SEG --> T1["任务三段 · 头部「＋ 新建任务」+ 空态主行动【U22】【已移除 2026-10-17·用户裁决】"]
         SEG --> LOG["日志段 · 分组过滤胶囊 + 分页器 + 行内「回放」【U27】"]
         SEG --> BP["背包（八分区选单不变）"]
         BP --> AG["🤖 Agent 分区 · + 远程部署卡（列表/徽章/向导入口）【U23】"]
@@ -261,7 +261,7 @@ flowchart TD
         IR["输入响应动画（cps 三档 · 授权门槛）【U26】"]
         NOTIF["OS 通知：提醒聚合/番茄完成/逾期温和/复盘提醒（勿扰静默无 UI）"]
     end
-    MODAL["Modal 层：DeploymentWizard（四步向导）【U24】· DeployForm · DeployRemove 确认 · DegradeConfirm（D31）【U31】· ImportConfirm/RestoreConfirm【U25】 · TaskEditModal create 模式【U22】"]
+    MODAL["Modal 层：DeploymentWizard（四步向导）【U24】· DeployForm · DeployRemove 确认 · DegradeConfirm（D31）【U31】· ImportConfirm/RestoreConfirm【U25】 · TaskEditModal create 模式【U22·已移除 2026-10-17·用户裁决】"]
     PANEL --> MODAL
     TRAY -->|"打开图鉴机/设置"| PANEL
     PET -->|"双击/菜单"| PANEL
@@ -311,8 +311,8 @@ flowchart TD
 PluginDetailPage（七分段不变）
 ├── HelperBanner（面板顶部 · helper 缺席/运行时获取失败时呈现 · 点击锚到诊断段 · 与 SchemaBanner 同族不叠抢：schema 拒绝优先在上【U30】）
 ├── 任务三段（AdventureView / GrassView / RouteView）
-│   ├── SegmentToolbar（段头工具行：「＋ 新建任务」按钮——三段常驻，宿主档次按钮非主行动黄）
-│   └── EmptyState（升级：被动文案 + 主行动「＋ 新建任务」buttonDex——空态唯一主推进动作）
+│   ├── SegmentToolbar（段头工具行：「＋ 新建任务」按钮——三段常驻，宿主档次按钮非主行动黄）〔已移除 2026-10-17 · 用户裁决「完全不需要」〕
+│   └── EmptyState（升级：被动文案 + 主行动「＋ 新建任务」buttonDex——空态唯一主推进动作）〔已移除·同上——恢复纯被动文案〕
 ├── LogSegment（日志段扩容）
 │   ├── SessionFilterBar（分组过滤胶囊四选：全部/收音机/派发/其他——一等选中黄；未知分组数据归「全部」；**归组映射（M9）**：classify（收音机分类判定）/capture（发报·快捕）→ 收音机，dispatch_headless/dispatch_interactive → 派发，pk（复盘/体检等 pk CLI 会话）→ 其他，未知/新增来源 → 仅入「全部」不进三组；无命中空态「该分组暂无会话」（复用诊断段 LogViewer 空态口径））
 │   ├── SessionPager（counts 汇总常显「共 N 条」+ 页码/上一页/下一页（limit 默认 20；1–100 钳制在控件内）)
@@ -341,7 +341,7 @@ PluginDetailPage（七分段不变）
 │       ├── HelperCapabilityMatrix（六能力 × 可用/降级 + 缺失指引行；运行时来源与版本）
 │       ├── ShortcutStatusLine（全局快捷键注册状态——失败才显示）
 │       └── SshFamilyStatus（dsh-ssh 家族探测——就绪/缺失+装载指引）
-└── Modal：TaskEditModal（create 模式扩展【U22】：task 入参可选；缺省 分类=第一个启用/优先级=normal/状态=排期?scheduled:inbox；标题必填行内校验）
+└── Modal：TaskEditModal（create 模式扩展【U22】：task 入参可选；缺省 分类=第一个启用/优先级=normal/状态=排期?scheduled:inbox；标题必填行内校验）〔已移除 2026-10-17 · 用户裁决「完全不需要」——恢复纯编辑模式〕
 ```
 
 ### 3.2 helper 侧组件树（增量）
@@ -535,10 +535,10 @@ stateDiagram-v2
 
 | 场景 | 位置 | 简中文案 | EN |
 |------|------|---------|----|
-| 新建任务入口 | 任务三段头部 / 空态 | ＋ 新建任务 | + New task |
-| 空态升级（任务段） | 空态主行动下 | 草丛静悄悄——在会话里说一句、用 ⚡发报，或直接新建第一只 | The tall grass is quiet — say it in chat, send a wire, or create your first one |
-| 标题校验 | 建卡表单 | 标题不能为空 | Title can't be empty |
-| 建卡成功 | 列表即时呈现（无 toast） | —（新卡入列即为反馈） | — |
+| 新建任务入口 | 任务三段头部 / 空态 | ＋ 新建任务 | + New task〔已移除·同上〕 |
+| 空态升级（任务段） | 空态主行动下 | 草丛静悄悄——在会话里说一句、用 ⚡发报，或直接新建第一只 | The tall grass is quiet — say it in chat, send a wire, or create your first one〔已移除·同上——空态恢复纯被动文案「草丛静悄悄——在会话里说一句、用 ⚡发报」〕 |
+| 标题校验 | 建卡表单 | 标题不能为空 | Title can't be empty〔已移除·同上〕 |
+| 建卡成功 | 列表即时呈现（无 toast） | —（新卡入列即为反馈） | —〔已移除·同上〕 |
 | 部署卡标题 | 背包·Agent 分区 | 远程部署 | Remote deployments |
 | 部署空态 | 部署卡 | 还没有远程部署。添加一台远端机器，把 agent 派去远方 | No remote deployments yet. Add a machine to send agents afar |
 | 部署表单 | DeployFormModal | OpenSSH 别名（凭据由别名承载，插件不存私钥）/ 远端 Node 路径 / 默认远端工作目录 / 备注 | OpenSSH alias (credentials stay with ssh; nothing stored here) / Remote Node path / Default remote workdir / Note |
@@ -778,7 +778,7 @@ Scenario: 提醒聚合与紧急前缀
 
 | # | 就地决策 | 位置 | 依据 |
 |---|---------|------|------|
-| U22 | **新建任务入口** = 任务三段（冒险/草丛/路线）段头工具行「＋ 新建任务」（宿主档次按钮，非主行动黄）+ 空态主行动 buttonDex；表单 = TaskEditModal 扩 **create 模式**（task 可选参，全字段同构） | §2.1/§3.1 | 图鉴段（统计面）/收音机段（消息面）不放建卡入口；空态从纯被动引导升级出一个主行动（FR-C1 能力出现后空态应给主动出口）；复用编辑弹窗保肌肉记忆一致 |
+| U22 | **新建任务入口** = 任务三段（冒险/草丛/路线）段头工具行「＋ 新建任务」（宿主档次按钮，非主行动黄）+ 空态主行动 buttonDex；表单 = TaskEditModal 扩 **create 模式**（task 可选参，全字段同构）〔已移除 2026-10-17 · 用户裁决「完全不需要」——段头工具行/空态主行动/TaskEditModal create 模式全部下线，空态恢复纯被动引导〕 | §2.1/§3.1 | 图鉴段（统计面）/收音机段（消息面）不放建卡入口；空态从纯被动引导升级出一个主行动（FR-C1 能力出现后空态应给主动出口）；复用编辑弹窗保肌肉记忆一致 |
 | U23 | **远程部署管理挂载** = 背包·Agent 分区·独立 DeploymentCard（不并入 agent 卡）；向导/表单/确认全 Modal 化 | §2.1 | 部署 = 跨 agent 共享的执行世界资产（桌面 SSH 在 Agent 域的先例 + 生命周期独立）；一次性流程不占导航位 |
 | U24 | **开通向导输出屏** = LCD 屏词汇的「② 诊断日志屏」类目复用（与诊断日志屏同一容器组件），不开第四个 T2 签名位；向导壳/步骤条 = T0+T1，黄只标当前步；**关闭语义（M8 裁决）**：Esc/✕ = 向导后台继续（卡面「向导执行中」中性徽章反映，重开续看），[中止] 为显式停止动作；新增部署保存后自动进向导（草稿→探测中） | §6.1/§3.3 | 「全页仅三处 LCD」以类目+组件单源维持；探测输出与诊断日志同属只读诊断面 |
 | U25 | **导入/恢复确认** = 弹层二次确认（明示整体替换 + 实备份文件名 + 版本兼容结果行前置），**升级**桌面 BackupCard 的 4 秒红字两段式 | §4.3 | D25 定调危险操作 + 前置自动备份是新增防线，信息量超出按钮内联红字承载力；弹层 focus trap 一致 |

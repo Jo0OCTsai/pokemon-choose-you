@@ -58,8 +58,8 @@ async function runTaskEditHistoryCase(): Promise<void> {
 }
 
 describe("host 命令装配面（AD §4.1.1）· 全集与任务域", () => {
-  it("命令名全集 = 87 条目（69 既有 + full-parity §4.1 新增 17 + macAuthPaneOpen 联调对齐 1），未知命令 INVALID_ARGUMENT", async () => {
-    expect(HOST_COMMAND_NAMES).toHaveLength(87);
+  it("命令名全集 = 86 条目（69 既有 + full-parity §4.1 新增 16 + macAuthPaneOpen 联调对齐 1；taskCreate 已移除），未知命令 INVALID_ARGUMENT", async () => {
+    expect(HOST_COMMAND_NAMES).toHaveLength(86);
     const unknown = (await f.call("nope")) as { ok: boolean; error: { code: string } };
     expect(unknown.ok).toBe(false);
     expect(unknown.error.code).toBe("INVALID_ARGUMENT");

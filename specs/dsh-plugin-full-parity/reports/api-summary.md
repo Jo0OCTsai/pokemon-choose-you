@@ -14,7 +14,7 @@
 
 - 契约回放套件扩至 **59 场景**（原 43 + reminder 8 + streak 6）：Rust oracle（桌面 scheduler.rs / streak_conn 纯函数抽取，只抽取不改行为）生成 fixtures，TS 侧逐字段回放全绿——桌面提醒语义 100% 对齐由夹具锁定（NFR-10）。
 - 新增 op（PROTOCOL §5 只追加）：`reminder_tick` / `reminder_claim` / `streak_eval`；streak_eval 用显式入参（doneDays/today/todayCount）防夹具跨时区漂移。
-- 错误码 15 → **21**（PROTOCOL §2 只追加 6 枚：DEPLOYMENT_NOT_READY / PROVISION_STEP_FAILED / HELPER_HASH_MISMATCH / HELPER_CAPABILITY_MISSING / IMPORT_VALIDATION_FAILED / BACKUP_FAILED）；命令面 69 → **87**（AD §4.1 表 17 条 + macAuthPaneOpen 联调对齐 1 条），`HOST_COMMAND_NAMES` 单源断言绿。
+- 错误码 15 → **21**（PROTOCOL §2 只追加 6 枚：DEPLOYMENT_NOT_READY / PROVISION_STEP_FAILED / HELPER_HASH_MISMATCH / HELPER_CAPABILITY_MISSING / IMPORT_VALIDATION_FAILED / BACKUP_FAILED）；命令面 69 → **86**（AD §4.1 表 16 条 + macAuthPaneOpen 联调对齐 1 条；原 87——**taskCreate 已于 2026-10-17 移除**，用户裁决「完全不需要」，FR-C1 回流），`HOST_COMMAND_NAMES` 单源断言绿。
 
 ## 关键覆盖点（失败注入类用例均有）
 

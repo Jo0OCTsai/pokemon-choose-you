@@ -13,7 +13,7 @@
 隔离数据目录启动 `dsh --profile pky-test`：待办库自动创建（`data/pokemon-choose-you.db` +
 WAL）、迁移至 user_version=2、种子 5 默认分类 + 4 标签维度（sqlite3 实读核验 `2/5/4`）。
 dsh web 面板内「Pokédex」入口 → 插件面板七分段全渲染（冒险/草丛/路线/图鉴/收音机/日志/背包），
-空态与「＋ 新建任务」入口在位；零仓库相对路径读取报错（NFR-12① 机器面 = 构建期内嵌 +
+空态被动文案在位（「＋ 新建任务」入口已移除——2026-10-17 用户裁决，FR-C1 回流）；零仓库相对路径读取报错（NFR-12① 机器面 = 构建期内嵌 +
 CI 分发物断言）。截图 `rm-01-panel-adventure.png`。
 
 ### 1.2 electronGet 按需获取（FR-X9-4/D30）✅ 全链实测
@@ -59,12 +59,13 @@ sibling + 安装命令注入 `PATH=<node bin>:$PATH` 前缀，两处真机暴露
 `9d7c7403…c5e896` 一致；徽章计数 ready=1，sqlite `dsh:deployments` 落 helperPath/Hash，
 `deploymentRecheck` 经家族链复核 ready 复验通过。
 
-### 1.5 提醒/仲裁/导入恢复/会话回放/新建任务（FR-A3/A10/A5/C1/C2）✅ 域面
+### 1.5 提醒/仲裁/导入恢复/会话回放（FR-A3/A10/A5/C2）✅ 域面
 
 契约回放 59 场景（reminder 8 + streak 6 新增）+ 领域单测（提醒聚合/勿扰七边界/CAS 让位/导入
-五态/恢复超窗/回放快照压配置/最小新建）全绿——域行为按 FR-X3 以夹具锁定；装配层 reminder loop
+五态/恢复超窗/回放快照压配置）全绿——域行为按 FR-X3 以夹具锁定；装配层 reminder loop
 全链（到期→送达→去重→勿扰→toast 降级→补看面）经 fake timer 测试覆盖。双形态提醒单发依赖桌面
 P2 守卫（已合入，cargo 394 全绿）——双开真机同窗验证属 NFR-10 手动项（下表）。
+（FR-C1 面板手动新建已移除——2026-10-17 用户裁决「完全不需要」，相关域面/用例/入口同步下线。）
 
 ## 2. SDD §5 Gherkin → 测试映射（DoD）
 
@@ -77,7 +78,7 @@ P2 守卫（已合入，cargo 394 全绿）——双开真机同窗验证属 NFR
 | FR-A5 导入恢复 | 校验拒绝/前置快照/超窗/备份失败中止/补跑 | backup-import 12 + backup-restore 7 + commands-remote 信封 | ✅ |
 | FR-A9 输入响应 | 默认关/只计数/撤销即停 | sys.modules + inputCps 纯函数 + eslint 红线自证 6 + 真机降级呈现 | ✅（AX 授权交互 = 手动项）|
 | FR-B3 连胜演出 | 宽容日/里程碑优先/可跳过 | 契约 streak 6 + catchScene 11 + reducedMotion 即时结算（含顺手修复既有卡死 bug）| ✅ |
-| FR-C1 新建 | 最小新建/标题校验 | task-create 15 + harness E2E 02/03 + 真机 UI | ✅ |
+| FR-C1 新建 | 最小新建/标题校验 | 已移除（用户裁决 2026-10-17「完全不需要」——taskCreate 命令/TaskEditModal create 模式/入口与全部用例下线；建卡走会话捕捉与收音机链路） | 🗑 |
 | FR-C2 回放 | 本机三分支/快照压配置 | sessions-page 22 + harness E2E 04 | ✅ |
 | FR-RD1 部署管理 | 断开可移除/凭据零存储 | deployments 18（键集白名单断言）+ 移除清理三路 | ✅ |
 | FR-RD2 开通向导 | 免密失败即停/摘要不符/幂等/降级确认 | provision 20 + upload 拆件 8 + D31 两态 + 真机四步全过（§1.4 复验）| ✅ 全链（含真机前置传输）|

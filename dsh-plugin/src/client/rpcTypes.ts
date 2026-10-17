@@ -4,7 +4,7 @@
  * 再出口（消费面不变）。
  */
 import type { PkyResult } from "../host/storage/errors";
-import type { ManualTaskCreateInput, Task, TaskNote, TaskLog, TaskPatch } from "../host/domain/tasks";
+import type { Task, TaskNote, TaskLog, TaskPatch } from "../host/domain/tasks";
 import type { AgentConfig } from "../host/domain/settings";
 import type { PromptSpecInfo } from "../host/domain/prompt-overrides";
 import type { Category } from "../host/domain/vocabulary";
@@ -19,7 +19,6 @@ import type { DeploymentDeleteResult, DeploymentEntity, DeploymentUpsertInput } 
 import type { ProvisionErrorTag, ProvisionStatus, ProvisionStep } from "../host/remote/provision";
 import type { SessionPageResult, SessionRow } from "../host/dispatch/sessions";
 export type {
-  ManualTaskCreateInput,
   DeploymentDeleteResult,
   DeploymentEntity,
   DeploymentUpsertInput,
@@ -72,8 +71,6 @@ export interface HostClient {
   taskReschedule(params: { taskId: number; due?: string }): Promise<PkyResult<Task>>;
   /** 全字段编辑（桌面 TaskEditModal 同位；域内含 diff 审计） */
   taskUpdate(params: TaskPatch): Promise<PkyResult<Task>>;
-  /** 面板手动新建（FR-C1 / AD §4.1 taskCreate；状态 = 排期?scheduled:inbox） */
-  taskCreate(params: ManualTaskCreateInput): Promise<PkyResult<Task>>;
   /** 添加跟进记录（source=manual） */
   taskNoteAdd(params: { taskId: number; content: string }): Promise<PkyResult<TaskNote>>;
   /** 删除跟进记录（幂等） */

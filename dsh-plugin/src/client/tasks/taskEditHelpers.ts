@@ -10,40 +10,35 @@ export function toLocalInput(iso: string | null): string {
   return iso === null ? "" : iso.slice(0, 16);
 }
 
-/** datetime-local 空串 → undefined（create 入参三态：缺省 = 不设） */
-export function orUndefined(value: string): string | undefined {
-  return value === "" ? undefined : value;
+/** 弹窗标题（✎ No.xxx 编辑） */
+export function modalTitle(task: Task, t: (key: string) => string): string {
+  return `✎ No.${String(task.id).padStart(3, "0")} ${t("edit.title")}`;
 }
 
-/** 弹窗标题（create = 入口文案；edit = ✎ No.xxx 编辑） */
-export function modalTitle(task: Task | undefined, t: (key: string) => string): string {
-  return task === undefined ? t("dsh.taskCreate.entry") : `✎ No.${String(task.id).padStart(3, "0")} ${t("edit.title")}`;
-}
-
-/** 弹窗 aria 标题（create = 入口文案；edit = 编辑） */
-export function modalAriaLabel(task: Task | undefined, t: (key: string) => string): string {
-  return task === undefined ? t("dsh.taskCreate.entry") : t("edit.title");
+/** 弹窗 aria 标题（编辑；task 参数保持与 modalTitle 同签名——调用面统一） */
+export function modalAriaLabel(_task: Task, t: (key: string) => string): string {
+  return t("edit.title");
 }
 
 /** 分类缺省（任务自身 → 第一个启用 → 第一个）；无可落 = 0 */
-function initialCategoryId(task: Task | undefined, data: PanelData): number {
+function initialCategoryId(task: Task, data: PanelData): number {
   const fallback = data.categories.find((c) => c.enabled)?.id ?? data.categories[0]?.id;
-  return task?.categoryId ?? fallback ?? 0;
+  return task.categoryId ?? fallback ?? 0;
 }
 
-/** 任务文本字段初值对（title/note） */
-function initialTexts(task: Task | undefined): { title: string; note: string } {
-  return { title: task?.title ?? "", note: task?.note ?? "" };
+/** 任务文本字段初值对（title/note；note null → 空串） */
+function initialTexts(task: Task): { title: string; note: string } {
+  return { title: task.title, note: task.note ?? "" };
 }
 
 /** 任务时间字段初值对（dueAt/remindAt → datetime-local 值） */
-function initialTimes(task: Task | undefined): { dueAt: string; remindAt: string } {
-  return { dueAt: toLocalInput(task?.dueAt ?? null), remindAt: toLocalInput(task?.remindAt ?? null) };
+function initialTimes(task: Task): { dueAt: string; remindAt: string } {
+  return { dueAt: toLocalInput(task.dueAt ?? null), remindAt: toLocalInput(task.remindAt ?? null) };
 }
 
-/** 编辑初值提取（task 缺省 = create 模式空态；分类缺省第一个启用） */
+/** 编辑初值提取（分类缺省第一个启用） */
 export function initialFormValues(
-  task: Task | undefined,
+  task: Task,
   data: PanelData,
 ): {
   title: string;
@@ -56,7 +51,7 @@ export function initialFormValues(
   return {
     ...initialTexts(task),
     categoryId: initialCategoryId(task, data),
-    priority: task?.priority ?? "normal",
+    priority: task.priority,
     ...initialTimes(task),
   };
 }

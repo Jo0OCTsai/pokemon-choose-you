@@ -52,9 +52,9 @@ function fakeBridge(sysOk: boolean): BridgeClient {
 }
 
 describe("full-parity 命令面 · 全集断言", () => {
-  it("HOST_COMMAND_NAMES = 87（69 + §4.1 新增 17 + macAuthPaneOpen 联调对齐 1）", () => {
-    expect(HOST_COMMAND_NAMES).toHaveLength(87);
-    expect(new Set(HOST_COMMAND_NAMES).size).toBe(87);
+  it("HOST_COMMAND_NAMES = 86（69 + §4.1 新增 16 + macAuthPaneOpen 联调对齐 1；taskCreate 已移除）", () => {
+    expect(HOST_COMMAND_NAMES).toHaveLength(86);
+    expect(new Set(HOST_COMMAND_NAMES).size).toBe(86);
   });
 });
 

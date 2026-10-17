@@ -449,21 +449,6 @@
   line-height: 1.8;
 }
 
-/* 空态 + 主行动（U22：文案下唯一主推进动作，buttonDex 档居中） */
-.emptyWrap {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 10px;
-}
-
-/* 段头工具行（U22：三任务段常驻「＋ 新建任务」，右缘对齐——宿主档次按钮） */
-.segmentToolbar {
-  display: flex;
-  justify-content: flex-end;
-  padding: 0 0 8px;
-}
-
 /* 路线分组（原型 group-h：小号加粗弱化色 + 字距） */
 .routeGroupDate {
   font-size: 12px;

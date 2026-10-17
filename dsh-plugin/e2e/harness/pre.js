@@ -17,6 +17,59 @@
     }
   };
 
+  // src/client/mockTaskNotes.ts
+  function taskNoteCommands(ctx) {
+    return {
+      async taskNoteAdd(params) {
+        ctx.record("taskNoteAdd", params);
+        const blocked = ctx.guardWritable();
+        if (blocked !== null) {
+          return { ok: false, error: blocked.toShape() };
+        }
+        const task = ctx.findTask(params.taskId);
+        if (task === void 0) {
+          return {
+            ok: false,
+            error: new PkyError("NOT_FOUND", `\u4EFB\u52A1 ${params.taskId} \u4E0D\u5B58\u5728`).toShape(),
+          };
+        }
+        const content = params.content.trim();
+        if (content === "") {
+          return {
+            ok: false,
+            error: new PkyError("INVALID_ARGUMENT", "\u8DDF\u8FDB\u5185\u5BB9\u4E0D\u80FD\u4E3A\u7A7A").toShape(),
+          };
+        }
+        const list = (ctx.state.followups[params.taskId] ??= []);
+        const note = {
+          id: list.reduce((max, n) => Math.max(max, n.id), 0) + 1,
+          taskId: params.taskId,
+          content,
+          source: "manual",
+          createdAt: "2026-10-14T08:00:00+00:00",
+        };
+        list.push(note);
+        return ctx.ok(note);
+      },
+      async taskNoteDelete(params) {
+        ctx.record("taskNoteDelete", params);
+        const blocked = ctx.guardWritable();
+        if (blocked !== null) {
+          return { ok: false, error: blocked.toShape() };
+        }
+        for (const key of Object.keys(ctx.state.followups)) {
+          const id = Number(key);
+          ctx.state.followups[id] = ctx.state.followups[id].filter((n) => n.id !== params.id);
+        }
+        return ctx.ok({ ok: true });
+      },
+      async taskHistory(params) {
+        ctx.record("taskHistory", params);
+        return ctx.ok({ logs: ctx.state.taskLogs[params.taskId] ?? [] });
+      },
+    };
+  }
+
   // src/client/mockTasks.ts
   function taskSwitchCommands(ctx) {
     return {
@@ -165,7 +218,7 @@
     };
   }
   function taskEditCommands(ctx) {
-    return { ...taskUpdateCommands(ctx), ...taskCreateCommands(ctx), ...taskNoteCommands(ctx) };
+    return { ...taskUpdateCommands(ctx), ...taskNoteCommands(ctx) };
   }
   function taskUpdateCommands(ctx) {
     return {
@@ -190,111 +243,6 @@
         if (params.remindAt !== void 0) task.remindAt = params.remindAt;
         if (params.status !== void 0) task.status = params.status;
         return ctx.ok(task);
-      },
-    };
-  }
-  function taskCreateCommands(ctx) {
-    return {
-      async taskCreate(params) {
-        ctx.record("taskCreate", params);
-        const blocked = ctx.guardWritable();
-        if (blocked !== null) {
-          return { ok: false, error: blocked.toShape() };
-        }
-        const title = params.title.trim();
-        if (title === "") {
-          return {
-            ok: false,
-            error: new PkyError("INVALID_ARGUMENT", "\u6807\u9898\u4E0D\u80FD\u4E3A\u7A7A").toShape(),
-          };
-        }
-        const categoryId =
-          params.categoryId ?? ctx.state.categories.find((c) => c.enabled)?.id ?? ctx.state.categories[0]?.id;
-        if (categoryId === void 0 || !ctx.state.categories.some((c) => c.id === categoryId)) {
-          return {
-            ok: false,
-            error: new PkyError(
-              "INVALID_ARGUMENT",
-              `\u5206\u7C7B ${String(params.categoryId)} \u4E0D\u5B58\u5728`,
-            ).toShape(),
-          };
-        }
-        const scheduledFor = params.scheduledFor?.trim() ?? "";
-        const due = params.due?.trim() ?? "";
-        const task = {
-          id: ctx.nextTaskId(),
-          title,
-          note: params.note ?? null,
-          categoryId,
-          status: scheduledFor !== "" ? "scheduled" : "inbox",
-          priority: params.priority ?? "normal",
-          dueAt: due !== "" ? due : scheduledFor !== "" ? scheduledFor : null,
-          remindAt: params.remindAt ?? null,
-          reminded: false,
-          source: "local",
-          externalId: null,
-          createdAt: "2026-10-17T09:00:00+08:00",
-          completedAt: null,
-          startedAt: null,
-          cancelledAt: null,
-          focusSeconds: 0,
-          tags: [],
-          dispatchState: null,
-          dispatchedSession: null,
-        };
-        ctx.state.tasks.push(task);
-        return ctx.ok(task);
-      },
-    };
-  }
-  function taskNoteCommands(ctx) {
-    return {
-      async taskNoteAdd(params) {
-        ctx.record("taskNoteAdd", params);
-        const blocked = ctx.guardWritable();
-        if (blocked !== null) {
-          return { ok: false, error: blocked.toShape() };
-        }
-        const task = ctx.findTask(params.taskId);
-        if (task === void 0) {
-          return {
-            ok: false,
-            error: new PkyError("NOT_FOUND", `\u4EFB\u52A1 ${params.taskId} \u4E0D\u5B58\u5728`).toShape(),
-          };
-        }
-        const content = params.content.trim();
-        if (content === "") {
-          return {
-            ok: false,
-            error: new PkyError("INVALID_ARGUMENT", "\u8DDF\u8FDB\u5185\u5BB9\u4E0D\u80FD\u4E3A\u7A7A").toShape(),
-          };
-        }
-        const list = (ctx.state.followups[params.taskId] ??= []);
-        const note = {
-          id: list.reduce((max, n) => Math.max(max, n.id), 0) + 1,
-          taskId: params.taskId,
-          content,
-          source: "manual",
-          createdAt: "2026-10-14T08:00:00+00:00",
-        };
-        list.push(note);
-        return ctx.ok(note);
-      },
-      async taskNoteDelete(params) {
-        ctx.record("taskNoteDelete", params);
-        const blocked = ctx.guardWritable();
-        if (blocked !== null) {
-          return { ok: false, error: blocked.toShape() };
-        }
-        for (const key of Object.keys(ctx.state.followups)) {
-          const id = Number(key);
-          ctx.state.followups[id] = ctx.state.followups[id].filter((n) => n.id !== params.id);
-        }
-        return ctx.ok({ ok: true });
-      },
-      async taskHistory(params) {
-        ctx.record("taskHistory", params);
-        return ctx.ok({ logs: ctx.state.taskLogs[params.taskId] ?? [] });
       },
     };
   }
@@ -1290,30 +1238,47 @@
       },
     };
   }
+  function mockPollNow(ctx) {
+    ctx.record("pollNow");
+    if (!ctx.state.larkAuthorized) {
+      return {
+        ok: false,
+        error: new PkyError(
+          "LARK_UNAUTHORIZED",
+          "\u98DE\u4E66\u672A\u6388\u6743\uFF0C\u8F6E\u8BE2\u5DF2\u6682\u505C",
+        ).toShape(),
+      };
+    }
+    return { ok: true, data: ctx.state.health };
+  }
+  function mockPetRunning(ctx, command, running) {
+    ctx.record(command);
+    ctx.state.petRunning = running;
+    return { ok: true, data: { ok: true } };
+  }
+  function mockMacAuthorizationStatus(ctx, params) {
+    ctx.record("macAuthorizationStatus", params);
+    if (params?.kind !== "accessibility") {
+      return {
+        ok: false,
+        error: new PkyError(
+          "INVALID_ARGUMENT",
+          `\u672A\u77E5\u6388\u6743\u7C7B\u578B ${String(params?.kind)}`,
+        ).toShape(),
+      };
+    }
+    return { ok: true, data: { ...ctx.state.macAuth } };
+  }
   function miscCommands(ctx) {
     return {
       async pollNow() {
-        ctx.record("pollNow");
-        if (!ctx.state.larkAuthorized) {
-          return {
-            ok: false,
-            error: new PkyError(
-              "LARK_UNAUTHORIZED",
-              "\u98DE\u4E66\u672A\u6388\u6743\uFF0C\u8F6E\u8BE2\u5DF2\u6682\u505C",
-            ).toShape(),
-          };
-        }
-        return { ok: true, data: ctx.state.health };
+        return await mockPollNow(ctx);
       },
       async petShow() {
-        ctx.record("petShow");
-        ctx.state.petRunning = true;
-        return { ok: true, data: { ok: true } };
+        return mockPetRunning(ctx, "petShow", true);
       },
       async petHide() {
-        ctx.record("petHide");
-        ctx.state.petRunning = false;
-        return { ok: true, data: { ok: true } };
+        return mockPetRunning(ctx, "petHide", false);
       },
       async petStatus() {
         ctx.record("petStatus");
@@ -1332,17 +1297,7 @@
         return { ok: true, data: { ok: true } };
       },
       async macAuthorizationStatus(params) {
-        ctx.record("macAuthorizationStatus", params);
-        if (params?.kind !== "accessibility") {
-          return {
-            ok: false,
-            error: new PkyError(
-              "INVALID_ARGUMENT",
-              `\u672A\u77E5\u6388\u6743\u7C7B\u578B ${String(params?.kind)}`,
-            ).toShape(),
-          };
-        }
-        return { ok: true, data: { ...ctx.state.macAuth } };
+        return await mockMacAuthorizationStatus(ctx, params);
       },
       async macAuthPaneOpen() {
         ctx.record("macAuthPaneOpen");
@@ -1580,15 +1535,7 @@
     });
   }
 
-  // src/client/mockRemote.ts
-  var MOCK_NOW2 = "2026-10-17T09:00:00+08:00";
-  var PROVISION_STEPS = ["probe-ssh", "probe-node", "upload", "verify"];
-  var STEP_OK_DETAIL = {
-    "probe-ssh": "BatchMode \u8FDE\u63A5\u6210\u529F \xB7 $HOME=/home/trainer",
-    "probe-node": "v20.11.0",
-    upload: "helper.js \u5DF2\u5199\u5165 \xB7 chmod 700 \xB7 \u8FDC\u7AEF sha256 \u590D\u6838\u4E00\u81F4",
-    verify: "\u8FDC\u7AEF\u6458\u8981\u4E0E\u9884\u671F\u4E00\u81F4",
-  };
+  // src/client/mockDeploy.ts
   function pendingCode(code) {
     return code;
   }
@@ -1601,6 +1548,171 @@
   function findDeployment(ctx, id) {
     return ctx.state.deployments.find((d) => d.id === id);
   }
+  function writeBlocked(ctx) {
+    const blocked = ctx.guardWritable();
+    return blocked !== null ? { ok: false, error: blocked.toShape() } : null;
+  }
+
+  // src/client/mockDeployments.ts
+  function validatePathField(label, value) {
+    if (value.startsWith("~")) {
+      return paramError2(
+        `${label}\u9700\u4E3A\u5C55\u5F00\u540E\u7684\u7EDD\u5BF9\u8DEF\u5F84\uFF08\u4E0D\u652F\u6301 ~ \u524D\u7F00\uFF09`,
+      );
+    }
+    return value;
+  }
+  function validateNodePath(params) {
+    const nodePath = params.nodePath?.trim() ?? "";
+    if (params.id === void 0 && nodePath === "") {
+      return paramError2("Node \u8DEF\u5F84\u4E0D\u80FD\u4E3A\u7A7A");
+    }
+    return validatePathField("Node \u8DEF\u5F84", nodePath);
+  }
+  function validateUpsertParams(ctx, params) {
+    const alias = params.alias.trim();
+    if (alias === "") {
+      return paramError2("\u522B\u540D\u4E0D\u80FD\u4E3A\u7A7A");
+    }
+    const nodeChecked = validateNodePath(params);
+    if (typeof nodeChecked !== "string") {
+      return nodeChecked;
+    }
+    const workdir = validatePathField("\u5DE5\u4F5C\u76EE\u5F55", params.workdir?.trim() ?? "");
+    if (typeof workdir !== "string") {
+      return workdir;
+    }
+    if (ctx.state.deployments.some((d) => d.alias === alias && d.id !== params.id)) {
+      return paramError2(`\u522B\u540D\u300C${alias}\u300D\u5DF2\u5B58\u5728`);
+    }
+    return { alias, nodePath: nodeChecked, workdir };
+  }
+  function upsertCreate(ctx, params, fields) {
+    const entity = {
+      id: `dep-${ctx.state.deployments.length + 1}`,
+      alias: fields.alias,
+      nodePath: fields.nodePath,
+      helperPath: "",
+      helperHash: null,
+      workdir: fields.workdir,
+      note: params.note ?? "",
+      status: "not_ready",
+      lastError: null,
+      provision: null,
+      degraded: false,
+    };
+    ctx.state.deployments.push(entity);
+    return ctx.ok({ deployment: entity });
+  }
+  function upsertEdit(ctx, params, fields) {
+    const entity = findDeployment(ctx, params.id ?? "");
+    if (entity === void 0) {
+      return notFound(`\u90E8\u7F72 ${params.id} \u4E0D\u5B58\u5728`);
+    }
+    entity.alias = fields.alias;
+    if (fields.nodePath !== "") {
+      entity.nodePath = fields.nodePath;
+    }
+    if (fields.workdir !== "") {
+      entity.workdir = fields.workdir;
+    }
+    if (params.note !== void 0) {
+      entity.note = params.note;
+    }
+    entity.status = "not_ready";
+    entity.helperHash = null;
+    return ctx.ok({ deployment: entity });
+  }
+  function mockDeploymentList(ctx) {
+    ctx.record("deploymentList");
+    const ds = ctx.state.deployments;
+    const counts = {
+      ready: ds.filter((d) => d.status === "ready").length,
+      pending: ds.filter((d) => d.status !== "ready" && d.status !== "disconnected").length,
+      broken: ds.filter((d) => d.status === "disconnected").length,
+    };
+    return ctx.ok({ deployments: ds, counts });
+  }
+  function mockDeploymentUpsert(ctx, params) {
+    ctx.record("deploymentUpsert", params);
+    const blocked = writeBlocked(ctx);
+    if (blocked !== null) {
+      return blocked;
+    }
+    const fields = validateUpsertParams(ctx, params);
+    if ("ok" in fields) {
+      return fields;
+    }
+    return params.id === void 0 ? upsertCreate(ctx, params, fields) : upsertEdit(ctx, params, fields);
+  }
+  function mockDeploymentDelete(ctx, params) {
+    ctx.record("deploymentDelete", params);
+    const blocked = writeBlocked(ctx);
+    if (blocked !== null) {
+      return blocked;
+    }
+    const entity = findDeployment(ctx, params.id);
+    if (entity === void 0) {
+      return notFound(`\u90E8\u7F72 ${params.id} \u4E0D\u5B58\u5728`);
+    }
+    ctx.state.deployments = ctx.state.deployments.filter((d) => d.id !== params.id);
+    const attempted = entity.status === "ready" || entity.status === "disconnected";
+    return ctx.ok({
+      id: params.id,
+      cleanup: attempted
+        ? entity.status === "disconnected"
+          ? {
+              attempted: true,
+              ok: false,
+              detail:
+                "\u8FDE\u63A5\u5DF2\u65AD\u5F00\uFF0C\u8FDC\u7AEF\u81EA\u6E05\u7406\u8DF3\u8FC7\uFF08\u4EC5\u8BB0\u5F55\u5230\u8BCA\u65AD\u6BB5\uFF09",
+            }
+          : { attempted: true, ok: true }
+        : { attempted: false, ok: true },
+    });
+  }
+  function mockDeploymentRecheck(ctx, params) {
+    ctx.record("deploymentRecheck", params);
+    const blocked = writeBlocked(ctx);
+    if (blocked !== null) {
+      return blocked;
+    }
+    const entity = findDeployment(ctx, params.id);
+    if (entity === void 0) {
+      return notFound(`\u90E8\u7F72 ${params.id} \u4E0D\u5B58\u5728`);
+    }
+    if (entity.status === "disconnected") {
+      entity.status = "not_ready";
+      entity.lastError = null;
+    }
+    return ctx.ok({ deployment: entity });
+  }
+  function deploymentCommands(ctx) {
+    return {
+      async deploymentList() {
+        return await mockDeploymentList(ctx);
+      },
+      async deploymentUpsert(params) {
+        return await mockDeploymentUpsert(ctx, params);
+      },
+      async deploymentDelete(params) {
+        return await mockDeploymentDelete(ctx, params);
+      },
+      async deploymentRecheck(params) {
+        return await mockDeploymentRecheck(ctx, params);
+      },
+    };
+  }
+
+  // src/client/mockProvision.ts
+  var MOCK_NOW2 = "2026-10-17T09:00:00+08:00";
+  var PROVISION_STEPS = ["probe-ssh", "probe-node", "upload", "verify"];
+  var STEP_OK_DETAIL = {
+    "probe-ssh": "BatchMode \u8FDE\u63A5\u6210\u529F \xB7 $HOME=/home/trainer",
+    "probe-node": "v20.11.0",
+    upload: "helper.js \u5DF2\u5199\u5165 \xB7 chmod 700 \xB7 \u8FDC\u7AEF sha256 \u590D\u6838\u4E00\u81F4",
+    verify: "\u8FDC\u7AEF\u6458\u8981\u4E0E\u9884\u671F\u4E00\u81F4",
+  };
   function initialProvision() {
     const steps = {};
     for (const step of PROVISION_STEPS) {
@@ -1621,223 +1733,118 @@
       done: steps.every((s) => s.status === "ok"),
     };
   }
-  function deploymentCommands(ctx) {
+  function failProvisionStep(entity, provision, next, fail2) {
+    const message = fail2.message ?? `\u6B65\u9AA4 ${next} \u6267\u884C\u5931\u8D25`;
+    const tag =
+      fail2.kind === "auth"
+        ? "SSH_AUTH_REQUIRED"
+        : fail2.kind === "hash"
+          ? "HELPER_HASH_MISMATCH"
+          : "PROVISION_STEP_FAILED";
+    provision.steps[next] = { status: "failed", tag, message, at: MOCK_NOW2 };
+    entity.status = "not_ready";
+    entity.lastError = message;
+    if (fail2.kind === "auth") {
+      return {
+        ok: false,
+        error: new PkyError(
+          "SSH_AUTH_REQUIRED",
+          message,
+          "\u5148\u5728\u672C\u673A\u8DD1 ssh-copy-id\uFF08\u6216\u628A\u516C\u94A5\u52A0\u5165 ssh-agent\uFF09\uFF0C\u518D\u56DE\u5230\u8FD9\u91CC\u91CD\u8BD5",
+        ).toShape(),
+      };
+    }
+    if (fail2.kind === "hash") {
+      return {
+        ok: false,
+        error: new PkyError(
+          pendingCode("HELPER_HASH_MISMATCH"),
+          message,
+          "\u8FDC\u7AEF helper \u6458\u8981\u4E0E\u9884\u671F\u4E0D\u7B26\u2014\u2014\u62D2\u7EDD\u7F6E\u4E3A\u5C31\u7EEA\uFF1B\u53EF\u7ECF\u300C\u8F6C\u76F4\u8FDE\u300D\u663E\u5F0F\u964D\u7EA7\uFF08\u7559\u75D5\uFF09",
+        ).toShape(),
+      };
+    }
     return {
-      async deploymentList() {
-        ctx.record("deploymentList");
-        const ds = ctx.state.deployments;
-        const counts = {
-          ready: ds.filter((d) => d.status === "ready").length,
-          pending: ds.filter((d) => d.status !== "ready" && d.status !== "disconnected").length,
-          broken: ds.filter((d) => d.status === "disconnected").length,
-        };
-        return ctx.ok({ deployments: ds, counts });
-      },
-      async deploymentUpsert(params) {
-        ctx.record("deploymentUpsert", params);
-        const blocked = ctx.guardWritable();
-        if (blocked !== null) {
-          return { ok: false, error: blocked.toShape() };
-        }
-        const alias = params.alias.trim();
-        if (alias === "") {
-          return paramError2("\u522B\u540D\u4E0D\u80FD\u4E3A\u7A7A");
-        }
-        const nodePath = params.nodePath?.trim() ?? "";
-        if (params.id === void 0 && nodePath === "") {
-          return paramError2("Node \u8DEF\u5F84\u4E0D\u80FD\u4E3A\u7A7A");
-        }
-        if (nodePath.startsWith("~")) {
-          return paramError2(
-            "Node \u8DEF\u5F84\u9700\u4E3A\u5C55\u5F00\u540E\u7684\u7EDD\u5BF9\u8DEF\u5F84\uFF08\u4E0D\u652F\u6301 ~ \u524D\u7F00\uFF09",
-          );
-        }
-        const workdir = params.workdir?.trim() ?? "";
-        if (workdir.startsWith("~")) {
-          return paramError2(
-            "\u5DE5\u4F5C\u76EE\u5F55\u9700\u4E3A\u5C55\u5F00\u540E\u7684\u7EDD\u5BF9\u8DEF\u5F84\uFF08\u4E0D\u652F\u6301 ~ \u524D\u7F00\uFF09",
-          );
-        }
-        if (ctx.state.deployments.some((d) => d.alias === alias && d.id !== params.id)) {
-          return paramError2(`\u522B\u540D\u300C${alias}\u300D\u5DF2\u5B58\u5728`);
-        }
-        if (params.id === void 0) {
-          const entity2 = {
-            id: `dep-${ctx.state.deployments.length + 1}`,
-            alias,
-            nodePath,
-            helperPath: "",
-            helperHash: null,
-            workdir,
-            note: params.note ?? "",
-            status: "not_ready",
-            lastError: null,
-            provision: null,
-            degraded: false,
-          };
-          ctx.state.deployments.push(entity2);
-          return ctx.ok({ deployment: entity2 });
-        }
-        const entity = findDeployment(ctx, params.id);
-        if (entity === void 0) {
-          return notFound(`\u90E8\u7F72 ${params.id} \u4E0D\u5B58\u5728`);
-        }
-        entity.alias = alias;
-        if (nodePath !== "") {
-          entity.nodePath = nodePath;
-        }
-        if (workdir !== "") {
-          entity.workdir = workdir;
-        }
-        if (params.note !== void 0) {
-          entity.note = params.note;
-        }
-        entity.status = "not_ready";
-        entity.helperHash = null;
-        return ctx.ok({ deployment: entity });
-      },
-      async deploymentDelete(params) {
-        ctx.record("deploymentDelete", params);
-        const blocked = ctx.guardWritable();
-        if (blocked !== null) {
-          return { ok: false, error: blocked.toShape() };
-        }
-        const entity = findDeployment(ctx, params.id);
-        if (entity === void 0) {
-          return notFound(`\u90E8\u7F72 ${params.id} \u4E0D\u5B58\u5728`);
-        }
-        ctx.state.deployments = ctx.state.deployments.filter((d) => d.id !== params.id);
-        const attempted = entity.status === "ready" || entity.status === "disconnected";
-        return ctx.ok({
-          id: params.id,
-          cleanup: attempted
-            ? entity.status === "disconnected"
-              ? {
-                  attempted: true,
-                  ok: false,
-                  detail:
-                    "\u8FDE\u63A5\u5DF2\u65AD\u5F00\uFF0C\u8FDC\u7AEF\u81EA\u6E05\u7406\u8DF3\u8FC7\uFF08\u4EC5\u8BB0\u5F55\u5230\u8BCA\u65AD\u6BB5\uFF09",
-                }
-              : { attempted: true, ok: true }
-            : { attempted: false, ok: true },
-        });
-      },
-      async deploymentRecheck(params) {
-        ctx.record("deploymentRecheck", params);
-        const blocked = ctx.guardWritable();
-        if (blocked !== null) {
-          return { ok: false, error: blocked.toShape() };
-        }
-        const entity = findDeployment(ctx, params.id);
-        if (entity === void 0) {
-          return notFound(`\u90E8\u7F72 ${params.id} \u4E0D\u5B58\u5728`);
-        }
-        if (entity.status === "disconnected") {
-          entity.status = "not_ready";
-          entity.lastError = null;
-        }
-        return ctx.ok({ deployment: entity });
-      },
+      ok: false,
+      error: new PkyError(
+        pendingCode("PROVISION_STEP_FAILED"),
+        message,
+        `\u5931\u8D25\u6B65\u9AA4\uFF1A${next}`,
+      ).toShape(),
     };
+  }
+  function mockProvisionRun(ctx, params) {
+    const blocked = writeBlocked(ctx);
+    if (blocked !== null) {
+      return blocked;
+    }
+    const entity = findDeployment(ctx, params.id);
+    if (entity === void 0) {
+      return notFound(`\u90E8\u7F72 ${params.id} \u4E0D\u5B58\u5728`);
+    }
+    const provision = (entity.provision ??= initialProvision());
+    const next = PROVISION_STEPS.find((step) => provision.steps[step].status !== "ok");
+    if (next === void 0) {
+      return ctx.ok({ status: provisionView(entity) });
+    }
+    const fail2 = ctx.state.provisionFail;
+    if (fail2 !== null && fail2.step === next) {
+      return failProvisionStep(entity, provision, next, fail2);
+    }
+    provision.steps[next] = { status: "ok", message: STEP_OK_DETAIL[next], at: MOCK_NOW2 };
+    if (PROVISION_STEPS.every((step) => provision.steps[step].status === "ok")) {
+      entity.status = "ready";
+      entity.degraded = false;
+      entity.helperPath = "/home/trainer/.dsh-helper/pky-helper-1.0.0.js";
+      entity.helperHash = "mock-sha256-abcdef";
+      entity.lastError = null;
+    }
+    return ctx.ok({ status: provisionView(entity) });
+  }
+  function mockProvisionStatus(ctx, params) {
+    ctx.record("provisionStatus", params);
+    const entity = findDeployment(ctx, params.id);
+    if (entity === void 0) {
+      return notFound(`\u90E8\u7F72 ${params.id} \u4E0D\u5B58\u5728`);
+    }
+    return ctx.ok({ status: provisionView(entity) });
+  }
+  function mockDegradeConfirm(ctx, params) {
+    ctx.record("deploymentDegradeConfirm", params);
+    const blocked = writeBlocked(ctx);
+    if (blocked !== null) {
+      return blocked;
+    }
+    const entity = findDeployment(ctx, params.id);
+    if (entity === void 0) {
+      return notFound(`\u90E8\u7F72 ${params.id} \u4E0D\u5B58\u5728`);
+    }
+    if (params.acknowledgedRisk !== true) {
+      return paramError2(
+        "\u8F6C\u76F4\u8FDE\u9700\u663E\u5F0F\u786E\u8BA4\u98CE\u9669\uFF08acknowledgedRisk: true\uFF09",
+      );
+    }
+    entity.degraded = true;
+    entity.status = "ready";
+    entity.lastError = null;
+    return ctx.ok({ deployment: entity });
   }
   function provisionCommands(ctx) {
     return {
       async provisionRun(params) {
         ctx.record("provisionRun", params);
-        const blocked = ctx.guardWritable();
-        if (blocked !== null) {
-          return { ok: false, error: blocked.toShape() };
-        }
-        const entity = findDeployment(ctx, params.id);
-        if (entity === void 0) {
-          return notFound(`\u90E8\u7F72 ${params.id} \u4E0D\u5B58\u5728`);
-        }
-        const provision = (entity.provision ??= initialProvision());
-        const next = PROVISION_STEPS.find((step) => provision.steps[step].status !== "ok");
-        if (next === void 0) {
-          return ctx.ok({ status: provisionView(entity) });
-        }
-        const fail2 = ctx.state.provisionFail;
-        if (fail2 !== null && fail2.step === next) {
-          const message = fail2.message ?? `\u6B65\u9AA4 ${next} \u6267\u884C\u5931\u8D25`;
-          const tag =
-            fail2.kind === "auth"
-              ? "SSH_AUTH_REQUIRED"
-              : fail2.kind === "hash"
-                ? "HELPER_HASH_MISMATCH"
-                : "PROVISION_STEP_FAILED";
-          provision.steps[next] = { status: "failed", tag, message, at: MOCK_NOW2 };
-          entity.status = "not_ready";
-          entity.lastError = message;
-          if (fail2.kind === "auth") {
-            return {
-              ok: false,
-              error: new PkyError(
-                "SSH_AUTH_REQUIRED",
-                message,
-                "\u5148\u5728\u672C\u673A\u8DD1 ssh-copy-id\uFF08\u6216\u628A\u516C\u94A5\u52A0\u5165 ssh-agent\uFF09\uFF0C\u518D\u56DE\u5230\u8FD9\u91CC\u91CD\u8BD5",
-              ).toShape(),
-            };
-          }
-          if (fail2.kind === "hash") {
-            return {
-              ok: false,
-              error: new PkyError(
-                pendingCode("HELPER_HASH_MISMATCH"),
-                message,
-                "\u8FDC\u7AEF helper \u6458\u8981\u4E0E\u9884\u671F\u4E0D\u7B26\u2014\u2014\u62D2\u7EDD\u7F6E\u4E3A\u5C31\u7EEA\uFF1B\u53EF\u7ECF\u300C\u8F6C\u76F4\u8FDE\u300D\u663E\u5F0F\u964D\u7EA7\uFF08\u7559\u75D5\uFF09",
-              ).toShape(),
-            };
-          }
-          return {
-            ok: false,
-            error: new PkyError(
-              pendingCode("PROVISION_STEP_FAILED"),
-              message,
-              `\u5931\u8D25\u6B65\u9AA4\uFF1A${next}`,
-            ).toShape(),
-          };
-        }
-        provision.steps[next] = { status: "ok", message: STEP_OK_DETAIL[next], at: MOCK_NOW2 };
-        if (PROVISION_STEPS.every((step) => provision.steps[step].status === "ok")) {
-          entity.status = "ready";
-          entity.degraded = false;
-          entity.helperPath = "/home/trainer/.dsh-helper/pky-helper-1.0.0.js";
-          entity.helperHash = "mock-sha256-abcdef";
-          entity.lastError = null;
-        }
-        return ctx.ok({ status: provisionView(entity) });
+        return await mockProvisionRun(ctx, params);
       },
       async provisionStatus(params) {
-        ctx.record("provisionStatus", params);
-        const entity = findDeployment(ctx, params.id);
-        if (entity === void 0) {
-          return notFound(`\u90E8\u7F72 ${params.id} \u4E0D\u5B58\u5728`);
-        }
-        return ctx.ok({ status: provisionView(entity) });
+        return await mockProvisionStatus(ctx, params);
       },
       async deploymentDegradeConfirm(params) {
-        ctx.record("deploymentDegradeConfirm", params);
-        const blocked = ctx.guardWritable();
-        if (blocked !== null) {
-          return { ok: false, error: blocked.toShape() };
-        }
-        const entity = findDeployment(ctx, params.id);
-        if (entity === void 0) {
-          return notFound(`\u90E8\u7F72 ${params.id} \u4E0D\u5B58\u5728`);
-        }
-        if (params.acknowledgedRisk !== true) {
-          return paramError2(
-            "\u8F6C\u76F4\u8FDE\u9700\u663E\u5F0F\u786E\u8BA4\u98CE\u9669\uFF08acknowledgedRisk: true\uFF09",
-          );
-        }
-        entity.degraded = true;
-        entity.status = "ready";
-        entity.lastError = null;
-        return ctx.ok({ deployment: entity });
+        return await mockDegradeConfirm(ctx, params);
       },
     };
   }
+
+  // src/client/mockRemote.ts
   function kindOfGroup(kind, group) {
     if (group === "radio") {
       return kind === "classify" || kind === "capture";
@@ -1915,132 +1922,152 @@
     csv: "/mock/.choose-you/data/exports/pokemon-choose-you-tasks-20261011-080000.csv",
     report: "/mock/.choose-you/data/exports/pokemon-choose-you-daily-2026-10-11.md",
   };
+  function mockBackupRun(ctx) {
+    ctx.record("backupRun");
+    const entry = { file: MOCK_BACKUP_FILE, size: 4096, createdAt: "2026-10-11T08:00:00+08:00" };
+    ctx.state.backups = [entry, ...ctx.state.backups.filter((b) => b.file !== entry.file)];
+    return { ok: true, data: { file: entry.file, files: ctx.state.backups } };
+  }
+  function mockBackupList(ctx) {
+    ctx.record("backupList");
+    return { ok: true, data: { backups: ctx.state.backups } };
+  }
+  function mockExportRun(ctx, params) {
+    ctx.record("exportRun", params);
+    const kind = params?.kind;
+    if (kind !== "json" && kind !== "csv" && kind !== "report") {
+      return {
+        ok: false,
+        error: new PkyError(
+          "INVALID_ARGUMENT",
+          `\u672A\u77E5\u5BFC\u51FA\u7C7B\u578B ${String(kind)}`,
+          "kind \u987B\u4E3A json / csv / report",
+        ).toShape(),
+      };
+    }
+    return { ok: true, data: { path: MOCK_EXPORT_PATHS[kind] } };
+  }
+  function mockImportValidate(ctx, params) {
+    ctx.record("importValidate", params);
+    const fixture = ctx.state.importFiles.find((f) => f.path === params?.path);
+    if (fixture === void 0) {
+      return {
+        ok: false,
+        error: new PkyError(
+          "IMPORT_VALIDATION_FAILED",
+          "\u6587\u4EF6\u4E0D\u5B58\u5728\u6216\u4E0D\u53EF\u8BFB",
+        ).toShape(),
+      };
+    }
+    if (fixture.reasons !== void 0 && fixture.reasons.length > 0) {
+      return {
+        ok: false,
+        error: new PkyError("IMPORT_VALIDATION_FAILED", fixture.reasons.join("\uFF1B")).toShape(),
+      };
+    }
+    const summary = fixture.summary ?? {
+      app: "pokemon-choose-you",
+      schemaVersion: 1,
+      counts: { tasks: 12, categories: 2, tags: 5 },
+      compatible: true,
+      backupFile: ctx.state.importResult.backupId,
+    };
+    return { ok: true, data: { summary } };
+  }
+  function mockImportRun(ctx, params) {
+    ctx.record("importRun", params);
+    const blocked = ctx.guardWritable();
+    if (blocked !== null) {
+      return { ok: false, error: blocked.toShape() };
+    }
+    if (params?.confirmed !== true) {
+      return {
+        ok: false,
+        error: new PkyError(
+          "INVALID_ARGUMENT",
+          "\u5BFC\u5165\u987B\u663E\u5F0F\u786E\u8BA4\uFF08confirmed: true\uFF09",
+        ).toShape(),
+      };
+    }
+    const fixture = ctx.state.importFiles.find((f) => f.path === params.path);
+    if (fixture === void 0 || (fixture.reasons !== void 0 && fixture.reasons.length > 0)) {
+      return {
+        ok: false,
+        error: new PkyError(
+          "IMPORT_VALIDATION_FAILED",
+          "\u6587\u4EF6\u6821\u9A8C\u672A\u901A\u8FC7\uFF0C0 \u884C\u53D8\u66F4",
+        ).toShape(),
+      };
+    }
+    if (fixture.backupFail === true) {
+      return {
+        ok: false,
+        error: new PkyError(
+          "BACKUP_FAILED",
+          "\u78C1\u76D8\u7A7A\u95F4\u4E0D\u8DB3\uFF0C\u81EA\u52A8\u5907\u4EFD\u5931\u8D25",
+        ).toShape(),
+      };
+    }
+    return { ok: true, data: { result: { ...ctx.state.importResult } } };
+  }
+  function mockRestoreRun(ctx, params) {
+    ctx.record("restoreRun", params);
+    const blocked = ctx.guardWritable();
+    if (blocked !== null) {
+      return { ok: false, error: blocked.toShape() };
+    }
+    if (params?.confirmed !== true) {
+      return {
+        ok: false,
+        error: new PkyError(
+          "INVALID_ARGUMENT",
+          "\u6062\u590D\u987B\u663E\u5F0F\u786E\u8BA4\uFF08confirmed: true\uFF09",
+        ).toShape(),
+      };
+    }
+    const outcome = ctx.state.restoreOutcome;
+    if (outcome !== null && !outcome.ok) {
+      return { ok: false, error: new PkyError(outcome.code, outcome.message).toShape() };
+    }
+    const result =
+      outcome !== null
+        ? outcome.result
+        : { backupId: "pokemon-choose-you-20261017-090000.db", migratedTo: 1, seeded: 2 };
+    return { ok: true, data: { result } };
+  }
+  function mockExportDirOpen(ctx) {
+    ctx.record("exportDirOpen");
+    const dir = ctx.state.exportDir;
+    if (dir.error !== void 0) {
+      return {
+        ok: false,
+        error: new PkyError(pendingCode("HELPER_CAPABILITY_MISSING"), dir.error, dir.path).toShape(),
+      };
+    }
+    return { ok: true, data: { ok: true, path: dir.path } };
+  }
   function backupCommands(ctx) {
     return {
       async backupRun() {
-        ctx.record("backupRun");
-        const entry = { file: MOCK_BACKUP_FILE, size: 4096, createdAt: "2026-10-11T08:00:00+08:00" };
-        ctx.state.backups = [entry, ...ctx.state.backups.filter((b) => b.file !== entry.file)];
-        return { ok: true, data: { file: entry.file, files: ctx.state.backups } };
+        return await mockBackupRun(ctx);
       },
       async backupList() {
-        ctx.record("backupList");
-        return { ok: true, data: { backups: ctx.state.backups } };
+        return await mockBackupList(ctx);
       },
       async exportRun(params) {
-        ctx.record("exportRun", params);
-        const kind = params?.kind;
-        if (kind !== "json" && kind !== "csv" && kind !== "report") {
-          return {
-            ok: false,
-            error: new PkyError(
-              "INVALID_ARGUMENT",
-              `\u672A\u77E5\u5BFC\u51FA\u7C7B\u578B ${String(kind)}`,
-              "kind \u987B\u4E3A json / csv / report",
-            ).toShape(),
-          };
-        }
-        return { ok: true, data: { path: MOCK_EXPORT_PATHS[kind] } };
+        return await mockExportRun(ctx, params);
       },
-      // ---- full-parity 导入/恢复/导出目录（FR-A5/A6 · 夹具驱动） ----
       async importValidate(params) {
-        ctx.record("importValidate", params);
-        const fixture = ctx.state.importFiles.find((f) => f.path === params?.path);
-        if (fixture === void 0) {
-          return {
-            ok: false,
-            error: new PkyError(
-              "IMPORT_VALIDATION_FAILED",
-              "\u6587\u4EF6\u4E0D\u5B58\u5728\u6216\u4E0D\u53EF\u8BFB",
-            ).toShape(),
-          };
-        }
-        if (fixture.reasons !== void 0 && fixture.reasons.length > 0) {
-          return {
-            ok: false,
-            error: new PkyError("IMPORT_VALIDATION_FAILED", fixture.reasons.join("\uFF1B")).toShape(),
-          };
-        }
-        const summary = fixture.summary ?? {
-          app: "pokemon-choose-you",
-          schemaVersion: 1,
-          counts: { tasks: 12, categories: 2, tags: 5 },
-          compatible: true,
-          backupFile: ctx.state.importResult.backupId,
-        };
-        return { ok: true, data: { summary } };
+        return await mockImportValidate(ctx, params);
       },
       async importRun(params) {
-        ctx.record("importRun", params);
-        const blocked = ctx.guardWritable();
-        if (blocked !== null) {
-          return { ok: false, error: blocked.toShape() };
-        }
-        if (params?.confirmed !== true) {
-          return {
-            ok: false,
-            error: new PkyError(
-              "INVALID_ARGUMENT",
-              "\u5BFC\u5165\u987B\u663E\u5F0F\u786E\u8BA4\uFF08confirmed: true\uFF09",
-            ).toShape(),
-          };
-        }
-        const fixture = ctx.state.importFiles.find((f) => f.path === params.path);
-        if (fixture === void 0 || (fixture.reasons !== void 0 && fixture.reasons.length > 0)) {
-          return {
-            ok: false,
-            error: new PkyError(
-              "IMPORT_VALIDATION_FAILED",
-              "\u6587\u4EF6\u6821\u9A8C\u672A\u901A\u8FC7\uFF0C0 \u884C\u53D8\u66F4",
-            ).toShape(),
-          };
-        }
-        if (fixture.backupFail === true) {
-          return {
-            ok: false,
-            error: new PkyError(
-              "BACKUP_FAILED",
-              "\u78C1\u76D8\u7A7A\u95F4\u4E0D\u8DB3\uFF0C\u81EA\u52A8\u5907\u4EFD\u5931\u8D25",
-            ).toShape(),
-          };
-        }
-        return { ok: true, data: { result: { ...ctx.state.importResult } } };
+        return await mockImportRun(ctx, params);
       },
       async restoreRun(params) {
-        ctx.record("restoreRun", params);
-        const blocked = ctx.guardWritable();
-        if (blocked !== null) {
-          return { ok: false, error: blocked.toShape() };
-        }
-        if (params?.confirmed !== true) {
-          return {
-            ok: false,
-            error: new PkyError(
-              "INVALID_ARGUMENT",
-              "\u6062\u590D\u987B\u663E\u5F0F\u786E\u8BA4\uFF08confirmed: true\uFF09",
-            ).toShape(),
-          };
-        }
-        const outcome = ctx.state.restoreOutcome;
-        if (outcome !== null && !outcome.ok) {
-          return { ok: false, error: new PkyError(outcome.code, outcome.message).toShape() };
-        }
-        const result =
-          outcome !== null
-            ? outcome.result
-            : { backupId: "pokemon-choose-you-20261017-090000.db", migratedTo: 1, seeded: 2 };
-        return { ok: true, data: { result } };
+        return await mockRestoreRun(ctx, params);
       },
       async exportDirOpen() {
-        ctx.record("exportDirOpen");
-        const dir = ctx.state.exportDir;
-        if (dir.error !== void 0) {
-          return {
-            ok: false,
-            error: new PkyError(pendingCode("HELPER_CAPABILITY_MISSING"), dir.error, dir.path).toShape(),
-          };
-        }
-        return { ok: true, data: { ok: true, path: dir.path } };
+        return await mockExportDirOpen(ctx);
       },
     };
   }
@@ -2049,6 +2076,27 @@
   function delay(value) {
     return Promise.resolve(value);
   }
+  function defaultHealth() {
+    return {
+      level: "ok",
+      lastSuccessAt: "2026-10-11T08:00:00+08:00",
+      nextPollAt: "2026-10-11T08:02:00+08:00",
+      consecutiveFailures: 0,
+      pendingCount: 0,
+    };
+  }
+  function defaultHelperCaps() {
+    return {
+      "sys-tray": true,
+      "sys-shortcut": true,
+      "sys-notify": true,
+      "sys-tts": true,
+      "sys-dialog": true,
+      "sys-open": true,
+      "input-count": true,
+      "mac-auth": true,
+    };
+  }
   function defaultState() {
     return {
       tasks: [],
@@ -2056,13 +2104,7 @@
       messages: [],
       settings: {},
       agents: [],
-      health: {
-        level: "ok",
-        lastSuccessAt: "2026-10-11T08:00:00+08:00",
-        nextPollAt: "2026-10-11T08:02:00+08:00",
-        consecutiveFailures: 0,
-        pendingCount: 0,
-      },
+      health: defaultHealth(),
       dbStatus: { userVersion: 1, pluginWindow: { min: 1, max: 1 }, mode: "rw" },
       larkAuthorized: true,
       filters: [],
@@ -2079,8 +2121,6 @@
       tagCheckup: { merges: [], zombies: [], newDimensions: [], judged: false },
       pkSkill: { installedVersion: null, checked: false },
       petRunning: true,
-      // full-parity 缺省态：helper 在位（能力位全 true）、快捷键已注册、SSH 家族就绪——
-      // 既有组件测试不受横幅/降级面影响；夹具按需覆盖
       deployments: [],
       provisionFail: null,
       sessionRows: [],
@@ -2092,16 +2132,7 @@
         granted: false,
         helperPath: "/mock/.dsh/electron/dist/pky-helper.app/Contents/MacOS/pky-helper",
       },
-      helperCaps: {
-        "sys-tray": true,
-        "sys-shortcut": true,
-        "sys-notify": true,
-        "sys-tts": true,
-        "sys-dialog": true,
-        "sys-open": true,
-        "input-count": true,
-        "mac-auth": true,
-      },
+      helperCaps: defaultHelperCaps(),
       shortcutRegistered: true,
       sshFamily: { ok: true },
       helperVersion: null,

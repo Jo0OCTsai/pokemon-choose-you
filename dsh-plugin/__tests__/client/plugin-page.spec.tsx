@@ -98,10 +98,9 @@ describe("PluginDetailPage · 只读传播（DB_SCHEMA_TOO_NEW）", () => {
 });
 
 describe("空态文案（§8）", () => {
-  it("任务分段冷启动：草丛静悄悄 + 主行动「＋ 新建任务」（U22 空态升级）", () => {
+  it("任务分段冷启动：草丛静悄悄（被动引导，无按钮）", () => {
     renderPage();
     expect(screen.getByText(/草丛静悄悄——在会话里说一句/)).toBeTruthy();
-    expect(screen.getByTestId("task-create-empty")).toBeTruthy();
   });
 
   it("收音机无消息：电波安静", () => {

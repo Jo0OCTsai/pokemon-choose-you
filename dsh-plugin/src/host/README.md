@@ -38,8 +38,8 @@ package-by-feature 模块挂点：每个子目录 README 记一句话职责（�
 - `dispatch/sessions.ts`：sessionsPage 分页（M9 归组）+ sessionReplay 回放路由（执行世界快照压过
   当前配置）；`dispatch/` 各 seam 的远端分支注入面（HeadlessDeps.executorFor / TerminalAdapter /
   ShellRunner）见 `remote/sshExecutor.ts` 三个装配缝。
-- `commands/remoteCommands.ts` + 各分域扩展：命令面 69→87（AD §4.1 17 条 + macAuthPaneOpen 联调
-  对齐 1 条）；`HOST_COMMAND_NAMES` 单源 87 断言。
+- `commands/remoteCommands.ts` + 各分域扩展：命令面 69→86（AD §4.1 16 条 + macAuthPaneOpen 联调
+  对齐 1 条；taskCreate 已移除——2026-10-17 用户裁决，FR-C1 回流）；`HOST_COMMAND_NAMES` 单源 86 断言。
 - `pet/` 扩展：sysChannel（hello 门控 + 能力位降级）/sysRequests（seq 两段语义）/sysEvents/
   macAuth/solemn（郑重时刻 A30）/electronGet（@electron/get 严格校验 + ~/.dsh/electron/dist 落位）/
   petChat（FR-A8 主 agent 执行方）。

@@ -31,7 +31,7 @@ window.__ModuleLoader__.load({
       inject: () => inject,
     });
     module.exports = __toCommonJS(clientEntry_exports);
-    var import_react53 = require("react");
+    var import_react57 = require("react");
 
     // src/client/clientContext.tsx
     var import_react = require("react");
@@ -2835,6 +2835,93 @@ window.__ModuleLoader__.load({
       },
     };
 
+    // src/client/i18n/dsh-zh-Hans-deploy.ts
+    var dsh_zh_Hans_deploy_default = {
+      deploy: {
+        title: "\u8FDC\u7A0B\u90E8\u7F72",
+        counts: "\u5C31\u7EEA {ready} \xB7 \u672A\u5C31\u7EEA {pending} \xB7 \u65AD\u5F00 {broken}",
+        empty:
+          "\u8FD8\u6CA1\u6709\u8FDC\u7A0B\u90E8\u7F72\u3002\u6DFB\u52A0\u4E00\u53F0\u8FDC\u7AEF\u673A\u5668\uFF0C\u628A agent \u6D3E\u53BB\u8FDC\u65B9",
+        add: "\uFF0B \u6DFB\u52A0\u90E8\u7F72",
+        edit: "\u7F16\u8F91",
+        remove: "\u79FB\u9664",
+        provision: "\u5F00\u901A",
+        reconnect: "\u91CD\u8FDE\u5E76\u68C0\u67E5",
+        wizardRunning: "\u5411\u5BFC\u6267\u884C\u4E2D",
+        directTag: "\u76F4\u8FDE\u6A21\u5F0F\uFF08\u672A\u7ECF\u6458\u8981\u6821\u9A8C\uFF09",
+        lastError: "\u6700\u8FD1\u9519\u8BEF\uFF1A{summary}",
+        editFallback:
+          "\u5DF2\u4FDD\u5B58\u3002\u90E8\u7F72\u5DF2\u56DE\u843D\u4E3A\u672A\u5C31\u7EEA\u2014\u2014\u8DEF\u5F84\u53D8\u66F4\u540E\u8BF7\u91CD\u8DD1\u5F00\u901A\u5411\u5BFC\u590D\u6838",
+        sshMissing:
+          "\u8FDC\u7A0B\u6D3E\u53D1\u9700\u8981 dsh-ssh \u5BB6\u65CF\uFF0C\u5F53\u524D\u672A\u88C5\u8F7D\uFF08\u88C5\u8F7D\u6307\u5F15\uFF1A{cmd}\uFF09",
+        copyGuide: "\u590D\u5236\u88C5\u8F7D\u6307\u5F15",
+        status: {
+          ready: "\u5C31\u7EEA",
+          readyDirect: "\u5C31\u7EEA\uFF08\u76F4\u8FDE\uFF09",
+          notReady: "\u672A\u5C31\u7EEA",
+          disconnected: "\u65AD\u5F00",
+        },
+        form: {
+          addTitle: "\u6DFB\u52A0\u90E8\u7F72",
+          editTitle: "\u7F16\u8F91\u90E8\u7F72",
+          alias:
+            "OpenSSH \u522B\u540D\uFF08\u51ED\u636E\u7531\u522B\u540D\u627F\u8F7D\uFF0C\u63D2\u4EF6\u4E0D\u5B58\u79C1\u94A5\uFF09",
+          nodePath: "\u8FDC\u7AEF Node \u8DEF\u5F84",
+          workdir: "\u9ED8\u8BA4\u8FDC\u7AEF\u5DE5\u4F5C\u76EE\u5F55",
+          note: "\u5907\u6CE8",
+          aliasRequired: "\u522B\u540D\u4E0D\u80FD\u4E3A\u7A7A",
+          pathRequired: "Node \u8DEF\u5F84\u4E0D\u80FD\u4E3A\u7A7A",
+        },
+        removeTitle: "\u79FB\u9664\u90E8\u7F72",
+        removeBody:
+          "\u79FB\u9664\u300C{alias}\u300D\u5C06\u5173\u95ED\u8FDE\u63A5\uFF0C\u5E76\u5C3D\u529B\u89E6\u53D1\u8FDC\u7AEF helper \u81EA\u6E05\u7406\uFF08\u6E05\u7406\u5931\u8D25\u4E0D\u963B\u585E\uFF0C\u4EC5\u8BB0\u5F55\u5230\u8BCA\u65AD\u6BB5\uFF09\u3002\u672C\u673A\u8BB0\u5F55\u968F\u4E4B\u5220\u9664\u3002",
+        removeConfirm: "\u786E\u8BA4\u79FB\u9664",
+        wizard: {
+          title: "\u5F00\u901A\u5411\u5BFC",
+          concurrent:
+            "\u5411\u5BFC\u6B63\u5728\u6267\u884C\u4E2D\u2014\u2014\u7B49\u5F85\u5B8C\u6210\u3001\u91CD\u5F00\u7EED\u770B\uFF0C\u6216\u5148\u4E2D\u6B62",
+          step: {
+            "probe-ssh": "\u514D\u5BC6\u8FDE\u63A5\u63A2\u6D4B",
+            "probe-node": "\u8FDC\u7AEF Node \u63A2\u6D4B",
+            upload: "helper \u4E0A\u4F20\u5B89\u88C5",
+            verify: "\u6458\u8981\u6821\u9A8C",
+          },
+          state: {
+            pending: "\u7B49\u5F85",
+            probing: "\u63A2\u6D4B\u4E2D\u2026",
+            installing: "\u5B89\u88C5\u4E2D\u2026",
+            verifying: "\u6821\u9A8C\u4E2D\u2026",
+            done: "\u5B8C\u6210",
+            failed: "\u5931\u8D25",
+            skipped: "\u8DF3\u8FC7\uFF08\u5DF2\u5B8C\u6210\uFF09",
+          },
+          fail: {
+            "probe-ssh":
+              "\u514D\u5BC6\u8FDE\u63A5\u672A\u901A\u8FC7\u3002\u5148\u5728\u672C\u673A\u8DD1 ssh-copy-id\uFF08\u6216\u628A\u516C\u94A5\u52A0\u5165 ssh-agent\uFF09\uFF0C\u518D\u56DE\u5230\u8FD9\u91CC\u91CD\u8BD5",
+            "probe-node":
+              "\u8FDC\u7AEF Node \u63A2\u6D4B\u5931\u8D25\u3002\u4FEE\u6B63\u8DEF\u5F84\u6216\u5B89\u88C5\u53EF\u7528 Node\uFF08\u226518\uFF09\u540E\u91CD\u8BD5",
+            upload:
+              "helper \u4E0A\u4F20\u5B89\u88C5\u5931\u8D25\u3002\u53EF\u91CD\u8BD5\uFF1B\u6216\u7ECF\u300C\u8DF3\u8FC7\u5B89\u88C5\uFF0C\u8F6C\u76F4\u8FDE\u300D\u663E\u5F0F\u964D\u7EA7\uFF08\u7559\u75D5\uFF09",
+            verify:
+              "\u8FDC\u7AEF helper \u6458\u8981\u4E0E\u9884\u671F\u4E0D\u7B26\u2014\u2014\u62D2\u7EDD\u7F6E\u4E3A\u5C31\u7EEA\u3002\u53EF\u91CD\u65B0\u5B89\u88C5\uFF0C\u6216\u7ECF\u4E0B\u65B9\u5165\u53E3\u663E\u5F0F\u8F6C\u76F4\u8FDE\uFF08\u7559\u75D5\uFF09",
+          },
+          retry: "\u91CD\u8BD5\u6B64\u6B65",
+          abort: "\u4E2D\u6B62\uFF08\u90E8\u7F72\u505C\u5F53\u524D\u6001\uFF0C\u53EF\u5E42\u7B49\u7EED\u8DD1\uFF09",
+          skipInstallEntry: "\u8DF3\u8FC7\u5B89\u88C5\uFF0C\u8F6C\u76F4\u8FDE\u2026",
+          mismatchEntry: "\u8F6C\u76F4\u8FDE",
+          logTitle: "\u5411\u5BFC\u8F93\u51FA",
+          logEmpty: "\uFF08\u7B49\u5F85\u6267\u884C\u8F93\u51FA\u2026\uFF09",
+          closeHint:
+            "Esc/\u2715 \u5173\u95ED = \u540E\u53F0\u7EE7\u7EED\uFF08\u5361\u9762\u300C\u5411\u5BFC\u6267\u884C\u4E2D\u300D\u5FBD\u7AE0\u53CD\u6620\uFF09",
+        },
+        degrade: {
+          title: "\u8F6C\u4E3A\u76F4\u8FDE\u786E\u8BA4",
+          body: "\u8F6C\u4E3A\u76F4\u8FDE\u540E\uFF0C\u8BE5\u90E8\u7F72\u7684\u6D3E\u53D1\u4E0D\u518D\u7ECF\u8FC7 helper \u6458\u8981\u6821\u9A8C\uFF0C\u5B89\u5168\u6027\u4E0B\u964D\u3002\u6B64\u9009\u62E9\u4F1A\u7559\u75D5\u5230\u8BCA\u65AD\u6BB5\u3002",
+          confirm: "\u786E\u8BA4\u8F6C\u76F4\u8FDE",
+        },
+      },
+    };
+
     // src/client/i18n/dsh-zh-Hans.ts
     var dsh_zh_Hans_default = {
       page: {
@@ -2843,7 +2930,7 @@ window.__ModuleLoader__.load({
       },
       empty: {
         tasks:
-          "\u8349\u4E1B\u9759\u6084\u6084\u2014\u2014\u5728\u4F1A\u8BDD\u91CC\u8BF4\u4E00\u53E5\u3001\u7528 \u26A1\u53D1\u62A5\uFF0C\u6216\u76F4\u63A5\u65B0\u5EFA\u7B2C\u4E00\u53EA",
+          "\u8349\u4E1B\u9759\u6084\u6084\u2014\u2014\u5728\u4F1A\u8BDD\u91CC\u8BF4\u4E00\u53E5\u3001\u7528 \u26A1\u53D1\u62A5",
         radio:
           "\u7535\u6CE2\u5B89\u9759\u3002\u6709\u65B0\u6D88\u606F\u4F1A\u4EE5\u8BA1\u6570\u63D0\u9192\uFF0C\u4E0D\u4F1A\u6253\u6270\u4F60",
         dispatch: "\u8FD8\u6CA1\u6709\u6D3E\u51FA\u8FC7 agent",
@@ -3017,10 +3104,6 @@ window.__ModuleLoader__.load({
       common: {
         close: "\u5173\u95ED",
       },
-      taskCreate: {
-        entry: "\uFF0B \u65B0\u5EFA\u4EFB\u52A1",
-        scheduledFor: "\u6392\u671F",
-      },
       sess: {
         group: {
           all: "\u5168\u90E8",
@@ -3039,89 +3122,7 @@ window.__ModuleLoader__.load({
           "\u8BE5\u4F1A\u8BDD\u7684\u8FDC\u7A0B\u90E8\u7F72\u5DF2\u88AB\u79FB\u9664\uFF0C\u65E0\u6CD5\u56DE\u653E",
         emptyGroup: "\u8BE5\u5206\u7EC4\u6682\u65E0\u4F1A\u8BDD",
       },
-      deploy: {
-        title: "\u8FDC\u7A0B\u90E8\u7F72",
-        counts: "\u5C31\u7EEA {ready} \xB7 \u672A\u5C31\u7EEA {pending} \xB7 \u65AD\u5F00 {broken}",
-        empty:
-          "\u8FD8\u6CA1\u6709\u8FDC\u7A0B\u90E8\u7F72\u3002\u6DFB\u52A0\u4E00\u53F0\u8FDC\u7AEF\u673A\u5668\uFF0C\u628A agent \u6D3E\u53BB\u8FDC\u65B9",
-        add: "\uFF0B \u6DFB\u52A0\u90E8\u7F72",
-        edit: "\u7F16\u8F91",
-        remove: "\u79FB\u9664",
-        provision: "\u5F00\u901A",
-        reconnect: "\u91CD\u8FDE\u5E76\u68C0\u67E5",
-        wizardRunning: "\u5411\u5BFC\u6267\u884C\u4E2D",
-        directTag: "\u76F4\u8FDE\u6A21\u5F0F\uFF08\u672A\u7ECF\u6458\u8981\u6821\u9A8C\uFF09",
-        lastError: "\u6700\u8FD1\u9519\u8BEF\uFF1A{summary}",
-        editFallback:
-          "\u5DF2\u4FDD\u5B58\u3002\u90E8\u7F72\u5DF2\u56DE\u843D\u4E3A\u672A\u5C31\u7EEA\u2014\u2014\u8DEF\u5F84\u53D8\u66F4\u540E\u8BF7\u91CD\u8DD1\u5F00\u901A\u5411\u5BFC\u590D\u6838",
-        sshMissing:
-          "\u8FDC\u7A0B\u6D3E\u53D1\u9700\u8981 dsh-ssh \u5BB6\u65CF\uFF0C\u5F53\u524D\u672A\u88C5\u8F7D\uFF08\u88C5\u8F7D\u6307\u5F15\uFF1A{cmd}\uFF09",
-        copyGuide: "\u590D\u5236\u88C5\u8F7D\u6307\u5F15",
-        status: {
-          ready: "\u5C31\u7EEA",
-          readyDirect: "\u5C31\u7EEA\uFF08\u76F4\u8FDE\uFF09",
-          notReady: "\u672A\u5C31\u7EEA",
-          disconnected: "\u65AD\u5F00",
-        },
-        form: {
-          addTitle: "\u6DFB\u52A0\u90E8\u7F72",
-          editTitle: "\u7F16\u8F91\u90E8\u7F72",
-          alias:
-            "OpenSSH \u522B\u540D\uFF08\u51ED\u636E\u7531\u522B\u540D\u627F\u8F7D\uFF0C\u63D2\u4EF6\u4E0D\u5B58\u79C1\u94A5\uFF09",
-          nodePath: "\u8FDC\u7AEF Node \u8DEF\u5F84",
-          workdir: "\u9ED8\u8BA4\u8FDC\u7AEF\u5DE5\u4F5C\u76EE\u5F55",
-          note: "\u5907\u6CE8",
-          aliasRequired: "\u522B\u540D\u4E0D\u80FD\u4E3A\u7A7A",
-          pathRequired: "Node \u8DEF\u5F84\u4E0D\u80FD\u4E3A\u7A7A",
-        },
-        removeTitle: "\u79FB\u9664\u90E8\u7F72",
-        removeBody:
-          "\u79FB\u9664\u300C{alias}\u300D\u5C06\u5173\u95ED\u8FDE\u63A5\uFF0C\u5E76\u5C3D\u529B\u89E6\u53D1\u8FDC\u7AEF helper \u81EA\u6E05\u7406\uFF08\u6E05\u7406\u5931\u8D25\u4E0D\u963B\u585E\uFF0C\u4EC5\u8BB0\u5F55\u5230\u8BCA\u65AD\u6BB5\uFF09\u3002\u672C\u673A\u8BB0\u5F55\u968F\u4E4B\u5220\u9664\u3002",
-        removeConfirm: "\u786E\u8BA4\u79FB\u9664",
-        wizard: {
-          title: "\u5F00\u901A\u5411\u5BFC",
-          concurrent:
-            "\u5411\u5BFC\u6B63\u5728\u6267\u884C\u4E2D\u2014\u2014\u7B49\u5F85\u5B8C\u6210\u3001\u91CD\u5F00\u7EED\u770B\uFF0C\u6216\u5148\u4E2D\u6B62",
-          step: {
-            "probe-ssh": "\u514D\u5BC6\u8FDE\u63A5\u63A2\u6D4B",
-            "probe-node": "\u8FDC\u7AEF Node \u63A2\u6D4B",
-            upload: "helper \u4E0A\u4F20\u5B89\u88C5",
-            verify: "\u6458\u8981\u6821\u9A8C",
-          },
-          state: {
-            pending: "\u7B49\u5F85",
-            probing: "\u63A2\u6D4B\u4E2D\u2026",
-            installing: "\u5B89\u88C5\u4E2D\u2026",
-            verifying: "\u6821\u9A8C\u4E2D\u2026",
-            done: "\u5B8C\u6210",
-            failed: "\u5931\u8D25",
-            skipped: "\u8DF3\u8FC7\uFF08\u5DF2\u5B8C\u6210\uFF09",
-          },
-          fail: {
-            "probe-ssh":
-              "\u514D\u5BC6\u8FDE\u63A5\u672A\u901A\u8FC7\u3002\u5148\u5728\u672C\u673A\u8DD1 ssh-copy-id\uFF08\u6216\u628A\u516C\u94A5\u52A0\u5165 ssh-agent\uFF09\uFF0C\u518D\u56DE\u5230\u8FD9\u91CC\u91CD\u8BD5",
-            "probe-node":
-              "\u8FDC\u7AEF Node \u63A2\u6D4B\u5931\u8D25\u3002\u4FEE\u6B63\u8DEF\u5F84\u6216\u5B89\u88C5\u53EF\u7528 Node\uFF08\u226518\uFF09\u540E\u91CD\u8BD5",
-            upload:
-              "helper \u4E0A\u4F20\u5B89\u88C5\u5931\u8D25\u3002\u53EF\u91CD\u8BD5\uFF1B\u6216\u7ECF\u300C\u8DF3\u8FC7\u5B89\u88C5\uFF0C\u8F6C\u76F4\u8FDE\u300D\u663E\u5F0F\u964D\u7EA7\uFF08\u7559\u75D5\uFF09",
-            verify:
-              "\u8FDC\u7AEF helper \u6458\u8981\u4E0E\u9884\u671F\u4E0D\u7B26\u2014\u2014\u62D2\u7EDD\u7F6E\u4E3A\u5C31\u7EEA\u3002\u53EF\u91CD\u65B0\u5B89\u88C5\uFF0C\u6216\u7ECF\u4E0B\u65B9\u5165\u53E3\u663E\u5F0F\u8F6C\u76F4\u8FDE\uFF08\u7559\u75D5\uFF09",
-          },
-          retry: "\u91CD\u8BD5\u6B64\u6B65",
-          abort: "\u4E2D\u6B62\uFF08\u90E8\u7F72\u505C\u5F53\u524D\u6001\uFF0C\u53EF\u5E42\u7B49\u7EED\u8DD1\uFF09",
-          skipInstallEntry: "\u8DF3\u8FC7\u5B89\u88C5\uFF0C\u8F6C\u76F4\u8FDE\u2026",
-          mismatchEntry: "\u8F6C\u76F4\u8FDE",
-          logTitle: "\u5411\u5BFC\u8F93\u51FA",
-          logEmpty: "\uFF08\u7B49\u5F85\u6267\u884C\u8F93\u51FA\u2026\uFF09",
-          closeHint:
-            "Esc/\u2715 \u5173\u95ED = \u540E\u53F0\u7EE7\u7EED\uFF08\u5361\u9762\u300C\u5411\u5BFC\u6267\u884C\u4E2D\u300D\u5FBD\u7AE0\u53CD\u6620\uFF09",
-        },
-        degrade: {
-          title: "\u8F6C\u4E3A\u76F4\u8FDE\u786E\u8BA4",
-          body: "\u8F6C\u4E3A\u76F4\u8FDE\u540E\uFF0C\u8BE5\u90E8\u7F72\u7684\u6D3E\u53D1\u4E0D\u518D\u7ECF\u8FC7 helper \u6458\u8981\u6821\u9A8C\uFF0C\u5B89\u5168\u6027\u4E0B\u964D\u3002\u6B64\u9009\u62E9\u4F1A\u7559\u75D5\u5230\u8BCA\u65AD\u6BB5\u3002",
-          confirm: "\u786E\u8BA4\u8F6C\u76F4\u8FDE",
-        },
-      },
+      ...dsh_zh_Hans_deploy_default,
       import: {
         entry: "\u5BFC\u5165 JSON",
         title: "\u5BFC\u5165 JSON",
@@ -3197,6 +3198,99 @@ window.__ModuleLoader__.load({
         sshMissing:
           "dsh-ssh \u5BB6\u65CF\uFF1A\u672A\u88C5\u8F7D\u2014\u2014\u8FDC\u7A0B\u6D3E\u53D1\u9700\u8981\u5B83\uFF08\u88C5\u8F7D\u6307\u5F15\uFF1A{cmd}\uFF09",
       },
+      lark: {
+        login: "\u6388\u6743\u767B\u5F55\uFF08\u5728\u7EC8\u7AEF\u9762\u677F\u5B8C\u6210 lark-cli \u767B\u5F55\uFF09",
+        launched:
+          "\u5DF2\u5728\u7EC8\u7AEF\u9762\u677F\u542F\u52A8\u767B\u5F55\uFF0C\u8BF7\u5230\u7EC8\u7AEF\u5B8C\u6210\u6388\u6743",
+        launchFailed: "\u767B\u5F55\u542F\u52A8\u5931\u8D25\uFF1A{reason}",
+      },
+    };
+
+    // src/client/i18n/dsh-zh-Hant-deploy.ts
+    var dsh_zh_Hant_deploy_default = {
+      deploy: {
+        title: "\u9060\u7AEF\u90E8\u7F72",
+        counts: "\u5C31\u7DD2 {ready} \xB7 \u672A\u5C31\u7DD2 {pending} \xB7 \u65B7\u7DDA {broken}",
+        empty:
+          "\u9084\u6C92\u6709\u9060\u7AEF\u90E8\u7F72\u3002\u65B0\u589E\u4E00\u53F0\u9060\u7AEF\u6A5F\u5668\uFF0C\u628A agent \u6D3E\u53BB\u9060\u65B9",
+        add: "\uFF0B \u65B0\u589E\u90E8\u7F72",
+        edit: "\u7DE8\u8F2F",
+        remove: "\u79FB\u9664",
+        provision: "\u958B\u901A",
+        reconnect: "\u91CD\u9023\u4E26\u6AA2\u67E5",
+        wizardRunning: "\u5411\u5C0E\u57F7\u884C\u4E2D",
+        directTag: "\u76F4\u9023\u6A21\u5F0F\uFF08\u672A\u7D93\u6458\u8981\u6821\u9A57\uFF09",
+        lastError: "\u6700\u8FD1\u932F\u8AA4\uFF1A{summary}",
+        editFallback:
+          "\u5DF2\u5132\u5B58\u3002\u90E8\u7F72\u5DF2\u56DE\u843D\u70BA\u672A\u5C31\u7DD2\u2014\u2014\u8DEF\u5F91\u8B8A\u66F4\u5F8C\u8ACB\u91CD\u8DD1\u958B\u901A\u5411\u5C0E\u8907\u6838",
+        sshMissing:
+          "\u9060\u7AEF\u6D3E\u767C\u9700\u8981 dsh-ssh \u5BB6\u65CF\uFF0C\u7576\u524D\u672A\u88DD\u8F09\uFF08\u88DD\u8F09\u6307\u5F15\uFF1A{cmd}\uFF09",
+        copyGuide: "\u8907\u88FD\u88DD\u8F09\u6307\u5F15",
+        status: {
+          ready: "\u5C31\u7DD2",
+          readyDirect: "\u5C31\u7DD2\uFF08\u76F4\u9023\uFF09",
+          notReady: "\u672A\u5C31\u7DD2",
+          disconnected: "\u65B7\u7DDA",
+        },
+        form: {
+          addTitle: "\u65B0\u589E\u90E8\u7F72",
+          editTitle: "\u7DE8\u8F2F\u90E8\u7F72",
+          alias:
+            "OpenSSH \u5225\u540D\uFF08\u6191\u8B49\u7531\u5225\u540D\u627F\u8F09\uFF0C\u63D2\u4EF6\u4E0D\u5B58\u79C1\u9470\uFF09",
+          nodePath: "\u9060\u7AEF Node \u8DEF\u5F91",
+          workdir: "\u9810\u8A2D\u9060\u7AEF\u5DE5\u4F5C\u76EE\u9304",
+          note: "\u5099\u8A3B",
+          aliasRequired: "\u5225\u540D\u4E0D\u80FD\u70BA\u7A7A",
+          pathRequired: "Node \u8DEF\u5F91\u4E0D\u80FD\u70BA\u7A7A",
+        },
+        removeTitle: "\u79FB\u9664\u90E8\u7F72",
+        removeBody:
+          "\u79FB\u9664\u300C{alias}\u300D\u5C07\u95DC\u9589\u9023\u7DDA\uFF0C\u4E26\u76E1\u529B\u89F8\u767C\u9060\u7AEF helper \u81EA\u6E05\u7406\uFF08\u6E05\u7406\u5931\u6557\u4E0D\u963B\u585E\uFF0C\u50C5\u8A18\u9304\u5230\u8A3A\u65B7\u6BB5\uFF09\u3002\u672C\u6A5F\u8A18\u9304\u96A8\u4E4B\u522A\u9664\u3002",
+        removeConfirm: "\u78BA\u8A8D\u79FB\u9664",
+        wizard: {
+          title: "\u958B\u901A\u5411\u5C0E",
+          concurrent:
+            "\u5411\u5C0E\u6B63\u5728\u57F7\u884C\u4E2D\u2014\u2014\u7B49\u5F85\u5B8C\u6210\u3001\u91CD\u958B\u7E8C\u770B\uFF0C\u6216\u5148\u4E2D\u6B62",
+          step: {
+            "probe-ssh": "\u514D\u5BC6\u9023\u7DDA\u63A2\u6E2C",
+            "probe-node": "\u9060\u7AEF Node \u63A2\u6E2C",
+            upload: "helper \u4E0A\u50B3\u5B89\u88DD",
+            verify: "\u6458\u8981\u6821\u9A57",
+          },
+          state: {
+            pending: "\u7B49\u5F85",
+            probing: "\u63A2\u6E2C\u4E2D\u2026",
+            installing: "\u5B89\u88DD\u4E2D\u2026",
+            verifying: "\u6821\u9A57\u4E2D\u2026",
+            done: "\u5B8C\u6210",
+            failed: "\u5931\u6557",
+            skipped: "\u8DF3\u904E\uFF08\u5DF2\u5B8C\u6210\uFF09",
+          },
+          fail: {
+            "probe-ssh":
+              "\u514D\u5BC6\u9023\u7DDA\u672A\u901A\u904E\u3002\u5148\u5728\u672C\u6A5F\u8DD1 ssh-copy-id\uFF08\u6216\u628A\u516C\u9470\u52A0\u5165 ssh-agent\uFF09\uFF0C\u518D\u56DE\u5230\u9019\u88E1\u91CD\u8A66",
+            "probe-node":
+              "\u9060\u7AEF Node \u63A2\u6E2C\u5931\u6557\u3002\u4FEE\u6B63\u8DEF\u5F91\u6216\u5B89\u88DD\u53EF\u7528 Node\uFF08\u226518\uFF09\u5F8C\u91CD\u8A66",
+            upload:
+              "helper \u4E0A\u50B3\u5B89\u88DD\u5931\u6557\u3002\u53EF\u91CD\u8A66\uFF1B\u6216\u7D93\u300C\u8DF3\u904E\u5B89\u88DD\uFF0C\u8F49\u76F4\u9023\u300D\u986F\u5F0F\u964D\u7D1A\uFF08\u7559\u75D5\uFF09",
+            verify:
+              "\u9060\u7AEF helper \u6458\u8981\u8207\u9810\u671F\u4E0D\u7B26\u2014\u2014\u62D2\u7D55\u7F6E\u70BA\u5C31\u7DD2\u3002\u53EF\u91CD\u65B0\u5B89\u88DD\uFF0C\u6216\u7D93\u4E0B\u65B9\u5165\u53E3\u986F\u5F0F\u8F49\u76F4\u9023\uFF08\u7559\u75D5\uFF09",
+          },
+          retry: "\u91CD\u8A66\u6B64\u6B65",
+          abort: "\u4E2D\u6B62\uFF08\u90E8\u7F72\u505C\u7576\u524D\u614B\uFF0C\u53EF\u51AA\u7B49\u7E8C\u8DD1\uFF09",
+          skipInstallEntry: "\u8DF3\u904E\u5B89\u88DD\uFF0C\u8F49\u76F4\u9023\u2026",
+          mismatchEntry: "\u8F49\u76F4\u9023",
+          logTitle: "\u5411\u5C0E\u8F38\u51FA",
+          logEmpty: "\uFF08\u7B49\u5F85\u57F7\u884C\u8F38\u51FA\u2026\uFF09",
+          closeHint:
+            "Esc/\u2715 \u95DC\u9589 = \u5F8C\u53F0\u7E7C\u7E8C\uFF08\u5361\u9762\u300C\u5411\u5C0E\u57F7\u884C\u4E2D\u300D\u5FBD\u7AE0\u53CD\u6620\uFF09",
+        },
+        degrade: {
+          title: "\u8F49\u70BA\u76F4\u9023\u78BA\u8A8D",
+          body: "\u8F49\u70BA\u76F4\u9023\u5F8C\uFF0C\u8A72\u90E8\u7F72\u7684\u6D3E\u767C\u4E0D\u518D\u7D93\u904E helper \u6458\u8981\u6821\u9A57\uFF0C\u5B89\u5168\u6027\u4E0B\u964D\u3002\u6B64\u9078\u64C7\u6703\u7559\u75D5\u5230\u8A3A\u65B7\u6BB5\u3002",
+          confirm: "\u78BA\u8A8D\u8F49\u76F4\u9023",
+        },
+      },
     };
 
     // src/client/i18n/dsh-zh-Hant.ts
@@ -3207,7 +3301,7 @@ window.__ModuleLoader__.load({
       },
       empty: {
         tasks:
-          "\u8349\u53E2\u975C\u6084\u6084\u2014\u2014\u5728\u6703\u8A71\u88E1\u8AAA\u4E00\u53E5\u3001\u7528 \u26A1\u767C\u5831\uFF0C\u6216\u76F4\u63A5\u65B0\u5EFA\u7B2C\u4E00\u96BB",
+          "\u8349\u53E2\u975C\u6084\u6084\u2014\u2014\u5728\u6703\u8A71\u88E1\u8AAA\u4E00\u53E5\u3001\u7528 \u26A1\u767C\u5831",
         radio:
           "\u96FB\u6CE2\u5B89\u975C\u3002\u6709\u65B0\u8A0A\u606F\u6703\u4EE5\u8A08\u6578\u63D0\u9192\uFF0C\u4E0D\u6703\u6253\u64FE\u4F60",
         dispatch: "\u9084\u6C92\u6709\u6D3E\u51FA\u904E agent",
@@ -3381,10 +3475,6 @@ window.__ModuleLoader__.load({
       common: {
         close: "\u95DC\u9589",
       },
-      taskCreate: {
-        entry: "\uFF0B \u65B0\u5EFA\u4EFB\u52D9",
-        scheduledFor: "\u6392\u671F",
-      },
       sess: {
         group: {
           all: "\u5168\u90E8",
@@ -3403,89 +3493,7 @@ window.__ModuleLoader__.load({
           "\u8A72\u6703\u8A71\u7684\u9060\u7AEF\u90E8\u7F72\u5DF2\u88AB\u79FB\u9664\uFF0C\u7121\u6CD5\u56DE\u653E",
         emptyGroup: "\u8A72\u5206\u7D44\u66AB\u7121\u6703\u8A71",
       },
-      deploy: {
-        title: "\u9060\u7AEF\u90E8\u7F72",
-        counts: "\u5C31\u7DD2 {ready} \xB7 \u672A\u5C31\u7DD2 {pending} \xB7 \u65B7\u7DDA {broken}",
-        empty:
-          "\u9084\u6C92\u6709\u9060\u7AEF\u90E8\u7F72\u3002\u65B0\u589E\u4E00\u53F0\u9060\u7AEF\u6A5F\u5668\uFF0C\u628A agent \u6D3E\u53BB\u9060\u65B9",
-        add: "\uFF0B \u65B0\u589E\u90E8\u7F72",
-        edit: "\u7DE8\u8F2F",
-        remove: "\u79FB\u9664",
-        provision: "\u958B\u901A",
-        reconnect: "\u91CD\u9023\u4E26\u6AA2\u67E5",
-        wizardRunning: "\u5411\u5C0E\u57F7\u884C\u4E2D",
-        directTag: "\u76F4\u9023\u6A21\u5F0F\uFF08\u672A\u7D93\u6458\u8981\u6821\u9A57\uFF09",
-        lastError: "\u6700\u8FD1\u932F\u8AA4\uFF1A{summary}",
-        editFallback:
-          "\u5DF2\u5132\u5B58\u3002\u90E8\u7F72\u5DF2\u56DE\u843D\u70BA\u672A\u5C31\u7DD2\u2014\u2014\u8DEF\u5F91\u8B8A\u66F4\u5F8C\u8ACB\u91CD\u8DD1\u958B\u901A\u5411\u5C0E\u8907\u6838",
-        sshMissing:
-          "\u9060\u7AEF\u6D3E\u767C\u9700\u8981 dsh-ssh \u5BB6\u65CF\uFF0C\u7576\u524D\u672A\u88DD\u8F09\uFF08\u88DD\u8F09\u6307\u5F15\uFF1A{cmd}\uFF09",
-        copyGuide: "\u8907\u88FD\u88DD\u8F09\u6307\u5F15",
-        status: {
-          ready: "\u5C31\u7DD2",
-          readyDirect: "\u5C31\u7DD2\uFF08\u76F4\u9023\uFF09",
-          notReady: "\u672A\u5C31\u7DD2",
-          disconnected: "\u65B7\u7DDA",
-        },
-        form: {
-          addTitle: "\u65B0\u589E\u90E8\u7F72",
-          editTitle: "\u7DE8\u8F2F\u90E8\u7F72",
-          alias:
-            "OpenSSH \u5225\u540D\uFF08\u6191\u8B49\u7531\u5225\u540D\u627F\u8F09\uFF0C\u63D2\u4EF6\u4E0D\u5B58\u79C1\u9470\uFF09",
-          nodePath: "\u9060\u7AEF Node \u8DEF\u5F91",
-          workdir: "\u9810\u8A2D\u9060\u7AEF\u5DE5\u4F5C\u76EE\u9304",
-          note: "\u5099\u8A3B",
-          aliasRequired: "\u5225\u540D\u4E0D\u80FD\u70BA\u7A7A",
-          pathRequired: "Node \u8DEF\u5F91\u4E0D\u80FD\u70BA\u7A7A",
-        },
-        removeTitle: "\u79FB\u9664\u90E8\u7F72",
-        removeBody:
-          "\u79FB\u9664\u300C{alias}\u300D\u5C07\u95DC\u9589\u9023\u7DDA\uFF0C\u4E26\u76E1\u529B\u89F8\u767C\u9060\u7AEF helper \u81EA\u6E05\u7406\uFF08\u6E05\u7406\u5931\u6557\u4E0D\u963B\u585E\uFF0C\u50C5\u8A18\u9304\u5230\u8A3A\u65B7\u6BB5\uFF09\u3002\u672C\u6A5F\u8A18\u9304\u96A8\u4E4B\u522A\u9664\u3002",
-        removeConfirm: "\u78BA\u8A8D\u79FB\u9664",
-        wizard: {
-          title: "\u958B\u901A\u5411\u5C0E",
-          concurrent:
-            "\u5411\u5C0E\u6B63\u5728\u57F7\u884C\u4E2D\u2014\u2014\u7B49\u5F85\u5B8C\u6210\u3001\u91CD\u958B\u7E8C\u770B\uFF0C\u6216\u5148\u4E2D\u6B62",
-          step: {
-            "probe-ssh": "\u514D\u5BC6\u9023\u7DDA\u63A2\u6E2C",
-            "probe-node": "\u9060\u7AEF Node \u63A2\u6E2C",
-            upload: "helper \u4E0A\u50B3\u5B89\u88DD",
-            verify: "\u6458\u8981\u6821\u9A57",
-          },
-          state: {
-            pending: "\u7B49\u5F85",
-            probing: "\u63A2\u6E2C\u4E2D\u2026",
-            installing: "\u5B89\u88DD\u4E2D\u2026",
-            verifying: "\u6821\u9A57\u4E2D\u2026",
-            done: "\u5B8C\u6210",
-            failed: "\u5931\u6557",
-            skipped: "\u8DF3\u904E\uFF08\u5DF2\u5B8C\u6210\uFF09",
-          },
-          fail: {
-            "probe-ssh":
-              "\u514D\u5BC6\u9023\u7DDA\u672A\u901A\u904E\u3002\u5148\u5728\u672C\u6A5F\u8DD1 ssh-copy-id\uFF08\u6216\u628A\u516C\u9470\u52A0\u5165 ssh-agent\uFF09\uFF0C\u518D\u56DE\u5230\u9019\u88E1\u91CD\u8A66",
-            "probe-node":
-              "\u9060\u7AEF Node \u63A2\u6E2C\u5931\u6557\u3002\u4FEE\u6B63\u8DEF\u5F91\u6216\u5B89\u88DD\u53EF\u7528 Node\uFF08\u226518\uFF09\u5F8C\u91CD\u8A66",
-            upload:
-              "helper \u4E0A\u50B3\u5B89\u88DD\u5931\u6557\u3002\u53EF\u91CD\u8A66\uFF1B\u6216\u7D93\u300C\u8DF3\u904E\u5B89\u88DD\uFF0C\u8F49\u76F4\u9023\u300D\u986F\u5F0F\u964D\u7D1A\uFF08\u7559\u75D5\uFF09",
-            verify:
-              "\u9060\u7AEF helper \u6458\u8981\u8207\u9810\u671F\u4E0D\u7B26\u2014\u2014\u62D2\u7D55\u7F6E\u70BA\u5C31\u7DD2\u3002\u53EF\u91CD\u65B0\u5B89\u88DD\uFF0C\u6216\u7D93\u4E0B\u65B9\u5165\u53E3\u986F\u5F0F\u8F49\u76F4\u9023\uFF08\u7559\u75D5\uFF09",
-          },
-          retry: "\u91CD\u8A66\u6B64\u6B65",
-          abort: "\u4E2D\u6B62\uFF08\u90E8\u7F72\u505C\u7576\u524D\u614B\uFF0C\u53EF\u51AA\u7B49\u7E8C\u8DD1\uFF09",
-          skipInstallEntry: "\u8DF3\u904E\u5B89\u88DD\uFF0C\u8F49\u76F4\u9023\u2026",
-          mismatchEntry: "\u8F49\u76F4\u9023",
-          logTitle: "\u5411\u5C0E\u8F38\u51FA",
-          logEmpty: "\uFF08\u7B49\u5F85\u57F7\u884C\u8F38\u51FA\u2026\uFF09",
-          closeHint:
-            "Esc/\u2715 \u95DC\u9589 = \u5F8C\u53F0\u7E7C\u7E8C\uFF08\u5361\u9762\u300C\u5411\u5C0E\u57F7\u884C\u4E2D\u300D\u5FBD\u7AE0\u53CD\u6620\uFF09",
-        },
-        degrade: {
-          title: "\u8F49\u70BA\u76F4\u9023\u78BA\u8A8D",
-          body: "\u8F49\u70BA\u76F4\u9023\u5F8C\uFF0C\u8A72\u90E8\u7F72\u7684\u6D3E\u767C\u4E0D\u518D\u7D93\u904E helper \u6458\u8981\u6821\u9A57\uFF0C\u5B89\u5168\u6027\u4E0B\u964D\u3002\u6B64\u9078\u64C7\u6703\u7559\u75D5\u5230\u8A3A\u65B7\u6BB5\u3002",
-          confirm: "\u78BA\u8A8D\u8F49\u76F4\u9023",
-        },
-      },
+      ...dsh_zh_Hant_deploy_default,
       import: {
         entry: "\u532F\u5165 JSON",
         title: "\u532F\u5165 JSON",
@@ -3561,6 +3569,90 @@ window.__ModuleLoader__.load({
         sshMissing:
           "dsh-ssh \u5BB6\u65CF\uFF1A\u672A\u88DD\u8F09\u2014\u2014\u9060\u7AEF\u6D3E\u767C\u9700\u8981\u5B83\uFF08\u88DD\u8F09\u6307\u5F15\uFF1A{cmd}\uFF09",
       },
+      lark: {
+        login: "\u6388\u6B0A\u767B\u5165\uFF08\u5728\u7D42\u7AEF\u9762\u677F\u5B8C\u6210 lark-cli \u767B\u5165\uFF09",
+        launched:
+          "\u5DF2\u5728\u7D42\u7AEF\u9762\u677F\u555F\u52D5\u767B\u5165\uFF0C\u8ACB\u5230\u7D42\u7AEF\u5B8C\u6210\u6388\u6B0A",
+        launchFailed: "\u767B\u5165\u555F\u52D5\u5931\u6557\uFF1A{reason}",
+      },
+    };
+
+    // src/client/i18n/dsh-en-deploy.ts
+    var dsh_en_deploy_default = {
+      deploy: {
+        title: "Remote deployments",
+        counts: "ready {ready} \xB7 not ready {pending} \xB7 disconnected {broken}",
+        empty: "No remote deployments yet. Add a machine to send agents afar",
+        add: "+ Add deployment",
+        edit: "Edit",
+        remove: "Remove",
+        provision: "Set up",
+        reconnect: "Reconnect & check",
+        wizardRunning: "Wizard running",
+        directTag: "Direct mode (digest unchecked)",
+        lastError: "Last error: {summary}",
+        editFallback: "Saved. Deployment reset to not-ready \u2014 re-run the wizard to re-verify",
+        sshMissing: "Remote dispatch needs the dsh-ssh family, which isn't loaded (guide: {cmd})",
+        copyGuide: "Copy guide",
+        status: {
+          ready: "Ready",
+          readyDirect: "Ready (direct)",
+          notReady: "Not ready",
+          disconnected: "Disconnected",
+        },
+        form: {
+          addTitle: "Add deployment",
+          editTitle: "Edit deployment",
+          alias: "OpenSSH alias (credentials stay with ssh; nothing stored here)",
+          nodePath: "Remote Node path",
+          workdir: "Default remote workdir",
+          note: "Note",
+          aliasRequired: "Alias required",
+          pathRequired: "Node path required",
+        },
+        removeTitle: "Remove deployment",
+        removeBody:
+          'Removing "{alias}" closes the connection and best-effort cleans the remote helper (failures logged, never blocking). Local records are deleted.',
+        removeConfirm: "Confirm remove",
+        wizard: {
+          title: "Setup wizard",
+          concurrent: "Wizard already running \u2014 wait, reopen to watch, or abort first",
+          step: {
+            "probe-ssh": "Passwordless SSH probe",
+            "probe-node": "Remote Node check",
+            upload: "Helper upload & install",
+            verify: "Digest check",
+          },
+          state: {
+            pending: "Waiting",
+            probing: "Probing\u2026",
+            installing: "Installing\u2026",
+            verifying: "Verifying\u2026",
+            done: "Done",
+            failed: "Failed",
+            skipped: "Skipped (already done)",
+          },
+          fail: {
+            "probe-ssh": "Passwordless SSH failed. Run ssh-copy-id first (or add your key to ssh-agent), then retry",
+            "probe-node": "Remote Node check failed. Fix the path or install Node (\u226518), then retry",
+            upload: "Helper upload/install failed. Retry, or explicitly skip to direct mode (logged)",
+            verify:
+              "Remote helper digest mismatch \u2014 refusing to mark ready. Reinstall, or explicitly switch to direct mode below (logged)",
+          },
+          retry: "Retry this step",
+          abort: "Abort (stays put, resumable)",
+          skipInstallEntry: "Skip install, go direct\u2026",
+          mismatchEntry: "Switch to direct mode",
+          logTitle: "Wizard output",
+          logEmpty: "(waiting for output\u2026)",
+          closeHint: "Esc/\u2715 close = keep running in background (card badge reflects)",
+        },
+        degrade: {
+          title: "Switch to direct mode",
+          body: "Direct mode skips helper digest checks for this deployment \u2014 weaker guarantees. This choice is logged to diagnostics.",
+          confirm: "Confirm",
+        },
+      },
     };
 
     // src/client/i18n/dsh-en.ts
@@ -3570,7 +3662,7 @@ window.__ModuleLoader__.load({
         pending: "{n} pending",
       },
       empty: {
-        tasks: "The tall grass is quiet \u2014 say it in chat, send a wire, or create your first one",
+        tasks: "The tall grass is quiet \u2014 say it in chat, send a wire",
         radio: "The airwaves are quiet. New messages show as a count \u2014 no interruptions.",
         dispatch: "No agents dispatched yet",
       },
@@ -3731,10 +3823,6 @@ window.__ModuleLoader__.load({
       common: {
         close: "Close",
       },
-      taskCreate: {
-        entry: "+ New task",
-        scheduledFor: "Scheduled for",
-      },
       sess: {
         group: {
           all: "All",
@@ -3752,80 +3840,7 @@ window.__ModuleLoader__.load({
         replayGone: "That session's remote deployment was removed \u2014 can't replay",
         emptyGroup: "No sessions in this group",
       },
-      deploy: {
-        title: "Remote deployments",
-        counts: "ready {ready} \xB7 not ready {pending} \xB7 disconnected {broken}",
-        empty: "No remote deployments yet. Add a machine to send agents afar",
-        add: "+ Add deployment",
-        edit: "Edit",
-        remove: "Remove",
-        provision: "Set up",
-        reconnect: "Reconnect & check",
-        wizardRunning: "Wizard running",
-        directTag: "Direct mode (digest unchecked)",
-        lastError: "Last error: {summary}",
-        editFallback: "Saved. Deployment reset to not-ready \u2014 re-run the wizard to re-verify",
-        sshMissing: "Remote dispatch needs the dsh-ssh family, which isn't loaded (guide: {cmd})",
-        copyGuide: "Copy guide",
-        status: {
-          ready: "Ready",
-          readyDirect: "Ready (direct)",
-          notReady: "Not ready",
-          disconnected: "Disconnected",
-        },
-        form: {
-          addTitle: "Add deployment",
-          editTitle: "Edit deployment",
-          alias: "OpenSSH alias (credentials stay with ssh; nothing stored here)",
-          nodePath: "Remote Node path",
-          workdir: "Default remote workdir",
-          note: "Note",
-          aliasRequired: "Alias required",
-          pathRequired: "Node path required",
-        },
-        removeTitle: "Remove deployment",
-        removeBody:
-          'Removing "{alias}" closes the connection and best-effort cleans the remote helper (failures logged, never blocking). Local records are deleted.',
-        removeConfirm: "Confirm remove",
-        wizard: {
-          title: "Setup wizard",
-          concurrent: "Wizard already running \u2014 wait, reopen to watch, or abort first",
-          step: {
-            "probe-ssh": "Passwordless SSH probe",
-            "probe-node": "Remote Node check",
-            upload: "Helper upload & install",
-            verify: "Digest check",
-          },
-          state: {
-            pending: "Waiting",
-            probing: "Probing\u2026",
-            installing: "Installing\u2026",
-            verifying: "Verifying\u2026",
-            done: "Done",
-            failed: "Failed",
-            skipped: "Skipped (already done)",
-          },
-          fail: {
-            "probe-ssh": "Passwordless SSH failed. Run ssh-copy-id first (or add your key to ssh-agent), then retry",
-            "probe-node": "Remote Node check failed. Fix the path or install Node (\u226518), then retry",
-            upload: "Helper upload/install failed. Retry, or explicitly skip to direct mode (logged)",
-            verify:
-              "Remote helper digest mismatch \u2014 refusing to mark ready. Reinstall, or explicitly switch to direct mode below (logged)",
-          },
-          retry: "Retry this step",
-          abort: "Abort (stays put, resumable)",
-          skipInstallEntry: "Skip install, go direct\u2026",
-          mismatchEntry: "Switch to direct mode",
-          logTitle: "Wizard output",
-          logEmpty: "(waiting for output\u2026)",
-          closeHint: "Esc/\u2715 close = keep running in background (card badge reflects)",
-        },
-        degrade: {
-          title: "Switch to direct mode",
-          body: "Direct mode skips helper digest checks for this deployment \u2014 weaker guarantees. This choice is logged to diagnostics.",
-          confirm: "Confirm",
-        },
-      },
+      ...dsh_en_deploy_default,
       import: {
         entry: "Import JSON",
         title: "Import JSON",
@@ -3890,6 +3905,11 @@ window.__ModuleLoader__.load({
           "Global shortcut registration failed (possibly taken) \u2014 \u2318\u21E7K still works while the panel is focused",
         sshOk: "dsh-ssh family: ready",
         sshMissing: "dsh-ssh family: not loaded \u2014 remote dispatch needs it (guide: {cmd})",
+      },
+      lark: {
+        login: "Authorize (lark-cli login in the terminal panel)",
+        launched: "Login launched in the terminal panel \u2014 finish it there",
+        launchFailed: "Failed to launch login: {reason}",
       },
     };
 
@@ -4090,6 +4110,29 @@ window.__ModuleLoader__.load({
       });
     }
 
+    // src/client/rpcParity.ts
+    function parityFacade(call) {
+      return {
+        streakInfo: () => call("streakInfo"),
+        larkLoginStart: () => call("larkLoginStart"),
+        sessionsPage: (p) => call("sessionsPage", p),
+        sessionReplay: (p) => call("sessionReplay", p),
+        deploymentList: () => call("deploymentList"),
+        deploymentUpsert: (p) => call("deploymentUpsert", p),
+        deploymentDelete: (p) => call("deploymentDelete", p),
+        deploymentRecheck: (p) => call("deploymentRecheck", p),
+        provisionRun: (p) => call("provisionRun", p),
+        provisionStatus: (p) => call("provisionStatus", p),
+        deploymentDegradeConfirm: (p) => call("deploymentDegradeConfirm", p),
+        importValidate: (p) => call("importValidate", p),
+        importRun: (p) => call("importRun", p),
+        restoreRun: (p) => call("restoreRun", p),
+        exportDirOpen: () => call("exportDirOpen"),
+        macAuthorizationStatus: (p) => call("macAuthorizationStatus", p),
+        macAuthPaneOpen: () => call("macAuthPaneOpen"),
+      };
+    }
+
     // src/host/domain/suggest-types.ts
     var ESCAPE_REASONS = [
       "duplicate",
@@ -4120,7 +4163,7 @@ window.__ModuleLoader__.load({
       return error !== null && error !== void 0 && error.code === code;
     }
 
-    // src/client/rpcTypes.ts
+    // src/client/rpcErrorCodes.ts
     var ERROR_CODES = [
       "JUDGE_TIMEOUT",
       "JUDGE_INVALID_RESULT",
@@ -4289,7 +4332,6 @@ window.__ModuleLoader__.load({
         taskDeleteUndo: (p) => call("taskDeleteUndo", p),
         taskReschedule: (p) => call("taskReschedule", p),
         taskUpdate: (p) => call("taskUpdate", p),
-        taskCreate: (p) => call("taskCreate", p),
         taskNoteAdd: (p) => call("taskNoteAdd", p),
         taskNoteDelete: (p) => call("taskNoteDelete", p),
         taskHistory: (p) => call("taskHistory", p),
@@ -4370,27 +4412,6 @@ window.__ModuleLoader__.load({
         backupRun: () => call("backupRun"),
         backupList: () => call("backupList"),
         exportRun: (p) => call("exportRun", p),
-      };
-    }
-    function parityFacade(call) {
-      return {
-        streakInfo: () => call("streakInfo"),
-        larkLoginStart: () => call("larkLoginStart"),
-        sessionsPage: (p) => call("sessionsPage", p),
-        sessionReplay: (p) => call("sessionReplay", p),
-        deploymentList: () => call("deploymentList"),
-        deploymentUpsert: (p) => call("deploymentUpsert", p),
-        deploymentDelete: (p) => call("deploymentDelete", p),
-        deploymentRecheck: (p) => call("deploymentRecheck", p),
-        provisionRun: (p) => call("provisionRun", p),
-        provisionStatus: (p) => call("provisionStatus", p),
-        deploymentDegradeConfirm: (p) => call("deploymentDegradeConfirm", p),
-        importValidate: (p) => call("importValidate", p),
-        importRun: (p) => call("importRun", p),
-        restoreRun: (p) => call("restoreRun", p),
-        exportDirOpen: () => call("exportDirOpen"),
-        macAuthorizationStatus: (p) => call("macAuthorizationStatus", p),
-        macAuthPaneOpen: () => call("macAuthPaneOpen"),
       };
     }
     function createHostClient(transport) {
@@ -5623,7 +5644,12 @@ window.__ModuleLoader__.load({
         client.panelSnapshot().catch(() => null),
       ]);
       const config = dataOf(configR, { keyValues: {} }).keyValues;
-      const links = dataOf(diagR, { links: [], helperCaps: null, shortcutRegistered: null, sshFamily: null }).links;
+      const links = dataOf(diagR, {
+        links: [],
+        helperCaps: null,
+        shortcutRegistered: null,
+        sshFamily: null,
+      }).links;
       const snapshot = snapR?.ok === true ? snapR.data : null;
       const filters = dataOf(filtersR, { chats: [], counts: {}, lastPollAt: null });
       return {
@@ -5714,10 +5740,10 @@ window.__ModuleLoader__.load({
     }
 
     // src/client/dsh/sidebarPanel.tsx
-    var import_react52 = require("react");
+    var import_react56 = require("react");
 
     // src/client/app/PluginDetailPage.tsx
-    var import_react51 = require("react");
+    var import_react55 = require("react");
 
     // src/client/radio/RadioSegment.tsx
     var import_react12 = require("react");
@@ -8106,7 +8132,7 @@ window.__ModuleLoader__.load({
     }
 
     // src/client/settings/SettingsSegment.tsx
-    var import_react34 = require("react");
+    var import_react37 = require("react");
 
     // src/client/settings/optionSets.ts
     var POMODORO_MINUTES = [15, 25, 45, 60];
@@ -8655,7 +8681,7 @@ window.__ModuleLoader__.load({
     }
 
     // src/client/settings/sections/AgentSection.tsx
-    var import_react23 = require("react");
+    var import_react24 = require("react");
 
     // src/client/settings/sections/AgentConfigCard.tsx
     var import_react18 = require("react");
@@ -9455,7 +9481,7 @@ window.__ModuleLoader__.load({
     }
 
     // src/client/settings/deploy/DeploymentCard.tsx
-    var import_react22 = require("react");
+    var import_react23 = require("react");
 
     // src/client/settings/deploy/DeployFormModal.tsx
     var import_react20 = require("react");
@@ -9516,14 +9542,26 @@ window.__ModuleLoader__.load({
 
     // src/client/settings/deploy/DeployFormModal.tsx
     var import_jsx_runtime28 = require("react/jsx-runtime");
+    function initialFields(entity) {
+      return {
+        alias: entity?.alias ?? "",
+        nodePath: entity?.nodePath ?? "",
+        workdir: entity?.workdir ?? "",
+        note: entity?.note ?? "",
+      };
+    }
+    function formTitleKey(entity) {
+      return entity === void 0 ? "dsh.deploy.form.addTitle" : "dsh.deploy.form.editTitle";
+    }
     function DeployFormModal({ entity, readonly, onClose, onSaved }) {
       const t = useT();
       const client = useClient();
       const editing = entity !== void 0;
-      const [alias, setAlias] = (0, import_react20.useState)(entity?.alias ?? "");
-      const [nodePath, setNodePath] = (0, import_react20.useState)(entity?.nodePath ?? "");
-      const [workdir, setWorkdir] = (0, import_react20.useState)(entity?.workdir ?? "");
-      const [note, setNote] = (0, import_react20.useState)(entity?.note ?? "");
+      const initial = initialFields(entity);
+      const [alias, setAlias] = (0, import_react20.useState)(initial.alias);
+      const [nodePath, setNodePath] = (0, import_react20.useState)(initial.nodePath);
+      const [workdir, setWorkdir] = (0, import_react20.useState)(initial.workdir);
+      const [note, setNote] = (0, import_react20.useState)(initial.note);
       const [saving, setSaving] = (0, import_react20.useState)(false);
       const [aliasError, setAliasError] = (0, import_react20.useState)("");
       const [pathError, setPathError] = (0, import_react20.useState)("");
@@ -9557,8 +9595,8 @@ window.__ModuleLoader__.load({
         }
       }
       return /* @__PURE__ */ (0, import_jsx_runtime28.jsx)(Modal, {
-        title: editing ? t("dsh.deploy.form.editTitle") : t("dsh.deploy.form.addTitle"),
-        ariaLabel: editing ? t("dsh.deploy.form.editTitle") : t("dsh.deploy.form.addTitle"),
+        title: t(formTitleKey(entity)),
+        ariaLabel: t(formTitleKey(entity)),
         actions: [
           { label: t("save2"), onChoose: () => void save(), variant: "primary", disabled: saving || readonly },
           { label: t("cancel"), onChoose: onClose },
@@ -9689,6 +9727,57 @@ window.__ModuleLoader__.load({
       }
       return preCompleted.has(step) ? "skipped" : "done";
     }
+    function wizardActions(failedStep, t, onRetry, onAbort, readonly, running) {
+      const actions = [];
+      if (failedStep !== null) {
+        actions.push({ label: t("dsh.deploy.wizard.retry"), onChoose: onRetry, disabled: readonly });
+      }
+      actions.push({ label: t("dsh.deploy.wizard.abort"), onChoose: onAbort, disabled: readonly || !running });
+      return actions;
+    }
+    function verifyStepFailed(status) {
+      return status !== null && status.steps.find((s) => s.step === "verify")?.status === "failed";
+    }
+    function failureDetail(status, failedStep) {
+      return status?.steps.find((s) => s.step === failedStep)?.message ?? null;
+    }
+    function WizardFailure({ status, failedStep, neverInstalled, onDegradeAsk }) {
+      const t = useT();
+      const mismatch = verifyStepFailed(status);
+      const detail = failureDetail(status, failedStep);
+      return /* @__PURE__ */ (0, import_jsx_runtime30.jsxs)("div", {
+        className: deploy_default.stepFailure,
+        role: "alert",
+        "data-testid": "wizard-failure",
+        children: [
+          /* @__PURE__ */ (0, import_jsx_runtime30.jsx)("p", {
+            className: deploy_default.stepFailureText,
+            children: t(`dsh.deploy.wizard.fail.${failedStep}`),
+          }),
+          detail !== null &&
+            /* @__PURE__ */ (0, import_jsx_runtime30.jsx)("p", {
+              className: deploy_default.stepFailureDetail,
+              children: detail,
+            }),
+          failedStep === "upload" &&
+            neverInstalled &&
+            /* @__PURE__ */ (0, import_jsx_runtime30.jsx)("button", {
+              type: "button",
+              className: deploy_default.degradeEntry,
+              onClick: () => onDegradeAsk("skipInstall"),
+              children: t("dsh.deploy.wizard.skipInstallEntry"),
+            }),
+          failedStep === "verify" &&
+            mismatch &&
+            /* @__PURE__ */ (0, import_jsx_runtime30.jsx)("button", {
+              type: "button",
+              className: deploy_default.degradeEntry,
+              onClick: () => onDegradeAsk("mismatch"),
+              children: t("dsh.deploy.wizard.mismatchEntry"),
+            }),
+        ],
+      });
+    }
     function DeploymentWizard({
       entity,
       status,
@@ -9707,13 +9796,8 @@ window.__ModuleLoader__.load({
       const [degradeAsk, setDegradeAsk] = (0, import_react21.useState)(null);
       const [degradeBusy, setDegradeBusy] = (0, import_react21.useState)(false);
       const failedStep = status?.failedStep ?? null;
-      const mismatch = status !== null && status.steps.find((s) => s.step === "verify")?.status === "failed";
       const neverInstalled = entity.helperPath.trim() === "";
-      const actions = [];
-      if (failedStep !== null) {
-        actions.push({ label: t("dsh.deploy.wizard.retry"), onChoose: onRetry, disabled: readonly });
-      }
-      actions.push({ label: t("dsh.deploy.wizard.abort"), onChoose: onAbort, disabled: readonly || !running });
+      const actions = wizardActions(failedStep, t, onRetry, onAbort, readonly, running);
       async function confirmDegrade() {
         if (degradeAsk === null) {
           return;
@@ -9774,37 +9858,11 @@ window.__ModuleLoader__.load({
             }),
             failedStep !== null &&
               !running &&
-              /* @__PURE__ */ (0, import_jsx_runtime30.jsxs)("div", {
-                className: deploy_default.stepFailure,
-                role: "alert",
-                "data-testid": "wizard-failure",
-                children: [
-                  /* @__PURE__ */ (0, import_jsx_runtime30.jsx)("p", {
-                    className: deploy_default.stepFailureText,
-                    children: t(`dsh.deploy.wizard.fail.${failedStep}`),
-                  }),
-                  status?.steps.find((s) => s.step === failedStep)?.message != null &&
-                    /* @__PURE__ */ (0, import_jsx_runtime30.jsx)("p", {
-                      className: deploy_default.stepFailureDetail,
-                      children: status?.steps.find((s) => s.step === failedStep)?.message,
-                    }),
-                  failedStep === "upload" &&
-                    neverInstalled &&
-                    /* @__PURE__ */ (0, import_jsx_runtime30.jsx)("button", {
-                      type: "button",
-                      className: deploy_default.degradeEntry,
-                      onClick: () => setDegradeAsk("skipInstall"),
-                      children: t("dsh.deploy.wizard.skipInstallEntry"),
-                    }),
-                  failedStep === "verify" &&
-                    mismatch &&
-                    /* @__PURE__ */ (0, import_jsx_runtime30.jsx)("button", {
-                      type: "button",
-                      className: deploy_default.degradeEntry,
-                      onClick: () => setDegradeAsk("mismatch"),
-                      children: t("dsh.deploy.wizard.mismatchEntry"),
-                    }),
-                ],
+              /* @__PURE__ */ (0, import_jsx_runtime30.jsx)(WizardFailure, {
+                status,
+                failedStep,
+                neverInstalled,
+                onDegradeAsk: setDegradeAsk,
               }),
             /* @__PURE__ */ (0, import_jsx_runtime30.jsx)(LcdScreen, {
               ariaLabel: t("dsh.deploy.wizard.logTitle"),
@@ -9861,7 +9919,96 @@ window.__ModuleLoader__.load({
       });
     }
 
-    // src/client/settings/deploy/DeploymentCard.tsx
+    // src/client/settings/deploy/deploymentWizardRun.ts
+    var import_react22 = require("react");
+    function stopWizardRun(setWizard, id) {
+      setWizard((prev) => (prev !== null && prev.id === id ? { ...prev, running: false, runningStep: null } : prev));
+    }
+    async function recordWizardFailure(client, setWizard, id, next, result) {
+      const text =
+        result.error.hint !== void 0 ? `${result.error.message} \u2014 ${result.error.hint}` : result.error.message;
+      setWizard((prev) => {
+        if (prev === null || prev.id !== id) {
+          return prev;
+        }
+        return {
+          ...prev,
+          running: false,
+          runningStep: null,
+          log: [...prev.log, { step: next, ok: false, text }],
+        };
+      });
+      const failStatus = await client.provisionStatus({ id });
+      if (failStatus.ok) {
+        setWizard((prev) => (prev !== null && prev.id === id ? { ...prev, status: failStatus.data.status } : prev));
+      }
+    }
+    function recordWizardSuccess(setWizard, onChanged, id, next, status) {
+      const executed = status.steps.find((s) => s.step === next);
+      setWizard((prev) => {
+        if (prev === null || prev.id !== id) {
+          return prev;
+        }
+        return {
+          ...prev,
+          status,
+          log: [...prev.log, { step: next, ok: true, text: executed?.message ?? "" }],
+        };
+      });
+      if (status.done) {
+        stopWizardRun(setWizard, id);
+        onChanged();
+      }
+    }
+    async function openWizardRun(client, setWizard, id) {
+      const statusR = await client.provisionStatus({ id });
+      const preStatus = statusR.ok ? statusR.data.status : null;
+      const preCompleted = new Set((preStatus?.steps ?? []).filter((s) => s.status === "ok").map((s) => s.step));
+      setWizard((prev) =>
+        prev !== null && prev.id === id
+          ? { ...prev, open: true, running: true, runningStep: null, status: preStatus ?? prev.status, preCompleted }
+          : { id, open: true, running: true, runningStep: null, status: preStatus, log: [], preCompleted },
+      );
+      return preStatus;
+    }
+    function useWizardRunner(deps) {
+      const { client, reload, onChanged } = deps;
+      const abortRef = (0, import_react22.useRef)(false);
+      const [wizard, setWizard] = (0, import_react22.useState)(null);
+      const runWizard = (0, import_react22.useCallback)(
+        async (id) => {
+          abortRef.current = false;
+          let status = await openWizardRun(client, setWizard, id);
+          for (;;) {
+            if (abortRef.current) {
+              stopWizardRun(setWizard, id);
+              return;
+            }
+            const next = status?.steps.find((s) => s.status !== "ok")?.step ?? null;
+            if (next === null) {
+              stopWizardRun(setWizard, id);
+              return;
+            }
+            setWizard((prev) => (prev !== null && prev.id === id ? { ...prev, runningStep: next } : prev));
+            const result = await client.provisionRun({ id });
+            reload();
+            if (!result.ok) {
+              await recordWizardFailure(client, setWizard, id, next, result);
+              return;
+            }
+            status = result.data.status;
+            recordWizardSuccess(setWizard, onChanged, id, next, status);
+            if (status.done) {
+              return;
+            }
+          }
+        },
+        [client, reload, onChanged, setWizard],
+      );
+      return { wizard, runWizard, abortRef, setWizard };
+    }
+
+    // src/client/settings/deploy/deploymentRow.tsx
     var import_jsx_runtime31 = require("react/jsx-runtime");
     function badgeOf(entity) {
       if (entity.status === "ready") {
@@ -9874,26 +10021,162 @@ window.__ModuleLoader__.load({
       }
       return { tone: "notReady", key: "dsh.deploy.status.notReady" };
     }
+    function DeploymentRowItem({ entity, wizardRunning, readonly, onReconnect, onProvision, onEdit, onRemove }) {
+      const t = useT();
+      const badge = badgeOf(entity);
+      return /* @__PURE__ */ (0, import_jsx_runtime31.jsxs)("li", {
+        className: deploy_default.row,
+        "data-testid": "deploy-row",
+        children: [
+          /* @__PURE__ */ (0, import_jsx_runtime31.jsxs)("div", {
+            className: deploy_default.rowMain,
+            children: [
+              /* @__PURE__ */ (0, import_jsx_runtime31.jsxs)("div", {
+                className: deploy_default.rowHead,
+                children: [
+                  /* @__PURE__ */ (0, import_jsx_runtime31.jsx)("span", {
+                    className: deploy_default.alias,
+                    title: entity.alias,
+                    children: entity.alias,
+                  }),
+                  /* @__PURE__ */ (0, import_jsx_runtime31.jsxs)("span", {
+                    className: deploy_default.badge,
+                    "data-tone": badge.tone,
+                    children: [
+                      /* @__PURE__ */ (0, import_jsx_runtime31.jsx)("span", {
+                        className: deploy_default.badgeDot,
+                        "data-tone": badge.tone,
+                        "aria-hidden": "true",
+                      }),
+                      t(badge.key),
+                    ],
+                  }),
+                  wizardRunning &&
+                    /* @__PURE__ */ (0, import_jsx_runtime31.jsx)("span", {
+                      className: deploy_default.badge,
+                      "data-tone": "running",
+                      "data-testid": "deploy-wizard-running",
+                      children: t("dsh.deploy.wizardRunning"),
+                    }),
+                  entity.degraded &&
+                    /* @__PURE__ */ (0, import_jsx_runtime31.jsx)("span", {
+                      className: deploy_default.directTag,
+                      children: t("dsh.deploy.directTag"),
+                    }),
+                ],
+              }),
+              /* @__PURE__ */ (0, import_jsx_runtime31.jsxs)("div", {
+                className: deploy_default.triple,
+                title: `${entity.nodePath}
+${entity.workdir}${
+                  entity.note !== ""
+                    ? `
+${entity.note}`
+                    : ""
+                }`,
+                children: [
+                  /* @__PURE__ */ (0, import_jsx_runtime31.jsx)("span", {
+                    className: deploy_default.mono,
+                    children: entity.nodePath,
+                  }),
+                  /* @__PURE__ */ (0, import_jsx_runtime31.jsx)("span", {
+                    className: deploy_default.mono,
+                    children: entity.workdir,
+                  }),
+                  entity.note !== "" &&
+                    /* @__PURE__ */ (0, import_jsx_runtime31.jsx)("span", { children: entity.note }),
+                ],
+              }),
+              entity.lastError !== null &&
+                /* @__PURE__ */ (0, import_jsx_runtime31.jsx)("p", {
+                  className: deploy_default.lastError,
+                  children: t("dsh.deploy.lastError", { summary: entity.lastError }),
+                }),
+            ],
+          }),
+          /* @__PURE__ */ (0, import_jsx_runtime31.jsxs)("div", {
+            className: deploy_default.rowOps,
+            children: [
+              entity.status === "disconnected"
+                ? /* @__PURE__ */ (0, import_jsx_runtime31.jsx)("button", {
+                    type: "button",
+                    className: ui_default.button,
+                    "data-testid": "deploy-reconnect",
+                    disabled: readonly,
+                    onClick: onReconnect,
+                    children: t("dsh.deploy.reconnect"),
+                  })
+                : entity.status !== "ready" &&
+                  /* @__PURE__ */ (0, import_jsx_runtime31.jsx)("button", {
+                    type: "button",
+                    className: ui_default.button,
+                    "data-testid": "deploy-provision",
+                    disabled: readonly,
+                    onClick: onProvision,
+                    children: t("dsh.deploy.provision"),
+                  }),
+              /* @__PURE__ */ (0, import_jsx_runtime31.jsx)("button", {
+                type: "button",
+                className: ui_default.button,
+                disabled: readonly,
+                onClick: onEdit,
+                children: t("dsh.deploy.edit"),
+              }),
+              /* @__PURE__ */ (0, import_jsx_runtime31.jsx)("button", {
+                type: "button",
+                className: ui_default.button,
+                disabled: readonly,
+                onClick: onRemove,
+                children: t("dsh.deploy.remove"),
+              }),
+            ],
+          }),
+        ],
+      });
+    }
+
+    // src/client/settings/deploy/DeploymentCard.tsx
+    var import_jsx_runtime32 = require("react/jsx-runtime");
+    function isSshMissing(sshFamily) {
+      return sshFamily !== null && !sshFamily.ok;
+    }
+    function sshGuideCmd(detail) {
+      return detail ?? "";
+    }
+    function hasLoaded(list) {
+      return list !== null;
+    }
+    function wizardEntityOf(wizard, list) {
+      return wizard !== null ? deploymentsOf(list).find((d) => d.id === wizard.id) : void 0;
+    }
+    function isEmptyList(list) {
+      return list !== null && list.deployments.length === 0;
+    }
+    function deploymentsOf(list) {
+      return list?.deployments ?? [];
+    }
+    function wizardModalOpen(wizard, entity) {
+      return wizard !== null && wizard.open && entity !== void 0;
+    }
     function DeploymentCard({ onChanged }) {
       const t = useT();
       const client = useClient();
-      const [list, setList] = (0, import_react22.useState)(null);
-      const [sshFamily, setSshFamily] = (0, import_react22.useState)(null);
-      const [readonly, setReadonly] = (0, import_react22.useState)(false);
-      const [form, setForm] = (0, import_react22.useState)(null);
-      const [removeTarget, setRemoveTarget] = (0, import_react22.useState)(null);
-      const [removeBusy, setRemoveBusy] = (0, import_react22.useState)(false);
-      const [saveHint, setSaveHint] = (0, import_react22.useState)("");
-      const [wizard, setWizard] = (0, import_react22.useState)(null);
-      const abortRef = (0, import_react22.useRef)(false);
-      const reload = (0, import_react22.useCallback)(() => {
+      const [list, setList] = (0, import_react23.useState)(null);
+      const [sshFamily, setSshFamily] = (0, import_react23.useState)(null);
+      const [readonly, setReadonly] = (0, import_react23.useState)(false);
+      const [form, setForm] = (0, import_react23.useState)(null);
+      const [removeTarget, setRemoveTarget] = (0, import_react23.useState)(null);
+      const [removeBusy, setRemoveBusy] = (0, import_react23.useState)(false);
+      const [saveHint, setSaveHint] = (0, import_react23.useState)("");
+      const reload = (0, import_react23.useCallback)(() => {
         void client.deploymentList().then((result) => {
           if (result.ok) {
             setList(result.data);
           }
         });
       }, [client]);
-      (0, import_react22.useEffect)(() => {
+      const { wizard, runWizard, abortRef, setWizard } = useWizardRunner({ client, reload, onChanged });
+      (0, import_react23.useEffect)(() => {
         reload();
         void client.dbStatus().then((result) => {
           if (result.ok) {
@@ -9906,101 +10189,18 @@ window.__ModuleLoader__.load({
           }
         });
       }, [reload, client]);
-      const runWizard = (0, import_react22.useCallback)(
-        async (id) => {
-          abortRef.current = false;
-          const statusR = await client.provisionStatus({ id });
-          const preStatus = statusR.ok ? statusR.data.status : null;
-          const preCompleted = new Set((preStatus?.steps ?? []).filter((s) => s.status === "ok").map((s) => s.step));
-          setWizard((prev) =>
-            prev !== null && prev.id === id
-              ? {
-                  ...prev,
-                  open: true,
-                  running: true,
-                  runningStep: null,
-                  status: preStatus ?? prev.status,
-                  preCompleted,
-                }
-              : { id, open: true, running: true, runningStep: null, status: preStatus, log: [], preCompleted },
-          );
-          let status = preStatus;
-          for (;;) {
-            if (abortRef.current) {
-              setWizard((prev) =>
-                prev !== null && prev.id === id ? { ...prev, running: false, runningStep: null } : prev,
-              );
-              return;
-            }
-            const next = status?.steps.find((s) => s.status !== "ok")?.step ?? null;
-            if (next === null) {
-              setWizard((prev) =>
-                prev !== null && prev.id === id ? { ...prev, running: false, runningStep: null } : prev,
-              );
-              return;
-            }
-            setWizard((prev) => (prev !== null && prev.id === id ? { ...prev, runningStep: next } : prev));
-            const result = await client.provisionRun({ id });
-            reload();
-            if (!result.ok) {
-              const text =
-                result.error.hint !== void 0
-                  ? `${result.error.message} \u2014 ${result.error.hint}`
-                  : result.error.message;
-              setWizard((prev) => {
-                if (prev === null || prev.id !== id) {
-                  return prev;
-                }
-                return {
-                  ...prev,
-                  running: false,
-                  runningStep: null,
-                  log: [...prev.log, { step: next, ok: false, text }],
-                };
-              });
-              const failStatus = await client.provisionStatus({ id });
-              if (failStatus.ok) {
-                setWizard((prev) =>
-                  prev !== null && prev.id === id ? { ...prev, status: failStatus.data.status } : prev,
-                );
-              }
-              return;
-            }
-            status = result.data.status;
-            const executed = status.steps.find((s) => s.step === next);
-            setWizard((prev) => {
-              if (prev === null || prev.id !== id) {
-                return prev;
-              }
-              return {
-                ...prev,
-                status,
-                log: [...prev.log, { step: next, ok: true, text: executed?.message ?? "" }],
-              };
-            });
-            if (status.done) {
-              setWizard((prev) =>
-                prev !== null && prev.id === id ? { ...prev, running: false, runningStep: null } : prev,
-              );
-              onChanged();
-              return;
-            }
-          }
-        },
-        [client, reload, onChanged],
-      );
-      const wizardEntity = wizard !== null ? list?.deployments.find((d) => d.id === wizard.id) : void 0;
-      return /* @__PURE__ */ (0, import_jsx_runtime31.jsxs)("div", {
+      const wizardEntity = wizardEntityOf(wizard, list);
+      return /* @__PURE__ */ (0, import_jsx_runtime32.jsxs)("div", {
         className: ui_default.card,
         "data-testid": "deploy-card",
         children: [
-          /* @__PURE__ */ (0, import_jsx_runtime31.jsx)("h4", {
+          /* @__PURE__ */ (0, import_jsx_runtime32.jsx)("h4", {
             className: settings_default.cardTitle,
             "data-testid": "deploy-card-title",
             children: t("dsh.deploy.title"),
           }),
-          list !== null &&
-            /* @__PURE__ */ (0, import_jsx_runtime31.jsx)("p", {
+          hasLoaded(list) &&
+            /* @__PURE__ */ (0, import_jsx_runtime32.jsx)("p", {
               className: deploy_default.counts,
               children: t("dsh.deploy.counts", {
                 ready: list.counts.ready,
@@ -10008,34 +10208,34 @@ window.__ModuleLoader__.load({
                 broken: list.counts.broken,
               }),
             }),
-          sshFamily !== null && !sshFamily.ok
+          isSshMissing(sshFamily)
             ? // SSH 家族缺失：整卡指引态（添加入口并入指引态——无死入口）
-              /* @__PURE__ */ (0, import_jsx_runtime31.jsxs)("div", {
+              /* @__PURE__ */ (0, import_jsx_runtime32.jsxs)("div", {
                 className: deploy_default.sshGuide,
                 "data-testid": "deploy-ssh-guide",
                 children: [
-                  /* @__PURE__ */ (0, import_jsx_runtime31.jsx)("p", {
-                    children: t("dsh.deploy.sshMissing", { cmd: sshFamily.detail ?? "" }),
+                  /* @__PURE__ */ (0, import_jsx_runtime32.jsx)("p", {
+                    children: t("dsh.deploy.sshMissing", { cmd: sshGuideCmd(sshFamily.detail) }),
                   }),
-                  /* @__PURE__ */ (0, import_jsx_runtime31.jsx)("button", {
+                  /* @__PURE__ */ (0, import_jsx_runtime32.jsx)("button", {
                     type: "button",
                     className: ui_default.button,
                     onClick: () => {
-                      void navigator.clipboard?.writeText(sshFamily.detail ?? "").catch(() => void 0);
+                      void navigator.clipboard?.writeText(sshGuideCmd(sshFamily.detail)).catch(() => void 0);
                     },
                     children: t("dsh.deploy.copyGuide"),
                   }),
                 ],
               })
-            : list !== null && list.deployments.length === 0
-              ? /* @__PURE__ */ (0, import_jsx_runtime31.jsxs)("div", {
+            : isEmptyList(list)
+              ? /* @__PURE__ */ (0, import_jsx_runtime32.jsxs)("div", {
                   className: deploy_default.empty,
                   children: [
-                    /* @__PURE__ */ (0, import_jsx_runtime31.jsx)("p", {
+                    /* @__PURE__ */ (0, import_jsx_runtime32.jsx)("p", {
                       className: deploy_default.emptyText,
                       children: t("dsh.deploy.empty"),
                     }),
-                    /* @__PURE__ */ (0, import_jsx_runtime31.jsx)("button", {
+                    /* @__PURE__ */ (0, import_jsx_runtime32.jsx)("button", {
                       type: "button",
                       className: ui_default.buttonDex,
                       "data-testid": "deploy-add",
@@ -10045,136 +10245,32 @@ window.__ModuleLoader__.load({
                     }),
                   ],
                 })
-              : /* @__PURE__ */ (0, import_jsx_runtime31.jsxs)(import_jsx_runtime31.Fragment, {
+              : /* @__PURE__ */ (0, import_jsx_runtime32.jsxs)(import_jsx_runtime32.Fragment, {
                   children: [
-                    /* @__PURE__ */ (0, import_jsx_runtime31.jsx)("ul", {
+                    /* @__PURE__ */ (0, import_jsx_runtime32.jsx)("ul", {
                       className: deploy_default.rowList,
-                      children: (list?.deployments ?? []).map((entity) => {
-                        const badge = badgeOf(entity);
-                        const wizardRunningHere = wizard !== null && wizard.id === entity.id && wizard.running;
-                        return /* @__PURE__ */ (0, import_jsx_runtime31.jsxs)(
-                          "li",
+                      children: deploymentsOf(list).map((entity) =>
+                        /* @__PURE__ */ (0, import_jsx_runtime32.jsx)(
+                          DeploymentRowItem,
                           {
-                            className: deploy_default.row,
-                            "data-testid": "deploy-row",
-                            children: [
-                              /* @__PURE__ */ (0, import_jsx_runtime31.jsxs)("div", {
-                                className: deploy_default.rowMain,
-                                children: [
-                                  /* @__PURE__ */ (0, import_jsx_runtime31.jsxs)("div", {
-                                    className: deploy_default.rowHead,
-                                    children: [
-                                      /* @__PURE__ */ (0, import_jsx_runtime31.jsx)("span", {
-                                        className: deploy_default.alias,
-                                        title: entity.alias,
-                                        children: entity.alias,
-                                      }),
-                                      /* @__PURE__ */ (0, import_jsx_runtime31.jsxs)("span", {
-                                        className: deploy_default.badge,
-                                        "data-tone": badge.tone,
-                                        children: [
-                                          /* @__PURE__ */ (0, import_jsx_runtime31.jsx)("span", {
-                                            className: deploy_default.badgeDot,
-                                            "data-tone": badge.tone,
-                                            "aria-hidden": "true",
-                                          }),
-                                          t(badge.key),
-                                        ],
-                                      }),
-                                      wizardRunningHere &&
-                                        /* @__PURE__ */ (0, import_jsx_runtime31.jsx)("span", {
-                                          className: deploy_default.badge,
-                                          "data-tone": "running",
-                                          "data-testid": "deploy-wizard-running",
-                                          children: t("dsh.deploy.wizardRunning"),
-                                        }),
-                                      entity.degraded &&
-                                        /* @__PURE__ */ (0, import_jsx_runtime31.jsx)("span", {
-                                          className: deploy_default.directTag,
-                                          children: t("dsh.deploy.directTag"),
-                                        }),
-                                    ],
-                                  }),
-                                  /* @__PURE__ */ (0, import_jsx_runtime31.jsxs)("div", {
-                                    className: deploy_default.triple,
-                                    title: `${entity.nodePath}
-${entity.workdir}${
-                                      entity.note !== ""
-                                        ? `
-${entity.note}`
-                                        : ""
-                                    }`,
-                                    children: [
-                                      /* @__PURE__ */ (0, import_jsx_runtime31.jsx)("span", {
-                                        className: deploy_default.mono,
-                                        children: entity.nodePath,
-                                      }),
-                                      /* @__PURE__ */ (0, import_jsx_runtime31.jsx)("span", {
-                                        className: deploy_default.mono,
-                                        children: entity.workdir,
-                                      }),
-                                      entity.note !== "" &&
-                                        /* @__PURE__ */ (0, import_jsx_runtime31.jsx)("span", {
-                                          children: entity.note,
-                                        }),
-                                    ],
-                                  }),
-                                  entity.lastError !== null &&
-                                    /* @__PURE__ */ (0, import_jsx_runtime31.jsx)("p", {
-                                      className: deploy_default.lastError,
-                                      children: t("dsh.deploy.lastError", { summary: entity.lastError }),
-                                    }),
-                                ],
-                              }),
-                              /* @__PURE__ */ (0, import_jsx_runtime31.jsxs)("div", {
-                                className: deploy_default.rowOps,
-                                children: [
-                                  entity.status === "disconnected"
-                                    ? /* @__PURE__ */ (0, import_jsx_runtime31.jsx)("button", {
-                                        type: "button",
-                                        className: ui_default.button,
-                                        "data-testid": "deploy-reconnect",
-                                        disabled: readonly,
-                                        onClick: () => {
-                                          void client.deploymentRecheck({ id: entity.id }).then(() => reload());
-                                        },
-                                        children: t("dsh.deploy.reconnect"),
-                                      })
-                                    : entity.status !== "ready" &&
-                                      /* @__PURE__ */ (0, import_jsx_runtime31.jsx)("button", {
-                                        type: "button",
-                                        className: ui_default.button,
-                                        "data-testid": "deploy-provision",
-                                        disabled: readonly,
-                                        onClick: () => void runWizard(entity.id),
-                                        children: t("dsh.deploy.provision"),
-                                      }),
-                                  /* @__PURE__ */ (0, import_jsx_runtime31.jsx)("button", {
-                                    type: "button",
-                                    className: ui_default.button,
-                                    disabled: readonly,
-                                    onClick: () => setForm({ entity }),
-                                    children: t("dsh.deploy.edit"),
-                                  }),
-                                  /* @__PURE__ */ (0, import_jsx_runtime31.jsx)("button", {
-                                    type: "button",
-                                    className: ui_default.button,
-                                    disabled: readonly,
-                                    onClick: () => setRemoveTarget(entity),
-                                    children: t("dsh.deploy.remove"),
-                                  }),
-                                ],
-                              }),
-                            ],
+                            entity,
+                            wizardRunning: wizard !== null && wizard.id === entity.id && wizard.running,
+                            readonly,
+                            onReconnect: () => {
+                              void client.deploymentRecheck({ id: entity.id }).then(() => reload());
+                            },
+                            onProvision: () => void runWizard(entity.id),
+                            onEdit: () => setForm({ entity }),
+                            onRemove: () => setRemoveTarget(entity),
                           },
                           entity.id,
-                        );
-                      }),
+                        ),
+                      ),
                     }),
-                    /* @__PURE__ */ (0, import_jsx_runtime31.jsxs)("div", {
+                    /* @__PURE__ */ (0, import_jsx_runtime32.jsxs)("div", {
                       className: deploy_default.addRow,
                       children: [
-                        /* @__PURE__ */ (0, import_jsx_runtime31.jsx)("button", {
+                        /* @__PURE__ */ (0, import_jsx_runtime32.jsx)("button", {
                           type: "button",
                           className: ui_default.button,
                           "data-testid": "deploy-add",
@@ -10183,7 +10279,7 @@ ${entity.note}`
                           children: t("dsh.deploy.add"),
                         }),
                         saveHint !== "" &&
-                          /* @__PURE__ */ (0, import_jsx_runtime31.jsx)("span", {
+                          /* @__PURE__ */ (0, import_jsx_runtime32.jsx)("span", {
                             className: ui_default.muted,
                             role: "status",
                             "data-testid": "deploy-save-hint",
@@ -10194,7 +10290,7 @@ ${entity.note}`
                   ],
                 }),
           form !== null &&
-            /* @__PURE__ */ (0, import_jsx_runtime31.jsx)(DeployFormModal, {
+            /* @__PURE__ */ (0, import_jsx_runtime32.jsx)(DeployFormModal, {
               entity: form.entity,
               readonly,
               onClose: () => setForm(null),
@@ -10209,7 +10305,7 @@ ${entity.note}`
               },
             }),
           removeTarget !== null &&
-            /* @__PURE__ */ (0, import_jsx_runtime31.jsx)(Modal, {
+            /* @__PURE__ */ (0, import_jsx_runtime32.jsx)(Modal, {
               title: t("dsh.deploy.removeTitle"),
               ariaLabel: t("dsh.deploy.removeTitle"),
               actions: [
@@ -10234,10 +10330,9 @@ ${entity.note}`
               onClose: () => setRemoveTarget(null),
               children: t("dsh.deploy.removeBody", { alias: removeTarget.alias }),
             }),
-          wizard !== null &&
-            wizard.open &&
+          wizardModalOpen(wizard, wizardEntity) &&
             wizardEntity !== void 0 &&
-            /* @__PURE__ */ (0, import_jsx_runtime31.jsx)(DeploymentWizard, {
+            /* @__PURE__ */ (0, import_jsx_runtime32.jsx)(DeploymentWizard, {
               entity: wizardEntity,
               status: wizard.status,
               running: wizard.running,
@@ -10260,7 +10355,7 @@ ${entity.note}`
     }
 
     // src/client/settings/sections/AgentSection.tsx
-    var import_jsx_runtime32 = require("react/jsx-runtime");
+    var import_jsx_runtime33 = require("react/jsx-runtime");
     var AGENT_PRESETS = {
       claude: {
         name: "Claude Code",
@@ -10284,9 +10379,9 @@ ${entity.note}`
       const { draft, onField } = props;
       const t = useT();
       const client = useClient();
-      const [agentPreset, setAgentPreset] = (0, import_react23.useState)("claude");
-      const [specs, setSpecs] = (0, import_react23.useState)(promptSpecs);
-      (0, import_react23.useEffect)(() => {
+      const [agentPreset, setAgentPreset] = (0, import_react24.useState)("claude");
+      const [specs, setSpecs] = (0, import_react24.useState)(promptSpecs);
+      (0, import_react24.useEffect)(() => {
         if (specs.length === 0) {
           void client.promptList().then((r) => {
             if (r.ok) {
@@ -10295,11 +10390,11 @@ ${entity.note}`
           });
         }
       }, [specs.length, client]);
-      const [panel, setPanel] = (0, import_react23.useState)(() => ({
+      const [panel, setPanel] = (0, import_react24.useState)(() => ({
         list: agents,
         persistedIds: agents.map((a) => a.id),
       }));
-      (0, import_react23.useEffect)(() => {
+      (0, import_react24.useEffect)(() => {
         const idSet = new Set(agents.map((a) => a.id));
         setPanel((prev) => ({
           persistedIds: agents.map((a) => a.id),
@@ -10324,7 +10419,7 @@ ${entity.note}`
         { value: "", label: t("ai.primaryNone") },
         ...agentList.map((a) => ({ value: a.id, label: a.name })),
       ];
-      const routeRows = (0, import_react23.useMemo)(() => {
+      const routeRows = (0, import_react24.useMemo)(() => {
         const byTag = new Map(routes.map((route) => [route.tag, route]));
         return tags
           .filter((tag) => tag.dimension === "project")
@@ -10363,20 +10458,20 @@ ${entity.note}`
           ],
         }));
       }
-      return /* @__PURE__ */ (0, import_jsx_runtime32.jsxs)(SectionShell, {
+      return /* @__PURE__ */ (0, import_jsx_runtime33.jsxs)(SectionShell, {
         children: [
-          /* @__PURE__ */ (0, import_jsx_runtime32.jsxs)("div", {
+          /* @__PURE__ */ (0, import_jsx_runtime33.jsxs)("div", {
             className: ui_default.card,
             children: [
-              /* @__PURE__ */ (0, import_jsx_runtime32.jsx)("h4", {
+              /* @__PURE__ */ (0, import_jsx_runtime33.jsx)("h4", {
                 className: settings_default.cardTitle,
                 "data-tip": t("ai.hint"),
                 children: t("ai.title"),
               }),
-              /* @__PURE__ */ (0, import_jsx_runtime32.jsx)("div", {
+              /* @__PURE__ */ (0, import_jsx_runtime33.jsx)("div", {
                 className: settings_default.entityList,
                 children: agentList.map((agent) =>
-                  /* @__PURE__ */ (0, import_jsx_runtime32.jsx)(
+                  /* @__PURE__ */ (0, import_jsx_runtime33.jsx)(
                     AgentConfigCard,
                     {
                       agent,
@@ -10389,16 +10484,16 @@ ${entity.note}`
                   ),
                 ),
               }),
-              /* @__PURE__ */ (0, import_jsx_runtime32.jsxs)("div", {
+              /* @__PURE__ */ (0, import_jsx_runtime33.jsxs)("div", {
                 className: settings_default.filterRow,
                 children: [
-                  /* @__PURE__ */ (0, import_jsx_runtime32.jsx)(Select, {
+                  /* @__PURE__ */ (0, import_jsx_runtime33.jsx)(Select, {
                     ariaLabel: t("dsh.agents.presetLabel"),
                     value: agentPreset,
                     options: PRESET_OPTIONS(t),
                     onChange: setAgentPreset,
                   }),
-                  /* @__PURE__ */ (0, import_jsx_runtime32.jsx)("button", {
+                  /* @__PURE__ */ (0, import_jsx_runtime33.jsx)("button", {
                     type: "button",
                     className: ui_default.button,
                     onClick: () => addAgent(agentPreset),
@@ -10408,22 +10503,22 @@ ${entity.note}`
               }),
             ],
           }),
-          /* @__PURE__ */ (0, import_jsx_runtime32.jsxs)("div", {
+          /* @__PURE__ */ (0, import_jsx_runtime33.jsxs)("div", {
             className: ui_default.card,
             children: [
-              /* @__PURE__ */ (0, import_jsx_runtime32.jsx)("h4", {
+              /* @__PURE__ */ (0, import_jsx_runtime33.jsx)("h4", {
                 className: settings_default.cardTitle,
                 "data-tip": t("dispatchCfg.hint"),
                 children: t("dispatchCfg.title"),
               }),
-              /* @__PURE__ */ (0, import_jsx_runtime32.jsx)(Select, {
+              /* @__PURE__ */ (0, import_jsx_runtime33.jsx)(Select, {
                 label: t("ai.primary"),
                 tip: t("dsh.settings.judgeSource"),
                 value: draft["ai_agent_id"],
                 options: agentOptions,
                 onChange: (v) => onField("ai_agent_id", v),
               }),
-              /* @__PURE__ */ (0, import_jsx_runtime32.jsx)(Select, {
+              /* @__PURE__ */ (0, import_jsx_runtime33.jsx)(Select, {
                 label: t("ai.terminal"),
                 tip: t("ai.terminalDesc"),
                 badge: t("dsh.badge.dispatch"),
@@ -10436,20 +10531,20 @@ ${entity.note}`
                 ],
                 onChange: (v) => onField("terminal_preference", v),
               }),
-              /* @__PURE__ */ (0, import_jsx_runtime32.jsx)(Toggle, {
+              /* @__PURE__ */ (0, import_jsx_runtime33.jsx)(Toggle, {
                 label: t("dispatchCfg.auto"),
                 tip: t("dispatchCfg.autoDesc"),
                 checked: draft["dispatch_auto_enabled"] === "true",
                 onChange: (v) => onField("dispatch_auto_enabled", String(v)),
               }),
-              /* @__PURE__ */ (0, import_jsx_runtime32.jsx)(Select, {
+              /* @__PURE__ */ (0, import_jsx_runtime33.jsx)(Select, {
                 label: t("dispatchCfg.maxConcurrent"),
                 tip: t("dispatchCfg.maxConcurrentDesc"),
                 value: draft["dispatch_max_concurrent"],
                 options: [1, 2, 3, 4].map((n) => ({ value: String(n), label: t("dispatchCfg.mcN", { n }) })),
                 onChange: (v) => onField("dispatch_max_concurrent", v),
               }),
-              /* @__PURE__ */ (0, import_jsx_runtime32.jsx)(Toggle, {
+              /* @__PURE__ */ (0, import_jsx_runtime33.jsx)(Toggle, {
                 label: t("dispatchCfg.worktree"),
                 tip: t("dispatchCfg.worktreeDesc"),
                 checked: draft["dispatch_worktree"] === "true",
@@ -10457,22 +10552,22 @@ ${entity.note}`
               }),
             ],
           }),
-          /* @__PURE__ */ (0, import_jsx_runtime32.jsxs)("div", {
+          /* @__PURE__ */ (0, import_jsx_runtime33.jsxs)("div", {
             className: ui_default.card,
             children: [
-              /* @__PURE__ */ (0, import_jsx_runtime32.jsx)("h4", {
+              /* @__PURE__ */ (0, import_jsx_runtime33.jsx)("h4", {
                 className: settings_default.cardTitle,
                 "data-tip": `${t("tagDispatch.hint")}
 ${t("tagDispatch.foot")}`,
                 children: t("tagDispatch.title"),
               }),
               routeRows.length === 0
-                ? /* @__PURE__ */ (0, import_jsx_runtime32.jsx)("p", {
+                ? /* @__PURE__ */ (0, import_jsx_runtime33.jsx)("p", {
                     className: ui_default.muted,
                     children: t("tagDispatch.empty"),
                   })
                 : routeRows.map((route) =>
-                    /* @__PURE__ */ (0, import_jsx_runtime32.jsx)(
+                    /* @__PURE__ */ (0, import_jsx_runtime33.jsx)(
                       RouteRow,
                       { route, agents: agentList, onSaved: onChanged },
                       route.tag,
@@ -10480,21 +10575,21 @@ ${t("tagDispatch.foot")}`,
                   ),
             ],
           }),
-          /* @__PURE__ */ (0, import_jsx_runtime32.jsx)(DeploymentCard, { onChanged }),
-          /* @__PURE__ */ (0, import_jsx_runtime32.jsx)(PromptOverrideEditor, { specs, onSpecChange: setSpecs }),
+          /* @__PURE__ */ (0, import_jsx_runtime33.jsx)(DeploymentCard, { onChanged }),
+          /* @__PURE__ */ (0, import_jsx_runtime33.jsx)(PromptOverrideEditor, { specs, onSpecChange: setSpecs }),
         ],
       });
     }
 
     // src/client/settings/sections/CategoryTagSection.tsx
-    var import_react27 = require("react");
+    var import_react28 = require("react");
 
     // src/client/settings/sections/PokemonPicker.tsx
-    var import_react25 = require("react");
+    var import_react26 = require("react");
 
     // src/client/ui/Sprite.tsx
-    var import_react24 = require("react");
-    var import_jsx_runtime33 = require("react/jsx-runtime");
+    var import_react25 = require("react");
+    var import_jsx_runtime34 = require("react/jsx-runtime");
     var CATALOG2 = catalog_default.entries;
     var ID_BY_KEY = new Map(CATALOG2.map(([id, key]) => [key, id]));
     var SPRITE_CDN = "https://cdn.jsdelivr.net/gh/PokeAPI/sprites@master/sprites/pokemon";
@@ -10518,17 +10613,17 @@ ${t("tagDispatch.foot")}`,
         : pngs;
     }
     function Sprite({ spriteKey, size = 24, alt = "" }) {
-      const candidates = (0, import_react24.useMemo)(() => spriteCandidates(spriteKey), [spriteKey]);
-      const [fallback, setFallback] = (0, import_react24.useState)({ key: spriteKey, idx: 0 });
+      const candidates = (0, import_react25.useMemo)(() => spriteCandidates(spriteKey), [spriteKey]);
+      const [fallback, setFallback] = (0, import_react25.useState)({ key: spriteKey, idx: 0 });
       const idx = fallback.key === spriteKey ? fallback.idx : 0;
       if (candidates.length === 0 || idx >= candidates.length) {
-        return /* @__PURE__ */ (0, import_jsx_runtime33.jsx)("span", {
+        return /* @__PURE__ */ (0, import_jsx_runtime34.jsx)("span", {
           "aria-hidden": "true",
           style: { fontSize: size * 0.6, lineHeight: `${size}px` },
           children: "\uFF1F",
         });
       }
-      return /* @__PURE__ */ (0, import_jsx_runtime33.jsx)("img", {
+      return /* @__PURE__ */ (0, import_jsx_runtime34.jsx)("img", {
         src: candidates[idx],
         alt,
         width: size,
@@ -10539,17 +10634,17 @@ ${t("tagDispatch.foot")}`,
     }
 
     // src/client/settings/sections/PokemonPicker.tsx
-    var import_jsx_runtime34 = require("react/jsx-runtime");
+    var import_jsx_runtime35 = require("react/jsx-runtime");
     var BUNDLED_KEYS = ["pikachu", "psyduck", "bulbasaur", "chansey", "eevee", "snorlax"];
     function PokemonPicker({ value, onPick, search, nameOf, allowEmptyLabel, ariaLabel }) {
       const t = useT();
-      const [open, setOpen] = (0, import_react25.useState)(false);
-      const [query, setQuery] = (0, import_react25.useState)("");
-      const [results, setResults] = (0, import_react25.useState)([]);
-      const [searching, setSearching] = (0, import_react25.useState)(false);
-      const rootRef = (0, import_react25.useRef)(null);
-      const searchRef = (0, import_react25.useRef)(null);
-      (0, import_react25.useEffect)(() => {
+      const [open, setOpen] = (0, import_react26.useState)(false);
+      const [query, setQuery] = (0, import_react26.useState)("");
+      const [results, setResults] = (0, import_react26.useState)([]);
+      const [searching, setSearching] = (0, import_react26.useState)(false);
+      const rootRef = (0, import_react26.useRef)(null);
+      const searchRef = (0, import_react26.useRef)(null);
+      (0, import_react26.useEffect)(() => {
         if (!open) {
           return;
         }
@@ -10557,7 +10652,7 @@ ${t("tagDispatch.foot")}`,
         const raf = requestAnimationFrame(() => searchRef.current?.focus());
         return () => cancelAnimationFrame(raf);
       }, [open]);
-      (0, import_react25.useEffect)(() => {
+      (0, import_react26.useEffect)(() => {
         if (!open || search === void 0) {
           return;
         }
@@ -10578,7 +10673,7 @@ ${t("tagDispatch.foot")}`,
           alive = false;
         };
       }, [open, query, search]);
-      (0, import_react25.useEffect)(() => {
+      (0, import_react26.useEffect)(() => {
         if (!open) {
           return;
         }
@@ -10590,7 +10685,7 @@ ${t("tagDispatch.foot")}`,
         document.addEventListener("mousedown", onDocClick);
         return () => document.removeEventListener("mousedown", onDocClick);
       }, [open]);
-      const selectedLabel = (0, import_react25.useMemo)(() => {
+      const selectedLabel = (0, import_react26.useMemo)(() => {
         if (value === "") {
           return allowEmptyLabel ?? "";
         }
@@ -10611,11 +10706,11 @@ ${t("tagDispatch.foot")}`,
           setOpen(false);
         }
       }
-      return /* @__PURE__ */ (0, import_jsx_runtime34.jsxs)("div", {
+      return /* @__PURE__ */ (0, import_jsx_runtime35.jsxs)("div", {
         ref: rootRef,
         className: settings_default.pkPicker,
         children: [
-          /* @__PURE__ */ (0, import_jsx_runtime34.jsxs)("button", {
+          /* @__PURE__ */ (0, import_jsx_runtime35.jsxs)("button", {
             type: "button",
             className: settings_default.pkButton,
             "data-open": open ? "true" : void 0,
@@ -10624,19 +10719,19 @@ ${t("tagDispatch.foot")}`,
             onClick: () => setOpen((v) => !v),
             children: [
               value !== "" &&
-                /* @__PURE__ */ (0, import_jsx_runtime34.jsx)("span", {
+                /* @__PURE__ */ (0, import_jsx_runtime35.jsx)("span", {
                   className: settings_default.pkThumb,
-                  children: /* @__PURE__ */ (0, import_jsx_runtime34.jsx)(Sprite, {
+                  children: /* @__PURE__ */ (0, import_jsx_runtime35.jsx)(Sprite, {
                     spriteKey: value,
                     size: 24,
                     alt: selectedLabel,
                   }),
                 }),
-              /* @__PURE__ */ (0, import_jsx_runtime34.jsx)("span", {
+              /* @__PURE__ */ (0, import_jsx_runtime35.jsx)("span", {
                 className: settings_default.pkLabel,
                 children: selectedLabel,
               }),
-              /* @__PURE__ */ (0, import_jsx_runtime34.jsx)("span", {
+              /* @__PURE__ */ (0, import_jsx_runtime35.jsx)("span", {
                 className: settings_default.pkArrow,
                 "aria-hidden": "true",
                 children: "\u25BC",
@@ -10644,10 +10739,10 @@ ${t("tagDispatch.foot")}`,
             ],
           }),
           open &&
-            /* @__PURE__ */ (0, import_jsx_runtime34.jsxs)("div", {
+            /* @__PURE__ */ (0, import_jsx_runtime35.jsxs)("div", {
               className: settings_default.pkPanel,
               children: [
-                /* @__PURE__ */ (0, import_jsx_runtime34.jsx)("input", {
+                /* @__PURE__ */ (0, import_jsx_runtime35.jsx)("input", {
                   ref: searchRef,
                   className: settings_default.pkSearch,
                   type: "text",
@@ -10657,16 +10752,16 @@ ${t("tagDispatch.foot")}`,
                   onChange: (event) => setQuery(event.target.value),
                   onKeyDown: onSearchKeydown,
                 }),
-                /* @__PURE__ */ (0, import_jsx_runtime34.jsxs)("ul", {
+                /* @__PURE__ */ (0, import_jsx_runtime35.jsxs)("ul", {
                   className: settings_default.pkList,
                   children: [
                     allowEmptyLabel !== void 0 &&
-                      /* @__PURE__ */ (0, import_jsx_runtime34.jsxs)("li", {
+                      /* @__PURE__ */ (0, import_jsx_runtime35.jsxs)("li", {
                         className: settings_default.pkItem,
                         "data-sel": value === "" ? "true" : void 0,
                         onClick: () => pick(""),
                         children: [
-                          /* @__PURE__ */ (0, import_jsx_runtime34.jsx)("span", {
+                          /* @__PURE__ */ (0, import_jsx_runtime35.jsx)("span", {
                             className: settings_default.pkCursor,
                             "aria-hidden": "true",
                             children: "\u25B6",
@@ -10675,36 +10770,36 @@ ${t("tagDispatch.foot")}`,
                         ],
                       }),
                     results.map((candidate) =>
-                      /* @__PURE__ */ (0, import_jsx_runtime34.jsxs)(
+                      /* @__PURE__ */ (0, import_jsx_runtime35.jsxs)(
                         "li",
                         {
                           className: settings_default.pkItem,
                           "data-sel": candidate.key === value ? "true" : void 0,
                           onClick: () => pick(candidate.key),
                           children: [
-                            /* @__PURE__ */ (0, import_jsx_runtime34.jsx)("span", {
+                            /* @__PURE__ */ (0, import_jsx_runtime35.jsx)("span", {
                               className: settings_default.pkCursor,
                               "aria-hidden": "true",
                               children: "\u25B6",
                             }),
-                            /* @__PURE__ */ (0, import_jsx_runtime34.jsx)("span", {
+                            /* @__PURE__ */ (0, import_jsx_runtime35.jsx)("span", {
                               className: settings_default.pkThumb,
-                              children: /* @__PURE__ */ (0, import_jsx_runtime34.jsx)(Sprite, {
+                              children: /* @__PURE__ */ (0, import_jsx_runtime35.jsx)(Sprite, {
                                 spriteKey: candidate.key,
                                 size: 24,
                                 alt: candidate.name,
                               }),
                             }),
-                            /* @__PURE__ */ (0, import_jsx_runtime34.jsx)("span", {
+                            /* @__PURE__ */ (0, import_jsx_runtime35.jsx)("span", {
                               className: settings_default.pkName,
                               children: candidate.name,
                             }),
-                            /* @__PURE__ */ (0, import_jsx_runtime34.jsxs)("span", {
+                            /* @__PURE__ */ (0, import_jsx_runtime35.jsxs)("span", {
                               className: settings_default.pkId,
                               children: ["#", candidate.number],
                             }),
                             BUNDLED_KEYS.includes(candidate.key) &&
-                              /* @__PURE__ */ (0, import_jsx_runtime34.jsx)("span", {
+                              /* @__PURE__ */ (0, import_jsx_runtime35.jsx)("span", {
                                 className: settings_default.pkBundled,
                                 children: t("dsh.pokeSearch.bundled"),
                               }),
@@ -10715,7 +10810,7 @@ ${t("tagDispatch.foot")}`,
                     ),
                     !searching &&
                       results.length === 0 &&
-                      /* @__PURE__ */ (0, import_jsx_runtime34.jsx)("li", {
+                      /* @__PURE__ */ (0, import_jsx_runtime35.jsx)("li", {
                         className: settings_default.pkNone,
                         children: t("dsh.pokeSearch.noResult"),
                       }),
@@ -10728,16 +10823,16 @@ ${t("tagDispatch.foot")}`,
     }
 
     // src/client/settings/sections/TagsManagerCard.tsx
-    var import_react26 = require("react");
-    var import_jsx_runtime35 = require("react/jsx-runtime");
+    var import_react27 = require("react");
+    var import_jsx_runtime36 = require("react/jsx-runtime");
     function TagsManagerCard({ dimensions, tags, routes, onChanged }) {
       const t = useT();
       const client = useClient();
-      const dispatchedNames = (0, import_react26.useMemo)(
+      const dispatchedNames = (0, import_react27.useMemo)(
         () => new Set(routes.filter((r) => r.agentId !== "" || r.workdir !== "").map((r) => r.tag)),
         [routes],
       );
-      const enabledDimOptions = (0, import_react26.useMemo)(
+      const enabledDimOptions = (0, import_react27.useMemo)(
         () => dimensions.filter((d) => d.enabled).map((d) => ({ value: d.key, label: d.name })),
         [dimensions],
       );
@@ -10745,10 +10840,10 @@ ${t("tagDispatch.foot")}`,
         await client.tagUpsert({ name: t("tags.newName"), dimension: dimKey, description: "" });
         onChanged();
       }
-      return /* @__PURE__ */ (0, import_jsx_runtime35.jsxs)("div", {
+      return /* @__PURE__ */ (0, import_jsx_runtime36.jsxs)("div", {
         className: ui_default.card,
         children: [
-          /* @__PURE__ */ (0, import_jsx_runtime35.jsx)("h4", {
+          /* @__PURE__ */ (0, import_jsx_runtime36.jsx)("h4", {
             className: settings_default.cardTitle,
             "data-tip": `${t("tags.hint")}
 ${t("tags.dimHint")}`,
@@ -10756,23 +10851,23 @@ ${t("tags.dimHint")}`,
           }),
           dimensions.map((dimension) => {
             const rows = tags.filter((tag) => tag.dimension === dimension.key);
-            return /* @__PURE__ */ (0, import_jsx_runtime35.jsxs)(
+            return /* @__PURE__ */ (0, import_jsx_runtime36.jsxs)(
               "div",
               {
                 className: settings_default.tagDimGroup,
                 children: [
-                  /* @__PURE__ */ (0, import_jsx_runtime35.jsxs)("div", {
+                  /* @__PURE__ */ (0, import_jsx_runtime36.jsxs)("div", {
                     className: settings_default.tagDimHead,
                     children: [
-                      /* @__PURE__ */ (0, import_jsx_runtime35.jsx)("b", { children: dimension.name }),
-                      /* @__PURE__ */ (0, import_jsx_runtime35.jsxs)("span", {
+                      /* @__PURE__ */ (0, import_jsx_runtime36.jsx)("b", { children: dimension.name }),
+                      /* @__PURE__ */ (0, import_jsx_runtime36.jsxs)("span", {
                         className: settings_default.dimCount,
                         children: [
                           t("tags.dimCount", { used: rows.length, max: dimension.maxTags }),
                           dimension.cardinality === "single" ? ` \xB7 ${t("tags.single")}` : "",
                         ],
                       }),
-                      /* @__PURE__ */ (0, import_jsx_runtime35.jsx)("button", {
+                      /* @__PURE__ */ (0, import_jsx_runtime36.jsx)("button", {
                         type: "button",
                         className: ui_default.button,
                         disabled: rows.length >= dimension.maxTags,
@@ -10782,7 +10877,7 @@ ${t("tags.dimHint")}`,
                     ],
                   }),
                   rows.map((tag) =>
-                    /* @__PURE__ */ (0, import_jsx_runtime35.jsx)(
+                    /* @__PURE__ */ (0, import_jsx_runtime36.jsx)(
                       TagRow,
                       {
                         tag,
@@ -10804,19 +10899,19 @@ ${t("tags.dimHint")}`,
     function TagRow({ tag, dispatched, dimOptions, onChanged }) {
       const t = useT();
       const client = useClient();
-      const [name, setName] = (0, import_react26.useState)(tag.name);
-      const [description, setDescription] = (0, import_react26.useState)(tag.description);
-      const [dimension, setDimension] = (0, import_react26.useState)(tag.dimension);
-      const [confirmDelete, setConfirmDelete] = (0, import_react26.useState)(false);
+      const [name, setName] = (0, import_react27.useState)(tag.name);
+      const [description, setDescription] = (0, import_react27.useState)(tag.description);
+      const [dimension, setDimension] = (0, import_react27.useState)(tag.dimension);
+      const [confirmDelete, setConfirmDelete] = (0, import_react27.useState)(false);
       async function save() {
         await client.tagUpsert({ id: tag.id, name: name.trim(), dimension, description });
         onChanged();
       }
-      return /* @__PURE__ */ (0, import_jsx_runtime35.jsxs)("div", {
+      return /* @__PURE__ */ (0, import_jsx_runtime36.jsxs)("div", {
         className: settings_default.entityCard,
         "data-testid": "tag-row",
         children: [
-          /* @__PURE__ */ (0, import_jsx_runtime35.jsx)(TextInput, {
+          /* @__PURE__ */ (0, import_jsx_runtime36.jsx)(TextInput, {
             className: settings_default.w110,
             ariaLabel: t("tags.namePh"),
             value: name,
@@ -10824,39 +10919,39 @@ ${t("tags.dimHint")}`,
             placeholder: t("tags.namePh"),
           }),
           dispatched &&
-            /* @__PURE__ */ (0, import_jsx_runtime35.jsx)("span", {
+            /* @__PURE__ */ (0, import_jsx_runtime36.jsx)("span", {
               className: settings_default.tagChip,
               title: t("tagDispatch.chipHint"),
               children: "\u26A1",
             }),
-          /* @__PURE__ */ (0, import_jsx_runtime35.jsx)(TextInput, {
+          /* @__PURE__ */ (0, import_jsx_runtime36.jsx)(TextInput, {
             className: settings_default.grow,
             ariaLabel: t("tags.descPh"),
             value: description,
             onChange: setDescription,
             placeholder: t("tags.descPh"),
           }),
-          /* @__PURE__ */ (0, import_jsx_runtime35.jsx)(Select, {
+          /* @__PURE__ */ (0, import_jsx_runtime36.jsx)(Select, {
             className: settings_default.w92,
             ariaLabel: t("tags.dimTitle"),
             value: dimension,
             options: dimOptions,
             onChange: setDimension,
           }),
-          /* @__PURE__ */ (0, import_jsx_runtime35.jsx)("button", {
+          /* @__PURE__ */ (0, import_jsx_runtime36.jsx)("button", {
             type: "button",
             className: ui_default.button,
             onClick: () => void save(),
             children: t("tags.save"),
           }),
-          /* @__PURE__ */ (0, import_jsx_runtime35.jsx)("button", {
+          /* @__PURE__ */ (0, import_jsx_runtime36.jsx)("button", {
             type: "button",
             className: ui_default.button,
             onClick: () => setConfirmDelete(true),
             children: t("tags.release"),
           }),
           confirmDelete &&
-            /* @__PURE__ */ (0, import_jsx_runtime35.jsx)(ConfirmDialog, {
+            /* @__PURE__ */ (0, import_jsx_runtime36.jsx)(ConfirmDialog, {
               title: t("tags.release"),
               body: t("dsh.tag.deleteConfirm", { name: tag.name }),
               confirmLabel: t("tags.release"),
@@ -10874,14 +10969,14 @@ ${t("tags.dimHint")}`,
     }
 
     // src/client/settings/sections/CategoryTagSection.tsx
-    var import_jsx_runtime36 = require("react/jsx-runtime");
+    var import_jsx_runtime37 = require("react/jsx-runtime");
     function CategoryTagSection({ categories, dimensions, tags, routes = [], pokemonSearch, nameOf, onChanged }) {
       const t = useT();
       const client = useClient();
       const { locale } = useI18n();
-      const [releaseTarget, setReleaseTarget] = (0, import_react27.useState)(null);
-      const [newCategory, setNewCategory] = (0, import_react27.useState)("");
-      const [toggleError, setToggleError] = (0, import_react27.useState)(null);
+      const [releaseTarget, setReleaseTarget] = (0, import_react28.useState)(null);
+      const [newCategory, setNewCategory] = (0, import_react28.useState)("");
+      const [toggleError, setToggleError] = (0, import_react28.useState)(null);
       async function saveCategory(category, patch) {
         await client.categoryUpsert({ id: category.id, ...patch });
         onChanged();
@@ -10897,45 +10992,45 @@ ${t("tags.dimHint")}`,
       }
       const pokemonName = nameOf ?? createPokemonName(locale);
       const search = pokemonSearch ?? createPokemonSearch(locale);
-      return /* @__PURE__ */ (0, import_jsx_runtime36.jsxs)("section", {
+      return /* @__PURE__ */ (0, import_jsx_runtime37.jsxs)("section", {
         className: settings_default.sectionPage,
         "data-testid": "section-page",
         children: [
-          /* @__PURE__ */ (0, import_jsx_runtime36.jsxs)("div", {
+          /* @__PURE__ */ (0, import_jsx_runtime37.jsxs)("div", {
             className: ui_default.card,
             children: [
-              /* @__PURE__ */ (0, import_jsx_runtime36.jsx)("h4", {
+              /* @__PURE__ */ (0, import_jsx_runtime37.jsx)("h4", {
                 className: settings_default.cardTitle,
                 "data-tip": t("cats.hint"),
                 children: t("cats.title"),
               }),
-              /* @__PURE__ */ (0, import_jsx_runtime36.jsx)("div", {
+              /* @__PURE__ */ (0, import_jsx_runtime37.jsx)("div", {
                 className: settings_default.entityList,
                 children: categories.map((category) =>
-                  /* @__PURE__ */ (0, import_jsx_runtime36.jsxs)(
+                  /* @__PURE__ */ (0, import_jsx_runtime37.jsxs)(
                     "div",
                     {
                       className: settings_default.entityCardStack,
                       "data-testid": "category-ui.card",
                       "data-off": category.enabled ? void 0 : "true",
                       children: [
-                        /* @__PURE__ */ (0, import_jsx_runtime36.jsxs)("div", {
+                        /* @__PURE__ */ (0, import_jsx_runtime37.jsxs)("div", {
                           className: settings_default.entityLine,
                           children: [
-                            /* @__PURE__ */ (0, import_jsx_runtime36.jsx)(TextInput, {
+                            /* @__PURE__ */ (0, import_jsx_runtime37.jsx)(TextInput, {
                               className: settings_default.w110,
                               ariaLabel: t("tags.namePh"),
                               value: category.name,
                               onChange: (name) => void saveCategory(category, { name }),
                               placeholder: t("tags.namePh"),
                             }),
-                            /* @__PURE__ */ (0, import_jsx_runtime36.jsx)(Toggle, {
+                            /* @__PURE__ */ (0, import_jsx_runtime37.jsx)(Toggle, {
                               compact: true,
                               label: t("cats.toggle"),
                               checked: category.enabled,
                               onChange: (enabled) => void toggleCategory(category, enabled),
                             }),
-                            /* @__PURE__ */ (0, import_jsx_runtime36.jsx)(PokemonPicker, {
+                            /* @__PURE__ */ (0, import_jsx_runtime37.jsx)(PokemonPicker, {
                               value: category.sprite,
                               onPick: (key) => {
                                 void client
@@ -10946,7 +11041,7 @@ ${t("tags.dimHint")}`,
                               nameOf: pokemonName,
                               ariaLabel: `${category.name} \xB7 ${t("dsh.pokeSearch.placeholder")}`,
                             }),
-                            /* @__PURE__ */ (0, import_jsx_runtime36.jsx)("button", {
+                            /* @__PURE__ */ (0, import_jsx_runtime37.jsx)("button", {
                               type: "button",
                               className: ui_default.button,
                               onClick: () => setReleaseTarget(category),
@@ -10954,14 +11049,14 @@ ${t("tags.dimHint")}`,
                             }),
                           ],
                         }),
-                        /* @__PURE__ */ (0, import_jsx_runtime36.jsx)(TextInput, {
+                        /* @__PURE__ */ (0, import_jsx_runtime37.jsx)(TextInput, {
                           ariaLabel: t("cats.descPlaceholder"),
                           value: category.description,
                           onChange: (description) => void saveCategory(category, { description }),
                           placeholder: t("cats.descPlaceholder"),
                         }),
                         toggleError?.id === category.id &&
-                          /* @__PURE__ */ (0, import_jsx_runtime36.jsx)("span", {
+                          /* @__PURE__ */ (0, import_jsx_runtime37.jsx)("span", {
                             className: settings_default.saveFailHint,
                             role: "alert",
                             children: toggleError.message,
@@ -10972,16 +11067,16 @@ ${t("tags.dimHint")}`,
                   ),
                 ),
               }),
-              /* @__PURE__ */ (0, import_jsx_runtime36.jsxs)("div", {
+              /* @__PURE__ */ (0, import_jsx_runtime37.jsxs)("div", {
                 className: settings_default.filterRow,
                 children: [
-                  /* @__PURE__ */ (0, import_jsx_runtime36.jsx)(TextInput, {
+                  /* @__PURE__ */ (0, import_jsx_runtime37.jsx)(TextInput, {
                     ariaLabel: t("cats.newName"),
                     value: newCategory,
                     onChange: setNewCategory,
                     placeholder: t("cats.newName"),
                   }),
-                  /* @__PURE__ */ (0, import_jsx_runtime36.jsx)("button", {
+                  /* @__PURE__ */ (0, import_jsx_runtime37.jsx)("button", {
                     type: "button",
                     className: ui_default.button,
                     disabled: newCategory.trim() === "",
@@ -10996,30 +11091,30 @@ ${t("tags.dimHint")}`,
               }),
             ],
           }),
-          /* @__PURE__ */ (0, import_jsx_runtime36.jsx)(TagsManagerCard, { dimensions, tags, routes, onChanged }),
-          /* @__PURE__ */ (0, import_jsx_runtime36.jsxs)("div", {
+          /* @__PURE__ */ (0, import_jsx_runtime37.jsx)(TagsManagerCard, { dimensions, tags, routes, onChanged }),
+          /* @__PURE__ */ (0, import_jsx_runtime37.jsxs)("div", {
             className: ui_default.card,
             children: [
-              /* @__PURE__ */ (0, import_jsx_runtime36.jsx)("h4", {
+              /* @__PURE__ */ (0, import_jsx_runtime37.jsx)("h4", {
                 className: settings_default.cardTitle,
                 "data-tip": `${t("tags.dimManageHint")}
 ${t("tags.dimHint")}`,
                 children: t("tags.dimTitle"),
               }),
-              /* @__PURE__ */ (0, import_jsx_runtime36.jsx)("div", {
+              /* @__PURE__ */ (0, import_jsx_runtime37.jsx)("div", {
                 className: settings_default.entityList,
                 children: dimensions.map((dimension) =>
-                  /* @__PURE__ */ (0, import_jsx_runtime36.jsx)(DimensionCard, { dimension, onChanged }, dimension.key),
+                  /* @__PURE__ */ (0, import_jsx_runtime37.jsx)(DimensionCard, { dimension, onChanged }, dimension.key),
                 ),
               }),
-              /* @__PURE__ */ (0, import_jsx_runtime36.jsxs)("p", {
+              /* @__PURE__ */ (0, import_jsx_runtime37.jsxs)("p", {
                 className: ui_default.muted,
                 children: [tags.length, " ", t("tags.title")],
               }),
             ],
           }),
           releaseTarget !== null &&
-            /* @__PURE__ */ (0, import_jsx_runtime36.jsx)(ConfirmDialog, {
+            /* @__PURE__ */ (0, import_jsx_runtime37.jsx)(ConfirmDialog, {
               title: t("cats.release"),
               body: t("dsh.category.releaseConfirm", {
                 name: releaseTarget.name,
@@ -11042,32 +11137,32 @@ ${t("tags.dimHint")}`,
     function DimensionCard({ dimension, onChanged }) {
       const t = useT();
       const client = useClient();
-      const [name, setName] = (0, import_react27.useState)(dimension.name);
-      const [maxTags, setMaxTags] = (0, import_react27.useState)(String(dimension.maxTags));
-      return /* @__PURE__ */ (0, import_jsx_runtime36.jsxs)("div", {
+      const [name, setName] = (0, import_react28.useState)(dimension.name);
+      const [maxTags, setMaxTags] = (0, import_react28.useState)(String(dimension.maxTags));
+      return /* @__PURE__ */ (0, import_jsx_runtime37.jsxs)("div", {
         className: settings_default.entityCard,
         "data-testid": "dimension-ui.card",
         children: [
-          /* @__PURE__ */ (0, import_jsx_runtime36.jsx)("span", {
+          /* @__PURE__ */ (0, import_jsx_runtime37.jsx)("span", {
             className: settings_default.dimKey,
             title: dimension.key,
             children: dimension.key,
           }),
-          /* @__PURE__ */ (0, import_jsx_runtime36.jsx)(TextInput, {
+          /* @__PURE__ */ (0, import_jsx_runtime37.jsx)(TextInput, {
             className: settings_default.w110,
             ariaLabel: t("tags.dimNamePh"),
             value: name,
             onChange: setName,
             placeholder: t("tags.dimNamePh"),
           }),
-          /* @__PURE__ */ (0, import_jsx_runtime36.jsx)(TextInput, {
+          /* @__PURE__ */ (0, import_jsx_runtime37.jsx)(TextInput, {
             className: settings_default.w64,
             ariaLabel: t("tags.maxTags"),
             value: maxTags,
             onChange: setMaxTags,
             placeholder: t("tags.maxTags"),
           }),
-          /* @__PURE__ */ (0, import_jsx_runtime36.jsx)(Toggle, {
+          /* @__PURE__ */ (0, import_jsx_runtime37.jsx)(Toggle, {
             compact: true,
             label: t("cats.toggle"),
             checked: dimension.enabled,
@@ -11076,7 +11171,7 @@ ${t("tags.dimHint")}`,
               onChanged();
             },
           }),
-          /* @__PURE__ */ (0, import_jsx_runtime36.jsx)("button", {
+          /* @__PURE__ */ (0, import_jsx_runtime37.jsx)("button", {
             type: "button",
             className: ui_default.button,
             onClick: async () => {
@@ -11090,8 +11185,8 @@ ${t("tags.dimHint")}`,
     }
 
     // src/client/settings/sections/DiagnosticsSection.tsx
-    var import_react28 = require("react");
-    var import_jsx_runtime37 = require("react/jsx-runtime");
+    var import_react29 = require("react");
+    var import_jsx_runtime38 = require("react/jsx-runtime");
     function aggregateLevel(level) {
       if (level === "ok" || level === "idle") {
         return "ok";
@@ -11104,11 +11199,32 @@ ${t("tags.dimHint")}`,
     function levelTextKey(level) {
       return `diag.status.${level}`;
     }
+    function reportButtonKey(state) {
+      if (state === "working") {
+        return "dsh.pokeSearch.searching";
+      }
+      return state === "copied" ? "diag.reportCopied" : "diag.copyReport";
+    }
+    function shortcutFailed(snapshot) {
+      return snapshot?.shortcutRegistered === false;
+    }
+    function SshFamilyLine({ snapshot }) {
+      const t = useT();
+      const family = snapshot?.sshFamily;
+      if (family == null) {
+        return null;
+      }
+      return /* @__PURE__ */ (0, import_jsx_runtime38.jsx)("p", {
+        className: settings_default.sshLine,
+        "data-testid": "ssh-family-line",
+        children: family.ok ? t("dsh.diag.sshOk") : t("dsh.diag.sshMissing", { cmd: family.detail ?? "" }),
+      });
+    }
     function DiagnosticsSection() {
       const t = useT();
       const client = useClient();
-      const [snapshot, setSnapshot] = (0, import_react28.useState)(null);
-      const [reportState, setReportState] = (0, import_react28.useState)("idle");
+      const [snapshot, setSnapshot] = (0, import_react29.useState)(null);
+      const [reportState, setReportState] = (0, import_react29.useState)("idle");
       function reload() {
         void client.diagnosticsSnapshot().then((result) => {
           if (result.ok) {
@@ -11116,7 +11232,7 @@ ${t("tags.dimHint")}`,
           }
         });
       }
-      (0, import_react28.useEffect)(reload, [client]);
+      (0, import_react29.useEffect)(reload, [client]);
       async function copyReport() {
         setReportState("working");
         const result = await client.supportReport();
@@ -11128,65 +11244,65 @@ ${t("tags.dimHint")}`,
         }
       }
       const links = snapshot?.links ?? [];
-      return /* @__PURE__ */ (0, import_jsx_runtime37.jsxs)("section", {
+      return /* @__PURE__ */ (0, import_jsx_runtime38.jsxs)("section", {
         className: settings_default.sectionPage,
         "data-testid": "section-page",
         children: [
-          /* @__PURE__ */ (0, import_jsx_runtime37.jsxs)("div", {
+          /* @__PURE__ */ (0, import_jsx_runtime38.jsxs)("div", {
             className: ui_default.card,
             children: [
-              /* @__PURE__ */ (0, import_jsx_runtime37.jsx)("h4", {
+              /* @__PURE__ */ (0, import_jsx_runtime38.jsx)("h4", {
                 className: settings_default.cardTitle,
                 "data-tip": t("diag.healthHint"),
                 children: t("diag.healthTitle"),
               }),
               links.map((link) =>
-                /* @__PURE__ */ (0, import_jsx_runtime37.jsxs)(
+                /* @__PURE__ */ (0, import_jsx_runtime38.jsxs)(
                   "div",
                   {
                     className: settings_default.healthItem,
                     "data-testid": "diag-link",
                     children: [
-                      /* @__PURE__ */ (0, import_jsx_runtime37.jsxs)("div", {
+                      /* @__PURE__ */ (0, import_jsx_runtime38.jsxs)("div", {
                         className: settings_default.healthRow,
                         children: [
-                          /* @__PURE__ */ (0, import_jsx_runtime37.jsx)("span", {
+                          /* @__PURE__ */ (0, import_jsx_runtime38.jsx)("span", {
                             className: settings_default.healthDot,
                             "data-level": aggregateLevel(link.level),
                             "aria-hidden": "true",
                           }),
-                          /* @__PURE__ */ (0, import_jsx_runtime37.jsx)("span", {
+                          /* @__PURE__ */ (0, import_jsx_runtime38.jsx)("span", {
                             className: settings_default.healthName,
                             children: t(`diag.provider.${link.provider}`),
                           }),
-                          /* @__PURE__ */ (0, import_jsx_runtime37.jsx)("span", {
+                          /* @__PURE__ */ (0, import_jsx_runtime38.jsx)("span", {
                             className: settings_default.healthState,
                             "data-level": aggregateLevel(link.level),
                             children: t(levelTextKey(link.level)),
                           }),
-                          /* @__PURE__ */ (0, import_jsx_runtime37.jsxs)("span", {
+                          /* @__PURE__ */ (0, import_jsx_runtime38.jsxs)("span", {
                             className: settings_default.healthMeta,
                             children: [
                               link.lastSuccessAt !== null
                                 ? t("diag.lastSuccess", { v: link.lastSuccessAt })
                                 : t("diag.never"),
                               link.nextPollAt !== null &&
-                                /* @__PURE__ */ (0, import_jsx_runtime37.jsxs)(import_jsx_runtime37.Fragment, {
+                                /* @__PURE__ */ (0, import_jsx_runtime38.jsxs)(import_jsx_runtime38.Fragment, {
                                   children: [" \xB7 ", t("diag.nextPoll", { v: link.nextPollAt })],
                                 }),
                               link.provider === "feishu" &&
-                                /* @__PURE__ */ (0, import_jsx_runtime37.jsxs)(import_jsx_runtime37.Fragment, {
+                                /* @__PURE__ */ (0, import_jsx_runtime38.jsxs)(import_jsx_runtime38.Fragment, {
                                   children: [" \xB7 ", t("diag.pending", { n: link.pendingCount })],
                                 }),
                               link.primaryAgent !== null &&
-                                /* @__PURE__ */ (0, import_jsx_runtime37.jsxs)(import_jsx_runtime37.Fragment, {
+                                /* @__PURE__ */ (0, import_jsx_runtime38.jsxs)(import_jsx_runtime38.Fragment, {
                                   children: [" \xB7 ", t("diag.primaryAgent", { name: link.primaryAgent })],
                                 }),
                               " \xB7 ",
                               t("dsh.radio.failCount", { n: link.consecutiveFailures }),
                             ],
                           }),
-                          /* @__PURE__ */ (0, import_jsx_runtime37.jsx)("button", {
+                          /* @__PURE__ */ (0, import_jsx_runtime38.jsx)("button", {
                             type: "button",
                             className: ui_default.button,
                             onClick: async () => {
@@ -11202,7 +11318,7 @@ ${t("tags.dimHint")}`,
                         ],
                       }),
                       link.lastError !== null &&
-                        /* @__PURE__ */ (0, import_jsx_runtime37.jsx)("p", {
+                        /* @__PURE__ */ (0, import_jsx_runtime38.jsx)("p", {
                           className: settings_default.healthErr,
                           children: link.lastError,
                         }),
@@ -11212,87 +11328,75 @@ ${t("tags.dimHint")}`,
                 ),
               ),
               links.length === 0 &&
-                /* @__PURE__ */ (0, import_jsx_runtime37.jsx)("p", {
+                /* @__PURE__ */ (0, import_jsx_runtime38.jsx)("p", {
                   className: ui_default.muted,
                   children: t("diag.never"),
                 }),
             ],
           }),
-          /* @__PURE__ */ (0, import_jsx_runtime37.jsxs)("div", {
+          /* @__PURE__ */ (0, import_jsx_runtime38.jsxs)("div", {
             className: ui_default.card,
             children: [
-              /* @__PURE__ */ (0, import_jsx_runtime37.jsx)("button", {
+              /* @__PURE__ */ (0, import_jsx_runtime38.jsx)("button", {
                 type: "button",
                 className: ui_default.button,
                 disabled: reportState === "working",
                 onClick: () => void copyReport(),
-                children:
-                  reportState === "working"
-                    ? t("dsh.pokeSearch.searching")
-                    : reportState === "copied"
-                      ? t("diag.reportCopied")
-                      : t("diag.copyReport"),
+                children: t(reportButtonKey(reportState)),
               }),
               reportState === "copied" &&
-                /* @__PURE__ */ (0, import_jsx_runtime37.jsx)("span", {
+                /* @__PURE__ */ (0, import_jsx_runtime38.jsx)("span", {
                   className: settings_default.savedHint,
                   role: "status",
                   children: "\u2714",
                 }),
             ],
           }),
-          /* @__PURE__ */ (0, import_jsx_runtime37.jsx)(HelperCapabilityMatrix, { snapshot }),
-          snapshot?.shortcutRegistered === false &&
-            /* @__PURE__ */ (0, import_jsx_runtime37.jsx)("p", {
+          /* @__PURE__ */ (0, import_jsx_runtime38.jsx)(HelperCapabilityMatrix, { snapshot }),
+          shortcutFailed(snapshot) &&
+            /* @__PURE__ */ (0, import_jsx_runtime38.jsx)("p", {
               className: settings_default.shortcutLine,
               "data-testid": "shortcut-line",
               children: t("dsh.diag.shortcutFailed"),
             }),
-          snapshot?.sshFamily != null &&
-            /* @__PURE__ */ (0, import_jsx_runtime37.jsx)("p", {
-              className: settings_default.sshLine,
-              "data-testid": "ssh-family-line",
-              children: snapshot.sshFamily.ok
-                ? t("dsh.diag.sshOk")
-                : t("dsh.diag.sshMissing", { cmd: snapshot.sshFamily.detail ?? "" }),
-            }),
-          /* @__PURE__ */ (0, import_jsx_runtime37.jsx)(LogViewer, {}),
+          /* @__PURE__ */ (0, import_jsx_runtime38.jsx)(SshFamilyLine, { snapshot }),
+          /* @__PURE__ */ (0, import_jsx_runtime38.jsx)(LogViewer, {}),
         ],
       });
     }
     function HelperCapabilityMatrix({ snapshot }) {
       const t = useT();
       const caps = snapshot?.helperCaps ?? null;
-      return /* @__PURE__ */ (0, import_jsx_runtime37.jsxs)("div", {
+      return /* @__PURE__ */ (0, import_jsx_runtime38.jsxs)("div", {
         className: ui_default.card,
         "data-testid": "helper-caps",
         children: [
-          /* @__PURE__ */ (0, import_jsx_runtime37.jsx)("h4", {
+          /* @__PURE__ */ (0, import_jsx_runtime38.jsx)("h4", {
             className: settings_default.cardTitle,
             children: t("dsh.diag.capsTitle"),
           }),
-          /* @__PURE__ */ (0, import_jsx_runtime37.jsx)("ul", {
+          /* @__PURE__ */ (0, import_jsx_runtime38.jsx)("ul", {
             className: settings_default.capList,
             children: HELPER_CAP_ROWS.map((row) => {
               const ok2 = caps !== null && caps[row.cap] === true;
-              return /* @__PURE__ */ (0, import_jsx_runtime37.jsxs)(
+              return /* @__PURE__ */ (0, import_jsx_runtime38.jsxs)(
                 "li",
                 {
                   className: settings_default.capRow,
                   "data-ok": ok2,
                   children: [
-                    /* @__PURE__ */ (0, import_jsx_runtime37.jsx)("span", {
+                    /* @__PURE__ */ (0, import_jsx_runtime38.jsx)("span", {
                       className: settings_default.capDot,
                       "data-ok": ok2,
                       "aria-hidden": "true",
                     }),
-                    /* @__PURE__ */ (0, import_jsx_runtime37.jsx)("span", { children: t(`dsh.diag.caps.${row.id}`) }),
-                    /* @__PURE__ */ (0, import_jsx_runtime37.jsx)("span", {
+                    /* @__PURE__ */ (0, import_jsx_runtime38.jsx)("span", { children: t(`dsh.diag.caps.${row.id}`) }),
+                    /* @__PURE__ */ (0, import_jsx_runtime38.jsx)("span", {
                       className: settings_default.capState,
                       children: t(ok2 ? "dsh.diag.caps.ok" : "dsh.diag.caps.degraded"),
                     }),
                     !ok2 &&
-                      /* @__PURE__ */ (0, import_jsx_runtime37.jsx)("span", {
+                      /* @__PURE__ */ (0, import_jsx_runtime38.jsx)("span", {
                         className: settings_default.capGuide,
                         children: t("dsh.diag.caps.guide"),
                       }),
@@ -11303,12 +11407,12 @@ ${t("tags.dimHint")}`,
             }),
           }),
           caps === null
-            ? /* @__PURE__ */ (0, import_jsx_runtime37.jsx)("p", {
+            ? /* @__PURE__ */ (0, import_jsx_runtime38.jsx)("p", {
                 className: settings_default.capVersion,
                 children: t("dsh.diag.caps.absent"),
               })
             : snapshot?.helperVersion != null &&
-              /* @__PURE__ */ (0, import_jsx_runtime37.jsx)("p", {
+              /* @__PURE__ */ (0, import_jsx_runtime38.jsx)("p", {
                 className: settings_default.capVersion,
                 children: t("dsh.diag.caps.version", { v: snapshot.helperVersion ?? "" }),
               }),
@@ -11318,11 +11422,11 @@ ${t("tags.dimHint")}`,
     function LogViewer() {
       const t = useT();
       const client = useClient();
-      const [entries, setEntries] = (0, import_react28.useState)([]);
-      const [total, setTotal] = (0, import_react28.useState)(0);
-      const [offset, setOffset] = (0, import_react28.useState)(0);
-      const [minLevel, setMinLevel] = (0, import_react28.useState)("");
-      const [target, setTarget] = (0, import_react28.useState)("");
+      const [entries, setEntries] = (0, import_react29.useState)([]);
+      const [total, setTotal] = (0, import_react29.useState)(0);
+      const [offset, setOffset] = (0, import_react29.useState)(0);
+      const [minLevel, setMinLevel] = (0, import_react29.useState)("");
+      const [target, setTarget] = (0, import_react29.useState)("");
       const pageSize = 50;
       function load(nextOffset) {
         void client
@@ -11339,42 +11443,42 @@ ${t("tags.dimHint")}`,
             }
           });
       }
-      (0, import_react28.useEffect)(() => {
+      (0, import_react29.useEffect)(() => {
         load(0);
       }, [minLevel, target, client]);
       const pageMax = Math.max(1, Math.ceil(total / pageSize));
       const page = Math.floor(offset / pageSize) + 1;
-      return /* @__PURE__ */ (0, import_jsx_runtime37.jsxs)("div", {
+      return /* @__PURE__ */ (0, import_jsx_runtime38.jsxs)("div", {
         className: ui_default.card,
         "data-testid": "log-viewer",
         children: [
-          /* @__PURE__ */ (0, import_jsx_runtime37.jsx)("h4", {
+          /* @__PURE__ */ (0, import_jsx_runtime38.jsx)("h4", {
             className: settings_default.cardTitle,
             children: t("diag.logTitle"),
           }),
-          /* @__PURE__ */ (0, import_jsx_runtime37.jsxs)("div", {
+          /* @__PURE__ */ (0, import_jsx_runtime38.jsxs)("div", {
             className: settings_default.filterRow,
             children: [
-              /* @__PURE__ */ (0, import_jsx_runtime37.jsxs)("select", {
+              /* @__PURE__ */ (0, import_jsx_runtime38.jsxs)("select", {
                 className: ui_default.select,
                 "aria-label": t("diag.logLevel"),
                 value: minLevel,
                 onChange: (event) => setMinLevel(event.target.value),
                 children: [
-                  /* @__PURE__ */ (0, import_jsx_runtime37.jsx)("option", { value: "", children: t("diag.allLevels") }),
-                  /* @__PURE__ */ (0, import_jsx_runtime37.jsx)("option", { value: "info", children: "info+" }),
-                  /* @__PURE__ */ (0, import_jsx_runtime37.jsx)("option", { value: "warn", children: "warn+" }),
-                  /* @__PURE__ */ (0, import_jsx_runtime37.jsx)("option", { value: "error", children: "error" }),
+                  /* @__PURE__ */ (0, import_jsx_runtime38.jsx)("option", { value: "", children: t("diag.allLevels") }),
+                  /* @__PURE__ */ (0, import_jsx_runtime38.jsx)("option", { value: "info", children: "info+" }),
+                  /* @__PURE__ */ (0, import_jsx_runtime38.jsx)("option", { value: "warn", children: "warn+" }),
+                  /* @__PURE__ */ (0, import_jsx_runtime38.jsx)("option", { value: "error", children: "error" }),
                 ],
               }),
-              /* @__PURE__ */ (0, import_jsx_runtime37.jsx)("input", {
+              /* @__PURE__ */ (0, import_jsx_runtime38.jsx)("input", {
                 className: `${ui_default.input} ${settings_default.grow}`,
                 "aria-label": t("diag.logSource"),
                 placeholder: t("diag.logSource"),
                 value: target,
                 onChange: (event) => setTarget(event.target.value),
               }),
-              /* @__PURE__ */ (0, import_jsx_runtime37.jsx)("button", {
+              /* @__PURE__ */ (0, import_jsx_runtime38.jsx)("button", {
                 type: "button",
                 className: ui_default.button,
                 onClick: () => load(offset),
@@ -11383,39 +11487,39 @@ ${t("tags.dimHint")}`,
             ],
           }),
           entries.length === 0
-            ? /* @__PURE__ */ (0, import_jsx_runtime37.jsx)("p", {
+            ? /* @__PURE__ */ (0, import_jsx_runtime38.jsx)("p", {
                 className: ui_default.muted,
                 children: t("diag.logEmpty"),
               })
             : /* LCD 日志屏（T2 ② 类目——LcdScreen 单源组件，与向导输出屏同件两落位） */
-              /* @__PURE__ */ (0, import_jsx_runtime37.jsx)(LcdScreen, {
+              /* @__PURE__ */ (0, import_jsx_runtime38.jsx)(LcdScreen, {
                 ariaLabel: t("diag.logTitle"),
                 testId: "log-screen",
                 children: entries.map((entry, index) =>
-                  /* @__PURE__ */ (0, import_jsx_runtime37.jsxs)(
+                  /* @__PURE__ */ (0, import_jsx_runtime38.jsxs)(
                     "div",
                     {
                       className: settings_default.logRow,
                       children: [
-                        /* @__PURE__ */ (0, import_jsx_runtime37.jsxs)("div", {
+                        /* @__PURE__ */ (0, import_jsx_runtime38.jsxs)("div", {
                           className: settings_default.logMeta,
                           children: [
-                            /* @__PURE__ */ (0, import_jsx_runtime37.jsx)("span", {
+                            /* @__PURE__ */ (0, import_jsx_runtime38.jsx)("span", {
                               className: settings_default.logTime,
                               children: entry.time,
                             }),
-                            /* @__PURE__ */ (0, import_jsx_runtime37.jsx)("span", {
+                            /* @__PURE__ */ (0, import_jsx_runtime38.jsx)("span", {
                               className: settings_default.logLevel,
                               "data-level": entry.level,
                               children: entry.level,
                             }),
-                            /* @__PURE__ */ (0, import_jsx_runtime37.jsx)("span", {
+                            /* @__PURE__ */ (0, import_jsx_runtime38.jsx)("span", {
                               className: settings_default.logTarget,
                               children: entry.target,
                             }),
                           ],
                         }),
-                        /* @__PURE__ */ (0, import_jsx_runtime37.jsx)("div", {
+                        /* @__PURE__ */ (0, import_jsx_runtime38.jsx)("div", {
                           className: settings_default.logMsg,
                           children: entry.message,
                         }),
@@ -11425,20 +11529,20 @@ ${t("tags.dimHint")}`,
                   ),
                 ),
               }),
-          /* @__PURE__ */ (0, import_jsx_runtime37.jsxs)("div", {
+          /* @__PURE__ */ (0, import_jsx_runtime38.jsxs)("div", {
             className: settings_default.logPager,
             children: [
-              /* @__PURE__ */ (0, import_jsx_runtime37.jsx)("button", {
+              /* @__PURE__ */ (0, import_jsx_runtime38.jsx)("button", {
                 type: "button",
                 className: ui_default.button,
                 disabled: page <= 1,
                 onClick: () => setOffset(Math.max(0, offset - pageSize)),
                 children: t("sess.prev"),
               }),
-              /* @__PURE__ */ (0, import_jsx_runtime37.jsx)("span", {
+              /* @__PURE__ */ (0, import_jsx_runtime38.jsx)("span", {
                 children: t("sess.pageOf", { cur: page, max: pageMax }),
               }),
-              /* @__PURE__ */ (0, import_jsx_runtime37.jsx)("button", {
+              /* @__PURE__ */ (0, import_jsx_runtime38.jsx)("button", {
                 type: "button",
                 className: ui_default.button,
                 disabled: page >= pageMax,
@@ -11452,7 +11556,7 @@ ${t("tags.dimHint")}`,
     }
 
     // src/client/settings/sections/DisplaySection.tsx
-    var import_jsx_runtime38 = require("react/jsx-runtime");
+    var import_jsx_runtime39 = require("react/jsx-runtime");
     var DATE_FORMAT_LABELS = {
       "YYYY-MM-DD": "2026-10-11",
       "MM/DD/YYYY": "10/11/2026",
@@ -11466,15 +11570,15 @@ ${t("tags.dimHint")}`,
     function DisplaySection({ onLocalePreview, ...props }) {
       const { draft, onField } = props;
       const t = useT();
-      return /* @__PURE__ */ (0, import_jsx_runtime38.jsx)(SectionShell, {
-        children: /* @__PURE__ */ (0, import_jsx_runtime38.jsxs)("div", {
+      return /* @__PURE__ */ (0, import_jsx_runtime39.jsx)(SectionShell, {
+        children: /* @__PURE__ */ (0, import_jsx_runtime39.jsxs)("div", {
           className: ui_default.card,
           children: [
-            /* @__PURE__ */ (0, import_jsx_runtime38.jsx)("h4", {
+            /* @__PURE__ */ (0, import_jsx_runtime39.jsx)("h4", {
               className: settings_default.cardTitle,
               children: t("display.title"),
             }),
-            /* @__PURE__ */ (0, import_jsx_runtime38.jsx)(Select, {
+            /* @__PURE__ */ (0, import_jsx_runtime39.jsx)(Select, {
               label: t("display.language"),
               value: draft["language"],
               options: [
@@ -11487,13 +11591,13 @@ ${t("tags.dimHint")}`,
                 onLocalePreview?.(v);
               },
             }),
-            /* @__PURE__ */ (0, import_jsx_runtime38.jsx)(Select, {
+            /* @__PURE__ */ (0, import_jsx_runtime39.jsx)(Select, {
               label: t("display.date"),
               value: draft["date_format"],
               options: DATE_FORMATS.map((f) => ({ value: f, label: DATE_FORMAT_LABELS[f] })),
               onChange: (v) => onField("date_format", v),
             }),
-            /* @__PURE__ */ (0, import_jsx_runtime38.jsx)(Select, {
+            /* @__PURE__ */ (0, import_jsx_runtime39.jsx)(Select, {
               label: t("display.time"),
               value: draft["time_format"],
               options: [
@@ -11501,13 +11605,13 @@ ${t("tags.dimHint")}`,
                 { value: "12h", label: t("display.h12") },
               ],
               onChange: (v) => onField("time_format", v),
-              labelExtra: /* @__PURE__ */ (0, import_jsx_runtime38.jsx)("span", {
+              labelExtra: /* @__PURE__ */ (0, import_jsx_runtime39.jsx)("span", {
                 className: settings_default.previewLine,
                 "data-testid": "display-preview",
                 children: t("display.preview", { v: previewDateTime(draft) }),
               }),
             }),
-            /* @__PURE__ */ (0, import_jsx_runtime38.jsx)(Select, {
+            /* @__PURE__ */ (0, import_jsx_runtime39.jsx)(Select, {
               label: t("display.overdueMode"),
               value: draft["overdue_mode"],
               options: [
@@ -11517,7 +11621,7 @@ ${t("tags.dimHint")}`,
               ],
               onChange: (v) => onField("overdue_mode", v),
             }),
-            /* @__PURE__ */ (0, import_jsx_runtime38.jsx)(Toggle, {
+            /* @__PURE__ */ (0, import_jsx_runtime39.jsx)(Toggle, {
               label: t("display.dueRelative"),
               tip: t("display.dueRelativeDesc"),
               checked: draft["due_relative"] === "true",
@@ -11529,34 +11633,36 @@ ${t("tags.dimHint")}`,
     }
 
     // src/client/settings/sections/FeishuSection.tsx
-    var import_react30 = require("react");
+    var import_react31 = require("react");
 
     // src/client/settings/sections/FeishuConnCard.tsx
-    var import_react29 = require("react");
-    var import_jsx_runtime39 = require("react/jsx-runtime");
+    var import_react30 = require("react");
+    var import_jsx_runtime40 = require("react/jsx-runtime");
     function FeishuConnCard({ draft, onField }) {
       const t = useT();
       const client = useClient();
-      const [authBusy, setAuthBusy] = (0, import_react29.useState)(false);
-      const [testState, setTestState] = (0, import_react29.useState)({
+      const [authBusy, setAuthBusy] = (0, import_react30.useState)(false);
+      const [authLaunched, setAuthLaunched] = (0, import_react30.useState)(false);
+      const [authError, setAuthError] = (0, import_react30.useState)(null);
+      const [testState, setTestState] = (0, import_react30.useState)({
         busy: false,
         identity: null,
         failed: false,
       });
-      return /* @__PURE__ */ (0, import_jsx_runtime39.jsxs)("div", {
+      return /* @__PURE__ */ (0, import_jsx_runtime40.jsxs)("div", {
         className: ui_default.card,
         children: [
-          /* @__PURE__ */ (0, import_jsx_runtime39.jsx)("h4", {
+          /* @__PURE__ */ (0, import_jsx_runtime40.jsx)("h4", {
             className: settings_default.cardTitle,
             "data-tip": t("feishu.hint"),
             children: t("stabs.feishu"),
           }),
-          /* @__PURE__ */ (0, import_jsx_runtime39.jsx)(Toggle, {
+          /* @__PURE__ */ (0, import_jsx_runtime40.jsx)(Toggle, {
             label: t("feishu.enable"),
             checked: draft["feishu_enabled"] === "true",
             onChange: (v) => onField("feishu_enabled", String(v)),
           }),
-          /* @__PURE__ */ (0, import_jsx_runtime39.jsx)(Select, {
+          /* @__PURE__ */ (0, import_jsx_runtime40.jsx)(Select, {
             label: t("feishu.interval"),
             value: draft["feishu_poll_interval"],
             options: POLL_INTERVAL_SECS.map((secs) => ({
@@ -11565,15 +11671,15 @@ ${t("tags.dimHint")}`,
             })),
             onChange: (v) => onField("feishu_poll_interval", v),
           }),
-          /* @__PURE__ */ (0, import_jsx_runtime39.jsxs)("div", {
+          /* @__PURE__ */ (0, import_jsx_runtime40.jsxs)("div", {
             className: settings_default.filterRow,
             children: [
-              /* @__PURE__ */ (0, import_jsx_runtime39.jsx)("span", {
+              /* @__PURE__ */ (0, import_jsx_runtime40.jsx)("span", {
                 style: { flex: 1 },
                 "data-tip": t("feishu.myNamesDesc"),
                 children: t("feishu.myNames"),
               }),
-              /* @__PURE__ */ (0, import_jsx_runtime39.jsx)(TextInput, {
+              /* @__PURE__ */ (0, import_jsx_runtime40.jsx)(TextInput, {
                 className: settings_default.w250,
                 ariaLabel: t("feishu.myNames"),
                 value: draft["feishu_my_names"],
@@ -11582,21 +11688,29 @@ ${t("tags.dimHint")}`,
               }),
             ],
           }),
-          /* @__PURE__ */ (0, import_jsx_runtime39.jsxs)("div", {
+          /* @__PURE__ */ (0, import_jsx_runtime40.jsxs)("div", {
             className: settings_default.filterRow,
             children: [
-              /* @__PURE__ */ (0, import_jsx_runtime39.jsx)("button", {
+              /* @__PURE__ */ (0, import_jsx_runtime40.jsx)("button", {
                 type: "button",
                 className: ui_default.button,
+                "data-testid": "lark-login-btn",
                 disabled: authBusy,
                 onClick: async () => {
                   setAuthBusy(true);
-                  await client.larkAuth();
+                  setAuthLaunched(false);
+                  setAuthError(null);
+                  const result = await client.larkLoginStart();
+                  if (result.ok && result.data.ok) {
+                    setAuthLaunched(true);
+                  } else {
+                    setAuthError(result.ok ? result.data.note : result.error.message);
+                  }
                   setAuthBusy(false);
                 },
-                children: t("feishu.auth"),
+                children: t("dsh.lark.login"),
               }),
-              /* @__PURE__ */ (0, import_jsx_runtime39.jsx)("button", {
+              /* @__PURE__ */ (0, import_jsx_runtime40.jsx)("button", {
                 type: "button",
                 className: ui_default.button,
                 disabled: testState.busy,
@@ -11611,17 +11725,33 @@ ${t("tags.dimHint")}`,
                 },
                 children: t("feishu.test"),
               }),
+              authBusy &&
+                /* @__PURE__ */ (0, import_jsx_runtime40.jsx)("span", {
+                  className: ui_default.muted,
+                  children: t("testing"),
+                }),
+              authLaunched &&
+                /* @__PURE__ */ (0, import_jsx_runtime40.jsx)("span", {
+                  "data-testid": "lark-launched",
+                  children: t("dsh.lark.launched"),
+                }),
+              authError !== null &&
+                /* @__PURE__ */ (0, import_jsx_runtime40.jsx)("span", {
+                  className: settings_default.saveFailHint,
+                  "data-testid": "lark-launch-failed",
+                  children: t("dsh.lark.launchFailed", { reason: authError }),
+                }),
               testState.busy &&
-                /* @__PURE__ */ (0, import_jsx_runtime39.jsx)("span", {
+                /* @__PURE__ */ (0, import_jsx_runtime40.jsx)("span", {
                   className: ui_default.muted,
                   children: t("testing"),
                 }),
               testState.identity !== null &&
-                /* @__PURE__ */ (0, import_jsx_runtime39.jsx)("span", {
+                /* @__PURE__ */ (0, import_jsx_runtime40.jsx)("span", {
                   children: t("feishu.authorized", { name: testState.identity }),
                 }),
               testState.failed &&
-                /* @__PURE__ */ (0, import_jsx_runtime39.jsx)("span", {
+                /* @__PURE__ */ (0, import_jsx_runtime40.jsx)("span", {
                   className: settings_default.saveFailHint,
                   children: t("feishu.unauthorized"),
                 }),
@@ -11632,7 +11762,7 @@ ${t("tags.dimHint")}`,
     }
 
     // src/client/settings/sections/FeishuSection.tsx
-    var import_jsx_runtime40 = require("react/jsx-runtime");
+    var import_jsx_runtime41 = require("react/jsx-runtime");
     function matchesEffState(chat, eff) {
       return eff === "all" || chat.effective === eff;
     }
@@ -11668,11 +11798,11 @@ ${t("tags.dimHint")}`,
       const { draft, onField } = props;
       const t = useT();
       const client = useClient();
-      const [chatList, setChatList] = (0, import_react30.useState)(filters);
-      const [query, setQuery] = (0, import_react30.useState)("");
-      const [effFilter, setEffFilter] = (0, import_react30.useState)("all");
-      const [prefFilter, setPrefFilter] = (0, import_react30.useState)("all");
-      const [typeFilter, setTypeFilter] = (0, import_react30.useState)("all");
+      const [chatList, setChatList] = (0, import_react31.useState)(filters);
+      const [query, setQuery] = (0, import_react31.useState)("");
+      const [effFilter, setEffFilter] = (0, import_react31.useState)("all");
+      const [prefFilter, setPrefFilter] = (0, import_react31.useState)("all");
+      const [typeFilter, setTypeFilter] = (0, import_react31.useState)("all");
       const counts = {
         total: chatList.length,
         pulling: chatList.filter((c) => c.effective === "pull").length,
@@ -11718,8 +11848,8 @@ ${t("tags.dimHint")}`,
           setChatList((list) => list.map((c) => (c.chatId === chatId ? prev : c)));
         }
       }
-      const [polling, setPolling] = (0, import_react30.useState)(false);
-      const [lastPoll, setLastPoll] = (0, import_react30.useState)(lastPollAt ?? null);
+      const [polling, setPolling] = (0, import_react31.useState)(false);
+      const [lastPoll, setLastPoll] = (0, import_react31.useState)(lastPollAt ?? null);
       const ageMin = snapshotAgeMin(draft["feishu_enabled"], lastPoll);
       const stale = ageMin !== null && ageMin > staleThresholdMin(draft["feishu_poll_interval"]);
       async function pollNowAndRefresh() {
@@ -11732,19 +11862,19 @@ ${t("tags.dimHint")}`,
         }
         setPolling(false);
       }
-      return /* @__PURE__ */ (0, import_jsx_runtime40.jsxs)(SectionShell, {
+      return /* @__PURE__ */ (0, import_jsx_runtime41.jsxs)(SectionShell, {
         children: [
-          /* @__PURE__ */ (0, import_jsx_runtime40.jsx)(FeishuConnCard, { draft, onField }),
-          /* @__PURE__ */ (0, import_jsx_runtime40.jsxs)("div", {
+          /* @__PURE__ */ (0, import_jsx_runtime41.jsx)(FeishuConnCard, { draft, onField }),
+          /* @__PURE__ */ (0, import_jsx_runtime41.jsxs)("div", {
             className: ui_default.card,
             children: [
-              /* @__PURE__ */ (0, import_jsx_runtime40.jsx)("h4", {
+              /* @__PURE__ */ (0, import_jsx_runtime41.jsx)("h4", {
                 className: settings_default.cardTitle,
                 "data-tip": `${t("feishu.filter.hint")}
 ${t("feishu.filter.footImmediate")}`,
                 children: t("feishu.filter.title"),
               }),
-              /* @__PURE__ */ (0, import_jsx_runtime40.jsx)("p", {
+              /* @__PURE__ */ (0, import_jsx_runtime41.jsx)("p", {
                 className: settings_default.cardHint,
                 "data-testid": "filter-summary",
                 children: t("feishu.filter.summary", {
@@ -11756,16 +11886,16 @@ ${t("feishu.filter.footImmediate")}`,
               }),
               ageMin !== null &&
                 (stale
-                  ? /* @__PURE__ */ (0, import_jsx_runtime40.jsxs)("div", {
+                  ? /* @__PURE__ */ (0, import_jsx_runtime41.jsxs)("div", {
                       className: settings_default.filterRow,
                       "data-testid": "filter-stale",
                       role: "alert",
                       children: [
-                        /* @__PURE__ */ (0, import_jsx_runtime40.jsx)("span", {
+                        /* @__PURE__ */ (0, import_jsx_runtime41.jsx)("span", {
                           style: { flex: 1 },
                           children: t("feishu.filter.staleWarn", { min: ageMin }),
                         }),
-                        /* @__PURE__ */ (0, import_jsx_runtime40.jsx)("button", {
+                        /* @__PURE__ */ (0, import_jsx_runtime41.jsx)("button", {
                           type: "button",
                           className: ui_default.button,
                           disabled: polling,
@@ -11774,22 +11904,22 @@ ${t("feishu.filter.footImmediate")}`,
                         }),
                       ],
                     })
-                  : /* @__PURE__ */ (0, import_jsx_runtime40.jsx)("p", {
+                  : /* @__PURE__ */ (0, import_jsx_runtime41.jsx)("p", {
                       className: settings_default.cardHint,
                       "data-testid": "filter-snaptime",
                       children: t("feishu.filter.staleOk", { time: (lastPoll ?? "").slice(0, 16).replace("T", " ") }),
                     })),
-              /* @__PURE__ */ (0, import_jsx_runtime40.jsxs)("div", {
+              /* @__PURE__ */ (0, import_jsx_runtime41.jsxs)("div", {
                 className: `${settings_default.filterRow} ${settings_default.filterToolbar}`,
                 children: [
-                  /* @__PURE__ */ (0, import_jsx_runtime40.jsx)(TextInput, {
+                  /* @__PURE__ */ (0, import_jsx_runtime41.jsx)(TextInput, {
                     ariaLabel: t("feishu.filter.searchLabel"),
                     value: query,
                     onChange: setQuery,
                     placeholder: t("feishu.filter.searchPh"),
                     className: settings_default.filterSearch,
                   }),
-                  /* @__PURE__ */ (0, import_jsx_runtime40.jsx)(Select, {
+                  /* @__PURE__ */ (0, import_jsx_runtime41.jsx)(Select, {
                     ariaLabel: t("feishu.filter.chipsLabel"),
                     value: effFilter,
                     className: settings_default.filterSelect,
@@ -11800,7 +11930,7 @@ ${t("feishu.filter.footImmediate")}`,
                     ],
                     onChange: (v) => setEffFilter(v),
                   }),
-                  /* @__PURE__ */ (0, import_jsx_runtime40.jsx)(Select, {
+                  /* @__PURE__ */ (0, import_jsx_runtime41.jsx)(Select, {
                     ariaLabel: t("feishu.filter.prefChipsLabel"),
                     value: prefFilter,
                     className: settings_default.filterSelect,
@@ -11811,7 +11941,7 @@ ${t("feishu.filter.footImmediate")}`,
                     ],
                     onChange: (v) => setPrefFilter(v),
                   }),
-                  /* @__PURE__ */ (0, import_jsx_runtime40.jsx)(Select, {
+                  /* @__PURE__ */ (0, import_jsx_runtime41.jsx)(Select, {
                     ariaLabel: t("feishu.filter.typeChipsLabel"),
                     value: typeFilter,
                     className: settings_default.filterSelect,
@@ -11833,35 +11963,35 @@ ${t("feishu.filter.footImmediate")}`,
                   }),
                 ],
               }),
-              /* @__PURE__ */ (0, import_jsx_runtime40.jsx)("div", {
+              /* @__PURE__ */ (0, import_jsx_runtime41.jsx)("div", {
                 className: settings_default.entityList,
                 children: visibleChats.map((chat) => {
                   const chip = effChip(chat);
-                  return /* @__PURE__ */ (0, import_jsx_runtime40.jsxs)(
+                  return /* @__PURE__ */ (0, import_jsx_runtime41.jsxs)(
                     "div",
                     {
                       className: settings_default.filterRow,
                       "data-testid": "filter-row",
                       children: [
-                        /* @__PURE__ */ (0, import_jsx_runtime40.jsx)("span", {
+                        /* @__PURE__ */ (0, import_jsx_runtime41.jsx)("span", {
                           className: settings_default.filterChatName,
                           children: chat.chatName,
                         }),
                         chat.chatType === "p2p"
-                          ? /* @__PURE__ */ (0, import_jsx_runtime40.jsxs)("span", {
+                          ? /* @__PURE__ */ (0, import_jsx_runtime41.jsxs)("span", {
                               className: ui_default.muted,
                               title: t("dsh.filter.p2pLocked"),
                               children: [t("feishu.filter.prefFollow"), " \xB7 ", t("dsh.filter.p2pLocked")],
                             })
-                          : /* @__PURE__ */ (0, import_jsx_runtime40.jsxs)(import_jsx_runtime40.Fragment, {
+                          : /* @__PURE__ */ (0, import_jsx_runtime41.jsxs)(import_jsx_runtime41.Fragment, {
                               children: [
-                                /* @__PURE__ */ (0, import_jsx_runtime40.jsx)("span", {
+                                /* @__PURE__ */ (0, import_jsx_runtime41.jsx)("span", {
                                   className: `${settings_default.filterEff} ${chip.tone === "pull" ? settings_default.filterEffPull : chip.tone === "mute" ? settings_default.filterEffMute : settings_default.filterEffDegraded}`,
                                   title: chip.title,
                                   "data-testid": "filter-eff",
                                   children: chip.text,
                                 }),
-                                /* @__PURE__ */ (0, import_jsx_runtime40.jsx)("span", {
+                                /* @__PURE__ */ (0, import_jsx_runtime41.jsx)("span", {
                                   className: settings_default.triStateGroup,
                                   role: "group",
                                   "aria-label": `${chat.chatName}\uFF1A${t("feishu.filter.prefGroupLabel", { name: "" })}`,
@@ -11870,7 +12000,7 @@ ${t("feishu.filter.footImmediate")}`,
                                     ["always_pull", t("feishu.filter.prefPull")],
                                     ["always_filter", t("feishu.filter.prefFilter")],
                                   ].map(([state, label]) =>
-                                    /* @__PURE__ */ (0, import_jsx_runtime40.jsx)(
+                                    /* @__PURE__ */ (0, import_jsx_runtime41.jsx)(
                                       "button",
                                       {
                                         type: "button",
@@ -11898,7 +12028,7 @@ ${t("feishu.filter.footImmediate")}`,
     }
 
     // src/client/settings/sections/FocusSection.tsx
-    var import_jsx_runtime41 = require("react/jsx-runtime");
+    var import_jsx_runtime42 = require("react/jsx-runtime");
     function FocusSection(props) {
       const { draft, onField } = props;
       const t = useT();
@@ -11912,75 +12042,75 @@ ${t("feishu.filter.footImmediate")}`,
         label: n === 0 ? t("remind.onTime") : t("remind.aheadN", { n }),
       }));
       const quietHours = quietHourOptions();
-      return /* @__PURE__ */ (0, import_jsx_runtime41.jsxs)(SectionShell, {
+      return /* @__PURE__ */ (0, import_jsx_runtime42.jsxs)(SectionShell, {
         children: [
-          /* @__PURE__ */ (0, import_jsx_runtime41.jsxs)("div", {
+          /* @__PURE__ */ (0, import_jsx_runtime42.jsxs)("div", {
             className: ui_default.card,
             children: [
-              /* @__PURE__ */ (0, import_jsx_runtime41.jsx)("h4", {
+              /* @__PURE__ */ (0, import_jsx_runtime42.jsx)("h4", {
                 className: settings_default.cardTitle,
                 children: t("focus.title"),
               }),
-              /* @__PURE__ */ (0, import_jsx_runtime41.jsx)(Toggle, {
+              /* @__PURE__ */ (0, import_jsx_runtime42.jsx)(Toggle, {
                 label: t("focus.enable"),
                 checked: draft["pomodoro_enabled"] === "true",
                 onChange: (v) => onField("pomodoro_enabled", String(v)),
               }),
-              /* @__PURE__ */ (0, import_jsx_runtime41.jsx)(Select, {
+              /* @__PURE__ */ (0, import_jsx_runtime42.jsx)(Select, {
                 label: t("focus.duration"),
                 value: draft["pomodoro_minutes"],
                 options: pomoMinutes,
                 onChange: (v) => onField("pomodoro_minutes", v),
               }),
-              /* @__PURE__ */ (0, import_jsx_runtime41.jsx)(Select, {
+              /* @__PURE__ */ (0, import_jsx_runtime42.jsx)(Select, {
                 label: t("focus.break"),
                 value: draft["break_minutes"],
                 options: breaks,
                 onChange: (v) => onField("break_minutes", v),
               }),
-              /* @__PURE__ */ (0, import_jsx_runtime41.jsx)(Toggle, {
+              /* @__PURE__ */ (0, import_jsx_runtime42.jsx)(Toggle, {
                 label: t("focus.notify"),
                 checked: draft["pomodoro_notify"] === "true",
                 onChange: (v) => onField("pomodoro_notify", String(v)),
               }),
-              /* @__PURE__ */ (0, import_jsx_runtime41.jsx)(Toggle, {
+              /* @__PURE__ */ (0, import_jsx_runtime42.jsx)(Toggle, {
                 label: t("focus.chime"),
                 checked: draft["pomodoro_chime"] === "true",
                 onChange: (v) => onField("pomodoro_chime", String(v)),
               }),
             ],
           }),
-          /* @__PURE__ */ (0, import_jsx_runtime41.jsxs)("div", {
+          /* @__PURE__ */ (0, import_jsx_runtime42.jsxs)("div", {
             className: ui_default.card,
             children: [
-              /* @__PURE__ */ (0, import_jsx_runtime41.jsx)("h4", {
+              /* @__PURE__ */ (0, import_jsx_runtime42.jsx)("h4", {
                 className: settings_default.cardTitle,
                 children: t("remind.title"),
               }),
-              /* @__PURE__ */ (0, import_jsx_runtime41.jsx)(Toggle, {
+              /* @__PURE__ */ (0, import_jsx_runtime42.jsx)(Toggle, {
                 label: t("remind.enable"),
                 checked: draft["notifications_enabled"] === "true",
                 onChange: (v) => onField("notifications_enabled", String(v)),
               }),
-              /* @__PURE__ */ (0, import_jsx_runtime41.jsx)(Select, {
+              /* @__PURE__ */ (0, import_jsx_runtime42.jsx)(Select, {
                 label: t("remind.ahead"),
                 value: draft["remind_ahead_minutes"],
                 options: ahead,
                 onChange: (v) => onField("remind_ahead_minutes", v),
               }),
-              /* @__PURE__ */ (0, import_jsx_runtime41.jsx)(Toggle, {
+              /* @__PURE__ */ (0, import_jsx_runtime42.jsx)(Toggle, {
                 label: t("remind.quiet"),
                 tip: t("remind.quietDesc"),
                 checked: draft["quiet_hours_enabled"] === "true",
                 onChange: (v) => onField("quiet_hours_enabled", String(v)),
               }),
-              /* @__PURE__ */ (0, import_jsx_runtime41.jsx)(Select, {
+              /* @__PURE__ */ (0, import_jsx_runtime42.jsx)(Select, {
                 label: t("remind.quietStart"),
                 value: draft["quiet_start"],
                 options: quietHours,
                 onChange: (v) => onField("quiet_start", v),
               }),
-              /* @__PURE__ */ (0, import_jsx_runtime41.jsx)(Select, {
+              /* @__PURE__ */ (0, import_jsx_runtime42.jsx)(Select, {
                 label: t("remind.quietEnd"),
                 value: draft["quiet_end"],
                 options: quietHours,
@@ -11993,24 +12123,114 @@ ${t("feishu.filter.footImmediate")}`,
     }
 
     // src/client/settings/sections/GeneralSection.tsx
-    var import_react32 = require("react");
+    var import_react35 = require("react");
+
+    // src/client/settings/sections/BackupCard.tsx
+    var import_react33 = require("react");
 
     // src/client/settings/sections/ImportRestoreModals.tsx
-    var import_react31 = require("react");
-    var import_jsx_runtime42 = require("react/jsx-runtime");
+    var import_react32 = require("react");
+    var import_jsx_runtime43 = require("react/jsx-runtime");
     function pathOfFile(file) {
       return file.path ?? file.name;
+    }
+    function importPhaseActions(phase, t, readonly, onClose, runImport, openPicker) {
+      const actions = [];
+      if (phase === "pick") {
+        actions.push({ label: t("dsh.import.pickLabel"), onChoose: openPicker, variant: "primary" });
+        actions.push({ label: t("cancel"), onChoose: onClose });
+      } else if (phase === "validating") {
+        actions.push({ label: t("dsh.import.validating"), onChoose: () => void 0, disabled: true });
+      } else if (phase === "invalid") {
+        actions.push({
+          label: t("dsh.import.pickAnother"),
+          onChoose: openPicker,
+          variant: "primary",
+        });
+        actions.push({ label: t("cancel"), onChoose: onClose });
+      } else if (phase === "confirm") {
+        actions.push({ label: t("dsh.import.confirmOk"), onChoose: runImport, variant: "primary", disabled: readonly });
+        actions.push({ label: t("cancel"), onChoose: onClose });
+      } else if (phase === "running") {
+        actions.push({ label: t("dsh.import.running"), onChoose: () => void 0, disabled: true });
+      } else if (phase === "done") {
+        actions.push({ label: t("dsh.common.close"), onChoose: onClose, variant: "primary" });
+      } else {
+        actions.push({ label: t("cancel"), onChoose: onClose });
+      }
+      return actions;
+    }
+    function countOf(n) {
+      return n ?? 0;
+    }
+    function ImportPhaseBody({ phase, path, summary, reasons, doneText, backupFailReason, onPick }) {
+      const t = useT();
+      return /* @__PURE__ */ (0, import_jsx_runtime43.jsxs)(import_jsx_runtime43.Fragment, {
+        children: [
+          phase === "pick" &&
+            /* @__PURE__ */ (0, import_jsx_runtime43.jsxs)(import_jsx_runtime43.Fragment, {
+              children: [
+                /* @__PURE__ */ (0, import_jsx_runtime43.jsx)("p", { children: t("dsh.import.pickHint") }),
+                /* @__PURE__ */ (0, import_jsx_runtime43.jsx)("button", {
+                  type: "button",
+                  className: settings_default.importPickButton,
+                  onClick: onPick,
+                  children: t("dsh.import.pickLabel"),
+                }),
+              ],
+            }),
+          phase === "validating" &&
+            /* @__PURE__ */ (0, import_jsx_runtime43.jsx)("p", {
+              role: "status",
+              children: t("dsh.import.validating"),
+            }),
+          phase === "invalid" &&
+            /* @__PURE__ */ (0, import_jsx_runtime43.jsx)("div", {
+              role: "alert",
+              children: /* @__PURE__ */ (0, import_jsx_runtime43.jsx)("p", {
+                children: t("dsh.import.invalid", { reasons: reasons.join("\uFF1B") }),
+              }),
+            }),
+          phase === "confirm" &&
+            summary !== null &&
+            /* @__PURE__ */ (0, import_jsx_runtime43.jsxs)(import_jsx_runtime43.Fragment, {
+              children: [
+                /* @__PURE__ */ (0, import_jsx_runtime43.jsx)("p", {
+                  children: t("dsh.import.confirmBody", { file: summary.backupFile ?? path }),
+                }),
+                /* @__PURE__ */ (0, import_jsx_runtime43.jsx)("p", {
+                  className: settings_default.importCounts,
+                  children: t("dsh.import.counts", { n: countOf(summary.counts.tasks) }),
+                }),
+              ],
+            }),
+          phase === "running" &&
+            /* @__PURE__ */ (0, import_jsx_runtime43.jsx)("p", { role: "status", children: t("dsh.import.running") }),
+          phase === "done" &&
+            /* @__PURE__ */ (0, import_jsx_runtime43.jsx)("p", {
+              role: "status",
+              "data-testid": "import-done",
+              children: doneText,
+            }),
+          phase === "backupFailed" &&
+            /* @__PURE__ */ (0, import_jsx_runtime43.jsx)("p", {
+              role: "alert",
+              "data-testid": "import-backup-failed",
+              children: t("dsh.import.backupFailed", { reason: backupFailReason }),
+            }),
+        ],
+      });
     }
     function ImportConfirmModal({ readonly, onClose, onChanged }) {
       const t = useT();
       const client = useClient();
-      const fileInput = (0, import_react31.useRef)(null);
-      const [phase, setPhase] = (0, import_react31.useState)("pick");
-      const [path, setPath] = (0, import_react31.useState)("");
-      const [summary, setSummary] = (0, import_react31.useState)(null);
-      const [reasons, setReasons] = (0, import_react31.useState)([]);
-      const [doneText, setDoneText] = (0, import_react31.useState)("");
-      const [backupFailReason, setBackupFailReason] = (0, import_react31.useState)("");
+      const fileInput = (0, import_react32.useRef)(null);
+      const [phase, setPhase] = (0, import_react32.useState)("pick");
+      const [path, setPath] = (0, import_react32.useState)("");
+      const [summary, setSummary] = (0, import_react32.useState)(null);
+      const [reasons, setReasons] = (0, import_react32.useState)([]);
+      const [doneText, setDoneText] = (0, import_react32.useState)("");
+      const [backupFailReason, setBackupFailReason] = (0, import_react32.useState)("");
       function pickFile(file) {
         if (file === void 0) {
           return;
@@ -12045,42 +12265,17 @@ ${t("feishu.filter.footImmediate")}`,
           }
         });
       }
-      const actions = [];
-      if (phase === "pick") {
-        actions.push({
-          label: t("dsh.import.pickLabel"),
-          onChoose: () => fileInput.current?.click(),
-          variant: "primary",
-        });
-        actions.push({ label: t("cancel"), onChoose: onClose });
-      } else if (phase === "validating") {
-        actions.push({ label: t("dsh.import.validating"), onChoose: () => void 0, disabled: true });
-      } else if (phase === "invalid") {
-        actions.push({
-          label: t("dsh.import.pickAnother"),
-          onChoose: () => fileInput.current?.click(),
-          variant: "primary",
-        });
-        actions.push({ label: t("cancel"), onChoose: onClose });
-      } else if (phase === "confirm") {
-        actions.push({ label: t("dsh.import.confirmOk"), onChoose: runImport, variant: "primary", disabled: readonly });
-        actions.push({ label: t("cancel"), onChoose: onClose });
-      } else if (phase === "running") {
-        actions.push({ label: t("dsh.import.running"), onChoose: () => void 0, disabled: true });
-      } else if (phase === "done") {
-        actions.push({ label: t("dsh.common.close"), onChoose: onClose, variant: "primary" });
-      } else {
-        actions.push({ label: t("cancel"), onChoose: onClose });
-      }
-      return /* @__PURE__ */ (0, import_jsx_runtime42.jsx)(Modal, {
+      const openPicker = () => fileInput.current?.click();
+      const actions = importPhaseActions(phase, t, readonly, onClose, runImport, openPicker);
+      return /* @__PURE__ */ (0, import_jsx_runtime43.jsx)(Modal, {
         title: t("dsh.import.title"),
         ariaLabel: t("dsh.import.title"),
         actions,
         onClose,
-        children: /* @__PURE__ */ (0, import_jsx_runtime42.jsxs)("div", {
+        children: /* @__PURE__ */ (0, import_jsx_runtime43.jsxs)("div", {
           "data-testid": "import-modal",
           children: [
-            /* @__PURE__ */ (0, import_jsx_runtime42.jsx)("input", {
+            /* @__PURE__ */ (0, import_jsx_runtime43.jsx)("input", {
               ref: fileInput,
               type: "file",
               accept: ".json,application/json",
@@ -12092,57 +12287,15 @@ ${t("feishu.filter.footImmediate")}`,
                 event.target.value = "";
               },
             }),
-            phase === "pick" &&
-              /* @__PURE__ */ (0, import_jsx_runtime42.jsxs)(import_jsx_runtime42.Fragment, {
-                children: [
-                  /* @__PURE__ */ (0, import_jsx_runtime42.jsx)("p", { children: t("dsh.import.pickHint") }),
-                  /* @__PURE__ */ (0, import_jsx_runtime42.jsx)("button", {
-                    type: "button",
-                    className: settings_default.importPickButton,
-                    onClick: () => fileInput.current?.click(),
-                    children: t("dsh.import.pickLabel"),
-                  }),
-                ],
-              }),
-            phase === "validating" &&
-              /* @__PURE__ */ (0, import_jsx_runtime42.jsx)("p", {
-                role: "status",
-                children: t("dsh.import.validating"),
-              }),
-            phase === "invalid" &&
-              /* @__PURE__ */ (0, import_jsx_runtime42.jsx)("div", {
-                role: "alert",
-                children: /* @__PURE__ */ (0, import_jsx_runtime42.jsx)("p", {
-                  children: t("dsh.import.invalid", { reasons: reasons.join("\uFF1B") }),
-                }),
-              }),
-            phase === "confirm" &&
-              summary !== null &&
-              /* @__PURE__ */ (0, import_jsx_runtime42.jsxs)(import_jsx_runtime42.Fragment, {
-                children: [
-                  /* @__PURE__ */ (0, import_jsx_runtime42.jsx)("p", {
-                    children: t("dsh.import.confirmBody", { file: summary.backupFile ?? path }),
-                  }),
-                  /* @__PURE__ */ (0, import_jsx_runtime42.jsx)("p", {
-                    className: settings_default.importCounts,
-                    children: t("dsh.import.counts", { n: summary.counts.tasks ?? 0 }),
-                  }),
-                ],
-              }),
-            phase === "running" &&
-              /* @__PURE__ */ (0, import_jsx_runtime42.jsx)("p", { role: "status", children: t("dsh.import.running") }),
-            phase === "done" &&
-              /* @__PURE__ */ (0, import_jsx_runtime42.jsx)("p", {
-                role: "status",
-                "data-testid": "import-done",
-                children: doneText,
-              }),
-            phase === "backupFailed" &&
-              /* @__PURE__ */ (0, import_jsx_runtime42.jsx)("p", {
-                role: "alert",
-                "data-testid": "import-backup-failed",
-                children: t("dsh.import.backupFailed", { reason: backupFailReason }),
-              }),
+            /* @__PURE__ */ (0, import_jsx_runtime43.jsx)(ImportPhaseBody, {
+              phase,
+              path,
+              summary,
+              reasons,
+              doneText,
+              backupFailReason,
+              onPick: openPicker,
+            }),
           ],
         }),
       });
@@ -12150,8 +12303,8 @@ ${t("feishu.filter.footImmediate")}`,
     function RestoreConfirmModal({ source, fileName, readonly, onClose, onChanged }) {
       const t = useT();
       const client = useClient();
-      const [phase, setPhase] = (0, import_react31.useState)("confirm");
-      const [failReason, setFailReason] = (0, import_react31.useState)("");
+      const [phase, setPhase] = (0, import_react32.useState)("confirm");
+      const [failReason, setFailReason] = (0, import_react32.useState)("");
       function runRestore() {
         setPhase("running");
         void client.restoreRun({ source, confirmed: true }).then((result) => {
@@ -12186,43 +12339,43 @@ ${t("feishu.filter.footImmediate")}`,
       } else {
         actions.push({ label: t("cancel"), onChoose: onClose });
       }
-      return /* @__PURE__ */ (0, import_jsx_runtime42.jsx)(Modal, {
+      return /* @__PURE__ */ (0, import_jsx_runtime43.jsx)(Modal, {
         title: t("dsh.restore.title"),
         ariaLabel: t("dsh.restore.title"),
         actions,
         onClose,
-        children: /* @__PURE__ */ (0, import_jsx_runtime42.jsxs)("div", {
+        children: /* @__PURE__ */ (0, import_jsx_runtime43.jsxs)("div", {
           "data-testid": "restore-modal",
           children: [
             phase === "confirm" &&
-              /* @__PURE__ */ (0, import_jsx_runtime42.jsx)("p", {
+              /* @__PURE__ */ (0, import_jsx_runtime43.jsx)("p", {
                 children: t("dsh.restore.confirmBody", { file: fileName }),
               }),
             phase === "running" &&
-              /* @__PURE__ */ (0, import_jsx_runtime42.jsx)("p", {
+              /* @__PURE__ */ (0, import_jsx_runtime43.jsx)("p", {
                 role: "status",
                 children: t("dsh.restore.running"),
               }),
             phase === "rejected" &&
-              /* @__PURE__ */ (0, import_jsx_runtime42.jsxs)("div", {
+              /* @__PURE__ */ (0, import_jsx_runtime43.jsxs)("div", {
                 role: "alert",
                 "data-testid": "restore-rejected",
                 children: [
-                  /* @__PURE__ */ (0, import_jsx_runtime42.jsx)("p", { children: t("dsh.restore.rejected") }),
-                  /* @__PURE__ */ (0, import_jsx_runtime42.jsx)("p", {
+                  /* @__PURE__ */ (0, import_jsx_runtime43.jsx)("p", { children: t("dsh.restore.rejected") }),
+                  /* @__PURE__ */ (0, import_jsx_runtime43.jsx)("p", {
                     className: settings_default.importCounts,
                     children: failReason,
                   }),
                 ],
               }),
             phase === "done" &&
-              /* @__PURE__ */ (0, import_jsx_runtime42.jsx)("p", {
+              /* @__PURE__ */ (0, import_jsx_runtime43.jsx)("p", {
                 role: "status",
                 "data-testid": "restore-done",
                 children: t("dsh.restore.done", { file: fileName }),
               }),
             phase === "failed" &&
-              /* @__PURE__ */ (0, import_jsx_runtime42.jsx)("p", {
+              /* @__PURE__ */ (0, import_jsx_runtime43.jsx)("p", {
                 role: "alert",
                 "data-testid": "restore-failed",
                 children: t("dsh.restore.failed", { reason: failReason }),
@@ -12232,36 +12385,34 @@ ${t("feishu.filter.footImmediate")}`,
       });
     }
 
-    // src/client/settings/sections/GeneralSection.tsx
-    var import_jsx_runtime43 = require("react/jsx-runtime");
-    var USER_GUIDE_URL =
-      "https://github.com/Jo0OCTsai/pokemon-choose-you/blob/main/docs/USER_GUIDE.md#dsh-%E6%8F%92%E4%BB%B6%E5%BD%A2%E6%80%81%E7%AC%AC%E4%BA%8C%E5%BD%A2%E6%80%81";
+    // src/client/settings/sections/BackupCard.tsx
+    var import_jsx_runtime44 = require("react/jsx-runtime");
     function fmtSize(bytes) {
       if (bytes >= 1024 * 1024) return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
       return `${Math.max(1, Math.round(bytes / 1024))} KB`;
     }
     function BackupList({ backups, onRestore }) {
       const t = useT();
-      return /* @__PURE__ */ (0, import_jsx_runtime43.jsxs)(import_jsx_runtime43.Fragment, {
+      return /* @__PURE__ */ (0, import_jsx_runtime44.jsxs)(import_jsx_runtime44.Fragment, {
         children: [
           backups !== null &&
             backups.length > 0 &&
-            /* @__PURE__ */ (0, import_jsx_runtime43.jsx)("ul", {
+            /* @__PURE__ */ (0, import_jsx_runtime44.jsx)("ul", {
               className: settings_default.entityList,
               "data-testid": "backup-list",
               children: backups.map((b) =>
-                /* @__PURE__ */ (0, import_jsx_runtime43.jsxs)(
+                /* @__PURE__ */ (0, import_jsx_runtime44.jsxs)(
                   "li",
                   {
                     className: settings_default.entityCard,
                     "data-testid": "backup-row",
                     children: [
-                      /* @__PURE__ */ (0, import_jsx_runtime43.jsx)("span", { children: b.file }),
-                      /* @__PURE__ */ (0, import_jsx_runtime43.jsxs)("span", {
+                      /* @__PURE__ */ (0, import_jsx_runtime44.jsx)("span", { children: b.file }),
+                      /* @__PURE__ */ (0, import_jsx_runtime44.jsxs)("span", {
                         className: ui_default.muted,
                         children: [new Date(b.createdAt).toLocaleString(), " \xB7 ", fmtSize(b.size)],
                       }),
-                      /* @__PURE__ */ (0, import_jsx_runtime43.jsx)("button", {
+                      /* @__PURE__ */ (0, import_jsx_runtime44.jsx)("button", {
                         type: "button",
                         className: ui_default.button,
                         "data-testid": "backup-restore",
@@ -12276,7 +12427,7 @@ ${t("feishu.filter.footImmediate")}`,
             }),
           backups !== null &&
             backups.length === 0 &&
-            /* @__PURE__ */ (0, import_jsx_runtime43.jsx)("p", {
+            /* @__PURE__ */ (0, import_jsx_runtime44.jsx)("p", {
               className: settings_default.cardHint,
               children: t("backup.empty"),
             }),
@@ -12286,12 +12437,12 @@ ${t("feishu.filter.footImmediate")}`,
     function BackupCard({ draft, onField, readonly, onChanged }) {
       const t = useT();
       const client = useClient();
-      const [backups, setBackups] = (0, import_react32.useState)(null);
-      const [backingUp, setBackingUp] = (0, import_react32.useState)(false);
-      const [backupMsg, setBackupMsg] = (0, import_react32.useState)("");
-      const [restoreSource, setRestoreSource] = (0, import_react32.useState)(null);
-      const fileInput = (0, import_react32.useRef)(null);
-      (0, import_react32.useEffect)(() => {
+      const [backups, setBackups] = (0, import_react33.useState)(null);
+      const [backingUp, setBackingUp] = (0, import_react33.useState)(false);
+      const [backupMsg, setBackupMsg] = (0, import_react33.useState)("");
+      const [restoreSource, setRestoreSource] = (0, import_react33.useState)(null);
+      const fileInput = (0, import_react33.useRef)(null);
+      (0, import_react33.useEffect)(() => {
         void (async () => {
           const list = await client.backupList();
           if (list.ok) {
@@ -12314,30 +12465,30 @@ ${t("feishu.filter.footImmediate")}`,
           setBackupMsg(`\u274C ${result.error.message}`);
         }
       }
-      return /* @__PURE__ */ (0, import_jsx_runtime43.jsxs)("div", {
+      return /* @__PURE__ */ (0, import_jsx_runtime44.jsxs)("div", {
         className: ui_default.card,
         children: [
-          /* @__PURE__ */ (0, import_jsx_runtime43.jsx)("h4", {
+          /* @__PURE__ */ (0, import_jsx_runtime44.jsx)("h4", {
             className: settings_default.cardTitle,
             children: t("backup.title"),
           }),
-          /* @__PURE__ */ (0, import_jsx_runtime43.jsx)(Toggle, {
+          /* @__PURE__ */ (0, import_jsx_runtime44.jsx)(Toggle, {
             label: t("backup.enable"),
             tip: t("backup.enableDesc"),
             checked: draft["backup_enabled"] === "true",
             onChange: (v) => onField("backup_enabled", String(v)),
           }),
-          /* @__PURE__ */ (0, import_jsx_runtime43.jsxs)("div", {
+          /* @__PURE__ */ (0, import_jsx_runtime44.jsxs)("div", {
             className: settings_default.filterRow,
             children: [
-              /* @__PURE__ */ (0, import_jsx_runtime43.jsx)("span", { children: t("backup.keep") }),
-              /* @__PURE__ */ (0, import_jsx_runtime43.jsx)(Select, {
+              /* @__PURE__ */ (0, import_jsx_runtime44.jsx)("span", { children: t("backup.keep") }),
+              /* @__PURE__ */ (0, import_jsx_runtime44.jsx)(Select, {
                 ariaLabel: t("backup.keep"),
                 value: draft["backup_keep"],
                 options: [3, 7, 14, 30].map((n) => ({ value: String(n), label: t("backup.keepN", { n }) })),
                 onChange: (v) => onField("backup_keep", v),
               }),
-              /* @__PURE__ */ (0, import_jsx_runtime43.jsx)("button", {
+              /* @__PURE__ */ (0, import_jsx_runtime44.jsx)("button", {
                 type: "button",
                 className: ui_default.button,
                 disabled: backingUp || readonly,
@@ -12346,18 +12497,18 @@ ${t("feishu.filter.footImmediate")}`,
                 children: backingUp ? t("backup.working") : t("backup.now"),
               }),
               backupMsg !== "" &&
-                /* @__PURE__ */ (0, import_jsx_runtime43.jsx)("span", {
+                /* @__PURE__ */ (0, import_jsx_runtime44.jsx)("span", {
                   className: ui_default.muted,
                   "data-testid": "backup-msg",
                   children: backupMsg,
                 }),
             ],
           }),
-          /* @__PURE__ */ (0, import_jsx_runtime43.jsx)(BackupList, {
+          /* @__PURE__ */ (0, import_jsx_runtime44.jsx)(BackupList, {
             backups,
             onRestore: (b) => setRestoreSource({ backupId: b.file, file: b.file }),
           }),
-          /* @__PURE__ */ (0, import_jsx_runtime43.jsx)("input", {
+          /* @__PURE__ */ (0, import_jsx_runtime44.jsx)("input", {
             ref: fileInput,
             type: "file",
             accept: ".db",
@@ -12372,9 +12523,9 @@ ${t("feishu.filter.footImmediate")}`,
               event.target.value = "";
             },
           }),
-          /* @__PURE__ */ (0, import_jsx_runtime43.jsx)("div", {
+          /* @__PURE__ */ (0, import_jsx_runtime44.jsx)("div", {
             className: settings_default.filterRow,
-            children: /* @__PURE__ */ (0, import_jsx_runtime43.jsx)("button", {
+            children: /* @__PURE__ */ (0, import_jsx_runtime44.jsx)("button", {
               type: "button",
               className: ui_default.button,
               "data-testid": "restore-from-file",
@@ -12384,7 +12535,7 @@ ${t("feishu.filter.footImmediate")}`,
             }),
           }),
           restoreSource !== null &&
-            /* @__PURE__ */ (0, import_jsx_runtime43.jsx)(RestoreConfirmModal, {
+            /* @__PURE__ */ (0, import_jsx_runtime44.jsx)(RestoreConfirmModal, {
               source: restoreSource,
               fileName: restoreSource.file,
               readonly: false,
@@ -12401,12 +12552,16 @@ ${t("feishu.filter.footImmediate")}`,
         ],
       });
     }
+
+    // src/client/settings/sections/ExportCard.tsx
+    var import_react34 = require("react");
+    var import_jsx_runtime45 = require("react/jsx-runtime");
     function ExportCard({ readonly, onChanged }) {
       const t = useT();
       const client = useClient();
-      const [exporting, setExporting] = (0, import_react32.useState)(false);
-      const [exportMsg, setExportMsg] = (0, import_react32.useState)("");
-      const [importOpen, setImportOpen] = (0, import_react32.useState)(false);
+      const [exporting, setExporting] = (0, import_react34.useState)(false);
+      const [exportMsg, setExportMsg] = (0, import_react34.useState)("");
+      const [importOpen, setImportOpen] = (0, import_react34.useState)(false);
       async function runExport(kind) {
         if (exporting || readonly) {
           return;
@@ -12428,18 +12583,18 @@ ${t("feishu.filter.footImmediate")}`,
           setExportMsg(t("dsh.export.dirOpenFailed", { reason: result.error.message, path: result.error.hint ?? "" }));
         }
       }
-      return /* @__PURE__ */ (0, import_jsx_runtime43.jsxs)("div", {
+      return /* @__PURE__ */ (0, import_jsx_runtime45.jsxs)("div", {
         className: ui_default.card,
         children: [
-          /* @__PURE__ */ (0, import_jsx_runtime43.jsx)("h4", {
+          /* @__PURE__ */ (0, import_jsx_runtime45.jsx)("h4", {
             className: settings_default.cardTitle,
             "data-tip": t("export.hint"),
             children: t("export.title"),
           }),
-          /* @__PURE__ */ (0, import_jsx_runtime43.jsxs)("div", {
+          /* @__PURE__ */ (0, import_jsx_runtime45.jsxs)("div", {
             className: settings_default.filterRow,
             children: [
-              /* @__PURE__ */ (0, import_jsx_runtime43.jsx)("button", {
+              /* @__PURE__ */ (0, import_jsx_runtime45.jsx)("button", {
                 type: "button",
                 className: ui_default.button,
                 disabled: exporting || readonly,
@@ -12447,7 +12602,7 @@ ${t("feishu.filter.footImmediate")}`,
                 onClick: () => void runExport("json"),
                 children: t("export.json"),
               }),
-              /* @__PURE__ */ (0, import_jsx_runtime43.jsx)("button", {
+              /* @__PURE__ */ (0, import_jsx_runtime45.jsx)("button", {
                 type: "button",
                 className: ui_default.button,
                 disabled: exporting || readonly,
@@ -12455,7 +12610,7 @@ ${t("feishu.filter.footImmediate")}`,
                 onClick: () => void runExport("csv"),
                 children: t("export.csv"),
               }),
-              /* @__PURE__ */ (0, import_jsx_runtime43.jsx)("button", {
+              /* @__PURE__ */ (0, import_jsx_runtime45.jsx)("button", {
                 type: "button",
                 className: ui_default.button,
                 disabled: exporting || readonly,
@@ -12463,7 +12618,7 @@ ${t("feishu.filter.footImmediate")}`,
                 onClick: () => void runExport("report"),
                 children: t("export.md"),
               }),
-              /* @__PURE__ */ (0, import_jsx_runtime43.jsx)("button", {
+              /* @__PURE__ */ (0, import_jsx_runtime45.jsx)("button", {
                 type: "button",
                 className: ui_default.button,
                 "data-testid": "import-json",
@@ -12471,7 +12626,7 @@ ${t("feishu.filter.footImmediate")}`,
                 onClick: () => setImportOpen(true),
                 children: t("dsh.import.entry"),
               }),
-              /* @__PURE__ */ (0, import_jsx_runtime43.jsx)("button", {
+              /* @__PURE__ */ (0, import_jsx_runtime45.jsx)("button", {
                 type: "button",
                 className: ui_default.button,
                 "data-testid": "export-dir-open",
@@ -12479,7 +12634,7 @@ ${t("feishu.filter.footImmediate")}`,
                 children: t("dsh.export.dirOpen"),
               }),
               exportMsg !== "" &&
-                /* @__PURE__ */ (0, import_jsx_runtime43.jsx)("span", {
+                /* @__PURE__ */ (0, import_jsx_runtime45.jsx)("span", {
                   className: ui_default.muted,
                   "data-testid": "export-msg",
                   role: exportMsg.startsWith("\u274C") ? "alert" : void 0,
@@ -12488,7 +12643,7 @@ ${t("feishu.filter.footImmediate")}`,
             ],
           }),
           importOpen &&
-            /* @__PURE__ */ (0, import_jsx_runtime43.jsx)(ImportConfirmModal, {
+            /* @__PURE__ */ (0, import_jsx_runtime45.jsx)(ImportConfirmModal, {
               readonly,
               onClose: () => setImportOpen(false),
               onChanged,
@@ -12496,14 +12651,19 @@ ${t("feishu.filter.footImmediate")}`,
         ],
       });
     }
+
+    // src/client/settings/sections/GeneralSection.tsx
+    var import_jsx_runtime46 = require("react/jsx-runtime");
+    var USER_GUIDE_URL =
+      "https://github.com/Jo0OCTsai/pokemon-choose-you/blob/main/docs/USER_GUIDE.md#dsh-%E6%8F%92%E4%BB%B6%E5%BD%A2%E6%80%81%E7%AC%AC%E4%BA%8C%E5%BD%A2%E6%80%81";
     function GeneralSection(props) {
       const { draft, onField, onChanged } = props;
       const notifyChanged = onChanged ?? (() => void 0);
       const t = useT();
       const client = useClient();
-      const [dbStatus, setDbStatus] = (0, import_react32.useState)(null);
+      const [dbStatus, setDbStatus] = (0, import_react35.useState)(null);
       const readonly = dbStatus?.mode === "ro";
-      (0, import_react32.useEffect)(() => {
+      (0, import_react35.useEffect)(() => {
         void (async () => {
           const status = await client.dbStatus();
           if (status.ok) {
@@ -12511,22 +12671,22 @@ ${t("feishu.filter.footImmediate")}`,
           }
         })();
       }, [client]);
-      return /* @__PURE__ */ (0, import_jsx_runtime43.jsxs)(SectionShell, {
+      return /* @__PURE__ */ (0, import_jsx_runtime46.jsxs)(SectionShell, {
         children: [
-          /* @__PURE__ */ (0, import_jsx_runtime43.jsxs)("div", {
+          /* @__PURE__ */ (0, import_jsx_runtime46.jsxs)("div", {
             className: ui_default.card,
             children: [
-              /* @__PURE__ */ (0, import_jsx_runtime43.jsx)("h4", {
+              /* @__PURE__ */ (0, import_jsx_runtime46.jsx)("h4", {
                 className: settings_default.cardTitle,
                 children: t("reviewCfg.title"),
               }),
-              /* @__PURE__ */ (0, import_jsx_runtime43.jsx)(Toggle, {
+              /* @__PURE__ */ (0, import_jsx_runtime46.jsx)(Toggle, {
                 label: t("reviewCfg.enable"),
                 tip: t("reviewCfg.enableDesc"),
                 checked: draft["review_enabled"] === "true",
                 onChange: (v) => onField("review_enabled", String(v)),
               }),
-              /* @__PURE__ */ (0, import_jsx_runtime43.jsx)(Select, {
+              /* @__PURE__ */ (0, import_jsx_runtime46.jsx)(Select, {
                 label: t("reviewCfg.dow"),
                 value: draft["review_dow"],
                 options: [1, 2, 3, 4, 5, 6, 7].map((n) => ({ value: String(n), label: t(`reviewDow.${n}`) })),
@@ -12534,16 +12694,16 @@ ${t("feishu.filter.footImmediate")}`,
               }),
             ],
           }),
-          /* @__PURE__ */ (0, import_jsx_runtime43.jsx)(BackupCard, {
+          /* @__PURE__ */ (0, import_jsx_runtime46.jsx)(BackupCard, {
             draft,
             onField,
             readonly,
             onChanged: notifyChanged,
           }),
-          /* @__PURE__ */ (0, import_jsx_runtime43.jsx)(ExportCard, { readonly, onChanged: notifyChanged }),
-          /* @__PURE__ */ (0, import_jsx_runtime43.jsx)("div", {
+          /* @__PURE__ */ (0, import_jsx_runtime46.jsx)(ExportCard, { readonly, onChanged: notifyChanged }),
+          /* @__PURE__ */ (0, import_jsx_runtime46.jsx)("div", {
             className: ui_default.card,
-            children: /* @__PURE__ */ (0, import_jsx_runtime43.jsx)(Toggle, {
+            children: /* @__PURE__ */ (0, import_jsx_runtime46.jsx)(Toggle, {
               label: t("general.closeToTray"),
               tip: t("general.closeToTrayDesc"),
               checked: draft["close_to_tray"] === "true",
@@ -12551,30 +12711,30 @@ ${t("feishu.filter.footImmediate")}`,
               badge: t("dsh.badge.mainApp"),
             }),
           }),
-          /* @__PURE__ */ (0, import_jsx_runtime43.jsxs)("div", {
+          /* @__PURE__ */ (0, import_jsx_runtime46.jsxs)("div", {
             className: ui_default.card,
             children: [
-              /* @__PURE__ */ (0, import_jsx_runtime43.jsx)("h4", {
+              /* @__PURE__ */ (0, import_jsx_runtime46.jsx)("h4", {
                 className: settings_default.cardTitle,
                 children: t("dsh.settings.dualFormTitle"),
               }),
-              /* @__PURE__ */ (0, import_jsx_runtime43.jsx)("p", {
+              /* @__PURE__ */ (0, import_jsx_runtime46.jsx)("p", {
                 className: settings_default.dualFormTip,
                 children: t("dsh.settings.dualFormTip"),
               }),
             ],
           }),
-          /* @__PURE__ */ (0, import_jsx_runtime43.jsxs)("div", {
+          /* @__PURE__ */ (0, import_jsx_runtime46.jsxs)("div", {
             className: ui_default.card,
             children: [
-              /* @__PURE__ */ (0, import_jsx_runtime43.jsx)("h4", {
+              /* @__PURE__ */ (0, import_jsx_runtime46.jsx)("h4", {
                 className: settings_default.cardTitle,
                 children: t("dsh.settings.dbStatusTitle"),
               }),
-              /* @__PURE__ */ (0, import_jsx_runtime43.jsxs)("div", {
+              /* @__PURE__ */ (0, import_jsx_runtime46.jsxs)("div", {
                 className: settings_default.filterRow,
                 children: [
-                  /* @__PURE__ */ (0, import_jsx_runtime43.jsx)("button", {
+                  /* @__PURE__ */ (0, import_jsx_runtime46.jsx)("button", {
                     type: "button",
                     className: ui_default.button,
                     onClick: async () => {
@@ -12586,7 +12746,7 @@ ${t("feishu.filter.footImmediate")}`,
                     children: t("dsh.settings.dbStatusQuery"),
                   }),
                   dbStatus !== null &&
-                    /* @__PURE__ */ (0, import_jsx_runtime43.jsx)("span", {
+                    /* @__PURE__ */ (0, import_jsx_runtime46.jsx)("span", {
                       className: ui_default.muted,
                       children: t("dsh.settings.dbUserVersion", {
                         v: dbStatus.userVersion,
@@ -12597,14 +12757,14 @@ ${t("feishu.filter.footImmediate")}`,
               }),
             ],
           }),
-          /* @__PURE__ */ (0, import_jsx_runtime43.jsxs)("div", {
+          /* @__PURE__ */ (0, import_jsx_runtime46.jsxs)("div", {
             className: ui_default.card,
             children: [
-              /* @__PURE__ */ (0, import_jsx_runtime43.jsx)("h4", {
+              /* @__PURE__ */ (0, import_jsx_runtime46.jsx)("h4", {
                 className: settings_default.cardTitle,
                 children: t("dsh.settings.guideTitle"),
               }),
-              /* @__PURE__ */ (0, import_jsx_runtime43.jsx)("a", {
+              /* @__PURE__ */ (0, import_jsx_runtime46.jsx)("a", {
                 className: settings_default.guideLink,
                 href: USER_GUIDE_URL,
                 target: "_blank",
@@ -12619,10 +12779,10 @@ ${t("feishu.filter.footImmediate")}`,
     }
 
     // src/client/settings/sections/PetSection.tsx
-    var import_react33 = require("react");
+    var import_react36 = require("react");
 
     // src/client/settings/sections/AxPermHint.tsx
-    var import_jsx_runtime44 = require("react/jsx-runtime");
+    var import_jsx_runtime47 = require("react/jsx-runtime");
     function isMacPlatform() {
       if (typeof navigator === "undefined") {
         return false;
@@ -12635,21 +12795,21 @@ ${t("feishu.filter.footImmediate")}`,
       if (granted) {
         return null;
       }
-      return /* @__PURE__ */ (0, import_jsx_runtime44.jsxs)("div", {
+      return /* @__PURE__ */ (0, import_jsx_runtime47.jsxs)("div", {
         className: settings_default.axPermHint,
         "data-testid": "ax-perm-hint",
         children: [
           revoked &&
-            /* @__PURE__ */ (0, import_jsx_runtime44.jsx)("p", {
+            /* @__PURE__ */ (0, import_jsx_runtime47.jsx)("p", {
               className: settings_default.axPermRevoked,
               role: "alert",
               "data-testid": "ax-perm-revoked",
               children: t("dsh.ax.revoked"),
             }),
-          /* @__PURE__ */ (0, import_jsx_runtime44.jsx)("p", { children: t("dsh.ax.guide") }),
-          /* @__PURE__ */ (0, import_jsx_runtime44.jsx)("p", {
+          /* @__PURE__ */ (0, import_jsx_runtime47.jsx)("p", { children: t("dsh.ax.guide") }),
+          /* @__PURE__ */ (0, import_jsx_runtime47.jsx)("p", {
             className: settings_default.axPermPathRow,
-            children: /* @__PURE__ */ (0, import_jsx_runtime44.jsx)("button", {
+            children: /* @__PURE__ */ (0, import_jsx_runtime47.jsx)("button", {
               type: "button",
               className: settings_default.axPermPath,
               title: t("dsh.ax.copyPath"),
@@ -12659,11 +12819,11 @@ ${t("feishu.filter.footImmediate")}`,
               children: helperPath,
             }),
           }),
-          /* @__PURE__ */ (0, import_jsx_runtime44.jsx)("p", {
+          /* @__PURE__ */ (0, import_jsx_runtime47.jsx)("p", {
             className: settings_default.axPermPathHint,
             children: t("dsh.ax.pathHint", { path: helperPath }),
           }),
-          /* @__PURE__ */ (0, import_jsx_runtime44.jsx)("button", {
+          /* @__PURE__ */ (0, import_jsx_runtime47.jsx)("button", {
             type: "button",
             className: ui_default.buttonDex,
             onClick: onAuthorize,
@@ -12674,9 +12834,9 @@ ${t("feishu.filter.footImmediate")}`,
     }
 
     // src/client/settings/sections/PetSection.tsx
-    var import_jsx_runtime45 = require("react/jsx-runtime");
+    var import_jsx_runtime48 = require("react/jsx-runtime");
     function usePokemonCatalog(locale) {
-      return (0, import_react33.useMemo)(
+      return (0, import_react36.useMemo)(
         () => ({ pokemonName: createPokemonName(locale), pokemonSearch: createPokemonSearch(locale) }),
         [locale],
       );
@@ -12697,19 +12857,19 @@ ${t("feishu.filter.footImmediate")}`,
       const { locale } = useI18n();
       const { pokemonName, pokemonSearch: localPokemonSearch } = usePokemonCatalog(locale);
       const pokemonSearch = data.pokemonSearch ?? localPokemonSearch;
-      const [quotePokemon, setQuotePokemon] = (0, import_react33.useState)(
+      const [quotePokemon, setQuotePokemon] = (0, import_react36.useState)(
         draft["main_pokemon"] || DEFAULT_QUOTE_POKEMON,
       );
-      const [showWarn, setShowWarn] = (0, import_react33.useState)(null);
-      const [petRunning, setPetRunning] = (0, import_react33.useState)(null);
-      const refreshPetStatus = (0, import_react33.useCallback)(() => {
+      const [showWarn, setShowWarn] = (0, import_react36.useState)(null);
+      const [petRunning, setPetRunning] = (0, import_react36.useState)(null);
+      const refreshPetStatus = (0, import_react36.useCallback)(() => {
         void client.petStatus().then((r) => {
           if (r.ok) {
             setPetRunning(r.data.running);
           }
         });
       }, [client]);
-      (0, import_react33.useEffect)(() => {
+      (0, import_react36.useEffect)(() => {
         refreshPetStatus();
       }, [refreshPetStatus]);
       const mainKey = draft["main_pokemon"];
@@ -12717,9 +12877,9 @@ ${t("feishu.filter.footImmediate")}`,
       const quoteText = quotesMap[quotePokemon] ?? "";
       const mac = isMacPlatform();
       const inputResponseOn = draft["pet_input_response"] === "true";
-      const [axGranted, setAxGranted] = (0, import_react33.useState)(null);
-      const [helperPath, setHelperPath] = (0, import_react33.useState)("");
-      const refreshAx = (0, import_react33.useCallback)(() => {
+      const [axGranted, setAxGranted] = (0, import_react36.useState)(null);
+      const [helperPath, setHelperPath] = (0, import_react36.useState)("");
+      const refreshAx = (0, import_react36.useCallback)(() => {
         if (!mac) {
           return;
         }
@@ -12730,7 +12890,7 @@ ${t("feishu.filter.footImmediate")}`,
           }
         });
       }, [client, mac]);
-      (0, import_react33.useEffect)(() => {
+      (0, import_react36.useEffect)(() => {
         refreshAx();
         window.addEventListener("focus", refreshAx);
         return () => {
@@ -12753,20 +12913,20 @@ ${t("feishu.filter.footImmediate")}`,
         setShowWarn(ready === false ? t("dsh.pet.showNotReady") : null);
         refreshPetStatus();
       }
-      return /* @__PURE__ */ (0, import_jsx_runtime45.jsxs)(SectionShell, {
+      return /* @__PURE__ */ (0, import_jsx_runtime48.jsxs)(SectionShell, {
         children: [
-          /* @__PURE__ */ (0, import_jsx_runtime45.jsxs)("div", {
+          /* @__PURE__ */ (0, import_jsx_runtime48.jsxs)("div", {
             className: ui_default.card,
             children: [
-              /* @__PURE__ */ (0, import_jsx_runtime45.jsx)("h4", {
+              /* @__PURE__ */ (0, import_jsx_runtime48.jsx)("h4", {
                 className: settings_default.cardTitle,
                 children: t("cats.mainTitle"),
               }),
-              /* @__PURE__ */ (0, import_jsx_runtime45.jsxs)("div", {
+              /* @__PURE__ */ (0, import_jsx_runtime48.jsxs)("div", {
                 className: settings_default.filterRow,
                 "data-testid": "main-pokemon-row",
                 children: [
-                  /* @__PURE__ */ (0, import_jsx_runtime45.jsxs)("span", {
+                  /* @__PURE__ */ (0, import_jsx_runtime48.jsxs)("span", {
                     style: { flex: 1 },
                     "data-tip": t("cats.mainDesc"),
                     children: [
@@ -12775,7 +12935,7 @@ ${t("feishu.filter.footImmediate")}`,
                       mainKey === "" ? t("cats.mainFollow") : pokemonName(mainKey),
                     ],
                   }),
-                  /* @__PURE__ */ (0, import_jsx_runtime45.jsx)(PokemonPicker, {
+                  /* @__PURE__ */ (0, import_jsx_runtime48.jsx)(PokemonPicker, {
                     value: mainKey,
                     onPick: (key) => onField("main_pokemon", key),
                     search: pokemonSearch,
@@ -12787,24 +12947,24 @@ ${t("feishu.filter.footImmediate")}`,
               }),
             ],
           }),
-          /* @__PURE__ */ (0, import_jsx_runtime45.jsxs)("div", {
+          /* @__PURE__ */ (0, import_jsx_runtime48.jsxs)("div", {
             className: ui_default.card,
             children: [
-              /* @__PURE__ */ (0, import_jsx_runtime45.jsx)("h4", {
+              /* @__PURE__ */ (0, import_jsx_runtime48.jsx)("h4", {
                 className: settings_default.cardTitle,
                 children: t("cats.quotesTitle"),
               }),
-              /* @__PURE__ */ (0, import_jsx_runtime45.jsxs)("div", {
+              /* @__PURE__ */ (0, import_jsx_runtime48.jsxs)("div", {
                 className: settings_default.filterRow,
                 children: [
-                  /* @__PURE__ */ (0, import_jsx_runtime45.jsx)(PokemonPicker, {
+                  /* @__PURE__ */ (0, import_jsx_runtime48.jsx)(PokemonPicker, {
                     value: quotePokemon,
                     onPick: setQuotePokemon,
                     search: pokemonSearch,
                     nameOf: pokemonName,
                     ariaLabel: t("cats.quotesTitle"),
                   }),
-                  /* @__PURE__ */ (0, import_jsx_runtime45.jsx)("span", {
+                  /* @__PURE__ */ (0, import_jsx_runtime48.jsx)("span", {
                     className: settings_default.dimCount,
                     children: t("cats.quotesCount", {
                       n: quoteText.split("\n").filter((l) => l.trim() !== "").length,
@@ -12812,7 +12972,7 @@ ${t("feishu.filter.footImmediate")}`,
                   }),
                 ],
               }),
-              /* @__PURE__ */ (0, import_jsx_runtime45.jsx)("textarea", {
+              /* @__PURE__ */ (0, import_jsx_runtime48.jsx)("textarea", {
                 className: settings_default.entityDescInput,
                 rows: 4,
                 "aria-label": t("cats.quotesTitle"),
@@ -12823,26 +12983,26 @@ ${t("feishu.filter.footImmediate")}`,
             ],
           }),
           mac &&
-            /* @__PURE__ */ (0, import_jsx_runtime45.jsxs)("div", {
+            /* @__PURE__ */ (0, import_jsx_runtime48.jsxs)("div", {
               className: ui_default.card,
               children: [
-                /* @__PURE__ */ (0, import_jsx_runtime45.jsx)("h4", {
+                /* @__PURE__ */ (0, import_jsx_runtime48.jsx)("h4", {
                   className: settings_default.cardTitle,
                   children: t("focus.petTitle"),
                 }),
-                /* @__PURE__ */ (0, import_jsx_runtime45.jsx)(Toggle, {
+                /* @__PURE__ */ (0, import_jsx_runtime48.jsx)(Toggle, {
                   label: t("focus.petInput"),
                   tip: t("focus.petInputDesc"),
                   checked: inputResponseOn,
                   onChange: (v) => onField("pet_input_response", String(v)),
                 }),
-                /* @__PURE__ */ (0, import_jsx_runtime45.jsx)(Toggle, {
+                /* @__PURE__ */ (0, import_jsx_runtime48.jsx)(Toggle, {
                   label: t("focus.petInputWorking"),
                   tip: t("focus.petInputWorkingDesc"),
                   checked: draft["pet_input_response_working"] === "true",
                   onChange: (v) => onField("pet_input_response_working", String(v)),
                 }),
-                /* @__PURE__ */ (0, import_jsx_runtime45.jsx)(AxPermHint, {
+                /* @__PURE__ */ (0, import_jsx_runtime48.jsx)(AxPermHint, {
                   granted: axGranted === true,
                   revoked: inputResponseOn && axGranted === false,
                   helperPath,
@@ -12852,16 +13012,16 @@ ${t("feishu.filter.footImmediate")}`,
                 }),
               ],
             }),
-          /* @__PURE__ */ (0, import_jsx_runtime45.jsxs)("div", {
+          /* @__PURE__ */ (0, import_jsx_runtime48.jsxs)("div", {
             className: ui_default.card,
             children: [
-              /* @__PURE__ */ (0, import_jsx_runtime45.jsx)(Toggle, {
+              /* @__PURE__ */ (0, import_jsx_runtime48.jsx)(Toggle, {
                 label: t("focus.petVoice"),
                 tip: t("focus.petVoiceDesc"),
                 checked: draft["pet_voice"] === "true",
                 onChange: (v) => onField("pet_voice", String(v)),
               }),
-              /* @__PURE__ */ (0, import_jsx_runtime45.jsx)(Toggle, {
+              /* @__PURE__ */ (0, import_jsx_runtime48.jsx)(Toggle, {
                 label: t("focus.petMate"),
                 tip: t("focus.petMateDesc"),
                 checked: draft["pet_mate"] === "true",
@@ -12869,24 +13029,24 @@ ${t("feishu.filter.footImmediate")}`,
               }),
             ],
           }),
-          /* @__PURE__ */ (0, import_jsx_runtime45.jsxs)("div", {
+          /* @__PURE__ */ (0, import_jsx_runtime48.jsxs)("div", {
             className: ui_default.card,
             children: [
-              /* @__PURE__ */ (0, import_jsx_runtime45.jsx)(Toggle, {
+              /* @__PURE__ */ (0, import_jsx_runtime48.jsx)(Toggle, {
                 label: t("display.reduceMotion"),
                 tip: t("display.reduceMotionDesc"),
                 checked: draft["reduce_motion"] === "true",
                 onChange: (v) => onField("reduce_motion", String(v)),
               }),
-              /* @__PURE__ */ (0, import_jsx_runtime45.jsxs)("div", {
+              /* @__PURE__ */ (0, import_jsx_runtime48.jsxs)("div", {
                 className: settings_default.filterRow,
                 "data-testid": "pet-show-row",
                 children: [
-                  /* @__PURE__ */ (0, import_jsx_runtime45.jsx)("span", {
+                  /* @__PURE__ */ (0, import_jsx_runtime48.jsx)("span", {
                     style: { flex: 1 },
                     children: t("dsh.pet.showRow"),
                   }),
-                  /* @__PURE__ */ (0, import_jsx_runtime45.jsxs)("span", {
+                  /* @__PURE__ */ (0, import_jsx_runtime48.jsxs)("span", {
                     "data-testid": "pet-show-state",
                     children: [
                       t("dsh.pet.stateLabel"),
@@ -12899,14 +13059,14 @@ ${t("feishu.filter.footImmediate")}`,
                       ),
                     ],
                   }),
-                  /* @__PURE__ */ (0, import_jsx_runtime45.jsx)("button", {
+                  /* @__PURE__ */ (0, import_jsx_runtime48.jsx)("button", {
                     type: "button",
                     className: ui_default.button,
                     "aria-label": t("dsh.pet.showRow"),
                     onClick: () => void showPet(),
                     children: t("dsh.pet.show"),
                   }),
-                  /* @__PURE__ */ (0, import_jsx_runtime45.jsx)("button", {
+                  /* @__PURE__ */ (0, import_jsx_runtime48.jsx)("button", {
                     type: "button",
                     className: ui_default.button,
                     "aria-label": t("pet.menuHide"),
@@ -12919,7 +13079,7 @@ ${t("feishu.filter.footImmediate")}`,
                 ],
               }),
               showWarn !== null &&
-                /* @__PURE__ */ (0, import_jsx_runtime45.jsx)("p", {
+                /* @__PURE__ */ (0, import_jsx_runtime48.jsx)("p", {
                   className: settings_default.saveFailHint,
                   role: "alert",
                   "data-testid": "pet-show-warn",
@@ -12932,7 +13092,7 @@ ${t("feishu.filter.footImmediate")}`,
     }
 
     // src/client/settings/SettingsSegment.tsx
-    var import_jsx_runtime46 = require("react/jsx-runtime");
+    var import_jsx_runtime49 = require("react/jsx-runtime");
     var SECTION_KEY_SETS = {
       focus: FOCUS_KEYS,
       taxonomy: [],
@@ -12964,24 +13124,24 @@ ${t("feishu.filter.footImmediate")}`,
       initialSection = "focus",
     }) {
       const t = useT();
-      const [section, setSection] = (0, import_react34.useState)(initialSection);
-      const initialConfig = (0, import_react34.useMemo)(() => {
+      const [section, setSection] = (0, import_react37.useState)(initialSection);
+      const initialConfig = (0, import_react37.useMemo)(() => {
         const normalized = {};
         for (const key of DRAFT_KEYS) {
           normalized[key] = data.config[key] ?? "";
         }
         return normalizeSettingValues(normalized);
       }, [data.config]);
-      const [draft, setDraft] = (0, import_react34.useState)(initialConfig);
-      const [saved, setSaved] = (0, import_react34.useState)(initialConfig);
-      const bodyRef = (0, import_react34.useRef)(null);
-      (0, import_react34.useEffect)(() => {
+      const [draft, setDraft] = (0, import_react37.useState)(initialConfig);
+      const [saved, setSaved] = (0, import_react37.useState)(initialConfig);
+      const bodyRef = (0, import_react37.useRef)(null);
+      (0, import_react37.useEffect)(() => {
         bodyRef.current?.scrollTo({ top: 0 });
       }, [section]);
-      const onField = (0, import_react34.useCallback)((key, value) => {
+      const onField = (0, import_react37.useCallback)((key, value) => {
         setDraft((prev) => ({ ...prev, [key]: value }));
       }, []);
-      const onSavedKeys = (0, import_react34.useCallback)((keys, values) => {
+      const onSavedKeys = (0, import_react37.useCallback)((keys, values) => {
         setSaved((prev) => {
           const next = { ...prev };
           for (const key of keys) {
@@ -12990,16 +13150,16 @@ ${t("feishu.filter.footImmediate")}`,
           return next;
         });
       }, []);
-      const dirtyKeys = (0, import_react34.useMemo)(
+      const dirtyKeys = (0, import_react37.useMemo)(
         () => DRAFT_KEYS.filter((key) => draft[key] !== saved[key]),
         [draft, saved],
       );
       const anyDirty = dirtyKeys.length > 0;
-      const dirtySections = (0, import_react34.useMemo)(
+      const dirtySections = (0, import_react37.useMemo)(
         () => dirtySectionSet(draft, saved, SECTION_KEY_SETS),
         [draft, saved],
       );
-      (0, import_react34.useEffect)(() => {
+      (0, import_react37.useEffect)(() => {
         onUnsavedChange(anyDirty);
       }, [anyDirty, onUnsavedChange]);
       const sectionProps = { draft, saved, onField, onSavedKeys };
@@ -13010,9 +13170,9 @@ ${t("feishu.filter.footImmediate")}`,
       function renderSection(key) {
         switch (key) {
           case "focus":
-            return /* @__PURE__ */ (0, import_jsx_runtime46.jsx)(FocusSection, { ...sectionProps });
+            return /* @__PURE__ */ (0, import_jsx_runtime49.jsx)(FocusSection, { ...sectionProps });
           case "taxonomy":
-            return /* @__PURE__ */ (0, import_jsx_runtime46.jsx)(CategoryTagSection, {
+            return /* @__PURE__ */ (0, import_jsx_runtime49.jsx)(CategoryTagSection, {
               categories: data.categories,
               dimensions: taxonomy.dimensions,
               tags: taxonomy.tags,
@@ -13021,11 +13181,11 @@ ${t("feishu.filter.footImmediate")}`,
               onChanged,
             });
           case "pets":
-            return /* @__PURE__ */ (0, import_jsx_runtime46.jsx)(PetSection, { ...sectionProps, data });
+            return /* @__PURE__ */ (0, import_jsx_runtime49.jsx)(PetSection, { ...sectionProps, data });
           case "display":
-            return /* @__PURE__ */ (0, import_jsx_runtime46.jsx)(DisplaySection, { ...sectionProps, onLocalePreview });
+            return /* @__PURE__ */ (0, import_jsx_runtime49.jsx)(DisplaySection, { ...sectionProps, onLocalePreview });
           case "agents":
-            return /* @__PURE__ */ (0, import_jsx_runtime46.jsx)(AgentSection, {
+            return /* @__PURE__ */ (0, import_jsx_runtime49.jsx)(AgentSection, {
               ...sectionProps,
               agents,
               routes: data.routes,
@@ -13034,33 +13194,33 @@ ${t("feishu.filter.footImmediate")}`,
               onChanged,
             });
           case "feishu":
-            return /* @__PURE__ */ (0, import_jsx_runtime46.jsx)(FeishuSection, {
+            return /* @__PURE__ */ (0, import_jsx_runtime49.jsx)(FeishuSection, {
               ...sectionProps,
               filters,
               lastPollAt: data.filterLastPollAt ?? null,
             });
           case "diag":
-            return /* @__PURE__ */ (0, import_jsx_runtime46.jsx)(DiagnosticsSection, {});
+            return /* @__PURE__ */ (0, import_jsx_runtime49.jsx)(DiagnosticsSection, {});
           case "general":
-            return /* @__PURE__ */ (0, import_jsx_runtime46.jsx)(GeneralSection, { ...sectionProps, onChanged });
+            return /* @__PURE__ */ (0, import_jsx_runtime49.jsx)(GeneralSection, { ...sectionProps, onChanged });
           default:
             return null;
         }
       }
-      return /* @__PURE__ */ (0, import_jsx_runtime46.jsxs)("div", {
+      return /* @__PURE__ */ (0, import_jsx_runtime49.jsxs)("div", {
         className: settings_default.settingsSegment,
         "data-testid": "segment-settings",
         children: [
-          /* @__PURE__ */ (0, import_jsx_runtime46.jsxs)("div", {
+          /* @__PURE__ */ (0, import_jsx_runtime49.jsxs)("div", {
             className: settings_default.settingsHeadRow,
             children: [
-              /* @__PURE__ */ (0, import_jsx_runtime46.jsx)(SectionNav, {
+              /* @__PURE__ */ (0, import_jsx_runtime49.jsx)(SectionNav, {
                 active: section,
                 onChange: setSection,
                 dirtySections,
               }),
               SECTION_KEY_SETS[section].length > 0 &&
-                /* @__PURE__ */ (0, import_jsx_runtime46.jsx)(SaveControls, {
+                /* @__PURE__ */ (0, import_jsx_runtime49.jsx)(SaveControls, {
                   keys: SECTION_KEY_SETS[section],
                   draft,
                   saved,
@@ -13069,18 +13229,18 @@ ${t("feishu.filter.footImmediate")}`,
                 }),
             ],
           }),
-          /* @__PURE__ */ (0, import_jsx_runtime46.jsx)("div", {
+          /* @__PURE__ */ (0, import_jsx_runtime49.jsx)("div", {
             ref: bodyRef,
             className: settings_default.settingsBody,
             children: SECTION_KEYS.map((key) =>
-              /* @__PURE__ */ (0, import_jsx_runtime46.jsx)(
+              /* @__PURE__ */ (0, import_jsx_runtime49.jsx)(
                 "div",
                 { hidden: section !== key, "data-section-wrap": key, children: renderSection(key) },
                 key,
               ),
             ),
           }),
-          /* @__PURE__ */ (0, import_jsx_runtime46.jsx)(LeaveGuardDialog, {
+          /* @__PURE__ */ (0, import_jsx_runtime49.jsx)(LeaveGuardDialog, {
             leaveRequest,
             anyDirty,
             draft,
@@ -13120,7 +13280,7 @@ ${t("feishu.filter.footImmediate")}`,
           onLeaveResolved(true);
         }
       }
-      return /* @__PURE__ */ (0, import_jsx_runtime46.jsx)(UnsavedLeaveDialog, {
+      return /* @__PURE__ */ (0, import_jsx_runtime49.jsx)(UnsavedLeaveDialog, {
         onSaveLeave: () => void saveAndLeave(),
         onDiscard: () => {
           onDiscard();
@@ -13133,14 +13293,14 @@ ${t("feishu.filter.footImmediate")}`,
     }
 
     // src/client/tasks/TaskDetailDrawer.tsx
-    var import_react41 = require("react");
+    var import_react44 = require("react");
 
     // src/client/tasks/DispatchOps.tsx
-    var import_react35 = require("react");
+    var import_react38 = require("react");
 
     // src/client/tasks/tasks.module.css
     var css6 =
-      '/* \u4EFB\u52A1\u5206\u6BB5\u6837\u5F0F\uFF08scoped\uFF09\uFF1A\u7CBE\u7075\u6761\u76EE\u5361\u4E3A\u9762\u677F signature\uFF08\u5BBF\u4E3B\u5217\u8868\u884C\u5BB9\u5668 + pixelated \u7CBE\u7075\uFF09 */\n\n.rvpBRw_segmentWrap {\n  display: flex;\n  flex-direction: column;\n  gap: 10px;\n}\n\n/* \u5192\u9669\u6BB5\u65E5\u671F\u4E0E CAUGHT \u8FDB\u5EA6\u6761\u6837\u5F0F\u5DF2\u968F\u9875\u5934\u79FB\u5165 app.rvpBRw_module.rvpBRw_css\uFF08PageHeader\uFF0C\u684C\u9762 today \u9875\u5934\u540C\u4F4D\uFF09 */\n\n/* OverdueFold */\n.rvpBRw_overdueFold {\n  display: flex;\n  align-items: center;\n  gap: 10px;\n  padding: 6px 10px;\n  border-radius: 8px;\n  border: 1px dashed var(--dsw-alias-border-l3, #c7cdd4);\n  background: var(--dsw-alias-bg-layer-1, #f8f9fb);\n  color: var(--dsw-alias-label-secondary, #57606a);\n  font-size: 13px;\n}\n.rvpBRw_overdueList {\n  display: flex;\n  flex-direction: column;\n  gap: 6px;\n  padding: 4px 0 0 12px;\n}\n\n/* \u7CBE\u7075\u6761\u76EE\u5361\uFF08\u9762\u677F signature\uFF0C\u539F\u578B tcard\uFF1A\u5BBF\u4E3B\u5BB9\u5668 + pixelated \u7CBE\u7075 + No.rvpBRw_xxx + \u5C5E\u6027\u5FBD\u7AE0\uFF09\n   box-sizing \u663E\u5F0F\u58F0\u660E\u2014\u2014dsw \u5BBF\u4E3B\u65E0\u5168\u5C40\u590D\u4F4D\uFF0Cwidth:100% + padding/border \u4E0D\u6536\u53E3\u4F1A\u53F3\u6EA2\u51FA */\n.rvpBRw_taskCard {\n  position: relative;\n  box-sizing: border-box;\n  display: flex;\n  align-items: center;\n  gap: 10px;\n  padding: 10px 12px;\n  border-radius: 12px;\n  border: 1px solid var(--dsw-alias-border-l1, #e3e7ec);\n  background: var(--dsw-alias-bg-layer-1, #ffffff);\n  cursor: pointer;\n  text-align: left;\n  width: 100%;\n  min-height: 44px;\n  font-size: 13px;\n  color: inherit;\n}\n/* \u60AC\u505C = \u684C\u9762\u552F\u4E00\u60AC\u505C\u9EC4\uFF08specs/dsh-plugin-style T1#5\uFF09+ \u91CD\u58A8\u7EBF */\n.rvpBRw_taskCard:hover {\n  background: var(--pcy-hover, #fff3c4);\n  border-color: var(--dsw-alias-label-primary, #1f2328);\n}\n.rvpBRw_taskCard:focus-visible {\n  outline: 2px solid var(--dsw-alias-state-business-primary, #316dca);\n  outline-offset: 1px;\n}\n/* \u4E94\u5448\u73B0\uFF08\u5F62\u4E0E\u8272\u627F\u8F7D\u72B6\u6001\uFF0C\u4E0D\u95EA\u70C1\uFF09 */\n.rvpBRw_taskCard[data-presentation="active"] {\n  border: 2px solid var(--pcy-running, #ffcb05);\n}\n/* \u8FDB\u884C\u4E2D\xB7\u6682\u505C\u53D8\u4F53\uFF1A\u7070\u63CF\u8FB9\uFF1B\u5361\u9762\u5185\u5BB9\u4E0D\u6DE1\u5316\u4E0D\u964D\u9971\u548C\uFF08\u684C\u9762\u6682\u505C\u5361 = \u666E\u901A\u5361 + \u5B9E\u8272 tag-paused\uFF0C\n * \u900F\u660E\u53E0\u52A0\u4F1A\u8BA9\u72B6\u6001\u6807\u8BB0\u770B\u8D77\u6765\u300C\u534A\u900F\u660E\u300D\u2014\u2014\u4E0E\u6355\u83B7\u4E2D\u4FDD\u6301\u540C\u7B49\u5B9E\u8272\u5448\u73B0\uFF09 */\n.rvpBRw_taskCard[data-presentation="activePaused"] {\n  border: 2px solid var(--dsw-alias-border-l3, #c7cdd4);\n}\n/* \u5DF2\u6355\u6349 = LCD \u5316\uFF08specs/dsh-plugin-style T2#14\uFF1A\u5B8C\u6210 = \u6293\u5230\u56FE\u9274\uFF0C\u5361\u9762\u53D8\u5C4F\uFF1B\n * \u8F85\u52A9\u884C\u8D70 lcd-text \u5B9E\u8272\u4E0D\u7528\u900F\u660E\u5EA6\u2014\u2014\u900F\u660E\u53E0\u52A0\u4F1A\u8DCC\u7834 4.5:1\uFF09 */\n.rvpBRw_taskCard[data-presentation="done"] {\n  background: var(--pcy-lcd, #c4cfa1);\n  border: 1.5px solid var(--dsw-alias-label-primary, #1f2328);\n  box-shadow: inset 2px 2px 0 var(--pcy-lcd-dark, #9caa86);\n}\n.rvpBRw_taskCard[data-presentation="done"]:hover {\n  background: var(--pcy-lcd, #c4cfa1);\n}\n.rvpBRw_taskCard[data-presentation="done"] .rvpBRw_taskTitle {\n  text-decoration: line-through;\n  color: var(--pcy-lcd-text, #3a4a32);\n}\n.rvpBRw_taskCard[data-presentation="done"] .rvpBRw_taskNo,\n.rvpBRw_taskCard[data-presentation="done"] .rvpBRw_taskMeta,\n.rvpBRw_taskCard[data-presentation="done"] .rvpBRw_catchMark {\n  color: var(--pcy-lcd-text, #3a4a32);\n}\n/* LCD/\u9003\u8D70\u5361\u4E0A\u7CBE\u7075\u53EA\u7559\u7070\u5EA6\u526A\u5F71\uFF08\u88F8\u56FE\u65E0\u6846\uFF0C\u65E0\u9700\u6846\u9000\u573A\u8986\u76D6\uFF09 */\n.rvpBRw_taskCard[data-presentation="done"] .rvpBRw_taskSprite,\n.rvpBRw_taskCard[data-presentation="escaped"] .rvpBRw_taskSprite {\n  filter: grayscale(1);\n  opacity: 0.55;\n}\n/* \u5DF2\u9003\u8D70 = \u684C\u9762\u9003\u9038\u6001\u540C\u6E90\u7EB8\u7070\uFF08specs/dsh-plugin-style \xA74 --pcy-paper-dim\uFF09\uFF1B\n * \u6574\u5361 opacity 0.6 \u4E3A\u65E2\u6709\u8C41\u514D\uFF08\u4E2D\u6027\u5448\u73B0\u3001\u4E0D\u50AC\u6E05\u96F6\uFF0C\u22484.0:1 \u8BB0\u5165 docs/debt.rvpBRw_md\uFF09 */\n.rvpBRw_taskCard[data-presentation="escaped"] {\n  background: var(--pcy-paper-dim, #f3efe6);\n  opacity: 0.6;\n}\n.rvpBRw_taskCard[data-presentation="escaped"]:hover {\n  background: var(--pcy-paper-dim, #f3efe6);\n}\n/* \u8FDB\u884C\u4E2D\u60AC\u6D6E\u6807\u7B7E\uFF08\u5361\u9876\u9A91\u7F1D pill\uFF0C\u539F\u578B running-tag\uFF1B\u6682\u505C\u53D8\u4F53\u7070\uFF09\u3002\n   \u6587\u5B57/\u63CF\u8FB9\u7528\u56FA\u5B9A\u58A8\u8272\uFF08DESIGN_SYSTEM --dex-navy\uFF09\u2014\u2014alias label \u5728\u6697\u4E3B\u9898\u7FFB\u8F6C\u4E3A\u6D45\u8272\uFF0C\n   \u9EC4\u5E95\u6D45\u5B57\u5BF9\u6BD4\u5EA6\u4E0D\u8DB3\uFF08U7 scoped \u56FA\u5B9A\u8272\u53E3\u5F84\uFF09 */\n.rvpBRw_runningTag {\n  position: absolute;\n  top: -9px;\n  left: 12px;\n  font-size: 10px;\n  font-weight: 700;\n  line-height: 1.4;\n  background: var(--pcy-running, #ffcb05);\n  color: #1a1b25;\n  border: 1px solid #1a1b25;\n  border-radius: 999px;\n  padding: 0 8px;\n}\n/* \u6682\u505C\u53D8\u4F53\uFF1A\u684C\u9762 .rvpBRw_tag-paused \u540C\u6E90\uFF08warn-soft \u5B9E\u8272\u5E95 + warn-ink \u5B57\uFF09\uFF0C\u58A8\u7EBF\u63CF\u8FB9\u6CBF\u7528\u57FA\u7C7B\u2014\u2014\n * \u4E0E\u6355\u83B7\u4E2D\u540C\u4E3A\u5B9E\u8272 pill\uFF0C\u4EC5\u914D\u8272\u4E0E \u23F8 \u5B57\u5F62\u533A\u5206 */\n.rvpBRw_taskCard[data-presentation="activePaused"] .rvpBRw_runningTag {\n  background: var(--pcy-warn-soft, #fff3cd);\n  color: var(--pcy-warn-ink, #8a5e06);\n}\n/* \u7B49\u5BBD\u56FE\u9274\u7F16\u53F7\uFF08U6\uFF1A\u9762\u677F\u4E0D\u52A0\u8F7D\u50CF\u7D20\u5B57\u4F53\uFF0C\u7B49\u5BBD\u5B57\u4F53\u627F\u8F7D\u7F16\u53F7\uFF1B\u5B57\u8DDD = \u4E1D\u5370\u611F\uFF09 */\n.rvpBRw_taskNo {\n  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;\n  font-size: 10px;\n  letter-spacing: 1px;\n  color: var(--dsw-alias-label-secondary, #57606a);\n  flex: none;\n}\n/* \u7CBE\u7075\u56FE\uFF08specs/dsh-plugin-style T1#10 \u56DE\u6D41\uFF1A\u4EFB\u52A1\u5361\u7CBE\u7075\u88F8\u56FE\uFF0C\u65E0\u6846\u65E0\u5E95\uFF1B\u5360\u4F4D\u70B9\u4ECD\u9700\u5C3A\u5BF8\u951A\u5B9A\uFF09 */\n.rvpBRw_taskSprite {\n  width: 30px;\n  height: 30px;\n  image-rendering: pixelated;\n  display: flex;\n  align-items: center;\n  justify-content: center;\n  font-size: 16px;\n  flex: none;\n}\n.rvpBRw_taskMain {\n  flex: 1;\n  min-width: 0;\n  display: flex;\n  flex-direction: column;\n  gap: 3px;\n}\n.rvpBRw_taskTitle {\n  font-weight: 700;\n  overflow: hidden;\n  text-overflow: ellipsis;\n  white-space: nowrap;\n}\n.rvpBRw_taskMeta {\n  display: flex;\n  align-items: center;\n  gap: 8px;\n  font-size: 11px;\n  color: var(--dsw-alias-label-secondary, #57606a);\n  flex-wrap: wrap;\n}\n/* \u5C5E\u6027\u5FBD\u7AE0\uFF08DESIGN_SYSTEM \u5206\u7C7B\u8272\u56FA\u5B9A\u5E95 + navy \u5B57\uFF1B\u6697\u4E3B\u9898 1px \u63CF\u8FB9\u515C\u5E95\u5BF9\u6BD4\u2014\u2014U7\uFF09 */\n.rvpBRw_typeBadge {\n  font-size: 10px;\n  font-weight: 700;\n  color: #1a1b25;\n  border-radius: 4px;\n  padding: 0 7px;\n  line-height: 16px;\n  border: 1px solid rgba(26, 27, 37, 0.35);\n  background: var(--pcy-type-neutral, var(--dsw-alias-border-l1, #e3e7ec));\n  flex: none;\n}\n.rvpBRw_typeBadge[data-type="work"] {\n  background: var(--pcy-type-work, #f8d030);\n}\n.rvpBRw_typeBadge[data-type="study"] {\n  background: var(--pcy-type-study, #6890f0);\n}\n.rvpBRw_typeBadge[data-type="life"] {\n  background: var(--pcy-type-life, #78c850);\n}\n.rvpBRw_typeBadge[data-type="health"] {\n  background: var(--pcy-type-health, #a8a878);\n}\n.rvpBRw_typeBadge[data-type="interest"] {\n  background: var(--pcy-type-interest, #ee99ac);\n}\n/* \u4F18\u5148\u7EA7\u56DB\u70B9\uFF08\u7D27\u6025\u6863\u653E\u5927\u70B9 + \u53CC\u63CF\u8FB9\uFF0C\u4E0D\u95EA\u70C1\uFF09 */\n.rvpBRw_prioDot {\n  width: 9px;\n  height: 9px;\n  border-radius: 50%;\n  flex: none;\n  border: 1px solid rgba(26, 27, 37, 0.35);\n}\n.rvpBRw_prioDot[data-prio="urgent"] {\n  width: 12px;\n  height: 12px;\n  box-shadow:\n    0 0 0 2px var(--dsw-alias-bg-layer-1, #fff),\n    0 0 0 3.5px var(--pcy-danger, #ee1515);\n  background: var(--pcy-danger, #ee1515);\n}\n.rvpBRw_prioDot[data-prio="high"] {\n  background: var(--pcy-prio-high, #f08030);\n}\n.rvpBRw_prioDot[data-prio="normal"] {\n  background: var(--pcy-type-life, #78c850);\n}\n.rvpBRw_prioDot[data-prio="low"] {\n  background: var(--pcy-type-health, #a8a878);\n}\n/* \u6D3E\u53D1\u5FBD\u6807\u4E94\u6001\uFF08\u5F62 + \u6587\u5B57\u6807\u7B7E + \u8F6F\u5E95\uFF0C\u975E\u989C\u8272\u5197\u4F59\uFF09\uFF1B\u56FA\u5B9A\u8F6F\u5E95\u52A0 1px \u58A8\u63CF\u8FB9\u515C\u5E95\u6697\u4E3B\u9898\u5C0F\u56FE\u5F62\u5BF9\u6BD4\uFF08U7\uFF09 */\n.rvpBRw_dispatchBadge {\n  display: inline-flex;\n  align-items: center;\n  gap: 3px;\n  font-size: 10px;\n  font-weight: 700;\n  border-radius: 4px;\n  padding: 0 6px;\n  line-height: 16px;\n  flex: none;\n  border: 1px solid rgba(26, 27, 37, 0.2);\n}\n.rvpBRw_dispatchGlyph {\n  font-size: 10px;\n}\n.rvpBRw_dispatchBadge[data-state="queued"] {\n  background: var(--pcy-conf-mid-soft, #fff3d6);\n  color: var(--pcy-warn-ink, #8a5e06);\n}\n.rvpBRw_dispatchBadge[data-state="running"] {\n  background: var(--pcy-ok-soft, #dff3e4);\n  color: var(--pcy-ok-ink, #1d6b3c);\n}\n.rvpBRw_dispatchBadge[data-state="done"] {\n  background: var(--pcy-conf-low-soft, #eceada);\n  color: var(--dsw-alias-label-secondary, #57606a);\n}\n.rvpBRw_dispatchBadge[data-state="failed"] {\n  background: var(--pcy-fail-soft, #fde8e8);\n  color: var(--pcy-fail-ink, #991b1b);\n}\n.rvpBRw_quickOps {\n  display: flex;\n  gap: 4px;\n  flex: none;\n  align-items: center;\n}\n/* \u2715 \u653E\u751F\u94AE\uFF08\u684C\u9762 .rvpBRw_btn.rvpBRw_del\uFF1Adanger \u5B57\u8272\uFF09 */\n.rvpBRw_opRelease {\n  color: var(--pcy-danger, #b3590f);\n}\n/* \u5DF2\u6355\u6349/\u5DF2\u9003\u8D70\u72B6\u6001\u6807\uFF08\u684C\u9762 .rvpBRw_catch-mark / .rvpBRw_escape-mark \u540C\u6784\uFF09 */\n.rvpBRw_catchMark {\n  font-size: 13px;\n  font-weight: 700;\n  color: var(--dsw-alias-label-secondary, #57606a);\n}\n.rvpBRw_escapeMark {\n  color: var(--pcy-warn-ink, #8a5e06);\n}\n/* \u6807\u7B7E chips\uFF08\u684C\u9762 .rvpBRw_tag-list / .rvpBRw_tag-chip \u540C\u6784\uFF1A\u9879\u76EE\u7EF4\u5EA6\u9EC4\u5E95\u4E3B\u4F4D\uFF09 */\n.rvpBRw_tagList {\n  display: inline-flex;\n  gap: 4px;\n  flex-wrap: wrap;\n}\n.rvpBRw_metaTagChip {\n  font-style: normal;\n  font-size: 10.5px;\n  font-weight: 700;\n  color: var(--dsw-alias-label-secondary, #57606a);\n  background: var(--dsw-alias-bg-layer-1, #f2f4f7);\n  border: 1px solid rgba(26, 27, 37, 0.2);\n  border-radius: 999px;\n  padding: 0 7px;\n  line-height: 17px;\n}\n.rvpBRw_metaTagChip[data-project="true"] {\n  background: var(--pcy-running, #ffcb05);\n  color: #1a1b25;\n}\n\n/* DexView */\n.rvpBRw_dexStatsLine {\n  font-size: 13px;\n}\n.rvpBRw_dexMilestone {\n  font-size: 13px;\n  color: var(--dsw-alias-label-secondary, #57606a);\n}\n.rvpBRw_dexFilters {\n  display: flex;\n  flex-wrap: wrap;\n  gap: 6px;\n}\n/* \u56FE\u9274\u8FC7\u6EE4\u80F6\u56CA\uFF08specs/dsh-plugin-style T1#4\uFF0C\u4E00\u7B49\u9009\u4E2D\u8BED\u8A00\uFF09\uFF1A\u6052\u5B9A 1.5px \u8FB9\u6846\u2014\u2014\n * \u672C\u7C7B\u65E0 border-box\uFF0C\u9009\u4E2D 1px\u21921.5px \u53D8\u5BBD\u4F1A\u6296\u52A8\uFF0C\u672A\u9009\u4E2D\u7528\u900F\u660E\u5360\u4F4D */\n.rvpBRw_filterButton {\n  display: inline-flex;\n  align-items: center;\n  gap: 4px;\n  min-height: 32px;\n  padding: 2px 12px;\n  border-radius: 999px;\n  border: 1.5px solid var(--dsw-alias-border-l1, #e3e7ec);\n  background: var(--dsw-alias-bg-layer-1, #ffffff);\n  color: var(--dsw-alias-label-secondary, #57606a);\n  font-size: 12px;\n  font-weight: 600;\n  cursor: pointer;\n}\n.rvpBRw_filterButton:hover {\n  border-color: var(--dsw-alias-border-l3, #c7cdd4);\n  background: var(--pcy-hover, #fff3c4);\n}\n.rvpBRw_filterButton[aria-pressed="true"] {\n  border-color: var(--dsw-alias-label-primary, #1f2328);\n  background: var(--pcy-running, #ffcb05);\n  color: #1a1b25;\n  font-weight: 700;\n}\n\n/* \u641C\u7D22\u680F\uFF08\u5BF9\u7167\u4E3B\u5E94\u7528 TaskTab \u641C\u7D22\uFF1A\u8F93\u5165 + \u547D\u4E2D\u8BA1\u6570\uFF1B\u5E95\u8DDD 12px \u4E0E\u684C\u9762 .rvpBRw_search-bar \u540C\u503C\u2014\u2014\n * \u641C\u7D22\u680F\u4E0E\u5206\u6BB5\u5185\u5BB9\u662F\u5757\u7EA7\u5144\u5F1F\uFF0C\u65E0\u7236\u7EA7 gap \u627F\u63A5\uFF09 */\n.rvpBRw_searchBar {\n  display: flex;\n  align-items: center;\n  gap: 10px;\n  margin-bottom: 12px;\n}\n.rvpBRw_searchInput {\n  flex: 1;\n  min-width: 0;\n  min-height: 32px;\n  padding: 4px 10px;\n  border-radius: 8px;\n  border: 1px solid var(--dsw-alias-border-l2, #d0d7de);\n  background: var(--dsw-alias-bg-layer-1, #ffffff);\n  color: var(--dsw-alias-label-primary, #1f2328);\n  font-size: 13px;\n}\n.rvpBRw_searchInput:focus-visible {\n  outline: 2px solid var(--dsw-alias-state-business-primary, #316dca);\n  outline-offset: 1px;\n}\n.rvpBRw_searchHint {\n  flex: none;\n  font-size: 12px;\n  font-weight: 600;\n  color: var(--dsw-alias-label-secondary, #57606a);\n}\n\n/* \u5168\u5B57\u6BB5\u7F16\u8F91\u5F39\u7A97\u8868\u5355\uFF08label \u5217 + \u63A7\u4EF6\u5217\uFF1B\u6807\u7B7E chips \u6309\u7EF4\u5EA6\u5206\u7EC4\uFF09 */\n.rvpBRw_editForm {\n  display: flex;\n  flex-direction: column;\n  gap: 10px;\n}\n.rvpBRw_editRow {\n  display: grid;\n  grid-template-columns: 56px minmax(0, 1fr);\n  align-items: center;\n  gap: 10px;\n  font-size: 13px;\n  color: var(--dsw-alias-label-secondary, #57606a);\n}\n.rvpBRw_editRowLabel {\n  font-weight: 700;\n}\n.rvpBRw_editTextarea {\n  min-height: 32px;\n  padding: 4px 8px;\n  border-radius: 8px;\n  border: 1px solid var(--dsw-alias-border-l2, #d0d7de);\n  background: var(--dsw-alias-bg-layer-1, #ffffff);\n  color: var(--dsw-alias-label-primary, #1f2328);\n  font-size: 13px;\n  resize: vertical;\n  width: 100%;\n  box-sizing: border-box;\n}\n.rvpBRw_tagPick {\n  display: flex;\n  flex-wrap: wrap;\n  gap: 6px 10px;\n  align-items: center;\n}\n.rvpBRw_tagDim {\n  display: flex;\n  flex-wrap: wrap;\n  align-items: center;\n  gap: 6px;\n}\n.rvpBRw_dimName {\n  font-size: 11px;\n  font-weight: 700;\n  color: var(--dsw-alias-label-secondary, #57606a);\n  margin-right: 2px;\n}\n.rvpBRw_tagChip {\n  min-height: 24px;\n  padding: 2px 10px;\n  border-radius: 999px;\n  border: 1px solid var(--dsw-alias-border-l2, #d0d7de);\n  background: var(--dsw-alias-bg-layer-1, #ffffff);\n  color: var(--dsw-alias-label-primary, #1f2328);\n  font-size: 12px;\n  font-weight: 600;\n  cursor: pointer;\n}\n.rvpBRw_tagChip:hover {\n  border-color: var(--dsw-alias-border-l3, #c7cdd4);\n}\n.rvpBRw_tagChip:disabled {\n  opacity: 0.45;\n  cursor: not-allowed;\n}\n/* \u9009\u4E2D\u6001\uFF1A\u9879\u76EE\u7EF4\u5EA6\u4E3B\u4F4D\u9AD8\u4EAE\u9EC4\uFF0C\u5176\u4F59\u7EF4\u5EA6\u6D45\u7EFF\u533A\u5206 */\n.rvpBRw_tagChip[data-on="true"] {\n  background: var(--pcy-running, #ffcb05);\n  border-color: rgba(26, 27, 37, 0.35);\n}\n.rvpBRw_tagChip[data-project="false"][data-on="true"] {\n  background: var(--pcy-ok-soft, #dff3e4);\n}\n.rvpBRw_tagCount {\n  font-size: 11px;\n  color: var(--dsw-alias-label-secondary, #57606a);\n  margin-left: auto;\n}\n.rvpBRw_editError {\n  margin: 0;\n  font-size: 12.5px;\n  font-weight: 700;\n  color: var(--pcy-danger, #b3590f);\n}\n\n/* EmptyState */\n.rvpBRw_emptyState {\n  padding: 28px 16px;\n  text-align: center;\n  color: var(--dsw-alias-label-secondary, #57606a);\n  font-size: 13px;\n  line-height: 1.8;\n}\n\n/* \u7A7A\u6001 + \u4E3B\u884C\u52A8\uFF08U22\uFF1A\u6587\u6848\u4E0B\u552F\u4E00\u4E3B\u63A8\u8FDB\u52A8\u4F5C\uFF0CbuttonDex \u6863\u5C45\u4E2D\uFF09 */\n.rvpBRw_emptyWrap {\n  display: flex;\n  flex-direction: column;\n  align-items: center;\n  gap: 10px;\n}\n\n/* \u6BB5\u5934\u5DE5\u5177\u884C\uFF08U22\uFF1A\u4E09\u4EFB\u52A1\u6BB5\u5E38\u9A7B\u300C\uFF0B \u65B0\u5EFA\u4EFB\u52A1\u300D\uFF0C\u53F3\u7F18\u5BF9\u9F50\u2014\u2014\u5BBF\u4E3B\u6863\u6B21\u6309\u94AE\uFF09 */\n.rvpBRw_segmentToolbar {\n  display: flex;\n  justify-content: flex-end;\n  padding: 0 0 8px;\n}\n\n/* \u8DEF\u7EBF\u5206\u7EC4\uFF08\u539F\u578B group-h\uFF1A\u5C0F\u53F7\u52A0\u7C97\u5F31\u5316\u8272 + \u5B57\u8DDD\uFF09 */\n.rvpBRw_routeGroupDate {\n  font-size: 12px;\n  font-weight: 800;\n  letter-spacing: 0.4px;\n  color: var(--dsw-alias-label-secondary, #57606a);\n  margin: 10px 0 6px;\n}\n\n/* \u65E5\u5FD7\u6BB5 ledger \u884C\u5361\uFF08\u539F\u578B ledger\uFF1Aagent \u52A0\u7C97 + exit \u8272\u5B57 + \u65F6\u95F4\u53F3\u5BF9\u9F50\u7B49\u5BBD\uFF09 */\n.rvpBRw_ledger {\n  display: flex;\n  flex-wrap: wrap;\n  align-items: center;\n  gap: 4px 12px;\n  background: var(--dsw-alias-bg-layer-1, #ffffff);\n  border: 1px solid var(--dsw-alias-border-l1, #e3e7ec);\n  border-radius: 10px;\n  padding: 9px 12px;\n  font-size: 12px;\n  color: var(--dsw-alias-label-secondary, #57606a);\n}\n.rvpBRw_ledgerAgent {\n  font-weight: 700;\n  color: var(--dsw-alias-label-primary, #1f2328);\n  font-size: 12.5px;\n}\n.rvpBRw_ledgerExit {\n  font-weight: 700;\n}\n.rvpBRw_ledgerExit[data-ok="true"] {\n  color: var(--pcy-ok-ink, #1d6b3c);\n}\n.rvpBRw_ledgerExit[data-ok="false"] {\n  color: var(--pcy-fail-ink, #991b1b);\n}\n.rvpBRw_ledgerTime {\n  margin-left: auto;\n  font-variant-numeric: tabular-nums;\n}\n\n/* \u6267\u884C\u4E16\u754C\u5FBD\u7AE0\uFF08FR-C2\uFF1A\u672C\u673A/\u90E8\u7F72\u522B\u540D\uFF1B\u7B49\u5BBD\u4E1D\u5370\u4F4D\u2014\u2014\u5FEB\u7167\u6307\u5411\u5DF2\u79FB\u9664\u90E8\u7F72 = \u5220\u9664\u7EBF\u4E2D\u6027\u5448\u73B0\uFF09 */\n.rvpBRw_worldBadge {\n  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;\n  letter-spacing: 1px;\n  font-size: 11px;\n  border: 1px solid var(--dsw-alias-border-l3, #c7cdd4);\n  border-radius: 4px;\n  padding: 1px 6px;\n  color: var(--dsw-alias-label-secondary, #57606a);\n}\n.rvpBRw_worldBadge[data-gone="true"] {\n  text-decoration: line-through;\n}\n\n/* \u4F1A\u8BDD\u5206\u9875\u5668\uFF08counts \u5E38\u663E + \u4E0A\u4E0B\u9875 + \u6BCF\u9875\u6761\u6570\u6863\uFF1B\u547D\u4E2D\u533A \u226532px\uFF09 */\n.rvpBRw_sessPager {\n  display: flex;\n  align-items: center;\n  gap: 8px;\n  padding-top: 10px;\n  flex-wrap: wrap;\n}\n.rvpBRw_sessCounts {\n  font-size: 12px;\n  color: var(--dsw-alias-label-secondary, #57606a);\n  font-variant-numeric: tabular-nums;\n  margin-right: auto;\n}\n.rvpBRw_sessNote {\n  margin: 8px 0 0;\n  font-size: 12px;\n  color: var(--dsw-alias-label-secondary, #57606a);\n}\n\n/* \u8BE6\u60C5\u62BD\u5C49\uFF08\u53F3\u4FA7\u6ED1\u5165\u8986\u76D6\u5C42\uFF0C\u539F\u578B drawer/drawer-mask\uFF1Afixed \u6574\u89C6\u53E3 mask + \u53F3\u7F18\u9762\u677F\uFF1B\n   fixed \u76F8\u5BF9\u5BBF\u4E3B\u89C6\u53E3\u2014\u2014\u9762\u677F\u8F7D\u4F53\uFF08detail section / \u4E3B\u9762\u677F\uFF09\u6EDA\u52A8\u5BB9\u5668\u5404\u5F02\uFF0C\u89C6\u53E3\u7EA7\u6700\u7A33\u5065\uFF09 */\n.rvpBRw_drawerOverlay {\n  position: fixed;\n  inset: 0;\n  z-index: 60;\n  background: rgba(15, 18, 30, 0.42);\n}\n.rvpBRw_drawer {\n  position: fixed;\n  top: 0;\n  right: 0;\n  bottom: 0;\n  z-index: 61;\n  width: min(94vw, 800px);\n  display: flex;\n  flex-direction: column;\n  background: var(--dsw-alias-bg-base, var(--dsw-alias-bg-layer-1, #ffffff));\n  border-left: 2px solid var(--dsw-alias-label-primary, #1f2328);\n  box-shadow: -8px 0 24px rgba(0, 0, 0, 0.2);\n}\n.rvpBRw_drawerHeader {\n  display: flex;\n  align-items: flex-start;\n  gap: 10px;\n  padding: 14px 16px;\n  border-bottom: 1px solid var(--dsw-alias-border-l1, #e3e7ec);\n}\n.rvpBRw_drawerTitle {\n  font-size: 15px;\n  font-weight: 700;\n  margin: 0;\n  flex: 1;\n}\n.rvpBRw_drawerClose {\n  flex: none;\n}\n.rvpBRw_drawerBody {\n  flex: 1;\n  overflow-y: auto;\n  padding: 14px 16px;\n  display: flex;\n  flex-direction: column;\n  gap: 16px;\n}\n.rvpBRw_drawerSectionTitle {\n  font-size: 13px;\n  font-weight: 700;\n  margin: 0 0 6px;\n}\n/* \u5C5E\u6027\u603B\u89C8\uFF08\u684C\u9762 .rvpBRw_d-summary \u540C\u6784\uFF1A\u4E24\u5217 kv + \u9762\u677F\u5E95\uFF1B\u5361\u5185\u53F3\u4E0A\u89D2\u300C\u7F16\u8F91\u300D\u5165\u53E3\u6D6E\u5C42\uFF09 */\n.rvpBRw_summarySection {\n  position: relative;\n  display: flex;\n  flex-direction: column;\n  gap: 6px;\n  padding: 10px 12px;\n  border: 1px solid var(--dsw-alias-border-l1, #e3e7ec);\n  border-radius: 10px;\n  background: var(--dsw-alias-bg-layer-1, #f8f9fb);\n}\n/* \u7F16\u8F91\u94AE\u6D6E\u5C42\uFF08\u7EDD\u5BF9\u5B9A\u4F4D\u4E0D\u5360\u5E03\u5C40\u884C\u2014\u2014kv \u6805\u683C\u4F4D\u7F6E\u4E0E\u9996\u884C\u9AD8\u5EA6\u4E0D\u53D7\u5F71\u54CD\uFF09 */\n.rvpBRw_summaryEdit {\n  position: absolute;\n  top: 8px;\n  right: 8px;\n  z-index: 1;\n}\n.rvpBRw_summaryGrid {\n  display: grid;\n  grid-template-columns: 1fr 1fr;\n  gap: 6px 14px;\n  font-size: 12.5px;\n}\n.rvpBRw_summaryKv {\n  display: flex;\n  align-items: baseline;\n  gap: 6px;\n  min-width: 0;\n}\n.rvpBRw_summaryKey {\n  flex: none;\n  font-weight: 700;\n  color: var(--dsw-alias-label-secondary, #57606a);\n}\n.rvpBRw_summaryVal {\n  min-width: 0;\n  overflow-wrap: break-word;\n}\n.rvpBRw_summaryValMono {\n\n  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;\n  font-variant-numeric: tabular-nums;\n}\n.rvpBRw_summaryTags {\n  display: inline-flex;\n  gap: 4px;\n  flex-wrap: wrap;\n}\n.rvpBRw_followupItem {\n  padding: 4px 0 4px 12px;\n  border-left: 2px solid var(--dsw-alias-border-l1, #e3e7ec);\n  font-size: 13px;\n}\n.rvpBRw_followupContent {\n  min-width: 0;\n  overflow-wrap: break-word;\n}\n.rvpBRw_followupMeta {\n  display: flex;\n  align-items: center;\n  gap: 8px;\n  font-size: 11px;\n  color: var(--dsw-alias-label-secondary, #57606a);\n}\n.rvpBRw_followupSrc {\n  font-size: 10px;\n  font-weight: 700;\n  color: #1a1b25;\n  background: var(--pcy-running, #ffcb05);\n  border: 1px solid rgba(26, 27, 37, 0.35);\n  border-radius: 4px;\n  padding: 0 5px;\n  line-height: 15px;\n}\n.rvpBRw_followupEmpty {\n  font-size: 12px;\n  color: var(--dsw-alias-label-secondary, #57606a);\n}\n/* \u4E24\u6BB5\u5F0F\u5220\u9664\uFF08\u2715 \u2192 \u786E\u8BA4\u5220\u9664\uFF1F4 \u79D2\u590D\u4F4D\uFF09 */\n.rvpBRw_followupDelete {\n  margin-left: auto;\n  border: none;\n  background: none;\n  padding: 0 4px;\n  min-height: 24px;\n  font-size: 12px;\n  color: var(--pcy-danger, #b3590f);\n  cursor: pointer;\n}\n.rvpBRw_followupDelete[data-confirming="true"] {\n  background: var(--pcy-danger, #b3590f);\n  color: #ffffff;\n  border-radius: 4px;\n  padding: 0 8px;\n  font-weight: 700;\n}\n.rvpBRw_followupDelete:disabled {\n  opacity: 0.45;\n  cursor: not-allowed;\n}\n.rvpBRw_followupInput {\n  flex: 1;\n  min-width: 0;\n  min-height: 32px;\n  padding: 4px 8px;\n  border-radius: 8px;\n  border: 1px solid var(--dsw-alias-border-l2, #d0d7de);\n  background: var(--dsw-alias-bg-layer-1, #ffffff);\n  color: var(--dsw-alias-label-primary, #1f2328);\n  font-size: 13px;\n}\n.rvpBRw_followupInput:focus-visible {\n  outline: 2px solid var(--dsw-alias-state-business-primary, #316dca);\n  outline-offset: 1px;\n}\n.rvpBRw_followupComposer {\n  display: flex;\n  gap: 6px;\n}\n\n/* \u64CD\u4F5C\u5386\u53F2\u6BB5\uFF08\u5BF9\u7167\u684C\u9762 log \u884C\uFF1Aorigin + \u65F6\u95F4 + \u52A8\u4F5C/\u5B57\u6BB5\u65E7\u2192\u65B0\uFF09 */\n.rvpBRw_historyRow {\n  display: flex;\n  flex-direction: column;\n  gap: 2px;\n  padding: 4px 0 4px 12px;\n  border-left: 2px solid var(--dsw-alias-border-l1, #e3e7ec);\n  font-size: 12.5px;\n}\n.rvpBRw_historyMeta {\n  display: flex;\n  align-items: center;\n  gap: 8px;\n  font-size: 11px;\n  color: var(--dsw-alias-label-secondary, #57606a);\n}\n.rvpBRw_historyOrigin {\n  font-weight: 700;\n}\n.rvpBRw_historyText {\n  min-width: 0;\n  overflow-wrap: break-word;\n}\n.rvpBRw_timelineItem {\n  display: flex;\n  gap: 10px;\n  padding: 6px 0;\n  font-size: 12px;\n}\n.rvpBRw_timelineDot {\n  width: 8px;\n  height: 8px;\n  margin-top: 4px;\n  border-radius: 50%;\n  background: var(--dsw-alias-border-l3, #c7cdd4);\n  flex: none;\n}\n.rvpBRw_timelineMain {\n  flex: 1;\n}\n.rvpBRw_opsRow {\n  display: flex;\n  gap: 6px;\n  flex-wrap: wrap;\n  align-items: center;\n}\n/* \u6D3E\u53D1\u884C\uFF08\u684C\u9762 dsp-row \u540C\u6784\uFF09\uFF1A\u901A\u9053/agent \u4E0B\u62C9\u5B9A\u5BBD\u3001agent \u5FBD\u7AE0\u3001\u76EE\u5F55\u7701\u7565\u3001\u51FA\u53D1\u4E3B\u94AE */\n.rvpBRw_dspChannel {\n  width: 150px;\n  flex: none;\n}\n.rvpBRw_dspAgent {\n  width: 150px;\n  flex: none;\n}\n.rvpBRw_dspAgentBadge {\n  flex: none;\n  font-size: 11px;\n  font-weight: 700;\n  border: 1px solid rgba(26, 27, 37, 0.2);\n  border-radius: 4px;\n  padding: 1px 7px;\n  line-height: 18px;\n  background: var(--dsw-alias-border-l1, #e3e7ec);\n  color: inherit;\n}\n.rvpBRw_dspAgentBadge[data-ssh="true"] {\n  background: var(--pcy-ok-soft, #dff3e4);\n  color: var(--pcy-ok-ink, #1d6b3c);\n}\n.rvpBRw_dspDir {\n  flex: 1;\n  min-width: 120px;\n  font-size: 12px;\n  color: var(--dsw-alias-label-secondary, #57606a);\n  overflow: hidden;\n  text-overflow: ellipsis;\n  white-space: nowrap;\n}\n/* \u624B\u52A8\u6536\u53E3 mini \u6863\uFF08\u684C\u9762 dsp-mark .rvpBRw_btn mini \u540C\u6784\uFF09 */\n.rvpBRw_markMini {\n  min-height: 28px;\n  padding: 2px 10px;\n  font-size: 12px;\n}\n.rvpBRw_markReset {\n  color: var(--pcy-danger, #b3590f);\n}\n.rvpBRw_drawerHint {\n  margin: 0;\n  font-size: 11.5px;\n  color: var(--dsw-alias-label-secondary, #57606a);\n}\n.rvpBRw_drawerErr {\n  margin: 0;\n  font-size: 12.5px;\n  font-weight: 700;\n  color: var(--pcy-fail-ink, #991b1b);\n}\n\n/* \u6BCF\u5468\u590D\u76D8\u5411\u5BFC\uFF08\u5BF9\u7167\u684C\u9762 ReviewWizard.rvpBRw_vue\uFF1A\u6B65\u9AA4\u6761 + \u603B\u89C8\u7EDF\u8BA1\u5361 + \u6761\u5F62 + \u4EFB\u52A1\u7AD9\u5361 + \u8349\u4E1B\u6E05\u5355 + \u4F53\u68C0\u884C\u5361\uFF09 */\n.rvpBRw_reviewBody {\n  display: flex;\n  flex-direction: column;\n  gap: 12px;\n  min-height: 200px;\n}\n.rvpBRw_reviewSteps {\n  display: flex;\n  gap: 6px;\n  flex-wrap: wrap;\n  font-size: 11px;\n  font-weight: 700;\n}\n.rvpBRw_reviewStepDot {\n  border: 1px solid var(--dsw-alias-border-l2, #d0d7de);\n  border-radius: 999px;\n  padding: 2px 8px;\n  color: var(--dsw-alias-label-secondary, #57606a);\n  background: var(--dsw-alias-bg-layer-1, #ffffff);\n}\n.rvpBRw_reviewStepDot[data-on="true"] {\n  background: var(--pcy-running, #ffcb05);\n  border-color: rgba(26, 27, 37, 0.35);\n  color: #1a1b25;\n}\n.rvpBRw_reviewStepDot[data-past="true"] {\n  background: var(--pcy-ok-soft, #dff3e4);\n  border-color: var(--pcy-ok-ink, #1d6b3c);\n  color: var(--pcy-ok-ink, #1d6b3c);\n}\n.rvpBRw_reviewStats {\n  display: flex;\n  gap: 8px;\n}\n.rvpBRw_reviewStat {\n  flex: 1;\n  border: 1px solid var(--dsw-alias-border-l1, #e3e7ec);\n  border-radius: 8px;\n  background: var(--dsw-alias-bg-layer-1, #f8f9fb);\n  text-align: center;\n  padding: 8px 4px;\n}\n.rvpBRw_reviewStatNum {\n  font-size: 22px;\n  font-weight: 800;\n  font-variant-numeric: tabular-nums;\n  color: var(--dsw-alias-label-primary, #1f2328);\n}\n.rvpBRw_reviewStatLbl {\n  font-size: 11px;\n  color: var(--dsw-alias-label-secondary, #57606a);\n}\n.rvpBRw_reviewBars {\n  display: flex;\n  flex-direction: column;\n  gap: 4px;\n}\n.rvpBRw_reviewBarRow {\n  display: flex;\n  align-items: center;\n  gap: 8px;\n  font-size: 12px;\n}\n.rvpBRw_reviewBarName {\n  width: 44px;\n  flex: none;\n  font-weight: 700;\n  color: var(--dsw-alias-label-primary, #1f2328);\n}\n.rvpBRw_reviewBarTrack {\n  flex: 1;\n  height: 12px;\n  border: 1.5px solid var(--dsw-alias-border-l2, #d0d7de);\n  border-radius: 4px;\n  background: var(--dsw-alias-bg-layer-1, #ffffff);\n  overflow: hidden;\n  display: block;\n}\n.rvpBRw_reviewBarFill {\n  display: block;\n  height: 100%;\n  background: var(--pcy-running, #ffcb05);\n}\n.rvpBRw_reviewBarN {\n  flex: none;\n  font-weight: 800;\n  font-variant-numeric: tabular-nums;\n  color: var(--dsw-alias-label-primary, #1f2328);\n}\n.rvpBRw_reviewTip {\n  font-size: 11px;\n  color: var(--dsw-alias-label-secondary, #57606a);\n  margin: 0;\n}\n.rvpBRw_reviewStation {\n  border: 1.5px solid var(--dsw-alias-border-l2, #d0d7de);\n  border-radius: 8px;\n  padding: 10px 12px;\n  background: var(--dsw-alias-bg-layer-1, #f8f9fb);\n}\n.rvpBRw_reviewStNo {\n  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;\n  font-size: 10px;\n  letter-spacing: 1px;\n  color: var(--dsw-alias-label-secondary, #57606a);\n}\n.rvpBRw_reviewStTitle {\n  font-size: 15px;\n  font-weight: 800;\n  color: var(--dsw-alias-label-primary, #1f2328);\n  margin: 4px 0;\n}\n.rvpBRw_reviewStMeta {\n  display: flex;\n  gap: 10px;\n  flex-wrap: wrap;\n  font-size: 11px;\n  color: var(--dsw-alias-label-secondary, #57606a);\n}\n.rvpBRw_reviewStMeta [data-overdue="true"] {\n  color: var(--pcy-fail-ink, #991b1b);\n  font-weight: 800;\n}\n.rvpBRw_reviewStNote {\n  font-size: 12px;\n  color: var(--dsw-alias-label-secondary, #57606a);\n  margin: 6px 0 0;\n}\n.rvpBRw_reviewBtnRow {\n  display: flex;\n  gap: 8px;\n  flex-wrap: wrap;\n}\n/* ghost/mini/del\uFF1A\u684C\u9762 ghost \u6B21\u8981\u6309\u94AE\u4E0E\u884C\u5185 mini \u6863\uFF08danger \u5B57\u8272\uFF09 */\n.rvpBRw_reviewGhost {\n  background: var(--dsw-alias-bg-layer-1, #f8f9fb);\n}\n.rvpBRw_reviewMini {\n  min-height: 26px;\n  padding: 2px 8px;\n  font-size: 12px;\n}\n.rvpBRw_reviewDel {\n  color: var(--pcy-danger, #b3590f);\n}\n.rvpBRw_reviewEmpty {\n  color: var(--dsw-alias-label-secondary, #57606a);\n  text-align: center;\n  padding: 32px 0;\n  font-size: 13px;\n  margin: 0;\n}\n.rvpBRw_reviewGrassHead {\n  display: flex;\n  align-items: center;\n  justify-content: space-between;\n  gap: 8px;\n  flex-wrap: wrap;\n}\n.rvpBRw_reviewBatchCheck {\n  display: flex;\n  align-items: center;\n  gap: 6px;\n  font-size: 13px;\n  font-weight: 700;\n  color: var(--dsw-alias-label-primary, #1f2328);\n  cursor: pointer;\n}\n.rvpBRw_reviewGrassList {\n  list-style: none;\n  margin: 0;\n  padding: 0;\n  display: flex;\n  flex-direction: column;\n  gap: 6px;\n  max-height: 220px;\n  overflow-y: auto;\n}\n.rvpBRw_reviewGrassItem {\n  display: flex;\n  align-items: center;\n  gap: 8px;\n  border: 1px solid var(--dsw-alias-border-l1, #e3e7ec);\n  border-radius: 6px;\n  padding: 6px 10px;\n  font-size: 13px;\n}\n.rvpBRw_reviewGrassTitle {\n  font-weight: 700;\n  color: var(--dsw-alias-label-primary, #1f2328);\n}\n.rvpBRw_reviewGrassCat {\n  margin-left: auto;\n  font-size: 11px;\n  color: var(--dsw-alias-label-secondary, #57606a);\n}\n.rvpBRw_reviewTgTitle {\n  margin: 0 0 6px;\n  font-size: 13px;\n  color: var(--dsw-alias-label-primary, #1f2328);\n}\n.rvpBRw_reviewTgRow {\n  display: flex;\n  align-items: center;\n  gap: 8px;\n  flex-wrap: wrap;\n  border: 1px solid var(--dsw-alias-border-l1, #e3e7ec);\n  border-radius: 6px;\n  padding: 6px 10px;\n  font-size: 12.5px;\n  margin-bottom: 6px;\n}\n.rvpBRw_reviewTgMain {\n  font-weight: 700;\n  color: var(--dsw-alias-label-primary, #1f2328);\n}\n.rvpBRw_reviewTgDim {\n  font-style: normal;\n  font-size: 11px;\n  color: var(--dsw-alias-label-secondary, #57606a);\n  margin-left: 4px;\n}\n.rvpBRw_reviewTgReason {\n  font-size: 11px;\n  color: var(--dsw-alias-label-secondary, #57606a);\n  flex: 1;\n  min-width: 120px;\n}\n.rvpBRw_reviewFin {\n  text-align: center;\n  padding: 16px 0;\n}\n.rvpBRw_reviewFinEmoji {\n  font-size: 36px;\n}\n.rvpBRw_reviewFinLine {\n  font-size: 14px;\n  font-weight: 800;\n  color: var(--dsw-alias-label-primary, #1f2328);\n  margin: 0;\n}\n\n/* \u56FE\u9274\u7B5B\u9009\u884C\u7684\u590D\u76D8\u5165\u53E3\uFF08\u684C\u9762 .rvpBRw_filter-btn.rvpBRw_review-btn\uFF1A\u53F3\u8D34\u8FB9 + \u4E00\u7B49\u9009\u4E2D\u8BED\u8A00\u5408\u6D41\uFF0C\n * \u9A8C\u6536\u88C1\u51B3\u53BB \u25B6 \u524D\u7F00\uFF09 */\n.rvpBRw_reviewEntry {\n  margin-left: auto;\n  border-color: var(--dsw-alias-label-primary, #1f2328);\n  background: var(--pcy-running, #ffcb05);\n  color: #1a1b25;\n  font-weight: 700;\n}\n.rvpBRw_reviewEntry:hover {\n  border-color: var(--dsw-alias-label-primary, #1f2328);\n  background: var(--pcy-running, #ffcb05);\n}\n.rvpBRw_reviewEntry:disabled {\n  opacity: 0.45;\n  cursor: not-allowed;\n}\n\n/* \u6D3E\u53D1\u6267\u884C\u4E16\u754C\u884C + \u964D\u7EA7\u660E\u793A\uFF08\xA78 \u6D3E\u53D1\u786E\u8BA4\u9762\uFF1B\u8B66\u793A\u884C\u8D70 danger \u8272\u975E\u95EA\u70C1\uFF09 */\n.rvpBRw_worldNotes {\n  margin: 6px 0 0;\n  display: flex;\n  flex-direction: column;\n  gap: 2px;\n}\n.rvpBRw_worldNotes p {\n  margin: 0;\n  font-size: 12px;\n  line-height: 1.7;\n}\n.rvpBRw_worldLine {\n  color: var(--dsw-alias-label-secondary, #57606a);\n}\n.rvpBRw_worldWarn {\n  color: var(--pcy-danger, #b3590f);\n}\n';
+      '/* \u4EFB\u52A1\u5206\u6BB5\u6837\u5F0F\uFF08scoped\uFF09\uFF1A\u7CBE\u7075\u6761\u76EE\u5361\u4E3A\u9762\u677F signature\uFF08\u5BBF\u4E3B\u5217\u8868\u884C\u5BB9\u5668 + pixelated \u7CBE\u7075\uFF09 */\n\n.rvpBRw_segmentWrap {\n  display: flex;\n  flex-direction: column;\n  gap: 10px;\n}\n\n/* \u5192\u9669\u6BB5\u65E5\u671F\u4E0E CAUGHT \u8FDB\u5EA6\u6761\u6837\u5F0F\u5DF2\u968F\u9875\u5934\u79FB\u5165 app.rvpBRw_module.rvpBRw_css\uFF08PageHeader\uFF0C\u684C\u9762 today \u9875\u5934\u540C\u4F4D\uFF09 */\n\n/* OverdueFold */\n.rvpBRw_overdueFold {\n  display: flex;\n  align-items: center;\n  gap: 10px;\n  padding: 6px 10px;\n  border-radius: 8px;\n  border: 1px dashed var(--dsw-alias-border-l3, #c7cdd4);\n  background: var(--dsw-alias-bg-layer-1, #f8f9fb);\n  color: var(--dsw-alias-label-secondary, #57606a);\n  font-size: 13px;\n}\n.rvpBRw_overdueList {\n  display: flex;\n  flex-direction: column;\n  gap: 6px;\n  padding: 4px 0 0 12px;\n}\n\n/* \u7CBE\u7075\u6761\u76EE\u5361\uFF08\u9762\u677F signature\uFF0C\u539F\u578B tcard\uFF1A\u5BBF\u4E3B\u5BB9\u5668 + pixelated \u7CBE\u7075 + No.rvpBRw_xxx + \u5C5E\u6027\u5FBD\u7AE0\uFF09\n   box-sizing \u663E\u5F0F\u58F0\u660E\u2014\u2014dsw \u5BBF\u4E3B\u65E0\u5168\u5C40\u590D\u4F4D\uFF0Cwidth:100% + padding/border \u4E0D\u6536\u53E3\u4F1A\u53F3\u6EA2\u51FA */\n.rvpBRw_taskCard {\n  position: relative;\n  box-sizing: border-box;\n  display: flex;\n  align-items: center;\n  gap: 10px;\n  padding: 10px 12px;\n  border-radius: 12px;\n  border: 1px solid var(--dsw-alias-border-l1, #e3e7ec);\n  background: var(--dsw-alias-bg-layer-1, #ffffff);\n  cursor: pointer;\n  text-align: left;\n  width: 100%;\n  min-height: 44px;\n  font-size: 13px;\n  color: inherit;\n}\n/* \u60AC\u505C = \u684C\u9762\u552F\u4E00\u60AC\u505C\u9EC4\uFF08specs/dsh-plugin-style T1#5\uFF09+ \u91CD\u58A8\u7EBF */\n.rvpBRw_taskCard:hover {\n  background: var(--pcy-hover, #fff3c4);\n  border-color: var(--dsw-alias-label-primary, #1f2328);\n}\n.rvpBRw_taskCard:focus-visible {\n  outline: 2px solid var(--dsw-alias-state-business-primary, #316dca);\n  outline-offset: 1px;\n}\n/* \u4E94\u5448\u73B0\uFF08\u5F62\u4E0E\u8272\u627F\u8F7D\u72B6\u6001\uFF0C\u4E0D\u95EA\u70C1\uFF09 */\n.rvpBRw_taskCard[data-presentation="active"] {\n  border: 2px solid var(--pcy-running, #ffcb05);\n}\n/* \u8FDB\u884C\u4E2D\xB7\u6682\u505C\u53D8\u4F53\uFF1A\u7070\u63CF\u8FB9\uFF1B\u5361\u9762\u5185\u5BB9\u4E0D\u6DE1\u5316\u4E0D\u964D\u9971\u548C\uFF08\u684C\u9762\u6682\u505C\u5361 = \u666E\u901A\u5361 + \u5B9E\u8272 tag-paused\uFF0C\n * \u900F\u660E\u53E0\u52A0\u4F1A\u8BA9\u72B6\u6001\u6807\u8BB0\u770B\u8D77\u6765\u300C\u534A\u900F\u660E\u300D\u2014\u2014\u4E0E\u6355\u83B7\u4E2D\u4FDD\u6301\u540C\u7B49\u5B9E\u8272\u5448\u73B0\uFF09 */\n.rvpBRw_taskCard[data-presentation="activePaused"] {\n  border: 2px solid var(--dsw-alias-border-l3, #c7cdd4);\n}\n/* \u5DF2\u6355\u6349 = LCD \u5316\uFF08specs/dsh-plugin-style T2#14\uFF1A\u5B8C\u6210 = \u6293\u5230\u56FE\u9274\uFF0C\u5361\u9762\u53D8\u5C4F\uFF1B\n * \u8F85\u52A9\u884C\u8D70 lcd-text \u5B9E\u8272\u4E0D\u7528\u900F\u660E\u5EA6\u2014\u2014\u900F\u660E\u53E0\u52A0\u4F1A\u8DCC\u7834 4.5:1\uFF09 */\n.rvpBRw_taskCard[data-presentation="done"] {\n  background: var(--pcy-lcd, #c4cfa1);\n  border: 1.5px solid var(--dsw-alias-label-primary, #1f2328);\n  box-shadow: inset 2px 2px 0 var(--pcy-lcd-dark, #9caa86);\n}\n.rvpBRw_taskCard[data-presentation="done"]:hover {\n  background: var(--pcy-lcd, #c4cfa1);\n}\n.rvpBRw_taskCard[data-presentation="done"] .rvpBRw_taskTitle {\n  text-decoration: line-through;\n  color: var(--pcy-lcd-text, #3a4a32);\n}\n.rvpBRw_taskCard[data-presentation="done"] .rvpBRw_taskNo,\n.rvpBRw_taskCard[data-presentation="done"] .rvpBRw_taskMeta,\n.rvpBRw_taskCard[data-presentation="done"] .rvpBRw_catchMark {\n  color: var(--pcy-lcd-text, #3a4a32);\n}\n/* LCD/\u9003\u8D70\u5361\u4E0A\u7CBE\u7075\u53EA\u7559\u7070\u5EA6\u526A\u5F71\uFF08\u88F8\u56FE\u65E0\u6846\uFF0C\u65E0\u9700\u6846\u9000\u573A\u8986\u76D6\uFF09 */\n.rvpBRw_taskCard[data-presentation="done"] .rvpBRw_taskSprite,\n.rvpBRw_taskCard[data-presentation="escaped"] .rvpBRw_taskSprite {\n  filter: grayscale(1);\n  opacity: 0.55;\n}\n/* \u5DF2\u9003\u8D70 = \u684C\u9762\u9003\u9038\u6001\u540C\u6E90\u7EB8\u7070\uFF08specs/dsh-plugin-style \xA74 --pcy-paper-dim\uFF09\uFF1B\n * \u6574\u5361 opacity 0.6 \u4E3A\u65E2\u6709\u8C41\u514D\uFF08\u4E2D\u6027\u5448\u73B0\u3001\u4E0D\u50AC\u6E05\u96F6\uFF0C\u22484.0:1 \u8BB0\u5165 docs/debt.rvpBRw_md\uFF09 */\n.rvpBRw_taskCard[data-presentation="escaped"] {\n  background: var(--pcy-paper-dim, #f3efe6);\n  opacity: 0.6;\n}\n.rvpBRw_taskCard[data-presentation="escaped"]:hover {\n  background: var(--pcy-paper-dim, #f3efe6);\n}\n/* \u8FDB\u884C\u4E2D\u60AC\u6D6E\u6807\u7B7E\uFF08\u5361\u9876\u9A91\u7F1D pill\uFF0C\u539F\u578B running-tag\uFF1B\u6682\u505C\u53D8\u4F53\u7070\uFF09\u3002\n   \u6587\u5B57/\u63CF\u8FB9\u7528\u56FA\u5B9A\u58A8\u8272\uFF08DESIGN_SYSTEM --dex-navy\uFF09\u2014\u2014alias label \u5728\u6697\u4E3B\u9898\u7FFB\u8F6C\u4E3A\u6D45\u8272\uFF0C\n   \u9EC4\u5E95\u6D45\u5B57\u5BF9\u6BD4\u5EA6\u4E0D\u8DB3\uFF08U7 scoped \u56FA\u5B9A\u8272\u53E3\u5F84\uFF09 */\n.rvpBRw_runningTag {\n  position: absolute;\n  top: -9px;\n  left: 12px;\n  font-size: 10px;\n  font-weight: 700;\n  line-height: 1.4;\n  background: var(--pcy-running, #ffcb05);\n  color: #1a1b25;\n  border: 1px solid #1a1b25;\n  border-radius: 999px;\n  padding: 0 8px;\n}\n/* \u6682\u505C\u53D8\u4F53\uFF1A\u684C\u9762 .rvpBRw_tag-paused \u540C\u6E90\uFF08warn-soft \u5B9E\u8272\u5E95 + warn-ink \u5B57\uFF09\uFF0C\u58A8\u7EBF\u63CF\u8FB9\u6CBF\u7528\u57FA\u7C7B\u2014\u2014\n * \u4E0E\u6355\u83B7\u4E2D\u540C\u4E3A\u5B9E\u8272 pill\uFF0C\u4EC5\u914D\u8272\u4E0E \u23F8 \u5B57\u5F62\u533A\u5206 */\n.rvpBRw_taskCard[data-presentation="activePaused"] .rvpBRw_runningTag {\n  background: var(--pcy-warn-soft, #fff3cd);\n  color: var(--pcy-warn-ink, #8a5e06);\n}\n/* \u7B49\u5BBD\u56FE\u9274\u7F16\u53F7\uFF08U6\uFF1A\u9762\u677F\u4E0D\u52A0\u8F7D\u50CF\u7D20\u5B57\u4F53\uFF0C\u7B49\u5BBD\u5B57\u4F53\u627F\u8F7D\u7F16\u53F7\uFF1B\u5B57\u8DDD = \u4E1D\u5370\u611F\uFF09 */\n.rvpBRw_taskNo {\n  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;\n  font-size: 10px;\n  letter-spacing: 1px;\n  color: var(--dsw-alias-label-secondary, #57606a);\n  flex: none;\n}\n/* \u7CBE\u7075\u56FE\uFF08specs/dsh-plugin-style T1#10 \u56DE\u6D41\uFF1A\u4EFB\u52A1\u5361\u7CBE\u7075\u88F8\u56FE\uFF0C\u65E0\u6846\u65E0\u5E95\uFF1B\u5360\u4F4D\u70B9\u4ECD\u9700\u5C3A\u5BF8\u951A\u5B9A\uFF09 */\n.rvpBRw_taskSprite {\n  width: 30px;\n  height: 30px;\n  image-rendering: pixelated;\n  display: flex;\n  align-items: center;\n  justify-content: center;\n  font-size: 16px;\n  flex: none;\n}\n.rvpBRw_taskMain {\n  flex: 1;\n  min-width: 0;\n  display: flex;\n  flex-direction: column;\n  gap: 3px;\n}\n.rvpBRw_taskTitle {\n  font-weight: 700;\n  overflow: hidden;\n  text-overflow: ellipsis;\n  white-space: nowrap;\n}\n.rvpBRw_taskMeta {\n  display: flex;\n  align-items: center;\n  gap: 8px;\n  font-size: 11px;\n  color: var(--dsw-alias-label-secondary, #57606a);\n  flex-wrap: wrap;\n}\n/* \u5C5E\u6027\u5FBD\u7AE0\uFF08DESIGN_SYSTEM \u5206\u7C7B\u8272\u56FA\u5B9A\u5E95 + navy \u5B57\uFF1B\u6697\u4E3B\u9898 1px \u63CF\u8FB9\u515C\u5E95\u5BF9\u6BD4\u2014\u2014U7\uFF09 */\n.rvpBRw_typeBadge {\n  font-size: 10px;\n  font-weight: 700;\n  color: #1a1b25;\n  border-radius: 4px;\n  padding: 0 7px;\n  line-height: 16px;\n  border: 1px solid rgba(26, 27, 37, 0.35);\n  background: var(--pcy-type-neutral, var(--dsw-alias-border-l1, #e3e7ec));\n  flex: none;\n}\n.rvpBRw_typeBadge[data-type="work"] {\n  background: var(--pcy-type-work, #f8d030);\n}\n.rvpBRw_typeBadge[data-type="study"] {\n  background: var(--pcy-type-study, #6890f0);\n}\n.rvpBRw_typeBadge[data-type="life"] {\n  background: var(--pcy-type-life, #78c850);\n}\n.rvpBRw_typeBadge[data-type="health"] {\n  background: var(--pcy-type-health, #a8a878);\n}\n.rvpBRw_typeBadge[data-type="interest"] {\n  background: var(--pcy-type-interest, #ee99ac);\n}\n/* \u4F18\u5148\u7EA7\u56DB\u70B9\uFF08\u7D27\u6025\u6863\u653E\u5927\u70B9 + \u53CC\u63CF\u8FB9\uFF0C\u4E0D\u95EA\u70C1\uFF09 */\n.rvpBRw_prioDot {\n  width: 9px;\n  height: 9px;\n  border-radius: 50%;\n  flex: none;\n  border: 1px solid rgba(26, 27, 37, 0.35);\n}\n.rvpBRw_prioDot[data-prio="urgent"] {\n  width: 12px;\n  height: 12px;\n  box-shadow:\n    0 0 0 2px var(--dsw-alias-bg-layer-1, #fff),\n    0 0 0 3.5px var(--pcy-danger, #ee1515);\n  background: var(--pcy-danger, #ee1515);\n}\n.rvpBRw_prioDot[data-prio="high"] {\n  background: var(--pcy-prio-high, #f08030);\n}\n.rvpBRw_prioDot[data-prio="normal"] {\n  background: var(--pcy-type-life, #78c850);\n}\n.rvpBRw_prioDot[data-prio="low"] {\n  background: var(--pcy-type-health, #a8a878);\n}\n/* \u6D3E\u53D1\u5FBD\u6807\u4E94\u6001\uFF08\u5F62 + \u6587\u5B57\u6807\u7B7E + \u8F6F\u5E95\uFF0C\u975E\u989C\u8272\u5197\u4F59\uFF09\uFF1B\u56FA\u5B9A\u8F6F\u5E95\u52A0 1px \u58A8\u63CF\u8FB9\u515C\u5E95\u6697\u4E3B\u9898\u5C0F\u56FE\u5F62\u5BF9\u6BD4\uFF08U7\uFF09 */\n.rvpBRw_dispatchBadge {\n  display: inline-flex;\n  align-items: center;\n  gap: 3px;\n  font-size: 10px;\n  font-weight: 700;\n  border-radius: 4px;\n  padding: 0 6px;\n  line-height: 16px;\n  flex: none;\n  border: 1px solid rgba(26, 27, 37, 0.2);\n}\n.rvpBRw_dispatchGlyph {\n  font-size: 10px;\n}\n.rvpBRw_dispatchBadge[data-state="queued"] {\n  background: var(--pcy-conf-mid-soft, #fff3d6);\n  color: var(--pcy-warn-ink, #8a5e06);\n}\n.rvpBRw_dispatchBadge[data-state="running"] {\n  background: var(--pcy-ok-soft, #dff3e4);\n  color: var(--pcy-ok-ink, #1d6b3c);\n}\n.rvpBRw_dispatchBadge[data-state="done"] {\n  background: var(--pcy-conf-low-soft, #eceada);\n  color: var(--dsw-alias-label-secondary, #57606a);\n}\n.rvpBRw_dispatchBadge[data-state="failed"] {\n  background: var(--pcy-fail-soft, #fde8e8);\n  color: var(--pcy-fail-ink, #991b1b);\n}\n.rvpBRw_quickOps {\n  display: flex;\n  gap: 4px;\n  flex: none;\n  align-items: center;\n}\n/* \u2715 \u653E\u751F\u94AE\uFF08\u684C\u9762 .rvpBRw_btn.rvpBRw_del\uFF1Adanger \u5B57\u8272\uFF09 */\n.rvpBRw_opRelease {\n  color: var(--pcy-danger, #b3590f);\n}\n/* \u5DF2\u6355\u6349/\u5DF2\u9003\u8D70\u72B6\u6001\u6807\uFF08\u684C\u9762 .rvpBRw_catch-mark / .rvpBRw_escape-mark \u540C\u6784\uFF09 */\n.rvpBRw_catchMark {\n  font-size: 13px;\n  font-weight: 700;\n  color: var(--dsw-alias-label-secondary, #57606a);\n}\n.rvpBRw_escapeMark {\n  color: var(--pcy-warn-ink, #8a5e06);\n}\n/* \u6807\u7B7E chips\uFF08\u684C\u9762 .rvpBRw_tag-list / .rvpBRw_tag-chip \u540C\u6784\uFF1A\u9879\u76EE\u7EF4\u5EA6\u9EC4\u5E95\u4E3B\u4F4D\uFF09 */\n.rvpBRw_tagList {\n  display: inline-flex;\n  gap: 4px;\n  flex-wrap: wrap;\n}\n.rvpBRw_metaTagChip {\n  font-style: normal;\n  font-size: 10.5px;\n  font-weight: 700;\n  color: var(--dsw-alias-label-secondary, #57606a);\n  background: var(--dsw-alias-bg-layer-1, #f2f4f7);\n  border: 1px solid rgba(26, 27, 37, 0.2);\n  border-radius: 999px;\n  padding: 0 7px;\n  line-height: 17px;\n}\n.rvpBRw_metaTagChip[data-project="true"] {\n  background: var(--pcy-running, #ffcb05);\n  color: #1a1b25;\n}\n\n/* DexView */\n.rvpBRw_dexStatsLine {\n  font-size: 13px;\n}\n.rvpBRw_dexMilestone {\n  font-size: 13px;\n  color: var(--dsw-alias-label-secondary, #57606a);\n}\n.rvpBRw_dexFilters {\n  display: flex;\n  flex-wrap: wrap;\n  gap: 6px;\n}\n/* \u56FE\u9274\u8FC7\u6EE4\u80F6\u56CA\uFF08specs/dsh-plugin-style T1#4\uFF0C\u4E00\u7B49\u9009\u4E2D\u8BED\u8A00\uFF09\uFF1A\u6052\u5B9A 1.5px \u8FB9\u6846\u2014\u2014\n * \u672C\u7C7B\u65E0 border-box\uFF0C\u9009\u4E2D 1px\u21921.5px \u53D8\u5BBD\u4F1A\u6296\u52A8\uFF0C\u672A\u9009\u4E2D\u7528\u900F\u660E\u5360\u4F4D */\n.rvpBRw_filterButton {\n  display: inline-flex;\n  align-items: center;\n  gap: 4px;\n  min-height: 32px;\n  padding: 2px 12px;\n  border-radius: 999px;\n  border: 1.5px solid var(--dsw-alias-border-l1, #e3e7ec);\n  background: var(--dsw-alias-bg-layer-1, #ffffff);\n  color: var(--dsw-alias-label-secondary, #57606a);\n  font-size: 12px;\n  font-weight: 600;\n  cursor: pointer;\n}\n.rvpBRw_filterButton:hover {\n  border-color: var(--dsw-alias-border-l3, #c7cdd4);\n  background: var(--pcy-hover, #fff3c4);\n}\n.rvpBRw_filterButton[aria-pressed="true"] {\n  border-color: var(--dsw-alias-label-primary, #1f2328);\n  background: var(--pcy-running, #ffcb05);\n  color: #1a1b25;\n  font-weight: 700;\n}\n\n/* \u641C\u7D22\u680F\uFF08\u5BF9\u7167\u4E3B\u5E94\u7528 TaskTab \u641C\u7D22\uFF1A\u8F93\u5165 + \u547D\u4E2D\u8BA1\u6570\uFF1B\u5E95\u8DDD 12px \u4E0E\u684C\u9762 .rvpBRw_search-bar \u540C\u503C\u2014\u2014\n * \u641C\u7D22\u680F\u4E0E\u5206\u6BB5\u5185\u5BB9\u662F\u5757\u7EA7\u5144\u5F1F\uFF0C\u65E0\u7236\u7EA7 gap \u627F\u63A5\uFF09 */\n.rvpBRw_searchBar {\n  display: flex;\n  align-items: center;\n  gap: 10px;\n  margin-bottom: 12px;\n}\n.rvpBRw_searchInput {\n  flex: 1;\n  min-width: 0;\n  min-height: 32px;\n  padding: 4px 10px;\n  border-radius: 8px;\n  border: 1px solid var(--dsw-alias-border-l2, #d0d7de);\n  background: var(--dsw-alias-bg-layer-1, #ffffff);\n  color: var(--dsw-alias-label-primary, #1f2328);\n  font-size: 13px;\n}\n.rvpBRw_searchInput:focus-visible {\n  outline: 2px solid var(--dsw-alias-state-business-primary, #316dca);\n  outline-offset: 1px;\n}\n.rvpBRw_searchHint {\n  flex: none;\n  font-size: 12px;\n  font-weight: 600;\n  color: var(--dsw-alias-label-secondary, #57606a);\n}\n\n/* \u5168\u5B57\u6BB5\u7F16\u8F91\u5F39\u7A97\u8868\u5355\uFF08label \u5217 + \u63A7\u4EF6\u5217\uFF1B\u6807\u7B7E chips \u6309\u7EF4\u5EA6\u5206\u7EC4\uFF09 */\n.rvpBRw_editForm {\n  display: flex;\n  flex-direction: column;\n  gap: 10px;\n}\n.rvpBRw_editRow {\n  display: grid;\n  grid-template-columns: 56px minmax(0, 1fr);\n  align-items: center;\n  gap: 10px;\n  font-size: 13px;\n  color: var(--dsw-alias-label-secondary, #57606a);\n}\n.rvpBRw_editRowLabel {\n  font-weight: 700;\n}\n.rvpBRw_editTextarea {\n  min-height: 32px;\n  padding: 4px 8px;\n  border-radius: 8px;\n  border: 1px solid var(--dsw-alias-border-l2, #d0d7de);\n  background: var(--dsw-alias-bg-layer-1, #ffffff);\n  color: var(--dsw-alias-label-primary, #1f2328);\n  font-size: 13px;\n  resize: vertical;\n  width: 100%;\n  box-sizing: border-box;\n}\n.rvpBRw_tagPick {\n  display: flex;\n  flex-wrap: wrap;\n  gap: 6px 10px;\n  align-items: center;\n}\n.rvpBRw_tagDim {\n  display: flex;\n  flex-wrap: wrap;\n  align-items: center;\n  gap: 6px;\n}\n.rvpBRw_dimName {\n  font-size: 11px;\n  font-weight: 700;\n  color: var(--dsw-alias-label-secondary, #57606a);\n  margin-right: 2px;\n}\n.rvpBRw_tagChip {\n  min-height: 24px;\n  padding: 2px 10px;\n  border-radius: 999px;\n  border: 1px solid var(--dsw-alias-border-l2, #d0d7de);\n  background: var(--dsw-alias-bg-layer-1, #ffffff);\n  color: var(--dsw-alias-label-primary, #1f2328);\n  font-size: 12px;\n  font-weight: 600;\n  cursor: pointer;\n}\n.rvpBRw_tagChip:hover {\n  border-color: var(--dsw-alias-border-l3, #c7cdd4);\n}\n.rvpBRw_tagChip:disabled {\n  opacity: 0.45;\n  cursor: not-allowed;\n}\n/* \u9009\u4E2D\u6001\uFF1A\u9879\u76EE\u7EF4\u5EA6\u4E3B\u4F4D\u9AD8\u4EAE\u9EC4\uFF0C\u5176\u4F59\u7EF4\u5EA6\u6D45\u7EFF\u533A\u5206 */\n.rvpBRw_tagChip[data-on="true"] {\n  background: var(--pcy-running, #ffcb05);\n  border-color: rgba(26, 27, 37, 0.35);\n}\n.rvpBRw_tagChip[data-project="false"][data-on="true"] {\n  background: var(--pcy-ok-soft, #dff3e4);\n}\n.rvpBRw_tagCount {\n  font-size: 11px;\n  color: var(--dsw-alias-label-secondary, #57606a);\n  margin-left: auto;\n}\n.rvpBRw_editError {\n  margin: 0;\n  font-size: 12.5px;\n  font-weight: 700;\n  color: var(--pcy-danger, #b3590f);\n}\n\n/* EmptyState */\n.rvpBRw_emptyState {\n  padding: 28px 16px;\n  text-align: center;\n  color: var(--dsw-alias-label-secondary, #57606a);\n  font-size: 13px;\n  line-height: 1.8;\n}\n\n/* \u8DEF\u7EBF\u5206\u7EC4\uFF08\u539F\u578B group-h\uFF1A\u5C0F\u53F7\u52A0\u7C97\u5F31\u5316\u8272 + \u5B57\u8DDD\uFF09 */\n.rvpBRw_routeGroupDate {\n  font-size: 12px;\n  font-weight: 800;\n  letter-spacing: 0.4px;\n  color: var(--dsw-alias-label-secondary, #57606a);\n  margin: 10px 0 6px;\n}\n\n/* \u65E5\u5FD7\u6BB5 ledger \u884C\u5361\uFF08\u539F\u578B ledger\uFF1Aagent \u52A0\u7C97 + exit \u8272\u5B57 + \u65F6\u95F4\u53F3\u5BF9\u9F50\u7B49\u5BBD\uFF09 */\n.rvpBRw_ledger {\n  display: flex;\n  flex-wrap: wrap;\n  align-items: center;\n  gap: 4px 12px;\n  background: var(--dsw-alias-bg-layer-1, #ffffff);\n  border: 1px solid var(--dsw-alias-border-l1, #e3e7ec);\n  border-radius: 10px;\n  padding: 9px 12px;\n  font-size: 12px;\n  color: var(--dsw-alias-label-secondary, #57606a);\n}\n.rvpBRw_ledgerAgent {\n  font-weight: 700;\n  color: var(--dsw-alias-label-primary, #1f2328);\n  font-size: 12.5px;\n}\n.rvpBRw_ledgerExit {\n  font-weight: 700;\n}\n.rvpBRw_ledgerExit[data-ok="true"] {\n  color: var(--pcy-ok-ink, #1d6b3c);\n}\n.rvpBRw_ledgerExit[data-ok="false"] {\n  color: var(--pcy-fail-ink, #991b1b);\n}\n.rvpBRw_ledgerTime {\n  margin-left: auto;\n  font-variant-numeric: tabular-nums;\n}\n\n/* \u6267\u884C\u4E16\u754C\u5FBD\u7AE0\uFF08FR-C2\uFF1A\u672C\u673A/\u90E8\u7F72\u522B\u540D\uFF1B\u7B49\u5BBD\u4E1D\u5370\u4F4D\u2014\u2014\u5FEB\u7167\u6307\u5411\u5DF2\u79FB\u9664\u90E8\u7F72 = \u5220\u9664\u7EBF\u4E2D\u6027\u5448\u73B0\uFF09 */\n.rvpBRw_worldBadge {\n  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;\n  letter-spacing: 1px;\n  font-size: 11px;\n  border: 1px solid var(--dsw-alias-border-l3, #c7cdd4);\n  border-radius: 4px;\n  padding: 1px 6px;\n  color: var(--dsw-alias-label-secondary, #57606a);\n}\n.rvpBRw_worldBadge[data-gone="true"] {\n  text-decoration: line-through;\n}\n\n/* \u4F1A\u8BDD\u5206\u9875\u5668\uFF08counts \u5E38\u663E + \u4E0A\u4E0B\u9875 + \u6BCF\u9875\u6761\u6570\u6863\uFF1B\u547D\u4E2D\u533A \u226532px\uFF09 */\n.rvpBRw_sessPager {\n  display: flex;\n  align-items: center;\n  gap: 8px;\n  padding-top: 10px;\n  flex-wrap: wrap;\n}\n.rvpBRw_sessCounts {\n  font-size: 12px;\n  color: var(--dsw-alias-label-secondary, #57606a);\n  font-variant-numeric: tabular-nums;\n  margin-right: auto;\n}\n.rvpBRw_sessNote {\n  margin: 8px 0 0;\n  font-size: 12px;\n  color: var(--dsw-alias-label-secondary, #57606a);\n}\n\n/* \u8BE6\u60C5\u62BD\u5C49\uFF08\u53F3\u4FA7\u6ED1\u5165\u8986\u76D6\u5C42\uFF0C\u539F\u578B drawer/drawer-mask\uFF1Afixed \u6574\u89C6\u53E3 mask + \u53F3\u7F18\u9762\u677F\uFF1B\n   fixed \u76F8\u5BF9\u5BBF\u4E3B\u89C6\u53E3\u2014\u2014\u9762\u677F\u8F7D\u4F53\uFF08detail section / \u4E3B\u9762\u677F\uFF09\u6EDA\u52A8\u5BB9\u5668\u5404\u5F02\uFF0C\u89C6\u53E3\u7EA7\u6700\u7A33\u5065\uFF09 */\n.rvpBRw_drawerOverlay {\n  position: fixed;\n  inset: 0;\n  z-index: 60;\n  background: rgba(15, 18, 30, 0.42);\n}\n.rvpBRw_drawer {\n  position: fixed;\n  top: 0;\n  right: 0;\n  bottom: 0;\n  z-index: 61;\n  width: min(94vw, 800px);\n  display: flex;\n  flex-direction: column;\n  background: var(--dsw-alias-bg-base, var(--dsw-alias-bg-layer-1, #ffffff));\n  border-left: 2px solid var(--dsw-alias-label-primary, #1f2328);\n  box-shadow: -8px 0 24px rgba(0, 0, 0, 0.2);\n}\n.rvpBRw_drawerHeader {\n  display: flex;\n  align-items: flex-start;\n  gap: 10px;\n  padding: 14px 16px;\n  border-bottom: 1px solid var(--dsw-alias-border-l1, #e3e7ec);\n}\n.rvpBRw_drawerTitle {\n  font-size: 15px;\n  font-weight: 700;\n  margin: 0;\n  flex: 1;\n}\n.rvpBRw_drawerClose {\n  flex: none;\n}\n.rvpBRw_drawerBody {\n  flex: 1;\n  overflow-y: auto;\n  padding: 14px 16px;\n  display: flex;\n  flex-direction: column;\n  gap: 16px;\n}\n.rvpBRw_drawerSectionTitle {\n  font-size: 13px;\n  font-weight: 700;\n  margin: 0 0 6px;\n}\n/* \u5C5E\u6027\u603B\u89C8\uFF08\u684C\u9762 .rvpBRw_d-summary \u540C\u6784\uFF1A\u4E24\u5217 kv + \u9762\u677F\u5E95\uFF1B\u5361\u5185\u53F3\u4E0A\u89D2\u300C\u7F16\u8F91\u300D\u5165\u53E3\u6D6E\u5C42\uFF09 */\n.rvpBRw_summarySection {\n  position: relative;\n  display: flex;\n  flex-direction: column;\n  gap: 6px;\n  padding: 10px 12px;\n  border: 1px solid var(--dsw-alias-border-l1, #e3e7ec);\n  border-radius: 10px;\n  background: var(--dsw-alias-bg-layer-1, #f8f9fb);\n}\n/* \u7F16\u8F91\u94AE\u6D6E\u5C42\uFF08\u7EDD\u5BF9\u5B9A\u4F4D\u4E0D\u5360\u5E03\u5C40\u884C\u2014\u2014kv \u6805\u683C\u4F4D\u7F6E\u4E0E\u9996\u884C\u9AD8\u5EA6\u4E0D\u53D7\u5F71\u54CD\uFF09 */\n.rvpBRw_summaryEdit {\n  position: absolute;\n  top: 8px;\n  right: 8px;\n  z-index: 1;\n}\n.rvpBRw_summaryGrid {\n  display: grid;\n  grid-template-columns: 1fr 1fr;\n  gap: 6px 14px;\n  font-size: 12.5px;\n}\n.rvpBRw_summaryKv {\n  display: flex;\n  align-items: baseline;\n  gap: 6px;\n  min-width: 0;\n}\n.rvpBRw_summaryKey {\n  flex: none;\n  font-weight: 700;\n  color: var(--dsw-alias-label-secondary, #57606a);\n}\n.rvpBRw_summaryVal {\n  min-width: 0;\n  overflow-wrap: break-word;\n}\n.rvpBRw_summaryValMono {\n\n  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;\n  font-variant-numeric: tabular-nums;\n}\n.rvpBRw_summaryTags {\n  display: inline-flex;\n  gap: 4px;\n  flex-wrap: wrap;\n}\n.rvpBRw_followupItem {\n  padding: 4px 0 4px 12px;\n  border-left: 2px solid var(--dsw-alias-border-l1, #e3e7ec);\n  font-size: 13px;\n}\n.rvpBRw_followupContent {\n  min-width: 0;\n  overflow-wrap: break-word;\n}\n.rvpBRw_followupMeta {\n  display: flex;\n  align-items: center;\n  gap: 8px;\n  font-size: 11px;\n  color: var(--dsw-alias-label-secondary, #57606a);\n}\n.rvpBRw_followupSrc {\n  font-size: 10px;\n  font-weight: 700;\n  color: #1a1b25;\n  background: var(--pcy-running, #ffcb05);\n  border: 1px solid rgba(26, 27, 37, 0.35);\n  border-radius: 4px;\n  padding: 0 5px;\n  line-height: 15px;\n}\n.rvpBRw_followupEmpty {\n  font-size: 12px;\n  color: var(--dsw-alias-label-secondary, #57606a);\n}\n/* \u4E24\u6BB5\u5F0F\u5220\u9664\uFF08\u2715 \u2192 \u786E\u8BA4\u5220\u9664\uFF1F4 \u79D2\u590D\u4F4D\uFF09 */\n.rvpBRw_followupDelete {\n  margin-left: auto;\n  border: none;\n  background: none;\n  padding: 0 4px;\n  min-height: 24px;\n  font-size: 12px;\n  color: var(--pcy-danger, #b3590f);\n  cursor: pointer;\n}\n.rvpBRw_followupDelete[data-confirming="true"] {\n  background: var(--pcy-danger, #b3590f);\n  color: #ffffff;\n  border-radius: 4px;\n  padding: 0 8px;\n  font-weight: 700;\n}\n.rvpBRw_followupDelete:disabled {\n  opacity: 0.45;\n  cursor: not-allowed;\n}\n.rvpBRw_followupInput {\n  flex: 1;\n  min-width: 0;\n  min-height: 32px;\n  padding: 4px 8px;\n  border-radius: 8px;\n  border: 1px solid var(--dsw-alias-border-l2, #d0d7de);\n  background: var(--dsw-alias-bg-layer-1, #ffffff);\n  color: var(--dsw-alias-label-primary, #1f2328);\n  font-size: 13px;\n}\n.rvpBRw_followupInput:focus-visible {\n  outline: 2px solid var(--dsw-alias-state-business-primary, #316dca);\n  outline-offset: 1px;\n}\n.rvpBRw_followupComposer {\n  display: flex;\n  gap: 6px;\n}\n\n/* \u64CD\u4F5C\u5386\u53F2\u6BB5\uFF08\u5BF9\u7167\u684C\u9762 log \u884C\uFF1Aorigin + \u65F6\u95F4 + \u52A8\u4F5C/\u5B57\u6BB5\u65E7\u2192\u65B0\uFF09 */\n.rvpBRw_historyRow {\n  display: flex;\n  flex-direction: column;\n  gap: 2px;\n  padding: 4px 0 4px 12px;\n  border-left: 2px solid var(--dsw-alias-border-l1, #e3e7ec);\n  font-size: 12.5px;\n}\n.rvpBRw_historyMeta {\n  display: flex;\n  align-items: center;\n  gap: 8px;\n  font-size: 11px;\n  color: var(--dsw-alias-label-secondary, #57606a);\n}\n.rvpBRw_historyOrigin {\n  font-weight: 700;\n}\n.rvpBRw_historyText {\n  min-width: 0;\n  overflow-wrap: break-word;\n}\n.rvpBRw_timelineItem {\n  display: flex;\n  gap: 10px;\n  padding: 6px 0;\n  font-size: 12px;\n}\n.rvpBRw_timelineDot {\n  width: 8px;\n  height: 8px;\n  margin-top: 4px;\n  border-radius: 50%;\n  background: var(--dsw-alias-border-l3, #c7cdd4);\n  flex: none;\n}\n.rvpBRw_timelineMain {\n  flex: 1;\n}\n.rvpBRw_opsRow {\n  display: flex;\n  gap: 6px;\n  flex-wrap: wrap;\n  align-items: center;\n}\n/* \u6D3E\u53D1\u884C\uFF08\u684C\u9762 dsp-row \u540C\u6784\uFF09\uFF1A\u901A\u9053/agent \u4E0B\u62C9\u5B9A\u5BBD\u3001agent \u5FBD\u7AE0\u3001\u76EE\u5F55\u7701\u7565\u3001\u51FA\u53D1\u4E3B\u94AE */\n.rvpBRw_dspChannel {\n  width: 150px;\n  flex: none;\n}\n.rvpBRw_dspAgent {\n  width: 150px;\n  flex: none;\n}\n.rvpBRw_dspAgentBadge {\n  flex: none;\n  font-size: 11px;\n  font-weight: 700;\n  border: 1px solid rgba(26, 27, 37, 0.2);\n  border-radius: 4px;\n  padding: 1px 7px;\n  line-height: 18px;\n  background: var(--dsw-alias-border-l1, #e3e7ec);\n  color: inherit;\n}\n.rvpBRw_dspAgentBadge[data-ssh="true"] {\n  background: var(--pcy-ok-soft, #dff3e4);\n  color: var(--pcy-ok-ink, #1d6b3c);\n}\n.rvpBRw_dspDir {\n  flex: 1;\n  min-width: 120px;\n  font-size: 12px;\n  color: var(--dsw-alias-label-secondary, #57606a);\n  overflow: hidden;\n  text-overflow: ellipsis;\n  white-space: nowrap;\n}\n/* \u624B\u52A8\u6536\u53E3 mini \u6863\uFF08\u684C\u9762 dsp-mark .rvpBRw_btn mini \u540C\u6784\uFF09 */\n.rvpBRw_markMini {\n  min-height: 28px;\n  padding: 2px 10px;\n  font-size: 12px;\n}\n.rvpBRw_markReset {\n  color: var(--pcy-danger, #b3590f);\n}\n.rvpBRw_drawerHint {\n  margin: 0;\n  font-size: 11.5px;\n  color: var(--dsw-alias-label-secondary, #57606a);\n}\n.rvpBRw_drawerErr {\n  margin: 0;\n  font-size: 12.5px;\n  font-weight: 700;\n  color: var(--pcy-fail-ink, #991b1b);\n}\n\n/* \u6BCF\u5468\u590D\u76D8\u5411\u5BFC\uFF08\u5BF9\u7167\u684C\u9762 ReviewWizard.rvpBRw_vue\uFF1A\u6B65\u9AA4\u6761 + \u603B\u89C8\u7EDF\u8BA1\u5361 + \u6761\u5F62 + \u4EFB\u52A1\u7AD9\u5361 + \u8349\u4E1B\u6E05\u5355 + \u4F53\u68C0\u884C\u5361\uFF09 */\n.rvpBRw_reviewBody {\n  display: flex;\n  flex-direction: column;\n  gap: 12px;\n  min-height: 200px;\n}\n.rvpBRw_reviewSteps {\n  display: flex;\n  gap: 6px;\n  flex-wrap: wrap;\n  font-size: 11px;\n  font-weight: 700;\n}\n.rvpBRw_reviewStepDot {\n  border: 1px solid var(--dsw-alias-border-l2, #d0d7de);\n  border-radius: 999px;\n  padding: 2px 8px;\n  color: var(--dsw-alias-label-secondary, #57606a);\n  background: var(--dsw-alias-bg-layer-1, #ffffff);\n}\n.rvpBRw_reviewStepDot[data-on="true"] {\n  background: var(--pcy-running, #ffcb05);\n  border-color: rgba(26, 27, 37, 0.35);\n  color: #1a1b25;\n}\n.rvpBRw_reviewStepDot[data-past="true"] {\n  background: var(--pcy-ok-soft, #dff3e4);\n  border-color: var(--pcy-ok-ink, #1d6b3c);\n  color: var(--pcy-ok-ink, #1d6b3c);\n}\n.rvpBRw_reviewStats {\n  display: flex;\n  gap: 8px;\n}\n.rvpBRw_reviewStat {\n  flex: 1;\n  border: 1px solid var(--dsw-alias-border-l1, #e3e7ec);\n  border-radius: 8px;\n  background: var(--dsw-alias-bg-layer-1, #f8f9fb);\n  text-align: center;\n  padding: 8px 4px;\n}\n.rvpBRw_reviewStatNum {\n  font-size: 22px;\n  font-weight: 800;\n  font-variant-numeric: tabular-nums;\n  color: var(--dsw-alias-label-primary, #1f2328);\n}\n.rvpBRw_reviewStatLbl {\n  font-size: 11px;\n  color: var(--dsw-alias-label-secondary, #57606a);\n}\n.rvpBRw_reviewBars {\n  display: flex;\n  flex-direction: column;\n  gap: 4px;\n}\n.rvpBRw_reviewBarRow {\n  display: flex;\n  align-items: center;\n  gap: 8px;\n  font-size: 12px;\n}\n.rvpBRw_reviewBarName {\n  width: 44px;\n  flex: none;\n  font-weight: 700;\n  color: var(--dsw-alias-label-primary, #1f2328);\n}\n.rvpBRw_reviewBarTrack {\n  flex: 1;\n  height: 12px;\n  border: 1.5px solid var(--dsw-alias-border-l2, #d0d7de);\n  border-radius: 4px;\n  background: var(--dsw-alias-bg-layer-1, #ffffff);\n  overflow: hidden;\n  display: block;\n}\n.rvpBRw_reviewBarFill {\n  display: block;\n  height: 100%;\n  background: var(--pcy-running, #ffcb05);\n}\n.rvpBRw_reviewBarN {\n  flex: none;\n  font-weight: 800;\n  font-variant-numeric: tabular-nums;\n  color: var(--dsw-alias-label-primary, #1f2328);\n}\n.rvpBRw_reviewTip {\n  font-size: 11px;\n  color: var(--dsw-alias-label-secondary, #57606a);\n  margin: 0;\n}\n.rvpBRw_reviewStation {\n  border: 1.5px solid var(--dsw-alias-border-l2, #d0d7de);\n  border-radius: 8px;\n  padding: 10px 12px;\n  background: var(--dsw-alias-bg-layer-1, #f8f9fb);\n}\n.rvpBRw_reviewStNo {\n  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;\n  font-size: 10px;\n  letter-spacing: 1px;\n  color: var(--dsw-alias-label-secondary, #57606a);\n}\n.rvpBRw_reviewStTitle {\n  font-size: 15px;\n  font-weight: 800;\n  color: var(--dsw-alias-label-primary, #1f2328);\n  margin: 4px 0;\n}\n.rvpBRw_reviewStMeta {\n  display: flex;\n  gap: 10px;\n  flex-wrap: wrap;\n  font-size: 11px;\n  color: var(--dsw-alias-label-secondary, #57606a);\n}\n.rvpBRw_reviewStMeta [data-overdue="true"] {\n  color: var(--pcy-fail-ink, #991b1b);\n  font-weight: 800;\n}\n.rvpBRw_reviewStNote {\n  font-size: 12px;\n  color: var(--dsw-alias-label-secondary, #57606a);\n  margin: 6px 0 0;\n}\n.rvpBRw_reviewBtnRow {\n  display: flex;\n  gap: 8px;\n  flex-wrap: wrap;\n}\n/* ghost/mini/del\uFF1A\u684C\u9762 ghost \u6B21\u8981\u6309\u94AE\u4E0E\u884C\u5185 mini \u6863\uFF08danger \u5B57\u8272\uFF09 */\n.rvpBRw_reviewGhost {\n  background: var(--dsw-alias-bg-layer-1, #f8f9fb);\n}\n.rvpBRw_reviewMini {\n  min-height: 26px;\n  padding: 2px 8px;\n  font-size: 12px;\n}\n.rvpBRw_reviewDel {\n  color: var(--pcy-danger, #b3590f);\n}\n.rvpBRw_reviewEmpty {\n  color: var(--dsw-alias-label-secondary, #57606a);\n  text-align: center;\n  padding: 32px 0;\n  font-size: 13px;\n  margin: 0;\n}\n.rvpBRw_reviewGrassHead {\n  display: flex;\n  align-items: center;\n  justify-content: space-between;\n  gap: 8px;\n  flex-wrap: wrap;\n}\n.rvpBRw_reviewBatchCheck {\n  display: flex;\n  align-items: center;\n  gap: 6px;\n  font-size: 13px;\n  font-weight: 700;\n  color: var(--dsw-alias-label-primary, #1f2328);\n  cursor: pointer;\n}\n.rvpBRw_reviewGrassList {\n  list-style: none;\n  margin: 0;\n  padding: 0;\n  display: flex;\n  flex-direction: column;\n  gap: 6px;\n  max-height: 220px;\n  overflow-y: auto;\n}\n.rvpBRw_reviewGrassItem {\n  display: flex;\n  align-items: center;\n  gap: 8px;\n  border: 1px solid var(--dsw-alias-border-l1, #e3e7ec);\n  border-radius: 6px;\n  padding: 6px 10px;\n  font-size: 13px;\n}\n.rvpBRw_reviewGrassTitle {\n  font-weight: 700;\n  color: var(--dsw-alias-label-primary, #1f2328);\n}\n.rvpBRw_reviewGrassCat {\n  margin-left: auto;\n  font-size: 11px;\n  color: var(--dsw-alias-label-secondary, #57606a);\n}\n.rvpBRw_reviewTgTitle {\n  margin: 0 0 6px;\n  font-size: 13px;\n  color: var(--dsw-alias-label-primary, #1f2328);\n}\n.rvpBRw_reviewTgRow {\n  display: flex;\n  align-items: center;\n  gap: 8px;\n  flex-wrap: wrap;\n  border: 1px solid var(--dsw-alias-border-l1, #e3e7ec);\n  border-radius: 6px;\n  padding: 6px 10px;\n  font-size: 12.5px;\n  margin-bottom: 6px;\n}\n.rvpBRw_reviewTgMain {\n  font-weight: 700;\n  color: var(--dsw-alias-label-primary, #1f2328);\n}\n.rvpBRw_reviewTgDim {\n  font-style: normal;\n  font-size: 11px;\n  color: var(--dsw-alias-label-secondary, #57606a);\n  margin-left: 4px;\n}\n.rvpBRw_reviewTgReason {\n  font-size: 11px;\n  color: var(--dsw-alias-label-secondary, #57606a);\n  flex: 1;\n  min-width: 120px;\n}\n.rvpBRw_reviewFin {\n  text-align: center;\n  padding: 16px 0;\n}\n.rvpBRw_reviewFinEmoji {\n  font-size: 36px;\n}\n.rvpBRw_reviewFinLine {\n  font-size: 14px;\n  font-weight: 800;\n  color: var(--dsw-alias-label-primary, #1f2328);\n  margin: 0;\n}\n\n/* \u56FE\u9274\u7B5B\u9009\u884C\u7684\u590D\u76D8\u5165\u53E3\uFF08\u684C\u9762 .rvpBRw_filter-btn.rvpBRw_review-btn\uFF1A\u53F3\u8D34\u8FB9 + \u4E00\u7B49\u9009\u4E2D\u8BED\u8A00\u5408\u6D41\uFF0C\n * \u9A8C\u6536\u88C1\u51B3\u53BB \u25B6 \u524D\u7F00\uFF09 */\n.rvpBRw_reviewEntry {\n  margin-left: auto;\n  border-color: var(--dsw-alias-label-primary, #1f2328);\n  background: var(--pcy-running, #ffcb05);\n  color: #1a1b25;\n  font-weight: 700;\n}\n.rvpBRw_reviewEntry:hover {\n  border-color: var(--dsw-alias-label-primary, #1f2328);\n  background: var(--pcy-running, #ffcb05);\n}\n.rvpBRw_reviewEntry:disabled {\n  opacity: 0.45;\n  cursor: not-allowed;\n}\n\n/* \u6D3E\u53D1\u6267\u884C\u4E16\u754C\u884C + \u964D\u7EA7\u660E\u793A\uFF08\xA78 \u6D3E\u53D1\u786E\u8BA4\u9762\uFF1B\u8B66\u793A\u884C\u8D70 danger \u8272\u975E\u95EA\u70C1\uFF09 */\n.rvpBRw_worldNotes {\n  margin: 6px 0 0;\n  display: flex;\n  flex-direction: column;\n  gap: 2px;\n}\n.rvpBRw_worldNotes p {\n  margin: 0;\n  font-size: 12px;\n  line-height: 1.7;\n}\n.rvpBRw_worldLine {\n  color: var(--dsw-alias-label-secondary, #57606a);\n}\n.rvpBRw_worldWarn {\n  color: var(--pcy-danger, #b3590f);\n}\n';
     var tagId6 = "dsh-plugin/src/client/tasks/tasks.module.css";
     if (
       typeof document !== "undefined" &&
@@ -13203,8 +13363,6 @@ ${t("feishu.filter.footImmediate")}`,
       tagCount: "rvpBRw_tagCount",
       editError: "rvpBRw_editError",
       emptyState: "rvpBRw_emptyState",
-      emptyWrap: "rvpBRw_emptyWrap",
-      segmentToolbar: "rvpBRw_segmentToolbar",
       routeGroupDate: "rvpBRw_routeGroupDate",
       ledger: "rvpBRw_ledger",
       ledgerAgent: "rvpBRw_ledgerAgent",
@@ -13302,13 +13460,13 @@ ${t("feishu.filter.footImmediate")}`,
     };
 
     // src/client/tasks/DispatchRow.tsx
-    var import_jsx_runtime47 = require("react/jsx-runtime");
+    var import_jsx_runtime50 = require("react/jsx-runtime");
     function StateBadge({ state }) {
       const t = useT();
       if (state === null) {
         return null;
       }
-      return /* @__PURE__ */ (0, import_jsx_runtime47.jsx)("span", {
+      return /* @__PURE__ */ (0, import_jsx_runtime50.jsx)("span", {
         className: tasks_default.dispatchBadge,
         "data-state": state,
         children: t(`dsh.dispatch.badge.${state}`),
@@ -13319,20 +13477,20 @@ ${t("feishu.filter.footImmediate")}`,
       if (state !== "queued" && state !== "running") {
         return null;
       }
-      return /* @__PURE__ */ (0, import_jsx_runtime47.jsxs)("div", {
+      return /* @__PURE__ */ (0, import_jsx_runtime50.jsxs)("div", {
         className: tasks_default.opsRow,
         children: [
-          /* @__PURE__ */ (0, import_jsx_runtime47.jsx)(MarkButton, {
+          /* @__PURE__ */ (0, import_jsx_runtime50.jsx)(MarkButton, {
             label: t("dispatch.markDone"),
             state: "done",
             ...{ readonly, busy, onMark },
           }),
-          /* @__PURE__ */ (0, import_jsx_runtime47.jsx)(MarkButton, {
+          /* @__PURE__ */ (0, import_jsx_runtime50.jsx)(MarkButton, {
             label: t("dispatch.markFailed"),
             state: "failed",
             ...{ readonly, busy, onMark },
           }),
-          /* @__PURE__ */ (0, import_jsx_runtime47.jsx)(MarkButton, {
+          /* @__PURE__ */ (0, import_jsx_runtime50.jsx)(MarkButton, {
             label: t("dispatch.markReset"),
             state: "reset",
             danger: true,
@@ -13342,7 +13500,7 @@ ${t("feishu.filter.footImmediate")}`,
       });
     }
     function MarkButton({ label, state, danger = false, readonly, busy, onMark }) {
-      return /* @__PURE__ */ (0, import_jsx_runtime47.jsx)("button", {
+      return /* @__PURE__ */ (0, import_jsx_runtime50.jsx)("button", {
         type: "button",
         className: `${ui_default.button} ${tasks_default.markMini} ${danger ? tasks_default.markReset : ""}`,
         disabled: readonly || busy,
@@ -13355,24 +13513,24 @@ ${t("feishu.filter.footImmediate")}`,
       const { task, route, agents, channel, agentId, busy, dispatchState, readonly, onChannel, onAgent, onDispatch } =
         props;
       if (!hasProjectTag(task)) {
-        return /* @__PURE__ */ (0, import_jsx_runtime47.jsx)("p", {
+        return /* @__PURE__ */ (0, import_jsx_runtime50.jsx)("p", {
           className: tasks_default.drawerHint,
           children: t("dispatch.needTag"),
         });
       }
       if (agents.length === 0) {
-        return /* @__PURE__ */ (0, import_jsx_runtime47.jsx)("p", {
+        return /* @__PURE__ */ (0, import_jsx_runtime50.jsx)("p", {
           className: tasks_default.drawerHint,
           children: t("dispatch.noAgent"),
         });
       }
       const chosen = resolveChosen(agents, agentId, route);
-      return /* @__PURE__ */ (0, import_jsx_runtime47.jsxs)(import_jsx_runtime47.Fragment, {
+      return /* @__PURE__ */ (0, import_jsx_runtime50.jsxs)(import_jsx_runtime50.Fragment, {
         children: [
-          /* @__PURE__ */ (0, import_jsx_runtime47.jsxs)("div", {
+          /* @__PURE__ */ (0, import_jsx_runtime50.jsxs)("div", {
             className: tasks_default.opsRow,
             children: [
-              /* @__PURE__ */ (0, import_jsx_runtime47.jsx)(Select, {
+              /* @__PURE__ */ (0, import_jsx_runtime50.jsx)(Select, {
                 ariaLabel: t("dispatch.title"),
                 value: channel,
                 className: tasks_default.dspChannel,
@@ -13383,24 +13541,24 @@ ${t("feishu.filter.footImmediate")}`,
                 onChange: (v) => onChannel(v === "headless" ? "headless" : "interactive"),
               }),
               agents.length > 1 &&
-                /* @__PURE__ */ (0, import_jsx_runtime47.jsx)(AgentSelect, { agents, route, agentId, onAgent }),
+                /* @__PURE__ */ (0, import_jsx_runtime50.jsx)(AgentSelect, { agents, route, agentId, onAgent }),
               chosen !== void 0 &&
-                /* @__PURE__ */ (0, import_jsx_runtime47.jsx)(AgentBadge, {
+                /* @__PURE__ */ (0, import_jsx_runtime50.jsx)(AgentBadge, {
                   name: chosen.name,
                   host: chosen.remote?.host ?? null,
                 }),
-              /* @__PURE__ */ (0, import_jsx_runtime47.jsxs)("span", {
+              /* @__PURE__ */ (0, import_jsx_runtime50.jsxs)("span", {
                 className: tasks_default.dspDir,
                 title: t("dispatch.dir"),
                 children: ["\u{1F4C2} ", workdirText(route, t)],
               }),
-              /* @__PURE__ */ (0, import_jsx_runtime47.jsx)(GoButton, {
+              /* @__PURE__ */ (0, import_jsx_runtime50.jsx)(GoButton, {
                 ...{ readonly, busy, dispatchState, onDispatch },
               }),
             ],
           }),
           channel === "headless" &&
-            /* @__PURE__ */ (0, import_jsx_runtime47.jsx)("p", {
+            /* @__PURE__ */ (0, import_jsx_runtime50.jsx)("p", {
               className: tasks_default.drawerHint,
               children: t("dispatch.headlessHint"),
             }),
@@ -13410,7 +13568,7 @@ ${t("feishu.filter.footImmediate")}`,
     function AgentSelect({ agents, route, agentId, onAgent }) {
       const t = useT();
       const value = agentId === "" ? (route?.agentId ?? agents[0]?.id ?? "") : agentId;
-      return /* @__PURE__ */ (0, import_jsx_runtime47.jsx)(Select, {
+      return /* @__PURE__ */ (0, import_jsx_runtime50.jsx)(Select, {
         ariaLabel: t("tags.metaAgentOff"),
         value,
         className: tasks_default.dspAgent,
@@ -13421,7 +13579,7 @@ ${t("feishu.filter.footImmediate")}`,
     function GoButton({ readonly, busy, dispatchState, onDispatch }) {
       const t = useT();
       const blocked = dispatchState === "running" || dispatchState === "queued";
-      return /* @__PURE__ */ (0, import_jsx_runtime47.jsx)("button", {
+      return /* @__PURE__ */ (0, import_jsx_runtime50.jsx)("button", {
         type: "button",
         className: ui_default.buttonDex,
         disabled: readonly || busy || blocked,
@@ -13432,7 +13590,7 @@ ${t("feishu.filter.footImmediate")}`,
     }
     function AgentBadge({ name, host }) {
       const t = useT();
-      return /* @__PURE__ */ (0, import_jsx_runtime47.jsxs)("span", {
+      return /* @__PURE__ */ (0, import_jsx_runtime50.jsxs)("span", {
         className: tasks_default.dspAgentBadge,
         "data-ssh": host !== null ? "true" : void 0,
         children: [name, " \xB7 ", host !== null ? `SSH ${host}` : t("ai.local")],
@@ -13459,32 +13617,32 @@ ${t("feishu.filter.footImmediate")}`,
         info.world.kind === "local"
           ? t("dsh.dispatch.scopeLocal")
           : t("dsh.dispatch.worldDeployment", { alias: info.world.alias });
-      return /* @__PURE__ */ (0, import_jsx_runtime47.jsxs)("div", {
+      return /* @__PURE__ */ (0, import_jsx_runtime50.jsxs)("div", {
         className: tasks_default.worldNotes,
         "data-testid": "dispatch-world-notes",
         children: [
-          /* @__PURE__ */ (0, import_jsx_runtime47.jsx)("p", {
+          /* @__PURE__ */ (0, import_jsx_runtime50.jsx)("p", {
             className: tasks_default.worldLine,
             children: t("dsh.dispatch.worldLine", { agent: agentName, world: worldText, dir: workdir }),
           }),
           info.world.kind === "deployment" &&
             info.world.degraded &&
-            /* @__PURE__ */ (0, import_jsx_runtime47.jsxs)("p", {
+            /* @__PURE__ */ (0, import_jsx_runtime50.jsxs)("p", {
               className: tasks_default.worldWarn,
               children: ["\u26A0 ", t("dsh.dispatch.degradeDirect")],
             }),
           info.interactiveDegraded &&
-            /* @__PURE__ */ (0, import_jsx_runtime47.jsxs)("p", {
+            /* @__PURE__ */ (0, import_jsx_runtime50.jsxs)("p", {
               className: tasks_default.worldWarn,
               children: ["\u26A0 ", t("dsh.dispatch.degradeInteractive")],
             }),
           info.nonPosix &&
-            /* @__PURE__ */ (0, import_jsx_runtime47.jsxs)("p", {
+            /* @__PURE__ */ (0, import_jsx_runtime50.jsxs)("p", {
               className: tasks_default.worldWarn,
               children: ["\u26A0 ", t("dsh.dispatch.degradeNonPosix")],
             }),
           info.occupancySessionId !== null &&
-            /* @__PURE__ */ (0, import_jsx_runtime47.jsx)("p", {
+            /* @__PURE__ */ (0, import_jsx_runtime50.jsx)("p", {
               className: tasks_default.worldWarn,
               children: t("dsh.dispatch.occupancy", { id: info.occupancySessionId }),
             }),
@@ -13493,28 +13651,33 @@ ${t("feishu.filter.footImmediate")}`,
     }
 
     // src/client/tasks/DispatchOps.tsx
-    var import_jsx_runtime48 = require("react/jsx-runtime");
+    var import_jsx_runtime51 = require("react/jsx-runtime");
     function DispatchOps({ task, data, readonly, onChanged }) {
       const t = useT();
       const client = useClient();
-      const [channel, setChannel] = (0, import_react35.useState)("interactive");
-      const [busy, setBusy] = (0, import_react35.useState)(false);
-      const [conflict, setConflict] = (0, import_react35.useState)(null);
-      const [message, setMessage] = (0, import_react35.useState)(null);
-      const [dispatchState, setDispatchState] = (0, import_react35.useState)(task.dispatchState);
+      const [channel, setChannel] = (0, import_react38.useState)("interactive");
+      const [busy, setBusy] = (0, import_react38.useState)(false);
+      const [conflict, setConflict] = (0, import_react38.useState)(null);
+      const [message, setMessage] = (0, import_react38.useState)(null);
+      const [dispatchState, setDispatchState] = (0, import_react38.useState)(task.dispatchState);
       const route = data.routes.find((r) => task.tags.some((tag) => tag.name === r.tag));
-      const [agentId, setAgentId] = (0, import_react35.useState)(route?.agentId ?? "");
+      const [agentId, setAgentId] = (0, import_react38.useState)(route?.agentId ?? "");
       const agents = (data.agents ?? []).filter((a) => a.enabled);
-      const [deployments, setDeployments] = (0, import_react35.useState)(null);
-      (0, import_react35.useEffect)(() => {
+      const [deployments, setDeployments] = (0, import_react38.useState)(null);
+      (0, import_react38.useEffect)(() => {
         void client.deploymentList().then((result) => {
           if (result.ok) {
             setDeployments(result.data);
           }
         });
       }, [client]);
-      const worldInfo = (0, import_react35.useMemo)(() => {
-        const none = { world: null, occupancySessionId: null, interactiveDegraded: false, nonPosix: false };
+      const worldInfo = (0, import_react38.useMemo)(() => {
+        const none = {
+          world: null,
+          occupancySessionId: null,
+          interactiveDegraded: false,
+          nonPosix: false,
+        };
         const alias = route?.deployment ?? "";
         if (alias === "") {
           return none;
@@ -13564,24 +13727,24 @@ ${t("feishu.filter.footImmediate")}`,
           onChanged();
         }
       }
-      return /* @__PURE__ */ (0, import_jsx_runtime48.jsxs)("div", {
+      return /* @__PURE__ */ (0, import_jsx_runtime51.jsxs)("div", {
         "data-testid": "dispatch-ops",
         children: [
-          /* @__PURE__ */ (0, import_jsx_runtime48.jsxs)("h4", {
+          /* @__PURE__ */ (0, import_jsx_runtime51.jsxs)("h4", {
             className: tasks_default.drawerSectionTitle,
             children: [
               t("dispatch.title"),
               " ",
-              /* @__PURE__ */ (0, import_jsx_runtime48.jsx)(StateBadge, { state: dispatchState }),
+              /* @__PURE__ */ (0, import_jsx_runtime51.jsx)(StateBadge, { state: dispatchState }),
             ],
           }),
-          /* @__PURE__ */ (0, import_jsx_runtime48.jsx)(MarkRow, {
+          /* @__PURE__ */ (0, import_jsx_runtime51.jsx)(MarkRow, {
             state: dispatchState,
             readonly,
             busy,
             onMark: (state) => void mark(state),
           }),
-          /* @__PURE__ */ (0, import_jsx_runtime48.jsx)(DispatchBody, {
+          /* @__PURE__ */ (0, import_jsx_runtime51.jsx)(DispatchBody, {
             task,
             route,
             agents,
@@ -13594,19 +13757,19 @@ ${t("feishu.filter.footImmediate")}`,
             onAgent: setAgentId,
             onDispatch: () => void dispatch(),
           }),
-          /* @__PURE__ */ (0, import_jsx_runtime48.jsx)(DispatchWorldNotes, {
+          /* @__PURE__ */ (0, import_jsx_runtime51.jsx)(DispatchWorldNotes, {
             info: worldInfo,
             agentName: chosen?.name ?? route?.agentId ?? "",
             workdir: workdirText(route, t),
           }),
           conflict !== null &&
-            /* @__PURE__ */ (0, import_jsx_runtime48.jsx)("div", {
+            /* @__PURE__ */ (0, import_jsx_runtime51.jsx)("div", {
               role: "status",
               className: ui_default.muted,
               children: conflict,
             }),
           message !== null &&
-            /* @__PURE__ */ (0, import_jsx_runtime48.jsx)("p", {
+            /* @__PURE__ */ (0, import_jsx_runtime51.jsx)("p", {
               className: tasks_default.drawerErr,
               children: message,
             }),
@@ -13615,29 +13778,29 @@ ${t("feishu.filter.footImmediate")}`,
     }
 
     // src/client/tasks/DispatchTimeline.tsx
-    var import_react36 = require("react");
-    var import_jsx_runtime49 = require("react/jsx-runtime");
+    var import_react39 = require("react");
+    var import_jsx_runtime52 = require("react/jsx-runtime");
     function DispatchTimeline({ data, taskId }) {
       const t = useT();
-      const [filter, setFilter] = (0, import_react36.useState)("all");
-      const sessions = (0, import_react36.useMemo)(
+      const [filter, setFilter] = (0, import_react39.useState)("all");
+      const sessions = (0, import_react39.useMemo)(
         () => data.sessions.filter((s) => s.taskId === taskId && (filter === "all" || s.kind === filter)),
         [data.sessions, taskId, filter],
       );
       const kinds = ["all", "classify", "capture", "dispatch_headless", "dispatch_interactive"];
-      return /* @__PURE__ */ (0, import_jsx_runtime49.jsxs)("div", {
+      return /* @__PURE__ */ (0, import_jsx_runtime52.jsxs)("div", {
         "data-testid": "dispatch-timeline",
         children: [
-          /* @__PURE__ */ (0, import_jsx_runtime49.jsx)("h4", {
+          /* @__PURE__ */ (0, import_jsx_runtime52.jsx)("h4", {
             className: tasks_default.drawerSectionTitle,
             children: t("edit.agentRuns"),
           }),
-          /* @__PURE__ */ (0, import_jsx_runtime49.jsx)("div", {
+          /* @__PURE__ */ (0, import_jsx_runtime52.jsx)("div", {
             className: tasks_default.dexFilters,
             role: "group",
             "aria-label": t("sess.filter_all"),
             children: kinds.map((kind) =>
-              /* @__PURE__ */ (0, import_jsx_runtime49.jsx)(
+              /* @__PURE__ */ (0, import_jsx_runtime52.jsx)(
                 "button",
                 {
                   type: "button",
@@ -13651,52 +13814,52 @@ ${t("feishu.filter.footImmediate")}`,
             ),
           }),
           sessions.length === 0
-            ? /* @__PURE__ */ (0, import_jsx_runtime49.jsx)("div", {
+            ? /* @__PURE__ */ (0, import_jsx_runtime52.jsx)("div", {
                 className: ui_default.muted,
                 children: t("dsh.empty.dispatch"),
               })
             : sessions.map((session) =>
-                /* @__PURE__ */ (0, import_jsx_runtime49.jsxs)(
+                /* @__PURE__ */ (0, import_jsx_runtime52.jsxs)(
                   "div",
                   {
                     className: tasks_default.timelineItem,
                     children: [
-                      /* @__PURE__ */ (0, import_jsx_runtime49.jsx)("span", {
+                      /* @__PURE__ */ (0, import_jsx_runtime52.jsx)("span", {
                         className: tasks_default.timelineDot,
                         "aria-hidden": "true",
                       }),
-                      /* @__PURE__ */ (0, import_jsx_runtime49.jsxs)("span", {
+                      /* @__PURE__ */ (0, import_jsx_runtime52.jsxs)("span", {
                         className: tasks_default.timelineMain,
                         children: [
-                          /* @__PURE__ */ (0, import_jsx_runtime49.jsxs)("div", {
+                          /* @__PURE__ */ (0, import_jsx_runtime52.jsxs)("div", {
                             children: [
                               t(`sess.kind.${session.kind}`),
                               " \xB7 ",
                               session.agentId,
                               session.sessionId !== null &&
-                                /* @__PURE__ */ (0, import_jsx_runtime49.jsxs)("span", {
+                                /* @__PURE__ */ (0, import_jsx_runtime52.jsxs)("span", {
                                   className: ui_default.muted,
                                   children: [" \xB7 ", session.sessionId],
                                 }),
                             ],
                           }),
-                          /* @__PURE__ */ (0, import_jsx_runtime49.jsxs)("div", {
+                          /* @__PURE__ */ (0, import_jsx_runtime52.jsxs)("div", {
                             className: ui_default.muted,
                             children: [
                               session.durationMs !== null &&
-                                /* @__PURE__ */ (0, import_jsx_runtime49.jsxs)("span", {
+                                /* @__PURE__ */ (0, import_jsx_runtime52.jsxs)("span", {
                                   children: [Math.round(session.durationMs / 1e3), "s "],
                                 }),
                               session.costUsd !== null &&
-                                /* @__PURE__ */ (0, import_jsx_runtime49.jsxs)("span", {
+                                /* @__PURE__ */ (0, import_jsx_runtime52.jsxs)("span", {
                                   children: ["$", session.costUsd.toFixed(3), " "],
                                 }),
                               session.exitCode !== null &&
-                                /* @__PURE__ */ (0, import_jsx_runtime49.jsxs)("span", {
+                                /* @__PURE__ */ (0, import_jsx_runtime52.jsxs)("span", {
                                   children: ["exit ", session.exitCode],
                                 }),
                               session.summary !== null &&
-                                /* @__PURE__ */ (0, import_jsx_runtime49.jsxs)("span", {
+                                /* @__PURE__ */ (0, import_jsx_runtime52.jsxs)("span", {
                                   children: [" \xB7 ", session.summary],
                                 }),
                             ],
@@ -13713,18 +13876,18 @@ ${t("feishu.filter.footImmediate")}`,
     }
 
     // src/client/tasks/FollowupStream.tsx
-    var import_react37 = require("react");
-    var import_jsx_runtime50 = require("react/jsx-runtime");
+    var import_react40 = require("react");
+    var import_jsx_runtime53 = require("react/jsx-runtime");
     var DELETE_CONFIRM_MS = 4e3;
     function FollowupStream({ data, taskId, onRefresh, readonly }) {
       const t = useT();
       const client = useClient();
       const notes = data.followups[taskId] ?? [];
-      const [draft, setDraft] = (0, import_react37.useState)("");
-      const [busy, setBusy] = (0, import_react37.useState)(false);
-      const [confirmId, setConfirmId] = (0, import_react37.useState)(null);
-      const confirmTimer = (0, import_react37.useRef)(null);
-      (0, import_react37.useEffect)(
+      const [draft, setDraft] = (0, import_react40.useState)("");
+      const [busy, setBusy] = (0, import_react40.useState)(false);
+      const [confirmId, setConfirmId] = (0, import_react40.useState)(null);
+      const confirmTimer = (0, import_react40.useRef)(null);
+      (0, import_react40.useEffect)(
         () => () => {
           if (confirmTimer.current !== null) {
             clearTimeout(confirmTimer.current);
@@ -13765,40 +13928,40 @@ ${t("feishu.filter.footImmediate")}`,
           }
         });
       }
-      return /* @__PURE__ */ (0, import_jsx_runtime50.jsxs)("div", {
+      return /* @__PURE__ */ (0, import_jsx_runtime53.jsxs)("div", {
         "data-testid": "followup-stream",
         children: [
-          /* @__PURE__ */ (0, import_jsx_runtime50.jsx)("h4", {
+          /* @__PURE__ */ (0, import_jsx_runtime53.jsx)("h4", {
             className: tasks_default.drawerSectionTitle,
             children: t("edit.followUps"),
           }),
           notes.length === 0
-            ? /* @__PURE__ */ (0, import_jsx_runtime50.jsx)("div", {
+            ? /* @__PURE__ */ (0, import_jsx_runtime53.jsx)("div", {
                 className: tasks_default.followupEmpty,
                 children: t("edit.noFollowUps"),
               })
             : notes.map((note) =>
-                /* @__PURE__ */ (0, import_jsx_runtime50.jsxs)(
+                /* @__PURE__ */ (0, import_jsx_runtime53.jsxs)(
                   "div",
                   {
                     className: tasks_default.followupItem,
                     children: [
-                      /* @__PURE__ */ (0, import_jsx_runtime50.jsx)("div", {
+                      /* @__PURE__ */ (0, import_jsx_runtime53.jsx)("div", {
                         className: tasks_default.followupContent,
                         children: note.content,
                       }),
-                      /* @__PURE__ */ (0, import_jsx_runtime50.jsxs)("div", {
+                      /* @__PURE__ */ (0, import_jsx_runtime53.jsxs)("div", {
                         className: tasks_default.followupMeta,
                         children: [
                           note.source === "ai" &&
-                            /* @__PURE__ */ (0, import_jsx_runtime50.jsx)("span", {
+                            /* @__PURE__ */ (0, import_jsx_runtime53.jsx)("span", {
                               className: tasks_default.followupSrc,
                               children: "AI",
                             }),
-                          /* @__PURE__ */ (0, import_jsx_runtime50.jsxs)("span", {
+                          /* @__PURE__ */ (0, import_jsx_runtime53.jsxs)("span", {
                             children: [note.source, " \xB7 ", note.createdAt.slice(0, 16).replace("T", " ")],
                           }),
-                          /* @__PURE__ */ (0, import_jsx_runtime50.jsx)("button", {
+                          /* @__PURE__ */ (0, import_jsx_runtime53.jsx)("button", {
                             type: "button",
                             className: tasks_default.followupDelete,
                             "data-confirming": confirmId === note.id,
@@ -13815,14 +13978,14 @@ ${t("feishu.filter.footImmediate")}`,
                   note.id,
                 ),
               ),
-          /* @__PURE__ */ (0, import_jsx_runtime50.jsxs)("form", {
+          /* @__PURE__ */ (0, import_jsx_runtime53.jsxs)("form", {
             className: tasks_default.followupComposer,
             onSubmit: (event) => {
               event.preventDefault();
               addNote();
             },
             children: [
-              /* @__PURE__ */ (0, import_jsx_runtime50.jsx)("input", {
+              /* @__PURE__ */ (0, import_jsx_runtime53.jsx)("input", {
                 className: tasks_default.followupInput,
                 value: draft,
                 placeholder: t("edit.followUpPlaceholder"),
@@ -13830,7 +13993,7 @@ ${t("feishu.filter.footImmediate")}`,
                 disabled: readonly || busy,
                 onChange: (event) => setDraft(event.target.value),
               }),
-              /* @__PURE__ */ (0, import_jsx_runtime50.jsx)("button", {
+              /* @__PURE__ */ (0, import_jsx_runtime53.jsx)("button", {
                 type: "submit",
                 className: ui_default.button,
                 disabled: readonly || busy || draft.trim() === "",
@@ -13843,10 +14006,10 @@ ${t("feishu.filter.footImmediate")}`,
     }
 
     // src/client/tasks/TaskEditModal.tsx
-    var import_react40 = require("react");
+    var import_react43 = require("react");
 
     // src/client/ui/DateTimePicker.tsx
-    var import_react39 = require("react");
+    var import_react42 = require("react");
 
     // src/client/ui/dateTime.ts
     var VALUE_RE = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})$/;
@@ -13966,8 +14129,8 @@ ${t("feishu.filter.footImmediate")}`,
     }
 
     // src/client/ui/displayPrefs.tsx
-    var import_react38 = require("react");
-    var import_jsx_runtime51 = require("react/jsx-runtime");
+    var import_react41 = require("react");
+    var import_jsx_runtime54 = require("react/jsx-runtime");
     function displayPrefsOf(config) {
       const rawDate = config["date_format"] ?? "";
       return {
@@ -13976,17 +14139,17 @@ ${t("feishu.filter.footImmediate")}`,
       };
     }
     var DEFAULT_PREFS = { dateFormat: "YYYY-MM-DD", timeFormat: "24h" };
-    var DisplayPrefsContext = (0, import_react38.createContext)(DEFAULT_PREFS);
+    var DisplayPrefsContext = (0, import_react41.createContext)(DEFAULT_PREFS);
     function DisplayPrefsProvider({ dateFormat, timeFormat, children }) {
-      const value = (0, import_react38.useMemo)(() => ({ dateFormat, timeFormat }), [dateFormat, timeFormat]);
-      return /* @__PURE__ */ (0, import_jsx_runtime51.jsx)(DisplayPrefsContext.Provider, { value, children });
+      const value = (0, import_react41.useMemo)(() => ({ dateFormat, timeFormat }), [dateFormat, timeFormat]);
+      return /* @__PURE__ */ (0, import_jsx_runtime54.jsx)(DisplayPrefsContext.Provider, { value, children });
     }
     function useDisplayPrefs() {
-      return (0, import_react38.useContext)(DisplayPrefsContext);
+      return (0, import_react41.useContext)(DisplayPrefsContext);
     }
 
     // src/client/ui/DateTimePickerParts.tsx
-    var import_jsx_runtime52 = require("react/jsx-runtime");
+    var import_jsx_runtime55 = require("react/jsx-runtime");
     function fieldLabel(ariaLabel, fallback) {
       return ariaLabel === void 0 ? fallback : `${ariaLabel} ${fallback}`;
     }
@@ -14001,23 +14164,23 @@ ${t("feishu.filter.footImmediate")}`,
       onShift,
       onPickDay,
     }) {
-      return /* @__PURE__ */ (0, import_jsx_runtime52.jsxs)(import_jsx_runtime52.Fragment, {
+      return /* @__PURE__ */ (0, import_jsx_runtime55.jsxs)(import_jsx_runtime55.Fragment, {
         children: [
-          /* @__PURE__ */ (0, import_jsx_runtime52.jsxs)("div", {
+          /* @__PURE__ */ (0, import_jsx_runtime55.jsxs)("div", {
             className: ui_default.dtNav,
             children: [
-              /* @__PURE__ */ (0, import_jsx_runtime52.jsx)("button", {
+              /* @__PURE__ */ (0, import_jsx_runtime55.jsx)("button", {
                 type: "button",
                 className: ui_default.dtNavBtn,
                 "aria-label": prevLabel,
                 onClick: () => onShift(-1),
                 children: "\u25C0",
               }),
-              /* @__PURE__ */ (0, import_jsx_runtime52.jsx)("span", {
+              /* @__PURE__ */ (0, import_jsx_runtime55.jsx)("span", {
                 className: ui_default.dtTitle,
                 children: monthTitle(intlLocale, viewYear, viewMonth),
               }),
-              /* @__PURE__ */ (0, import_jsx_runtime52.jsx)("button", {
+              /* @__PURE__ */ (0, import_jsx_runtime55.jsx)("button", {
                 type: "button",
                 className: ui_default.dtNavBtn,
                 "aria-label": nextLabel,
@@ -14026,11 +14189,11 @@ ${t("feishu.filter.footImmediate")}`,
               }),
             ],
           }),
-          /* @__PURE__ */ (0, import_jsx_runtime52.jsxs)("div", {
+          /* @__PURE__ */ (0, import_jsx_runtime55.jsxs)("div", {
             className: ui_default.dtGrid,
             children: [
               weekdayHeaders(intlLocale).map((w, i) =>
-                /* @__PURE__ */ (0, import_jsx_runtime52.jsx)(
+                /* @__PURE__ */ (0, import_jsx_runtime55.jsx)(
                   "span",
                   { className: ui_default.dtWeek, children: w },
                   `w${i}`,
@@ -14039,8 +14202,8 @@ ${t("feishu.filter.footImmediate")}`,
               calendarCells(viewYear, viewMonth).map((day, i) => {
                 const key = dateKey(viewYear, viewMonth + 1, day);
                 return day === 0
-                  ? /* @__PURE__ */ (0, import_jsx_runtime52.jsx)("span", { className: ui_default.dtBlank }, `b${i}`)
-                  : /* @__PURE__ */ (0, import_jsx_runtime52.jsx)(
+                  ? /* @__PURE__ */ (0, import_jsx_runtime55.jsx)("span", { className: ui_default.dtBlank }, `b${i}`)
+                  : /* @__PURE__ */ (0, import_jsx_runtime55.jsx)(
                       "button",
                       {
                         type: "button",
@@ -14069,27 +14232,27 @@ ${t("feishu.filter.footImmediate")}`,
           ? [...Array(12)].map((_, i) => ({ value: String(i + 1), label: String(i + 1) }))
           : [...Array(24)].map((_, h) => ({ value: String(h).padStart(2, "0"), label: String(h).padStart(2, "0") }))
       ).map((option) =>
-        /* @__PURE__ */ (0, import_jsx_runtime52.jsx)(
+        /* @__PURE__ */ (0, import_jsx_runtime55.jsx)(
           "option",
           { value: option.value, children: option.label },
           option.value,
         ),
       );
-      const periodSelect = /* @__PURE__ */ (0, import_jsx_runtime52.jsxs)("select", {
+      const periodSelect = /* @__PURE__ */ (0, import_jsx_runtime55.jsxs)("select", {
         className: ui_default.dtSelectPeriod,
         value: isPm ? "pm" : "am",
         "aria-label": namePeriod,
         onChange: (event) => onPickTime((event.target.value === "pm" ? 12 : 0) + (hour12 % 12), minute),
         children: [
-          /* @__PURE__ */ (0, import_jsx_runtime52.jsx)("option", { value: "am", children: period.am }),
-          /* @__PURE__ */ (0, import_jsx_runtime52.jsx)("option", { value: "pm", children: period.pm }),
+          /* @__PURE__ */ (0, import_jsx_runtime55.jsx)("option", { value: "am", children: period.am }),
+          /* @__PURE__ */ (0, import_jsx_runtime55.jsx)("option", { value: "pm", children: period.pm }),
         ],
       });
-      return /* @__PURE__ */ (0, import_jsx_runtime52.jsxs)("div", {
+      return /* @__PURE__ */ (0, import_jsx_runtime55.jsxs)("div", {
         className: ui_default.dtTime,
         children: [
           is12 && period.first && periodSelect,
-          /* @__PURE__ */ (0, import_jsx_runtime52.jsx)("select", {
+          /* @__PURE__ */ (0, import_jsx_runtime55.jsx)("select", {
             className: ui_default.dtSelect,
             value: is12 ? String(hour12) : String(draft.hour).padStart(2, "0"),
             "aria-label": nameHour,
@@ -14100,22 +14263,22 @@ ${t("feishu.filter.footImmediate")}`,
               ),
             children: hourOptions,
           }),
-          /* @__PURE__ */ (0, import_jsx_runtime52.jsx)("span", {
+          /* @__PURE__ */ (0, import_jsx_runtime55.jsx)("span", {
             className: ui_default.dtColon,
             "aria-hidden": "true",
             children: ":",
           }),
-          /* @__PURE__ */ (0, import_jsx_runtime52.jsx)("select", {
+          /* @__PURE__ */ (0, import_jsx_runtime55.jsx)("select", {
             className: ui_default.dtSelect,
             value: String(minute).padStart(2, "0"),
             "aria-label": nameMinute,
             onChange: (event) => onPickTime(draft.hour, Number(event.target.value)),
             children: ["00", "30"].map((v) =>
-              /* @__PURE__ */ (0, import_jsx_runtime52.jsx)("option", { value: v, children: v }, v),
+              /* @__PURE__ */ (0, import_jsx_runtime55.jsx)("option", { value: v, children: v }, v),
             ),
           }),
           is12 && !period.first && periodSelect,
-          /* @__PURE__ */ (0, import_jsx_runtime52.jsx)("button", {
+          /* @__PURE__ */ (0, import_jsx_runtime55.jsx)("button", {
             type: "button",
             className: ui_default.dtClear,
             onClick: onClear,
@@ -14126,20 +14289,20 @@ ${t("feishu.filter.footImmediate")}`,
     }
 
     // src/client/ui/DateTimePicker.tsx
-    var import_jsx_runtime53 = require("react/jsx-runtime");
+    var import_jsx_runtime56 = require("react/jsx-runtime");
     function DateTimePicker({ value, onChange, ariaLabel, disabled = false }) {
       const t = useT();
       const { locale } = useI18n();
       const { dateFormat, timeFormat } = useDisplayPrefs();
       const intlLocale = intlLocaleOf(locale);
-      const [open, setOpen] = (0, import_react39.useState)(false);
-      const [above, setAbove] = (0, import_react39.useState)(false);
-      const [viewYear, setViewYear] = (0, import_react39.useState)(1970);
-      const [viewMonth, setViewMonth] = (0, import_react39.useState)(0);
-      const rootRef = (0, import_react39.useRef)(null);
-      const triggerRef = (0, import_react39.useRef)(null);
-      const popRef = (0, import_react39.useRef)(null);
-      (0, import_react39.useEffect)(() => {
+      const [open, setOpen] = (0, import_react42.useState)(false);
+      const [above, setAbove] = (0, import_react42.useState)(false);
+      const [viewYear, setViewYear] = (0, import_react42.useState)(1970);
+      const [viewMonth, setViewMonth] = (0, import_react42.useState)(0);
+      const rootRef = (0, import_react42.useRef)(null);
+      const triggerRef = (0, import_react42.useRef)(null);
+      const popRef = (0, import_react42.useRef)(null);
+      (0, import_react42.useEffect)(() => {
         if (!open) {
           return;
         }
@@ -14151,7 +14314,7 @@ ${t("feishu.filter.footImmediate")}`,
         document.addEventListener("mousedown", onDocMouseDown);
         return () => document.removeEventListener("mousedown", onDocMouseDown);
       }, [open]);
-      (0, import_react39.useLayoutEffect)(() => {
+      (0, import_react42.useLayoutEffect)(() => {
         if (!open) {
           return;
         }
@@ -14190,11 +14353,11 @@ ${t("feishu.filter.footImmediate")}`,
         onChange(formatValue({ year: draft2.year, month: draft2.month, day: draft2.day, hour, minute }));
       }
       const draft = draftPartsOf(value);
-      return /* @__PURE__ */ (0, import_jsx_runtime53.jsxs)("div", {
+      return /* @__PURE__ */ (0, import_jsx_runtime56.jsxs)("div", {
         ref: rootRef,
         className: ui_default.dtRoot,
         children: [
-          /* @__PURE__ */ (0, import_jsx_runtime53.jsxs)("button", {
+          /* @__PURE__ */ (0, import_jsx_runtime56.jsxs)("button", {
             ref: triggerRef,
             type: "button",
             className: ui_default.dtBtn,
@@ -14205,14 +14368,14 @@ ${t("feishu.filter.footImmediate")}`,
             disabled,
             onClick: () => (open ? setOpen(false) : openPopup()),
             children: [
-              /* @__PURE__ */ (0, import_jsx_runtime53.jsxs)("span", {
+              /* @__PURE__ */ (0, import_jsx_runtime56.jsxs)("span", {
                 className: ui_default.dtLabel,
                 children: [
                   "\u{1F550} ",
                   value === "" ? t("dt.none") : fmtDisplayDateTime(value, dateFormat, timeFormat, intlLocale),
                 ],
               }),
-              /* @__PURE__ */ (0, import_jsx_runtime53.jsx)("span", {
+              /* @__PURE__ */ (0, import_jsx_runtime56.jsx)("span", {
                 className: ui_default.dtArrow,
                 "aria-hidden": "true",
                 children: "\u25BC",
@@ -14220,14 +14383,14 @@ ${t("feishu.filter.footImmediate")}`,
             ],
           }),
           open &&
-            /* @__PURE__ */ (0, import_jsx_runtime53.jsxs)("div", {
+            /* @__PURE__ */ (0, import_jsx_runtime56.jsxs)("div", {
               ref: popRef,
               className: ui_default.dtPop,
               "data-above": above,
               role: "group",
               "data-testid": "dt-pop",
               children: [
-                /* @__PURE__ */ (0, import_jsx_runtime53.jsx)(MonthGrid, {
+                /* @__PURE__ */ (0, import_jsx_runtime56.jsx)(MonthGrid, {
                   intlLocale,
                   viewYear,
                   viewMonth,
@@ -14246,7 +14409,7 @@ ${t("feishu.filter.footImmediate")}`,
                   },
                   onPickDay: pickDay,
                 }),
-                /* @__PURE__ */ (0, import_jsx_runtime53.jsx)(TimeRow, {
+                /* @__PURE__ */ (0, import_jsx_runtime56.jsx)(TimeRow, {
                   draft,
                   is12: timeFormat === "12h",
                   intlLocale,
@@ -14266,25 +14429,9 @@ ${t("feishu.filter.footImmediate")}`,
       });
     }
 
-    // src/client/tasks/TaskEditModal.tsx
-    var import_jsx_runtime54 = require("react/jsx-runtime");
+    // src/client/tasks/tagPicker.tsx
+    var import_jsx_runtime57 = require("react/jsx-runtime");
     var MAX_TAGS = 3;
-    var PRIORITIES = ["low", "normal", "high", "urgent"];
-    function toLocalInput(iso) {
-      return iso === null ? "" : iso.slice(0, 16);
-    }
-    function initialTagIds(task, tags) {
-      const ids = [];
-      for (const ref of task.tags) {
-        const hit =
-          tags.find((x) => x.name === ref.name && x.dimension === ref.dimension) ??
-          tags.find((x) => x.name === ref.name);
-        if (hit !== void 0 && !ids.includes(hit.id)) {
-          ids.push(hit.id);
-        }
-      }
-      return ids;
-    }
     function buildTagGroups(data) {
       const groups = /* @__PURE__ */ new Map();
       for (const dim of data.dimensions ?? []) {
@@ -14303,33 +14450,158 @@ ${t("feishu.filter.footImmediate")}`,
         return { key, name: dim?.name ?? key, single: dim?.cardinality === "single", tags };
       });
     }
+    function initialTagIds(task, tags) {
+      const ids = [];
+      for (const ref of task.tags) {
+        const hit =
+          tags.find((x) => x.name === ref.name && x.dimension === ref.dimension) ??
+          tags.find((x) => x.name === ref.name);
+        if (hit !== void 0 && !ids.includes(hit.id)) {
+          ids.push(hit.id);
+        }
+      }
+      return ids;
+    }
+    function TagPicker({ groups, selectedIds, onToggle, noTagsLabel }) {
+      return /* @__PURE__ */ (0, import_jsx_runtime57.jsxs)("div", {
+        className: tasks_default.tagPick,
+        children: [
+          groups.length === 0
+            ? /* @__PURE__ */ (0, import_jsx_runtime57.jsx)("span", {
+                className: tasks_default.tagCount,
+                children: noTagsLabel,
+              })
+            : groups.map((group) =>
+                /* @__PURE__ */ (0, import_jsx_runtime57.jsxs)(
+                  "div",
+                  {
+                    className: tasks_default.tagDim,
+                    children: [
+                      /* @__PURE__ */ (0, import_jsx_runtime57.jsx)("span", {
+                        className: tasks_default.dimName,
+                        children: group.name,
+                      }),
+                      group.tags.length === 0
+                        ? /* @__PURE__ */ (0, import_jsx_runtime57.jsx)("span", {
+                            className: tasks_default.dimName,
+                            children: "\u2014",
+                          })
+                        : group.tags.map((tag) => {
+                            const selected = selectedIds.includes(tag.id);
+                            return /* @__PURE__ */ (0, import_jsx_runtime57.jsx)(
+                              "button",
+                              {
+                                type: "button",
+                                className: tasks_default.tagChip,
+                                "data-on": selected,
+                                "data-project": group.key === "project",
+                                "aria-pressed": selected,
+                                title: tag.description !== "" ? tag.description : group.name,
+                                disabled: !selected && selectedIds.length >= MAX_TAGS && !group.single,
+                                onClick: () => onToggle(tag, group.single),
+                                children: tag.name,
+                              },
+                              tag.id,
+                            );
+                          }),
+                    ],
+                  },
+                  group.key,
+                ),
+              ),
+          /* @__PURE__ */ (0, import_jsx_runtime57.jsxs)("span", {
+            className: tasks_default.tagCount,
+            children: [selectedIds.length, "/", MAX_TAGS],
+          }),
+        ],
+      });
+    }
+
+    // src/client/tasks/taskEditHelpers.ts
+    function toLocalInput(iso) {
+      return iso === null ? "" : iso.slice(0, 16);
+    }
+    function modalTitle(task, t) {
+      return `\u270E No.${String(task.id).padStart(3, "0")} ${t("edit.title")}`;
+    }
+    function modalAriaLabel(_task, t) {
+      return t("edit.title");
+    }
+    function initialCategoryId(task, data) {
+      const fallback = data.categories.find((c) => c.enabled)?.id ?? data.categories[0]?.id;
+      return task.categoryId ?? fallback ?? 0;
+    }
+    function initialTexts(task) {
+      return { title: task.title, note: task.note ?? "" };
+    }
+    function initialTimes(task) {
+      return { dueAt: toLocalInput(task.dueAt ?? null), remindAt: toLocalInput(task.remindAt ?? null) };
+    }
+    function initialFormValues(task, data) {
+      return {
+        ...initialTexts(task),
+        categoryId: initialCategoryId(task, data),
+        priority: task.priority,
+        ...initialTimes(task),
+      };
+    }
+
+    // src/client/tasks/TaskEditModal.tsx
+    var import_jsx_runtime58 = require("react/jsx-runtime");
+    var PRIORITIES = ["low", "normal", "high", "urgent"];
+    async function submitTaskUpdate(client, task, form) {
+      const result = await client.taskUpdate({
+        id: task.id,
+        title: form.title,
+        note: form.note,
+        categoryId: form.categoryId,
+        priority: form.priority,
+        dueAt: form.dueAt === "" ? null : form.dueAt,
+        remindAt: form.remindAt === "" ? null : form.remindAt,
+        tagIds: form.tagIds,
+      });
+      return result.ok ? "" : result.error.message;
+    }
+    function toggleTagId(tag, single, sameDimIds, setSelected) {
+      setSelected((prev) => {
+        if (prev.includes(tag.id)) {
+          return prev.filter((id) => id !== tag.id);
+        }
+        let next = prev;
+        if (single) {
+          const sameDim = sameDimIds.get(tag.dimension) ?? /* @__PURE__ */ new Set();
+          next = next.filter((id) => !sameDim.has(id));
+        }
+        if (next.length >= MAX_TAGS) {
+          return next;
+        }
+        return [...next, tag.id];
+      });
+    }
     function TaskEditModal({ task, data, readonly = false, onClose, onChanged }) {
       const t = useT();
       const client = useClient();
-      const creating = task === void 0;
-      const [title, setTitle] = (0, import_react40.useState)(task?.title ?? "");
-      const [note, setNote] = (0, import_react40.useState)(task?.note ?? "");
-      const [categoryId, setCategoryId] = (0, import_react40.useState)(
-        task?.categoryId ?? data.categories.find((c) => c.enabled)?.id ?? data.categories[0]?.id ?? 0,
+      const initial = initialFormValues(task, data);
+      const [title, setTitle] = (0, import_react43.useState)(initial.title);
+      const [note, setNote] = (0, import_react43.useState)(initial.note);
+      const [categoryId, setCategoryId] = (0, import_react43.useState)(initial.categoryId);
+      const [priority, setPriority] = (0, import_react43.useState)(initial.priority);
+      const [dueAt, setDueAt] = (0, import_react43.useState)(initial.dueAt);
+      const [remindAt, setRemindAt] = (0, import_react43.useState)(initial.remindAt);
+      const [selectedTagIds, setSelectedTagIds] = (0, import_react43.useState)(() =>
+        initialTagIds(task, data.tags ?? []),
       );
-      const [priority, setPriority] = (0, import_react40.useState)(task?.priority ?? "normal");
-      const [dueAt, setDueAt] = (0, import_react40.useState)(toLocalInput(task?.dueAt ?? null));
-      const [remindAt, setRemindAt] = (0, import_react40.useState)(toLocalInput(task?.remindAt ?? null));
-      const [scheduledFor, setScheduledFor] = (0, import_react40.useState)("");
-      const [selectedTagIds, setSelectedTagIds] = (0, import_react40.useState)(() =>
-        task !== void 0 ? initialTagIds(task, data.tags ?? []) : [],
-      );
-      const [saving, setSaving] = (0, import_react40.useState)(false);
-      const [error, setError] = (0, import_react40.useState)("");
-      const categoryOptions = (0, import_react40.useMemo)(
+      const [saving, setSaving] = (0, import_react43.useState)(false);
+      const [error, setError] = (0, import_react43.useState)("");
+      const categoryOptions = (0, import_react43.useMemo)(
         () =>
           data.categories
             .filter((c) => c.enabled || c?.id === task?.categoryId)
             .map((c) => ({ value: String(c.id), label: c.name })),
         [data.categories, task?.categoryId],
       );
-      const tagGroups = (0, import_react40.useMemo)(() => buildTagGroups(data), [data]);
-      const sameDimIds = (0, import_react40.useMemo)(() => {
+      const tagGroups = (0, import_react43.useMemo)(() => buildTagGroups(data), [data]);
+      const sameDimIds = (0, import_react43.useMemo)(() => {
         const byDim = /* @__PURE__ */ new Map();
         for (const tag of data.tags ?? []) {
           const set = byDim.get(tag.dimension) ?? /* @__PURE__ */ new Set();
@@ -14339,20 +14611,7 @@ ${t("feishu.filter.footImmediate")}`,
         return byDim;
       }, [data.tags]);
       function toggleTag(tag, single) {
-        setSelectedTagIds((prev) => {
-          if (prev.includes(tag.id)) {
-            return prev.filter((id) => id !== tag.id);
-          }
-          let next = prev;
-          if (single) {
-            const sameDim = sameDimIds.get(tag.dimension) ?? /* @__PURE__ */ new Set();
-            next = next.filter((id) => !sameDim.has(id));
-          }
-          if (next.length >= MAX_TAGS) {
-            return next;
-          }
-          return [...next, tag.id];
-        });
+        toggleTagId(tag, single, sameDimIds, setSelectedTagIds);
       }
       async function save() {
         const trimmedTitle = title.trim();
@@ -14362,51 +14621,27 @@ ${t("feishu.filter.footImmediate")}`,
         }
         setSaving(true);
         setError("");
-        if (creating) {
-          const result2 = await client.taskCreate({
-            title: trimmedTitle,
-            note,
-            categoryId,
-            priority,
-            due: dueAt === "" ? void 0 : dueAt,
-            remindAt: remindAt === "" ? void 0 : remindAt,
-            scheduledFor: scheduledFor === "" ? void 0 : scheduledFor,
-            tagIds: selectedTagIds,
-          });
-          setSaving(false);
-          if (result2.ok) {
-            onChanged();
-            onClose();
-          } else {
-            setError(result2.error.message);
-          }
-          return;
-        }
-        const result = await client.taskUpdate({
-          id: task.id,
+        const form = {
           title: trimmedTitle,
-          // TaskPatch.note 契约收 string（空串 = 清空；null 仅 due/remind 三态支持）
           note,
           categoryId,
           priority,
-          // picker 空串转 null 表示清空；状态不手动改，由后端不变量归位
-          dueAt: dueAt === "" ? null : dueAt,
-          remindAt: remindAt === "" ? null : remindAt,
+          dueAt,
+          remindAt,
           tagIds: selectedTagIds,
-        });
+        };
+        const failure = await submitTaskUpdate(client, task, form);
         setSaving(false);
-        if (result.ok) {
+        if (failure === "") {
           onChanged();
           onClose();
         } else {
-          setError(result.error.message);
+          setError(failure);
         }
       }
-      return /* @__PURE__ */ (0, import_jsx_runtime54.jsx)(Modal, {
-        title: creating
-          ? t("dsh.taskCreate.entry")
-          : `\u270E No.${String(task.id).padStart(3, "0")} ${t("edit.title")}`,
-        ariaLabel: creating ? t("dsh.taskCreate.entry") : t("edit.title"),
+      return /* @__PURE__ */ (0, import_jsx_runtime58.jsx)(Modal, {
+        title: modalTitle(task, t),
+        ariaLabel: modalAriaLabel(task, t),
         actions: [
           {
             label: t("save2"),
@@ -14417,32 +14652,32 @@ ${t("feishu.filter.footImmediate")}`,
           { label: t("cancel"), onChoose: onClose },
         ],
         onClose,
-        children: /* @__PURE__ */ (0, import_jsx_runtime54.jsxs)("div", {
+        children: /* @__PURE__ */ (0, import_jsx_runtime58.jsxs)("div", {
           className: tasks_default.editForm,
-          "data-testid": creating ? "task-create-form" : "task-edit-form",
+          "data-testid": "task-edit-form",
           children: [
-            /* @__PURE__ */ (0, import_jsx_runtime54.jsxs)("label", {
+            /* @__PURE__ */ (0, import_jsx_runtime58.jsxs)("label", {
               className: tasks_default.editRow,
               children: [
-                /* @__PURE__ */ (0, import_jsx_runtime54.jsx)("span", {
+                /* @__PURE__ */ (0, import_jsx_runtime58.jsx)("span", {
                   className: tasks_default.editRowLabel,
                   children: t("edit.taskTitle"),
                 }),
-                /* @__PURE__ */ (0, import_jsx_runtime54.jsx)(TextInput, {
+                /* @__PURE__ */ (0, import_jsx_runtime58.jsx)(TextInput, {
                   value: title,
                   onChange: setTitle,
                   ariaLabel: t("edit.taskTitle"),
                 }),
               ],
             }),
-            /* @__PURE__ */ (0, import_jsx_runtime54.jsxs)("label", {
+            /* @__PURE__ */ (0, import_jsx_runtime58.jsxs)("label", {
               className: tasks_default.editRow,
               children: [
-                /* @__PURE__ */ (0, import_jsx_runtime54.jsx)("span", {
+                /* @__PURE__ */ (0, import_jsx_runtime58.jsx)("span", {
                   className: tasks_default.editRowLabel,
                   children: t("edit.note"),
                 }),
-                /* @__PURE__ */ (0, import_jsx_runtime54.jsx)("textarea", {
+                /* @__PURE__ */ (0, import_jsx_runtime58.jsx)("textarea", {
                   className: tasks_default.editTextarea,
                   rows: 2,
                   value: note,
@@ -14451,14 +14686,14 @@ ${t("feishu.filter.footImmediate")}`,
                 }),
               ],
             }),
-            /* @__PURE__ */ (0, import_jsx_runtime54.jsxs)("div", {
+            /* @__PURE__ */ (0, import_jsx_runtime58.jsxs)("div", {
               className: tasks_default.editRow,
               children: [
-                /* @__PURE__ */ (0, import_jsx_runtime54.jsx)("span", {
+                /* @__PURE__ */ (0, import_jsx_runtime58.jsx)("span", {
                   className: tasks_default.editRowLabel,
                   children: t("edit.category"),
                 }),
-                /* @__PURE__ */ (0, import_jsx_runtime54.jsx)(Select, {
+                /* @__PURE__ */ (0, import_jsx_runtime58.jsx)(Select, {
                   value: String(categoryId),
                   onChange: (value) => setCategoryId(Number(value)),
                   options: categoryOptions,
@@ -14466,14 +14701,14 @@ ${t("feishu.filter.footImmediate")}`,
                 }),
               ],
             }),
-            /* @__PURE__ */ (0, import_jsx_runtime54.jsxs)("div", {
+            /* @__PURE__ */ (0, import_jsx_runtime58.jsxs)("div", {
               className: tasks_default.editRow,
               children: [
-                /* @__PURE__ */ (0, import_jsx_runtime54.jsx)("span", {
+                /* @__PURE__ */ (0, import_jsx_runtime58.jsx)("span", {
                   className: tasks_default.editRowLabel,
                   children: t("edit.priority"),
                 }),
-                /* @__PURE__ */ (0, import_jsx_runtime54.jsx)(Select, {
+                /* @__PURE__ */ (0, import_jsx_runtime58.jsx)(Select, {
                   value: priority,
                   onChange: setPriority,
                   options: PRIORITIES.map((p) => ({ value: p, label: t(`priority.${p}`) })),
@@ -14481,112 +14716,51 @@ ${t("feishu.filter.footImmediate")}`,
                 }),
               ],
             }),
-            /* @__PURE__ */ (0, import_jsx_runtime54.jsxs)("div", {
+            /* @__PURE__ */ (0, import_jsx_runtime58.jsxs)("div", {
               className: tasks_default.editRow,
               children: [
-                /* @__PURE__ */ (0, import_jsx_runtime54.jsx)("span", {
+                /* @__PURE__ */ (0, import_jsx_runtime58.jsx)("span", {
                   className: tasks_default.editRowLabel,
                   children: t("edit.due"),
                 }),
-                /* @__PURE__ */ (0, import_jsx_runtime54.jsx)(DateTimePicker, {
+                /* @__PURE__ */ (0, import_jsx_runtime58.jsx)(DateTimePicker, {
                   value: dueAt,
                   onChange: setDueAt,
                   ariaLabel: t("edit.due"),
                 }),
               ],
             }),
-            /* @__PURE__ */ (0, import_jsx_runtime54.jsxs)("div", {
+            /* @__PURE__ */ (0, import_jsx_runtime58.jsxs)("div", {
               className: tasks_default.editRow,
               children: [
-                /* @__PURE__ */ (0, import_jsx_runtime54.jsx)("span", {
+                /* @__PURE__ */ (0, import_jsx_runtime58.jsx)("span", {
                   className: tasks_default.editRowLabel,
                   children: t("edit.remind"),
                 }),
-                /* @__PURE__ */ (0, import_jsx_runtime54.jsx)(DateTimePicker, {
+                /* @__PURE__ */ (0, import_jsx_runtime58.jsx)(DateTimePicker, {
                   value: remindAt,
                   onChange: setRemindAt,
                   ariaLabel: t("edit.remind"),
                 }),
               ],
             }),
-            creating &&
-              /* @__PURE__ */ (0, import_jsx_runtime54.jsxs)("div", {
-                className: tasks_default.editRow,
-                children: [
-                  /* @__PURE__ */ (0, import_jsx_runtime54.jsx)("span", {
-                    className: tasks_default.editRowLabel,
-                    children: t("dsh.taskCreate.scheduledFor"),
-                  }),
-                  /* @__PURE__ */ (0, import_jsx_runtime54.jsx)(DateTimePicker, {
-                    value: scheduledFor,
-                    onChange: setScheduledFor,
-                    ariaLabel: t("dsh.taskCreate.scheduledFor"),
-                  }),
-                ],
-              }),
-            /* @__PURE__ */ (0, import_jsx_runtime54.jsxs)("div", {
+            /* @__PURE__ */ (0, import_jsx_runtime58.jsxs)("div", {
               className: tasks_default.editRow,
               children: [
-                /* @__PURE__ */ (0, import_jsx_runtime54.jsx)("span", {
+                /* @__PURE__ */ (0, import_jsx_runtime58.jsx)("span", {
                   className: tasks_default.editRowLabel,
                   children: t("edit.tags"),
                 }),
-                /* @__PURE__ */ (0, import_jsx_runtime54.jsxs)("div", {
-                  className: tasks_default.tagPick,
-                  children: [
-                    tagGroups.length === 0
-                      ? /* @__PURE__ */ (0, import_jsx_runtime54.jsx)("span", {
-                          className: tasks_default.tagCount,
-                          children: t("edit.noTags"),
-                        })
-                      : tagGroups.map((group) =>
-                          /* @__PURE__ */ (0, import_jsx_runtime54.jsxs)(
-                            "div",
-                            {
-                              className: tasks_default.tagDim,
-                              children: [
-                                /* @__PURE__ */ (0, import_jsx_runtime54.jsx)("span", {
-                                  className: tasks_default.dimName,
-                                  children: group.name,
-                                }),
-                                group.tags.length === 0
-                                  ? /* @__PURE__ */ (0, import_jsx_runtime54.jsx)("span", {
-                                      className: tasks_default.dimName,
-                                      children: "\u2014",
-                                    })
-                                  : group.tags.map((tag) => {
-                                      const selected = selectedTagIds.includes(tag.id);
-                                      return /* @__PURE__ */ (0, import_jsx_runtime54.jsx)(
-                                        "button",
-                                        {
-                                          type: "button",
-                                          className: tasks_default.tagChip,
-                                          "data-on": selected,
-                                          "data-project": group.key === "project",
-                                          "aria-pressed": selected,
-                                          title: tag.description !== "" ? tag.description : group.name,
-                                          disabled: !selected && selectedTagIds.length >= MAX_TAGS && !group.single,
-                                          onClick: () => toggleTag(tag, group.single),
-                                          children: tag.name,
-                                        },
-                                        tag.id,
-                                      );
-                                    }),
-                              ],
-                            },
-                            group.key,
-                          ),
-                        ),
-                    /* @__PURE__ */ (0, import_jsx_runtime54.jsxs)("span", {
-                      className: tasks_default.tagCount,
-                      children: [selectedTagIds.length, "/", MAX_TAGS],
-                    }),
-                  ],
+                /* @__PURE__ */ (0, import_jsx_runtime58.jsx)(TagPicker, {
+                  groups: tagGroups,
+                  selectedIds: selectedTagIds,
+                  onToggle: toggleTag,
+                  noTagsLabel: t("edit.noTags"),
                 }),
               ],
             }),
             error !== "" &&
-              /* @__PURE__ */ (0, import_jsx_runtime54.jsxs)("p", {
+              /* @__PURE__ */ (0, import_jsx_runtime58.jsxs)("p", {
                 className: tasks_default.editError,
                 role: "alert",
                 children: ["\u274C ", error],
@@ -14597,7 +14771,7 @@ ${t("feishu.filter.footImmediate")}`,
     }
 
     // src/client/tasks/TaskDetailDrawer.tsx
-    var import_jsx_runtime55 = require("react/jsx-runtime");
+    var import_jsx_runtime59 = require("react/jsx-runtime");
     function TaskDetailDrawer({ task, data, categories, onClose, onChanged }) {
       const client = useClient();
       const readonly = data.dbStatus?.mode === "ro";
@@ -14605,19 +14779,19 @@ ${t("feishu.filter.footImmediate")}`,
       const category = categories.find((c) => c.id === task.categoryId);
       const [detail, reloadDetail] = useTaskDetail(client, task.id);
       const logs = useTaskHistory(client, task.id);
-      const [editing, setEditing] = (0, import_react41.useState)(false);
-      const overlay = (0, import_react41.useMemo)(
+      const [editing, setEditing] = (0, import_react44.useState)(false);
+      const overlay = (0, import_react44.useMemo)(
         () => (detail === null ? data : overlayDetail(data, task.id, detail)),
         [data, detail, task.id],
       );
-      return /* @__PURE__ */ (0, import_jsx_runtime55.jsxs)(import_jsx_runtime55.Fragment, {
+      return /* @__PURE__ */ (0, import_jsx_runtime59.jsxs)(import_jsx_runtime59.Fragment, {
         children: [
-          /* @__PURE__ */ (0, import_jsx_runtime55.jsx)("div", {
+          /* @__PURE__ */ (0, import_jsx_runtime59.jsx)("div", {
             className: tasks_default.drawerOverlay,
             onClick: onClose,
             "aria-hidden": "true",
           }),
-          /* @__PURE__ */ (0, import_jsx_runtime55.jsxs)("aside", {
+          /* @__PURE__ */ (0, import_jsx_runtime59.jsxs)("aside", {
             ref,
             role: "dialog",
             "aria-modal": "true",
@@ -14626,14 +14800,14 @@ ${t("feishu.filter.footImmediate")}`,
             "data-testid": "task-drawer",
             tabIndex: -1,
             children: [
-              /* @__PURE__ */ (0, import_jsx_runtime55.jsxs)("header", {
+              /* @__PURE__ */ (0, import_jsx_runtime59.jsxs)("header", {
                 className: tasks_default.drawerHeader,
                 children: [
-                  /* @__PURE__ */ (0, import_jsx_runtime55.jsxs)("h3", {
+                  /* @__PURE__ */ (0, import_jsx_runtime59.jsxs)("h3", {
                     className: tasks_default.drawerTitle,
                     children: ["No.", task.id, " ", task.title],
                   }),
-                  /* @__PURE__ */ (0, import_jsx_runtime55.jsx)("button", {
+                  /* @__PURE__ */ (0, import_jsx_runtime59.jsx)("button", {
                     type: "button",
                     className: `${ui_default.button} ${tasks_default.drawerClose}`,
                     onClick: onClose,
@@ -14641,26 +14815,26 @@ ${t("feishu.filter.footImmediate")}`,
                   }),
                 ],
               }),
-              /* @__PURE__ */ (0, import_jsx_runtime55.jsxs)("div", {
+              /* @__PURE__ */ (0, import_jsx_runtime59.jsxs)("div", {
                 className: tasks_default.drawerBody,
                 children: [
-                  /* @__PURE__ */ (0, import_jsx_runtime55.jsx)(SummaryGrid, {
+                  /* @__PURE__ */ (0, import_jsx_runtime59.jsx)(SummaryGrid, {
                     task,
                     categoryName: category?.name ?? "-",
                     readonly,
                     onEdit: () => setEditing(true),
                   }),
-                  /* @__PURE__ */ (0, import_jsx_runtime55.jsx)(FollowupStream, {
+                  /* @__PURE__ */ (0, import_jsx_runtime59.jsx)(FollowupStream, {
                     data: overlay,
                     taskId: task.id,
                     onRefresh: reloadDetail,
                     readonly,
                   }),
-                  /* @__PURE__ */ (0, import_jsx_runtime55.jsx)(DispatchOps, { task, data, readonly, onChanged }),
-                  /* @__PURE__ */ (0, import_jsx_runtime55.jsx)(DispatchTimeline, { data: overlay, taskId: task.id }),
-                  /* @__PURE__ */ (0, import_jsx_runtime55.jsx)(HistorySection, { logs }),
+                  /* @__PURE__ */ (0, import_jsx_runtime59.jsx)(DispatchOps, { task, data, readonly, onChanged }),
+                  /* @__PURE__ */ (0, import_jsx_runtime59.jsx)(DispatchTimeline, { data: overlay, taskId: task.id }),
+                  /* @__PURE__ */ (0, import_jsx_runtime59.jsx)(HistorySection, { logs }),
                   editing &&
-                    /* @__PURE__ */ (0, import_jsx_runtime55.jsx)(TaskEditModal, {
+                    /* @__PURE__ */ (0, import_jsx_runtime59.jsx)(TaskEditModal, {
                       task,
                       data,
                       onClose: () => setEditing(false),
@@ -14678,40 +14852,40 @@ ${t("feishu.filter.footImmediate")}`,
       const fmt = (iso) => (iso === null ? "\u2014" : iso.slice(0, 16).replace("T", " "));
       const sourceText =
         task.source === "feishu" ? t("entry.feishu") : task.source === "capture" ? t("entry.capture") : task.source;
-      return /* @__PURE__ */ (0, import_jsx_runtime55.jsxs)("div", {
+      return /* @__PURE__ */ (0, import_jsx_runtime59.jsxs)("div", {
         className: tasks_default.summarySection,
         "data-testid": "task-summary",
         children: [
-          /* @__PURE__ */ (0, import_jsx_runtime55.jsxs)("button", {
+          /* @__PURE__ */ (0, import_jsx_runtime59.jsxs)("button", {
             type: "button",
             className: `${ui_default.button} ${tasks_default.summaryEdit}`,
             disabled: readonly,
             onClick: onEdit,
             children: ["\u270E ", t("detail.edit")],
           }),
-          /* @__PURE__ */ (0, import_jsx_runtime55.jsxs)("div", {
+          /* @__PURE__ */ (0, import_jsx_runtime59.jsxs)("div", {
             className: tasks_default.summaryGrid,
             children: [
-              /* @__PURE__ */ (0, import_jsx_runtime55.jsx)(Kv, { k: t("edit.category"), v: categoryName }),
-              /* @__PURE__ */ (0, import_jsx_runtime55.jsx)(Kv, {
+              /* @__PURE__ */ (0, import_jsx_runtime59.jsx)(Kv, { k: t("edit.category"), v: categoryName }),
+              /* @__PURE__ */ (0, import_jsx_runtime59.jsx)(Kv, {
                 k: t("edit.priority"),
                 v: t(`priority.${task.priority}`),
               }),
-              /* @__PURE__ */ (0, import_jsx_runtime55.jsx)(Kv, {
+              /* @__PURE__ */ (0, import_jsx_runtime59.jsx)(Kv, {
                 k: t("detail.status"),
                 v: t(`status.${task.status}`),
               }),
-              /* @__PURE__ */ (0, import_jsx_runtime55.jsx)(Kv, { k: t("edit.due"), v: fmt(task.dueAt) }),
-              /* @__PURE__ */ (0, import_jsx_runtime55.jsx)(Kv, { k: t("edit.remind"), v: fmt(task.remindAt) }),
-              /* @__PURE__ */ (0, import_jsx_runtime55.jsx)(Kv, {
+              /* @__PURE__ */ (0, import_jsx_runtime59.jsx)(Kv, { k: t("edit.due"), v: fmt(task.dueAt) }),
+              /* @__PURE__ */ (0, import_jsx_runtime59.jsx)(Kv, { k: t("edit.remind"), v: fmt(task.remindAt) }),
+              /* @__PURE__ */ (0, import_jsx_runtime59.jsx)(Kv, {
                 k: t("edit.tags"),
                 v:
                   task.tags.length === 0
                     ? "\u2014"
-                    : /* @__PURE__ */ (0, import_jsx_runtime55.jsx)("span", {
+                    : /* @__PURE__ */ (0, import_jsx_runtime59.jsx)("span", {
                         className: tasks_default.summaryTags,
                         children: task.tags.map((ref) =>
-                          /* @__PURE__ */ (0, import_jsx_runtime55.jsxs)(
+                          /* @__PURE__ */ (0, import_jsx_runtime59.jsxs)(
                             "i",
                             {
                               className: tasks_default.metaTagChip,
@@ -14723,17 +14897,17 @@ ${t("feishu.filter.footImmediate")}`,
                         ),
                       }),
               }),
-              /* @__PURE__ */ (0, import_jsx_runtime55.jsx)(Kv, { k: t("detail.source"), v: sourceText }),
-              /* @__PURE__ */ (0, import_jsx_runtime55.jsx)(Kv, {
+              /* @__PURE__ */ (0, import_jsx_runtime59.jsx)(Kv, { k: t("detail.source"), v: sourceText }),
+              /* @__PURE__ */ (0, import_jsx_runtime59.jsx)(Kv, {
                 k: t("detail.focus"),
                 v: `${Math.round(task.focusSeconds / 60)} min`,
               }),
-              /* @__PURE__ */ (0, import_jsx_runtime55.jsx)(Kv, {
+              /* @__PURE__ */ (0, import_jsx_runtime59.jsx)(Kv, {
                 k: t("detail.created"),
                 v: fmt(task.createdAt),
                 mono: true,
               }),
-              /* @__PURE__ */ (0, import_jsx_runtime55.jsx)(Kv, {
+              /* @__PURE__ */ (0, import_jsx_runtime59.jsx)(Kv, {
                 k: task.status === "cancelled" ? t("detail.escaped") : t("detail.completed"),
                 v: fmt(task.completedAt ?? task.cancelledAt),
                 mono: true,
@@ -14744,11 +14918,11 @@ ${t("feishu.filter.footImmediate")}`,
       });
     }
     function Kv({ k, v, mono = false }) {
-      return /* @__PURE__ */ (0, import_jsx_runtime55.jsxs)("div", {
+      return /* @__PURE__ */ (0, import_jsx_runtime59.jsxs)("div", {
         className: tasks_default.summaryKv,
         children: [
-          /* @__PURE__ */ (0, import_jsx_runtime55.jsx)("span", { className: tasks_default.summaryKey, children: k }),
-          /* @__PURE__ */ (0, import_jsx_runtime55.jsx)("span", {
+          /* @__PURE__ */ (0, import_jsx_runtime59.jsx)("span", { className: tasks_default.summaryKey, children: k }),
+          /* @__PURE__ */ (0, import_jsx_runtime59.jsx)("span", {
             className: mono ? tasks_default.summaryValMono : tasks_default.summaryVal,
             children: v,
           }),
@@ -14758,7 +14932,7 @@ ${t("feishu.filter.footImmediate")}`,
     function HistorySection({ logs }) {
       const t = useT();
       const { locale } = useI18n();
-      const keys = (0, import_react41.useMemo)(() => flattenKeys(MESSAGES[locale]), [locale]);
+      const keys = (0, import_react44.useMemo)(() => flattenKeys(MESSAGES[locale]), [locale]);
       const tx = (key, fallback) => (keys.has(key) ? t(key) : fallback);
       const valueText = (field, value) => {
         if (value === null || value === "") {
@@ -14766,37 +14940,37 @@ ${t("feishu.filter.footImmediate")}`,
         }
         return field === "status" ? tx(`status.${value}`, value) : value;
       };
-      return /* @__PURE__ */ (0, import_jsx_runtime55.jsxs)("div", {
+      return /* @__PURE__ */ (0, import_jsx_runtime59.jsxs)("div", {
         "data-testid": "task-history",
         children: [
-          /* @__PURE__ */ (0, import_jsx_runtime55.jsx)("h4", {
+          /* @__PURE__ */ (0, import_jsx_runtime59.jsx)("h4", {
             className: tasks_default.drawerSectionTitle,
             children: t("edit.history"),
           }),
           logs.length === 0
-            ? /* @__PURE__ */ (0, import_jsx_runtime55.jsx)("div", {
+            ? /* @__PURE__ */ (0, import_jsx_runtime59.jsx)("div", {
                 className: tasks_default.followupEmpty,
                 children: t("edit.noHistory"),
               })
             : logs.map((log) =>
-                /* @__PURE__ */ (0, import_jsx_runtime55.jsxs)(
+                /* @__PURE__ */ (0, import_jsx_runtime59.jsxs)(
                   "div",
                   {
                     className: tasks_default.historyRow,
                     children: [
-                      /* @__PURE__ */ (0, import_jsx_runtime55.jsxs)("div", {
+                      /* @__PURE__ */ (0, import_jsx_runtime59.jsxs)("div", {
                         className: tasks_default.historyMeta,
                         children: [
-                          /* @__PURE__ */ (0, import_jsx_runtime55.jsx)("span", {
+                          /* @__PURE__ */ (0, import_jsx_runtime59.jsx)("span", {
                             className: tasks_default.historyOrigin,
                             children: log.origin,
                           }),
-                          /* @__PURE__ */ (0, import_jsx_runtime55.jsx)("span", {
+                          /* @__PURE__ */ (0, import_jsx_runtime59.jsx)("span", {
                             children: log.createdAt.slice(0, 16).replace("T", " "),
                           }),
                         ],
                       }),
-                      /* @__PURE__ */ (0, import_jsx_runtime55.jsxs)("div", {
+                      /* @__PURE__ */ (0, import_jsx_runtime59.jsxs)("div", {
                         className: tasks_default.historyText,
                         children: [
                           tx(`log.${log.action}`, log.action),
@@ -14813,9 +14987,9 @@ ${t("feishu.filter.footImmediate")}`,
       });
     }
     function useTaskDetail(client, taskId) {
-      const [detail, setDetail] = (0, import_react41.useState)(null);
-      const [nonce, setNonce] = (0, import_react41.useState)(0);
-      (0, import_react41.useEffect)(() => {
+      const [detail, setDetail] = (0, import_react44.useState)(null);
+      const [nonce, setNonce] = (0, import_react44.useState)(0);
+      (0, import_react44.useEffect)(() => {
         setDetail(null);
         let alive = true;
         void client.taskDetail({ taskId }).then((result) => {
@@ -14830,8 +15004,8 @@ ${t("feishu.filter.footImmediate")}`,
       return [detail, () => setNonce((n) => n + 1)];
     }
     function useTaskHistory(client, taskId) {
-      const [logs, setLogs] = (0, import_react41.useState)([]);
-      (0, import_react41.useEffect)(() => {
+      const [logs, setLogs] = (0, import_react44.useState)([]);
+      (0, import_react44.useEffect)(() => {
         let alive = true;
         void client.taskHistory({ taskId }).then((result) => {
           if (alive && result.ok) {
@@ -14860,31 +15034,31 @@ ${t("feishu.filter.footImmediate")}`,
       };
     }
     function useFocusTrapTarget(onClose) {
-      const [ref, setRef] = (0, import_react41.useState)(null);
+      const [ref, setRef] = (0, import_react44.useState)(null);
       useFocusTrap({ current: ref }, true, onClose);
       return setRef;
     }
 
     // src/client/tasks/views.tsx
-    var import_react47 = require("react");
+    var import_react50 = require("react");
 
     // src/client/tasks/TaskQuickOps.tsx
-    var import_react42 = require("react");
+    var import_react45 = require("react");
 
     // src/client/tasks/TaskReleaseModal.tsx
-    var import_jsx_runtime56 = require("react/jsx-runtime");
+    var import_jsx_runtime60 = require("react/jsx-runtime");
     function TaskReleaseModal({ task, open, onClose, onChanged }) {
       const t = useT();
       const client = useClient();
       const undo = useUndoToast();
       if (!open) {
         return undo.toast !== null
-          ? /* @__PURE__ */ (0, import_jsx_runtime56.jsx)(UndoToast, { toast: undo.toast, onClose: undo.dismiss })
+          ? /* @__PURE__ */ (0, import_jsx_runtime60.jsx)(UndoToast, { toast: undo.toast, onClose: undo.dismiss })
           : null;
       }
-      return /* @__PURE__ */ (0, import_jsx_runtime56.jsxs)(import_jsx_runtime56.Fragment, {
+      return /* @__PURE__ */ (0, import_jsx_runtime60.jsxs)(import_jsx_runtime60.Fragment, {
         children: [
-          /* @__PURE__ */ (0, import_jsx_runtime56.jsx)(ConfirmDialog, {
+          /* @__PURE__ */ (0, import_jsx_runtime60.jsx)(ConfirmDialog, {
             title: t("entry.release"),
             body: t("dsh.release.confirmBody", { title: task.title }),
             confirmLabel: t("dsh.release.confirmOk"),
@@ -14908,18 +15082,18 @@ ${t("feishu.filter.footImmediate")}`,
             },
           }),
           undo.toast !== null &&
-            /* @__PURE__ */ (0, import_jsx_runtime56.jsx)(UndoToast, { toast: undo.toast, onClose: undo.dismiss }),
+            /* @__PURE__ */ (0, import_jsx_runtime60.jsx)(UndoToast, { toast: undo.toast, onClose: undo.dismiss }),
         ],
       });
     }
 
     // src/client/tasks/TaskQuickOps.tsx
-    var import_jsx_runtime57 = require("react/jsx-runtime");
+    var import_jsx_runtime61 = require("react/jsx-runtime");
     function TaskQuickOps({ task, readonly, allowSchedule = false, onChanged, onEdit }) {
       const t = useT();
       const client = useClient();
-      const [releaseOpen, setReleaseOpen] = (0, import_react42.useState)(false);
-      const [scheduling, setScheduling] = (0, import_react42.useState)(false);
+      const [releaseOpen, setReleaseOpen] = (0, import_react45.useState)(false);
+      const [scheduling, setScheduling] = (0, import_react45.useState)(false);
       const editable = task.status !== "done" && task.status !== "cancelled";
       const op = (event, run) => {
         event.stopPropagation();
@@ -14927,16 +15101,16 @@ ${t("feishu.filter.footImmediate")}`,
       };
       if (!editable) {
         const done = task.status === "done";
-        return /* @__PURE__ */ (0, import_jsx_runtime57.jsxs)("span", {
+        return /* @__PURE__ */ (0, import_jsx_runtime61.jsxs)("span", {
           className: tasks_default.quickOps,
           onClick: (event) => event.stopPropagation(),
           children: [
-            /* @__PURE__ */ (0, import_jsx_runtime57.jsx)("span", {
+            /* @__PURE__ */ (0, import_jsx_runtime61.jsx)("span", {
               className: `${tasks_default.catchMark} ${done ? "" : tasks_default.escapeMark}`,
               "aria-live": "polite",
               children: done ? t("entry.caught") : t("entry.escaped"),
             }),
-            /* @__PURE__ */ (0, import_jsx_runtime57.jsx)("button", {
+            /* @__PURE__ */ (0, import_jsx_runtime61.jsx)("button", {
               type: "button",
               className: ui_default.button,
               disabled: readonly,
@@ -14947,19 +15121,19 @@ ${t("feishu.filter.footImmediate")}`,
           ],
         });
       }
-      return /* @__PURE__ */ (0, import_jsx_runtime57.jsxs)("span", {
+      return /* @__PURE__ */ (0, import_jsx_runtime61.jsxs)("span", {
         className: tasks_default.quickOps,
         onClick: (event) => event.stopPropagation(),
         children: [
           task.status === "active"
-            ? /* @__PURE__ */ (0, import_jsx_runtime57.jsx)("button", {
+            ? /* @__PURE__ */ (0, import_jsx_runtime61.jsx)("button", {
                 type: "button",
                 className: ui_default.button,
                 disabled: readonly,
                 onClick: (event) => op(event, () => client.taskPause({ taskId: task.id })),
                 children: t("entry.pause"),
               })
-            : /* @__PURE__ */ (0, import_jsx_runtime57.jsx)("button", {
+            : /* @__PURE__ */ (0, import_jsx_runtime61.jsx)("button", {
                 type: "button",
                 className: ui_default.button,
                 disabled: readonly,
@@ -14967,7 +15141,7 @@ ${t("feishu.filter.footImmediate")}`,
                 children: t("entry.start"),
               }),
           allowSchedule &&
-            /* @__PURE__ */ (0, import_jsx_runtime57.jsx)("button", {
+            /* @__PURE__ */ (0, import_jsx_runtime61.jsx)("button", {
               type: "button",
               className: ui_default.button,
               disabled: readonly,
@@ -14976,7 +15150,7 @@ ${t("feishu.filter.footImmediate")}`,
               children: "\u{1F4C5}",
             }),
           onEdit !== void 0 &&
-            /* @__PURE__ */ (0, import_jsx_runtime57.jsx)("button", {
+            /* @__PURE__ */ (0, import_jsx_runtime61.jsx)("button", {
               type: "button",
               className: ui_default.button,
               disabled: readonly,
@@ -14984,7 +15158,7 @@ ${t("feishu.filter.footImmediate")}`,
               onClick: () => onEdit(task),
               children: "\u270E",
             }),
-          /* @__PURE__ */ (0, import_jsx_runtime57.jsx)("button", {
+          /* @__PURE__ */ (0, import_jsx_runtime61.jsx)("button", {
             type: "button",
             className: ui_default.button,
             disabled: readonly,
@@ -14992,7 +15166,7 @@ ${t("feishu.filter.footImmediate")}`,
             onClick: (event) => op(event, () => client.taskComplete({ taskId: task.id })),
             children: "\u2714",
           }),
-          /* @__PURE__ */ (0, import_jsx_runtime57.jsx)("button", {
+          /* @__PURE__ */ (0, import_jsx_runtime61.jsx)("button", {
             type: "button",
             className: ui_default.button,
             disabled: readonly,
@@ -15000,7 +15174,7 @@ ${t("feishu.filter.footImmediate")}`,
             onClick: (event) => op(event, () => client.taskCancel({ taskId: task.id, reasonCode: "other" })),
             children: "\u{1F6AA}",
           }),
-          /* @__PURE__ */ (0, import_jsx_runtime57.jsx)("button", {
+          /* @__PURE__ */ (0, import_jsx_runtime61.jsx)("button", {
             type: "button",
             className: `${ui_default.button} ${tasks_default.opRelease}`,
             disabled: readonly,
@@ -15009,7 +15183,7 @@ ${t("feishu.filter.footImmediate")}`,
             children: "\u2715",
           }),
           scheduling &&
-            /* @__PURE__ */ (0, import_jsx_runtime57.jsx)(ScheduleModal, {
+            /* @__PURE__ */ (0, import_jsx_runtime61.jsx)(ScheduleModal, {
               task,
               readonly,
               onClose: () => setScheduling(false),
@@ -15018,7 +15192,7 @@ ${t("feishu.filter.footImmediate")}`,
                 onChanged();
               },
             }),
-          /* @__PURE__ */ (0, import_jsx_runtime57.jsx)(TaskReleaseModal, {
+          /* @__PURE__ */ (0, import_jsx_runtime61.jsx)(TaskReleaseModal, {
             task,
             open: releaseOpen,
             onClose: () => setReleaseOpen(false),
@@ -15030,8 +15204,8 @@ ${t("feishu.filter.footImmediate")}`,
     function ScheduleModal({ task, readonly, onClose, onChanged }) {
       const t = useT();
       const client = useClient();
-      const [due, setDue] = (0, import_react42.useState)(task.dueAt === null ? "" : task.dueAt.slice(0, 16));
-      return /* @__PURE__ */ (0, import_jsx_runtime57.jsx)(Modal, {
+      const [due, setDue] = (0, import_react45.useState)(task.dueAt === null ? "" : task.dueAt.slice(0, 16));
+      return /* @__PURE__ */ (0, import_jsx_runtime61.jsx)(Modal, {
         title: `\u{1F4C5} ${t("dsh.task.reschedule")}`,
         ariaLabel: t("dsh.task.reschedule"),
         actions: [
@@ -15046,7 +15220,7 @@ ${t("feishu.filter.footImmediate")}`,
           { label: t("cancel"), onChoose: onClose },
         ],
         onClose,
-        children: /* @__PURE__ */ (0, import_jsx_runtime57.jsx)(DateTimePicker, {
+        children: /* @__PURE__ */ (0, import_jsx_runtime61.jsx)(DateTimePicker, {
           value: due,
           onChange: setDue,
           ariaLabel: t("edit.due"),
@@ -15055,12 +15229,12 @@ ${t("feishu.filter.footImmediate")}`,
     }
 
     // src/client/tasks/TaskCard.tsx
-    var import_jsx_runtime58 = require("react/jsx-runtime");
+    var import_jsx_runtime62 = require("react/jsx-runtime");
     var CATEGORY_TYPE_KEYS = { 1: "work", 2: "study", 3: "life", 4: "health", 5: "interest" };
     function TaskCard({ task, category, readonly, allowSchedule = false, onOpen, onChanged, onEdit }) {
       const t = useT();
       const presentation = taskPresentation(task);
-      return /* @__PURE__ */ (0, import_jsx_runtime58.jsxs)("div", {
+      return /* @__PURE__ */ (0, import_jsx_runtime62.jsxs)("div", {
         role: "button",
         tabIndex: 0,
         className: tasks_default.taskCard,
@@ -15075,28 +15249,28 @@ ${t("feishu.filter.footImmediate")}`,
         },
         children: [
           (presentation === "active" || presentation === "activePaused") &&
-            /* @__PURE__ */ (0, import_jsx_runtime58.jsx)("span", {
+            /* @__PURE__ */ (0, import_jsx_runtime62.jsx)("span", {
               className: tasks_default.runningTag,
               children: presentation === "active" ? `\u266A ${t("entry.catching")}` : `\u23F8 ${t("entry.paused")}`,
             }),
-          /* @__PURE__ */ (0, import_jsx_runtime58.jsxs)("span", {
+          /* @__PURE__ */ (0, import_jsx_runtime62.jsxs)("span", {
             className: tasks_default.taskNo,
             "aria-hidden": "true",
             children: ["No.", task.id],
           }),
-          /* @__PURE__ */ (0, import_jsx_runtime58.jsx)(TaskSprite, { category }),
-          /* @__PURE__ */ (0, import_jsx_runtime58.jsxs)("span", {
+          /* @__PURE__ */ (0, import_jsx_runtime62.jsx)(TaskSprite, { category }),
+          /* @__PURE__ */ (0, import_jsx_runtime62.jsxs)("span", {
             className: tasks_default.taskMain,
             children: [
-              /* @__PURE__ */ (0, import_jsx_runtime58.jsx)("span", {
+              /* @__PURE__ */ (0, import_jsx_runtime62.jsx)("span", {
                 className: tasks_default.taskTitle,
                 children: task.title,
               }),
-              /* @__PURE__ */ (0, import_jsx_runtime58.jsx)(TaskMeta, { task, category }),
+              /* @__PURE__ */ (0, import_jsx_runtime62.jsx)(TaskMeta, { task, category }),
             ],
           }),
           !readonly &&
-            /* @__PURE__ */ (0, import_jsx_runtime58.jsx)(TaskQuickOps, {
+            /* @__PURE__ */ (0, import_jsx_runtime62.jsx)(TaskQuickOps, {
               task,
               readonly,
               allowSchedule,
@@ -15107,12 +15281,12 @@ ${t("feishu.filter.footImmediate")}`,
       });
     }
     function TaskSprite({ category }) {
-      return /* @__PURE__ */ (0, import_jsx_runtime58.jsx)("span", {
+      return /* @__PURE__ */ (0, import_jsx_runtime62.jsx)("span", {
         className: tasks_default.taskSprite,
         "aria-label": category?.pokemon ?? "",
         children:
           category !== void 0 && category.sprite !== ""
-            ? /* @__PURE__ */ (0, import_jsx_runtime58.jsx)(Sprite, {
+            ? /* @__PURE__ */ (0, import_jsx_runtime62.jsx)(Sprite, {
                 spriteKey: category.sprite,
                 alt: category.pokemon,
               })
@@ -15124,35 +15298,35 @@ ${t("feishu.filter.footImmediate")}`,
       const focusMinutes = Math.floor(task.focusSeconds / 60);
       const dispatchState = task.dispatchState;
       const tooltipKey = dispatchTooltipKey(dispatchState);
-      return /* @__PURE__ */ (0, import_jsx_runtime58.jsxs)("span", {
+      return /* @__PURE__ */ (0, import_jsx_runtime62.jsxs)("span", {
         className: tasks_default.taskMeta,
         children: [
           category !== void 0 &&
-            /* @__PURE__ */ (0, import_jsx_runtime58.jsx)("span", {
+            /* @__PURE__ */ (0, import_jsx_runtime62.jsx)("span", {
               className: tasks_default.typeBadge,
               "data-type": categoryTypeKey(category.id),
               children: category.name,
             }),
-          /* @__PURE__ */ (0, import_jsx_runtime58.jsx)("span", {
+          /* @__PURE__ */ (0, import_jsx_runtime62.jsx)("span", {
             className: tasks_default.prioDot,
             "data-prio": task.priority,
             "aria-label": t(`priority.${task.priority}`),
           }),
           task.dueAt !== null &&
-            /* @__PURE__ */ (0, import_jsx_runtime58.jsx)("span", {
+            /* @__PURE__ */ (0, import_jsx_runtime62.jsx)("span", {
               children: t("entry.due", { v: task.dueAt.slice(0, 16).replace("T", " ") }),
             }),
           focusMinutes > 0 &&
-            /* @__PURE__ */ (0, import_jsx_runtime58.jsx)("span", { children: t("entry.focus", { n: focusMinutes }) }),
+            /* @__PURE__ */ (0, import_jsx_runtime62.jsx)("span", { children: t("entry.focus", { n: focusMinutes }) }),
           task.source !== "local" &&
-            /* @__PURE__ */ (0, import_jsx_runtime58.jsx)("span", {
+            /* @__PURE__ */ (0, import_jsx_runtime62.jsx)("span", {
               children: t(`entry.${task.source === "feishu" ? "feishu" : "capture"}`),
             }),
           task.tags.length > 0 &&
-            /* @__PURE__ */ (0, import_jsx_runtime58.jsx)("span", {
+            /* @__PURE__ */ (0, import_jsx_runtime62.jsx)("span", {
               className: tasks_default.tagList,
               children: task.tags.map((ref) =>
-                /* @__PURE__ */ (0, import_jsx_runtime58.jsxs)(
+                /* @__PURE__ */ (0, import_jsx_runtime62.jsxs)(
                   "i",
                   {
                     className: tasks_default.metaTagChip,
@@ -15164,12 +15338,12 @@ ${t("feishu.filter.footImmediate")}`,
               ),
             }),
           dispatchState !== null &&
-            /* @__PURE__ */ (0, import_jsx_runtime58.jsxs)("span", {
+            /* @__PURE__ */ (0, import_jsx_runtime62.jsxs)("span", {
               className: tasks_default.dispatchBadge,
               "data-state": dispatchState,
               title: tooltipKey !== null ? t(tooltipKey, { reason: "" }) : void 0,
               children: [
-                /* @__PURE__ */ (0, import_jsx_runtime58.jsx)("span", {
+                /* @__PURE__ */ (0, import_jsx_runtime62.jsx)("span", {
                   className: tasks_default.dispatchGlyph,
                   children: DISPATCH_GLYPHS[dispatchState],
                 }),
@@ -15185,13 +15359,13 @@ ${t("feishu.filter.footImmediate")}`,
     }
 
     // src/client/tasks/TaskList.tsx
-    var import_jsx_runtime59 = require("react/jsx-runtime");
+    var import_jsx_runtime63 = require("react/jsx-runtime");
     function TaskList({ tasks, categories, readonly, allowSchedule = false, onOpen, onChanged, onEdit }) {
-      return /* @__PURE__ */ (0, import_jsx_runtime59.jsx)("div", {
+      return /* @__PURE__ */ (0, import_jsx_runtime63.jsx)("div", {
         className: tasks_default.segmentWrap,
         role: "list",
         children: tasks.map((task) =>
-          /* @__PURE__ */ (0, import_jsx_runtime59.jsx)(
+          /* @__PURE__ */ (0, import_jsx_runtime63.jsx)(
             TaskCard,
             {
               task,
@@ -15209,27 +15383,27 @@ ${t("feishu.filter.footImmediate")}`,
     }
     function EmptyState({ kind }) {
       const t = useT();
-      return /* @__PURE__ */ (0, import_jsx_runtime59.jsx)("div", {
+      return /* @__PURE__ */ (0, import_jsx_runtime63.jsx)("div", {
         className: tasks_default.emptyState,
         children: t(`dsh.empty.${kind}`),
       });
     }
     function SkeletonRows({ rows = 3 }) {
-      return /* @__PURE__ */ (0, import_jsx_runtime59.jsx)("div", {
+      return /* @__PURE__ */ (0, import_jsx_runtime63.jsx)("div", {
         "data-testid": "skeleton-rows",
         "aria-hidden": "true",
         children: Array.from({ length: rows }, (_, index) =>
-          /* @__PURE__ */ (0, import_jsx_runtime59.jsxs)(
+          /* @__PURE__ */ (0, import_jsx_runtime63.jsxs)(
             "div",
             {
               className: ui_default.skeletonRow,
               children: [
-                /* @__PURE__ */ (0, import_jsx_runtime59.jsx)("span", { className: ui_default.skeletonSprite }),
-                /* @__PURE__ */ (0, import_jsx_runtime59.jsx)("span", {
+                /* @__PURE__ */ (0, import_jsx_runtime63.jsx)("span", { className: ui_default.skeletonSprite }),
+                /* @__PURE__ */ (0, import_jsx_runtime63.jsx)("span", {
                   className: ui_default.skeletonLine,
                   style: { width: "60%" },
                 }),
-                /* @__PURE__ */ (0, import_jsx_runtime59.jsx)("span", {
+                /* @__PURE__ */ (0, import_jsx_runtime63.jsx)("span", {
                   className: ui_default.skeletonLine,
                   style: { width: "20%" },
                 }),
@@ -15242,13 +15416,13 @@ ${t("feishu.filter.footImmediate")}`,
     }
 
     // src/client/tasks/OverdueFold.tsx
-    var import_react43 = require("react");
-    var import_jsx_runtime60 = require("react/jsx-runtime");
+    var import_react46 = require("react");
+    var import_jsx_runtime64 = require("react/jsx-runtime");
     function OverdueFold({ tasks, readonly, onChanged }) {
       const t = useT();
       const client = useClient();
-      const [expanded, setExpanded] = (0, import_react43.useState)(false);
-      const [busy, setBusy] = (0, import_react43.useState)(false);
+      const [expanded, setExpanded] = (0, import_react46.useState)(false);
+      const [busy, setBusy] = (0, import_react46.useState)(false);
       if (tasks.length === 0) {
         return null;
       }
@@ -15260,23 +15434,23 @@ ${t("feishu.filter.footImmediate")}`,
         setBusy(false);
         onChanged();
       }
-      return /* @__PURE__ */ (0, import_jsx_runtime60.jsxs)("div", {
+      return /* @__PURE__ */ (0, import_jsx_runtime64.jsxs)("div", {
         "data-testid": "overdue-fold",
         children: [
-          /* @__PURE__ */ (0, import_jsx_runtime60.jsxs)("div", {
+          /* @__PURE__ */ (0, import_jsx_runtime64.jsxs)("div", {
             className: tasks_default.overdueFold,
             children: [
-              /* @__PURE__ */ (0, import_jsx_runtime60.jsx)("span", {
+              /* @__PURE__ */ (0, import_jsx_runtime64.jsx)("span", {
                 children: t("dsh.overdue.leaked", { n: tasks.length }),
               }),
-              /* @__PURE__ */ (0, import_jsx_runtime60.jsx)("button", {
+              /* @__PURE__ */ (0, import_jsx_runtime64.jsx)("button", {
                 type: "button",
                 className: ui_default.button,
                 disabled: readonly || busy,
                 onClick: () => void sendAllToGrass(),
                 children: t("overdue.fresh"),
               }),
-              /* @__PURE__ */ (0, import_jsx_runtime60.jsx)("button", {
+              /* @__PURE__ */ (0, import_jsx_runtime64.jsx)("button", {
                 type: "button",
                 className: ui_default.button,
                 "aria-expanded": expanded,
@@ -15286,10 +15460,10 @@ ${t("feishu.filter.footImmediate")}`,
             ],
           }),
           expanded &&
-            /* @__PURE__ */ (0, import_jsx_runtime60.jsx)("div", {
+            /* @__PURE__ */ (0, import_jsx_runtime64.jsx)("div", {
               className: tasks_default.overdueList,
               children: tasks.map((task) =>
-                /* @__PURE__ */ (0, import_jsx_runtime60.jsxs)(
+                /* @__PURE__ */ (0, import_jsx_runtime64.jsxs)(
                   "span",
                   { className: ui_default.muted, children: ["No.", task.id, " ", task.title] },
                   task.id,
@@ -15301,10 +15475,10 @@ ${t("feishu.filter.footImmediate")}`,
     }
 
     // src/client/tasks/ReviewWizard.tsx
-    var import_react45 = require("react");
+    var import_react48 = require("react");
 
     // src/client/tasks/ReviewWizardSteps.tsx
-    var import_jsx_runtime61 = require("react/jsx-runtime");
+    var import_jsx_runtime65 = require("react/jsx-runtime");
     function fmtLocal(iso) {
       return iso.slice(0, 16).replace("T", " ");
     }
@@ -15312,10 +15486,10 @@ ${t("feishu.filter.footImmediate")}`,
       return task.dueAt !== null && task.dueAt.slice(0, 10) <= /* @__PURE__ */ new Date().toISOString().slice(0, 10);
     }
     function StepsBar({ step, labels }) {
-      return /* @__PURE__ */ (0, import_jsx_runtime61.jsx)("div", {
+      return /* @__PURE__ */ (0, import_jsx_runtime65.jsx)("div", {
         className: tasks_default.reviewSteps,
         children: labels.map((label, i) =>
-          /* @__PURE__ */ (0, import_jsx_runtime61.jsxs)(
+          /* @__PURE__ */ (0, import_jsx_runtime65.jsxs)(
             "span",
             {
               className: tasks_default.reviewStepDot,
@@ -15330,62 +15504,62 @@ ${t("feishu.filter.footImmediate")}`,
     }
     function OverviewStep({ caught, focusMin, routeCount, grassCount, byCategory, total }) {
       const t = useT();
-      return /* @__PURE__ */ (0, import_jsx_runtime61.jsxs)(import_jsx_runtime61.Fragment, {
+      return /* @__PURE__ */ (0, import_jsx_runtime65.jsxs)(import_jsx_runtime65.Fragment, {
         children: [
-          /* @__PURE__ */ (0, import_jsx_runtime61.jsxs)("div", {
+          /* @__PURE__ */ (0, import_jsx_runtime65.jsxs)("div", {
             className: tasks_default.reviewStats,
             children: [
-              /* @__PURE__ */ (0, import_jsx_runtime61.jsxs)("div", {
+              /* @__PURE__ */ (0, import_jsx_runtime65.jsxs)("div", {
                 className: tasks_default.reviewStat,
                 "data-testid": "review-stat-caught",
                 children: [
-                  /* @__PURE__ */ (0, import_jsx_runtime61.jsx)("div", {
+                  /* @__PURE__ */ (0, import_jsx_runtime65.jsx)("div", {
                     className: tasks_default.reviewStatNum,
                     children: caught,
                   }),
-                  /* @__PURE__ */ (0, import_jsx_runtime61.jsx)("div", {
+                  /* @__PURE__ */ (0, import_jsx_runtime65.jsx)("div", {
                     className: tasks_default.reviewStatLbl,
                     children: t("review.caughtWeek"),
                   }),
                 ],
               }),
-              /* @__PURE__ */ (0, import_jsx_runtime61.jsxs)("div", {
+              /* @__PURE__ */ (0, import_jsx_runtime65.jsxs)("div", {
                 className: tasks_default.reviewStat,
                 "data-testid": "review-stat-focus",
                 children: [
-                  /* @__PURE__ */ (0, import_jsx_runtime61.jsx)("div", {
+                  /* @__PURE__ */ (0, import_jsx_runtime65.jsx)("div", {
                     className: tasks_default.reviewStatNum,
                     children: focusMin,
                   }),
-                  /* @__PURE__ */ (0, import_jsx_runtime61.jsx)("div", {
+                  /* @__PURE__ */ (0, import_jsx_runtime65.jsx)("div", {
                     className: tasks_default.reviewStatLbl,
                     children: t("review.focusWeek"),
                   }),
                 ],
               }),
-              /* @__PURE__ */ (0, import_jsx_runtime61.jsxs)("div", {
+              /* @__PURE__ */ (0, import_jsx_runtime65.jsxs)("div", {
                 className: tasks_default.reviewStat,
                 "data-testid": "review-stat-route",
                 children: [
-                  /* @__PURE__ */ (0, import_jsx_runtime61.jsx)("div", {
+                  /* @__PURE__ */ (0, import_jsx_runtime65.jsx)("div", {
                     className: tasks_default.reviewStatNum,
                     children: routeCount,
                   }),
-                  /* @__PURE__ */ (0, import_jsx_runtime61.jsx)("div", {
+                  /* @__PURE__ */ (0, import_jsx_runtime65.jsx)("div", {
                     className: tasks_default.reviewStatLbl,
                     children: t("review.onRoute"),
                   }),
                 ],
               }),
-              /* @__PURE__ */ (0, import_jsx_runtime61.jsxs)("div", {
+              /* @__PURE__ */ (0, import_jsx_runtime65.jsxs)("div", {
                 className: tasks_default.reviewStat,
                 "data-testid": "review-stat-grass",
                 children: [
-                  /* @__PURE__ */ (0, import_jsx_runtime61.jsx)("div", {
+                  /* @__PURE__ */ (0, import_jsx_runtime65.jsx)("div", {
                     className: tasks_default.reviewStatNum,
                     children: grassCount,
                   }),
-                  /* @__PURE__ */ (0, import_jsx_runtime61.jsx)("div", {
+                  /* @__PURE__ */ (0, import_jsx_runtime65.jsx)("div", {
                     className: tasks_default.reviewStatLbl,
                     children: t("review.inGrass"),
                   }),
@@ -15394,27 +15568,27 @@ ${t("feishu.filter.footImmediate")}`,
             ],
           }),
           byCategory.length > 0 &&
-            /* @__PURE__ */ (0, import_jsx_runtime61.jsx)("div", {
+            /* @__PURE__ */ (0, import_jsx_runtime65.jsx)("div", {
               className: tasks_default.reviewBars,
               children: byCategory.map(([name, n]) =>
-                /* @__PURE__ */ (0, import_jsx_runtime61.jsxs)(
+                /* @__PURE__ */ (0, import_jsx_runtime65.jsxs)(
                   "div",
                   {
                     className: tasks_default.reviewBarRow,
                     children: [
-                      /* @__PURE__ */ (0, import_jsx_runtime61.jsx)("span", {
+                      /* @__PURE__ */ (0, import_jsx_runtime65.jsx)("span", {
                         className: tasks_default.reviewBarName,
                         children: name,
                       }),
-                      /* @__PURE__ */ (0, import_jsx_runtime61.jsx)("span", {
+                      /* @__PURE__ */ (0, import_jsx_runtime65.jsx)("span", {
                         className: tasks_default.reviewBarTrack,
                         role: "presentation",
-                        children: /* @__PURE__ */ (0, import_jsx_runtime61.jsx)("span", {
+                        children: /* @__PURE__ */ (0, import_jsx_runtime65.jsx)("span", {
                           className: tasks_default.reviewBarFill,
                           style: { width: `${Math.min(100, (n / total) * 100)}%` },
                         }),
                       }),
-                      /* @__PURE__ */ (0, import_jsx_runtime61.jsx)("span", {
+                      /* @__PURE__ */ (0, import_jsx_runtime65.jsx)("span", {
                         className: tasks_default.reviewBarN,
                         children: n,
                       }),
@@ -15424,7 +15598,7 @@ ${t("feishu.filter.footImmediate")}`,
                 ),
               ),
             }),
-          /* @__PURE__ */ (0, import_jsx_runtime61.jsx)("p", {
+          /* @__PURE__ */ (0, import_jsx_runtime65.jsx)("p", {
             className: tasks_default.reviewTip,
             children: t("review.overviewTip"),
           }),
@@ -15434,29 +15608,29 @@ ${t("feishu.filter.footImmediate")}`,
     function RouteStep({ task, index, total, busy, categoryName, onAction }) {
       const t = useT();
       if (task === null) {
-        return /* @__PURE__ */ (0, import_jsx_runtime61.jsx)("p", {
+        return /* @__PURE__ */ (0, import_jsx_runtime65.jsx)("p", {
           className: tasks_default.reviewEmpty,
           children: t("review.routeEmpty"),
         });
       }
-      return /* @__PURE__ */ (0, import_jsx_runtime61.jsxs)(import_jsx_runtime61.Fragment, {
+      return /* @__PURE__ */ (0, import_jsx_runtime65.jsxs)(import_jsx_runtime65.Fragment, {
         children: [
-          /* @__PURE__ */ (0, import_jsx_runtime61.jsxs)("div", {
+          /* @__PURE__ */ (0, import_jsx_runtime65.jsxs)("div", {
             className: tasks_default.reviewStation,
             children: [
-              /* @__PURE__ */ (0, import_jsx_runtime61.jsxs)("div", {
+              /* @__PURE__ */ (0, import_jsx_runtime65.jsxs)("div", {
                 className: tasks_default.reviewStNo,
                 children: ["No.", String(task.id).padStart(3, "0")],
               }),
-              /* @__PURE__ */ (0, import_jsx_runtime61.jsx)("div", {
+              /* @__PURE__ */ (0, import_jsx_runtime65.jsx)("div", {
                 className: tasks_default.reviewStTitle,
                 children: task.title,
               }),
-              /* @__PURE__ */ (0, import_jsx_runtime61.jsxs)("div", {
+              /* @__PURE__ */ (0, import_jsx_runtime65.jsxs)("div", {
                 className: tasks_default.reviewStMeta,
                 children: [
                   task.dueAt !== null &&
-                    /* @__PURE__ */ (0, import_jsx_runtime61.jsxs)("span", {
+                    /* @__PURE__ */ (0, import_jsx_runtime65.jsxs)("span", {
                       "data-overdue": isOverdueToday(task),
                       children: [
                         "\u{1F552} ",
@@ -15464,44 +15638,44 @@ ${t("feishu.filter.footImmediate")}`,
                         isOverdueToday(task) ? ` \xB7 ${t("review.overdue")}` : "",
                       ],
                     }),
-                  /* @__PURE__ */ (0, import_jsx_runtime61.jsx)("span", { children: categoryName }),
-                  /* @__PURE__ */ (0, import_jsx_runtime61.jsx)("span", { children: t(`priority.${task.priority}`) }),
-                  /* @__PURE__ */ (0, import_jsx_runtime61.jsx)("span", { children: t(`status.${task.status}`) }),
+                  /* @__PURE__ */ (0, import_jsx_runtime65.jsx)("span", { children: categoryName }),
+                  /* @__PURE__ */ (0, import_jsx_runtime65.jsx)("span", { children: t(`priority.${task.priority}`) }),
+                  /* @__PURE__ */ (0, import_jsx_runtime65.jsx)("span", { children: t(`status.${task.status}`) }),
                 ],
               }),
               task.note
-                ? /* @__PURE__ */ (0, import_jsx_runtime61.jsx)("p", {
+                ? /* @__PURE__ */ (0, import_jsx_runtime65.jsx)("p", {
                     className: tasks_default.reviewStNote,
                     children: task.note,
                   })
                 : null,
             ],
           }),
-          /* @__PURE__ */ (0, import_jsx_runtime61.jsxs)("div", {
+          /* @__PURE__ */ (0, import_jsx_runtime65.jsxs)("div", {
             className: tasks_default.reviewBtnRow,
             children: [
-              /* @__PURE__ */ (0, import_jsx_runtime61.jsx)("button", {
+              /* @__PURE__ */ (0, import_jsx_runtime65.jsx)("button", {
                 type: "button",
                 className: ui_default.button,
                 disabled: busy,
                 onClick: () => onAction("keep"),
                 children: t("review.keep"),
               }),
-              /* @__PURE__ */ (0, import_jsx_runtime61.jsxs)("button", {
+              /* @__PURE__ */ (0, import_jsx_runtime65.jsxs)("button", {
                 type: "button",
                 className: ui_default.button,
                 disabled: busy,
                 onClick: () => onAction("done"),
                 children: ["\u2714 ", t("review.complete")],
               }),
-              /* @__PURE__ */ (0, import_jsx_runtime61.jsx)("button", {
+              /* @__PURE__ */ (0, import_jsx_runtime65.jsx)("button", {
                 type: "button",
                 className: `${ui_default.button} ${tasks_default.reviewGhost}`,
                 disabled: busy,
                 onClick: () => onAction("toGrass"),
                 children: t("review.toGrass"),
               }),
-              /* @__PURE__ */ (0, import_jsx_runtime61.jsxs)("button", {
+              /* @__PURE__ */ (0, import_jsx_runtime65.jsxs)("button", {
                 type: "button",
                 className: `${ui_default.button} ${tasks_default.reviewGhost}`,
                 disabled: busy,
@@ -15510,7 +15684,7 @@ ${t("feishu.filter.footImmediate")}`,
               }),
             ],
           }),
-          /* @__PURE__ */ (0, import_jsx_runtime61.jsxs)("p", {
+          /* @__PURE__ */ (0, import_jsx_runtime65.jsxs)("p", {
             className: tasks_default.reviewTip,
             children: [index + 1, " / ", total, " \xB7 ", t("review.routeTip")],
           }),
@@ -15529,15 +15703,15 @@ ${t("feishu.filter.footImmediate")}`,
       categoryNameOf,
     }) {
       const t = useT();
-      return /* @__PURE__ */ (0, import_jsx_runtime61.jsxs)(import_jsx_runtime61.Fragment, {
+      return /* @__PURE__ */ (0, import_jsx_runtime65.jsxs)(import_jsx_runtime65.Fragment, {
         children: [
-          /* @__PURE__ */ (0, import_jsx_runtime61.jsxs)("div", {
+          /* @__PURE__ */ (0, import_jsx_runtime65.jsxs)("div", {
             className: tasks_default.reviewGrassHead,
             children: [
-              /* @__PURE__ */ (0, import_jsx_runtime61.jsxs)("label", {
+              /* @__PURE__ */ (0, import_jsx_runtime65.jsxs)("label", {
                 className: tasks_default.reviewBatchCheck,
                 children: [
-                  /* @__PURE__ */ (0, import_jsx_runtime61.jsx)("input", {
+                  /* @__PURE__ */ (0, import_jsx_runtime65.jsx)("input", {
                     type: "checkbox",
                     checked: allSelected,
                     onChange: onToggleAll,
@@ -15548,7 +15722,7 @@ ${t("feishu.filter.footImmediate")}`,
                   "\uFF09",
                 ],
               }),
-              /* @__PURE__ */ (0, import_jsx_runtime61.jsxs)("button", {
+              /* @__PURE__ */ (0, import_jsx_runtime65.jsxs)("button", {
                 type: "button",
                 className: `${ui_default.button} ${tasks_default.reviewGhost}`,
                 disabled: selected.size === 0 || busy,
@@ -15561,31 +15735,31 @@ ${t("feishu.filter.footImmediate")}`,
               }),
             ],
           }),
-          /* @__PURE__ */ (0, import_jsx_runtime61.jsxs)("ul", {
+          /* @__PURE__ */ (0, import_jsx_runtime65.jsxs)("ul", {
             className: tasks_default.reviewGrassList,
             children: [
               tasks.length === 0 &&
-                /* @__PURE__ */ (0, import_jsx_runtime61.jsx)("li", {
+                /* @__PURE__ */ (0, import_jsx_runtime65.jsx)("li", {
                   className: tasks_default.reviewEmpty,
                   children: t("review.grassEmpty"),
                 }),
               tasks.map((g) =>
-                /* @__PURE__ */ (0, import_jsx_runtime61.jsxs)(
+                /* @__PURE__ */ (0, import_jsx_runtime65.jsxs)(
                   "li",
                   {
                     className: tasks_default.reviewGrassItem,
                     children: [
-                      /* @__PURE__ */ (0, import_jsx_runtime61.jsx)("input", {
+                      /* @__PURE__ */ (0, import_jsx_runtime65.jsx)("input", {
                         type: "checkbox",
                         checked: selected.has(g.id),
                         onChange: () => onToggleOne(g.id),
                         "aria-label": g.title,
                       }),
-                      /* @__PURE__ */ (0, import_jsx_runtime61.jsx)("span", {
+                      /* @__PURE__ */ (0, import_jsx_runtime65.jsx)("span", {
                         className: tasks_default.reviewGrassTitle,
                         children: g.title,
                       }),
-                      /* @__PURE__ */ (0, import_jsx_runtime61.jsx)("span", {
+                      /* @__PURE__ */ (0, import_jsx_runtime65.jsx)("span", {
                         className: tasks_default.reviewGrassCat,
                         children: categoryNameOf(g.categoryId),
                       }),
@@ -15597,7 +15771,7 @@ ${t("feishu.filter.footImmediate")}`,
             ],
           }),
           releasedCount > 0 &&
-            /* @__PURE__ */ (0, import_jsx_runtime61.jsx)("p", {
+            /* @__PURE__ */ (0, import_jsx_runtime65.jsx)("p", {
               className: tasks_default.reviewTip,
               children: t("review.released", { n: releasedCount }),
             }),
@@ -15606,18 +15780,18 @@ ${t("feishu.filter.footImmediate")}`,
     }
     function FinishStep({ n }) {
       const t = useT();
-      return /* @__PURE__ */ (0, import_jsx_runtime61.jsxs)("div", {
+      return /* @__PURE__ */ (0, import_jsx_runtime65.jsxs)("div", {
         className: tasks_default.reviewFin,
         children: [
-          /* @__PURE__ */ (0, import_jsx_runtime61.jsx)("div", {
+          /* @__PURE__ */ (0, import_jsx_runtime65.jsx)("div", {
             className: tasks_default.reviewFinEmoji,
             children: "\u{1F389}",
           }),
-          /* @__PURE__ */ (0, import_jsx_runtime61.jsx)("p", {
+          /* @__PURE__ */ (0, import_jsx_runtime65.jsx)("p", {
             className: tasks_default.reviewFinLine,
             children: t("review.finishLine", { n }),
           }),
-          /* @__PURE__ */ (0, import_jsx_runtime61.jsx)("p", {
+          /* @__PURE__ */ (0, import_jsx_runtime65.jsx)("p", {
             className: tasks_default.reviewTip,
             children: t("review.finishTip"),
           }),
@@ -15626,7 +15800,7 @@ ${t("feishu.filter.footImmediate")}`,
     }
 
     // src/client/tasks/ReviewWizardTags.tsx
-    var import_jsx_runtime62 = require("react/jsx-runtime");
+    var import_jsx_runtime66 = require("react/jsx-runtime");
     function dimNameOf(dimensions, key) {
       return dimensions.find((d) => d.key === key)?.name ?? key;
     }
@@ -15638,18 +15812,18 @@ ${t("feishu.filter.footImmediate")}`,
     function TagsStep(props) {
       const t = useT();
       if (props.checking) {
-        return /* @__PURE__ */ (0, import_jsx_runtime62.jsx)("p", {
+        return /* @__PURE__ */ (0, import_jsx_runtime66.jsx)("p", {
           className: tasks_default.reviewEmpty,
           children: t("review.tagChecking"),
         });
       }
       if (props.error !== "") {
-        return /* @__PURE__ */ (0, import_jsx_runtime62.jsxs)("p", {
+        return /* @__PURE__ */ (0, import_jsx_runtime66.jsxs)("p", {
           className: tasks_default.reviewEmpty,
           children: [
             t("review.tagCheckFailed"),
             " ",
-            /* @__PURE__ */ (0, import_jsx_runtime62.jsx)("button", {
+            /* @__PURE__ */ (0, import_jsx_runtime66.jsx)("button", {
               type: "button",
               className: `${ui_default.button} ${tasks_default.reviewMini}`,
               onClick: props.onRetry,
@@ -15658,23 +15832,23 @@ ${t("feishu.filter.footImmediate")}`,
           ],
         });
       }
-      return props.checkup !== null ? /* @__PURE__ */ (0, import_jsx_runtime62.jsx)(TagGroups, { ...props }) : null;
+      return props.checkup !== null ? /* @__PURE__ */ (0, import_jsx_runtime66.jsx)(TagGroups, { ...props }) : null;
     }
     function TagGroups(props) {
       const t = useT();
       const checkup = props.checkup;
       const empty = checkup.merges.length === 0 && checkup.zombies.length === 0 && checkup.newDimensions.length === 0;
-      return /* @__PURE__ */ (0, import_jsx_runtime62.jsxs)(import_jsx_runtime62.Fragment, {
+      return /* @__PURE__ */ (0, import_jsx_runtime66.jsxs)(import_jsx_runtime66.Fragment, {
         children: [
           checkup.merges.length > 0 &&
-            /* @__PURE__ */ (0, import_jsx_runtime62.jsxs)("section", {
+            /* @__PURE__ */ (0, import_jsx_runtime66.jsxs)("section", {
               children: [
-                /* @__PURE__ */ (0, import_jsx_runtime62.jsx)("h4", {
+                /* @__PURE__ */ (0, import_jsx_runtime66.jsx)("h4", {
                   className: tasks_default.reviewTgTitle,
                   children: t("review.tagMerges"),
                 }),
                 checkup.merges.map((m) =>
-                  /* @__PURE__ */ (0, import_jsx_runtime62.jsx)(
+                  /* @__PURE__ */ (0, import_jsx_runtime66.jsx)(
                     MergeRowView,
                     {
                       row: m,
@@ -15689,14 +15863,14 @@ ${t("feishu.filter.footImmediate")}`,
               ],
             }),
           checkup.zombies.length > 0 &&
-            /* @__PURE__ */ (0, import_jsx_runtime62.jsxs)("section", {
+            /* @__PURE__ */ (0, import_jsx_runtime66.jsxs)("section", {
               children: [
-                /* @__PURE__ */ (0, import_jsx_runtime62.jsx)("h4", {
+                /* @__PURE__ */ (0, import_jsx_runtime66.jsx)("h4", {
                   className: tasks_default.reviewTgTitle,
                   children: t("review.tagZombies"),
                 }),
                 checkup.zombies.map((z) =>
-                  /* @__PURE__ */ (0, import_jsx_runtime62.jsx)(
+                  /* @__PURE__ */ (0, import_jsx_runtime66.jsx)(
                     ZombieRowView,
                     {
                       row: z,
@@ -15711,14 +15885,14 @@ ${t("feishu.filter.footImmediate")}`,
               ],
             }),
           checkup.newDimensions.length > 0 &&
-            /* @__PURE__ */ (0, import_jsx_runtime62.jsxs)("section", {
+            /* @__PURE__ */ (0, import_jsx_runtime66.jsxs)("section", {
               children: [
-                /* @__PURE__ */ (0, import_jsx_runtime62.jsx)("h4", {
+                /* @__PURE__ */ (0, import_jsx_runtime66.jsx)("h4", {
                   className: tasks_default.reviewTgTitle,
                   children: t("review.tagNewDims"),
                 }),
                 checkup.newDimensions.map((d) =>
-                  /* @__PURE__ */ (0, import_jsx_runtime62.jsx)(
+                  /* @__PURE__ */ (0, import_jsx_runtime66.jsx)(
                     DimRowView,
                     {
                       row: d,
@@ -15732,11 +15906,11 @@ ${t("feishu.filter.footImmediate")}`,
               ],
             }),
           empty &&
-            /* @__PURE__ */ (0, import_jsx_runtime62.jsx)("p", {
+            /* @__PURE__ */ (0, import_jsx_runtime66.jsx)("p", {
               className: tasks_default.reviewEmpty,
               children: t("review.tagClean"),
             }),
-          /* @__PURE__ */ (0, import_jsx_runtime62.jsx)("p", {
+          /* @__PURE__ */ (0, import_jsx_runtime66.jsx)("p", {
             className: tasks_default.reviewTip,
             children: checkup.judged ? t("review.tagTip") : t("review.tagUnjudged"),
           }),
@@ -15745,10 +15919,10 @@ ${t("feishu.filter.footImmediate")}`,
     }
     function MergeRowView({ row, dimensions, busy, onMerge, onIgnore }) {
       const t = useT();
-      return /* @__PURE__ */ (0, import_jsx_runtime62.jsxs)("div", {
+      return /* @__PURE__ */ (0, import_jsx_runtime66.jsxs)("div", {
         className: tasks_default.reviewTgRow,
         children: [
-          /* @__PURE__ */ (0, import_jsx_runtime62.jsxs)("span", {
+          /* @__PURE__ */ (0, import_jsx_runtime66.jsxs)("span", {
             className: tasks_default.reviewTgMain,
             children: [
               "\u300C",
@@ -15756,23 +15930,23 @@ ${t("feishu.filter.footImmediate")}`,
               "\u300D\u2192\u300C",
               row.intoName,
               "\u300D",
-              /* @__PURE__ */ (0, import_jsx_runtime62.jsxs)("i", {
+              /* @__PURE__ */ (0, import_jsx_runtime66.jsxs)("i", {
                 className: tasks_default.reviewTgDim,
                 children: [dimNameOf(dimensions, row.dimension), " \xB7 ", Math.round(row.similarity * 100), "%"],
               }),
             ],
           }),
           row.reason !== null &&
-            /* @__PURE__ */ (0, import_jsx_runtime62.jsxs)("span", {
+            /* @__PURE__ */ (0, import_jsx_runtime66.jsxs)("span", {
               className: tasks_default.reviewTgReason,
               children: ["\u{1F4A1} ", row.reason],
             }),
-          /* @__PURE__ */ (0, import_jsx_runtime62.jsx)(MiniButton, {
+          /* @__PURE__ */ (0, import_jsx_runtime66.jsx)(MiniButton, {
             label: t("review.tagMerge"),
             disabled: busy,
             onClick: () => onMerge(row),
           }),
-          /* @__PURE__ */ (0, import_jsx_runtime62.jsx)(MiniButton, {
+          /* @__PURE__ */ (0, import_jsx_runtime66.jsx)(MiniButton, {
             label: t("review.tagIgnore"),
             disabled: busy,
             del: true,
@@ -15783,15 +15957,15 @@ ${t("feishu.filter.footImmediate")}`,
     }
     function ZombieRowView({ row, dimensions, busy, onRelease, onKeep }) {
       const t = useT();
-      return /* @__PURE__ */ (0, import_jsx_runtime62.jsxs)("div", {
+      return /* @__PURE__ */ (0, import_jsx_runtime66.jsxs)("div", {
         className: tasks_default.reviewTgRow,
         children: [
-          /* @__PURE__ */ (0, import_jsx_runtime62.jsxs)("span", {
+          /* @__PURE__ */ (0, import_jsx_runtime66.jsxs)("span", {
             className: tasks_default.reviewTgMain,
             children: [
               "# ",
               row.name,
-              /* @__PURE__ */ (0, import_jsx_runtime62.jsxs)("i", {
+              /* @__PURE__ */ (0, import_jsx_runtime66.jsxs)("i", {
                 className: tasks_default.reviewTgDim,
                 children: [
                   dimNameOf(dimensions, row.dimension),
@@ -15803,13 +15977,13 @@ ${t("feishu.filter.footImmediate")}`,
               }),
             ],
           }),
-          /* @__PURE__ */ (0, import_jsx_runtime62.jsx)(MiniButton, {
+          /* @__PURE__ */ (0, import_jsx_runtime66.jsx)(MiniButton, {
             label: t("review.tagRelease"),
             disabled: busy,
             del: true,
             onClick: () => onRelease(row),
           }),
-          /* @__PURE__ */ (0, import_jsx_runtime62.jsx)(MiniButton, {
+          /* @__PURE__ */ (0, import_jsx_runtime66.jsx)(MiniButton, {
             label: t("review.tagKeep"),
             disabled: busy,
             onClick: () => onKeep(row),
@@ -15819,24 +15993,24 @@ ${t("feishu.filter.footImmediate")}`,
     }
     function DimRowView({ row, busy, onAdopt, onIgnore }) {
       const t = useT();
-      return /* @__PURE__ */ (0, import_jsx_runtime62.jsxs)("div", {
+      return /* @__PURE__ */ (0, import_jsx_runtime66.jsxs)("div", {
         className: tasks_default.reviewTgRow,
         children: [
-          /* @__PURE__ */ (0, import_jsx_runtime62.jsxs)("span", {
+          /* @__PURE__ */ (0, import_jsx_runtime66.jsxs)("span", {
             className: tasks_default.reviewTgMain,
             children: [row.name, "\uFF1A", row.tags.join("\u3001")],
           }),
           row.reason !== null &&
-            /* @__PURE__ */ (0, import_jsx_runtime62.jsxs)("span", {
+            /* @__PURE__ */ (0, import_jsx_runtime66.jsxs)("span", {
               className: tasks_default.reviewTgReason,
               children: ["\u{1F4A1} ", row.reason],
             }),
-          /* @__PURE__ */ (0, import_jsx_runtime62.jsx)(MiniButton, {
+          /* @__PURE__ */ (0, import_jsx_runtime66.jsx)(MiniButton, {
             label: t("review.tagAdopt"),
             disabled: busy,
             onClick: () => onAdopt(row),
           }),
-          /* @__PURE__ */ (0, import_jsx_runtime62.jsx)(MiniButton, {
+          /* @__PURE__ */ (0, import_jsx_runtime66.jsx)(MiniButton, {
             label: t("review.tagIgnore"),
             disabled: busy,
             del: true,
@@ -15846,7 +16020,7 @@ ${t("feishu.filter.footImmediate")}`,
       });
     }
     function MiniButton({ label, disabled, del = false, onClick }) {
-      return /* @__PURE__ */ (0, import_jsx_runtime62.jsx)("button", {
+      return /* @__PURE__ */ (0, import_jsx_runtime66.jsx)("button", {
         type: "button",
         className: del
           ? `${ui_default.button} ${tasks_default.reviewMini} ${tasks_default.reviewDel}`
@@ -15858,11 +16032,11 @@ ${t("feishu.filter.footImmediate")}`,
     }
 
     // src/client/tasks/useReviewTagCheckup.ts
-    var import_react44 = require("react");
+    var import_react47 = require("react");
     function useCheckupFetch(client) {
-      const [checking, setChecking] = (0, import_react44.useState)(false);
-      const [error, setError] = (0, import_react44.useState)("");
-      const fetchReport = (0, import_react44.useCallback)(
+      const [checking, setChecking] = (0, import_react47.useState)(false);
+      const [error, setError] = (0, import_react47.useState)("");
+      const fetchReport = (0, import_react47.useCallback)(
         async (apply2) => {
           setChecking(true);
           setError("");
@@ -15885,10 +16059,10 @@ ${t("feishu.filter.footImmediate")}`,
     }
     function useReviewTagCheckup(active, tags, onChanged) {
       const client = useClient();
-      const [checkup, setCheckup] = (0, import_react44.useState)(null);
-      const [tagBusy, setTagBusy] = (0, import_react44.useState)(false);
+      const [checkup, setCheckup] = (0, import_react47.useState)(null);
+      const [tagBusy, setTagBusy] = (0, import_react47.useState)(false);
       const { checking, error, fetch } = useCheckupFetch(client);
-      (0, import_react44.useEffect)(() => {
+      (0, import_react47.useEffect)(() => {
         if (active && checkup === null) {
           void fetch(setCheckup);
         }
@@ -15950,7 +16124,7 @@ ${t("feishu.filter.footImmediate")}`,
     }
 
     // src/client/tasks/ReviewWizard.tsx
-    var import_jsx_runtime63 = require("react/jsx-runtime");
+    var import_jsx_runtime67 = require("react/jsx-runtime");
     var STEPS = 5;
     var WEEK_MS = 7 * 864e5;
     function parseCompletedAt(iso) {
@@ -15976,13 +16150,13 @@ ${t("feishu.filter.footImmediate")}`,
     function ReviewWizard({ data, onClose, onChanged }) {
       const t = useT();
       const client = useClient();
-      const [step, setStep] = (0, import_react45.useState)(0);
-      const [busy, setBusy] = (0, import_react45.useState)(false);
-      const openTasks = (0, import_react45.useMemo)(
+      const [step, setStep] = (0, import_react48.useState)(0);
+      const [busy, setBusy] = (0, import_react48.useState)(false);
+      const openTasks = (0, import_react48.useMemo)(
         () => data.tasks.filter((t0) => t0.status !== "done" && t0.status !== "cancelled"),
         [data.tasks],
       );
-      const weekDone = (0, import_react45.useMemo)(
+      const weekDone = (0, import_react48.useMemo)(
         () =>
           data.tasks.filter((t0) => {
             if (t0.status !== "done" || t0.completedAt === null) return false;
@@ -15992,7 +16166,7 @@ ${t("feishu.filter.footImmediate")}`,
         [data.tasks],
       );
       const weekFocusMin = Math.round(weekDone.reduce((sum, task) => sum + task.focusSeconds, 0) / 60);
-      const byCategory = (0, import_react45.useMemo)(() => {
+      const byCategory = (0, import_react48.useMemo)(() => {
         const map = /* @__PURE__ */ new Map();
         for (const task of weekDone) {
           const name = data.categories.find((c) => c.id === task.categoryId)?.name ?? "?";
@@ -16000,14 +16174,14 @@ ${t("feishu.filter.footImmediate")}`,
         }
         return [...map.entries()].sort((a, b) => b[1] - a[1]);
       }, [weekDone, data.categories]);
-      const routeTasks = (0, import_react45.useMemo)(
+      const routeTasks = (0, import_react48.useMemo)(
         () => openTasks.filter((t0) => t0.status === "scheduled" || t0.status === "active" || t0.status === "paused"),
         [openTasks],
       );
-      const [routeIdx, setRouteIdx] = (0, import_react45.useState)(0);
-      const [routeDoneCount, setRouteDoneCount] = (0, import_react45.useState)(0);
+      const [routeIdx, setRouteIdx] = (0, import_react48.useState)(0);
+      const [routeDoneCount, setRouteDoneCount] = (0, import_react48.useState)(0);
       const current = routeTasks[routeIdx] ?? null;
-      (0, import_react45.useEffect)(() => {
+      (0, import_react48.useEffect)(() => {
         if (routeTasks.length > 0 && routeIdx >= routeTasks.length) {
           setRouteIdx(routeTasks.length - 1);
         }
@@ -16037,13 +16211,13 @@ ${t("feishu.filter.footImmediate")}`,
           setBusy(false);
         }
       }
-      const grassTasks2 = (0, import_react45.useMemo)(
+      const grassTasks2 = (0, import_react48.useMemo)(
         () => openTasks.filter((t0) => t0.status === "inbox"),
         [openTasks],
       );
-      const [grassSelected, setGrassSelected] = (0, import_react45.useState)(/* @__PURE__ */ new Set());
+      const [grassSelected, setGrassSelected] = (0, import_react48.useState)(/* @__PURE__ */ new Set());
       const grassAllSelected = grassTasks2.length > 0 && grassTasks2.every((t0) => grassSelected.has(t0.id));
-      const [releasedCount, setReleasedCount] = (0, import_react45.useState)(0);
+      const [releasedCount, setReleasedCount] = (0, import_react48.useState)(0);
       function toggleGrassAll() {
         setGrassSelected(grassAllSelected ? /* @__PURE__ */ new Set() : new Set(grassTasks2.map((t0) => t0.id)));
       }
@@ -16095,7 +16269,7 @@ ${t("feishu.filter.footImmediate")}`,
         t("review.stepDone"),
       ];
       const bodies = [
-        /* @__PURE__ */ (0, import_jsx_runtime63.jsx)(
+        /* @__PURE__ */ (0, import_jsx_runtime67.jsx)(
           OverviewStep,
           {
             caught: weekDone.length,
@@ -16107,7 +16281,7 @@ ${t("feishu.filter.footImmediate")}`,
           },
           0,
         ),
-        /* @__PURE__ */ (0, import_jsx_runtime63.jsx)(
+        /* @__PURE__ */ (0, import_jsx_runtime67.jsx)(
           RouteStep,
           {
             task: current,
@@ -16119,7 +16293,7 @@ ${t("feishu.filter.footImmediate")}`,
           },
           1,
         ),
-        /* @__PURE__ */ (0, import_jsx_runtime63.jsx)(
+        /* @__PURE__ */ (0, import_jsx_runtime67.jsx)(
           GrassStep,
           {
             tasks: grassTasks2,
@@ -16134,7 +16308,7 @@ ${t("feishu.filter.footImmediate")}`,
           },
           2,
         ),
-        /* @__PURE__ */ (0, import_jsx_runtime63.jsx)(
+        /* @__PURE__ */ (0, import_jsx_runtime67.jsx)(
           TagsStep,
           {
             checking: tags.checking,
@@ -16152,19 +16326,19 @@ ${t("feishu.filter.footImmediate")}`,
           },
           3,
         ),
-        /* @__PURE__ */ (0, import_jsx_runtime63.jsx)(FinishStep, { n: weekDone.length + routeDoneCount }, 4),
+        /* @__PURE__ */ (0, import_jsx_runtime67.jsx)(FinishStep, { n: weekDone.length + routeDoneCount }, 4),
       ];
-      return /* @__PURE__ */ (0, import_jsx_runtime63.jsx)(Modal, {
+      return /* @__PURE__ */ (0, import_jsx_runtime67.jsx)(Modal, {
         title: `\u{1F9E2} ${t("review.title")}`,
         ariaLabel: t("review.title"),
         actions: footerActions(step, current !== null, busy, t, goNext, () => void finish(), onClose),
         onClose,
-        children: /* @__PURE__ */ (0, import_jsx_runtime63.jsxs)("div", {
+        children: /* @__PURE__ */ (0, import_jsx_runtime67.jsxs)("div", {
           className: tasks_default.reviewBody,
           "data-testid": "review-wizard",
           "data-step": step,
           children: [
-            /* @__PURE__ */ (0, import_jsx_runtime63.jsx)(StepsBar, { step, labels: stepLabels }),
+            /* @__PURE__ */ (0, import_jsx_runtime67.jsx)(StepsBar, { step, labels: stepLabels }),
             bodies[step],
           ],
         }),
@@ -16172,19 +16346,19 @@ ${t("feishu.filter.footImmediate")}`,
     }
 
     // src/client/tasks/TaskSearchBar.tsx
-    var import_react46 = require("react");
-    var import_jsx_runtime64 = require("react/jsx-runtime");
+    var import_react49 = require("react");
+    var import_jsx_runtime68 = require("react/jsx-runtime");
     var SEARCH_DEBOUNCE_MS = 300;
     function TaskSearchShell({ data, readonly, onOpen, onChanged, onEdit, children }) {
       const t = useT();
       const client = useClient();
-      const [query, setQuery] = (0, import_react46.useState)("");
-      const [results, setResults] = (0, import_react46.useState)(null);
-      const [searching, setSearching] = (0, import_react46.useState)(false);
-      const seqRef = (0, import_react46.useRef)(0);
+      const [query, setQuery] = (0, import_react49.useState)("");
+      const [results, setResults] = (0, import_react49.useState)(null);
+      const [searching, setSearching] = (0, import_react49.useState)(false);
+      const seqRef = (0, import_react49.useRef)(0);
       const trimmed = query.trim();
       const searchMode = trimmed !== "";
-      (0, import_react46.useEffect)(() => {
+      (0, import_react49.useEffect)(() => {
         if (trimmed === "") {
           seqRef.current += 1;
           setResults(null);
@@ -16204,13 +16378,13 @@ ${t("feishu.filter.footImmediate")}`,
         }, SEARCH_DEBOUNCE_MS);
         return () => clearTimeout(timer);
       }, [trimmed, client]);
-      return /* @__PURE__ */ (0, import_jsx_runtime64.jsxs)(import_jsx_runtime64.Fragment, {
+      return /* @__PURE__ */ (0, import_jsx_runtime68.jsxs)(import_jsx_runtime68.Fragment, {
         children: [
-          /* @__PURE__ */ (0, import_jsx_runtime64.jsxs)("div", {
+          /* @__PURE__ */ (0, import_jsx_runtime68.jsxs)("div", {
             className: tasks_default.searchBar,
             "data-testid": "task-search",
             children: [
-              /* @__PURE__ */ (0, import_jsx_runtime64.jsx)("input", {
+              /* @__PURE__ */ (0, import_jsx_runtime68.jsx)("input", {
                 className: tasks_default.searchInput,
                 value: query,
                 placeholder: t("search.placeholder"),
@@ -16218,7 +16392,7 @@ ${t("feishu.filter.footImmediate")}`,
                 onChange: (event) => setQuery(event.target.value),
               }),
               searchMode &&
-                /* @__PURE__ */ (0, import_jsx_runtime64.jsx)("span", {
+                /* @__PURE__ */ (0, import_jsx_runtime68.jsx)("span", {
                   className: tasks_default.searchHint,
                   children: searching ? t("search.searching") : t("search.resultCount", { n: results?.length ?? 0 }),
                 }),
@@ -16228,11 +16402,11 @@ ${t("feishu.filter.footImmediate")}`,
             ? results === null
               ? null
               : results.length === 0
-                ? /* @__PURE__ */ (0, import_jsx_runtime64.jsx)("div", {
+                ? /* @__PURE__ */ (0, import_jsx_runtime68.jsx)("div", {
                     className: tasks_default.emptyState,
                     children: t("search.empty"),
                   })
-                : /* @__PURE__ */ (0, import_jsx_runtime64.jsx)(TaskList, {
+                : /* @__PURE__ */ (0, import_jsx_runtime68.jsx)(TaskList, {
                     tasks: results,
                     categories: data.categories,
                     readonly,
@@ -16246,91 +16420,53 @@ ${t("feishu.filter.footImmediate")}`,
     }
 
     // src/client/tasks/views.tsx
-    var import_jsx_runtime65 = require("react/jsx-runtime");
+    var import_jsx_runtime69 = require("react/jsx-runtime");
     function useTaskEditor(data, readonly, onChanged) {
-      const t = useT();
-      const [editing, setEditing] = (0, import_react47.useState)(null);
-      const [creating, setCreating] = (0, import_react47.useState)(false);
+      const [editing, setEditing] = (0, import_react50.useState)(null);
       return {
         openEdit: setEditing,
-        openCreate: () => setCreating(true),
-        // 段头工具行「＋ 新建任务」（U22：宿主档次按钮——非主行动黄；只读置灰）
-        createButton: /* @__PURE__ */ (0, import_jsx_runtime65.jsx)("button", {
-          type: "button",
-          className: ui_default.button,
-          "data-testid": "task-create-entry",
-          disabled: readonly,
-          onClick: () => setCreating(true),
-          children: t("dsh.taskCreate.entry"),
-        }),
-        // 空态主行动（U22：buttonDex 档——空态唯一主推进动作；文案升级 §8）
-        emptyState: /* @__PURE__ */ (0, import_jsx_runtime65.jsxs)("div", {
-          className: tasks_default.emptyWrap,
-          children: [
-            /* @__PURE__ */ (0, import_jsx_runtime65.jsx)(EmptyState, { kind: "tasks" }),
-            /* @__PURE__ */ (0, import_jsx_runtime65.jsx)("button", {
-              type: "button",
-              className: ui_default.buttonDex,
-              "data-testid": "task-create-empty",
-              disabled: readonly,
-              onClick: () => setCreating(true),
-              children: t("dsh.taskCreate.entry"),
-            }),
-          ],
-        }),
         modal:
           editing !== null
-            ? /* @__PURE__ */ (0, import_jsx_runtime65.jsx)(TaskEditModal, {
+            ? /* @__PURE__ */ (0, import_jsx_runtime69.jsx)(TaskEditModal, {
                 task: editing,
                 data,
                 readonly,
                 onClose: () => setEditing(null),
                 onChanged,
               })
-            : creating
-              ? /* @__PURE__ */ (0, import_jsx_runtime65.jsx)(TaskEditModal, {
-                  data,
-                  readonly,
-                  onClose: () => setCreating(false),
-                  onChanged,
-                })
-              : null,
+            : null,
       };
     }
     function AdventureView({ data, readonly, onOpen, onChanged }) {
       const editor = useTaskEditor(data, readonly, onChanged);
-      const snapshot = (0, import_react47.useMemo)(
+      const snapshot = (0, import_react50.useMemo)(
         () => adventureSnapshot(data.tasks, data.today),
         [data.tasks, data.today],
       );
-      return /* @__PURE__ */ (0, import_jsx_runtime65.jsxs)(import_jsx_runtime65.Fragment, {
+      return /* @__PURE__ */ (0, import_jsx_runtime69.jsxs)(import_jsx_runtime69.Fragment, {
         children: [
-          /* @__PURE__ */ (0, import_jsx_runtime65.jsx)(TaskSearchShell, {
+          /* @__PURE__ */ (0, import_jsx_runtime69.jsx)(TaskSearchShell, {
             data,
             readonly,
             onOpen,
             onChanged,
             onEdit: editor.openEdit,
-            children: /* @__PURE__ */ (0, import_jsx_runtime65.jsx)("section", {
+            children: /* @__PURE__ */ (0, import_jsx_runtime69.jsx)("section", {
               className: tasks_default.segmentWrap,
               "data-testid": "segment-adventure",
               children:
                 data.loading === true
-                  ? /* @__PURE__ */ (0, import_jsx_runtime65.jsx)(SkeletonRows, {})
-                  : /* @__PURE__ */ (0, import_jsx_runtime65.jsxs)(import_jsx_runtime65.Fragment, {
+                  ? /* @__PURE__ */ (0, import_jsx_runtime69.jsx)(SkeletonRows, {})
+                  : /* @__PURE__ */ (0, import_jsx_runtime69.jsxs)(import_jsx_runtime69.Fragment, {
                       children: [
-                        /* @__PURE__ */ (0, import_jsx_runtime65.jsx)("div", {
-                          className: tasks_default.segmentToolbar,
-                          children: editor.createButton,
-                        }),
-                        /* @__PURE__ */ (0, import_jsx_runtime65.jsx)(OverdueFold, {
+                        /* @__PURE__ */ (0, import_jsx_runtime69.jsx)(OverdueFold, {
                           tasks: snapshot.overdueTasks,
                           readonly,
                           onChanged,
                         }),
                         snapshot.todayTasks.length === 0 && snapshot.overdueTasks.length === 0
-                          ? editor.emptyState
-                          : /* @__PURE__ */ (0, import_jsx_runtime65.jsx)(TaskList, {
+                          ? /* @__PURE__ */ (0, import_jsx_runtime69.jsx)(EmptyState, { kind: "tasks" })
+                          : /* @__PURE__ */ (0, import_jsx_runtime69.jsx)(TaskList, {
                               tasks: snapshot.todayTasks,
                               categories: data.categories,
                               readonly,
@@ -16348,50 +16484,44 @@ ${t("feishu.filter.footImmediate")}`,
     }
     function RouteView({ data, readonly, onOpen, onChanged }) {
       const editor = useTaskEditor(data, readonly, onChanged);
-      const groups = (0, import_react47.useMemo)(() => routeGroups(data.tasks), [data.tasks]);
+      const groups = (0, import_react50.useMemo)(() => routeGroups(data.tasks), [data.tasks]);
       const categories = data.categories;
       let body;
       if (data.loading === true) {
-        body = /* @__PURE__ */ (0, import_jsx_runtime65.jsx)(SkeletonRows, { rows: 4 });
+        body = /* @__PURE__ */ (0, import_jsx_runtime69.jsx)(SkeletonRows, { rows: 4 });
       } else if (groups.length === 0) {
-        body = editor.emptyState;
+        body = /* @__PURE__ */ (0, import_jsx_runtime69.jsx)(EmptyState, { kind: "tasks" });
       } else {
-        body = /* @__PURE__ */ (0, import_jsx_runtime65.jsxs)("section", {
+        body = /* @__PURE__ */ (0, import_jsx_runtime69.jsx)("section", {
           className: tasks_default.segmentWrap,
           "data-testid": "segment-route",
-          children: [
-            /* @__PURE__ */ (0, import_jsx_runtime65.jsx)("div", {
-              className: tasks_default.segmentToolbar,
-              children: editor.createButton,
-            }),
-            groups.map((group) =>
-              /* @__PURE__ */ (0, import_jsx_runtime65.jsxs)(
-                "div",
-                {
-                  children: [
-                    /* @__PURE__ */ (0, import_jsx_runtime65.jsx)("h4", {
-                      className: tasks_default.routeGroupDate,
-                      children: group.date,
-                    }),
-                    /* @__PURE__ */ (0, import_jsx_runtime65.jsx)(TaskList, {
-                      tasks: group.tasks,
-                      categories,
-                      readonly,
-                      onOpen,
-                      onChanged,
-                      onEdit: editor.openEdit,
-                    }),
-                  ],
-                },
-                group.date,
-              ),
+          children: groups.map((group) =>
+            /* @__PURE__ */ (0, import_jsx_runtime69.jsxs)(
+              "div",
+              {
+                children: [
+                  /* @__PURE__ */ (0, import_jsx_runtime69.jsx)("h4", {
+                    className: tasks_default.routeGroupDate,
+                    children: group.date,
+                  }),
+                  /* @__PURE__ */ (0, import_jsx_runtime69.jsx)(TaskList, {
+                    tasks: group.tasks,
+                    categories,
+                    readonly,
+                    onOpen,
+                    onChanged,
+                    onEdit: editor.openEdit,
+                  }),
+                ],
+              },
+              group.date,
             ),
-          ],
+          ),
         });
       }
-      return /* @__PURE__ */ (0, import_jsx_runtime65.jsxs)(import_jsx_runtime65.Fragment, {
+      return /* @__PURE__ */ (0, import_jsx_runtime69.jsxs)(import_jsx_runtime69.Fragment, {
         children: [
-          /* @__PURE__ */ (0, import_jsx_runtime65.jsx)(TaskSearchShell, {
+          /* @__PURE__ */ (0, import_jsx_runtime69.jsx)(TaskSearchShell, {
             data,
             readonly,
             onOpen,
@@ -16405,39 +16535,31 @@ ${t("feishu.filter.footImmediate")}`,
     }
     function GrassView({ data, readonly, onOpen, onChanged }) {
       const editor = useTaskEditor(data, readonly, onChanged);
-      const tasks = (0, import_react47.useMemo)(() => grassTasks(data.tasks), [data.tasks]);
-      return /* @__PURE__ */ (0, import_jsx_runtime65.jsxs)(import_jsx_runtime65.Fragment, {
+      const tasks = (0, import_react50.useMemo)(() => grassTasks(data.tasks), [data.tasks]);
+      return /* @__PURE__ */ (0, import_jsx_runtime69.jsxs)(import_jsx_runtime69.Fragment, {
         children: [
-          /* @__PURE__ */ (0, import_jsx_runtime65.jsx)(TaskSearchShell, {
+          /* @__PURE__ */ (0, import_jsx_runtime69.jsx)(TaskSearchShell, {
             data,
             readonly,
             onOpen,
             onChanged,
             onEdit: editor.openEdit,
-            children: /* @__PURE__ */ (0, import_jsx_runtime65.jsx)("section", {
+            children: /* @__PURE__ */ (0, import_jsx_runtime69.jsx)("section", {
               "data-testid": "segment-grass",
               className: tasks_default.segmentWrap,
               children:
                 data.loading === true
-                  ? /* @__PURE__ */ (0, import_jsx_runtime65.jsx)(SkeletonRows, {})
+                  ? /* @__PURE__ */ (0, import_jsx_runtime69.jsx)(SkeletonRows, {})
                   : tasks.length === 0
-                    ? editor.emptyState
-                    : /* @__PURE__ */ (0, import_jsx_runtime65.jsxs)(import_jsx_runtime65.Fragment, {
-                        children: [
-                          /* @__PURE__ */ (0, import_jsx_runtime65.jsx)("div", {
-                            className: tasks_default.segmentToolbar,
-                            children: editor.createButton,
-                          }),
-                          /* @__PURE__ */ (0, import_jsx_runtime65.jsx)(TaskList, {
-                            tasks,
-                            categories: data.categories,
-                            readonly,
-                            allowSchedule: true,
-                            onOpen,
-                            onChanged,
-                            onEdit: editor.openEdit,
-                          }),
-                        ],
+                    ? /* @__PURE__ */ (0, import_jsx_runtime69.jsx)(EmptyState, { kind: "tasks" })
+                    : /* @__PURE__ */ (0, import_jsx_runtime69.jsx)(TaskList, {
+                        tasks,
+                        categories: data.categories,
+                        readonly,
+                        allowSchedule: true,
+                        onOpen,
+                        onChanged,
+                        onEdit: editor.openEdit,
                       }),
             }),
           }),
@@ -16448,38 +16570,38 @@ ${t("feishu.filter.footImmediate")}`,
     function DexView({ data, readonly, onOpen, onChanged }) {
       const t = useT();
       const editor = useTaskEditor(data, readonly, onChanged);
-      const [filter, setFilter] = (0, import_react47.useState)("all");
-      const [reviewOpen, setReviewOpen] = (0, import_react47.useState)(false);
-      const stats = (0, import_react47.useMemo)(() => dexStats(data.tasks), [data.tasks]);
+      const [filter, setFilter] = (0, import_react50.useState)("all");
+      const [reviewOpen, setReviewOpen] = (0, import_react50.useState)(false);
+      const stats = (0, import_react50.useMemo)(() => dexStats(data.tasks), [data.tasks]);
       const archived = data.tasks.filter((t0) => t0.status === "done" || t0.status === "cancelled");
       const shown = archived.filter((task) => filter === "all" || task.status === filter);
-      return /* @__PURE__ */ (0, import_jsx_runtime65.jsxs)(import_jsx_runtime65.Fragment, {
+      return /* @__PURE__ */ (0, import_jsx_runtime69.jsxs)(import_jsx_runtime69.Fragment, {
         children: [
-          /* @__PURE__ */ (0, import_jsx_runtime65.jsx)(TaskSearchShell, {
+          /* @__PURE__ */ (0, import_jsx_runtime69.jsx)(TaskSearchShell, {
             data,
             readonly,
             onOpen,
             onChanged,
             onEdit: editor.openEdit,
-            children: /* @__PURE__ */ (0, import_jsx_runtime65.jsxs)("section", {
+            children: /* @__PURE__ */ (0, import_jsx_runtime69.jsxs)("section", {
               className: tasks_default.segmentWrap,
               "data-testid": "segment-dex",
               children: [
-                /* @__PURE__ */ (0, import_jsx_runtime65.jsx)("div", {
+                /* @__PURE__ */ (0, import_jsx_runtime69.jsx)("div", {
                   className: tasks_default.dexStatsLine,
                   children: t("dexStats.line", { caught: stats.caught, escaped: stats.escaped }),
                 }),
-                /* @__PURE__ */ (0, import_jsx_runtime65.jsx)("div", {
+                /* @__PURE__ */ (0, import_jsx_runtime69.jsx)("div", {
                   className: tasks_default.dexMilestone,
                   children: t(`dexStats.milestone.${stats.milestone}`, { n: stats.milestoneParam }),
                 }),
-                /* @__PURE__ */ (0, import_jsx_runtime65.jsxs)("div", {
+                /* @__PURE__ */ (0, import_jsx_runtime69.jsxs)("div", {
                   className: tasks_default.dexFilters,
                   role: "group",
                   "aria-label": t("dexFilter.all"),
                   children: [
                     ["all", "done", "cancelled"].map((key) =>
-                      /* @__PURE__ */ (0, import_jsx_runtime65.jsx)(
+                      /* @__PURE__ */ (0, import_jsx_runtime69.jsx)(
                         "button",
                         {
                           type: "button",
@@ -16491,7 +16613,7 @@ ${t("feishu.filter.footImmediate")}`,
                         key,
                       ),
                     ),
-                    /* @__PURE__ */ (0, import_jsx_runtime65.jsxs)("button", {
+                    /* @__PURE__ */ (0, import_jsx_runtime69.jsxs)("button", {
                       type: "button",
                       className: `${tasks_default.filterButton} ${tasks_default.reviewEntry}`,
                       disabled: readonly,
@@ -16501,8 +16623,8 @@ ${t("feishu.filter.footImmediate")}`,
                   ],
                 }),
                 shown.length === 0
-                  ? /* @__PURE__ */ (0, import_jsx_runtime65.jsx)(EmptyState, { kind: "tasks" })
-                  : /* @__PURE__ */ (0, import_jsx_runtime65.jsx)(TaskList, {
+                  ? /* @__PURE__ */ (0, import_jsx_runtime69.jsx)(EmptyState, { kind: "tasks" })
+                  : /* @__PURE__ */ (0, import_jsx_runtime69.jsx)(TaskList, {
                       tasks: shown,
                       categories: data.categories,
                       readonly,
@@ -16515,7 +16637,7 @@ ${t("feishu.filter.footImmediate")}`,
           }),
           editor.modal,
           reviewOpen &&
-            /* @__PURE__ */ (0, import_jsx_runtime65.jsx)(ReviewWizard, {
+            /* @__PURE__ */ (0, import_jsx_runtime69.jsx)(ReviewWizard, {
               data,
               onClose: () => setReviewOpen(false),
               onChanged,
@@ -16525,8 +16647,8 @@ ${t("feishu.filter.footImmediate")}`,
     }
 
     // src/client/tasks/SessionsView.tsx
-    var import_react48 = require("react");
-    var import_jsx_runtime66 = require("react/jsx-runtime");
+    var import_react51 = require("react");
+    var import_jsx_runtime70 = require("react/jsx-runtime");
     var GROUPS = ["all", "radio", "dispatch", "other"];
     var LIMIT_OPTIONS = [20, 50, 100];
     function replayable(row) {
@@ -16546,21 +16668,21 @@ ${t("feishu.filter.footImmediate")}`,
     function LogSegment({ readonly }) {
       const t = useT();
       const client = useClient();
-      const [group, setGroup] = (0, import_react48.useState)("all");
-      const [limit, setLimit] = (0, import_react48.useState)(20);
-      const [offset, setOffset] = (0, import_react48.useState)(0);
-      const [page, setPage] = (0, import_react48.useState)(null);
-      const [loading, setLoading] = (0, import_react48.useState)(true);
-      const [deployments, setDeployments] = (0, import_react48.useState)(null);
-      const [note, setNote] = (0, import_react48.useState)(null);
-      (0, import_react48.useEffect)(() => {
+      const [group, setGroup] = (0, import_react51.useState)("all");
+      const [limit, setLimit] = (0, import_react51.useState)(20);
+      const [offset, setOffset] = (0, import_react51.useState)(0);
+      const [page, setPage] = (0, import_react51.useState)(null);
+      const [loading, setLoading] = (0, import_react51.useState)(true);
+      const [deployments, setDeployments] = (0, import_react51.useState)(null);
+      const [note, setNote] = (0, import_react51.useState)(null);
+      (0, import_react51.useEffect)(() => {
         void client.deploymentList().then((result) => {
           if (result.ok) {
             setDeployments(result.data);
           }
         });
       }, [client]);
-      (0, import_react48.useEffect)(() => {
+      (0, import_react51.useEffect)(() => {
         let alive = true;
         setLoading(true);
         void client
@@ -16608,16 +16730,16 @@ ${t("feishu.filter.footImmediate")}`,
         }
         setNote(`\u274C ${result.error.message}`);
       }
-      return /* @__PURE__ */ (0, import_jsx_runtime66.jsxs)("section", {
+      return /* @__PURE__ */ (0, import_jsx_runtime70.jsxs)("section", {
         className: tasks_default.segmentWrap,
         "data-testid": "segment-logs",
         children: [
-          /* @__PURE__ */ (0, import_jsx_runtime66.jsx)("div", {
+          /* @__PURE__ */ (0, import_jsx_runtime70.jsx)("div", {
             className: tasks_default.dexFilters,
             role: "group",
             "aria-label": t("sess.filter_all"),
             children: GROUPS.map((key) =>
-              /* @__PURE__ */ (0, import_jsx_runtime66.jsx)(
+              /* @__PURE__ */ (0, import_jsx_runtime70.jsx)(
                 "button",
                 {
                   type: "button",
@@ -16635,57 +16757,57 @@ ${t("feishu.filter.footImmediate")}`,
           }),
           total === 0 && !loading
             ? group === "all"
-              ? /* @__PURE__ */ (0, import_jsx_runtime66.jsx)(EmptyState, { kind: "dispatch" })
-              : /* @__PURE__ */ (0, import_jsx_runtime66.jsx)("p", {
+              ? /* @__PURE__ */ (0, import_jsx_runtime70.jsx)(EmptyState, { kind: "dispatch" })
+              : /* @__PURE__ */ (0, import_jsx_runtime70.jsx)("p", {
                   className: tasks_default.emptyState,
                   "data-testid": "session-group-empty",
                   children: t("dsh.sess.emptyGroup"),
                 })
             : rows.map((session) => {
                 const gone = deploymentGone(session.remoteHost.trim(), deployments);
-                return /* @__PURE__ */ (0, import_jsx_runtime66.jsxs)(
+                return /* @__PURE__ */ (0, import_jsx_runtime70.jsxs)(
                   "div",
                   {
                     className: tasks_default.ledger,
                     "data-testid": "session-row",
                     children: [
-                      /* @__PURE__ */ (0, import_jsx_runtime66.jsx)("span", {
+                      /* @__PURE__ */ (0, import_jsx_runtime70.jsx)("span", {
                         className: tasks_default.ledgerAgent,
                         children: session.agentName || session.agentId,
                       }),
-                      /* @__PURE__ */ (0, import_jsx_runtime66.jsx)("span", { children: kindLabel(t, session.kind) }),
+                      /* @__PURE__ */ (0, import_jsx_runtime70.jsx)("span", { children: kindLabel(t, session.kind) }),
                       session.remoteHost.trim() === ""
-                        ? /* @__PURE__ */ (0, import_jsx_runtime66.jsx)("span", {
+                        ? /* @__PURE__ */ (0, import_jsx_runtime70.jsx)("span", {
                             className: tasks_default.worldBadge,
                             children: t("dsh.sess.worldLocal"),
                           })
-                        : /* @__PURE__ */ (0, import_jsx_runtime66.jsx)("span", {
+                        : /* @__PURE__ */ (0, import_jsx_runtime70.jsx)("span", {
                             className: tasks_default.worldBadge,
                             "data-gone": gone ? "true" : void 0,
                             title: session.remoteHost,
                             children: session.remoteHost,
                           }),
                       session.durationMs !== null &&
-                        /* @__PURE__ */ (0, import_jsx_runtime66.jsxs)("span", {
+                        /* @__PURE__ */ (0, import_jsx_runtime70.jsxs)("span", {
                           children: [Math.round(session.durationMs / 1e3), "s"],
                         }),
                       session.costUsd !== null &&
-                        /* @__PURE__ */ (0, import_jsx_runtime66.jsxs)("span", {
+                        /* @__PURE__ */ (0, import_jsx_runtime70.jsxs)("span", {
                           children: ["$", session.costUsd.toFixed(3)],
                         }),
                       session.exitCode !== null &&
-                        /* @__PURE__ */ (0, import_jsx_runtime66.jsxs)("span", {
+                        /* @__PURE__ */ (0, import_jsx_runtime70.jsxs)("span", {
                           className: tasks_default.ledgerExit,
                           "data-ok": session.exitCode === 0,
                           children: ["exit ", session.exitCode],
                         }),
                       session.sessionId !== null &&
-                        /* @__PURE__ */ (0, import_jsx_runtime66.jsx)("span", {
+                        /* @__PURE__ */ (0, import_jsx_runtime70.jsx)("span", {
                           className: ui_default.muted,
                           children: session.sessionId,
                         }),
                       replayable(session) &&
-                        /* @__PURE__ */ (0, import_jsx_runtime66.jsx)("button", {
+                        /* @__PURE__ */ (0, import_jsx_runtime70.jsx)("button", {
                           type: "button",
                           className: ui_default.button,
                           "data-testid": "session-replay",
@@ -16698,29 +16820,29 @@ ${t("feishu.filter.footImmediate")}`,
                   session.id,
                 );
               }),
-          /* @__PURE__ */ (0, import_jsx_runtime66.jsxs)("div", {
+          /* @__PURE__ */ (0, import_jsx_runtime70.jsxs)("div", {
             className: tasks_default.sessPager,
             "data-testid": "session-pager",
             children: [
-              /* @__PURE__ */ (0, import_jsx_runtime66.jsx)("span", {
+              /* @__PURE__ */ (0, import_jsx_runtime70.jsx)("span", {
                 className: tasks_default.sessCounts,
                 children: t("dsh.sess.counts", { n: total, page: current, pages }),
               }),
-              /* @__PURE__ */ (0, import_jsx_runtime66.jsx)("button", {
+              /* @__PURE__ */ (0, import_jsx_runtime70.jsx)("button", {
                 type: "button",
                 className: ui_default.button,
                 disabled: current <= 1,
                 onClick: () => setOffset(Math.max(0, offset - limit)),
                 children: t("sess.prev"),
               }),
-              /* @__PURE__ */ (0, import_jsx_runtime66.jsx)("button", {
+              /* @__PURE__ */ (0, import_jsx_runtime70.jsx)("button", {
                 type: "button",
                 className: ui_default.button,
                 disabled: current >= pages,
                 onClick: () => setOffset(offset + limit),
                 children: t("sess.next"),
               }),
-              /* @__PURE__ */ (0, import_jsx_runtime66.jsx)("select", {
+              /* @__PURE__ */ (0, import_jsx_runtime70.jsx)("select", {
                 className: ui_default.select,
                 "aria-label": t("dsh.sess.limitLabel"),
                 value: String(limit),
@@ -16729,7 +16851,7 @@ ${t("feishu.filter.footImmediate")}`,
                   setOffset(0);
                 },
                 children: LIMIT_OPTIONS.map((n) =>
-                  /* @__PURE__ */ (0, import_jsx_runtime66.jsx)(
+                  /* @__PURE__ */ (0, import_jsx_runtime70.jsx)(
                     "option",
                     { value: String(n), children: t("dsh.sess.limitN", { n }) },
                     n,
@@ -16739,7 +16861,7 @@ ${t("feishu.filter.footImmediate")}`,
             ],
           }),
           note !== null &&
-            /* @__PURE__ */ (0, import_jsx_runtime66.jsx)("p", {
+            /* @__PURE__ */ (0, import_jsx_runtime70.jsx)("p", {
               className: tasks_default.sessNote,
               role: "status",
               "data-testid": "session-note",
@@ -16750,7 +16872,7 @@ ${t("feishu.filter.footImmediate")}`,
     }
 
     // src/client/app/HelperBanner.tsx
-    var import_react49 = require("react");
+    var import_react52 = require("react");
 
     // src/client/app/app.module.css
     var css7 =
@@ -16793,12 +16915,12 @@ ${t("feishu.filter.footImmediate")}`,
     };
 
     // src/client/app/HelperBanner.tsx
-    var import_jsx_runtime67 = require("react/jsx-runtime");
+    var import_jsx_runtime71 = require("react/jsx-runtime");
     function HelperBanner({ onOpenDiagnostics }) {
       const t = useT();
       const client = useClient();
-      const [degraded, setDegraded] = (0, import_react49.useState)(false);
-      (0, import_react49.useEffect)(() => {
+      const [degraded, setDegraded] = (0, import_react52.useState)(false);
+      (0, import_react52.useEffect)(() => {
         void client.diagnosticsSnapshot().then((result) => {
           if (result.ok) {
             setDegraded(result.data.helperCaps === null);
@@ -16808,14 +16930,14 @@ ${t("feishu.filter.footImmediate")}`,
       if (!degraded) {
         return null;
       }
-      return /* @__PURE__ */ (0, import_jsx_runtime67.jsxs)("div", {
+      return /* @__PURE__ */ (0, import_jsx_runtime71.jsxs)("div", {
         className: app_default.helperBanner,
         role: "status",
         "data-testid": "helper-banner",
         children: [
-          /* @__PURE__ */ (0, import_jsx_runtime67.jsx)("span", { "aria-hidden": "true", children: "\u{1F43E}" }),
-          /* @__PURE__ */ (0, import_jsx_runtime67.jsx)("span", { children: t("dsh.helper.banner") }),
-          /* @__PURE__ */ (0, import_jsx_runtime67.jsx)("button", {
+          /* @__PURE__ */ (0, import_jsx_runtime71.jsx)("span", { "aria-hidden": "true", children: "\u{1F43E}" }),
+          /* @__PURE__ */ (0, import_jsx_runtime71.jsx)("span", { children: t("dsh.helper.banner") }),
+          /* @__PURE__ */ (0, import_jsx_runtime71.jsx)("button", {
             type: "button",
             className: app_default.helperBannerLink,
             onClick: onOpenDiagnostics,
@@ -16826,34 +16948,34 @@ ${t("feishu.filter.footImmediate")}`,
     }
 
     // src/client/app/PageHeader.tsx
-    var import_react50 = require("react");
-    var import_jsx_runtime68 = require("react/jsx-runtime");
+    var import_react53 = require("react");
+    var import_jsx_runtime72 = require("react/jsx-runtime");
     function PageHeader({ pendingCount, data }) {
       const t = useT();
-      const adventure = (0, import_react50.useMemo)(
+      const adventure = (0, import_react53.useMemo)(
         () => adventureSnapshot(data.tasks, data.today),
         [data.tasks, data.today],
       );
       const percent = adventure.total === 0 ? 0 : Math.round((adventure.caught / adventure.total) * 100);
-      return /* @__PURE__ */ (0, import_jsx_runtime68.jsxs)("header", {
+      return /* @__PURE__ */ (0, import_jsx_runtime72.jsxs)("header", {
         className: app_default.pageHeader,
         children: [
-          /* @__PURE__ */ (0, import_jsx_runtime68.jsx)("div", {
+          /* @__PURE__ */ (0, import_jsx_runtime72.jsx)("div", {
             className: app_default.pageHeadMain,
-            children: /* @__PURE__ */ (0, import_jsx_runtime68.jsxs)("div", {
+            children: /* @__PURE__ */ (0, import_jsx_runtime72.jsxs)("div", {
               className: app_default.pageTitleRow,
               children: [
-                /* @__PURE__ */ (0, import_jsx_runtime68.jsx)("h2", {
+                /* @__PURE__ */ (0, import_jsx_runtime72.jsx)("h2", {
                   className: app_default.pageTitle,
                   children: t("dsh.page.title"),
                 }),
-                /* @__PURE__ */ (0, import_jsx_runtime68.jsx)("span", {
+                /* @__PURE__ */ (0, import_jsx_runtime72.jsx)("span", {
                   className: app_default.pageTitleDeco,
                   "aria-hidden": "true",
                   children: "POK\xE9-DEX",
                 }),
                 pendingCount > 0 &&
-                  /* @__PURE__ */ (0, import_jsx_runtime68.jsx)("span", {
+                  /* @__PURE__ */ (0, import_jsx_runtime72.jsx)("span", {
                     className: app_default.pendingBadge,
                     "data-testid": "pending-count",
                     title: t("dsh.page.pending", { n: pendingCount }),
@@ -16863,24 +16985,24 @@ ${t("feishu.filter.footImmediate")}`,
               ],
             }),
           }),
-          /* @__PURE__ */ (0, import_jsx_runtime68.jsx)("span", {
+          /* @__PURE__ */ (0, import_jsx_runtime72.jsx)("span", {
             className: app_default.pageDate,
             children: data.today,
           }),
-          /* @__PURE__ */ (0, import_jsx_runtime68.jsxs)("span", {
+          /* @__PURE__ */ (0, import_jsx_runtime72.jsxs)("span", {
             className: app_default.pageCaught,
             children: [
-              /* @__PURE__ */ (0, import_jsx_runtime68.jsxs)("span", {
+              /* @__PURE__ */ (0, import_jsx_runtime72.jsxs)("span", {
                 className: app_default.caughtLabel,
                 children: ["CAUGHT ", adventure.caught, "/", adventure.total],
               }),
-              /* @__PURE__ */ (0, import_jsx_runtime68.jsx)("span", {
+              /* @__PURE__ */ (0, import_jsx_runtime72.jsx)("span", {
                 className: app_default.caughtBar,
                 role: "progressbar",
                 "aria-valuemin": 0,
                 "aria-valuemax": adventure.total,
                 "aria-valuenow": adventure.caught,
-                children: /* @__PURE__ */ (0, import_jsx_runtime68.jsx)("span", {
+                children: /* @__PURE__ */ (0, import_jsx_runtime72.jsx)("span", {
                   className: app_default.caughtFill,
                   style: { width: `${percent}%` },
                 }),
@@ -16892,17 +17014,17 @@ ${t("feishu.filter.footImmediate")}`,
     }
 
     // src/client/app/SchemaBanner.tsx
-    var import_jsx_runtime69 = require("react/jsx-runtime");
+    var import_jsx_runtime73 = require("react/jsx-runtime");
     function SchemaBanner() {
       const t = useT();
-      return /* @__PURE__ */ (0, import_jsx_runtime69.jsxs)("div", {
+      return /* @__PURE__ */ (0, import_jsx_runtime73.jsxs)("div", {
         className: app_default.schemaBanner,
         role: "status",
         "data-testid": "schema-banner",
         children: [
-          /* @__PURE__ */ (0, import_jsx_runtime69.jsx)("span", { "aria-hidden": "true", children: "\u26A0" }),
-          /* @__PURE__ */ (0, import_jsx_runtime69.jsx)("span", { children: t("dsh.schema.tooNew") }),
-          /* @__PURE__ */ (0, import_jsx_runtime69.jsx)("span", {
+          /* @__PURE__ */ (0, import_jsx_runtime73.jsx)("span", { "aria-hidden": "true", children: "\u26A0" }),
+          /* @__PURE__ */ (0, import_jsx_runtime73.jsx)("span", { children: t("dsh.schema.tooNew") }),
+          /* @__PURE__ */ (0, import_jsx_runtime73.jsx)("span", {
             className: app_default.schemaReadonlyTag,
             children: t("dsh.schema.readonly"),
           }),
@@ -16911,10 +17033,10 @@ ${t("feishu.filter.footImmediate")}`,
     }
 
     // src/client/app/SegmentNav.tsx
-    var import_jsx_runtime70 = require("react/jsx-runtime");
+    var import_jsx_runtime74 = require("react/jsx-runtime");
     function SegmentNav({ active, onChange, radioPending, radioFailures }) {
       const t = useT();
-      return /* @__PURE__ */ (0, import_jsx_runtime70.jsx)("nav", {
+      return /* @__PURE__ */ (0, import_jsx_runtime74.jsx)("nav", {
         className: app_default.segmentNav,
         "aria-label": t("dsh.page.title"),
         "data-testid": "segment-nav",
@@ -16922,7 +17044,7 @@ ${t("feishu.filter.footImmediate")}`,
           const isRadio = segment === "radio";
           const showCount = isRadio && radioPending > 0;
           const warn = isRadio && radioFailures >= 3;
-          return /* @__PURE__ */ (0, import_jsx_runtime70.jsxs)(
+          return /* @__PURE__ */ (0, import_jsx_runtime74.jsxs)(
             "button",
             {
               type: "button",
@@ -16934,7 +17056,7 @@ ${t("feishu.filter.footImmediate")}`,
               children: [
                 t(SEGMENT_LABEL_KEYS[segment]),
                 showCount &&
-                  /* @__PURE__ */ (0, import_jsx_runtime70.jsxs)("span", {
+                  /* @__PURE__ */ (0, import_jsx_runtime74.jsxs)("span", {
                     className: app_default.segmentCount,
                     children: [warn ? "\u26A0" : "", radioPending],
                   }),
@@ -16946,146 +17068,10 @@ ${t("feishu.filter.footImmediate")}`,
       });
     }
 
-    // src/client/app/PluginDetailPage.tsx
-    var import_jsx_runtime71 = require("react/jsx-runtime");
-    function PluginDetailPage({ client, data, initialSegment = "adventure", onChanged }) {
-      return /* @__PURE__ */ (0, import_jsx_runtime71.jsx)(ClientProvider, {
-        client,
-        children: /* @__PURE__ */ (0, import_jsx_runtime71.jsx)(PluginDetailPageInner, {
-          data,
-          initialSegment,
-          onChanged,
-        }),
-      });
-    }
-    function PluginDetailPageInner({ data, initialSegment, onChanged }) {
-      const client = useClient();
-      const [segment, setSegment] = (0, import_react51.useState)(initialSegment);
-      const [openTaskId, setOpenTaskId] = (0, import_react51.useState)(null);
-      const [pendingLeave, setPendingLeave] = (0, import_react51.useState)(null);
-      const settingsDirtyRef = (0, import_react51.useRef)(false);
-      const [settingsSection, setSettingsSection] = (0, import_react51.useState)("focus");
-      const [localeOverride, setLocaleOverride] = (0, import_react51.useState)(null);
-      const segmentBodyRef = (0, import_react51.useRef)(null);
-      const fillBody = segment === "radio" || segment === "settings";
-      useFillRemainingHeight(segmentBodyRef, fillBody);
-      const refresh = (0, import_react51.useCallback)(() => {
-        onChanged?.();
-      }, [onChanged]);
-      const prevSegment = (0, import_react51.useRef)(segment);
-      (0, import_react51.useEffect)(() => {
-        if (prevSegment.current !== segment) {
-          prevSegment.current = segment;
-          refresh();
-        }
-      }, [segment, refresh]);
-      const requestSegment = useLeaveGuard(segment, settingsDirtyRef, setPendingLeave, setSegment);
-      usePageOpenAnchor(client, requestSegment);
-      const readonly = data.dbStatus?.mode === "ro";
-      const pendingCount = countActionablePending(data.messages);
-      const openTask = findTask(data.tasks, openTaskId);
-      return /* @__PURE__ */ (0, import_jsx_runtime71.jsx)(I18nProvider, {
-        locale: localeOverride ?? data.locale,
-        children: /* @__PURE__ */ (0, import_jsx_runtime71.jsx)(DisplayPrefsProvider, {
-          ...displayPrefsOf(data.config),
-          children: /* @__PURE__ */ (0, import_jsx_runtime71.jsxs)("div", {
-            className: app_default.page,
-            children: [
-              readonly && /* @__PURE__ */ (0, import_jsx_runtime71.jsx)(SchemaBanner, {}),
-              /* @__PURE__ */ (0, import_jsx_runtime71.jsx)(HelperBanner, {
-                onOpenDiagnostics: () => {
-                  setSettingsSection("diag");
-                  requestSegment("settings");
-                },
-              }),
-              /* @__PURE__ */ (0, import_jsx_runtime71.jsx)(PageHeader, { pendingCount, data }),
-              /* @__PURE__ */ (0, import_jsx_runtime71.jsx)(SegmentNav, {
-                active: segment,
-                onChange: requestSegment,
-                radioPending: data.health.pendingCount,
-                radioFailures: data.health.consecutiveFailures,
-              }),
-              /* @__PURE__ */ (0, import_jsx_runtime71.jsx)("div", {
-                ref: segmentBodyRef,
-                className: fillBody ? `${app_default.segmentBody} ${app_default.segmentFill}` : app_default.segmentBody,
-                children: /* @__PURE__ */ (0, import_jsx_runtime71.jsx)(SegmentBody, {
-                  segment,
-                  data,
-                  readonly,
-                  onOpen: setOpenTaskId,
-                  onChanged: refresh,
-                  pendingLeave,
-                  onLeaveResolved: (proceed) =>
-                    resolveLeave(proceed, pendingLeave, settingsDirtyRef, setPendingLeave, setSegment),
-                  onUnsavedChange: (dirty) => {
-                    settingsDirtyRef.current = dirty;
-                  },
-                  onLocalePreview: setLocaleOverride,
-                  settingsSection,
-                }),
-              }),
-              openTask !== null &&
-                /* @__PURE__ */ (0, import_jsx_runtime71.jsx)(TaskDetailDrawer, {
-                  task: openTask,
-                  data,
-                  categories: data.categories,
-                  onClose: () => setOpenTaskId(null),
-                  onChanged: refresh,
-                }),
-            ],
-          }),
-        }),
-      });
-    }
-    function SegmentBody({
-      segment,
-      data,
-      readonly,
-      onOpen,
-      onChanged,
-      pendingLeave,
-      onLeaveResolved,
-      onUnsavedChange,
-      onLocalePreview,
-      settingsSection,
-    }) {
-      const segmentProps = { data, readonly, onOpen, onChanged };
-      switch (segment) {
-        case "adventure":
-          return /* @__PURE__ */ (0, import_jsx_runtime71.jsx)(AdventureView, { ...segmentProps });
-        case "grass":
-          return /* @__PURE__ */ (0, import_jsx_runtime71.jsx)(GrassView, { ...segmentProps });
-        case "route":
-          return /* @__PURE__ */ (0, import_jsx_runtime71.jsx)(RouteView, { ...segmentProps });
-        case "dex":
-          return /* @__PURE__ */ (0, import_jsx_runtime71.jsx)(DexView, { ...segmentProps });
-        case "radio":
-          return /* @__PURE__ */ (0, import_jsx_runtime71.jsx)(RadioSegment, { data, readonly, onChanged });
-        case "logs":
-          return /* @__PURE__ */ (0, import_jsx_runtime71.jsx)(LogSegment, { readonly });
-        case "settings":
-          return /* @__PURE__ */ (0, import_jsx_runtime71.jsx)(SettingsSegment, {
-            data,
-            onChanged,
-            leaveRequest: pendingLeave,
-            onLeaveResolved,
-            onUnsavedChange,
-            onLocalePreview,
-            initialSection: settingsSection,
-          });
-      }
-    }
-    function usePageOpenAnchor(client, requestSegment) {
-      const requestRef = (0, import_react51.useRef)(requestSegment);
-      requestRef.current = requestSegment;
-      (0, import_react51.useEffect)(() => {
-        return client.onPageOpen((event) => {
-          requestRef.current(event.section === "settings" ? "settings" : "adventure");
-        });
-      }, [client]);
-    }
+    // src/client/app/useFillRemainingHeight.ts
+    var import_react54 = require("react");
     function useFillRemainingHeight(ref, active) {
-      (0, import_react51.useEffect)(() => {
+      (0, import_react54.useEffect)(() => {
         const el = ref.current;
         if (!active || el === null) {
           return;
@@ -17124,8 +17110,147 @@ ${t("feishu.filter.footImmediate")}`,
       }
       return null;
     }
+
+    // src/client/app/PluginDetailPage.tsx
+    var import_jsx_runtime75 = require("react/jsx-runtime");
+    function PluginDetailPage({ client, data, initialSegment = "adventure", onChanged }) {
+      return /* @__PURE__ */ (0, import_jsx_runtime75.jsx)(ClientProvider, {
+        client,
+        children: /* @__PURE__ */ (0, import_jsx_runtime75.jsx)(PluginDetailPageInner, {
+          data,
+          initialSegment,
+          onChanged,
+        }),
+      });
+    }
+    function PluginDetailPageInner({ data, initialSegment, onChanged }) {
+      const client = useClient();
+      const [segment, setSegment] = (0, import_react55.useState)(initialSegment);
+      const [openTaskId, setOpenTaskId] = (0, import_react55.useState)(null);
+      const [pendingLeave, setPendingLeave] = (0, import_react55.useState)(null);
+      const settingsDirtyRef = (0, import_react55.useRef)(false);
+      const [settingsSection, setSettingsSection] = (0, import_react55.useState)("focus");
+      const [localeOverride, setLocaleOverride] = (0, import_react55.useState)(null);
+      const segmentBodyRef = (0, import_react55.useRef)(null);
+      const fillBody = segment === "radio" || segment === "settings";
+      useFillRemainingHeight(segmentBodyRef, fillBody);
+      const refresh = (0, import_react55.useCallback)(() => {
+        onChanged?.();
+      }, [onChanged]);
+      const prevSegment = (0, import_react55.useRef)(segment);
+      (0, import_react55.useEffect)(() => {
+        if (prevSegment.current !== segment) {
+          prevSegment.current = segment;
+          refresh();
+        }
+      }, [segment, refresh]);
+      const requestSegment = useLeaveGuard(segment, settingsDirtyRef, setPendingLeave, setSegment);
+      usePageOpenAnchor(client, requestSegment);
+      const readonly = data.dbStatus?.mode === "ro";
+      const pendingCount = countActionablePending(data.messages);
+      const openTask = findTask(data.tasks, openTaskId);
+      return /* @__PURE__ */ (0, import_jsx_runtime75.jsx)(I18nProvider, {
+        locale: localeOverride ?? data.locale,
+        children: /* @__PURE__ */ (0, import_jsx_runtime75.jsx)(DisplayPrefsProvider, {
+          ...displayPrefsOf(data.config),
+          children: /* @__PURE__ */ (0, import_jsx_runtime75.jsxs)("div", {
+            className: app_default.page,
+            children: [
+              readonly && /* @__PURE__ */ (0, import_jsx_runtime75.jsx)(SchemaBanner, {}),
+              /* @__PURE__ */ (0, import_jsx_runtime75.jsx)(HelperBanner, {
+                onOpenDiagnostics: () => {
+                  setSettingsSection("diag");
+                  requestSegment("settings");
+                },
+              }),
+              /* @__PURE__ */ (0, import_jsx_runtime75.jsx)(PageHeader, { pendingCount, data }),
+              /* @__PURE__ */ (0, import_jsx_runtime75.jsx)(SegmentNav, {
+                active: segment,
+                onChange: requestSegment,
+                radioPending: data.health.pendingCount,
+                radioFailures: data.health.consecutiveFailures,
+              }),
+              /* @__PURE__ */ (0, import_jsx_runtime75.jsx)("div", {
+                ref: segmentBodyRef,
+                className: fillBody ? `${app_default.segmentBody} ${app_default.segmentFill}` : app_default.segmentBody,
+                children: /* @__PURE__ */ (0, import_jsx_runtime75.jsx)(SegmentBody, {
+                  segment,
+                  data,
+                  readonly,
+                  onOpen: setOpenTaskId,
+                  onChanged: refresh,
+                  pendingLeave,
+                  onLeaveResolved: (proceed) =>
+                    resolveLeave(proceed, pendingLeave, settingsDirtyRef, setPendingLeave, setSegment),
+                  onUnsavedChange: (dirty) => {
+                    settingsDirtyRef.current = dirty;
+                  },
+                  onLocalePreview: setLocaleOverride,
+                  settingsSection,
+                }),
+              }),
+              openTask !== null &&
+                /* @__PURE__ */ (0, import_jsx_runtime75.jsx)(TaskDetailDrawer, {
+                  task: openTask,
+                  data,
+                  categories: data.categories,
+                  onClose: () => setOpenTaskId(null),
+                  onChanged: refresh,
+                }),
+            ],
+          }),
+        }),
+      });
+    }
+    function SegmentBody({
+      segment,
+      data,
+      readonly,
+      onOpen,
+      onChanged,
+      pendingLeave,
+      onLeaveResolved,
+      onUnsavedChange,
+      onLocalePreview,
+      settingsSection,
+    }) {
+      const segmentProps = { data, readonly, onOpen, onChanged };
+      switch (segment) {
+        case "adventure":
+          return /* @__PURE__ */ (0, import_jsx_runtime75.jsx)(AdventureView, { ...segmentProps });
+        case "grass":
+          return /* @__PURE__ */ (0, import_jsx_runtime75.jsx)(GrassView, { ...segmentProps });
+        case "route":
+          return /* @__PURE__ */ (0, import_jsx_runtime75.jsx)(RouteView, { ...segmentProps });
+        case "dex":
+          return /* @__PURE__ */ (0, import_jsx_runtime75.jsx)(DexView, { ...segmentProps });
+        case "radio":
+          return /* @__PURE__ */ (0, import_jsx_runtime75.jsx)(RadioSegment, { data, readonly, onChanged });
+        case "logs":
+          return /* @__PURE__ */ (0, import_jsx_runtime75.jsx)(LogSegment, { readonly });
+        case "settings":
+          return /* @__PURE__ */ (0, import_jsx_runtime75.jsx)(SettingsSegment, {
+            data,
+            onChanged,
+            leaveRequest: pendingLeave,
+            onLeaveResolved,
+            onUnsavedChange,
+            onLocalePreview,
+            initialSection: settingsSection,
+          });
+      }
+    }
+    function usePageOpenAnchor(client, requestSegment) {
+      const requestRef = (0, import_react55.useRef)(requestSegment);
+      requestRef.current = requestSegment;
+      (0, import_react55.useEffect)(() => {
+        return client.onPageOpen((event) => {
+          requestRef.current(event.section === "settings" ? "settings" : "adventure");
+        });
+      }, [client]);
+    }
     function useLeaveGuard(segment, dirtyRef, setPendingLeave, setSegment) {
-      return (0, import_react51.useCallback)(
+      return (0, import_react55.useCallback)(
         (next) => {
           if (segment === "settings" && next !== "settings" && dirtyRef.current) {
             setPendingLeave(next);
@@ -17172,7 +17297,7 @@ ${t("feishu.filter.footImmediate")}`,
     var mainPanel_default = { shell: "aEF3Jb_shell" };
 
     // src/client/dsh/sidebarPanel.tsx
-    var import_jsx_runtime72 = require("react/jsx-runtime");
+    var import_jsx_runtime76 = require("react/jsx-runtime");
     var PANEL_ID = "pokemon-choose-you";
     var PANEL_ORDER = 20;
     var PANEL_TITLES = {
@@ -17199,7 +17324,7 @@ ${t("feishu.filter.footImmediate")}`,
       return () => PANEL_TITLES[localeForTag(hostLocaleTag(locale))];
     }
     function PanelIcon({ size = 20 }) {
-      return /* @__PURE__ */ (0, import_jsx_runtime72.jsxs)("svg", {
+      return /* @__PURE__ */ (0, import_jsx_runtime76.jsxs)("svg", {
         width: size,
         height: size,
         viewBox: "0 0 24 24",
@@ -17210,10 +17335,10 @@ ${t("feishu.filter.footImmediate")}`,
         focusable: "false",
         "data-testid": "pky-sidebar-icon",
         children: [
-          /* @__PURE__ */ (0, import_jsx_runtime72.jsx)("circle", { cx: "12", cy: "12", r: "9" }),
-          /* @__PURE__ */ (0, import_jsx_runtime72.jsx)("path", { d: "M3.5 12h5" }),
-          /* @__PURE__ */ (0, import_jsx_runtime72.jsx)("path", { d: "M15.5 12h5" }),
-          /* @__PURE__ */ (0, import_jsx_runtime72.jsx)("circle", { cx: "12", cy: "12", r: "3" }),
+          /* @__PURE__ */ (0, import_jsx_runtime76.jsx)("circle", { cx: "12", cy: "12", r: "9" }),
+          /* @__PURE__ */ (0, import_jsx_runtime76.jsx)("path", { d: "M3.5 12h5" }),
+          /* @__PURE__ */ (0, import_jsx_runtime76.jsx)("path", { d: "M15.5 12h5" }),
+          /* @__PURE__ */ (0, import_jsx_runtime76.jsx)("circle", { cx: "12", cy: "12", r: "3" }),
         ],
       });
     }
@@ -17224,20 +17349,20 @@ ${t("feishu.filter.footImmediate")}`,
     }
     function createPanelRoot(host) {
       function PanelRoot() {
-        const [data, setData] = (0, import_react52.useState)(null);
-        const refresh = (0, import_react52.useCallback)(() => {
+        const [data, setData] = (0, import_react56.useState)(null);
+        const refresh = (0, import_react56.useCallback)(() => {
           void fetchPanelData(host).then(setData);
         }, []);
-        (0, import_react52.useEffect)(() => {
+        (0, import_react56.useEffect)(() => {
           refresh();
         }, [refresh]);
         if (data === null) {
-          return /* @__PURE__ */ (0, import_jsx_runtime72.jsx)("div", { "data-testid": "pky-panel-loading" });
+          return /* @__PURE__ */ (0, import_jsx_runtime76.jsx)("div", { "data-testid": "pky-panel-loading" });
         }
-        return /* @__PURE__ */ (0, import_jsx_runtime72.jsx)("div", {
+        return /* @__PURE__ */ (0, import_jsx_runtime76.jsx)("div", {
           "data-pky-panel": "",
           style: { minHeight: 0 },
-          children: /* @__PURE__ */ (0, import_jsx_runtime72.jsx)(PluginDetailPage, {
+          children: /* @__PURE__ */ (0, import_jsx_runtime76.jsx)(PluginDetailPage, {
             client: host,
             data,
             onChanged: refresh,
@@ -17249,15 +17374,15 @@ ${t("feishu.filter.footImmediate")}`,
     function createMainPanel(host) {
       const PanelRoot = createPanelRoot(host);
       return function MainPanel() {
-        return /* @__PURE__ */ (0, import_jsx_runtime72.jsx)("div", {
+        return /* @__PURE__ */ (0, import_jsx_runtime76.jsx)("div", {
           className: mainPanel_default.shell,
-          children: /* @__PURE__ */ (0, import_jsx_runtime72.jsx)(PanelRoot, {}),
+          children: /* @__PURE__ */ (0, import_jsx_runtime76.jsx)(PanelRoot, {}),
         });
       };
     }
 
     // src/client/dsh/clientEntry.tsx
-    var import_jsx_runtime73 = require("react/jsx-runtime");
+    var import_jsx_runtime77 = require("react/jsx-runtime");
     var PKG_NAME = "dsh-plugin";
     var PANEL_SLOT = "plugins.detail.section";
     var CHIP_SLOT = "conversation.session.header.actions";
@@ -17274,16 +17399,16 @@ ${t("feishu.filter.footImmediate")}`,
         if (!subjectIsSelf(props.subject)) {
           return null;
         }
-        return /* @__PURE__ */ (0, import_jsx_runtime73.jsx)(PanelRoot, {});
+        return /* @__PURE__ */ (0, import_jsx_runtime77.jsx)(PanelRoot, {});
       };
     }
     function useChipTask(host, locale) {
-      const [state, setState] = (0, import_react53.useState)({
+      const [state, setState] = (0, import_react57.useState)({
         task: null,
         pokemon: "",
         readonly: false,
       });
-      const refresh = (0, import_react53.useCallback)(() => {
+      const refresh = (0, import_react57.useCallback)(() => {
         void Promise.all([host.panelSnapshot(), host.dbStatus()]).then(([snap, db]) => {
           if (!snap.ok) {
             return;
@@ -17297,7 +17422,7 @@ ${t("feishu.filter.footImmediate")}`,
           });
         });
       }, [host]);
-      (0, import_react53.useEffect)(() => {
+      (0, import_react57.useEffect)(() => {
         refresh();
         const onVisible = () => {
           if (document.visibilityState === "visible") {
@@ -17326,16 +17451,16 @@ ${t("feishu.filter.footImmediate")}`,
     }
     function createChipEntry(host, openPage) {
       function ChipRoot() {
-        const [locale, setLocale] = (0, import_react53.useState)("zh-Hans");
-        (0, import_react53.useEffect)(() => {
+        const [locale, setLocale] = (0, import_react57.useState)("zh-Hans");
+        (0, import_react57.useEffect)(() => {
           void loadLocale(host).then(setLocale);
         }, []);
         const chip = useChipTask(host, locale);
-        return /* @__PURE__ */ (0, import_jsx_runtime73.jsx)(I18nProvider, {
+        return /* @__PURE__ */ (0, import_jsx_runtime77.jsx)(I18nProvider, {
           locale,
-          children: /* @__PURE__ */ (0, import_jsx_runtime73.jsx)(ClientProvider, {
+          children: /* @__PURE__ */ (0, import_jsx_runtime77.jsx)(ClientProvider, {
             client: host,
-            children: /* @__PURE__ */ (0, import_jsx_runtime73.jsx)(ConversationChip, {
+            children: /* @__PURE__ */ (0, import_jsx_runtime77.jsx)(ConversationChip, {
               task: chip.task,
               mode: chip.mode,
               secondsLeft: chip.secondsLeft,
@@ -17348,7 +17473,7 @@ ${t("feishu.filter.footImmediate")}`,
         });
       }
       return function ChipEntry() {
-        return /* @__PURE__ */ (0, import_jsx_runtime73.jsx)(ChipRoot, {});
+        return /* @__PURE__ */ (0, import_jsx_runtime77.jsx)(ChipRoot, {});
       };
     }
     function apply(ctx) {

@@ -5,8 +5,8 @@
  * - GrassView：无截止草丛
  * - DexView：统计 + 里程碑贺词 + 筛选（全部/已捕捉/已逃走）+ 每周复盘向导入口（🧢复盘）
  * 四段共用：顶部搜索栏（TaskSearchShell）+ 全字段编辑弹窗状态（useTaskEditor）。
- * 三任务段（冒险/草丛/路线）段头常驻「＋ 新建任务」（U22 · 宿主档次按钮）+ 空态主行动
- * buttonDex（空态唯一主推进动作）→ TaskEditModal create 模式。
+ * （「＋ 新建任务」段头工具行与空态主行动已移除——2026-10-17 用户裁决，FR-C1/U22 回流；
+ * 空态恢复纯被动文案，建卡走会话捕捉链路。）
  */
 import { useMemo, useState } from "react";
 import { useT } from "../i18n";
@@ -18,7 +18,6 @@ import { OverdueFold } from "./OverdueFold";
 import { ReviewWizard } from "./ReviewWizard";
 import { TaskSearchShell } from "./TaskSearchBar";
 import { TaskEditModal } from "./TaskEditModal";
-import ui from "../ui/ui.module.css";
 import styles from "./tasks.module.css";
 
 interface SegmentProps {
@@ -28,51 +27,18 @@ interface SegmentProps {
   onChanged: () => void;
 }
 
-/** 分段层编辑/新建弹窗状态（任务段共用：卡片溢出菜单「编辑」/ 段头与空态「＋ 新建任务」） */
+/** 分段层编辑弹窗状态（任务段共用：卡片溢出菜单「编辑」） */
 function useTaskEditor(
   data: PanelData,
   readonly: boolean,
   onChanged: () => void,
 ): {
   openEdit: (task: Task) => void;
-  openCreate: () => void;
-  createButton: React.JSX.Element;
-  emptyState: React.JSX.Element;
   modal: React.JSX.Element | null;
 } {
-  const t = useT();
   const [editing, setEditing] = useState<Task | null>(null);
-  const [creating, setCreating] = useState(false);
   return {
     openEdit: setEditing,
-    openCreate: () => setCreating(true),
-    // 段头工具行「＋ 新建任务」（U22：宿主档次按钮——非主行动黄；只读置灰）
-    createButton: (
-      <button
-        type="button"
-        className={ui.button}
-        data-testid="task-create-entry"
-        disabled={readonly}
-        onClick={() => setCreating(true)}
-      >
-        {t("dsh.taskCreate.entry")}
-      </button>
-    ),
-    // 空态主行动（U22：buttonDex 档——空态唯一主推进动作；文案升级 §8）
-    emptyState: (
-      <div className={styles.emptyWrap}>
-        <EmptyState kind="tasks" />
-        <button
-          type="button"
-          className={ui.buttonDex}
-          data-testid="task-create-empty"
-          disabled={readonly}
-          onClick={() => setCreating(true)}
-        >
-          {t("dsh.taskCreate.entry")}
-        </button>
-      </div>
-    ),
     modal:
       editing !== null ? (
         <TaskEditModal
@@ -82,8 +48,6 @@ function useTaskEditor(
           onClose={() => setEditing(null)}
           onChanged={onChanged}
         />
-      ) : creating ? (
-        <TaskEditModal data={data} readonly={readonly} onClose={() => setCreating(false)} onChanged={onChanged} />
       ) : null,
   };
 }
@@ -100,10 +64,9 @@ export function AdventureView({ data, readonly, onOpen, onChanged }: SegmentProp
             <SkeletonRows />
           ) : (
             <>
-              <div className={styles.segmentToolbar}>{editor.createButton}</div>
               <OverdueFold tasks={snapshot.overdueTasks} readonly={readonly} onChanged={onChanged} />
               {snapshot.todayTasks.length === 0 && snapshot.overdueTasks.length === 0 ? (
-                editor.emptyState
+                <EmptyState kind="tasks" />
               ) : (
                 <TaskList
                   tasks={snapshot.todayTasks}
@@ -132,11 +95,10 @@ export function RouteView({ data, readonly, onOpen, onChanged }: SegmentProps): 
   if (data.loading === true) {
     body = <SkeletonRows rows={4} />;
   } else if (groups.length === 0) {
-    body = editor.emptyState;
+    body = <EmptyState kind="tasks" />;
   } else {
     body = (
       <section className={styles.segmentWrap} data-testid="segment-route">
-        <div className={styles.segmentToolbar}>{editor.createButton}</div>
         {groups.map((group) => (
           <div key={group.date}>
             <h4 className={styles.routeGroupDate}>{group.date}</h4>
@@ -174,20 +136,17 @@ export function GrassView({ data, readonly, onOpen, onChanged }: SegmentProps): 
           {data.loading === true ? (
             <SkeletonRows />
           ) : tasks.length === 0 ? (
-            editor.emptyState
+            <EmptyState kind="tasks" />
           ) : (
-            <>
-              <div className={styles.segmentToolbar}>{editor.createButton}</div>
-              <TaskList
-                tasks={tasks}
-                categories={data.categories}
-                readonly={readonly}
-                allowSchedule
-                onOpen={onOpen}
-                onChanged={onChanged}
-                onEdit={editor.openEdit}
-              />
-            </>
+            <TaskList
+              tasks={tasks}
+              categories={data.categories}
+              readonly={readonly}
+              allowSchedule
+              onOpen={onOpen}
+              onChanged={onChanged}
+              onEdit={editor.openEdit}
+            />
           )}
         </section>
       </TaskSearchShell>

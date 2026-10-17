@@ -1,6 +1,6 @@
 /**
  * host 命令装配面 · full-parity 增量续（任务 2.9，从 commands-remote.spec 等量拆出以控
- * 文件行数棘轮）：会话分页回放 / 图鉴连胜 / 面板新建 / lark 一键登录 / AX 授权 / 诊断
+ * 文件行数棘轮）：会话分页回放 / 图鉴连胜 / lark 一键登录 / AX 授权 / 诊断
  * 三字段的信封 happy path（fake deps——domain 细节见各域单测）。
  */
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
@@ -80,15 +80,6 @@ describe("full-parity 命令面 · 会话/图鉴", () => {
 });
 
 describe("full-parity 命令面 · 任务/登录", () => {
-  it("taskCreate：状态 = 排期?scheduled:inbox + 标签校验（细节见 task-create.spec）", async () => {
-    const out = (await f.call("taskCreate", { title: " 新任务 ", scheduledFor: "2026-11-01T09:00" })) as {
-      data: { title: string; status: string; dueAt: string | null };
-    };
-    expect(out.data).toMatchObject({ title: "新任务", status: "scheduled", dueAt: "2026-11-01T09:00" });
-    const empty = (await f.call("taskCreate", { title: " " })) as { error: { code: string } };
-    expect(empty.error.code).toBe("INVALID_ARGUMENT");
-  });
-
   it("larkLoginStart：终端注入 fake 记录 + ok/note；注入失败 → DISPATCH_LAUNCH_FAILED", async () => {
     const injections: string[] = [];
     f.deps.terminalLine = {

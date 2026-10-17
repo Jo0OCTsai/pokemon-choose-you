@@ -46,7 +46,7 @@ profile 全功能）**
 | SSH 传输与远端进程托管 | **`@deepseek-ai/dsh-ssh` + `@deepseek-ai/dsh-subprocess-ssh`**（+ dsh-fs-ssh 按需），插件包 `dependencies` 钉版 `0.1.6-alpha.1`；构建保持 external（`@deepseek-ai/*` 既有口径），运行时从插件包 node_modules（file: 安装产物）解析 | 0.1.6-alpha.1 | ① 插件自管 OpenSSH（方案 2c 全量）：无 PTY 终端集成、进程托管/断连/清理全自研，只保留为降级链；② 每部署一个 dsh profile（方案 2b）：每台远端常驻一个 dsh 进程、多实例共享库需 primary/worker 互斥，仅作 spike 失败后备（D23 授权）；③ 要求用户在 dsh 侧手工装载 SSH 家族（不随插件分发）：违背 NFR-12 独立安装 0 静默半工作，仅作为包解析失败时的指引文案面 |
 | SSH 家族装载方式 | **运行时动态 `import()` + `ctx.plugin()` 应用到 per-deployment isolate 作用域**（惰性：首个远程部署开通时才装载） | cordis 4.0.4 `ctx.isolate(name, label?)` | ① cordis.patch.yml 静态追加 dsh-ssh 组件：宿主启动期即装载 SSH 家族（违背 NFR-8 冷启动惰性），alpha 升级需重发 patch，否决；② 直接在插件 apply 顶层作用域装载单实例：dsh-ssh 是部署级单连接设计，多部署需 isolate 分 fork（spike 验证点①），否决 |
 | 全局输入钩子 | **uiohook-napi**（helper 主进程 dynamic import，只累计事件计数；prebuilds 覆盖 Node/Electron 多 ABI） | 最新稳定（prebuilds 分发；**钉当前最新稳定版并于实施首任务锁定具体版本号**） | ① Electron 内置 globalShortcut：只有注册组合键回调、无全局输入事件流，无法实现 cps 计数，否决；② iohook / node-global-key-listener 等旧库：不维护或平台覆盖不全，否决；③ 不做（维持 D4 降级）：与 SDD「全部补齐」冲突且 D22 已换新红线，否决。**ABI 失配兜底**：dynamic import try/catch，失败 = 输入响应降级不可用 + 设置卡提示，不崩 helper（§4.4） |
-| Electron 运行时按需获取（D30） | **`@electron/get` 严格校验模式**（`pet/electronGet.ts` 薄封装：官方获取库——无 postinstall、内建 npmmirror 镜像回落/本地缓存/checksum；Electron 稳定版钉版常量 + **校验值 = 构建期内嵌 sha512 常量**（源出官方 releases——**镜像回落只换 URL 不换校验源**）+ 原子落位 `~/.dsh/electron/`；离线给手动放置指引） | Electron 稳定版钉版常量 + @electron/get 当前稳定版 | ① 依赖 npm `electron` 包的 postinstall 下载：postinstall 不可控（dsh 安装安全性）+ 拉整棵依赖树，否决；② 强制要求用户预装：违背「独立安装全功能」，仅作离线指引文案；③ 自研轻量下载器（原案）：下载/校验/镜像/缓存/解压全自研面重复官方库能力、供应链自证弱，**否决——改用 @electron/get**（官方单源 + 严格校验模式覆盖校验诉求） |
+| Electron 运行时按需获取（D30） | **`@electron/get` 严格校验模式**（`pet/electronGet.ts` 薄封装：官方获取库——无 postinstall、内建 npmmirror 镜像回落/本地缓存/checksum；Electron 稳定版钉版常量 + **校验值 = 构建期内嵌 sha256 常量**（源出官方 SHASUMS256.txt——**镜像回落只换 URL 不换校验源**；原案记 sha512 系笔误：@electron/get 5.1 校验面 = sha256，实施实测修正）+ 原子落位 `~/.dsh/electron/`；离线给手动放置指引） | Electron 稳定版钉版常量 + @electron/get 当前稳定版 | ① 依赖 npm `electron` 包的 postinstall 下载：postinstall 不可控（dsh 安装安全性）+ 拉整棵依赖树，否决；② 强制要求用户预装：违背「独立安装全功能」，仅作离线指引文案；③ 自研轻量下载器（原案）：下载/校验/镜像/缓存/解压全自研面重复官方库能力、供应链自证弱，**否决——改用 @electron/get**（官方单源 + 严格校验模式覆盖校验诉求） |
 | 提醒调度载体 | **host 内 timer tick（20s）+ helper 通知送达**，判定/聚合/勿扰全在 host 纯函数（与桌面 scheduler.rs 逐场景对齐，契约夹具锁定） | — | ① 调度判定放 helper：helper 缺席时提醒静默丢失（违背 FR-A3 降级不丢提醒），否决；② 复用桌面 scheduler：桌面 app 零改动铁律（SDD §8），dsh 侧必须自持同构实现 |
 | 部署实体存储 | **settings 键 `dsh:deployments`（JSON，id→实体 + alias 唯一索引——同一性裁决见 §5.2/A25）**，整读-改-整写（A24 模式复用） | — | contracts 003 新表 `deployments`：桌面零改动铁律下引入「桌面必须迁移却零消费」的表结构 + Rust oracle fixtures 会强迫桌面实现同款 domain 行为（违反契约面单一语义），且 deployment 无 SQL join 需求（路由联接在 routes.ts 解析层），否决——详见 §5.2 |
 | 遥测 | 无（延续 NFR-2） | — | — |
@@ -103,14 +103,14 @@ graph TD
 | `src/host/remote/sshExecutor.ts` | `DispatchExecutor` 远端实现工厂（消费 `SshScope.spawn`）；`resolveExecutable` 前缀远端 node 路径 | 零 dsh（接口消费） |
 | `src/host/remote/recheck.ts` | 就绪复核（周期 + 派发前即时）：连接探测 + helper sha256 复核；失败置「连接断开」并留最近错误；**连接恢复时触发迟到回传核对**（§4.7） | 零 dsh |
 | `src/host/remote/lateReport.ts` | 断连窗口内失败派发的远端活动痕迹探测（worktree mtime / 会话文件 mtime）→ 审计留痕 + agent_sessions 补录（**不改写失败结论**） | 零 dsh |
-| `src/host/dsh/sshScope.ts` | **唯一 dsh-ssh 触碰点**：per-deployment `ctx.isolate("ssh", label)` + isolate("subprocess", label) 作用域创建、dsh-ssh 家族动态 import + `ctx.plugin()` 装载、连接生命周期托管、断开事件回调；导出平台中立 `SshScope` 接口（spawn / spawnTerminal / shell / **writeFile** / disconnect / connected；writeFile = helper 制品上传原语——spawn `cat > <path>` + stdin 管道灌内容，字节安全、零命令行拼接，写毕远端 sha256 复核，§4.5 步③） | 适配缝（coverage exclude 同 `src/host/dsh/**` 口径） |
+| `src/host/dsh/sshScope.ts` | **唯一 dsh-ssh 触碰点**：per-deployment **双 label** 作用域创建（`ctx.isolate("ssh", sshLabel)` + `.isolate("subprocess", subLabel)`——spike 修正 A：cordis 注册槽按 label 单一编址，同 label 给两个服务名会撞槽，ssh/subprocess 必须各持 label）、dsh-ssh 家族动态 import + `ctx.plugin()` 装载、连接生命周期托管、断开事件回调；导出平台中立 `SshScope` 接口（spawn / spawnTerminal / shell / **writeFile** / disconnect / connected；writeFile = helper 制品上传原语——spawn `cat > <path>` + stdin 管道灌内容，字节安全、零命令行拼接，写毕远端 sha256 复核，§4.5 步③） | 适配缝（coverage exclude 同 `src/host/dsh/**` 口径） |
 | `src/host/dsh/probeDsh.ts` | capability 键真实探测（§4.9）：`dsh-ssh` = 动态 import 可解析 + 导出面形状；`dsh-terminal`/`dsh-subagent`/`dsh-worktrees` = ctx 表面探测；结果进 diagnosticsSnapshot + 诊断段 | 适配缝 |
 | `src/host/domain/streak.ts` | 连胜纯函数（本地自然日去重、宽容日 = 1、今日未完成不算断、回溯上限 400 天、输出 {days, todayCount}）——对齐桌面 `streak_conn`，**契约夹具新场景组锁定**（§6 NFR-16） | 零 |
 | `src/host/domain/backup.ts` 扩展 + `commands/backupCommands.ts` 扩展 | 导入结构校验（导出文件 schema 为契约）→ 前置自动备份（D25）→ 整体替换（秘钥与提示词覆盖行不随导入覆盖）→ onWrites 刷新；恢复 = 前置备份 + 迁移补跑 + 默认分类补种 + 超窗口拒绝 | 零 |
 | `src/host/dispatch/sessions.ts` 扩展 | `sessionsPage`（分组过滤 all/radio/dispatch/other、limit 钳 1–100 默认 20、offset、id 倒序、counts 不随翻页变）+ `sessionReplay` 回放路由（按执行世界快照：`remote_host` 空 = 本机终端唤起、非空 = 对应部署唤起；快照压过当前配置） | 零（唤起经 TerminalAdapter / SshScope 注入） |
-| `src/host/pet/electronGet.ts` | Electron 运行时按需获取（`@electron/get` 严格校验模式薄封装——探测链失败 → 下载/校验/解压/原子落位，校验值 = 构建期内嵌 sha512 常量、镜像回落只换 URL 不换校验源；离线指引文本返回） | 零 dsh |
+| `src/host/pet/electronGet.ts` | Electron 运行时按需获取（`@electron/get` 严格校验模式薄封装——探测链失败 → 下载/校验/解压/原子落位，校验值 = 构建期内嵌 sha256 常量（@electron/get 5.1 校验面——原案 sha512 系笔误）、镜像回落只换 URL 不换校验源；离线指引文本返回） | 零 dsh |
 | `src/host/pet/` 扩展（sys 桥消费 + macAuth） | 桥协议新消息的 host 侧消费面（tray-action/shortcut-fired/dialog-result/input-activity/mac-auth-result）；`macAuthorizationStatus` 查询；郑重时刻判定（完成动作发生形态 → `tts-speak`） | 零 |
-| `src/host/commands/` 扩展（remoteCommands.ts 新文件 + 既有分域扩展） | §4.1 新增 17 条命令实现 | 零 |
+| `src/host/commands/` 扩展（remoteCommands.ts 新文件 + 既有分域扩展） | §4.1 新增 16 条命令实现（+macAuthPaneOpen 联调对齐 1 条；taskCreate 已移除——用户裁决 2026-10-17） | 零 |
 | `helper/src/sys/`（tray / shortcuts / notify / tts / dialogs / inputCount / openPath） | 系统能力模块族（Electron 稳定 API：Tray/globalShortcut/Notification/dialog/shell/speechSynthesis + uiohook-napi dynamic import）；headless 模式 = no-op 记录器（CI fake 扩面） | Electron API（非 dsh 面） |
 | `helper/src/state/` + `renderer/` 扩展 | 桌宠行为补齐：坐栖（底边 ≤72 逻辑像素判定）、时刻台词（生日>深夜>周五晚>整点优先级）、连胜演出（双球三摇）/里程碑（互不叠加）、陪跑、生日彩蛋、打盹问候、AI 聊聊对话框（≤4 行原位框，问题经桥 `cmd.pet-chat` 回传 host → 主 agent 执行方，回答截前 2 句经 `chat-reply` 下发） | 纯 helper 内 |
 
@@ -146,7 +146,9 @@ SessionsView 扩展分页/回放入口（`sessionsPage`/`sessionReplay`）、设
 
 ### 4.1 host 命令契约表（新增 17 条；既有 69 条零改动）
 
-命令面总量 **69 → 86**（基线 = 7986072 后实数 69，含新增 petStatus）。响应统一 `{ ok, data? }` / `{ ok: false, error: { code, message, hint? } }`
+> 〔2026-10-17 回流修订：taskCreate 行已移除（用户裁决「完全不需要」，FR-C1）——本表实存 **16 条** + macAuthPaneOpen 联调对齐 1 条，命令面总量 69 → 85 + 1 = 86。〕
+
+命令面总量 **69 → 86**（基线 = 7986072 后实数 69，含新增 petStatus；2026-10-17 taskCreate 移除后实数——原设计 87）。响应统一 `{ ok, data? }` / `{ ok: false, error: { code, message, hint? } }`
 （PROTOCOL §2）；全部写命令库超窗时先撞 `DB_SCHEMA_TOO_NEW`（不逐行重复）。除注明外均同步返回。
 错误码增量见 §4.2。
 
@@ -164,7 +166,7 @@ SessionsView 扩展分页/回放入口（`sessionsPage`/`sessionReplay`）、设
 | | `restoreRun` | `{ source: { backupId? , path? }, confirmed: true }`（path **显式继承桌面文件名白名单**：`pokemon-choose-you-` 前缀 + `.db` 后缀匹配、拒 `/` 与 `\`——桌面 `is_backup_name` 同款） | `{ result: { backupId, migratedTo, seeded } }`（恢复前自动备份 → 恢复 → 补跑迁移 + 默认分类补种 + **恢复后补写当日 `last_backup_date`**——防恢复回滚日期标记后 backupLoop 当日再跑，桌面 commands/backup.rs:59-63 先例） | `BACKUP_FAILED` / `IMPORT_VALIDATION_FAILED`（备份文件坏 / 文件名不符白名单）/ `DB_SCHEMA_TOO_NEW`（备份 user_version 超插件窗口——只读保护语义延伸到恢复通道，复用码） |
 | | `exportDirOpen` | — | `{ ok, path }`（helper 文件管理器定位 `<数据目录>/exports/`，不存在先建） | `HELPER_CAPABILITY_MISSING`（helper 缺席 → hint 给路径供复制） |
 | 图鉴 | `streakInfo` | — | `{ days, todayCount, nextMilestone? }`（连胜纯函数直读） | — |
-| 任务 | `taskCreate` | `{ title, note?, categoryId?, priority?, due?, remindAt?, scheduledFor?, tagIds? }`（title 必填 trim 非空；分类缺省第一个启用分类；优先级默认 normal；状态 = 排期?scheduled:inbox；标签全量替换关联；写任务审计 + onWrites） | `{ task }` | 参数校验错（空标题 / 分类不存在 / 标签不存在） |
+| 任务 | `taskCreate` | `{ title, note?, categoryId?, priority?, due?, remindAt?, scheduledFor?, tagIds? }`（title 必填 trim 非空；分类缺省第一个启用分类；优先级默认 normal；状态 = 排期?scheduled:inbox；标签全量替换关联；写任务审计 + onWrites） | `{ task }` | 参数校验错（空标题 / 分类不存在 / 标签不存在） | 〔已移除 2026-10-17·用户裁决「完全不需要」，FR-C1 回流〕 |
 | 会话 | `sessionsPage` | `{ group?: all\|radio\|dispatch\|other, limit?, offset? }`（limit 钳 1–100 默认 20；未知分组按 all；id 倒序） | `{ rows: SessionRow[], counts, total }`（counts 汇总不随翻页变化） | — |
 | | `sessionReplay` | `{ rowId }` | `{ routed: { world: "local" \| { deploymentAlias }, note? } }`（按落库执行世界快照路由：本机 = dsh 终端面板唤起 agent 回放（tmux attach 优先 → `--resume` 会话 id → agent 自带选择器兜底）；远端 = 对应部署唤起；**快照压过当前配置**） | `DEPLOYMENT_NOT_READY`（快照指向的部署已删/未就绪——hint 给替代（本机回放或重新开通））/ `DISPATCH_LAUNCH_FAILED`（复用：本机回放时 dsh-terminal 缺失——hint 给降级指引）/ `SSH_AUTH_REQUIRED`（复用：远端回放免密/连接失败——择一落定为此码） |
 | 飞书 | `larkLoginStart` | — | `{ ok, note }`（dsh 终端会话注入 `lark-cli`（已初始化 → `auth login`；未初始化 → `config init` 接 `auth login`）；登录态查询沿用既有 `larkTest`/`larkAuth`） | `DISPATCH_LAUNCH_FAILED`（复用：终端注入失败，hint 确认 dsh 终端面板可用） |
@@ -220,10 +222,10 @@ host 缓存 hello、按能力位降级（缺位不发对应命令 → 页内降�
 | helper → 插件 | `dialog-ack` | `{ seq }`（**回执级**：收到 dialog-request 的秒级回执；host 以 ack 超时（10s）判能力在位——超时按 `HELPER_CAPABILITY_MISSING` 降级，**不与用户交互时长耦合**） | FR-A5、NFR-14 |
 | helper → 插件 | `dialog-result` | `{ seq, canceled, paths?: string[] }`（**完成级**：不设短超时（≥5min 长超时兜底）——用户在系统对话框停留任意时长不触发降级；host 侧取消走 `dialog-cancel`） | FR-A5 |
 | helper → 插件 | `mac-auth-ack` | `{ seq }`（mac-auth 同型回执级 ack；超时判能力在位） | FR-A9、NFR-14 |
-| helper → 插件 | `mac-auth-result` | `{ seq, kind, granted }`（完成级；授权中途撤销 → helper 停止计数并主动上报 `granted:false`） | FR-A9 |
+| helper → 插件 | `mac-auth-result` | `{ seq, kind, granted }`（完成级；授权中途撤销 → helper 停止计数并**主动上报** `granted:false`——主动上报无请求配对，约定 **seq=0**（host 序号从 1 起，0 恒表主动）） | FR-A9 |
 | helper → 插件 | `input-activity` | `{ cps }`（≥1s 节流回传；**仅计数**——键值/键名/窗口标题/应用名 0 出 helper 计数模块） | FR-A9、NFR-13 |
 | helper → 插件 | `cmd`（op 扩展） | 增 `pet-chat`（text = 问题 ≤200 字符，host → 主 agent 执行方，任务快照假名化入上下文）；历史内存 3 条不持久化（helper 侧自持） | FR-A8 |
-| helper → 插件 | `sys-unsupported` | `{ type }`（适用域 = helper 认识该消息类型但**能力位声明与实现失配**（未来版本错位）的兜底上报：每类型节流一次 + 计错进诊断。**旧 helper 不认识 sys-unsupported 本身**——对旧 helper 发未知消息只能被其「丢弃 + 计错」；「提示升级 helper」信号源以 host 侧能力位缺失 / ack 超时为准） | NFR-14 |
+| helper → 插件 | `sys-unsupported` | `{ unsupported: <type> }`（载荷字段名避开与信封 `type` 撞名——实施修正）（适用域 = helper 认识该消息类型但**能力位声明与实现失配**（未来版本错位）的兜底上报：每类型节流一次 + 计错进诊断。**旧 helper 不认识 sys-unsupported 本身**——对旧 helper 发未知消息只能被其「丢弃 + 计错」；「提示升级 helper」信号源以 host 侧能力位缺失 / ack 超时为准） | NFR-14 |
 
 **双向兼容语义（NFR-14 落地机制 = hello 门控 + ack 超时双机制）**：
 - **发送门控**：host 未收到 hello 前禁发任何 sys 消息（hello 到达即有能力位快照——关闭「能力位缺失
@@ -267,13 +269,17 @@ host 缓存 hello、按能力位降级（缺位不发对应命令 → 页内降�
                通过则顺带探测远端 $HOME（下述路径不变式的展开基准）
 ② probe-node  远端 node 探测：经 SshScope.shell 跑 `<nodePath> --version`（引号全量引用）；
                失败 → PROVISION_STEP_FAILED(step=probe-node)，hint 给远端 Node 安装指引
-③ upload      helper 制品上传：来源 = 插件包 node_modules 内 @deepseek-ai/dsh-ssh 包的
-               lib/helper.js（sha256 双保险——**权威源 = 运行时读文件计算**，防构建机与安装机依赖
-               版本漂移；构建期内嵌常量仅作来源文件缺失时一级报警）；经 `SshScope.writeFile`
-               （spawn `cat > <path>` + stdin 管道灌内容——字节安全、零命令行拼接，写毕远端
-               sha256 复核）写远端 helperPath（缺省 = `<远端 $HOME 展开后>/.dsh-helper/
-               pky-helper-<插件版本>.js`——**helperPath 含插件版本段**，同远端被多版本插件
-               provision 时文件按版本隔离、顶替不互踩）+ chmod 700；
+③ upload      helper 运行闭包安装〔spike 修正 C：`lib/helper.js` 是分包产物——相对导入 3 个
+               chunk + 外部依赖树（cordis/dsh-fs/dsh-subprocess(-local)/zod 等），**单文件上传
+               不可行**，README 官方口径即「远端预装 helper 及其匹配运行依赖」〕：
+               远端 `<npm> install --prefix <$HOME 展开后>/.dsh-helper/pky-<插件版本>
+               @deepseek-ai/dsh-ssh@<闭包版本>`（npm 探测优先 `<dirname(nodePath)>/npm`，
+               回落 `command -v npm`；安装命令带 `PATH=<node bin>:$PATH` 前缀——远端非交互
+               shell 无 nvm PATH；全部经 posixQuote 引号全量引用；**远端需可达 npm registry**，
+               不可达 = 该步失败 + hint 明示）；helperPath = `<安装目录>/node_modules/
+               @deepseek-ai/dsh-ssh/lib/helper.js`——**安装目录名含插件版本段**（多版本插件
+               provision 按目录隔离、顶替不互踩）；权威 sha256 = 运行时读本机插件闭包
+               lib/helper.js 计算（防依赖版本漂移）；
                失败 → PROVISION_STEP_FAILED(step=upload)
 ④ verify      摘要校验：远端 `sha256sum <helperPath>` 与预期比对 → 通过置「就绪」
                （helperHash 落部署实体）；执行失败（如远端缺 sha256sum）→
@@ -281,6 +287,11 @@ host 缓存 hello、按能力位降级（缺位不发对应命令 → 页内降�
                （拒绝就绪，不降级直连——D31）
 ```
 
+- **前置步传输**（实施修正）：dsh-ssh 连接以远端 helper 为传输基底（Config 必填
+  helper/helperHash）——步①②③ 发生在 helper 安装前，走 **DirectSshScope 直连兜底**
+  （`execFile("ssh", [BatchMode 同款选项…])`，`dsh/directScope.ts`）；步④ 通过后
+  helperPath/Hash 落库 → scopeFor 自然切 dsh-ssh isolate（recheck/派发用真连接）。
+  `SshScope.writeFile` 保留为通用文件上传原语（`cat > <path>` + stdin 管道，零命令行拼接）。
 - **路径不变式（NFR-11④ 前置）——`~` 展开与 posixQuote 互斥**：`~` 不入库——provision 步① 探测
   远端 `$HOME` 后展开；部署实体内 helperPath/nodePath/workdir 一律存**展开后 POSIX 绝对路径**，
   deploymentUpsert 对三者显式拒收 `~` 前缀（§4.1）。posixQuote 全量引用面因此永不与 `~` 展开叠加
@@ -344,7 +355,7 @@ sequenceDiagram
     CMD->>RT: 派发请求（路由含 deployment）
     RT->>RT: 就绪复核（即时）：连接活性 + helper 摘要（失败 → DEPLOYMENT_NOT_READY）
     RT->>SC: 取/建 SshScope（按部署 id 缓存）
-    SC->>ISO: ctx.isolate("ssh",label).isolate("subprocess",label)<br/>+ 动态 import dsh-ssh 家族 + ctx.plugin 装载（惰性一次）
+    SC->>ISO: ctx.isolate("ssh",sshLabel).isolate("subprocess",subLabel)<br/>（双 label——spike 修正 A：同 label 撞注册槽）<br/>+ 动态 import dsh-ssh 家族 + ctx.plugin 装载（惰性一次；装载须 await fiber）
     Note over SC,ISO: spike 验证点：多实例装配 + terminal backend 作用域隔离（§9）
     alt 无头
         RT->>RT: dsh-ssh 家族缺失？（capability dsh-ssh 红）
@@ -362,7 +373,7 @@ sequenceDiagram
 ```
 
 - **isolate 装配细节（§2 选型落地）**：`SshScope` 按部署 id 缓存（Map）；label = `pky-dep-<deploymentId>`
-  （同 label 合并作用域——重连复用）；部署移除/断开 → scope dispose（isolate fiber 卸载逆序注销，
+  （同部署 label 对缓存复用——重连不换 label；服务消费经 inject 声明的 consumer 子插件取引用、卸载走 fiber.dispose——spike 修正 B）；部署移除/断开 → scope dispose（isolate fiber 卸载逆序注销，
   `ctx.effect` 既有模式）；dsh-ssh Config 从部署实体组装（host=alias、node=nodePath、helper=helperPath、
   helperHash、workspace=workdir、requestTimeoutMs/maxFrameBytes 按 dsh-ssh 缺省）。
 - **本地/远端统一**：`HeadlessDeps.executorFor` 路由到 local（既有）/ sshExecutor（新）；交互
@@ -408,7 +419,7 @@ erDiagram
         text id "实体唯一键（JSON 内 id→entity）"
         text alias "OpenSSH 别名（唯一索引；被路由引用的改名需确认/级联）"
         text node_path "远端 node 绝对路径（展开后 POSIX 绝对路径，拒 ~）"
-        text helper_path "远端 helper 入口（pky-helper-<插件版本>.js——多版本顶替隔离）"
+        text helper_path "远端 helper 入口（<…>/.dsh-helper/pky-<插件版本>/node_modules/…/lib/helper.js——安装目录版本段隔离，spike 修正 C）"
         text helper_hash "SHA-256（就绪判据）"
         text workdir "默认远端工作目录（展开后 POSIX 绝对路径，拒 ~）"
         text note "备注"
@@ -466,7 +477,7 @@ erDiagram
 | NFR | 架构保障点 |
 |---|---|
 | **NFR-10 提醒正确性 100%** | ① 到期判定/勿扰/聚合/去重 = reminder/ 纯函数与桌面 scheduler.rs 逐场景对齐，**contracts 新增 `reminder` 场景组**（Rust oracle = 桌面纯函数抽取，§7.1 P1）fixtures 锁定；② 勿扰静默 = 0 补发（抢到即置 reminded——SDD Gherkin 口径）；③ 双形态单发 = D28 CAS（§4.6）+ 桌面守卫配套（P2，达成前提）；④ helper 缺席 toast 降级不丢标记（FR-A3 Gherkin） |
-| **NFR-11 远程安全稳健** | ① 摘要不符 100% 拒绝（HELPER_HASH_MISMATCH + 就绪状态机不迁移 ready——NFR 断言场景）；② 断连不损库不重放（§4.7：事务外执行 + 单事务收口 + 置失败可重派）；③ 凭据 0 存储（部署实体字段表白名单 = §5.1 ER 全集逐一枚举：`id` / `alias` / `node_path` / `helper_path` / `helper_hash` / `workdir` / `note` / `status` / `last_error` / `provision` / `degraded`——实体 JSON 键集超出白名单即断言红；gitleaks + 字段审查断言）；④ **远端命令组装 0 转义缺口**：posixQuote 全量引用既有单点复用（worktreeScript 先例），provision/sshExecutor/lark 注入命令的组装路径集中 `remote/` 三文件 + `dispatch/cmdline.ts`；**上传原语 = `SshScope.writeFile`**（spawn `cat > <path>` + stdin 管道，零命令行拼接——纳入静态断言清单）；**前置不变式 = 实体路径零 `~`**（provision 期探测 `$HOME` 展开后落库，deploymentUpsert 拒收 `~` 前缀，§4.5——posixQuote 永不与 `~` 展开叠加）；静态断言 = 测试逐命令检查引号包裹（NFR-11 第四场景的 CI 面） |
+| **NFR-11 远程安全稳健** | ① 摘要不符 100% 拒绝（HELPER_HASH_MISMATCH + 就绪状态机不迁移 ready——NFR 断言场景）；② 断连不损库不重放（§4.7：事务外执行 + 单事务收口 + 置失败可重派）；③ 凭据 0 存储（部署实体字段表白名单 = §5.1 ER 全集逐一枚举：`id` / `alias` / `node_path` / `helper_path` / `helper_hash` / `workdir` / `note` / `status` / `last_error` / `provision` / `degraded`——实体 JSON 键集超出白名单即断言红；gitleaks + 字段审查断言）；④ **远端命令组装 0 转义缺口**：posixQuote 全量引用既有单点复用（worktreeScript 先例），provision/sshExecutor/lark 注入命令的组装路径集中 `remote/` 三文件 + `dispatch/cmdline.ts`；**helper 安装 = npm 闭包安装命令**（引号全量引用同口径，spike 修正 C）；`SshScope.writeFile` 保留为通用上传原语（spawn `cat > <path>` + stdin 管道，零命令行拼接——纳入静态断言清单）；**前置不变式 = 实体路径零 `~`**（provision 期探测 `$HOME` 展开后落库，deploymentUpsert 拒收 `~` 前缀，§4.5——posixQuote 永不与 `~` 展开叠加）；静态断言 = 测试逐命令检查引号包裹（NFR-11 第四场景的 CI 面） |
 | **NFR-12 独立分发完整性** | ① 内嵌面清点：schema（?raw 内嵌既有）+ 字典（@app-i18n alias）+ 图鉴名录（@app-pokemon）+ 技能文档（skills-raw 既有）+ **helper 产物（files 增 helper）**+ dsh-ssh 家族（dependencies 钉版）+ **uiohook-napi（dependencies 钉版；CI 断言安装产物内 prebuild 文件在场）**；② 外部依赖缺失 0 静默：lark-cli（feishuConfigured 既有）/ agent CLI / pk / dsh-ssh 家族（§4.8 探测面）全部降级提示 + 指引——`compat.spec` + 诊断段断言；③ 干净 profile 冷启动冒烟（真实 profile 安装，§7.3 CI 手动验收项） |
 | **NFR-13 输入隐私** | §4.4：只计数模块无键值 API 面（**机械化断言 = eslint `no-restricted-*` 规则锁 keycode/rawcode 属性访问，进 CI**（§7.3）——代码审查断言清单进测试注释面为辅）；默认关（NFR-6 键级断言合并）；授权门槛 + 撤销即停 |
 | **NFR-14 桥协议兼容** | §4.3 能力位协商 + **hello 门控（未收到 hello 禁发任何 sys 消息）** + sys-unsupported 显式拒绝（适用域 = 能力位与实现失配的兜底——旧 helper 无此面，只能丢弃计错）+ **seq 两段语义**（`dialog-ack`/`mac-auth-ack` 回执级秒超时判能力在位；`dialog-result`/`mac-auth-result` 完成级不设短超时 + `dialog-cancel` 取消通道）+ 未知上行安全忽略计错；**验收口径 = hello 门控 + ack 超时双机制**；helper 桥契约测试（bridge.contract.spec）扩双版本矩阵用例（旧协议样本回放） |
@@ -507,7 +518,7 @@ erDiagram
   （notify 文本/shortcut 事件/dialog 可编程结果），桥契约测试（真 stdio fake host 既有形态）扩
   §4.3 全消息 + 双版本兼容矩阵（NFR-14）。
 - **CI**：plugin job 既有顺序不变，新增断言 = MAX_SCHEMA 同版断言（§5.3）+ 远端命令引号静态断言
-  （NFR-11——含 `SshScope.writeFile` 上传原语走 stdin 管道零拼接、实体路径零 `~` 前置不变式）+
+  （NFR-11——含 npm 安装命令与 `SshScope.writeFile` 通用上传原语的引号全量引用、实体路径零 `~` 前置不变式）+
   诊断 capabilities 段一致性 + eslint `no-restricted-*` 锁 inputCount 键值面（keycode/rawcode
   属性访问禁入——NFR-13/15「只计数」断言机械化）+ uiohook-napi 安装产物内 prebuild 文件在场断言
   （NFR-12①）；干净 profile 冷启动冒烟维持手动验收（A10 口径延续）；**资源验收脚本归手动验收项**
@@ -536,6 +547,8 @@ erDiagram
 | 轻漂移 ①–⑤（UIUX 回流节） | — | ① 部署编辑 = upsert{id} 字面落地、编辑后回落未就绪并提示复核（采纳）；② 托盘设置落点复用既有 `pageOpen(section:"settings")`（采纳——现行已支持，零契约变更）；③ 被 D33 推翻（见上）；④ 能力矩阵粒度 = hello.caps 8 位、UIUX 六能力行归并呈现（采纳）；⑤ 向导中止与移除分离 = provisionRun 单步推进 + 幂等续跑天然支持（采纳） |
 
 ## 9. spike 任务定义（D23 · 首个实施任务）
+
+> **〔执行结果 2026-10-17：PASS 17/17**（真实 dsh profile 跑通；结论与可重跑脚本 = `spike-dsh-ssh.md` + `spike/`）——三处修正回流本 AD：**修正 A** 双 label（下验证点①原文的同名链式 isolate 写法作废）、**修正 B** consumer-inject 取服务引用 + fiber.await/dispose、**修正 C** helper 分包产物 → npm 闭包安装（§4.5 步③已按此重写）。**〕**
 
 | 项 | 内容 |
 |---|---|
@@ -578,10 +591,10 @@ erDiagram
 
 | 风险面 | 集中位置 | 缓解 |
 |---|---|---|
-| dsh-ssh 家族 0.1.6-alpha.1（Config schema / Service 表面 / spawnTerminal 契约 / lib/helper.js 制品路径） | **单文件** `src/host/dsh/sshScope.ts` + spike 结论 | 接口隔离（SshScope 平台中立）；版本钉死 dependencies；破坏性变更 = 改一个文件 + 重跑 spike；降级链（ShellRunner 直连 + 复制命令行）独立于该面 |
-| cordis 4.0.4 `isolate` API 语义（label 合并/fiber 生命周期） | 同上单文件 | spike 验证点①；失败切 2b（已授权回流） |
+| dsh-ssh 家族 0.1.6-alpha.1（Config schema / Service 表面 / spawnTerminal 契约 / lib/helper.js 制品路径） | `src/host/dsh/sshScope*` 适配缝目录（装配/家族/宿主路由拆件 + `directScope.ts` 直连兜底——复杂度棘轮拆分与前置步传输的演进，边界仍是「唯一 dsh-ssh 触碰面」）+ spike 结论 | 接口隔离（SshScope 平台中立）；版本钉死 dependencies；破坏性变更 = 改一个文件 + 重跑 spike；降级链（ShellRunner 直连 + 复制命令行）独立于该面 |
+| cordis 4.0.4 `isolate` API 语义（label 编址/fiber 生命周期） | 同上适配缝目录 | spike 验证点①（实测：注册槽按 label 单一编址——双 label 修正 A）；失败切 2b（未触发） |
 | uiohook-napi（原生模块 ABI / prebuild 覆盖） | 单文件 `helper/src/sys/inputCount.ts` | dynamic import try/catch 降级；**prebuild 覆盖矩阵验证落点 = 实施首任务**（darwin arm64/x64 × Electron ABI 组合实测 + CI 断言安装产物内 prebuild 在场——§7.3）；可选功能默认关（D22）——失败面 = 该功能不可用，不伤 helper |
-| Electron 运行时按需下载（网络/校验/解压） | `src/host/pet/electronGet.ts` | @electron/get 严格校验模式——**校验值 = 构建期内嵌 sha512 常量，镜像回落只换 URL 不换校验源**；原子落位 + 失败清理；离线手动放置指引（D30）；下载失败 = 系统能力面降级提示（不静默） |
+| Electron 运行时按需下载（网络/校验/解压） | `src/host/pet/electronGet.ts` | @electron/get 严格校验模式——**校验值 = 构建期内嵌 sha256 常量，镜像回落只换 URL 不换校验源**（校验算法系原案笔误，实施按 @electron/get 实际校验面修正）；原子落位 + 失败清理；离线手动放置指引（D30）；下载失败 = 系统能力面降级提示（不静默） |
 | Typert Remote SRC 模式（构建不 minify 硬依赖） | 既有约束延续 | 新命令面维持同一 call 通道（不新增方法签名面），零新增暴露 |
 | 双形态提醒仲裁依赖桌面守卫（P2） | `src-tauri/src/scheduler.rs` | 配套演进项同窗口发布；P2 未合入前 NFR-10 第三场景标注「待桌面守卫合入」——插件侧 CAS 已单方面正确（先到让位成立，后到桌面无守卫时存在双发窗口，实施验收口径按合入后 |
 | alpha 版本升级节奏 | dependencies 钉版 + capability 探测 | 升级 = 显式改钉版 + spike 回归（计划项） |
@@ -591,15 +604,15 @@ erDiagram
 | # | 决策 | 位置 |
 |---|------|------|
 | A25 | deployment 实体存 settings 键 `dsh:deployments`（零新表零迁移）；**同一性裁决：JSON 内 id 为唯一键（id→entity）+ alias 唯一索引**——被 `dsh:dispatch_routes` 引用的 alias 改名须确认或级联更新路由 ref；路由解析失败（部署缺失）= 派发确认处**明示改本机并需确认**（不静默降级）；理由与 003 否决论据见 §5.2 | §5.2 |
-| A26 | dsh-ssh 家族装载 = 运行时动态 import + ctx.plugin 应用到 per-deployment isolate（惰性）；cordis.patch.yml 静态装配否决（冷启动 + 版本演进） | §2/§4.7 |
+| A26 | dsh-ssh 家族装载 = 运行时动态 import + ctx.plugin 应用到 per-deployment isolate（惰性；**双 label**——spike 修正 A：同 label 撞注册槽）；cordis.patch.yml 静态装配否决（冷启动 + 版本演进） | §2/§4.7 |
 | A27 | 执行世界快照复用 agent_sessions 现有列（remote_host = 部署 target、workdir）；零新列；部署删除后回放按快照自包含 target 直连探测，解析失败 DEPLOYMENT_NOT_READY 降级提示 | §4.1/§5.1 |
 | A28 | 桥协议兼容 = hello.caps 能力位协商 + **hello 门控（未收到 hello 禁发 sys 消息）** + sys-unsupported 显式拒绝上报（适用域 = 能力位与实现失配的兜底）+ **seq 两段语义 ack 超时降级**（`dialog-ack`/`mac-auth-ack` 回执级判能力在位；result 完成级不设短超时 + `dialog-cancel` 通道）（不引入协议版本号字段——能力位即版本面） | §4.3 |
 | A29 | 提醒/复盘/逾期三组送达权统一 CAS 原语族（reminded 0→1 / 当日去重键条件更新），桌面配套守卫 = §7.1 P2（NFR-10 前提） | §4.6 |
 | A30 | 郑重时刻判定在 host 完成动作编排路径内（完成动作发生形态触发），对面形态物理无 TTS 桥——仲裁不依赖跨形态信号 | §4.6 |
 | A31 | uiohook-napi 经插件包 dependencies 分发（prebuilds），helper dynamic import + ABI 失配降级不崩；不引入 postinstall/rebuild 面 | §2/§4.4 |
-| A32 | electron 按需获取 = **@electron/get 严格校验模式**（官方库内建镜像/缓存/checksum；**校验值 = 构建期内嵌 sha512 常量**——镜像回落只换 URL 不换校验源；原子落位 + 离线指引）；不依赖 npm electron 包 postinstall（自研下载器原案否决——供应链收敛官方单源） | §2/§3.4 |
+| A32 | electron 按需获取 = **@electron/get 严格校验模式**（官方库内建镜像/缓存/checksum；**校验值 = 构建期内嵌 sha256 常量**（原案 sha512 系笔误——@electron/get 5.1 实际校验面）——镜像回落只换 URL 不换校验源；原子落位 + 离线指引）；不依赖 npm electron 包 postinstall（自研下载器原案否决——供应链收敛官方单源） | §2/§3.4 |
 | A33 | 迟到回传 = lateReport 连接恢复时活动痕迹探测（mtime 面）→ 只增审计/账本行不改写结论；不做远端会话内容解析 | §4.7/§5.4 |
-| A34 | 新增命令 17 条（69→86——基线实数随 7986072 修正）、错误码 6 枚（15→21）、events 推送面零新增（拉式数据面维持） | §4.1/§4.2 |
+| A34 | 新增命令 16 条 + macAuthPaneOpen 1 条（总量 69→86；原设计 17 条中 taskCreate 已移除——用户裁决 2026-10-17）、错误码 6 枚（15→21）、events 推送面零新增（拉式数据面维持） | §4.1/§4.2 |
 | A35 | reminder/streak 契约场景组新增（Rust oracle = 桌面 scheduler.rs/streak_conn 纯函数抽取——只抽取不改行为，§7.1 P1/P3）；TS 侧新模块行为不进双实现契约的（deployment CRUD/provision）由插件单测锁定 | §5.2/§6 |
 | A36 | **每日备份循环（D33，主会话契约收敛新增）**：host timer 承接桌面备份循环（30min 惶 + `last_backup_date` **备份成功后条件写键**（`UPDATE … SET value=今日 WHERE value<>今日`）——写键失败不回滚、下轮读旧值自愈，失败下轮重试按此时序 + prune 滚动保留 + 空库跳过）；桌面现行落键无守卫（`backup.rs:158-162` 无条件 ON CONFLICT DO UPDATE）→ 跨形态竞态双备份定义为**良性事件**（重复文件仅多占滚动保留一档；§7.1 P4 条件更新收口）；无新命令面；U35 badge 撤销；SDD 决策表 D33 同步 | §3.2/§7.1/§8 |
 | A37 | 既有命令响应面增量：`diagnosticsSnapshot` + helperCaps/shortcutRegistered/sshFamily 三字段（签名不变、旧客户端向前兼容）；托盘 settings 动作**复用既有 `pageOpen(section:"settings")` 链，零契约变更**（`petSection.ts` 现行已支持——事实修正，原「target 枚举追加 settings」不成立） | §4.1/§8 |

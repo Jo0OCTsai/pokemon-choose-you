@@ -24,30 +24,6 @@ test("面板装载：七分段导航在位、无装载错误", async ({ page }) 
   });
 });
 
-test("新建任务：三段头入口 → create 模式 → 标题空校验 → 提交入列（草丛）", async ({ page }) => {
-  await page
-    .getByRole("button", { name: /新建任务/ })
-    .first()
-    .click();
-  const dialog = page.getByRole("dialog");
-  const form = page.getByTestId("task-create-form");
-  await expect(form).toBeVisible();
-  // 标题空提交被行内校验拦截
-  await dialog.getByRole("button", { name: "保存" }).click();
-  await expect(page.getByText("标题不能为空")).toBeVisible();
-  await page.screenshot({
-    path: join(here, "../../../specs/dsh-plugin-full-parity/reports/screenshots/e2e-02-task-create-validation.png"),
-  });
-  // 填标题提交 → 新卡入列（状态 inbox → 草丛段；入列即反馈无 toast）
-  await form.getByRole("textbox").first().fill("E2E 新建的第一只");
-  await dialog.getByRole("button", { name: "保存" }).click();
-  await page.locator('[data-segment="grass"]').click();
-  await expect(page.getByText("E2E 新建的第一只")).toBeVisible();
-  await page.screenshot({
-    path: join(here, "../../../specs/dsh-plugin-full-parity/reports/screenshots/e2e-03-task-created.png"),
-  });
-});
-
 test("日志段：过滤胶囊四选 + 分页汇总常显", async ({ page }) => {
   await page.locator('[data-segment="logs"]').click();
   await expect(page.getByText(/全部/).first()).toBeVisible();
