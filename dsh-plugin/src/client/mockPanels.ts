@@ -19,10 +19,16 @@ function deriveAgentsKey(ctx: MockContext, keys: string[] | undefined, keyValues
   }
 }
 
+/** lark 一键登录 mock（终端注入 host 面命令的内存替身） */
+async function mockLarkLoginStart(ctx: MockContext): Promise<{ ok: true; data: { ok: boolean; note: string } }> {
+  ctx.record("larkLoginStart");
+  return { ok: true, data: { ok: true, note: "lark-cli auth login --domain im --recommend" } };
+}
+
 /** 设置命令：configRead 过滤 / configWrite 校验（时钟格式 + 起止不同）+ 落库 */
 export function settingsCommands(
   ctx: MockContext,
-): Pick<HostClient, "configRead" | "configWrite" | "routeUpsert" | "larkAuth" | "larkTest"> {
+): Pick<HostClient, "configRead" | "configWrite" | "routeUpsert" | "larkAuth" | "larkTest" | "larkLoginStart"> {
   return {
     async configRead(params) {
       ctx.record("configRead", params);
@@ -65,6 +71,7 @@ export function settingsCommands(
       }
       return { ok: true, data: { identity: "训练家", chatCount: 12 } };
     },
+    larkLoginStart: () => mockLarkLoginStart(ctx),
   };
 }
 

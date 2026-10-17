@@ -238,7 +238,13 @@ export async function fetchPanelData(client: HostClient): Promise<PanelData> {
     client.panelSnapshot().catch(() => null),
   ]);
   const config = dataOf(configR, { keyValues: {} as Record<string, string> }).keyValues;
-  const links = dataOf(diagR, { links: [] as DiagnosticsLink[] }).links;
+  // 诊断兜底：links 之外的新增字段（helperCaps 等）由 HelperBanner/诊断段自行拉取呈现
+  const links = dataOf(diagR, {
+    links: [] as DiagnosticsLink[],
+    helperCaps: null,
+    shortcutRegistered: null,
+    sshFamily: null,
+  }).links;
   const snapshot = snapR?.ok === true ? snapR.data : null;
   const filters = dataOf(filtersR, { chats: [], counts: {}, lastPollAt: null });
   return {

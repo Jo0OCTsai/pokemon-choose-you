@@ -17,6 +17,7 @@ import type { SectionProps } from "../sectionProps";
 import { SectionShell } from "../SectionShell";
 import styles from "../settings.module.css";
 import { PokemonPicker, type PokemonCandidate } from "./PokemonPicker";
+import { AxPermHint, isMacPlatform } from "./AxPermHint";
 
 /** key → 当前语言名 + 名录搜索（桌面 pokemonName/searchPokemon 同源；适配层未注入搜索时本地名录兜底） */
 function usePokemonCatalog(locale: "zh-Hans" | "zh-Hant" | "en"): {
@@ -76,6 +77,31 @@ export function PetSection({
   const mainKey = draft["main_pokemon"];
   const quotesMap = parseQuotes(draft["pokemon_quotes"]);
   const quoteText = quotesMap[quotePokemon] ?? "";
+  /** 输入响应 = macOS 专属能力（D32：非 macOS 整卡隐藏——非置灰） */
+  const mac = isMacPlatform();
+  const inputResponseOn = draft["pet_input_response"] === "true";
+  /** AX 授权状态（查询 + 聚焦复查；授权是开关的伴随态） */
+  const [axGranted, setAxGranted] = useState<boolean | null>(null);
+  const [helperPath, setHelperPath] = useState("");
+  const refreshAx = useCallback(() => {
+    if (!mac) {
+      return;
+    }
+    void client.macAuthorizationStatus({ kind: "accessibility" }).then((result) => {
+      if (result.ok) {
+        setAxGranted(result.data.granted);
+        setHelperPath(result.data.helperPath);
+      }
+    });
+  }, [client, mac]);
+  useEffect(() => {
+    refreshAx();
+    // 聚焦复查（对齐桌面窗口聚焦复查语义：授权中途撤销在回到面板时被发现）
+    window.addEventListener("focus", refreshAx);
+    return () => {
+      window.removeEventListener("focus", refreshAx);
+    };
+  }, [refreshAx]);
 
   /** 台词写回：merge 该精灵的行（空文本 = 删除该 key），其他精灵保留——主应用 mergePokemonQuotes 同构 */
   function writeQuotes(key: string, text: string): void {
@@ -140,35 +166,44 @@ export function PetSection({
           onChange={(event) => writeQuotes(quotePokemon, event.target.value)}
         />
       </div>
+      {/* 输入响应卡（D32：非 macOS 整卡隐藏；badge 翻案移除——U29 dsh 自执行）+ AX 授权引导（U26） */}
+      {mac && (
+        <div className={ui.card}>
+          <h4 className={styles.cardTitle}>{t("focus.petTitle")}</h4>
+          <Toggle
+            label={t("focus.petInput")}
+            tip={t("focus.petInputDesc")}
+            checked={inputResponseOn}
+            onChange={(v) => onField("pet_input_response", String(v))}
+          />
+          <Toggle
+            label={t("focus.petInputWorking")}
+            tip={t("focus.petInputWorkingDesc")}
+            checked={draft["pet_input_response_working"] === "true"}
+            onChange={(v) => onField("pet_input_response_working", String(v))}
+          />
+          <AxPermHint
+            granted={axGranted === true}
+            revoked={inputResponseOn && axGranted === false}
+            helperPath={helperPath}
+            onAuthorize={() => {
+              void client.macAuthPaneOpen().then(refreshAx);
+            }}
+          />
+        </div>
+      )}
       <div className={ui.card}>
-        <h4 className={styles.cardTitle}>{t("focus.petTitle")}</h4>
-        <Toggle
-          label={t("focus.petInput")}
-          tip={t("focus.petInputDesc")}
-          checked={draft["pet_input_response"] === "true"}
-          onChange={(v) => onField("pet_input_response", String(v))}
-          badge={t("dsh.badge.pet")}
-        />
-        <Toggle
-          label={t("focus.petInputWorking")}
-          tip={t("focus.petInputWorkingDesc")}
-          checked={draft["pet_input_response_working"] === "true"}
-          onChange={(v) => onField("pet_input_response_working", String(v))}
-          badge={t("dsh.badge.pet")}
-        />
         <Toggle
           label={t("focus.petVoice")}
           tip={t("focus.petVoiceDesc")}
           checked={draft["pet_voice"] === "true"}
           onChange={(v) => onField("pet_voice", String(v))}
-          badge={t("dsh.badge.pet")}
         />
         <Toggle
           label={t("focus.petMate")}
           tip={t("focus.petMateDesc")}
           checked={draft["pet_mate"] === "true"}
           onChange={(v) => onField("pet_mate", String(v))}
-          badge={t("dsh.badge.pet")}
         />
       </div>
       <div className={ui.card}>

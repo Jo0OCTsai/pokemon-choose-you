@@ -1,13 +1,15 @@
 /**
  * dsh.* 增量键 · 繁體中文（按主應用繁中字典同構轉換——桌寵/圖鑑機/草叢/溜走/調頻等術語對齊）。
  */
+import deployKeys from "./dsh-zh-Hant-deploy";
+
 export default {
   page: {
     title: "圖鑑機",
     pending: "待處理 {n}",
   },
   empty: {
-    tasks: "草叢靜悄悄——在會話裡說一句，或用 ⚡發報，第一隻野生寶可夢就會出現",
+    tasks: "草叢靜悄悄——在會話裡說一句、用 ⚡發報，或直接新建第一隻",
     radio: "電波安靜。有新訊息會以計數提醒，不會打擾你",
     dispatch: "還沒有派出過 agent",
   },
@@ -75,6 +77,12 @@ export default {
     sourceDefault: "全域預設",
     redo: "重派",
     cancelQueued: "取消排隊",
+    worldDeployment: "部署 {alias}",
+    worldLine: "即將派發：{agent} · {world} · {dir}。遠端執行時模型與會話留本機。",
+    degradeDirect: "直連模式：未經 helper 摘要校驗",
+    degradeInteractive: "互動通道降級：將複製完整命令列，請自行在終端執行",
+    degradeNonPosix: "目標非 POSIX：僅支援無頭直連派發",
+    occupancy: "遠端仍有該任務的活動程序（會話 {id}）——繼續派發將共用同一 worktree 並行執行，建議先收口",
   },
   agents: {
     commandRequired: "agent 命令不能為空（填可執行檔名或絕對路徑）",
@@ -128,6 +136,9 @@ export default {
     dbModeRo: "唯讀（需升級插件）",
     guideTitle: "使用指南",
     guideLink: "docs/USER_GUIDE.md · dsh 形態章節 ↗",
+    dualFormTitle: "雙形態小貼士",
+    dualFormTip:
+      "dsh 與主應用共用同一份待辦資料與設定——同一到期任務全系統只發一條通知（雙形態自動讓位）；鄭重時刻的演出與語音只在完成動作的那一側發生；提示詞兩處可編輯，同時改動會提示並刷新到最新。",
   },
   badge: {
     mainApp: "作用於主應用",
@@ -151,5 +162,95 @@ export default {
     conflictRefreshed: "提示詞已在另一形態更新，已為你刷新到最新版",
     forceOverwrite: "已在另一處被修改——確認覆蓋？",
     forceOverwriteConfirm: "仍要覆蓋",
+  },
+  common: {
+    close: "關閉",
+  },
+  taskCreate: {
+    entry: "＋ 新建任務",
+    scheduledFor: "排期",
+  },
+  sess: {
+    group: {
+      all: "全部",
+      radio: "收音機",
+      dispatch: "派發",
+      other: "其他",
+    },
+    worldLocal: "本機",
+    worldDeployment: "部署 {alias}",
+    counts: "共 {n} 條 · 第 {page}/{pages} 頁",
+    limitLabel: "每頁條數",
+    limitN: "{n} 條/頁",
+    replay: "回放",
+    replayOpened: "已在終端面板打開回放（{world}）",
+    replayGone: "該會話的遠端部署已被移除，無法回放",
+    emptyGroup: "該分組暫無會話",
+  },
+  ...deployKeys,
+  import: {
+    entry: "匯入 JSON",
+    title: "匯入 JSON",
+    pickLabel: "選擇檔案",
+    pickHint: "選擇一個匯出的 JSON 檔案——匯入前會先校驗，並自動備份當前資料。",
+    validating: "校驗中…",
+    invalid: "檔案結構校驗未通過：{reasons}。庫內容未更動（0 行變更）。",
+    pickAnother: "換一個檔案",
+    confirmBody: "匯入將整體替換當前待辦資料（密鑰與提示詞覆蓋行保留）。已自動備份：{file}。執行後不可撤銷，請確認。",
+    counts: "檔案內容：{n} 項待辦",
+    confirmOk: "確認匯入",
+    running: "執行中…",
+    done: "已匯入 {n} 項 · 已自動備份：{file}",
+    backupFailed: "匯入前自動備份失敗：{reason}。已中止匯入，庫內容未更動。",
+  },
+  export: {
+    dirOpen: "打開匯出目錄",
+    dirOpenFailed: "打開匯出目錄失敗：{reason}（目錄已嘗試建立，可手動前往 {path}）",
+  },
+  restore: {
+    entry: "恢復",
+    fromFile: "從檔案恢復…",
+    title: "恢復備份",
+    confirmBody: "恢復「{file}」將整體替換當前庫，恢復前已自動備份當前資料。恢復後自動補跑遷移與預設分類補種。",
+    confirmOk: "確認恢復",
+    running: "執行中…",
+    rejected: "該備份版本超出本插件相容視窗，需升級插件後恢復。當前庫未更動。",
+    done: "已恢復 · 已自動備份當前資料。已自動補跑遷移與預設分類補種",
+    failed: "恢復失敗：{reason}。當前庫保持恢復前狀態",
+  },
+  ax: {
+    guide: "輸入響應需要「輔助功能」授權，且只統計按鍵頻率——不記錄鍵值、鍵名、視窗或應用。",
+    revoked: "授權已失效，需重新授權。授權恢復前輸入響應保持停止",
+    pathHint: "若列表中找不到，把此路徑拖入或複製後 ⌘⇧G 定位：{path}（點擊複製）",
+    authorize: "去授權",
+    copyPath: "點擊複製路徑",
+  },
+  helper: {
+    banner: "系統能力面降級：桌寵與系統通知暫不可用（helper 未執行）。核心待辦不受影響",
+    viewDiag: "查看診斷",
+  },
+  diag: {
+    capsTitle: "系統能力面",
+    caps: {
+      tray: "托盤",
+      shortcut: "全域快捷鍵",
+      notify: "通知",
+      dialog: "檔案對話框",
+      tts: "語音",
+      input: "輸入計數",
+      ok: "可用",
+      degraded: "降級",
+      guide: "依賴 helper sidecar——恢復 helper 後自動恢復",
+      absent: "helper 未執行——全部能力降級；可從插件安裝目錄重新啟動 helper",
+      version: "helper 執行時：{v}",
+    },
+    shortcutFailed: "全域快捷鍵註冊失敗（可能被佔用）——面板聚焦時 ⌘⇧K 仍可快捕",
+    sshOk: "dsh-ssh 家族：就緒",
+    sshMissing: "dsh-ssh 家族：未裝載——遠端派發需要它（裝載指引：{cmd}）",
+  },
+  lark: {
+    login: "授權登入（在終端面板完成 lark-cli 登入）",
+    launched: "已在終端面板啟動登入，請到終端完成授權",
+    launchFailed: "登入啟動失敗：{reason}",
   },
 } as const;

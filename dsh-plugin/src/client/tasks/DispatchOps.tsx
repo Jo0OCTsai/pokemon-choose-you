@@ -3,15 +3,26 @@
  * 时）+ agent 徽章（SSH 标注）+ 工作目录 + ⚡出发（running/queued 禁用）；排队中/执行中
  * 另有手动收口行（标记完成/失败/重置——agent 未回传时的救援）。无项目标签/无可用 agent
  * 给引导 hint；DISPATCH_ALREADY_ACTIVE 中性提示不弹窗。
- * 呈现拆件 → DispatchRow.tsx（状态徽章/收口行/派发行 + 派生 helper）。
+ * full-parity 增量（U31/U32）：执行世界行 + 降级三枚举明示 + 占用探测条件行（纯呈现，
+ * 交互不变——世界 = 路由 deployment 别名解析；占用/交互降级/非 POSIX 数据面由 host 派发
+ * 期回填，client 侧先以条件行组件承接）。
+ * 呈现拆件 → DispatchRow.tsx（状态徽章/收口行/派发行 + 世界行 + 派生 helper）。
  */
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import type { Task } from "../../host/domain/tasks";
 import { useClient } from "../clientContext";
 import { useT } from "../i18n";
 import type { PanelData } from "../model";
 import ui from "../ui/ui.module.css";
-import { DispatchBody, MarkRow, StateBadge } from "./DispatchRow";
+import {
+  DispatchBody,
+  DispatchWorldNotes,
+  MarkRow,
+  StateBadge,
+  resolveChosen,
+  workdirText,
+  type DispatchWorldInfo,
+} from "./DispatchRow";
 import styles from "./tasks.module.css";
 
 type Channel = "interactive" | "headless";
@@ -38,6 +49,40 @@ export function DispatchOps({
   /** 改选值（预填路由解析结果；空串 = 跟随路由/全局默认） */
   const [agentId, setAgentId] = useState(route?.agentId ?? "");
   const agents = (data.agents ?? []).filter((a) => a.enabled);
+  /** 部署列表（执行世界行解析；拉一次） */
+  const [deployments, setDeployments] = useState<import("../rpc").DeploymentListResult | null>(null);
+  useEffect(() => {
+    void client.deploymentList().then((result) => {
+      if (result.ok) {
+        setDeployments(result.data);
+      }
+    });
+  }, [client]);
+
+  /** 执行世界信息（路由 deployment 别名 → 部署解析；本机/未解析不整组渲染） */
+  const worldInfo: DispatchWorldInfo = useMemo(() => {
+    const none: DispatchWorldInfo = {
+      world: null,
+      occupancySessionId: null,
+      interactiveDegraded: false,
+      nonPosix: false,
+    };
+    const alias = route?.deployment ?? "";
+    if (alias === "") {
+      return none;
+    }
+    const dep = deployments?.deployments.find((d) => d.alias === alias);
+    if (dep === undefined) {
+      return none;
+    }
+    return {
+      world: { kind: "deployment", alias, degraded: dep.degraded && dep.status === "ready" },
+      occupancySessionId: null,
+      interactiveDegraded: false,
+      nonPosix: false,
+    };
+  }, [route, deployments]);
+  const chosen = resolveChosen(agents, agentId, route);
 
   async function dispatch(): Promise<void> {
     setBusy(true);
@@ -98,6 +143,11 @@ export function DispatchOps({
         onChannel={setChannel}
         onAgent={setAgentId}
         onDispatch={() => void dispatch()}
+      />
+      <DispatchWorldNotes
+        info={worldInfo}
+        agentName={chosen?.name ?? route?.agentId ?? ""}
+        workdir={workdirText(route, t)}
       />
       {conflict !== null && (
         <div role="status" className={ui.muted}>

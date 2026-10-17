@@ -73,12 +73,14 @@ export interface FollowupNote {
   createdAt: string;
 }
 
-/** 项目派发路由（dsh:dispatch_routes 以项目标签名为键，A13） */
+/** 项目派发路由（dsh:dispatch_routes 以项目标签名为键，A13；
+ *  full-parity 增量可选 deployment = 执行世界部署别名——旧路由无此字段 = 本机） */
 export interface DispatchRoute {
   tag: string;
   agentId: string;
   workdir: string;
   context: string;
+  deployment?: string;
 }
 
 /** 待办库状态（dbStatus；mode=ro 时面板进只读） */
@@ -136,4 +138,85 @@ export interface BackupInfo {
   size: number;
   /** 备份时间（本地时区 RFC3339，取文件修改时间） */
   createdAt: string;
+}
+
+// ---- full-parity 客户端视图模型（AD §4.1 增量契约的呈现面） ----
+
+/** 部署列表响应（deploymentList）：实体 + 三档计数 */
+export interface DeploymentListResult {
+  deployments: import("./rpcTypes").DeploymentEntity[];
+  counts: { ready: number; pending: number; broken: number };
+}
+
+/** 会话分组四选（M9 归组：classify/capture→radio、dispatch_*→dispatch、pk→other、未知仅入 all） */
+export type SessionGroup = "all" | "radio" | "dispatch" | "other";
+
+/** 回放路由结果（sessionReplay；快照压过当前配置） */
+export interface SessionReplayRouted {
+  world: "local" | { deploymentAlias: string };
+  note?: string;
+}
+
+/** 导入文件结构预检摘要（importValidate；reasons = 校验失败原因列表，0 行变更） */
+export interface ImportSummary {
+  app: string;
+  schemaVersion: number;
+  counts: Record<string, number>;
+  compatible: boolean;
+  /** 校验失败原因（整体拒绝呈现；空数组 = 通过） */
+  reasons?: string[];
+  /** 前置自动备份将落的文件名（确认弹层实文件名呈现；host 侧在 validate 期给出） */
+  backupFile?: string;
+}
+
+/** 导入执行结果（importRun：前置备份 → 整体替换；applied = 变更计数） */
+export interface ImportRunResult {
+  backupId: string;
+  applied: number;
+}
+
+/** 恢复执行结果（restoreRun：备份 → 补跑迁移 + 默认分类补种） */
+export interface RestoreRunResult {
+  backupId: string;
+  migratedTo: number;
+  seeded: number;
+}
+
+/** dsh-ssh 家族探测呈现投影（diagnosticsSnapshot.sshFamily；detail = 装载指引命令） */
+export interface SshFamilyView {
+  ok: boolean;
+  detail?: string | null;
+}
+
+/** diagnosticsSnapshot 增量载荷（AD §4.1 既有命令响应面增量，签名不变——旧字段缺省兼容） */
+export interface DiagnosticsSnapshotData {
+  links: DiagnosticsLink[];
+  /** hello.caps 能力位矩阵（null = helper 未运行/hello 未达 → HelperBanner + 矩阵全降级） */
+  helperCaps: Record<string, boolean> | null;
+  /** 全局快捷键启动期注册结果（null = 未知；false 才显行） */
+  shortcutRegistered: boolean | null;
+  /** dsh-ssh 家族探测投影（null = 未知不显行） */
+  sshFamily: SshFamilyView | null;
+  /** helper 运行时版本（可选——矩阵「运行时来源与版本」行；null 不显） */
+  helperVersion?: string | null;
+}
+
+/** helper 能力矩阵六行呈现位 → hello.caps 能力位键（纪要④：8 位归并六行呈现） */
+export const HELPER_CAP_ROWS: ReadonlyArray<{ id: string; cap: string }> = [
+  { id: "tray", cap: "sys-tray" },
+  { id: "shortcut", cap: "sys-shortcut" },
+  { id: "notify", cap: "sys-notify" },
+  { id: "dialog", cap: "sys-dialog" },
+  { id: "tts", cap: "sys-tts" },
+  { id: "input", cap: "input-count" },
+];
+
+/**
+ * 错误码等值判定（envelope.code 对未入 ERROR_CODES 枚举的码宽收比较——
+ * full-parity 增量码（DEPLOYMENT_NOT_READY/PROVISION_STEP_FAILED/HELPER_HASH_MISMATCH/
+ * HELPER_CAPABILITY_MISSING）由任务 2.9 归 PROTOCOL §2 单源扩容，客户端先经此宽面判定，
+ * 枚举扩容后行为不变）。
+ */
+export function isErrorCode(error: { code: string } | null | undefined, code: string): boolean {
+  return error !== null && error !== undefined && error.code === code;
 }

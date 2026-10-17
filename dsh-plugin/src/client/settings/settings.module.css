@@ -670,25 +670,7 @@
 /* LogViewer（桌面 LogViewer 同构：元数据一行（时间/级别/来源）+ message 独立一行全宽）
  * specs/dsh-plugin-style T2#13：日志屏 = LCD 签名位（分页制不滚动，静框可直接承载扫描线；
  * 时间戳走 --pcy-lcd-dim 4.7/5.1:1——不得用内阴影色 --pcy-lcd-dark 1.2~1.5:1） */
-.logList {
-  position: relative;
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
-  border: 1.5px solid var(--dsw-alias-label-primary, #1f2328);
-  border-radius: 10px;
-  background: var(--pcy-lcd, #c4cfa1);
-  color: var(--pcy-lcd-text, #3a4a32);
-  box-shadow: inset 2px 2px 0 var(--pcy-lcd-dark, #9caa86);
-  padding: 10px 12px;
-}
-.logList::after {
-  content: "";
-  position: absolute;
-  inset: 0;
-  pointer-events: none;
-  background: repeating-linear-gradient(0deg, rgba(0, 0, 0, 0.05) 0 2px, transparent 2px 4px);
-}
+/* LCD 日志屏容器 = ui/LcdScreen 单源组件（.lcd，ui.module.css）——本文件只保留屏内行样式 */
 .logRow {
   display: flex;
   flex-direction: column;
@@ -831,4 +813,141 @@
   outline: 2px solid var(--dsw-alias-state-business-primary, #316dca);
   outline-offset: 1px;
   border-radius: 4px;
+}
+
+/* ---- full-parity 增量（U25 导入/恢复 + 双形态小贴士） ---- */
+/* 文件选择承接件（视觉隐藏但可聚焦可点——键盘可达） */
+.hiddenFileInput {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+}
+.importPickButton {
+  box-sizing: border-box;
+  min-height: var(--pcy-control-h, 32px);
+  padding: 4px 12px;
+  border-radius: 8px;
+  border: 1.5px solid var(--dsw-alias-label-primary, #1f2328);
+  background: var(--pcy-running, #ffcb05);
+  color: #1a1b25;
+  font-weight: 700;
+  font-size: 13px;
+  box-shadow: 2px 2px 0 var(--dsw-alias-label-primary, #1f2328);
+  cursor: pointer;
+}
+.importPickButton:active {
+  transform: translate(1px, 1px);
+  box-shadow: 1px 1px 0 var(--dsw-alias-label-primary, #1f2328);
+}
+.importCounts {
+  margin: 4px 0 0;
+  font-size: 12px;
+  color: var(--dsw-alias-label-secondary, #57606a);
+}
+.dualFormTip {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.8;
+  color: var(--dsw-alias-label-secondary, #57606a);
+}
+
+/* ---- AX 授权引导块（U26：输入响应卡的授权门槛伴随态） ---- */
+.axPermHint {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+  margin-top: 6px;
+  padding: 10px 12px;
+  border: 1.5px dashed var(--dsw-alias-border-l3, #c7cdd4);
+  border-radius: 8px;
+  font-size: 12px;
+  line-height: 1.7;
+  color: var(--dsw-alias-label-secondary, #57606a);
+}
+.axPermHint p {
+  margin: 0;
+}
+.axPermRevoked {
+  color: var(--pcy-danger, #b3590f);
+  font-weight: 700;
+}
+.axPermPathRow {
+  align-self: stretch;
+}
+.axPermPath {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 11px;
+  text-align: left;
+  background: none;
+  border: 1px solid var(--dsw-alias-border-l3, #c7cdd4);
+  border-radius: 4px;
+  padding: 4px 8px;
+  color: var(--dsw-alias-label-primary, #1f2328);
+  word-break: break-all;
+  cursor: copy;
+  min-height: 32px;
+}
+.axPermPathHint {
+  font-size: 11px;
+}
+
+/* ---- helper 能力矩阵 / 快捷键行 / SSH 家族行（U30） ---- */
+.capList {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.capRow {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  padding: 5px 0;
+  font-size: 13px;
+  border-bottom: 1px solid var(--dsw-alias-border-l1, #e3e7ec);
+  flex-wrap: wrap;
+}
+.capDot {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  border: 1.5px solid var(--dsw-alias-label-primary, #1f2328);
+  flex: none;
+  align-self: center;
+}
+.capDot[data-ok="true"] {
+  background: var(--pcy-ok, #2f7d3c);
+}
+.capDot[data-ok="false"] {
+  background: transparent;
+  border-style: dashed;
+}
+.capState {
+  margin-left: auto;
+  font-size: 12px;
+  color: var(--dsw-alias-label-secondary, #57606a);
+}
+.capGuide {
+  flex-basis: 100%;
+  font-size: 11px;
+  color: var(--dsw-alias-label-secondary, #57606a);
+}
+.capVersion {
+  margin: 8px 0 0;
+  font-size: 11px;
+  color: var(--dsw-alias-label-secondary, #57606a);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}
+.shortcutLine {
+  margin: 0;
+  font-size: 12px;
+  color: var(--pcy-danger, #b3590f);
+}
+.sshLine {
+  margin: 4px 0 0;
+  font-size: 12px;
+  color: var(--dsw-alias-label-secondary, #57606a);
 }

@@ -1,10 +1,12 @@
 /**
- * mockHost 命令组 · 诊断/桌宠/通用/专注：diagnosticsSnapshot、supportReport（脱敏文本）、
- * logQuery（级别/来源过滤 + 分页）、petShow/petHide/petStatus/petMove、dbStatus、pomoTryFive。
+ * mockHost 命令组 · 诊断/桌宠/通用/专注：diagnosticsSnapshot（links + full-parity 增量
+ * helperCaps/shortcutRegistered/sshFamily/helperVersion）、supportReport（脱敏文本）、
+ * logQuery（级别/来源过滤 + 分页）、petShow/petHide/petStatus/petMove、dbStatus、pomoTryFive、
+ * macAuthorizationStatus/macAuthPaneOpen（AX 授权引导数据面）。
  */
 import { PkyError } from "../host/storage/errors";
 import type { HostClient } from "./rpc";
-import type { LogEntry } from "./rpcTypes";
+import type { DiagnosticsSnapshotData, LogEntry } from "./rpcTypes";
 import type { MockContext } from "./mockHost";
 
 /** 诊断与支持报告 */
@@ -12,7 +14,14 @@ export function diagCommands(ctx: MockContext): Pick<HostClient, "diagnosticsSna
   return {
     async diagnosticsSnapshot() {
       ctx.record("diagnosticsSnapshot");
-      return { ok: true, data: { links: ctx.state.diagnostics } };
+      const data: DiagnosticsSnapshotData = {
+        links: ctx.state.diagnostics,
+        helperCaps: ctx.state.helperCaps,
+        shortcutRegistered: ctx.state.shortcutRegistered,
+        sshFamily: ctx.state.sshFamily,
+        helperVersion: ctx.state.helperVersion,
+      };
+      return { ok: true, data };
     },
     async supportReport() {
       ctx.record("supportReport");
@@ -42,28 +51,60 @@ export function logCommands(ctx: MockContext): Pick<HostClient, "logQuery"> {
   };
 }
 
-/** 桌宠与杂项（petShow/Hide/Status/Move + dbStatus + pomoTryFive + 收音机手动拉取） */
+function mockPollNow(ctx: MockContext): Awaited<ReturnType<HostClient["pollNow"]>> {
+  ctx.record("pollNow");
+  if (!ctx.state.larkAuthorized) {
+    return { ok: false, error: new PkyError("LARK_UNAUTHORIZED", "飞书未授权，轮询已暂停").toShape() };
+  }
+  return { ok: true, data: ctx.state.health };
+}
+
+function mockPetRunning(
+  ctx: MockContext,
+  command: "petShow" | "petHide",
+  running: boolean,
+): { ok: true; data: { ok: true } } {
+  ctx.record(command);
+  ctx.state.petRunning = running;
+  return { ok: true, data: { ok: true } };
+}
+
+function mockMacAuthorizationStatus(
+  ctx: MockContext,
+  params?: { kind?: string },
+): Awaited<ReturnType<HostClient["macAuthorizationStatus"]>> {
+  ctx.record("macAuthorizationStatus", params);
+  if (params?.kind !== "accessibility") {
+    return { ok: false, error: new PkyError("INVALID_ARGUMENT", `未知授权类型 ${String(params?.kind)}`).toShape() };
+  }
+  return { ok: true, data: { ...ctx.state.macAuth } };
+}
+
+/** 桌宠与杂项（petShow/Hide/Status/Move + dbStatus + pomoTryFive + 收音机手动拉取 + AX 授权面） */
 export function miscCommands(
   ctx: MockContext,
-): Pick<HostClient, "petShow" | "petHide" | "petStatus" | "petMove" | "dbStatus" | "pomoTryFive" | "pollNow"> {
+): Pick<
+  HostClient,
+  | "petShow"
+  | "petHide"
+  | "petStatus"
+  | "petMove"
+  | "dbStatus"
+  | "pomoTryFive"
+  | "pollNow"
+  | "macAuthorizationStatus"
+  | "macAuthPaneOpen"
+> {
   return {
     async pollNow() {
-      ctx.record("pollNow");
-      if (!ctx.state.larkAuthorized) {
-        return { ok: false, error: new PkyError("LARK_UNAUTHORIZED", "飞书未授权，轮询已暂停").toShape() };
-      }
-      return { ok: true, data: ctx.state.health };
+      return await mockPollNow(ctx);
     },
 
     async petShow() {
-      ctx.record("petShow");
-      ctx.state.petRunning = true;
-      return { ok: true, data: { ok: true } };
+      return mockPetRunning(ctx, "petShow", true);
     },
     async petHide() {
-      ctx.record("petHide");
-      ctx.state.petRunning = false;
-      return { ok: true, data: { ok: true } };
+      return mockPetRunning(ctx, "petHide", false);
     },
     async petStatus() {
       ctx.record("petStatus");
@@ -79,6 +120,13 @@ export function miscCommands(
     },
     async pomoTryFive(params) {
       ctx.record("pomoTryFive", params);
+      return { ok: true, data: { ok: true } };
+    },
+    async macAuthorizationStatus(params) {
+      return await mockMacAuthorizationStatus(ctx, params);
+    },
+    async macAuthPaneOpen() {
+      ctx.record("macAuthPaneOpen");
       return { ok: true, data: { ok: true } };
     },
   };

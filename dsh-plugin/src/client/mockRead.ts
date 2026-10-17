@@ -87,10 +87,40 @@ function mockTaskDetail(ctx: MockContext, task: MockContext["state"]["tasks"][nu
   };
 }
 
-/** 实体读命令组（panelSnapshot 聚合 + 按需懒载） */
+/** 图鉴连胜 mock（streakInfo：内存版 streakEval 镜像 + 下一里程碑） */
+async function mockStreakInfo(
+  ctx: MockContext,
+): Promise<{ ok: true; data: { days: number; todayCount: number; nextMilestone?: number } }> {
+  ctx.record("streakInfo");
+  const today = mockToday();
+  const doneDays = new Set(
+    ctx.state.tasks
+      .filter((t) => t.status === "done" && t.completedAt !== null)
+      .map((t) => t.completedAt!.slice(0, 10)),
+  );
+  let days = 0;
+  let grace = 1;
+  const cursor = new Date(`${today}T00:00:00Z`);
+  for (let i = 0; i < 400; i += 1) {
+    const day = cursor.toISOString().slice(0, 10);
+    if (doneDays.has(day)) {
+      days += 1;
+    } else if (grace > 0) {
+      grace -= 1;
+    } else {
+      break;
+    }
+    cursor.setUTCDate(cursor.getUTCDate() - 1);
+  }
+  const todayCount = ctx.state.tasks.filter((t) => t.status === "done" && t.completedAt?.slice(0, 10) === today).length;
+  const next = [10, 50, 100, 200, 500, 1000].find((m) => m > days);
+  return { ok: true, data: next === undefined ? { days, todayCount } : { days, todayCount, nextMilestone: next } };
+}
+
+/** 实体读命令组（panelSnapshot 聚合 + 按需懒载 + 图鉴连胜） */
 export function readCommands(
   ctx: MockContext,
-): Pick<HostClient, "panelSnapshot" | "taskDetail" | "taskSearch" | "todayTasks" | "categoriesList"> {
+): Pick<HostClient, "panelSnapshot" | "taskDetail" | "taskSearch" | "todayTasks" | "categoriesList" | "streakInfo"> {
   return {
     async panelSnapshot() {
       ctx.record("panelSnapshot");
@@ -117,6 +147,7 @@ export function readCommands(
       ctx.record("categoriesList");
       return { ok: true, data: { categories: ctx.state.categories } };
     },
+    streakInfo: () => mockStreakInfo(ctx),
   };
 }
 

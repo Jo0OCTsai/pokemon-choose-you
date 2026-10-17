@@ -2,13 +2,15 @@
  * dsh.* 增量键 · 简体中文（源文案，uiux-design.md §8 全表）。与主应用共享语义的键
  * 复用主应用字典（经 @app-i18n 直引，装配见 index.ts），此处只放 dsh 形态专属键。
  */
+import deployKeys from "./dsh-zh-Hans-deploy";
+
 export default {
   page: {
     title: "图鉴机",
     pending: "待处理 {n}",
   },
   empty: {
-    tasks: "草丛静悄悄——在会话里说一句，或用 ⚡发报，第一只野生宝可梦就会出现",
+    tasks: "草丛静悄悄——在会话里说一句、用 ⚡发报，或直接新建第一只",
     radio: "电波安静。有新消息会以计数提醒，不会打扰你",
     dispatch: "还没有派出过 agent",
   },
@@ -75,6 +77,12 @@ export default {
     sourceDefault: "全局默认",
     redo: "重派",
     cancelQueued: "取消排队",
+    worldDeployment: "部署 {alias}",
+    worldLine: "即将派发：{agent} · {world} · {dir}。远端执行时模型与会话留本机。",
+    degradeDirect: "直连模式：未经 helper 摘要校验",
+    degradeInteractive: "交互通道降级：将复制完整命令行，请自行在终端运行",
+    degradeNonPosix: "目标非 POSIX：仅支持无头直连派发",
+    occupancy: "远端仍有该任务的活动进程（会话 {id}）——继续派发将共用同一 worktree 并行运行，建议先收口",
   },
   agents: {
     commandRequired: "agent 命令不能为空（填可执行文件名或绝对路径）",
@@ -128,6 +136,9 @@ export default {
     dbModeRo: "只读（需升级插件）",
     guideTitle: "使用指南",
     guideLink: "docs/USER_GUIDE.md · dsh 形态章节 ↗",
+    dualFormTitle: "双形态小贴士",
+    dualFormTip:
+      "dsh 与主应用共用同一份待办数据与设置——同一到期任务全系统只发一条通知（双形态自动让位）；郑重时刻的演出与语音只在完成动作的那一侧发生；提示词两处可编辑，同时改动会提示并刷新到最新。",
   },
   badge: {
     mainApp: "作用于主应用",
@@ -151,5 +162,95 @@ export default {
     conflictRefreshed: "提示词已在另一形态更新，已为你刷新为最新版",
     forceOverwrite: "已在另一处被修改——确认覆盖？",
     forceOverwriteConfirm: "仍要覆盖",
+  },
+  common: {
+    close: "关闭",
+  },
+  taskCreate: {
+    entry: "＋ 新建任务",
+    scheduledFor: "排期",
+  },
+  sess: {
+    group: {
+      all: "全部",
+      radio: "收音机",
+      dispatch: "派发",
+      other: "其他",
+    },
+    worldLocal: "本机",
+    worldDeployment: "部署 {alias}",
+    counts: "共 {n} 条 · 第 {page}/{pages} 页",
+    limitLabel: "每页条数",
+    limitN: "{n} 条/页",
+    replay: "回放",
+    replayOpened: "已在终端面板打开回放（{world}）",
+    replayGone: "该会话的远程部署已被移除，无法回放",
+    emptyGroup: "该分组暂无会话",
+  },
+  ...deployKeys,
+  import: {
+    entry: "导入 JSON",
+    title: "导入 JSON",
+    pickLabel: "选择文件",
+    pickHint: "选择一个导出的 JSON 文件——导入前会先校验，并自动备份当前数据。",
+    validating: "校验中…",
+    invalid: "文件结构校验未通过：{reasons}。库内容未改动（0 行变更）。",
+    pickAnother: "换一个文件",
+    confirmBody: "导入将整体替换当前待办数据（秘钥与提示词覆盖行保留）。已自动备份：{file}。执行后不可撤销，请确认。",
+    counts: "文件内容：{n} 项待办",
+    confirmOk: "确认导入",
+    running: "执行中…",
+    done: "已导入 {n} 项 · 已自动备份：{file}",
+    backupFailed: "导入前自动备份失败：{reason}。已中止导入，库内容未改动。",
+  },
+  export: {
+    dirOpen: "打开导出目录",
+    dirOpenFailed: "打开导出目录失败：{reason}（目录已尝试创建，可手动前往 {path}）",
+  },
+  restore: {
+    entry: "恢复",
+    fromFile: "从文件恢复…",
+    title: "恢复备份",
+    confirmBody: "恢复「{file}」将整体替换当前库，恢复前已自动备份当前数据。恢复后自动补跑迁移与默认分类补种。",
+    confirmOk: "确认恢复",
+    running: "执行中…",
+    rejected: "该备份版本超出本插件兼容窗口，需升级插件后恢复。当前库未改动。",
+    done: "已恢复 · 已自动备份当前数据。已自动补跑迁移与默认分类补种",
+    failed: "恢复失败：{reason}。当前库保持恢复前状态",
+  },
+  ax: {
+    guide: "输入响应需要「辅助功能」授权，且只统计按键频率——不记录键值、键名、窗口或应用。",
+    revoked: "授权已失效，需重新授权。授权恢复前输入响应保持停止",
+    pathHint: "若列表中找不到，把此路径拖入或复制后 ⌘⇧G 定位：{path}（点击复制）",
+    authorize: "去授权",
+    copyPath: "点击复制路径",
+  },
+  helper: {
+    banner: "系统能力面降级：桌宠与系统通知暂不可用（helper 未运行）。核心待办不受影响",
+    viewDiag: "查看诊断",
+  },
+  diag: {
+    capsTitle: "系统能力面",
+    caps: {
+      tray: "托盘",
+      shortcut: "全局快捷键",
+      notify: "通知",
+      dialog: "文件对话框",
+      tts: "语音",
+      input: "输入计数",
+      ok: "可用",
+      degraded: "降级",
+      guide: "依赖 helper sidecar——恢复 helper 后自动恢复",
+      absent: "helper 未运行——全部能力降级；可从插件安装目录重新启动 helper",
+      version: "helper 运行时：{v}",
+    },
+    shortcutFailed: "全局快捷键注册失败（可能被占用）——面板聚焦时 ⌘⇧K 仍可快捕",
+    sshOk: "dsh-ssh 家族：就绪",
+    sshMissing: "dsh-ssh 家族：未装载——远程派发需要它（装载指引：{cmd}）",
+  },
+  lark: {
+    login: "授权登录（在终端面板完成 lark-cli 登录）",
+    launched: "已在终端面板启动登录，请到终端完成授权",
+    launchFailed: "登录启动失败：{reason}",
   },
 } as const;

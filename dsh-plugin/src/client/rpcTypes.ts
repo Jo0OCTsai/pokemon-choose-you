@@ -3,8 +3,8 @@
  * 69 命令 HostClient。客户端视图模型见 rpcViews.ts（本文件再出口）；rpc.ts 为统一
  * 再出口（消费面不变）。
  */
-import type { ErrorCode, PkyResult } from "../host/storage/errors";
-import type { Task, TaskNote, TaskLog, TaskPatch } from "../host/domain/tasks";
+import type { PkyResult } from "../host/storage/errors";
+import type { ManualTaskCreateInput, Task, TaskNote, TaskLog, TaskPatch } from "../host/domain/tasks";
 import type { AgentConfig } from "../host/domain/settings";
 import type { PromptSpecInfo } from "../host/domain/prompt-overrides";
 import type { Category } from "../host/domain/vocabulary";
@@ -14,49 +14,43 @@ export type { TagCheckupReport } from "../host/domain/tag-health";
 import type { FilterItem, FilterState } from "../host/domain/vocabulary-filters";
 import type { PanelSnapshot, TaskDetail } from "../host/commands/readCommands";
 export type { PanelSnapshot, TaskDetail } from "../host/commands/readCommands";
+// full-parity 增量契约类型（host 纯逻辑模块单源，type-only 引——AD §4.1）
+import type { DeploymentDeleteResult, DeploymentEntity, DeploymentUpsertInput } from "../host/remote/deployments";
+import type { ProvisionErrorTag, ProvisionStatus, ProvisionStep } from "../host/remote/provision";
+import type { SessionPageResult, SessionRow } from "../host/dispatch/sessions";
+export type {
+  ManualTaskCreateInput,
+  DeploymentDeleteResult,
+  DeploymentEntity,
+  DeploymentUpsertInput,
+  ProvisionErrorTag,
+  ProvisionStatus,
+  ProvisionStep,
+  SessionPageResult,
+  SessionRow,
+};
 // 客户端视图模型 + 逃走原因码（rpcViews 拆件；再出口保消费面 import 不变）
 export * from "./rpcViews";
+export { ERROR_CODES, _ERROR_CODE_ASSERTION } from "./rpcErrorCodes";
 import type {
   BackupInfo,
   BatchReviewOutcome,
   CaptureResult,
   DbStatus,
-  DiagnosticsLink,
+  DeploymentListResult,
+  DiagnosticsSnapshotData,
   DispatchRoute,
   DispatchView,
   EscapeReasonCode,
+  ImportRunResult,
+  ImportSummary,
   LarkTestResult,
   LogEntry,
   RadioHealth,
+  RestoreRunResult,
+  SessionGroup,
+  SessionReplayRouted,
 } from "./rpcViews";
-
-// ---- 错误码（15 枚举；与 host/storage/errors ERROR_CODES 逐字一致——类型级双向断言） ----
-
-/** 15 个业务错误码（uiux 契约需求面交互状态表单源） */
-export const ERROR_CODES = [
-  "JUDGE_TIMEOUT",
-  "JUDGE_INVALID_RESULT",
-  "LARK_FETCH_FAILED",
-  "LARK_UNAUTHORIZED",
-  "DISPATCH_TIMEOUT",
-  "DISPATCH_LAUNCH_FAILED",
-  "DB_SCHEMA_TOO_NEW",
-  "DSH_VERSION_UNSUPPORTED",
-  "SSH_AUTH_REQUIRED",
-  "SUGGESTION_ALREADY_RESOLVED",
-  "DISPATCH_ALREADY_ACTIVE",
-  "CONFIG_VALIDATION_FAILED",
-  "AGENT_COMMAND_INVALID",
-  "PROMPT_VALIDATION_FAILED",
-  "SETTING_MODIFIED_ELSEWHERE",
-] as const satisfies readonly ErrorCode[];
-
-/** 双向集合相等断言：本表 ⊇ host 表 且 host 表 ⊆ 本表（漂移即编译红） */
-type _AssertCoversHost = Exclude<ErrorCode, (typeof ERROR_CODES)[number]>;
-type _AssertNoExtra = Exclude<(typeof ERROR_CODES)[number], ErrorCode>;
-type _AssertExact = [_AssertCoversHost] extends [never] ? ([_AssertNoExtra] extends [never] ? true : never) : never;
-/** 编译期锚点（导出防 noUnusedLocals；断言通过时为 true，漂移时 never 拒绝赋值） */
-export const _ERROR_CODE_ASSERTION: _AssertExact = true;
 
 // ---- 69 个 client→host RPC 命令（AD §4.1.1 表逐行 + 实体读域 5 条 + 备份/导出域 3 条 + 标签体检 3 条 + 桌宠显隐状态 1 条） ----
 
@@ -78,6 +72,8 @@ export interface HostClient {
   taskReschedule(params: { taskId: number; due?: string }): Promise<PkyResult<Task>>;
   /** 全字段编辑（桌面 TaskEditModal 同位；域内含 diff 审计） */
   taskUpdate(params: TaskPatch): Promise<PkyResult<Task>>;
+  /** 面板手动新建（FR-C1 / AD §4.1 taskCreate；状态 = 排期?scheduled:inbox） */
+  taskCreate(params: ManualTaskCreateInput): Promise<PkyResult<Task>>;
   /** 添加跟进记录（source=manual） */
   taskNoteAdd(params: { taskId: number; content: string }): Promise<PkyResult<TaskNote>>;
   /** 删除跟进记录（幂等） */
@@ -186,7 +182,7 @@ export interface HostClient {
   }): Promise<PkyResult<{ spec: PromptSpecInfo; unknownPlaceholders: string[] }>>;
   promptReset(params: { key: string; expectedValue?: string; force?: boolean }): Promise<PkyResult<PromptSpecInfo>>;
   // 诊断
-  diagnosticsSnapshot(): Promise<PkyResult<{ links: DiagnosticsLink[] }>>;
+  diagnosticsSnapshot(): Promise<PkyResult<DiagnosticsSnapshotData>>;
   supportReport(): Promise<PkyResult<{ text: string }>>;
   logQuery(params: {
     minLevel?: LogEntry["level"];
@@ -202,6 +198,55 @@ export interface HostClient {
   petMove(params: { pos: { x: number; y: number } }): Promise<PkyResult<{ ok: boolean }>>;
   // 通用
   dbStatus(): Promise<PkyResult<DbStatus>>;
+  // ---- full-parity 增量命令（AD §4.1 新 17 条中的 UI 消费面；streakInfo/larkLoginStart 随 2.9 装配补型） ----
+  // 图鉴连胜（FR-B3 数据面：days/todayCount + 下一连胜里程碑阈值）
+  streakInfo(): Promise<PkyResult<{ days: number; todayCount: number; nextMilestone?: number }>>;
+  // lark 一键登录（FR-C3：终端注入登录命令；登录态查询沿用 larkTest/larkAuth）
+  larkLoginStart(): Promise<PkyResult<{ ok: boolean; note: string }>>;
+  // 会话（FR-C2：分组四选 + limit 钳 1–100 默认 20 + id 倒序；counts 不随翻页变化）
+  sessionsPage(params?: {
+    group?: SessionGroup;
+    limit?: number;
+    offset?: number;
+  }): Promise<PkyResult<SessionPageResult>>;
+  /** 行内回放（快照压过当前配置；部署已删/未就绪 → DEPLOYMENT_NOT_READY） */
+  sessionReplay(params: { rowId: number }): Promise<PkyResult<{ routed: SessionReplayRouted }>>;
+  // 远程部署（FR-RD1/RD2 · D31）
+  deploymentList(): Promise<PkyResult<DeploymentListResult>>;
+  /** 新增（无 id，保存后草稿→未就绪）/ 编辑（回落未就绪 + 提示重跑向导） */
+  deploymentUpsert(params: DeploymentUpsertInput): Promise<PkyResult<{ deployment: DeploymentEntity }>>;
+  /** 移除 = 关连接 + 远端 helper 托管自清理尽力执行（失败不阻塞） */
+  deploymentDelete(params: { id: string }): Promise<PkyResult<DeploymentDeleteResult>>;
+  /** 手动重连复核（断开态入口；结果落实体状态呈现） */
+  deploymentRecheck(params: { id: string }): Promise<PkyResult<{ deployment: DeploymentEntity }>>;
+  /** 开通向导单步执行（客户端步进驱动；已完成步骤跳过） */
+  provisionRun(params: { id: string }): Promise<PkyResult<{ status: ProvisionStatus }>>;
+  /** 向导呈现（各步骤结果 + 失败步 + 可重试标记） */
+  provisionStatus(params: { id: string }): Promise<PkyResult<{ status: ProvisionStatus }>>;
+  /** D31 显式降级确认（须 acknowledgedRisk:true；留痕诊断段；未经确认直连态不可达） */
+  deploymentDegradeConfirm(params: {
+    id: string;
+    acknowledgedRisk: true;
+  }): Promise<PkyResult<{ deployment: DeploymentEntity }>>;
+  // 导入/恢复（FR-A5/A6 · D25 前置自动备份）
+  /** 结构校验只读预检（整体拒绝 0 行变更；reasons 供弹层列表） */
+  importValidate(params: { path: string }): Promise<PkyResult<{ summary: ImportSummary }>>;
+  /** 执行导入（前置备份失败即中止 → BACKUP_FAILED） */
+  importRun(params: { path: string; confirmed: true }): Promise<PkyResult<{ result: ImportRunResult }>>;
+  /** 执行恢复（托管备份条目或白名单外部文件；超窗 → DB_SCHEMA_TOO_NEW） */
+  restoreRun(params: {
+    source: { backupId?: string; path?: string };
+    confirmed: true;
+  }): Promise<PkyResult<{ result: RestoreRunResult }>>;
+  /** 文件管理器定位 exports/（不存在先建；helper 缺席 → HELPER_CAPABILITY_MISSING + hint 路径） */
+  exportDirOpen(): Promise<PkyResult<{ ok: boolean; path: string }>>;
+  // AX 授权（FR-A9 · D32 非 macOS 整面隐藏）
+  /** 辅助功能授权状态 + helper 二进制路径（授权引导卡数据面） */
+  macAuthorizationStatus(params: {
+    kind: "accessibility";
+  }): Promise<PkyResult<{ granted: boolean; helperPath: string }>>;
+  /** 直达系统设置辅助功能面板（桥 mac-auth-query 的 host 面命令——纪要 §1；AD §4.1 未列名，联调对齐） */
+  macAuthPaneOpen(): Promise<PkyResult<{ ok: boolean }>>;
   // 实体读（Phase B 契约缺口补齐：panelSnapshot 面板首载聚合；其余按需懒载）
   panelSnapshot(): Promise<PkyResult<PanelSnapshot>>;
   taskDetail(params: { taskId: number }): Promise<PkyResult<TaskDetail>>;

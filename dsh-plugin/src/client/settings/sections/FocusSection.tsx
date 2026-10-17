@@ -1,7 +1,7 @@
 /**
  * 专注分区页（🍅，对齐主应用 SectionFocus）：番茄钟表单（开关/时长/短休息/完成通知/
- * 长番茄提示音）+ 提醒与勿扰（通知总开关/提前提醒量/勿扰时段组——后五键标
- * 「作用于主应用触达」badge，U20；勿扰起止为整点下拉，起=止阻断保存）。
+ * 长番茄提示音）+ 提醒与勿扰（通知总开关/提前提醒量/勿扰时段组；触达类 badge 已随
+ * U29 翻案移除——dsh 形态自执行；勿扰起止为整点下拉，起=止阻断保存）。
  * 选项值域 = optionSets 单源（与主应用一致，防双形态互写坏）。勿扰起=止防呆阻断
  * 在 SettingsSegment 保存控件侧统一承接（sectionSaveBlocker）。
  */
@@ -51,13 +51,11 @@ export function FocusSection(props: SectionProps): React.JSX.Element {
           label={t("focus.notify")}
           checked={draft["pomodoro_notify"] === "true"}
           onChange={(v) => onField("pomodoro_notify", String(v))}
-          badge={t("dsh.badge.notifications")}
         />
         <Toggle
           label={t("focus.chime")}
           checked={draft["pomodoro_chime"] === "true"}
           onChange={(v) => onField("pomodoro_chime", String(v))}
-          badge={t("dsh.badge.notifications")}
         />
       </div>
       <div className={ui.card}>
@@ -66,7 +64,6 @@ export function FocusSection(props: SectionProps): React.JSX.Element {
           label={t("remind.enable")}
           checked={draft["notifications_enabled"] === "true"}
           onChange={(v) => onField("notifications_enabled", String(v))}
-          badge={t("dsh.badge.notifications")}
         />
         <Select
           label={t("remind.ahead")}
@@ -79,7 +76,6 @@ export function FocusSection(props: SectionProps): React.JSX.Element {
           tip={t("remind.quietDesc")}
           checked={draft["quiet_hours_enabled"] === "true"}
           onChange={(v) => onField("quiet_hours_enabled", String(v))}
-          badge={t("dsh.badge.notifications")}
         />
         {/* 勿扰开始 / 结束各自单独一行（桌面 SectionFocus 两条 SettingRow + DexSelect 同构） */}
         <Select

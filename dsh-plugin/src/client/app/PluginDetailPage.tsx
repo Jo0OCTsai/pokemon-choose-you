@@ -12,11 +12,14 @@ import type { HostClient } from "../rpc";
 import { RadioSegment } from "../radio/RadioSegment";
 import { SettingsSegment } from "../settings/SettingsSegment";
 import { TaskDetailDrawer } from "../tasks/TaskDetailDrawer";
-import { AdventureView, DexView, GrassView, LogSegment, RouteView } from "../tasks/views";
+import { AdventureView, DexView, GrassView, RouteView } from "../tasks/views";
+import { LogSegment } from "../tasks/SessionsView";
 import { DisplayPrefsProvider, displayPrefsOf } from "../ui/displayPrefs";
+import { HelperBanner } from "./HelperBanner";
 import { PageHeader } from "./PageHeader";
 import { SchemaBanner } from "./SchemaBanner";
 import { SegmentNav } from "./SegmentNav";
+import { useFillRemainingHeight } from "./useFillRemainingHeight";
 import styles from "./app.module.css";
 
 export function PluginDetailPage({
@@ -53,6 +56,9 @@ function PluginDetailPageInner({
   // 背包离开守卫（U21）：dirty 上报 + 待离开目标
   const [pendingLeave, setPendingLeave] = useState<SegmentKey | null>(null);
   const settingsDirtyRef = useRef(false);
+  // 背包分区锚点（U30 HelperBanner「查看诊断」→ 背包·诊断分区；SettingsSegment 挂载取初值，
+  // 常规入口不重置——诊断锚定后续进背包仍落诊断分区一次，分区选单一步可达无伤）
+  const [settingsSection, setSettingsSection] = useState<"focus" | "diag">("focus");
   // 语言即时跟随（U21/U8）：显示分区语言控件随选随切，落库走保存
   const [localeOverride, setLocaleOverride] = useState<Locale | null>(null);
   // 收音机/背包段填充窗口剩余高度（段体顶缘实测 → --pcy-remaining；标题/七段选单/
@@ -86,6 +92,13 @@ function PluginDetailPageInner({
       <DisplayPrefsProvider {...displayPrefsOf(data.config)}>
         <div className={styles.page}>
           {readonly && <SchemaBanner />}
+          {/* HelperBanner 与 SchemaBanner 同族不叠抢：schema 拒绝优先在上（U30） */}
+          <HelperBanner
+            onOpenDiagnostics={() => {
+              setSettingsSection("diag");
+              requestSegment("settings");
+            }}
+          />
           <PageHeader pendingCount={pendingCount} data={data} />
           <SegmentNav
             active={segment}
@@ -111,6 +124,7 @@ function PluginDetailPageInner({
                 settingsDirtyRef.current = dirty;
               }}
               onLocalePreview={setLocaleOverride}
+              settingsSection={settingsSection}
             />
           </div>
           {openTask !== null && (
@@ -139,6 +153,7 @@ function SegmentBody({
   onLeaveResolved,
   onUnsavedChange,
   onLocalePreview,
+  settingsSection,
 }: {
   segment: SegmentKey;
   data: PanelData;
@@ -149,6 +164,7 @@ function SegmentBody({
   onLeaveResolved: (proceed: boolean) => void;
   onUnsavedChange: (dirty: boolean) => void;
   onLocalePreview: (locale: Locale) => void;
+  settingsSection: "focus" | "diag";
 }): React.JSX.Element {
   const segmentProps = { data, readonly, onOpen, onChanged };
   switch (segment) {
@@ -163,7 +179,7 @@ function SegmentBody({
     case "radio":
       return <RadioSegment data={data} readonly={readonly} onChanged={onChanged} />;
     case "logs":
-      return <LogSegment data={data} />;
+      return <LogSegment readonly={readonly} />;
     case "settings":
       return (
         <SettingsSegment
@@ -173,6 +189,7 @@ function SegmentBody({
           onLeaveResolved={onLeaveResolved}
           onUnsavedChange={onUnsavedChange}
           onLocalePreview={onLocalePreview}
+          initialSection={settingsSection}
         />
       );
   }
@@ -187,56 +204,6 @@ function usePageOpenAnchor(client: HostClient, requestSegment: (next: SegmentKey
       requestRef.current(event.section === "settings" ? "settings" : "adventure");
     });
   }, [client]);
-}
-
-/**
- * 收音机/背包段填充窗口剩余高度（#1 验收口径：整页高度恒等于滚动容器内容盒剩余高，
- * 展开消息不撑页、收发报条常驻可视；背包段同口径——页头/七段选单/分区选单行固定，
- * 滚动只在分区页内容）：--pcy-remaining = 最近滚动容器内容盒底缘 − 段体顶缘（实测——
- * 主面板壳 padding / darwin 红绿灯避让 / 宿主 chrome 高度不定，按 100dvh 算会高出壳
- * 内容区出滚动条）。挂载/切段/窗口尺寸变化时重算；失活时清属性交还文档流。
- */
-function useFillRemainingHeight(ref: React.RefObject<HTMLDivElement | null>, active: boolean): void {
-  useEffect(() => {
-    const el = ref.current;
-    if (!active || el === null) {
-      return;
-    }
-    const update = (): void => {
-      const top = Math.max(0, Math.round(el.getBoundingClientRect().top));
-      const scroller = scrollParentOf(el);
-      let bottom: number;
-      if (scroller === null) {
-        bottom = document.documentElement.clientHeight;
-      } else {
-        const rect = scroller.getBoundingClientRect();
-        const cs = window.getComputedStyle(scroller);
-        const pad = Number.parseFloat(cs.paddingBottom) || 0;
-        const border = Number.parseFloat(cs.borderBottomWidth) || 0;
-        bottom = rect.bottom - border - pad;
-      }
-      el.style.setProperty("--pcy-remaining", `${Math.max(0, Math.round(bottom - top))}px`);
-    };
-    update();
-    window.addEventListener("resize", update);
-    return () => {
-      window.removeEventListener("resize", update);
-      el.style.removeProperty("--pcy-remaining");
-    };
-  }, [active, ref]);
-}
-
-/** 最近的可滚动祖先（overflow-y auto/scroll；无 → null 回落视口口径——detail 区等文档流面） */
-function scrollParentOf(el: HTMLElement): HTMLElement | null {
-  let node: HTMLElement | null = el.parentElement;
-  while (node !== null) {
-    const overflowY = window.getComputedStyle(node).overflowY;
-    if (overflowY === "auto" || overflowY === "scroll") {
-      return node;
-    }
-    node = node.parentElement;
-  }
-  return null;
 }
 
 /** 背包未保存离开守卫（U21）：离开背包分段时若有未保存草稿先拦下（弹层由 SettingsSegment 呈现） */

@@ -1,102 +1,134 @@
 /**
- * 任务全字段编辑弹窗（对照主应用 TaskEditModal.vue）：标题（必填校验）/ 备注 /
- * 分类（启用中，任务自身已停用分类保留）/ 优先级（low/normal/high/urgent）/
- * 截止与提醒（DateTimePicker 弹层选择，空串 → null 清空）/ 标签按维度分组 chips
- * （项目维度单选互斥、总数上限 3、超限禁用新选中、空态引导）。保存 → taskUpdate →
- * onChanged 刷新 + 关闭；取消 / 未保存关闭直接丢弃（跟随桌面）。
+ * 任务全字段弹窗（对照主应用 TaskEditModal.vue）· 编辑 + create 双模式（U22）：
+ * - 编辑：标题（必填校验）/ 备注 / 分类（启用中，任务自身已停用分类保留）/
+ *   优先级（low/normal/high/urgent）/ 截止与提醒（DateTimePicker 弹层选择，空串 → null 清空）/
+ *   标签按维度分组 chips（项目维度单选互斥、总数上限 3、超限禁用新选中、空态引导）。
+ *   保存 → taskUpdate → onChanged 刷新 + 关闭；取消 / 未保存关闭直接丢弃（跟随桌面）。
+ * - create（task 入参缺省）：分类缺省第一个启用、优先级 normal、多「排期」字段
+ *   （scheduledFor 有值 → 状态 scheduled、值兜底落截止）；提交 → taskCreate；标题必填
+ *   trim 行内校验「标题不能为空」（焦点回标题输入）。
  */
 import { useMemo, useState } from "react";
 import type { Task } from "../../host/domain/tasks";
 import type { Tag } from "../../host/domain/vocabulary-tags";
 import { useClient } from "../clientContext";
+import type { HostClient } from "../rpc";
 import { useT } from "../i18n";
 import type { PanelData } from "../model";
 import { DateTimePicker } from "../ui/DateTimePicker";
 import { Modal } from "../ui/Modal";
 import { Select, TextInput } from "../ui/controls";
+import { MAX_TAGS, TagPicker, buildTagGroups, initialTagIds } from "./tagPicker";
+import { initialFormValues, modalAriaLabel, modalTitle, orUndefined } from "./taskEditHelpers";
 import styles from "./tasks.module.css";
 
-/** 每条待办标签总数上限（防碎片化，与 AI 打标规则同口径） */
-const MAX_TAGS = 3;
 /** 优先级档序（与主应用 priorityOptions 同源） */
 const PRIORITIES = ["low", "normal", "high", "urgent"] as const;
 
-/** RFC3339 → datetime-local 值（YYYY-MM-DDTHH:mm；null/短串 → 空串 = 清空态） */
-function toLocalInput(iso: string | null): string {
-  return iso === null ? "" : iso.slice(0, 16);
+/** 表单值集（提交与 chips 选择的入参面） */
+interface TaskFormState {
+  title: string;
+  note: string;
+  categoryId: number;
+  priority: string;
+  dueAt: string;
+  remindAt: string;
+  scheduledFor: string;
+  tagIds: number[];
 }
 
-/** 任务标签引用（name+dimension）→ 标签 id（同名跨维度先精确命中，回落同名） */
-function initialTagIds(task: Task, tags: Tag[]): number[] {
-  const ids: number[] = [];
-  for (const ref of task.tags) {
-    const hit =
-      tags.find((x) => x.name === ref.name && x.dimension === ref.dimension) ?? tags.find((x) => x.name === ref.name);
-    if (hit !== undefined && !ids.includes(hit.id)) {
-      ids.push(hit.id);
-    }
-  }
-  return ids;
+/** create 模式提交（U22：状态 = 排期?scheduled:inbox 由 host 推导；标签全量替换关联） */
+async function submitTaskCreate(client: HostClient, form: TaskFormState): Promise<string> {
+  const result = await client.taskCreate({
+    title: form.title,
+    note: form.note,
+    categoryId: form.categoryId,
+    priority: form.priority,
+    due: orUndefined(form.dueAt),
+    remindAt: orUndefined(form.remindAt),
+    scheduledFor: orUndefined(form.scheduledFor),
+    tagIds: form.tagIds,
+  });
+  return result.ok ? "" : result.error.message;
 }
 
-interface TagGroup {
-  key: string;
-  name: string;
-  /** 单选维度（cardinality === "single"，如项目）：chips 互斥 */
-  single: boolean;
-  tags: Tag[];
+/** edit 模式提交（TaskPatch.note 契约收 string——空串 = 清空；picker 空串转 null 清空；状态不手动改） */
+async function submitTaskUpdate(client: HostClient, task: Task, form: TaskFormState): Promise<string> {
+  const result = await client.taskUpdate({
+    id: task.id,
+    title: form.title,
+    note: form.note,
+    categoryId: form.categoryId,
+    priority: form.priority,
+    dueAt: form.dueAt === "" ? null : form.dueAt,
+    remindAt: form.remindAt === "" ? null : form.remindAt,
+    tagIds: form.tagIds,
+  });
+  return result.ok ? "" : result.error.message;
 }
 
-/** 标签分组：启用维度序 × 维度内标签（未知维度标签不呈现——与桌面 enabledDimensions 口径一致） */
-function buildTagGroups(data: PanelData): TagGroup[] {
-  const groups = new Map<string, Tag[]>();
-  for (const dim of data.dimensions ?? []) {
-    if (dim.enabled) {
-      groups.set(dim.key, []);
+/** chips 切换实现（桌面 toggleTag 同构）：已选去除；单选维度先清同维；上限后新选不再进 */
+function toggleTagId(
+  tag: Tag,
+  single: boolean,
+  sameDimIds: Map<string, Set<number>>,
+  setSelected: (updater: (prev: number[]) => number[]) => void,
+): void {
+  setSelected((prev) => {
+    if (prev.includes(tag.id)) {
+      return prev.filter((id) => id !== tag.id);
     }
-  }
-  for (const tag of data.tags ?? []) {
-    const bucket = groups.get(tag.dimension);
-    if (bucket !== undefined) {
-      bucket.push(tag);
+    let next = prev;
+    if (single) {
+      const sameDim = sameDimIds.get(tag.dimension) ?? new Set<number>();
+      next = next.filter((id) => !sameDim.has(id));
     }
-  }
-  return [...groups.entries()].map(([key, tags]) => {
-    const dim = (data.dimensions ?? []).find((d) => d.key === key);
-    return { key, name: dim?.name ?? key, single: dim?.cardinality === "single", tags };
+    if (next.length >= MAX_TAGS) {
+      return next;
+    }
+    return [...next, tag.id];
   });
 }
 
 export function TaskEditModal({
   task,
   data,
+  readonly = false,
   onClose,
   onChanged,
 }: {
-  task: Task;
+  /** 缺省 = create 模式（U22：taskCreate 全字段同构表单） */
+  task?: Task;
   data: PanelData;
+  readonly?: boolean;
   onClose: () => void;
   onChanged: () => void;
 }): React.JSX.Element {
   const t = useT();
   const client = useClient();
-  const [title, setTitle] = useState(task.title);
-  const [note, setNote] = useState(task.note ?? "");
-  const [categoryId, setCategoryId] = useState(task.categoryId);
-  const [priority, setPriority] = useState(task.priority);
-  const [dueAt, setDueAt] = useState(toLocalInput(task.dueAt));
-  const [remindAt, setRemindAt] = useState(toLocalInput(task.remindAt));
-  const [selectedTagIds, setSelectedTagIds] = useState<number[]>(() => initialTagIds(task, data.tags ?? []));
+  const creating = task === undefined;
+  const initial = initialFormValues(task, data);
+  const [title, setTitle] = useState(initial.title);
+  const [note, setNote] = useState(initial.note);
+  const [categoryId, setCategoryId] = useState(initial.categoryId);
+  const [priority, setPriority] = useState(initial.priority);
+  const [dueAt, setDueAt] = useState(initial.dueAt);
+  const [remindAt, setRemindAt] = useState(initial.remindAt);
+  // create 模式独有字段：排期（scheduledFor 有值 → 状态 scheduled；值兜底落截止）
+  const [scheduledFor, setScheduledFor] = useState("");
+  const [selectedTagIds, setSelectedTagIds] = useState<number[]>(() =>
+    task !== undefined ? initialTagIds(task, data.tags ?? []) : [],
+  );
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
 
-  // 分类选项：只列启用中的分类；任务自身所属分类若已停用则保留（否则下拉显示不出名字）
+  // 分类选项：只列启用中的分类；编辑模式下任务自身所属分类若已停用则保留（否则下拉显示不出名字）
   const categoryOptions = useMemo(
     () =>
       data.categories
-        .filter((c) => c.enabled || c.id === task.categoryId)
+        .filter((c) => c.enabled || c?.id === task?.categoryId)
         .map((c) => ({ value: String(c.id), label: c.name })),
-    [data.categories, task.categoryId],
+    [data.categories, task?.categoryId],
   );
   const tagGroups = useMemo(() => buildTagGroups(data), [data]);
   const sameDimIds = useMemo(() => {
@@ -109,22 +141,9 @@ export function TaskEditModal({
     return byDim;
   }, [data.tags]);
 
-  /** chips 切换（桌面 toggleTag 同构）：已选去除；单选维度先清同维；上限后新选不再进 */
+  /** chips 切换（实现归 toggleTagId；状态归本组件） */
   function toggleTag(tag: Tag, single: boolean): void {
-    setSelectedTagIds((prev) => {
-      if (prev.includes(tag.id)) {
-        return prev.filter((id) => id !== tag.id);
-      }
-      let next = prev;
-      if (single) {
-        const sameDim = sameDimIds.get(tag.dimension) ?? new Set<number>();
-        next = next.filter((id) => !sameDim.has(id));
-      }
-      if (next.length >= MAX_TAGS) {
-        return next;
-      }
-      return [...next, tag.id];
-    });
+    toggleTagId(tag, single, sameDimIds, setSelectedTagIds);
   }
 
   async function save(): Promise<void> {
@@ -135,38 +154,42 @@ export function TaskEditModal({
     }
     setSaving(true);
     setError("");
-    const result = await client.taskUpdate({
-      id: task.id,
+    const form: TaskFormState = {
       title: trimmedTitle,
-      // TaskPatch.note 契约收 string（空串 = 清空；null 仅 due/remind 三态支持）
       note,
       categoryId,
       priority,
-      // picker 空串转 null 表示清空；状态不手动改，由后端不变量归位
-      dueAt: dueAt === "" ? null : dueAt,
-      remindAt: remindAt === "" ? null : remindAt,
+      dueAt,
+      remindAt,
+      scheduledFor,
       tagIds: selectedTagIds,
-    });
+    };
+    const failure = creating ? await submitTaskCreate(client, form) : await submitTaskUpdate(client, task, form);
     setSaving(false);
-    if (result.ok) {
+    if (failure === "") {
       onChanged();
       onClose();
     } else {
-      setError(result.error.message);
+      setError(failure);
     }
   }
 
   return (
     <Modal
-      title={`✎ No.${String(task.id).padStart(3, "0")} ${t("edit.title")}`}
-      ariaLabel={t("edit.title")}
+      title={modalTitle(task, t)}
+      ariaLabel={modalAriaLabel(task, t)}
       actions={[
-        { label: t("save2"), onChoose: () => void save(), variant: "primary", disabled: saving },
+        {
+          label: t("save2"),
+          onChoose: () => void save(),
+          variant: "primary",
+          disabled: saving || readonly,
+        },
         { label: t("cancel"), onChoose: onClose },
       ]}
       onClose={onClose}
     >
-      <div className={styles.editForm} data-testid="task-edit-form">
+      <div className={styles.editForm} data-testid={creating ? "task-create-form" : "task-edit-form"}>
         <label className={styles.editRow}>
           <span className={styles.editRowLabel}>{t("edit.taskTitle")}</span>
           <TextInput value={title} onChange={setTitle} ariaLabel={t("edit.taskTitle")} />
@@ -207,45 +230,24 @@ export function TaskEditModal({
           <span className={styles.editRowLabel}>{t("edit.remind")}</span>
           <DateTimePicker value={remindAt} onChange={setRemindAt} ariaLabel={t("edit.remind")} />
         </div>
+        {creating && (
+          <div className={styles.editRow}>
+            <span className={styles.editRowLabel}>{t("dsh.taskCreate.scheduledFor")}</span>
+            <DateTimePicker
+              value={scheduledFor}
+              onChange={setScheduledFor}
+              ariaLabel={t("dsh.taskCreate.scheduledFor")}
+            />
+          </div>
+        )}
         <div className={styles.editRow}>
           <span className={styles.editRowLabel}>{t("edit.tags")}</span>
-          <div className={styles.tagPick}>
-            {tagGroups.length === 0 ? (
-              <span className={styles.tagCount}>{t("edit.noTags")}</span>
-            ) : (
-              tagGroups.map((group) => (
-                <div key={group.key} className={styles.tagDim}>
-                  <span className={styles.dimName}>{group.name}</span>
-                  {group.tags.length === 0 ? (
-                    <span className={styles.dimName}>—</span>
-                  ) : (
-                    group.tags.map((tag) => {
-                      const selected = selectedTagIds.includes(tag.id);
-                      return (
-                        <button
-                          key={tag.id}
-                          type="button"
-                          className={styles.tagChip}
-                          data-on={selected}
-                          data-project={group.key === "project"}
-                          aria-pressed={selected}
-                          title={tag.description !== "" ? tag.description : group.name}
-                          // 上限后新选禁用；单选维度换选不减总数，保持可点（桌面同构）
-                          disabled={!selected && selectedTagIds.length >= MAX_TAGS && !group.single}
-                          onClick={() => toggleTag(tag, group.single)}
-                        >
-                          {tag.name}
-                        </button>
-                      );
-                    })
-                  )}
-                </div>
-              ))
-            )}
-            <span className={styles.tagCount}>
-              {selectedTagIds.length}/{MAX_TAGS}
-            </span>
-          </div>
+          <TagPicker
+            groups={tagGroups}
+            selectedIds={selectedTagIds}
+            onToggle={toggleTag}
+            noTagsLabel={t("edit.noTags")}
+          />
         </div>
         {error !== "" && (
           <p className={styles.editError} role="alert">

@@ -207,3 +207,41 @@
     --detail-floor: 160px;
   }
 }
+
+/* HelperBanner（U30：系统能力面降级静态横幅——纸色点缀底 + 墨线，批量托盘同词汇；schema 拒绝优先在上不叠抢） */
+.helperBanner {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  border-radius: 10px;
+  border: 1.5px solid var(--dsw-alias-label-primary, #1f2328);
+  background: var(--pcy-paper, #f5f0dc);
+  color: var(--pcy-paper-ink, #1a1b25);
+  font-size: 13px;
+}
+.helperBannerLink {
+  margin-left: auto;
+  flex: none;
+  box-sizing: border-box;
+  min-height: var(--pcy-control-h, 32px);
+  padding: 4px 12px;
+  border-radius: 8px;
+  border: 1.5px solid var(--dsw-alias-label-primary, #1f2328);
+  background: var(--pcy-running, #ffcb05);
+  color: #1a1b25;
+  font-size: 12px;
+  font-weight: 700;
+  box-shadow: 2px 2px 0 var(--dsw-alias-label-primary, #1f2328);
+  cursor: pointer;
+}
+.helperBannerLink:active {
+  transform: translate(1px, 1px);
+  box-shadow: 1px 1px 0 var(--dsw-alias-label-primary, #1f2328);
+}
+@media (prefers-reduced-motion: reduce) {
+  .helperBannerLink,
+  .helperBannerLink:active {
+    transition-duration: 0.01ms;
+  }
+}

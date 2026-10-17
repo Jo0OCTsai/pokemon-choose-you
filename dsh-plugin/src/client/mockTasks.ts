@@ -4,8 +4,10 @@
  * （retryCommands）。派发见 mockDispatch.ts。
  */
 import { PkyError } from "../host/storage/errors";
+import type { Task } from "../host/domain/tasks";
 import type { HostClient } from "./rpc";
 import type { MockContext } from "./mockHost";
+import { taskNoteCommands } from "./mockTaskNotes";
 
 /** 出发/暂停/继续（出发原语：demote 全部 active/paused → 本任务 active，全局唯一进行中） */
 export function taskSwitchCommands(ctx: MockContext): Pick<HostClient, "taskStart" | "taskPause" | "taskResume"> {
@@ -143,12 +145,12 @@ export function releaseCommands(
   };
 }
 
-/** 全字段编辑 / 跟进记录 / 操作历史（语义子集：taskUpdate 就地改字段——tagIds 只记录不改
+/** 全字段编辑 / 面板手动新建 / 跟进记录 / 操作历史（语义子集：taskUpdate 就地改字段——tagIds 只记录不改
  * tags 投影，编辑器组件测试断言调用参数即可；跟进写 ctx.state.followups 供 taskDetail 回读） */
 export function taskEditCommands(
   ctx: MockContext,
-): Pick<HostClient, "taskUpdate" | "taskNoteAdd" | "taskNoteDelete" | "taskHistory"> {
-  return { ...taskUpdateCommands(ctx), ...taskNoteCommands(ctx) };
+): Pick<HostClient, "taskUpdate" | "taskCreate" | "taskNoteAdd" | "taskNoteDelete" | "taskHistory"> {
+  return { ...taskUpdateCommands(ctx), ...taskCreateCommands(ctx), ...taskNoteCommands(ctx) };
 }
 
 /** 全字段编辑（就地改；undefined 字段不动） */
@@ -176,49 +178,82 @@ function taskUpdateCommands(ctx: MockContext): Pick<HostClient, "taskUpdate"> {
   };
 }
 
-/** 跟进记录增删（写 ctx.state.followups）+ 操作历史（读 ctx.state.taskLogs） */
-function taskNoteCommands(ctx: MockContext): Pick<HostClient, "taskNoteAdd" | "taskNoteDelete" | "taskHistory"> {
+/** taskCreate 入参校验（标题 trim 非空、分类缺省第一个启用且必须存在；违例 = INVALID_ARGUMENT） */
+function validateTaskCreate(
+  ctx: MockContext,
+  params: Parameters<HostClient["taskCreate"]>[0],
+): { title: string; categoryId: number } | { ok: false; error: ReturnType<PkyError["toShape"]> } {
+  const title = params.title.trim();
+  if (title === "") {
+    return { ok: false, error: new PkyError("INVALID_ARGUMENT", "标题不能为空").toShape() };
+  }
+  const categoryId =
+    params.categoryId ?? ctx.state.categories.find((c) => c.enabled)?.id ?? ctx.state.categories[0]?.id;
+  if (categoryId === undefined || !ctx.state.categories.some((c) => c.id === categoryId)) {
+    return {
+      ok: false,
+      error: new PkyError("INVALID_ARGUMENT", `分类 ${String(params.categoryId)} 不存在`).toShape(),
+    };
+  }
+  return { title, categoryId };
+}
+
+/** due 归一（显式 due 优先；无显式 due 的排期任务兜底落排期值） */
+function manualDueAt(due: string, scheduledFor: string): string | null {
+  return due !== "" ? due : scheduledFor !== "" ? scheduledFor : null;
+}
+
+/** 新建任务实体（状态 = 排期?scheduled:inbox、due 兜底落排期值；tagIds 只记录不投影） */
+function buildManualTask(
+  ctx: MockContext,
+  params: Parameters<HostClient["taskCreate"]>[0],
+  title: string,
+  categoryId: number,
+): Task {
+  const scheduledFor = params.scheduledFor?.trim() ?? "";
+  const due = params.due?.trim() ?? "";
   return {
-    async taskNoteAdd(params) {
-      ctx.record("taskNoteAdd", params);
+    id: ctx.nextTaskId(),
+    title,
+    note: params.note ?? null,
+    categoryId,
+    status: scheduledFor !== "" ? "scheduled" : "inbox",
+    priority: params.priority ?? "normal",
+    dueAt: manualDueAt(due, scheduledFor),
+    remindAt: params.remindAt ?? null,
+    reminded: false,
+    source: "local",
+    externalId: null,
+    createdAt: "2026-10-17T09:00:00+08:00",
+    completedAt: null,
+    startedAt: null,
+    cancelledAt: null,
+    focusSeconds: 0,
+    tags: [],
+    dispatchState: null,
+    dispatchedSession: null,
+  };
+}
+
+/** 面板手动新建（FR-C1 / host createTaskManual 语义子集：标题 trim 非空、分类缺省第一个
+ *  启用、状态 = 排期?scheduled:inbox、due 兜底落排期值；tagIds 只记录（tags 投影由组件层断言参数）） */
+function taskCreateCommands(ctx: MockContext): Pick<HostClient, "taskCreate"> {
+  return {
+    async taskCreate(params) {
+      ctx.record("taskCreate", params);
       const blocked = ctx.guardWritable();
       if (blocked !== null) {
         return { ok: false, error: blocked.toShape() };
       }
-      const task = ctx.findTask(params.taskId);
-      if (task === undefined) {
-        return { ok: false, error: new PkyError("NOT_FOUND", `任务 ${params.taskId} 不存在`).toShape() };
+      const fields = validateTaskCreate(ctx, params);
+      if ("ok" in fields) {
+        return fields;
       }
-      const content = params.content.trim();
-      if (content === "") {
-        return { ok: false, error: new PkyError("INVALID_ARGUMENT", "跟进内容不能为空").toShape() };
-      }
-      const list = (ctx.state.followups[params.taskId] ??= []);
-      const note = {
-        id: list.reduce((max, n) => Math.max(max, n.id), 0) + 1,
-        taskId: params.taskId,
-        content,
-        source: "manual",
-        createdAt: "2026-10-14T08:00:00+00:00",
-      };
-      list.push(note);
-      return ctx.ok(note);
-    },
-    async taskNoteDelete(params) {
-      ctx.record("taskNoteDelete", params);
-      const blocked = ctx.guardWritable();
-      if (blocked !== null) {
-        return { ok: false, error: blocked.toShape() };
-      }
-      for (const key of Object.keys(ctx.state.followups)) {
-        const id = Number(key);
-        ctx.state.followups[id] = ctx.state.followups[id].filter((n) => n.id !== params.id);
-      }
-      return ctx.ok({ ok: true });
-    },
-    async taskHistory(params) {
-      ctx.record("taskHistory", params);
-      return ctx.ok({ logs: ctx.state.taskLogs[params.taskId] ?? [] });
+      const task = buildManualTask(ctx, params, fields.title, fields.categoryId);
+      ctx.state.tasks.push(task);
+      return ctx.ok(task);
     },
   };
 }
+
+export { taskNoteCommands } from "./mockTaskNotes";

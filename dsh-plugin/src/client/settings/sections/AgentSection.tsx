@@ -16,6 +16,7 @@ import type { PromptSpecInfo } from "../../../host/domain/prompt-overrides";
 import ui from "../../ui/ui.module.css";
 import { AgentConfigCard, RouteRow } from "./AgentConfigCard";
 import { PromptOverrideEditor } from "./PromptOverrideEditor";
+import { DeploymentCard } from "../deploy/DeploymentCard";
 import type { SectionProps } from "../sectionProps";
 import type { DispatchRoute } from "../../rpc";
 import { SectionShell } from "../SectionShell";
@@ -248,6 +249,8 @@ export function AgentSection({
           routeRows.map((route) => <RouteRow key={route.tag} route={route} agents={agentList} onSaved={onChanged} />)
         )}
       </div>
+      {/* 远程部署卡（U23：跨 agent 共享的执行世界资产——独立成卡，agent 列表卡之后） */}
+      <DeploymentCard onChanged={onChanged} />
       <PromptOverrideEditor specs={specs} onSpecChange={setSpecs} />
     </SectionShell>
   );

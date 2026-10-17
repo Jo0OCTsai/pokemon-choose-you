@@ -69,6 +69,7 @@ export function SettingsSegment({
   onLeaveResolved,
   onUnsavedChange,
   onLocalePreview,
+  initialSection = "focus",
 }: {
   data: PanelData;
   onChanged: () => void;
@@ -78,9 +79,11 @@ export function SettingsSegment({
   /** 未保存状态上报（页面侧离开守卫） */
   onUnsavedChange: (dirty: boolean) => void;
   onLocalePreview?: (locale: Locale) => void;
+  /** 挂载时的初始分区（U30 HelperBanner「查看诊断」锚点；缺省专注） */
+  initialSection?: SectionKey;
 }): React.JSX.Element {
   const t = useT();
-  const [section, setSection] = useState<SectionKey>("focus");
+  const [section, setSection] = useState<SectionKey>(initialSection);
   // 真实库未落盘的设置键 configRead 回 undefined——draft/saved 统一归一空串
   // （设置值皆字符串形态；Toggle 的 ==="true" 与 textarea 的受控值都与 "" 兼容），
   // 否则 PetSection 的 quotes.split 等消费点在未设键上崩溃（真实宿主实测踩坑）；
@@ -167,7 +170,7 @@ export function SettingsSegment({
       case "diag":
         return <DiagnosticsSection />;
       case "general":
-        return <GeneralSection {...sectionProps} />;
+        return <GeneralSection {...sectionProps} onChanged={onChanged} />;
       default:
         return null;
     }

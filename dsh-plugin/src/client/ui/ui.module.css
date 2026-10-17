@@ -30,6 +30,36 @@
   }
 }
 
+/* ---- 部署状态语义别名（specs/dsh-plugin-full-parity UIUX §6.1：语义命名新增、值零新增——
+ * 映射表与 --pcy-* 表同文件维护，防第二套状态色漂移。徽章文字恒墨色，仅状态点取色） ---- */
+:root {
+  --pcy-deploy-ready: var(--pcy-ok, #2f7d3c);
+  --pcy-deploy-ready-direct: var(--pcy-warn, #b58900);
+  --pcy-deploy-notready: var(--pcy-warn, #b58900);
+  --pcy-deploy-disconnected: var(--pcy-fail, #b3590f);
+}
+
+/* ---- LCD 输出屏共享容器（T2 ② 类目单源——向导输出屏与诊断日志屏两落位） ---- */
+.lcd {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  border: 1.5px solid var(--dsw-alias-label-primary, #1f2328);
+  border-radius: 10px;
+  background: var(--pcy-lcd, #c4cfa1);
+  color: var(--pcy-lcd-text, #3a4a32);
+  box-shadow: inset 2px 2px 0 var(--pcy-lcd-dark, #9caa86);
+  padding: 10px 12px;
+}
+.lcd::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: repeating-linear-gradient(0deg, rgba(0, 0, 0, 0.05) 0 2px, transparent 2px 4px);
+}
+
 /* ---- Modal / 确认弹层 ---- */
 .overlay {
   position: fixed;

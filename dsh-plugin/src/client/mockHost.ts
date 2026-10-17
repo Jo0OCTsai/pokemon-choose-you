@@ -14,6 +14,7 @@ import type {
   LogEntry,
   RadioHealth,
   RadioMessage,
+  RestoreRunResult,
 } from "./rpcTypes";
 import type { Task } from "../host/domain/tasks";
 import { taskSwitchCommands, taskCloseCommands, releaseCommands, taskEditCommands } from "./mockTasks";
@@ -26,8 +27,11 @@ import { promptCommands } from "./mockPrompts";
 import { diagCommands, logCommands, miscCommands } from "./mockMisc";
 import { readCommands } from "./mockRead";
 import { backupCommands } from "./mockBackup";
-import type { BackupInfo, TagCheckupReport } from "./rpcTypes";
+import { deploymentCommands, provisionCommands, sessionCommands, type MockProvisionFailKind } from "./mockRemote";
+import type { BackupInfo, ImportSummary, TagCheckupReport } from "./rpcTypes";
 import type { Tag, TagDimension } from "../host/domain/vocabulary-tags";
+import type { DeploymentEntity } from "../host/remote/deployments";
+import type { ProvisionStep } from "../host/remote/provision";
 
 /** mockHost 可配置的内存态（组件测试的夹具面） */
 export interface MockHostState {
@@ -64,6 +68,40 @@ export interface MockHostState {
   pkSkill?: import("./mockAgentTools").MockPkSkillState;
   /** 桌宠显隐（petStatus 消费；缺省 true——随宿主启动语义） */
   petRunning: boolean;
+  // ---- full-parity 增量态（specs/dsh-plugin-full-parity） ----
+  /** 部署实体（deploymentList/Upsert/Delete/Recheck/provision* 消费） */
+  deployments: DeploymentEntity[];
+  /** 开通向导单步失败编排（provisionRun 消费；null = 全步骤成功；测试中途可改写模拟重试成功） */
+  provisionFail: { step: ProvisionStep; kind: MockProvisionFailKind; message?: string } | null;
+  /** 会话账本行（sessionsPage/sessionReplay 消费——SessionRow 形状，AD §4.1；
+   *  与既有 sessions（AgentSessionEntry，panelSnapshot 投影）分立） */
+  sessionRows: import("../host/dispatch/sessions").SessionRow[];
+  /** 导入文件夹具（importValidate/importRun 按 path 匹配；reasons = 校验失败原因列表） */
+  importFiles: Array<{
+    path: string;
+    summary?: ImportSummary;
+    reasons?: string[];
+    backupFail?: boolean;
+  }>;
+  /** importRun 成功产物（缺省固定值） */
+  importResult: { backupId: string; applied: number };
+  /** 恢复结果编排（null = 成功；code = 业务错误码名） */
+  restoreOutcome:
+    | { ok: true; result: RestoreRunResult }
+    | { ok: false; code: "DB_SCHEMA_TOO_NEW" | "BACKUP_FAILED" | "IMPORT_VALIDATION_FAILED"; message: string }
+    | null;
+  /** 打开导出目录编排（error 非空 = 失败 toast 面；path = exports 目录） */
+  exportDir: { path: string; error?: string };
+  /** AX 授权状态（macAuthorizationStatus 消费） */
+  macAuth: { granted: boolean; helperPath: string };
+  /** helper 能力位矩阵（diagnosticsSnapshot；null = helper 缺席 → HelperBanner + 矩阵全降级） */
+  helperCaps: Record<string, boolean> | null;
+  /** 全局快捷键注册结果（diagnosticsSnapshot；false 才显诊断行） */
+  shortcutRegistered: boolean;
+  /** dsh-ssh 家族探测（diagnosticsSnapshot；detail = 装载指引命令） */
+  sshFamily: { ok: boolean; detail?: string | null };
+  /** helper 运行时版本（diagnosticsSnapshot 可选呈现；null 不显） */
+  helperVersion: string | null;
 }
 
 /** 调用记录（断言命令面与参数） */
@@ -98,7 +136,32 @@ function delay<T>(value: T): Promise<T> {
   return Promise.resolve(value);
 }
 
-/** 默认内存态（空库 + 健康绿灯 + 读写库） */
+/** 缺省健康态（绿灯） */
+function defaultHealth(): MockHostState["health"] {
+  return {
+    level: "ok",
+    lastSuccessAt: "2026-10-11T08:00:00+08:00",
+    nextPollAt: "2026-10-11T08:02:00+08:00",
+    consecutiveFailures: 0,
+    pendingCount: 0,
+  };
+}
+
+/** full-parity 缺省 helper 能力位（全 true）——既有组件测试不受横幅/降级面影响；夹具按需覆盖 */
+function defaultHelperCaps(): MockHostState["helperCaps"] {
+  return {
+    "sys-tray": true,
+    "sys-shortcut": true,
+    "sys-notify": true,
+    "sys-tts": true,
+    "sys-dialog": true,
+    "sys-open": true,
+    "input-count": true,
+    "mac-auth": true,
+  };
+}
+
+/** 默认内存态（空库 + 健康绿灯 + 读写库；快捷键已注册、SSH 家族就绪——同上缺省口径） */
 function defaultState(): MockHostState {
   return {
     tasks: [],
@@ -106,13 +169,7 @@ function defaultState(): MockHostState {
     messages: [],
     settings: {},
     agents: [],
-    health: {
-      level: "ok",
-      lastSuccessAt: "2026-10-11T08:00:00+08:00",
-      nextPollAt: "2026-10-11T08:02:00+08:00",
-      consecutiveFailures: 0,
-      pendingCount: 0,
-    },
+    health: defaultHealth(),
     dbStatus: { userVersion: 1, pluginWindow: { min: 1, max: 1 }, mode: "rw" },
     larkAuthorized: true,
     filters: [],
@@ -129,6 +186,21 @@ function defaultState(): MockHostState {
     tagCheckup: { merges: [], zombies: [], newDimensions: [], judged: false },
     pkSkill: { installedVersion: null, checked: false },
     petRunning: true,
+    deployments: [],
+    provisionFail: null,
+    sessionRows: [],
+    importFiles: [],
+    importResult: { backupId: "pokemon-choose-you-20261017-090000.db", applied: 12 },
+    restoreOutcome: null,
+    exportDir: { path: "/mock/.choose-you/data/exports" },
+    macAuth: {
+      granted: false,
+      helperPath: "/mock/.dsh/electron/dist/pky-helper.app/Contents/MacOS/pky-helper",
+    },
+    helperCaps: defaultHelperCaps(),
+    shortcutRegistered: true,
+    sshFamily: { ok: true },
+    helperVersion: null,
   };
 }
 
@@ -206,6 +278,9 @@ export function mockHost(initial: Partial<MockHostState> = {}): MockHost {
     ...miscCommands(ctx),
     ...readCommands(ctx),
     ...backupCommands(ctx),
+    ...deploymentCommands(ctx),
+    ...provisionCommands(ctx),
+    ...sessionCommands(ctx),
     onPageOpen(listener: (event: PageOpenEvent) => void) {
       pageOpenListeners.add(listener);
       return () => {

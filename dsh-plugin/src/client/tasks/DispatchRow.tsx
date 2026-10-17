@@ -190,7 +190,7 @@ function AgentBadge({ name, host }: { name: string; host: string | null }): Reac
 }
 
 /** 改选生效 agent（改选值优先，回落路由解析结果） */
-function resolveChosen(
+export function resolveChosen(
   agents: AgentConfig[],
   agentId: string,
   route: PanelData["routes"][number] | undefined,
@@ -199,7 +199,7 @@ function resolveChosen(
 }
 
 /** 工作目录呈现（路由指定优先，回落 agent 默认目录） */
-function workdirText(route: PanelData["routes"][number] | undefined, t: ReturnType<typeof useT>): string {
+export function workdirText(route: PanelData["routes"][number] | undefined, t: ReturnType<typeof useT>): string {
   if (route?.workdir !== undefined && route.workdir !== "") {
     return route.workdir;
   }
@@ -209,4 +209,51 @@ function workdirText(route: PanelData["routes"][number] | undefined, t: ReturnTy
 /** 项目维度标签在卡上（项目路由派发的前提） */
 function hasProjectTag(task: Task): boolean {
   return task.tags.some((tag) => tag.dimension === "project");
+}
+
+/** 派发执行世界信息（U31/M1/M2：world 行 + 降级三枚举 + 占用探测条件行的数据面） */
+export interface DispatchWorldInfo {
+  /** null = 未解析（无路由/部署列表未达）→ 整组不渲染 */
+  world: { kind: "local" } | { kind: "deployment"; alias: string; degraded: boolean } | null;
+  /** 远端仍有该任务活动进程的会话 id（null = 无占用） */
+  occupancySessionId: string | null;
+  /** 交互通道降级（无终端面板能力 → 复制完整命令行） */
+  interactiveDegraded: boolean;
+  /** 目标非 POSIX 端点（仅支持无头直连派发） */
+  nonPosix: boolean;
+}
+
+/** 执行世界行 + 降级三枚举明示 + 占用探测条件行（§8 派发确认文案；纯呈现，交互不变） */
+export function DispatchWorldNotes({
+  info,
+  agentName,
+  workdir,
+}: {
+  info: DispatchWorldInfo;
+  agentName: string;
+  workdir: string;
+}): React.JSX.Element | null {
+  const t = useT();
+  if (info.world === null) {
+    return null;
+  }
+  const worldText =
+    info.world.kind === "local"
+      ? t("dsh.dispatch.scopeLocal")
+      : t("dsh.dispatch.worldDeployment", { alias: info.world.alias });
+  return (
+    <div className={styles.worldNotes} data-testid="dispatch-world-notes">
+      <p className={styles.worldLine}>
+        {t("dsh.dispatch.worldLine", { agent: agentName, world: worldText, dir: workdir })}
+      </p>
+      {info.world.kind === "deployment" && info.world.degraded && (
+        <p className={styles.worldWarn}>⚠ {t("dsh.dispatch.degradeDirect")}</p>
+      )}
+      {info.interactiveDegraded && <p className={styles.worldWarn}>⚠ {t("dsh.dispatch.degradeInteractive")}</p>}
+      {info.nonPosix && <p className={styles.worldWarn}>⚠ {t("dsh.dispatch.degradeNonPosix")}</p>}
+      {info.occupancySessionId !== null && (
+        <p className={styles.worldWarn}>{t("dsh.dispatch.occupancy", { id: info.occupancySessionId })}</p>
+      )}
+    </div>
+  );
 }

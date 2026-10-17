@@ -9,6 +9,7 @@
  */
 import { ok, fail, PkyError, type ErrorCode, type PkyErrorShape, type PkyResult } from "../host/storage/errors";
 import type { HostClient, PageOpenEvent } from "./rpcTypes";
+import { parityFacade } from "./rpcParity";
 
 export { ok, fail, PkyError };
 export type { ErrorCode, PkyErrorShape, PkyResult };
@@ -51,6 +52,7 @@ function taskFacade(
   | "taskDeleteUndo"
   | "taskReschedule"
   | "taskUpdate"
+  | "taskCreate"
   | "taskNoteAdd"
   | "taskNoteDelete"
   | "taskHistory"
@@ -65,6 +67,7 @@ function taskFacade(
     taskDeleteUndo: (p) => call("taskDeleteUndo", p),
     taskReschedule: (p) => call("taskReschedule", p),
     taskUpdate: (p) => call("taskUpdate", p),
+    taskCreate: (p) => call("taskCreate", p),
     taskNoteAdd: (p) => call("taskNoteAdd", p),
     taskNoteDelete: (p) => call("taskNoteDelete", p),
     taskHistory: (p) => call("taskHistory", p),
@@ -244,6 +247,7 @@ export function createHostClient(transport: HostTransport): HostClient {
     ...backpackFacade(call),
     ...miscFacade(call),
     ...backupFacade(call),
+    ...parityFacade(call),
     onPageOpen(listener) {
       pageOpenListeners.add(listener);
       return () => {

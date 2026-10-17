@@ -449,6 +449,21 @@
   line-height: 1.8;
 }
 
+/* 空态 + 主行动（U22：文案下唯一主推进动作，buttonDex 档居中） */
+.emptyWrap {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+}
+
+/* 段头工具行（U22：三任务段常驻「＋ 新建任务」，右缘对齐——宿主档次按钮） */
+.segmentToolbar {
+  display: flex;
+  justify-content: flex-end;
+  padding: 0 0 8px;
+}
+
 /* 路线分组（原型 group-h：小号加粗弱化色 + 字距） */
 .routeGroupDate {
   font-size: 12px;
@@ -488,6 +503,40 @@
 .ledgerTime {
   margin-left: auto;
   font-variant-numeric: tabular-nums;
+}
+
+/* 执行世界徽章（FR-C2：本机/部署别名；等宽丝印位——快照指向已移除部署 = 删除线中性呈现） */
+.worldBadge {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  letter-spacing: 1px;
+  font-size: 11px;
+  border: 1px solid var(--dsw-alias-border-l3, #c7cdd4);
+  border-radius: 4px;
+  padding: 1px 6px;
+  color: var(--dsw-alias-label-secondary, #57606a);
+}
+.worldBadge[data-gone="true"] {
+  text-decoration: line-through;
+}
+
+/* 会话分页器（counts 常显 + 上下页 + 每页条数档；命中区 ≥32px） */
+.sessPager {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding-top: 10px;
+  flex-wrap: wrap;
+}
+.sessCounts {
+  font-size: 12px;
+  color: var(--dsw-alias-label-secondary, #57606a);
+  font-variant-numeric: tabular-nums;
+  margin-right: auto;
+}
+.sessNote {
+  margin: 8px 0 0;
+  font-size: 12px;
+  color: var(--dsw-alias-label-secondary, #57606a);
 }
 
 /* 详情抽屉（右侧滑入覆盖层，原型 drawer/drawer-mask：fixed 整视口 mask + 右缘面板；
@@ -1020,4 +1069,23 @@
 .reviewEntry:disabled {
   opacity: 0.45;
   cursor: not-allowed;
+}
+
+/* 派发执行世界行 + 降级明示（§8 派发确认面；警示行走 danger 色非闪烁） */
+.worldNotes {
+  margin: 6px 0 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.worldNotes p {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.7;
+}
+.worldLine {
+  color: var(--dsw-alias-label-secondary, #57606a);
+}
+.worldWarn {
+  color: var(--pcy-danger, #b3590f);
 }

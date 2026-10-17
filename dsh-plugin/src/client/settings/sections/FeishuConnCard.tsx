@@ -21,6 +21,8 @@ export function FeishuConnCard({
   const t = useT();
   const client = useClient();
   const [authBusy, setAuthBusy] = useState(false);
+  const [authLaunched, setAuthLaunched] = useState(false);
+  const [authError, setAuthError] = useState<string | null>(null);
   const [testState, setTestState] = useState<{ busy: boolean; identity: string | null; failed: boolean }>({
     busy: false,
     identity: null,
@@ -59,17 +61,26 @@ export function FeishuConnCard({
         />
       </div>
       <div className={styles.filterRow}>
+        {/* U28：授权登录升级为终端面板一键启动（larkLoginStart——FR-C3；登录态查询走测试连接） */}
         <button
           type="button"
           className={ui.button}
+          data-testid="lark-login-btn"
           disabled={authBusy}
           onClick={async () => {
             setAuthBusy(true);
-            await client.larkAuth();
+            setAuthLaunched(false);
+            setAuthError(null);
+            const result = await client.larkLoginStart();
+            if (result.ok && result.data.ok) {
+              setAuthLaunched(true);
+            } else {
+              setAuthError(result.ok ? result.data.note : result.error.message);
+            }
             setAuthBusy(false);
           }}
         >
-          {t("feishu.auth")}
+          {t("dsh.lark.login")}
         </button>
         <button
           type="button"
@@ -87,6 +98,13 @@ export function FeishuConnCard({
         >
           {t("feishu.test")}
         </button>
+        {authBusy && <span className={ui.muted}>{t("testing")}</span>}
+        {authLaunched && <span data-testid="lark-launched">{t("dsh.lark.launched")}</span>}
+        {authError !== null && (
+          <span className={styles.saveFailHint} data-testid="lark-launch-failed">
+            {t("dsh.lark.launchFailed", { reason: authError })}
+          </span>
+        )}
         {testState.busy && <span className={ui.muted}>{t("testing")}</span>}
         {testState.identity !== null && <span>{t("feishu.authorized", { name: testState.identity })}</span>}
         {testState.failed && <span className={styles.saveFailHint}>{t("feishu.unauthorized")}</span>}
