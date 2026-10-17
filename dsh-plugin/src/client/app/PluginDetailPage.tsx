@@ -13,6 +13,7 @@ import { RadioSegment } from "../radio/RadioSegment";
 import { SettingsSegment } from "../settings/SettingsSegment";
 import { TaskDetailDrawer } from "../tasks/TaskDetailDrawer";
 import { AdventureView, DexView, GrassView, LogSegment, RouteView } from "../tasks/views";
+import { DisplayPrefsProvider, displayPrefsOf } from "../ui/displayPrefs";
 import { PageHeader } from "./PageHeader";
 import { SchemaBanner } from "./SchemaBanner";
 import { SegmentNav } from "./SegmentNav";
@@ -54,12 +55,24 @@ function PluginDetailPageInner({
   const settingsDirtyRef = useRef(false);
   // 语言即时跟随（U21/U8）：显示分区语言控件随选随切，落库走保存
   const [localeOverride, setLocaleOverride] = useState<Locale | null>(null);
-  // 收音机段填充窗口剩余高度（段体顶缘实测 → --pcy-remaining；切进收音机段才激活）
+  // 收音机/背包段填充窗口剩余高度（段体顶缘实测 → --pcy-remaining；标题/七段选单/
+  // 背包分区选单行固定，滚动收敛到段体内部）
   const segmentBodyRef = useRef<HTMLDivElement | null>(null);
-  useFillRemainingHeight(segmentBodyRef, segment === "radio");
+  const fillBody = segment === "radio" || segment === "settings";
+  useFillRemainingHeight(segmentBodyRef, fillBody);
   const refresh = useCallback(() => {
     onChanged?.();
   }, [onChanged]);
+
+  // 分段切换即重拉快照：分段体按段卸载重挂、重挂从 data 重建，旧 data 里未刷新的
+  // 实体状态（如已保存的 agent）不得带进重挂（初挂的首次拉取归 PanelRoot，此处只管切换）
+  const prevSegment = useRef(segment);
+  useEffect(() => {
+    if (prevSegment.current !== segment) {
+      prevSegment.current = segment;
+      refresh();
+    }
+  }, [segment, refresh]);
 
   const requestSegment = useLeaveGuard(segment, settingsDirtyRef, setPendingLeave, setSegment);
   usePageOpenAnchor(client, requestSegment);
@@ -70,45 +83,47 @@ function PluginDetailPageInner({
 
   return (
     <I18nProvider locale={localeOverride ?? data.locale}>
-      <div className={styles.page}>
-        {readonly && <SchemaBanner />}
-        <PageHeader pendingCount={pendingCount} segment={segment} data={data} />
-        <SegmentNav
-          active={segment}
-          onChange={requestSegment}
-          radioPending={data.health.pendingCount}
-          radioFailures={data.health.consecutiveFailures}
-        />
-        <div
-          ref={segmentBodyRef}
-          className={segment === "radio" ? `${styles.segmentBody} ${styles.segmentFill}` : styles.segmentBody}
-        >
-          <SegmentBody
-            segment={segment}
-            data={data}
-            readonly={readonly}
-            onOpen={setOpenTaskId}
-            onChanged={refresh}
-            pendingLeave={pendingLeave}
-            onLeaveResolved={(proceed) =>
-              resolveLeave(proceed, pendingLeave, settingsDirtyRef, setPendingLeave, setSegment)
-            }
-            onUnsavedChange={(dirty) => {
-              settingsDirtyRef.current = dirty;
-            }}
-            onLocalePreview={setLocaleOverride}
+      <DisplayPrefsProvider {...displayPrefsOf(data.config)}>
+        <div className={styles.page}>
+          {readonly && <SchemaBanner />}
+          <PageHeader pendingCount={pendingCount} data={data} />
+          <SegmentNav
+            active={segment}
+            onChange={requestSegment}
+            radioPending={data.health.pendingCount}
+            radioFailures={data.health.consecutiveFailures}
           />
+          <div
+            ref={segmentBodyRef}
+            className={fillBody ? `${styles.segmentBody} ${styles.segmentFill}` : styles.segmentBody}
+          >
+            <SegmentBody
+              segment={segment}
+              data={data}
+              readonly={readonly}
+              onOpen={setOpenTaskId}
+              onChanged={refresh}
+              pendingLeave={pendingLeave}
+              onLeaveResolved={(proceed) =>
+                resolveLeave(proceed, pendingLeave, settingsDirtyRef, setPendingLeave, setSegment)
+              }
+              onUnsavedChange={(dirty) => {
+                settingsDirtyRef.current = dirty;
+              }}
+              onLocalePreview={setLocaleOverride}
+            />
+          </div>
+          {openTask !== null && (
+            <TaskDetailDrawer
+              task={openTask}
+              data={data}
+              categories={data.categories}
+              onClose={() => setOpenTaskId(null)}
+              onChanged={refresh}
+            />
+          )}
         </div>
-        {openTask !== null && (
-          <TaskDetailDrawer
-            task={openTask}
-            data={data}
-            categories={data.categories}
-            onClose={() => setOpenTaskId(null)}
-            onChanged={refresh}
-          />
-        )}
-      </div>
+      </DisplayPrefsProvider>
     </I18nProvider>
   );
 }
@@ -175,9 +190,11 @@ function usePageOpenAnchor(client: HostClient, requestSegment: (next: SegmentKey
 }
 
 /**
- * 收音机段填充窗口剩余高度（#1 验收口径：整页高度恒等于窗口剩余高，展开消息不撑页、
- * 收发报条不需滚动即可见）：--pcy-remaining = 视口高 − 段体顶缘（实测——宿主 chrome
- * 高度不定）。挂载/切段/窗口尺寸变化时重算；失活时清属性交还文档流。
+ * 收音机/背包段填充窗口剩余高度（#1 验收口径：整页高度恒等于滚动容器内容盒剩余高，
+ * 展开消息不撑页、收发报条常驻可视；背包段同口径——页头/七段选单/分区选单行固定，
+ * 滚动只在分区页内容）：--pcy-remaining = 最近滚动容器内容盒底缘 − 段体顶缘（实测——
+ * 主面板壳 padding / darwin 红绿灯避让 / 宿主 chrome 高度不定，按 100dvh 算会高出壳
+ * 内容区出滚动条）。挂载/切段/窗口尺寸变化时重算；失活时清属性交还文档流。
  */
 function useFillRemainingHeight(ref: React.RefObject<HTMLDivElement | null>, active: boolean): void {
   useEffect(() => {
@@ -187,7 +204,18 @@ function useFillRemainingHeight(ref: React.RefObject<HTMLDivElement | null>, act
     }
     const update = (): void => {
       const top = Math.max(0, Math.round(el.getBoundingClientRect().top));
-      el.style.setProperty("--pcy-remaining", `calc(100dvh - ${top}px)`);
+      const scroller = scrollParentOf(el);
+      let bottom: number;
+      if (scroller === null) {
+        bottom = document.documentElement.clientHeight;
+      } else {
+        const rect = scroller.getBoundingClientRect();
+        const cs = window.getComputedStyle(scroller);
+        const pad = Number.parseFloat(cs.paddingBottom) || 0;
+        const border = Number.parseFloat(cs.borderBottomWidth) || 0;
+        bottom = rect.bottom - border - pad;
+      }
+      el.style.setProperty("--pcy-remaining", `${Math.max(0, Math.round(bottom - top))}px`);
     };
     update();
     window.addEventListener("resize", update);
@@ -196,6 +224,19 @@ function useFillRemainingHeight(ref: React.RefObject<HTMLDivElement | null>, act
       el.style.removeProperty("--pcy-remaining");
     };
   }, [active, ref]);
+}
+
+/** 最近的可滚动祖先（overflow-y auto/scroll；无 → null 回落视口口径——detail 区等文档流面） */
+function scrollParentOf(el: HTMLElement): HTMLElement | null {
+  let node: HTMLElement | null = el.parentElement;
+  while (node !== null) {
+    const overflowY = window.getComputedStyle(node).overflowY;
+    if (overflowY === "auto" || overflowY === "scroll") {
+      return node;
+    }
+    node = node.parentElement;
+  }
+  return null;
 }
 
 /** 背包未保存离开守卫（U21）：离开背包分段时若有未保存草稿先拦下（弹层由 SettingsSegment 呈现） */

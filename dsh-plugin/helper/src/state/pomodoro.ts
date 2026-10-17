@@ -6,11 +6,14 @@ export interface PomoConfig {
   /** 专注时长档位（分钟）：[15, 25, 45, 60] */
   durations: number[];
   breakMin: number;
+  /** 番茄功能开关（共享设置 pomodoro_enabled；false 时渲染层不显示 PomoPill） */
+  enabled: boolean;
 }
 
 export const DEFAULT_POMO_CONFIG: PomoConfig = {
   durations: [15, 25, 45, 60],
   breakMin: 5,
+  enabled: false,
 };
 
 export type PomoPhase =

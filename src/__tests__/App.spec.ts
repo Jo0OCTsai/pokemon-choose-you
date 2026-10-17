@@ -908,13 +908,15 @@ describe("App 图鉴机主面板", () => {
     }
   });
 
-  it("设置页飞书：无 App ID/Secret 输入，常驻 lark-cli 指引", async () => {
+  it("设置页飞书：无 App ID/Secret 输入，lark-cli 指引挂卡标题 data-tip 气泡", async () => {
     const w = await mountApp();
     await w.findAll(".menu-btn")[6].trigger("click"); // 设置
     await w.findAll(".stab")[5].trigger("click"); // 飞书
     expect(w.text()).not.toContain("App ID");
     expect(w.text()).not.toContain("App Secret");
-    expect(w.text()).toContain("npm install -g @larksuite/cli");
+    // 说明文案迁为悬浮气泡（DESIGN_SYSTEM.md §4.4）：指引在卡标题的 data-tip 里
+    const feishuTitle = w.findAll("h3[data-tip]").find((h) => h.text().includes("飞书"));
+    expect(feishuTitle?.attributes("data-tip")).toContain("npm install -g @larksuite/cli");
     expect(w.text()).toContain("授权登录");
   });
 

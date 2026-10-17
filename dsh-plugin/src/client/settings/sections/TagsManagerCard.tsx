@@ -49,8 +49,9 @@ export function TagsManagerCard({
 
   return (
     <div className={ui.card}>
-      <h4 className={styles.cardTitle}>{t("tags.title")}</h4>
-      <p className={styles.cardHint}>{t("tags.hint")}</p>
+      <h4 className={styles.cardTitle} data-tip={`${t("tags.hint")}\n${t("tags.dimHint")}`}>
+        {t("tags.title")}
+      </h4>
       {dimensions.map((dimension) => {
         const rows = tags.filter((tag) => tag.dimension === dimension.key);
         return (
@@ -82,7 +83,6 @@ export function TagsManagerCard({
           </div>
         );
       })}
-      <p className={styles.cardHint}>{t("tags.dimHint")}</p>
     </div>
   );
 }

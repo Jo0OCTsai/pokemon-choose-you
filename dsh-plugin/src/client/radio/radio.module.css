@@ -52,6 +52,14 @@
   background: var(--dsw-alias-bg-layer-1, #ffffff);
   padding: 6px;
 }
+/* 待办信号组空态（桌面 .pending-empty 同构）：0 条时组内居中显示「全部处理完」 */
+.pendingEmpty {
+  padding: 18px 10px;
+  text-align: center;
+  font-size: 13px;
+  line-height: 2;
+  color: var(--dsw-alias-label-secondary, #57606a);
+}
 
 /* 右栏详情（桌面 .im-right 同构）：面板底 + 内容伸缩 + 操作行固定底部 */
 .detailPanel {
@@ -91,28 +99,50 @@
   color: var(--dsw-alias-label-secondary, #57606a);
   flex-wrap: wrap;
 }
+/* 状态章 = 键帽档（specs/dsh-plugin-style T2#12：bg-layer-1 底 + 墨线 + 墨色底沿） */
 .detailStatus {
   margin-left: auto;
   flex: none;
   font-size: 11px;
   font-weight: 800;
-  border: 1px solid var(--dsw-alias-border-l2, #d0d7de);
+  border: 1px solid var(--dsw-alias-label-primary, #1f2328);
   border-radius: 4px;
   padding: 1px 6px;
   color: var(--dsw-alias-label-secondary, #57606a);
+  background: var(--dsw-alias-bg-layer-1, #ffffff);
+  box-shadow: 0 2px 0 var(--dsw-alias-label-primary, #1f2328);
+}
+/* LCD 屏 = 签名位（specs/dsh-plugin-style T2#12）：边框/内阴影/扫描线挂不滚动的静框层
+ * （abs ::after 在滚动容器里会随内容滚走），正文滚动在 .detailContent 内 */
+.detailScreen {
+  position: relative;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 110px;
+  border: 1.5px solid var(--dsw-alias-label-primary, #1f2328);
+  border-radius: 8px;
+  box-shadow: inset 2px 2px 0 var(--pcy-lcd-dark, #9caa86);
+}
+.detailScreen::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: repeating-linear-gradient(0deg, rgba(0, 0, 0, 0.05) 0 2px, transparent 2px 4px);
 }
 .detailContent {
   flex: 1;
-  min-height: 110px;
+  min-height: 0;
   overflow-y: auto;
   padding: 12px;
   font-size: 13px;
   font-weight: 600;
   line-height: 1.8;
   white-space: pre-wrap;
-  border: 1px solid var(--dsw-alias-border-l1, #e3e7ec);
-  border-radius: 8px;
-  background: var(--dsw-alias-bg-base, var(--dsw-alias-bg-layer-1, #f8f9fb));
+  background: var(--pcy-lcd, #c4cfa1);
+  color: var(--pcy-lcd-text, #3a4a32);
   overflow-wrap: break-word;
 }
 .noneLine {
@@ -141,20 +171,25 @@
   font-weight: 600;
   color: var(--dsw-alias-label-secondary, #57606a);
 }
+/* kbd = 键帽档（specs/dsh-plugin-style T2#12：bg-layer-1 底 + 墨线 + 0 2px 0 墨色底沿） */
 .kbdChip {
   display: inline-block;
   margin-left: 6px;
   font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
   font-size: 9.5px;
-  border: 1px solid currentColor;
+  background: var(--dsw-alias-bg-layer-1, #ffffff);
+  color: var(--dsw-alias-label-primary, #1f2328);
+  border: 1px solid var(--dsw-alias-label-primary, #1f2328);
   border-radius: 4px;
-  padding: 0 4px;
+  padding: 0 5px;
   line-height: 14px;
   vertical-align: 1px;
-  opacity: 0.75;
+  box-shadow: 0 2px 0 var(--dsw-alias-label-primary, #1f2328);
 }
 
-/* 单条电波行（桌面 .rrow 同构：勾选 + 两行主体 + 行尾标记；点击选中） */
+/* 单条电波行（桌面 .rrow 同构：勾选 + 两行主体 + 行尾标记；点击选中）
+ * specs/dsh-plugin-style T1#6 一等弱选中：奶油黄底 + 重墨线（不用 ▶ 与纯黄——
+ * 行内 label-secondary 辅助文字对纯黄仅 4.2:1 不达标）；恒定 1.5px 边框透明占位防抖动 */
 .messageRow {
   display: flex;
   gap: 8px;
@@ -162,15 +197,15 @@
   padding: 7px 8px;
   border-radius: 8px;
   cursor: pointer;
-  border: 1px solid transparent;
+  border: 1.5px solid transparent;
   font-size: 12px;
 }
 .messageRow:hover {
-  background: var(--dsw-alias-interactive-bg-hover, #f0f2f5);
+  background: var(--pcy-hover, #fff3c4);
 }
 .messageRow[data-selected="true"] {
-  background: var(--dsw-alias-interactive-bg-hover, #f0f2f5);
-  border-color: var(--dsw-alias-state-business-primary, #316dca);
+  background: var(--pcy-hover, #fff3c4);
+  border-color: var(--dsw-alias-label-primary, #1f2328);
 }
 .messageRow[data-dim="true"] {
   opacity: 0.6;
@@ -205,7 +240,7 @@
   font-size: 10.5px;
   font-weight: 800;
   color: var(--dsw-alias-label-secondary, #57606a);
-  border: 1px solid var(--dsw-alias-border-l2, #d0d7de);
+  border: 1px solid var(--dsw-alias-border-l3, #c7cdd4);
   border-radius: 4px;
   padding: 0 4px;
   max-width: 130px;
@@ -302,21 +337,30 @@
   color: var(--dsw-alias-label-secondary, #57606a);
   font-variant-numeric: tabular-nums;
 }
+/* ⚡ 立即拉取 = 主行动黄按钮档（specs/dsh-plugin-style §5 主行动清单；就地换挡保留 margin-left:auto） */
 .pollNow {
   box-sizing: border-box;
   min-height: var(--pcy-control-h, 32px);
   margin-left: auto;
   padding: 2px 12px;
   border-radius: 8px;
-  border: 1.5px solid var(--dsw-alias-state-business-primary, #316dca);
-  background: transparent;
-  color: var(--dsw-alias-state-business-primary, #316dca);
+  border: 1.5px solid var(--dsw-alias-label-primary, #1f2328);
+  background: var(--pcy-running, #ffcb05);
+  color: #1a1b25;
   font-size: 12px;
-  font-weight: 600;
+  font-weight: 700;
   cursor: pointer;
+  box-shadow: 2px 2px 0 var(--dsw-alias-label-primary, #1f2328);
+  transition:
+    transform 80ms,
+    box-shadow 80ms;
 }
-.pollNow:hover {
-  background: var(--dsw-alias-interactive-bg-hover, #f0f2f5);
+.pollNow:hover:not(:disabled) {
+  background: var(--pcy-running, #ffcb05);
+}
+.pollNow:active:not(:disabled) {
+  transform: translate(1px, 1px);
+  box-shadow: 1px 1px 0 var(--dsw-alias-label-primary, #1f2328);
 }
 .pollNow:focus-visible {
   outline: 2px solid var(--dsw-alias-state-business-primary, #316dca);
@@ -325,6 +369,11 @@
 .pollNow:disabled {
   opacity: 0.45;
   cursor: not-allowed;
+}
+@media (prefers-reduced-motion: reduce) {
+  .pollNow {
+    transition-duration: 0.01ms;
+  }
 }
 
 /* AuthBanner（警示软底为固定色——宿主 surface token 会盖掉回落警示色） */
@@ -368,10 +417,11 @@
   outline: 2px solid var(--dsw-alias-state-business-primary, #316dca);
   outline-offset: 1px;
 }
-/* ⏱按状态 / 📡按频道 互切（aria-pressed 态高亮当前模式） */
+/* ⏱按状态 / 📡按频道 互切（aria-pressed 态高亮当前模式；二等选中 = 奶油黄底，
+ * 文字走 alias 随主题翻转——固定墨字对暗档 hover 黄仅 1.5:1，specs/dsh-plugin-style §3.2） */
 .viewToggle {
   display: inline-flex;
-  border: 1px solid var(--dsw-alias-border-l2, #d0d7de);
+  border: 1px solid var(--dsw-alias-border-l3, #c7cdd4);
   border-radius: 8px;
   overflow: hidden;
   background: var(--dsw-alias-bg-layer-1, #ffffff);
@@ -388,8 +438,8 @@
   cursor: pointer;
 }
 .viewToggle button[aria-pressed="true"] {
-  background: var(--pcy-conf-mid-soft, #fff3d6);
-  color: var(--pcy-warn-ink, #8a5e06);
+  background: var(--pcy-hover, #fff3c4);
+  color: var(--dsw-alias-label-primary, #1f2328);
 }
 .viewToggle button:focus-visible {
   outline: 2px solid var(--dsw-alias-state-business-primary, #316dca);
@@ -471,7 +521,9 @@
   background: var(--pcy-conf-mid-soft, #fff3d6);
   color: var(--pcy-warn-ink, #8a5e06);
 }
+/* 操作行 = 逃走原因浮层的定位锚（桌面 .im-actions position:relative 同构） */
 .actionBar {
+  position: relative;
   display: flex;
   gap: 6px;
   flex-wrap: wrap;
@@ -517,14 +569,24 @@
   background: var(--dsw-alias-bg-layer-1, #e8f2ea);
   border-color: var(--pcy-conf-high, #2f7d3c);
 }
+/* 逃走原因浮层（桌面 EscapeReasonPop 同构）：脱离文档流向上弹、右对齐——操作行贴详情底部，
+ * 在流内展开会压缩 flex:1 的 LCD 屏把内容往上顶；向下弹则盖住发报条。极矮窗口限高内滚兜底 */
 .reasonMenu {
+  position: absolute;
+  bottom: calc(100% + 6px);
+  right: 0;
+  z-index: 60;
   display: flex;
   flex-direction: column;
   gap: 2px;
   padding: 6px;
-  border: 1px solid var(--dsw-alias-border-l2, #d0d7de);
+  min-width: 200px;
+  max-height: min(320px, 60vh);
+  overflow-y: auto;
+  border: 1.5px solid var(--dsw-alias-label-primary, #1f2328);
   border-radius: 8px;
   background: var(--dsw-alias-bg-layer-1, #ffffff);
+  box-shadow: 2px 2px 0 var(--dsw-alias-label-primary, #1f2328);
 }
 .reasonMenu button {
   box-sizing: border-box;
@@ -541,7 +603,8 @@
   background: var(--dsw-alias-interactive-bg-hover, #f0f2f5);
 }
 
-/* BatchBar（左栏底部常驻，桌面 .batch-bar parity；主色描边强调） */
+/* BatchBar（左栏底部常驻，桌面 .batch-bar parity）：纸色托盘 + 重墨线 + 2px 硬阴影
+ * （specs/dsh-plugin-style T1#8「托盘」隐喻；文字走纸面配对墨色） */
 .batchBar {
   position: sticky;
   bottom: 0;
@@ -551,10 +614,12 @@
   flex-wrap: wrap;
   padding: 8px 12px;
   border-radius: 10px;
-  border: 2px solid var(--dsw-alias-state-business-primary, #316dca);
-  background: var(--dsw-alias-bg-layer-1, #ffffff);
+  border: 1.5px solid var(--dsw-alias-label-primary, #1f2328);
+  background: var(--pcy-paper, #f5f0dc);
+  color: var(--pcy-paper-ink, #1a1b25);
   font-size: 13px;
   font-weight: 700;
+  box-shadow: 2px 2px 0 var(--dsw-alias-label-primary, #1f2328);
 }
 /* 全选待处理勾选行（label 整体为命中区，≥32px） */
 .batchCheck {
@@ -567,13 +632,13 @@
   user-select: none;
 }
 
-/* CaptureBar（通栏垫底；原型 capture：顶部 2px 分隔线） */
+/* CaptureBar（通栏垫底；原型 capture：顶部重墨分隔线——桌面 3px navy 的宿主降档） */
 .captureBar {
   display: flex;
   gap: 8px;
   margin-top: 12px;
   padding-top: 12px;
-  border-top: 2px solid var(--dsw-alias-border-l2, #d0d7de);
+  border-top: 2px solid var(--dsw-alias-label-primary, #1f2328);
 }
 .captureInput {
   flex: 1;

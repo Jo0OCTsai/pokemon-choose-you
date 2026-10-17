@@ -71,8 +71,9 @@ export function PromptOverrideEditor({
 
   return (
     <div className={ui.card} data-testid="prompt-override-editor">
-      <h4 className={styles.cardTitle}>{t("prompts.title")}</h4>
-      <p className={styles.cardHint}>{t("prompts.sub")}</p>
+      <h4 className={styles.cardTitle} data-tip={t("prompts.sub")}>
+        {t("prompts.title")}
+      </h4>
       <div className={styles.entityList}>
         {editableSpecs.map((spec) => (
           <div key={spec.id} className={styles.promptPanel} data-testid="prompt-panel">
@@ -159,10 +160,9 @@ export function PromptOverrideEditor({
         {dispatchSpec !== undefined && (
           <div className={styles.promptPanel}>
             <div className={styles.filterRow}>
-              <b>{t("prompts.feature.dispatch")}</b>
+              <b data-tip={t("prompts.readonlyNote")}>{t("prompts.feature.dispatch")}</b>
               <span className={styles.promptBadge}>{t("prompts.badgeReadonly")}</span>
             </div>
-            <p className={styles.cardHint}>{t("prompts.readonlyNote")}</p>
           </div>
         )}
       </div>

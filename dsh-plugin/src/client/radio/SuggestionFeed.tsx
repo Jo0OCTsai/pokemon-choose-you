@@ -155,29 +155,32 @@ export function SuggestionFeed({
           />
         ) : (
           <>
-            {/* 待处理组 */}
-            {groups.pending.length > 0 && (
-              <FeedGroup
-                testId="pending-group"
-                title={t("im.groupSignal")}
-                count={groups.pending.length}
-                hot
-                collapsed={collapsed.has("pending")}
-                onToggle={() => toggleGroup("pending")}
-              >
-                {groups.pending.map((message) => (
-                  <MessageRow
-                    key={message.messageId}
-                    message={message}
-                    variant="signal"
-                    selected={selectedId === message.messageId}
-                    checked={selected.has(message.messageId)}
-                    onSelect={onSelect}
-                    onToggleCheck={toggleSelect}
-                  />
-                ))}
-              </FeedGroup>
-            )}
+            {/* 待办信号组：始终渲染（桌面 parity）——0 条时组内落「全部处理完」空态而非整组消失 */}
+            <FeedGroup
+              testId="pending-group"
+              title={t("im.groupSignal")}
+              count={groups.pending.length}
+              hot
+              collapsed={collapsed.has("pending")}
+              onToggle={() => toggleGroup("pending")}
+            >
+              {groups.pending.length === 0 && (
+                <div className={styles.pendingEmpty} data-testid="pending-empty">
+                  {t("im.signalAllDone")}
+                </div>
+              )}
+              {groups.pending.map((message) => (
+                <MessageRow
+                  key={message.messageId}
+                  message={message}
+                  variant="signal"
+                  selected={selectedId === message.messageId}
+                  checked={selected.has(message.messageId)}
+                  onSelect={onSelect}
+                  onToggleCheck={toggleSelect}
+                />
+              ))}
+            </FeedGroup>
 
             {/* 判定失败组（中性命名 + 组头一键重判/强制） */}
             {groups.failed.length > 0 && (

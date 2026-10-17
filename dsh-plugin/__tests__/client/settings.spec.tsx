@@ -113,14 +113,26 @@ describe("保存制（U21）", () => {
     expect(screen.queryByText("已保存")).toBeNull();
   });
 
-  it("勿扰起=止：行内防呆阻断保存（saveBlocked）+ 后端兜底 CONFIG_VALIDATION_FAILED", async () => {
+  it("保存按钮恒可点（不 disable）：无 dirty 点击不落库不报错", async () => {
+    const { host } = renderSettings();
+    const save = screen.getByTestId("section-save") as HTMLButtonElement;
+    expect(save.hasAttribute("disabled")).toBe(false);
+    fireEvent.click(save);
+    await vi.runAllTimersAsync();
+    expect(host.calls.some((c) => c.command === "configWrite")).toBe(false);
+  });
+
+  it("勿扰起=止：按钮仍可点但不落库（行内防呆原因持续呈现）+ 后端兜底 CONFIG_VALIDATION_FAILED", async () => {
     const host = mockHost();
     renderSettings(makeData(), host);
     const focus = getVisiblePage("专注");
     fireEvent.change(within(focus).getByLabelText("勿扰结束"), { target: { value: "22:00" } });
     const save = screen.getByTestId("section-save") as HTMLButtonElement;
-    expect(save.hasAttribute("disabled")).toBe(true);
+    expect(save.hasAttribute("disabled")).toBe(false);
     expect(screen.getAllByRole("alert").length).toBeGreaterThan(0);
+    fireEvent.click(save);
+    await vi.runAllTimersAsync();
+    expect(host.calls.some((c) => c.command === "configWrite")).toBe(false);
     // 后端兜底路径（写入侧校验）
     const fail = await host.configWrite({ keyValues: { quiet_start: "22:00", quiet_end: "22:00" } });
     expect(fail.ok).toBe(false);

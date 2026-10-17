@@ -5,7 +5,7 @@
  * - 分类与标签：分类停用/启用（即时生效 + 失败行内错误）/ 标签管理卡（分组 + 维度迁移 +
  *   两段式删除 + ⚡ 派发 chip）
  * - Agent：预设下拉添加 + 附加参数/工作目录/超时 + SSH 远程执行组
- * - 飞书：会话过滤搜索 + 生效/偏好/类型三维筛选 + 汇总计数行
+ * 飞书分区用例 → settings-parity-feishu.spec.tsx（棘轮 max-lines 拆分，等量迁移）。
  * 渲染壳/分区导航/标签夹具 → settingsHarness（对照 reviewWizardHarness 手法）。
  */
 import { act, cleanup, fireEvent, screen, within } from "@testing-library/react";
@@ -13,7 +13,6 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { mockHost } from "../../src/client/rpc";
 import { makeCategory, makeData } from "./fixtures";
 import { getPage, gotoSection, makeTag, renderSettings } from "./settingsHarness";
-import type { PanelData } from "../../src/client/model";
 
 afterEach(cleanup);
 vi.useFakeTimers();
@@ -89,12 +88,35 @@ describe("桌宠分区对齐（主宝可梦搜索 + 台词分组编辑）", () =
     renderSettings(makeData(), host);
     gotoSection("桌宠");
     const page = getPage("pets");
-    fireEvent.click(within(page).getByText("打开图鉴机"));
+    // 行标签「显示桌宠」+ 显示/隐藏两钮（可访问名 = aria-label 全称，可见文案为短动词）
+    const row = within(page).getByTestId("pet-show-row");
+    expect(row.textContent).toContain("显示桌宠");
+    fireEvent.click(within(row).getByRole("button", { name: "显示桌宠" }));
     await vi.runAllTimersAsync();
     expect(within(page).getByTestId("pet-show-warn").textContent).toContain("桌宠未在 5 秒内完成启动握手");
     // 隐藏桌宠清掉警告
-    fireEvent.click(within(page).getByText("隐藏桌宠"));
+    fireEvent.click(within(row).getByRole("button", { name: "隐藏桌宠" }));
     expect(within(page).queryByTestId("pet-show-warn")).toBeNull();
+  });
+
+  it("显示桌宠状态行：petStatus 驱动「显示中/已隐藏」回显，动作后跟随刷新", async () => {
+    const host = mockHost(); // petRunning 缺省 true（随宿主启动语义）
+    renderSettings(makeData(), host);
+    gotoSection("桌宠");
+    const row = () => within(getPage("pets")).getByTestId("pet-show-row");
+    // 挂载期 petStatus 查询的 setState 在 act 外排队——act 内冲一把微任务再取状态
+    await act(async () => {});
+    expect(row().textContent).toContain("显示中");
+    fireEvent.click(within(row()).getByRole("button", { name: "隐藏桌宠" }));
+    await vi.runAllTimersAsync();
+    await act(async () => {});
+    expect(host.state.petRunning).toBe(false);
+    expect(row().textContent).toContain("已隐藏");
+    fireEvent.click(within(row()).getByRole("button", { name: "显示桌宠" }));
+    await vi.runAllTimersAsync();
+    await act(async () => {});
+    expect(host.state.petRunning).toBe(true);
+    expect(row().textContent).toContain("显示中");
   });
 });
 
@@ -210,55 +232,4 @@ describe("Agent 分区对齐（预设 + 全字段 + SSH 组）", () => {
     });
   });
   // pk 技能行与连接测试的用例 → settings-agent-tools.spec.tsx（棘轮拆分，等量迁移）
-});
-
-describe("飞书分区对齐（会话过滤搜索/筛选/汇总）", () => {
-  function feishuData(): PanelData {
-    const data = makeData();
-    data.filters = [
-      { chatId: "g1", chatName: "产品群", chatType: "group", state: "follow", updatedAt: null },
-      {
-        chatId: "g2",
-        chatName: "设计群",
-        chatType: "group",
-        state: "always_pull",
-        updatedAt: "2026-10-11T09:00:00+08:00",
-      },
-      { chatId: "b1", chatName: "机器人小助手", chatType: "bot", state: "always_filter", updatedAt: null },
-      { chatId: "p1", chatName: "张三", chatType: "p2p", state: "follow", updatedAt: null },
-    ];
-    return data;
-  }
-
-  it("汇总计数行 + 名称搜索过滤", () => {
-    renderSettings(feishuData());
-    gotoSection("飞书");
-    const page = getPage("feishu");
-    expect(within(page).getByTestId("filter-summary").textContent).toContain("共 4 个会话：1 拉取 · 1 过滤 · 手动 2");
-    fireEvent.change(within(page).getByLabelText("按会话名称搜索"), { target: { value: "产品" } });
-    const rows = within(page).getAllByTestId("filter-row");
-    expect(rows).toHaveLength(1);
-    expect(rows[0].textContent).toContain("产品群");
-  });
-
-  it("生效/偏好/类型三维筛选（前端过滤）", () => {
-    renderSettings(feishuData());
-    gotoSection("飞书");
-    const page = getPage("feishu");
-    // 生效状态：拉取 → 只有 always_pull 的设计群
-    fireEvent.change(within(page).getByLabelText("按生效状态筛选"), { target: { value: "pull" } });
-    const pullRows = within(page).getAllByTestId("filter-row");
-    expect(pullRows).toHaveLength(1);
-    expect(pullRows[0].textContent).toContain("设计群");
-    // 偏好：手动 → 设计群 + 机器人
-    fireEvent.change(within(page).getByLabelText("按生效状态筛选"), { target: { value: "all" } });
-    fireEvent.change(within(page).getByLabelText("按偏好设置筛选"), { target: { value: "manual" } });
-    expect(within(page).getAllByTestId("filter-row")).toHaveLength(2);
-    // 类型：机器人 → 只剩机器人小助手（p2p 不进类型档）
-    fireEvent.change(within(page).getByLabelText("按偏好设置筛选"), { target: { value: "all" } });
-    fireEvent.change(within(page).getByLabelText("按会话类型筛选"), { target: { value: "bot" } });
-    const rows = within(page).getAllByTestId("filter-row");
-    expect(rows).toHaveLength(1);
-    expect(rows[0].textContent).toContain("机器人小助手");
-  });
 });

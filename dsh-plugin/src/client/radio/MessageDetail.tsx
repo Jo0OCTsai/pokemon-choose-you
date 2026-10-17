@@ -58,7 +58,11 @@ export function MessageDetail({
           </span>
           <span className={styles.detailStatus}>{t(statusLabelKey(message.aiStatus))}</span>
         </div>
-        <div className={styles.detailContent}>{message.content}</div>
+        {/* LCD 静框（specs/dsh-plugin-style T2#12）：边框/内阴影/扫描线挂不滚动的静框层，
+            正文滚动在 detailContent 内——abs ::after 在滚动容器里会随内容滚走 */}
+        <div className={styles.detailScreen}>
+          <div className={styles.detailContent}>{message.content}</div>
+        </div>
         <DetailSuggestion message={message} acceptedTags={acceptedTags} readonly={readonly} onToggleTag={onToggleTag} />
         <DetailBanner message={message} />
         <MessageActions message={message} readonly={readonly} run={run} />

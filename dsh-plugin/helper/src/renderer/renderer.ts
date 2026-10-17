@@ -39,6 +39,7 @@ function onUiEvent(ev: Record<string, unknown>): void {
   else if (kind === "lang") handleLang(ev);
   else if (kind === "sprites") handleSprites(ev);
   else if (kind === "pet-state") handlePetState(ev);
+  else if (kind === "pomo-config") handlePomoConfig(ev);
   else if (kind === "bubble") handleBubble(ev);
 }
 
@@ -50,6 +51,16 @@ function handleTask(ev: Record<string, unknown>): void {
   refreshPill(task, null);
   setSprite(task ? task.categoryPokemon : ""); // 无进行中：回主宝可梦
   maybeGreet();
+}
+
+/** 番茄配置（含功能开关）：开关变化即时重评胶囊显隐 */
+function handlePomoConfig(ev: Record<string, unknown>): void {
+  const config = ev.config as { enabled?: boolean } | undefined;
+  const enabled = Boolean(config?.enabled);
+  if (enabled !== mirror.pomoEnabled) {
+    mirror.pomoEnabled = enabled;
+    refreshPill(mirror.lastTask, null);
+  }
 }
 
 function handleLang(ev: Record<string, unknown>): void {

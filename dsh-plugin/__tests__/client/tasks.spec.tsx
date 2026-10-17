@@ -85,11 +85,11 @@ describe("四分段派生", () => {
   ];
   const data = makeData({ tasks });
 
-  it("冒险：页头日期 + CAUGHT 1/3 进度条（PageHeader）+ 今日列表", () => {
+  it("冒险：页头日期 + CAUGHT 1/3 进度条（PageHeader，七段常显不收分段参数）+ 今日列表", () => {
     // 日期与 CAUGHT 进度在页头（桌面 today 页头同位），AdventureView 只承载列表
     renderWithClient(
       <>
-        <PageHeader pendingCount={0} segment="adventure" data={data} />
+        <PageHeader pendingCount={0} data={data} />
         <AdventureView data={data} readonly={false} onOpen={() => undefined} onChanged={() => undefined} />
       </>,
     );

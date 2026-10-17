@@ -10,9 +10,11 @@
   min-height: 0;
   overflow-y: auto;
   box-sizing: border-box;
-  padding: 20px 24px 40px;
+  /* 顶距收窄（用户裁决 2026-10-17：标题上边距缩小）；底距 16——填充段定高止于内容盒
+   * 底缘，过大底距会在页脚留死空 */
+  padding: 10px 24px 16px;
 }
 
 html[data-platform="darwin"] .shell {
-  padding-top: calc(20px + var(--dsh-frame-top-clearance, 0px));
+  padding-top: calc(10px + var(--dsh-frame-top-clearance, 0px));
 }

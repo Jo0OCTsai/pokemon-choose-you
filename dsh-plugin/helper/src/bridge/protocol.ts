@@ -53,6 +53,8 @@ export interface PomodoroConfigMsg {
   /** 专注时长档位（分钟） */
   durations: number[];
   breakMin: number;
+  /** 番茄功能开关（共享设置 pomodoro_enabled；false 时 PomoPill 不显示——主应用 parity） */
+  enabled: boolean;
   lang: Lang;
 }
 

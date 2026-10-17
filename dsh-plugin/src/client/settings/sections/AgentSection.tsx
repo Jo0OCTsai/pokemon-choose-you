@@ -11,7 +11,7 @@ import type { AgentConfig } from "../../../host/domain/settings";
 import type { Tag } from "../../../host/domain/vocabulary-tags";
 import { useClient } from "../../clientContext";
 import { useT } from "../../i18n";
-import { ScopeBadge, Select, Toggle } from "../../ui/controls";
+import { Select, Toggle } from "../../ui/controls";
 import type { PromptSpecInfo } from "../../../host/domain/prompt-overrides";
 import ui from "../../ui/ui.module.css";
 import { AgentConfigCard, RouteRow } from "./AgentConfigCard";
@@ -48,6 +48,7 @@ export function AgentSection({
   routes,
   tags,
   promptSpecs,
+  onChanged,
   ...props
 }: SectionProps & {
   agents: AgentConfig[];
@@ -56,16 +57,14 @@ export function AgentSection({
   tags: Tag[];
   /** promptList 结果（适配层预取注入；空数组时面板内自取） */
   promptSpecs: PromptSpecInfo[];
+  /** 路由保存成功后的数据刷新（面板重拉——项目派发状态行跟新） */
+  onChanged: () => void;
 }): React.JSX.Element {
   const { draft, onField } = props;
   const t = useT();
   const client = useClient();
-  const [agentList, setAgentList] = useState(agents);
   const [agentPreset, setAgentPreset] = useState("claude");
   const [specs, setSpecs] = useState<PromptSpecInfo[]>(promptSpecs);
-  useEffect(() => {
-    setAgentList(agents);
-  }, [agents]);
   useEffect(() => {
     if (specs.length === 0) {
       void client.promptList().then((r) => {
@@ -75,6 +74,43 @@ export function AgentSection({
       });
     }
   }, [specs.length, client]);
+
+  /**
+   * 本地面板态：渲染列表（持久卡 + 乐观幽灵卡）与 CAS 基线分离（回归：幽灵新 id
+   * 混入 expectedAgentIds → 首存必然 SETTING_MODIFIED_ELSEWHERE 且污染全列表基线，
+   * 编辑/删除全部死锁）。幽灵卡 = 列表中有、基线中没有的 id。
+   */
+  const [panel, setPanel] = useState<{ list: AgentConfig[]; persistedIds: string[] }>(() => ({
+    list: agents,
+    persistedIds: agents.map((a) => a.id),
+  }));
+  useEffect(() => {
+    const idSet = new Set(agents.map((a) => a.id));
+    setPanel((prev) => ({
+      persistedIds: agents.map((a) => a.id),
+      // 面板重拉：持久卡整列跟进服务端；未保存幽灵卡保留（无关刷新不丢草稿）
+      list: [...agents, ...prev.list.filter((a) => !idSet.has(a.id) && !prev.persistedIds.includes(a.id))],
+    }));
+  }, [agents]);
+
+  /** agent 写成功（upsert/delete）：整列跟进服务端响应 + 基线刷新；未保存幽灵卡保留；
+   *  同步请求面板重拉（onChanged 契约——写命令成功后刷新快照，分段重挂才读得到新值） */
+  function handleSaved(next: AgentConfig[]): void {
+    const idSet = new Set(next.map((a) => a.id));
+    setPanel((prev) => ({
+      persistedIds: next.map((a) => a.id),
+      list: [...next, ...prev.list.filter((a) => !idSet.has(a.id) && !prev.persistedIds.includes(a.id))],
+    }));
+    onChanged();
+  }
+
+  /** 幽灵卡纯本地移除（编辑取消/未落库删除——不发服务端命令） */
+  function removeLocal(id: string): void {
+    setPanel((prev) => ({ ...prev, list: prev.list.filter((a) => a.id !== id) }));
+  }
+
+  const persistedIdSet = new Set(panel.persistedIds);
+  const agentList = panel.list;
 
   const agentOptions = [
     { value: "", label: t("ai.primaryNone") },
@@ -102,40 +138,47 @@ export function AgentSection({
     return `${base} ${n}`;
   }
 
-  /** 按预设新增 agent（选中预设预填 name/command/args/historyArgs；未知键回落 custom） */
+  /** 按预设新增 agent（选中预设预填 name/command/args/historyArgs；未知键回落 custom；
+   *  乐观追加进列表但不计入 CAS 基线——基线仍为服务端已知 id 集） */
   function addAgent(presetKey: string): void {
     const preset = AGENT_PRESETS[presetKey] ?? AGENT_PRESETS.custom;
     const id =
       typeof crypto !== "undefined" && "randomUUID" in crypto
         ? crypto.randomUUID()
         : `agent-${Date.now().toString(36)}`;
-    setAgentList((list) => [
-      ...list,
-      {
-        id,
-        name: dedupeName(preset.name),
-        command: preset.command,
-        args: preset.args,
-        historyArgs: preset.historyArgs,
-        workdir: "",
-        timeoutSecs: 120,
-        enabled: true,
-      },
-    ]);
+    setPanel((prev) => ({
+      ...prev,
+      list: [
+        ...prev.list,
+        {
+          id,
+          name: dedupeName(preset.name),
+          command: preset.command,
+          args: preset.args,
+          historyArgs: preset.historyArgs,
+          workdir: "",
+          timeoutSecs: 120,
+          enabled: true,
+        },
+      ],
+    }));
   }
 
   return (
     <SectionShell>
       <div className={ui.card}>
-        <h4 className={styles.cardTitle}>{t("ai.title")}</h4>
-        <p className={styles.cardHint}>{t("ai.hint")}</p>
+        <h4 className={styles.cardTitle} data-tip={t("ai.hint")}>
+          {t("ai.title")}
+        </h4>
         <div className={styles.entityList}>
           {agentList.map((agent) => (
             <AgentConfigCard
               key={agent.id}
               agent={agent}
-              expectedIds={agentList.map((a) => a.id)}
-              onSaved={setAgentList}
+              expectedIds={panel.persistedIds}
+              isNew={!persistedIdSet.has(agent.id)}
+              onSaved={handleSaved}
+              onRemoveNew={removeLocal}
             />
           ))}
         </div>
@@ -152,17 +195,20 @@ export function AgentSection({
         </div>
       </div>
       <div className={ui.card}>
-        <h4 className={styles.cardTitle}>{t("dispatchCfg.title")}</h4>
-        <p className={styles.cardHint}>{t("dispatchCfg.hint")}</p>
+        <h4 className={styles.cardTitle} data-tip={t("dispatchCfg.hint")}>
+          {t("dispatchCfg.title")}
+        </h4>
         <Select
           label={t("ai.primary")}
+          tip={t("dsh.settings.judgeSource")}
           value={draft["ai_agent_id"]}
           options={agentOptions}
           onChange={(v) => onField("ai_agent_id", v)}
         />
-        <p className={styles.cardHint}>{t("dsh.settings.judgeSource")}</p>
         <Select
           label={t("ai.terminal")}
+          tip={t("ai.terminalDesc")}
+          badge={t("dsh.badge.dispatch")}
           value={draft["terminal_preference"]}
           options={[
             { value: "default", label: t("ai.termBuiltin") },
@@ -172,38 +218,35 @@ export function AgentSection({
           ]}
           onChange={(v) => onField("terminal_preference", v)}
         />
-        <p className={styles.cardHint}>
-          {t("ai.terminalDesc")} <ScopeBadge kind="dispatch" />
-        </p>
         <Toggle
           label={t("dispatchCfg.auto")}
+          tip={t("dispatchCfg.autoDesc")}
           checked={draft["dispatch_auto_enabled"] === "true"}
           onChange={(v) => onField("dispatch_auto_enabled", String(v))}
         />
-        <p className={styles.cardHint}>{t("dispatchCfg.autoDesc")}</p>
         <Select
           label={t("dispatchCfg.maxConcurrent")}
+          tip={t("dispatchCfg.maxConcurrentDesc")}
           value={draft["dispatch_max_concurrent"]}
           options={[1, 2, 3, 4].map((n) => ({ value: String(n), label: t("dispatchCfg.mcN", { n }) }))}
           onChange={(v) => onField("dispatch_max_concurrent", v)}
         />
-        <p className={styles.cardHint}>{t("dispatchCfg.maxConcurrentDesc")}</p>
         <Toggle
           label={t("dispatchCfg.worktree")}
+          tip={t("dispatchCfg.worktreeDesc")}
           checked={draft["dispatch_worktree"] === "true"}
           onChange={(v) => onField("dispatch_worktree", String(v))}
         />
-        <p className={styles.cardHint}>{t("dispatchCfg.worktreeDesc")}</p>
       </div>
       <div className={ui.card}>
-        <h4 className={styles.cardTitle}>{t("tagDispatch.title")}</h4>
-        <p className={styles.cardHint}>{t("tagDispatch.hint")}</p>
+        <h4 className={styles.cardTitle} data-tip={`${t("tagDispatch.hint")}\n${t("tagDispatch.foot")}`}>
+          {t("tagDispatch.title")}
+        </h4>
         {routeRows.length === 0 ? (
           <p className={ui.muted}>{t("tagDispatch.empty")}</p>
         ) : (
-          routeRows.map((route) => <RouteRow key={route.tag} route={route} agents={agentList} />)
+          routeRows.map((route) => <RouteRow key={route.tag} route={route} agents={agentList} onSaved={onChanged} />)
         )}
-        <p className={styles.cardHint}>{t("tagDispatch.foot")}</p>
       </div>
       <PromptOverrideEditor specs={specs} onSpecChange={setSpecs} />
     </SectionShell>

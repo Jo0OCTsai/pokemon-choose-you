@@ -122,7 +122,7 @@ export function DispatchBody(props: {
         </span>
         <GoButton {...{ readonly, busy, dispatchState, onDispatch }} />
       </div>
-      <p className={styles.drawerHint}>{dispatchHintText(t, channel, route)}</p>
+      {channel === "headless" && <p className={styles.drawerHint}>{t("dispatch.headlessHint")}</p>}
     </>
   );
 }
@@ -169,7 +169,7 @@ function GoButton({
   return (
     <button
       type="button"
-      className={`${ui.button} ${ui.buttonPrimary}`}
+      className={ui.buttonDex}
       disabled={readonly || busy || blocked}
       title={dispatchState === "running" ? t("dsh.dispatch.tooltipRunning") : undefined}
       onClick={onDispatch}
@@ -204,21 +204,6 @@ function workdirText(route: PanelData["routes"][number] | undefined, t: ReturnTy
     return route.workdir;
   }
   return t("dispatch.dirDefault");
-}
-
-/** 派发 hint 文案（无头 = 固定说明；交互 = 路由来源说明） */
-export function dispatchHintText(
-  t: ReturnType<typeof useT>,
-  channel: "interactive" | "headless",
-  route: PanelData["routes"][number] | undefined,
-): string {
-  if (channel === "headless") {
-    return t("dispatch.headlessHint");
-  }
-  return t("dispatch.hint", {
-    tag: route?.tag ?? "",
-    src: route !== undefined ? t("dispatch.srcTag") : t("dispatch.srcDefault"),
-  });
 }
 
 /** 项目维度标签在卡上（项目路由派发的前提） */

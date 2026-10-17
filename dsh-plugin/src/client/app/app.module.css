@@ -9,11 +9,17 @@
   font-size: 14px;
 }
 
-/* PageHeader（桌面 dex-main-head 同构：标题块左 + 冒险段 CAUGHT 进度右） */
+/* PageHeader（桌面 dex-main-head 同构：标题块左 + CAUGHT 进度右，七段常显）
+ * specs/dsh-plugin-style T1#1：纸色头条 + 2px 重墨线底缘；面内文字走纸面配对墨色
+ * （--pcy-paper-ink 与 --pcy-paper 同泡翻转，宿主/OS 主题背离也不损可读） */
 .pageHeader {
   display: flex;
   align-items: center;
   gap: 12px;
+  background: var(--pcy-paper, #f5f0dc);
+  border-bottom: 2px solid var(--dsw-alias-label-primary, #1f2328);
+  border-radius: 10px 10px 0 0;
+  padding: 8px 12px 6px;
 }
 .pageHeadMain {
   flex: 1;
@@ -29,14 +35,17 @@
   gap: 12px;
   min-width: 0;
 }
-/* 冒险段日期（桌面 today 页 .sub.px 同位：标题下方独立一行，等宽小字） */
+/* 日期（等宽小字 + 丝印字距）：页头右端与 CAUGHT 同排、居其前（用户裁决 2026-10-16：
+ * 不再桌面 today 页「标题下方独立行」同位） */
 .pageDate {
   font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
   font-size: 12px;
   font-variant-numeric: tabular-nums;
-  color: var(--dsw-alias-label-secondary, #57606a);
+  letter-spacing: 1px;
+  color: var(--pcy-paper-ink, #1a1b25);
+  opacity: 0.65;
 }
-/* 冒险段 CAUGHT 计数 + 描边进度条（桌面 catch-progress 同构：计数左、进度条右同行） */
+/* CAUGHT 计数 + 描边进度条（桌面 catch-progress 同构：计数左、进度条右同行） */
 .pageCaught {
   display: flex;
   align-items: center;
@@ -46,7 +55,7 @@
 .caughtLabel {
   font-size: 12px;
   font-variant-numeric: tabular-nums;
-  color: var(--dsw-alias-label-primary, #1f2328);
+  color: var(--pcy-paper-ink, #1a1b25);
   font-weight: 600;
 }
 .caughtBar {
@@ -62,33 +71,18 @@
   height: 100%;
   background: var(--pcy-ok, #2e9e5b);
 }
-.pageHeaderSprite {
-  width: 36px;
-  height: 36px;
-  image-rendering: pixelated;
-  border-radius: 8px;
-  border: 1px solid var(--dsw-alias-border-l1, #e3e7ec);
-  background: var(--dsw-alias-bg-layer-1, #f6f8fa);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 18px;
-}
-/* 精灵剪影（PageHeader 装饰位：去色降透明，不与列表内彩色精灵抢注意力） */
-.pageHeaderSprite img {
-  filter: grayscale(1);
-  opacity: 0.65;
-}
 .pageTitle {
   font-size: 18px;
   font-weight: 700;
   margin: 0;
+  color: var(--pcy-paper-ink, #1a1b25);
 }
-/* POKé-DEX 装饰英文（§8：不入 i18n；等宽小字 + 字距，原型 pagehead 同款） */
+/* POKé-DEX 装饰英文（§8：不入 i18n；等宽小字 + 字距，原型 pagehead 同款；
+ * 非信息装饰文字，不设对比度要求） */
 .pageTitleDeco {
   font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
   font-size: 10px;
-  letter-spacing: 1px;
+  letter-spacing: 1.5px;
   color: var(--dsw-alias-label-tertiary, var(--dsw-alias-label-secondary, #57606a));
   margin-left: -6px;
   transform: translateY(3px);
@@ -101,12 +95,14 @@
   height: 20px;
   padding: 0 6px;
   border-radius: 999px;
-  /* 图鉴红底白字（DESIGN_SYSTEM --dex-red，世界观 scoped 徽章；计数静态无动画 NFR-6） */
-  background: var(--pcy-badge-red, #ee1515);
+  /* 行动红底白字（DESIGN_SYSTEM --danger #E00F0F，白字 5.0:1——#ee1515 仅 4.4 不达标）+ 1px 墨线；
+   * 计数静态无动画 NFR-6 */
+  background: var(--pcy-badge-red, #e00f0f);
   color: #ffffff;
   font-size: 12px;
   font-weight: 700;
   line-height: 20px;
+  border: 1px solid #1a1b25;
 }
 
 /* SchemaBanner（持久横幅，只读模式；警示软底为固定色，理由同 AuthBanner） */
@@ -157,15 +153,23 @@
 }
 .segmentButton:hover {
   border-color: var(--dsw-alias-border-l3, #c7cdd4);
+  background: var(--pcy-hover, #fff3c4);
 }
 .segmentButton:focus-visible {
   outline: 2px solid var(--dsw-alias-state-business-primary, #316dca);
   outline-offset: 1px;
 }
+/* 一等选中（specs/dsh-plugin-style §3.2）：黄底固定墨字 + 重墨线 + 字重（验收裁决去 ▶ 前缀；
+ * 非颜色冗余由 aria-current + 字重 + 墨线承担；黄固定不翻转，双主题安全 11.2:1） */
 .segmentButton[aria-current="page"] {
-  color: #ffffff;
-  background: var(--dsw-alias-state-business-primary, #316dca);
-  border-color: var(--dsw-alias-state-business-primary, #316dca);
+  color: #1a1b25;
+  background: var(--pcy-running, #ffcb05);
+  border: 1.5px solid var(--dsw-alias-label-primary, #1f2328);
+  font-weight: 700;
+}
+.segmentButton[aria-current="page"] .segmentCount {
+  background: rgba(26, 27, 37, 0.12);
+  border-color: transparent;
 }
 .segmentCount {
   display: inline-block;
@@ -183,9 +187,10 @@
 .segmentBody {
   min-height: 200px;
 }
-/* 收音机段填充窗口剩余高度（--pcy-remaining 由 PluginDetailPage 按段体顶缘实测写入）：
- * 整页不出滚动条——列表/详情内滚承担展开内容，收发报条常驻可视。
- * 列表/详情伸缩口径经自定义属性下传（radio.module.css 消费：--list-cap/--list-floor/--detail-floor） */
+/* 收音机/背包段填充窗口剩余高度（--pcy-remaining 由 PluginDetailPage 按段体顶缘实测写入）：
+ * 整页不出滚动条——段内滚动位各自治内滚（收音机 = 列表/详情；背包 = 分区页内容），
+ * 页头/选单常驻可视。
+ * 收音机列表/详情伸缩口径经自定义属性下传（radio.module.css 消费：--list-cap/--list-floor/--detail-floor） */
 .segmentFill {
   height: var(--pcy-remaining, auto);
   min-height: 260px;

@@ -62,6 +62,8 @@ export interface MockHostState {
   tagCheckup: TagCheckupReport;
   /** pk 技能 mock 状态（pkSkillCheck/Install 消费；缺省未检查） */
   pkSkill?: import("./mockAgentTools").MockPkSkillState;
+  /** 桌宠显隐（petStatus 消费；缺省 true——随宿主启动语义） */
+  petRunning: boolean;
 }
 
 /** 调用记录（断言命令面与参数） */
@@ -126,6 +128,7 @@ function defaultState(): MockHostState {
     dimensions: [],
     tagCheckup: { merges: [], zombies: [], newDimensions: [], judged: false },
     pkSkill: { installedVersion: null, checked: false },
+    petRunning: true,
   };
 }
 

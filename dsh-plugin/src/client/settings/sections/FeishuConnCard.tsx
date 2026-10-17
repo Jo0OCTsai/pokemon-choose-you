@@ -28,7 +28,9 @@ export function FeishuConnCard({
   });
   return (
     <div className={ui.card}>
-      <h4 className={styles.cardTitle}>{t("stabs.feishu")}</h4>
+      <h4 className={styles.cardTitle} data-tip={t("feishu.hint")}>
+        {t("stabs.feishu")}
+      </h4>
       <Toggle
         label={t("feishu.enable")}
         checked={draft["feishu_enabled"] === "true"}
@@ -43,9 +45,10 @@ export function FeishuConnCard({
         }))}
         onChange={(v) => onField("feishu_poll_interval", v)}
       />
-      <p className={styles.cardHint}>{t("feishu.hint")}</p>
       <div className={styles.filterRow}>
-        <span style={{ flex: 1 }}>{t("feishu.myNames")}</span>
+        <span style={{ flex: 1 }} data-tip={t("feishu.myNamesDesc")}>
+          {t("feishu.myNames")}
+        </span>
         {/* 定宽 250 右档（背包设置页统一口径，与设置行下拉同宽） */}
         <TextInput
           className={styles.w250}
@@ -55,7 +58,6 @@ export function FeishuConnCard({
           placeholder={t("feishu.myNamesPh")}
         />
       </div>
-      <p className={styles.cardHint}>{t("feishu.myNamesDesc")}</p>
       <div className={styles.filterRow}>
         <button
           type="button"

@@ -1,6 +1,7 @@
 /**
- * 判定失败组（桌面噪音分组的失败行同位）：AI 判定失败 · N 条 + 组头一键重判（整组）/
- * 强制捕捉 / 强制逃走（可折叠）；行点击选中（单条重判/分诊在右栏操作行）。
+ * 判定失败组（桌面 RadioTab failed 分组同构）：组头 = im.groupFailed 标题 + 计数徽标
+ * （与其他状态组同一形态，非热点态）+ 一键重判（整组）/ 强制逃走（可折叠）；
+ * 行点击选中（单条重判/分诊在右栏操作行）。
  */
 import { useState } from "react";
 import { useClient } from "../clientContext";
@@ -11,7 +12,7 @@ import { FeedGroup } from "./FeedGroup";
 import { MessageRow } from "./MessageRow";
 import styles from "./radio.module.css";
 
-/** 判定失败组：AI 判定失败 · N 条 + 组头一键重判（整组）/ 强制捕捉 / 强制逃走（可折叠） */
+/** 判定失败组：⚠ AI 判定失败 + 计数徽标 + 组头一键重判（整组）/ 强制逃走（可折叠） */
 export function FailedGroup({
   messages,
   selectedId,
@@ -36,7 +37,8 @@ export function FailedGroup({
   return (
     <FeedGroup
       testId="failed-group"
-      title={t("dsh.failed.group", { n: messages.length })}
+      title={t("im.groupFailed")}
+      count={messages.length}
       collapsed={collapsed}
       onToggle={onToggle}
       actions={

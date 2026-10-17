@@ -47,6 +47,8 @@ export class SpriteResolver {
   private builtin: SpriteEntry[];
   private cdnBase: string;
   private keyToId: (key: string) => number | undefined;
+  /** 全量 catalog 三语名注入（Electron 胶水；非内置宝可梦气泡取名用） */
+  private nameLookup: ((key: string) => { hans: string; hant: string; en: string } | undefined) | null = null;
 
   // 显式字段赋值（不用参数属性——Node 24 原生类型擦除不支持参数属性语法）
   constructor(
@@ -72,6 +74,11 @@ export class SpriteResolver {
     this.keyToId = fn;
   }
 
+  /** 全量 catalog 三语名注入（electron-app 建窗前调用；headless/测试不注入则非内置回显 key） */
+  setNameLookup(fn: (key: string) => { hans: string; hant: string; en: string } | undefined): void {
+    this.nameLookup = fn;
+  }
+
   /** 内置清单（渲染层取名/主宝可梦占位用） */
   get builtinList(): readonly SpriteEntry[] {
     return this.builtin;
@@ -85,6 +92,8 @@ export class SpriteResolver {
   pokemonName(key: string, lang: "zh-Hans" | "zh-Hant" | "en"): string {
     const hit = this.builtin.find((b) => b.key === key);
     if (hit) return lang === "zh-Hant" ? hit.name.hant : lang === "en" ? hit.name.en : hit.name.hans;
+    const alt = this.nameLookup?.(key);
+    if (alt) return lang === "zh-Hant" ? alt.hant : lang === "en" ? alt.en : alt.hans;
     return key;
   }
 

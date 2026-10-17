@@ -16,6 +16,7 @@ export function Toggle({
   disabled = false,
   badge,
   compact = false,
+  tip,
 }: {
   checked: boolean;
   onChange: (next: boolean) => void;
@@ -24,6 +25,8 @@ export function Toggle({
   badge?: string;
   /** 内联紧凑形态（实体行内：不占整行宽，紧随相邻控件） */
   compact?: boolean;
+  /** 说明文案：悬浮标签气泡展示（与主应用 SettingRow desc 同语义） */
+  tip?: string;
 }): React.JSX.Element {
   return (
     <button
@@ -36,7 +39,7 @@ export function Toggle({
       disabled={disabled}
       onClick={() => onChange(!checked)}
     >
-      <span className={styles.toggleLabel}>
+      <span className={styles.toggleLabel} data-tip={tip}>
         {label}
         {badge !== undefined && <span className={styles.scopeBadge}>{badge}</span>}
       </span>
@@ -55,6 +58,9 @@ export function Select({
   disabled = false,
   ariaLabel,
   className,
+  tip,
+  badge,
+  labelExtra,
 }: {
   value: string;
   onChange: (next: string) => void;
@@ -64,6 +70,12 @@ export function Select({
   ariaLabel?: string;
   /** 追加类（实体行内定宽，如标签行维度下拉 92px） */
   className?: string;
+  /** 说明文案：悬浮标签气泡展示（与主应用 SettingRow desc 同语义） */
+  tip?: string;
+  /** 作用域徽标（标签后内联，与 Toggle badge 同位） */
+  badge?: string;
+  /** 标签右侧内联附加内容（如时间制式实时预览） */
+  labelExtra?: ReactNode;
 }): React.JSX.Element {
   const selectClass =
     className !== undefined
@@ -74,7 +86,13 @@ export function Select({
         : styles.select;
   return (
     <label className={styles.row}>
-      {label !== undefined && <span className={styles.rowLabel}>{label}</span>}
+      {label !== undefined && (
+        <span className={styles.rowLabel} data-tip={tip}>
+          {label}
+          {badge !== undefined && <span className={styles.scopeBadge}>{badge}</span>}
+          {labelExtra !== undefined && <span className={styles.labelExtra}>{labelExtra}</span>}
+        </span>
+      )}
       <select
         className={selectClass}
         value={value}
@@ -146,7 +164,7 @@ export function StatusDot({ level, text }: { level: "ok" | "warn" | "fail"; text
   );
 }
 
-/** 表单行容器（label + 控件 + 可选 badge/说明行；labelWidth=标签列定宽 + 控件贴右缘，
+/** 表单行容器（label + 控件 + 可选 badge；labelWidth=标签列定宽 + 控件贴右缘，
  * wide=控件占满标签右侧整行——对齐主应用 SettingRow 的 label-width / wide 两档） */
 export function FormRow({
   label,
@@ -158,6 +176,7 @@ export function FormRow({
 }: {
   label: ReactNode;
   badge?: string;
+  /** 说明文案：悬浮标签气泡展示 */
   desc?: string;
   /** 标签列定宽像素（如 agent 卡 128：与首行名称 120+间隙 8 同轴，命令框左缘对齐下方输入列） */
   labelWidth?: number;
@@ -174,6 +193,7 @@ export function FormRow({
     >
       <span
         className={styles.rowLabel}
+        data-tip={desc}
         style={
           labelWidth !== undefined
             ? { flex: `0 0 ${labelWidth}px`, paddingRight: 12, boxSizing: "border-box" }
@@ -182,11 +202,6 @@ export function FormRow({
       >
         {label}
         {badge !== undefined && <span className={styles.scopeBadge}>{badge}</span>}
-        {desc !== undefined && (
-          <span className={styles.hint} style={{ display: "block" }}>
-            {desc}
-          </span>
-        )}
       </span>
       {children}
     </div>

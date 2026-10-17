@@ -159,13 +159,14 @@ describe("标签·下", () => {
   });
 });
 
-describe("会话过滤（三态）", () => {
-  function seedChat(chatId: string, chatType: string): void {
-    db.conn
-      .prepare("INSERT INTO feishu_chats (chat_id, chat_name, chat_type, mute_outcome) VALUES (?, ?, ?, 'unknown')")
-      .run(chatId, `名称 ${chatId}`, chatType);
-  }
+/** 会话行夹具（会话过滤两组用例共用） */
+function seedChat(chatId: string, chatType: string, mute = "unknown"): void {
+  db.conn
+    .prepare("INSERT INTO feishu_chats (chat_id, chat_name, chat_type, mute_outcome) VALUES (?, ?, ?, ?)")
+    .run(chatId, `名称 ${chatId}`, chatType, mute);
+}
 
+describe("会话过滤 · 偏好写读（三态）", () => {
   it("清单排除私聊；无偏好行 = follow；counts 汇总三态", () => {
     seedChat("oc_g1", "group");
     seedChat("oc_g2", "group");
@@ -198,5 +199,31 @@ describe("会话过滤（三态）", () => {
   it("机器人单聊（bot）可设（手动偏好对群聊/机器人开放）", () => {
     seedChat("oc_bot", "bot");
     expect(() => filterUpsert(db.conn, "oc_bot", "always_filter")).not.toThrow();
+  });
+});
+
+describe("会话过滤 · 生效合并视图", () => {
+  it("生效合并视图直出：手动覆盖；跟随按免打扰；unknown 降级；写后回读同构", () => {
+    seedChat("oc_m", "group", "muted"); // 跟随 + 免打扰 → 过滤 · 跟随
+    seedChat("oc_u", "group", "unmuted"); // 跟随 + 未免打扰 → 拉取 · 跟随
+    seedChat("oc_d", "group"); // 跟随 + 查询失败 → 拉取 · 降级（不过滤）
+    seedChat("oc_man", "group", "muted"); // 手动覆盖不读免打扰 → 拉取 · 手动
+    filterUpsert(db.conn, "oc_man", "always_pull");
+    const byId = Object.fromEntries(filterList(db.conn).chats.map((c) => [c.chatId, c]));
+    expect(byId.oc_m).toMatchObject({ state: "follow", effective: "filter", source: "follow" });
+    expect(byId.oc_u).toMatchObject({ state: "follow", effective: "pull", source: "follow" });
+    expect(byId.oc_d).toMatchObject({ state: "follow", effective: "pull", source: "followDegraded" });
+    expect(byId.oc_man).toMatchObject({ state: "always_pull", effective: "pull", source: "manual" });
+    // 写后回读单项与清单同构（filterUpsert 返回带生效合并视图）
+    expect(filterUpsert(db.conn, "oc_u", "always_filter")).toMatchObject({
+      state: "always_filter",
+      effective: "filter",
+      source: "manual",
+    });
+    // 快照无行的会话：免打扰缺观测按 unmuted 兜底（拉取链路同构）
+    expect(filterUpsert(db.conn, "oc_ghost", "always_pull")).toMatchObject({
+      effective: "pull",
+      source: "manual",
+    });
   });
 });

@@ -82,15 +82,13 @@
   animation: pk-hop 1.6s var(--e-snap) infinite;
 }
 
-/* paused：灰度 + 慢呼吸（不到 asleep） */
+/* paused：慢呼吸（不上灰度——用户偏好：暂停态保持本色） */
 .st-paused .pet-sprite {
-  filter: grayscale(1);
   animation: breathe 3.2s var(--e-sleep) infinite;
 }
 
-/* asleep：轻灰度 + 呼吸渐弱 */
+/* asleep：呼吸渐弱（不上灰度） */
 .stage.asleep .pet-sprite {
-  filter: grayscale(0.8);
   animation: breathe 4.5s var(--e-sleep) infinite;
 }
 
@@ -172,7 +170,7 @@
   width: 24px;
   height: 24px;
   border: 2px solid var(--dex-navy);
-  border-radius: 4px; /* 小件级 */
+  border-radius: 50%; /* parity：桌面端 ☰ 钮为圆形 */
   background: var(--poke-yellow);
   color: var(--dex-navy);
   cursor: pointer;
@@ -211,14 +209,18 @@
   animation-delay: 1.6s;
 }
 
-/* ============================== DialogBox（初代双线框 + 右下 ▼） ============================== */
+/* ============================== DialogBox（初代气球尾巴 + 右下 ▼；parity 对齐 src/PetApp.vue） ============================== */
 
+/* 紧凑对白气泡：宽随内容区、单层描边、顶部小尾巴指向精灵；
+   白底 + 藏青框 + 硬投影保留初代语感。窗口 330 高、精灵底缘在距底 96px——
+   气泡锚 top 定位（盒子顶 = 精灵底 + 14px，尾巴尖再探上 9px ≈ 距精灵 5px，与桌面端一致） */
 .dialog {
   position: absolute;
-  left: 10px;
-  right: 10px;
-  bottom: 8px;
-  max-height: 150px;
+  left: 45px; /* 宽度 = 原全宽（280px）的 3/4 = 210px：左右各收 35px */
+  right: 45px;
+  top: 248px;
+  bottom: auto;
+  max-height: 76px;
   opacity: 0;
   transform: translateY(6px);
   transition:
@@ -231,28 +233,51 @@
   transform: translateY(0);
 }
 
-/* 双线框 = 外 3px navy + 内 2px 间隙再 2px（初代对话框口径，卡片级描边档） */
+/* 尾巴：双色三角（藏青描边 + 白芯），白芯底边穿过边框区探入内部与气泡白色连通成「开口」；
+   藏青只留两条斜边——标准气球尾巴画法（同 src/PetApp.vue .dialog::before/::after） */
+.dialog::before,
+.dialog::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: -6px;
+  width: 0;
+  height: 0;
+  border-style: solid;
+  border-color: transparent;
+}
+.dialog::before {
+  margin-left: -7px;
+  border-width: 0 7px 9px;
+  border-bottom-color: var(--dex-navy);
+}
+.dialog::after {
+  top: -5px;
+  margin-left: -4px;
+  border-width: 0 4px 9px;
+  border-bottom-color: #fff;
+}
+
+/* 单层描边（parity：不再用初代双线框），投影 2px 与桌面端同档 */
 .dialog-inner {
   display: flex;
-  align-items: flex-end;
-  gap: 6px;
-  padding: 10px 12px;
-  background: var(--dex-body);
+  align-items: center;
+  gap: 8px;
+  padding: 5px 12px 5px 10px;
+  background: #fff;
   border: 3px solid var(--dex-navy);
   border-radius: 8px; /* 控件级 */
-  box-shadow:
-    4px 4px 0 var(--dex-navy),
-    inset 0 0 0 2px var(--dex-body),
-    inset 0 0 0 4px var(--dex-navy);
+  box-shadow: 2px 2px 0 var(--dex-navy);
   cursor: pointer; /* 点击收起 */
   pointer-events: auto;
 }
 
 .dialog-text {
   flex: 1;
-  font-size: 13px;
-  line-height: 1.55;
-  color: var(--ink);
+  font-size: 12.5px;
+  font-weight: 600;
+  line-height: 1.5;
+  color: var(--dex-navy);
   overflow-wrap: anywhere;
 }
 
@@ -263,10 +288,12 @@
   color: var(--ink-soft);
 }
 
-/* ▼ 同屏唯一闪烁名额：默认静态（存在即语义），新事件 blink 3 次后停 */
+/* ▼ 同屏唯一闪烁名额：默认静态（存在即语义），新事件 blink 3 次后停；红色 v2 与桌面端同源 */
 .dialog-next {
   font-size: 10px;
-  color: var(--dex-navy);
+  color: var(--dex-red);
+  opacity: 0.9;
+  align-self: flex-end;
   flex: none;
 }
 .dialog-next.blink {

@@ -90,6 +90,7 @@ function settingsCommandSet(): CommandTable {
       const route = (p as { route: { tag: string } & DispatchRoute }).route;
       const { tag, ...value } = route;
       routeUpsertDomain(deps.conn, tag, value);
+      deps.onWrites();
       return { route };
     },
     larkAuth: async (_p, deps) => {

@@ -2,12 +2,13 @@
  * 卡内操作行（桌面 TaskCard .ops 同构，内联不折叠进菜单）：出发/暂停随状态、
  * 📅 改期（草丛卡）、✎ 编辑、✔ 完成、🚪 逃走、✕ 放生（两层确认弹层承接）；
  * 已捕捉/已逃走卡 = 状态标 + ↩撤销（taskUpdate 回 scheduled）。日期选择走
- * 改期弹窗（datetime-local + 保存/取消——桌面 sched-card 同构，不用裸 date input）。
+ * 改期弹窗（DateTimePicker 弹层 + 保存/取消——桌面 sched-card 同构，零键入）。
  */
 import { useState } from "react";
 import type { Task } from "../../host/domain/tasks";
 import { useClient } from "../clientContext";
 import { useT } from "../i18n";
+import { DateTimePicker } from "../ui/DateTimePicker";
 import { Modal } from "../ui/Modal";
 import ui from "../ui/ui.module.css";
 import { TaskReleaseModal } from "./TaskReleaseModal";
@@ -176,13 +177,7 @@ function ScheduleModal({
       ]}
       onClose={onClose}
     >
-      <input
-        type="datetime-local"
-        className={styles.editDatetime}
-        value={due}
-        aria-label={t("edit.due")}
-        onChange={(event) => setDue(event.target.value)}
-      />
+      <DateTimePicker value={due} onChange={setDue} ariaLabel={t("edit.due")} />
     </Modal>
   );
 }

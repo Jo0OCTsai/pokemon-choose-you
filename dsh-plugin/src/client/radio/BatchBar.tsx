@@ -49,7 +49,7 @@ export function BatchBar({
       <span>{t("dsh.batch.selected", { n: selected.size })}</span>
       <button
         type="button"
-        className={ui.buttonPrimary}
+        className={ui.buttonDex}
         disabled={readonly || batchBusy || selected.size === 0}
         onClick={() => void onRunBatch("accept")}
       >

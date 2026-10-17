@@ -118,10 +118,22 @@ describe("配置下发组装", () => {
     expect(buildSpritesMsg(db.conn).reducedMotion).toBe(true);
   });
 
-  it("pomodoro-config：档位 [15,25,45,60] 固定 + breakMin 读共享设置缺省 5", () => {
-    expect(buildPomodoroConfig(db.conn)).toEqual({ durations: [15, 25, 45, 60], breakMin: 5, lang: "zh-Hans" });
+  it("pomodoro-config：档位 [15,25,45,60] 固定 + breakMin 读共享设置缺省 5 + enabled 缺省 false", () => {
+    expect(buildPomodoroConfig(db.conn)).toEqual({
+      durations: [15, 25, 45, 60],
+      breakMin: 5,
+      enabled: false,
+      lang: "zh-Hans",
+    });
     db.conn.prepare("INSERT OR REPLACE INTO settings (key, value) VALUES ('break_minutes', '10')").run();
     expect(buildPomodoroConfig(db.conn).breakMin).toBe(10);
+  });
+
+  it("pomodoro-config：enabled 读共享设置 pomodoro_enabled（主应用同键同语义）", () => {
+    db.conn.prepare("INSERT OR REPLACE INTO settings (key, value) VALUES ('pomodoro_enabled', 'true')").run();
+    expect(buildPomodoroConfig(db.conn).enabled).toBe(true);
+    db.conn.prepare("INSERT OR REPLACE INTO settings (key, value) VALUES ('pomodoro_enabled', 'false')").run();
+    expect(buildPomodoroConfig(db.conn).enabled).toBe(false);
   });
 });
 

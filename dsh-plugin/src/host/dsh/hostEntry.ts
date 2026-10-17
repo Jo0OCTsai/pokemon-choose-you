@@ -6,10 +6,10 @@
  * package.json main（dist/host.js）加载本模块，消费具名导出 name/inject/Config/apply。
  *
  * 职责边界：本层只做平台接线——能力探测、createPlugin 依赖注入（timer/pet spawner/
- * 判定执行方）、22 工具 → ctx.tools（defineTool JSON DSL 投影）、55 host 命令 →
+ * 判定执行方）、22 工具 → ctx.tools（defineTool JSON DSL 投影）、69 host 命令 →
  * connection 共享 /api 通道 `pky/<command>` 端点；业务行为全部在 src/host/** 业务核心。
  *
- * 数据面：55 host 命令经 PkyRemoteService（Typert Remote，官方 /api 通道——
+ * 数据面：69 host 命令经 PkyRemoteService（Typert Remote，官方 /api 通道——
  * 2026-10-13 迁移，原 connection.rpc.handle 自定义通道在 rc.2 对第三方不可用）；
  * 服务注册即生效，headless 组合同样安全（无 connection 依赖）。
  */
@@ -173,15 +173,16 @@ function renderEnvelope(value: unknown): string {
 // ---- 桌宠 helper 拉起面（spawner 定位 + electron 探测；找不到 = 降级停用不报错 A20） ----
 
 /**
- * 定位桌宠 spawner：helper 主产物（helper/dist/main.js）+ electron 二进制。
+ * 定位桌宠 spawner：helper 主产物（helper/dist/main.js）+ electron **真实二进制**。
  * 探测链（注释即探测顺序单源）：
  *   helper 主产物：从本模块目录逐级向上（仓内 dev：src/host/dsh → 包根；构建产物：dist → 包根；
  *     profile 安装：node_modules/dsh-plugin/dist → 包根——file: 安装带 helper/ 才有）
- *   electron：dsh-plugin/helper/node_modules/.bin/electron（helper 子包 devDep，仓内 dev）
- *     → dsh-plugin/node_modules/.bin/electron（插件包根依赖）
- *     → 仓库根 node_modules/.bin/electron（monorepo 形态）
+ *   electron：node_modules/electron/dist/ 下的平台二进制（helper 子包 devDep → 插件包根 →
+ *     仓库根，跟随 symlink 可达 pnpm store 真实位）
  *     → ~/.dsh/electron/（dsh-pet 先例的运行时下载位：electron / bin/electron /
  *        dist/Electron.app/Contents/MacOS/Electron）
+ *   刻意绕开 .bin/electron wrapper：它是 node cli.js 中间层——supervisor 的 kill 落在
+ *   wrapper 上（信号转发不带走 Electron，hide 后 Electron 成孤儿、窗口残留，再 show 叠新窗）。
  */
 function detectPetSpawner(): HelperSpawner | undefined {
   const helperMain = locateHelperMain();
@@ -213,17 +214,23 @@ function locateHelperMain(): string | undefined {
   return undefined;
 }
 
-/** electron 二进制候选定位（顺序见 detectPetSpawner 注释；全部 miss = undefined） */
+/** electron 平台二进制相对 dist 位：darwin = Electron.app 包内执行档，其余 = 平铺 electron */
+function electronDistBin(): string {
+  return process.platform === "darwin" ? join("Electron.app", "Contents", "MacOS", "Electron") : "electron";
+}
+
+/** electron 二进制候选定位（真实二进制，顺序见 detectPetSpawner 注释；全部 miss = undefined） */
 function locateElectronBinary(helperDir: string): string | undefined {
   const pluginRoot = dirname(helperDir);
   const home = homedir();
+  const distBin = electronDistBin();
   const candidates = [
-    join(helperDir, "node_modules", ".bin", "electron"),
-    join(pluginRoot, "node_modules", ".bin", "electron"),
-    join(pluginRoot, "..", "node_modules", ".bin", "electron"),
+    join(helperDir, "node_modules", "electron", "dist", distBin),
+    join(pluginRoot, "node_modules", "electron", "dist", distBin),
+    join(pluginRoot, "..", "node_modules", "electron", "dist", distBin),
     join(home, ".dsh", "electron", "electron"),
     join(home, ".dsh", "electron", "bin", "electron"),
-    join(home, ".dsh", "electron", "dist", "Electron.app", "Contents", "MacOS", "Electron"),
+    join(home, ".dsh", "electron", "dist", distBin),
   ];
   return candidates.find((candidate) => isRegularFile(candidate));
 }

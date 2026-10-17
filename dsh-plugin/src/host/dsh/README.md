@@ -13,7 +13,7 @@
   dsh defineTool 的 JSON DSL 判别联合）；完整性测试锁表键集 == 注册表参数摘要。
 - `remoteService.ts` —— host→客户端数据面（Typert Remote，2026-10-13 迁移）：
   `PkyRemoteService extends TypertRemoteService`（`super(ctx, "pky")`——服务名即 wire
-  命名空间），单方法 `@Remote("call")` 转发 `plugin.commands`（55 命令不拆分），业务
+  命名空间），单方法 `@Remote("call")` 转发 `plugin.commands`（69 命令不拆分），业务
   信封（PROTOCOL §2）作 Remote 返回值原样透传——api-gateway 在共享 `/api` 通道按端点
   `pky/call` 经 SRC 模式解析（源码参数名 = wire 字段；**本包构建不 minify 是 SRC 解析
   的硬依赖**），gateway 经 `ctx.get("pky")` 直取服务——无消费方 inject、无晚供问题。

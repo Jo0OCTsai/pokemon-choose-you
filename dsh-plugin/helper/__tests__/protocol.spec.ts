@@ -69,7 +69,7 @@ describe("validateDownstream · 无进行中与全集", () => {
 
   it("pomodoro-config / lang / sprites / heartbeat 全集通过", () => {
     expect(
-      validateDownstream({ type: "pomodoro-config", durations: [15, 25], breakMin: 5, lang: "en" }),
+      validateDownstream({ type: "pomodoro-config", durations: [15, 25], breakMin: 5, enabled: true, lang: "en" }),
     ).not.toBeNull();
     expect(validateDownstream({ type: "lang", lang: "zh-Hant" })).not.toBeNull();
     expect(

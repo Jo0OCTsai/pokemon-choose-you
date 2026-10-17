@@ -56,7 +56,7 @@ async function addDim() {
 
 <template>
   <section class="set-card">
-    <h3>{{ t("tags.dimTitle") }}</h3>
+    <h3 :data-tip="t('tags.dimManageHint')">{{ t("tags.dimTitle") }}</h3>
     <div v-for="row in rows" :key="row.id" class="tag-row dim-row">
       <span class="dim-key" :title="row.key">{{ row.key }}</span>
       <input v-model="row.name" class="tag-name" />
@@ -76,7 +76,6 @@ async function addDim() {
       <input v-model="newDimName" class="tag-name" :placeholder="t('tags.dimNamePh')" />
       <button class="btn ghost" @click="addDim">{{ t("tags.dimNew") }}</button>
     </div>
-    <p class="set-foot">{{ t("tags.dimManageHint") }}</p>
   </section>
 </template>
 
@@ -96,14 +95,6 @@ async function addDim() {
 .set-card h3 {
   margin: 0 0 12px;
   font-size: 16px;
-}
-.set-foot {
-  margin: 12px 0 0;
-  padding-top: 10px;
-  border-top: 2px dashed var(--ink-faint);
-  font-size: 12px;
-  color: var(--ink-soft);
-  line-height: 1.7;
 }
 .btn-row {
   display: flex;

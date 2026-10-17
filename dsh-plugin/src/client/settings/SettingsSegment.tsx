@@ -1,10 +1,11 @@
 /**
  * 背包分段（「背包」独立分区，U17/U18/U21）：分区选单行（SectionNav 居左 + 保存控件
- * 靠右——无独立保存行）+ 分区整页 ×8（一次只显示一个、其余 hidden）+ 保存制（36 共享
+ * 靠右——无独立保存行，固定不随滚动）+ 分区整页 ×8（一次只显示一个、其余 hidden，装在
+ * settingsBody 滚动容器内——填充形态下仅分区页内容滚动，切分区回顶）+ 保存制（36 共享
  * 键草稿编辑 → 保存控件统一 configWrite）+ 未保存离开确认（保存并离开/放弃修改/留下来
  * 在这里，离开请求由 PluginDetailPage 在切分段时发起）。
  */
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useClient } from "../clientContext";
 import { useT, type Locale } from "../i18n";
 import { dirtySectionSet, type PanelData } from "../model";
@@ -94,6 +95,11 @@ export function SettingsSegment({
   }, [data.config]);
   const [draft, setDraft] = useState<Record<string, string>>(initialConfig);
   const [saved, setSaved] = useState<Record<string, string>>(initialConfig);
+  // 分区页滚动容器（填充形态下唯一滚动位）；切分区回顶——新分区页从头部呈现
+  const bodyRef = useRef<HTMLDivElement | null>(null);
+  useEffect(() => {
+    bodyRef.current?.scrollTo({ top: 0 });
+  }, [section]);
 
   const onField = useCallback((key: string, value: string) => {
     setDraft((prev) => ({ ...prev, [key]: value }));
@@ -153,6 +159,7 @@ export function SettingsSegment({
             routes={data.routes}
             tags={taxonomy.tags}
             promptSpecs={promptSpecs}
+            onChanged={onChanged}
           />
         );
       case "feishu":
@@ -180,11 +187,13 @@ export function SettingsSegment({
           />
         )}
       </div>
-      {SECTION_KEYS.map((key) => (
-        <div key={key} hidden={section !== key} data-section-wrap={key}>
-          {renderSection(key)}
-        </div>
-      ))}
+      <div ref={bodyRef} className={styles.settingsBody}>
+        {SECTION_KEYS.map((key) => (
+          <div key={key} hidden={section !== key} data-section-wrap={key}>
+            {renderSection(key)}
+          </div>
+        ))}
+      </div>
       <LeaveGuardDialog
         leaveRequest={leaveRequest}
         anyDirty={anyDirty}

@@ -90,19 +90,39 @@ describe("分区内容对齐主应用（U20）", () => {
   it("飞书分区：会话过滤三态行内切换；私聊固定跟随置灰只读", async () => {
     const data = makeData();
     data.filters = [
-      { chatId: "g1", chatName: "产品群", chatType: "group", state: "follow", updatedAt: null },
-      { chatId: "p1", chatName: "张三", chatType: "p2p", state: "follow", updatedAt: null },
+      {
+        chatId: "g1",
+        chatName: "产品群",
+        chatType: "group",
+        state: "follow",
+        effective: "pull",
+        source: "follow",
+        updatedAt: null,
+      },
+      {
+        chatId: "p1",
+        chatName: "张三",
+        chatType: "p2p",
+        state: "follow",
+        effective: "pull",
+        source: "follow",
+        updatedAt: null,
+      },
     ];
     const { host } = renderSettings(data);
     gotoSection("飞书");
     const page = getPage("feishu");
     const groupRow = within(page).getByText("产品群").closest('[data-testid="filter-row"]') as HTMLElement;
+    // 初态生效 chip：跟随+未免打扰 → 拉取 · 跟随（host 合并直出）
+    expect(within(groupRow).getByTestId("filter-eff").textContent).toBe("📡 拉取 · 跟随");
     const pullBtn = Array.from(groupRow.querySelectorAll("button")).find(
       (b) => b.textContent === "拉取",
     ) as HTMLElement;
     fireEvent.click(pullBtn);
     await vi.runAllTimersAsync();
     expect(host.calls.map((c) => c.command)).toContain("filterUpsert");
+    // 写后生效 chip 以 host 返回值校正：手动拉取 → 拉取 · 手动
+    expect(within(groupRow).getByTestId("filter-eff").textContent).toBe("📡 拉取 · 手动");
     const dmRow = within(page).getByText("张三").closest('[data-testid="filter-row"]') as HTMLElement;
     expect(dmRow.textContent).toContain("私聊固定跟随，不参与过滤");
     expect(dmRow.querySelector("button[aria-pressed]")).toBeNull();
@@ -126,7 +146,8 @@ describe("分区内容对齐主应用（U20）", () => {
     gotoSection("Agent");
     const page = getPage("agents");
     expect(within(page).getAllByText("Claude Code").length).toBeGreaterThan(0);
-    expect(within(page).getByText(/当前：消费主应用结果/)).toBeTruthy();
+    // 分支 C 文案（判定执行方说明）迁为「用于收音机分类」标签的 data-tip 气泡
+    expect(within(page).getByText("用于收音机分类").getAttribute("data-tip")).toContain("当前：消费主应用结果");
     expect(within(page).getAllByText("作用于主应用交互派发").length).toBeGreaterThanOrEqual(1);
     fireEvent.click(within(page).getAllByText("删除")[0]);
     // 确认弹层的确认键与卡上删除同名——取弹层内最后一个

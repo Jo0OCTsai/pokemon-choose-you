@@ -20,7 +20,7 @@ const REPORT = (obj) => process.stderr.write(`${JSON.stringify(obj)}\n`);
 
 function downstreamSet() {
   DOWN(taskStateLine({ id: 7, title: "写周报", categoryPokemon: "pikachu", status: "active" }, 2, 1));
-  DOWN({ type: "pomodoro-config", durations: [15, 25, 45, 60], breakMin: 5, lang: "zh-Hans" });
+  DOWN({ type: "pomodoro-config", durations: [15, 25, 45, 60], breakMin: 5, enabled: true, lang: "zh-Hans" });
   DOWN({ type: "lang", lang: "en" });
   DOWN(spritesLine());
   DOWN({ type: "heartbeat", ts: Date.now() });

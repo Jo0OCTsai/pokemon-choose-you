@@ -56,8 +56,9 @@ export function DiagnosticsSection(): React.JSX.Element {
   return (
     <section className={styles.sectionPage} data-testid="section-page">
       <div className={ui.card}>
-        <h4 className={styles.cardTitle}>{t("diag.healthTitle")}</h4>
-        <p className={styles.cardHint}>{t("diag.healthHint")}</p>
+        <h4 className={styles.cardTitle} data-tip={t("diag.healthHint")}>
+          {t("diag.healthTitle")}
+        </h4>
         {/* 健康行（桌面 HealthCard .health-row 同构）：点 + 名称 + 状态章 + 元信息伸缩 + 动作钮右缘 */}
         {links.map((link) => (
           <div key={link.provider} className={styles.healthItem} data-testid="diag-link">

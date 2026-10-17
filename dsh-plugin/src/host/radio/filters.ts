@@ -3,45 +3,13 @@
  * filter_decision / pref_for_chat_type / MuteOutcome / write_chat_snapshot /
  * load_filter_prefs（feishu-chat-filter 契约：手动偏好优先，跟随态按免打扰推导，
  * 查询失败降级拉取 followDegraded；私聊固定跟随不可设）。
+ * 决策核（filterDecision 等）单源在 domain/vocabulary-filters，此处再导出。
  */
 import { txImmediate, nowRfc3339, type Conn } from "../storage/db";
+import type { FilterPref, MuteOutcome } from "../domain/vocabulary-filters";
 
-/** 手动偏好三态（follow = 无偏好行，不落库） */
-export type FilterPref = "follow" | "always_filter" | "always_pull";
-
-/** 免打扰查询结果三值态（unknown = 所在查询批次失败，降级不过滤） */
-export type MuteOutcome = "muted" | "unmuted" | "unknown";
-
-export type FilterEffect = "pull" | "filter";
-export type FilterSource = "manual" | "follow" | "followDegraded";
-
-/** 私聊（p2p）固定跟随免打扰：手动偏好仅对群聊/机器人开放（bot 不归一） */
-export function prefForChatType(chatType: string, pref: FilterPref): FilterPref {
-  return chatType === "p2p" ? "follow" : pref;
-}
-
-/**
- * 过滤决策纯函数（单一决策源）：先按 chat_type 归一手动偏好（私聊一律跟随），
- * 再按优先级决策——手动覆盖不读免打扰；跟随态 muted→过滤 / unmuted→拉取 /
- * unknown→降级拉取（followDegraded）。
- */
-export function filterDecision(
-  pref: FilterPref,
-  outcome: MuteOutcome,
-  chatType: string,
-): { effect: FilterEffect; source: FilterSource } {
-  const normalized = prefForChatType(chatType, pref);
-  if (normalized === "always_filter") {
-    return { effect: "filter", source: "manual" };
-  }
-  if (normalized === "always_pull") {
-    return { effect: "pull", source: "manual" };
-  }
-  if (outcome === "muted") {
-    return { effect: "filter", source: "follow" };
-  }
-  return { effect: "pull", source: outcome === "unknown" ? "followDegraded" : "follow" };
-}
+export { filterDecision, prefForChatType } from "../domain/vocabulary-filters";
+export type { FilterPref, MuteOutcome, FilterEffect, FilterSource } from "../domain/vocabulary-filters";
 
 /** 每轮一次的全量偏好读（无行 = follow 跟随态；坏数据忽略） */
 export function loadFilterPrefs(conn: Conn): Map<string, FilterPref> {

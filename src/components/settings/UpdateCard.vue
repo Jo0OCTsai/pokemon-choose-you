@@ -15,13 +15,13 @@ defineProps<{
 const emit = defineEmits<{ check: []; install: [] }>();
 
 const { t } = useI18n();
-/** 平台限定的说明只在对应平台渲染（DESIGN_SYSTEM.md §4.4 说明文字四层归属） */
+/** 平台限定的说明只在对应平台渲染（DESIGN_SYSTEM.md §4.4 说明文字悬浮气泡归属） */
 const isLinux = /linux/i.test(navigator.userAgent);
 </script>
 
 <template>
   <section class="set-card">
-    <h3>⬆️ {{ t("update.title") }}</h3>
+    <h3 :data-tip="isLinux ? t('update.linuxHint') : undefined">⬆️ {{ t("update.title") }}</h3>
     <p v-if="appVersion" class="set-sub">{{ t("update.current", { v: appVersion }) }}</p>
     <p v-if="latestVersion" class="set-sub">{{ t("update.found", { v: latestVersion }) }}</p>
     <p v-if="updateMsg" class="hint">{{ updateMsg }}</p>
@@ -33,7 +33,6 @@ const isLinux = /linux/i.test(navigator.userAgent);
         {{ t("update.install") }}
       </button>
     </div>
-    <p v-if="isLinux" class="set-foot">{{ t("update.linuxHint") }}</p>
   </section>
 </template>
 
@@ -54,17 +53,9 @@ const isLinux = /linux/i.test(navigator.userAgent);
   margin: 0 0 12px;
   font-size: 16px;
 }
-/* 说明文字四层归属的页面两层（行内 desc 在 SettingRow 组件内）：区块副标题 + 卡片脚注 */
+/* 版本状态行（动态信息，保持常驻文本——见 DESIGN_SYSTEM.md §4.4 例外清单） */
 .set-sub {
   margin: -6px 0 12px;
-  font-size: 12px;
-  color: var(--ink-soft);
-  line-height: 1.7;
-}
-.set-foot {
-  margin: 12px 0 0;
-  padding-top: 10px;
-  border-top: 2px dashed var(--ink-faint);
   font-size: 12px;
   color: var(--ink-soft);
   line-height: 1.7;

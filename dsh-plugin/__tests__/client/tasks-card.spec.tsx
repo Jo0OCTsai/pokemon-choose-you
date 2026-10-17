@@ -9,6 +9,7 @@ import { ClientProvider } from "../../src/client/clientContext";
 import { I18nProvider } from "../../src/client/i18n";
 import { mockHost, type MockHost } from "../../src/client/rpc";
 import { TaskCard } from "../../src/client/tasks/TaskCard";
+import { defaultOpenValue } from "../../src/client/ui/dateTime";
 import { makeCategory, makeTask } from "./fixtures";
 import type { PanelData } from "../../src/client/model";
 
@@ -130,11 +131,12 @@ describe("TaskCard 操作（桌面内联按钮行同构，无溢出菜单）", (
       />,
     );
     fireEvent.click(screen.getByTitle("加入路线"));
-    const dateTimeInput = document.querySelector('input[type="datetime-local"]') as HTMLInputElement;
-    fireEvent.change(dateTimeInput, { target: { value: "2026-10-12T09:30" } });
+    // 改期弹窗：截止空值 → 开弹层即落默认 18:00（零键入），保存直发 taskReschedule
+    fireEvent.click(screen.getByLabelText("截止"));
+    const due = defaultOpenValue();
     fireEvent.click(screen.getByText("保存"));
     await flush();
-    expect(host.calls.map((c) => c.command)).toContain("taskReschedule");
+    expect(host.calls.find((c) => c.command === "taskReschedule")?.params).toEqual({ taskId: 7, due });
     cleanup();
     const host2 = mockHost();
     render(

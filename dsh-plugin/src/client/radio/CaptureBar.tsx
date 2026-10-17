@@ -59,7 +59,7 @@ export function CaptureBar({ readonly, onChanged }: { readonly: boolean; onChang
           aria-label={t("im.capturePlaceholder")}
           onChange={(event) => setText(event.target.value)}
         />
-        <button type="submit" className={ui.buttonPrimary} disabled={readonly || judging || text.trim() === ""}>
+        <button type="submit" className={ui.buttonDex} disabled={readonly || judging || text.trim() === ""}>
           {judging ? t("dsh.radio.judging") : t("im.captureSend")}
         </button>
       </form>

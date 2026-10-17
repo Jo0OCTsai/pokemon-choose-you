@@ -39,6 +39,8 @@ export interface Mirror {
   lastTask: TaskLite;
   todayTasks: QuickTask[];
   reducedMotion: boolean;
+  /** 番茄功能开关（pomodoro-config 下发；false 时 PomoPill 不显示——主应用 parity） */
+  pomoEnabled: boolean;
   lastInteractAt: number;
   greetedToday: boolean;
 }
@@ -49,6 +51,7 @@ export const mirror: Mirror = {
   lastTask: null,
   todayTasks: [],
   reducedMotion: false,
+  pomoEnabled: false,
   lastInteractAt: Date.now(),
   greetedToday: false,
 };

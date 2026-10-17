@@ -1,8 +1,8 @@
 /**
  * 背包分区壳：SectionShell = 分区整页容器（保存按钮不在分区页内——与分区选单同行
  * 靠右，由 SettingsSegment 装配 SaveControls，桌面「标题行右侧保存」同位）；
- * SaveControls = 保存控件组（U21 保存制：「保存」按钮 + 未保存静态角标● title「有未
- * 保存的修改」——不闪烁 + 保存中禁用转「保存中…」+ 成功 hint「已保存」自隐 4s
+ * SaveControls = 保存控件组（U21 保存制：「保存」按钮恒可点 + 未保存静态角标● title「有未
+ * 保存的修改」——不闪烁 + 保存中转「保存中…」文案 + 成功 hint「已保存」自隐 4s
  * （role=status 无 toast）+ 失败/防呆行内「保存失败：{原因}」草稿保留可重试）。
  */
 import { useEffect, useRef, useState, type ReactNode } from "react";
@@ -83,6 +83,11 @@ export function SaveControls({
   const dirtyKeys = keys.filter((key) => draft[key] !== saved[key]);
   const dirty = dirtyKeys.length > 0;
   async function doSave(): Promise<void> {
+    // 恒可点（真机踩坑：disable 态读不出「为什么点不了」）；此处只做语义守卫：
+    // 保存中重入 / 无 dirty / 防呆阻断（原因已由 SaveFailHint 常驻呈现）均不落库
+    if (saving || saveBlocked || dirtyKeys.length === 0) {
+      return;
+    }
     const dirtyKeyValues = Object.fromEntries(dirtyKeys.map((key) => [key, draft[key]]));
     await save(dirtyKeyValues, () => {
       onSavedKeys(dirtyKeys, draft);
@@ -91,7 +96,7 @@ export function SaveControls({
   return (
     <span className={styles.saveControls} data-testid="section-save-controls">
       <SaveStateHint hint={hint} />
-      <SaveButton saving={saving} dirty={dirty} blocked={saveBlocked} onSave={() => void doSave()} />
+      <SaveButton saving={saving} dirty={dirty} onSave={() => void doSave()} />
       <span className={styles.saveFailWrap}>
         <SaveFailHint hint={hint} blockedReason={saveBlocked ? blockedReason : undefined} />
       </span>
@@ -99,16 +104,14 @@ export function SaveControls({
   );
 }
 
-/** 保存按钮（未保存静态角标● + title；保存中禁用转「保存中…」） */
+/** 保存按钮（恒可点不 disable；未保存静态角标● + title；保存中转「保存中…」文案） */
 function SaveButton({
   saving,
   dirty,
-  blocked,
   onSave,
 }: {
   saving: boolean;
   dirty: boolean;
-  blocked: boolean;
   onSave: () => void;
 }): React.JSX.Element {
   const t = useT();
@@ -116,7 +119,6 @@ function SaveButton({
     <button
       type="button"
       className={styles.saveButton}
-      disabled={saving || !dirty || blocked}
       title={dirty ? t("dsh.settings.unsavedTitle") : undefined}
       data-dirty={dirty ? "true" : undefined}
       data-testid="section-save"

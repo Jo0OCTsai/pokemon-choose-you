@@ -2,6 +2,9 @@
  * dispatch/executor：local 子进程（{prompt} 占位 / stdin 路径 / 超时 kill / 信封解析 /
  * 超时下限 600）+ fake 执行器三态。local 用真实 node 子进程（-e 脚本）驱动。
  */
+import { realpathSync } from "node:fs";
+import { homedir } from "node:os";
+import { basename } from "node:path";
 import { describe, expect, it } from "vitest";
 import {
   buildLocalArgv,
@@ -186,8 +189,36 @@ describe("local 执行器占位与 kill/cwd", () => {
   });
 });
 
+describe("local 执行器环境解析（localEnv 接线：which.rs / agent_workdir 同构）", () => {
+  it("回归：workdir `~` 前缀展开为 home（spawn 不展开 ~，cwd 不存在时误报 spawn <cmd> ENOENT）", async () => {
+    const executor = createLocalExecutor();
+    const outcome = await executor.launch({
+      command: NODE,
+      args: "-e process.stdout.write(process.cwd())",
+      prompt: "",
+      workdir: "~",
+      timeoutSecs: 60,
+    });
+    expect(outcome.error).toBeUndefined();
+    expect(outcome.exitCode).toBe(0);
+    expect(realpathSync(outcome.stdout)).toBe(realpathSync(homedir()));
+  });
+
+  it("裸命令名经 PATH 解析后可启动（which 同构接线不破坏常规裸名）", async () => {
+    const executor = createLocalExecutor();
+    const outcome = await executor.launch({
+      command: basename(NODE),
+      args: "-e process.stdout.write('bare-ok')",
+      prompt: "",
+      timeoutSecs: 60,
+    });
+    expect(outcome.exitCode).toBe(0);
+    expect(outcome.stdout).toBe("bare-ok");
+  });
+});
+
 describe("local 执行器 spawn 失败", () => {
-  it("不可执行命令：error 文案可读（不抛错）", async () => {
+  it("不可执行命令：error 文案可读（不抛错）；ENOENT 附带安装 / PATH / 绝对路径可操作提示", async () => {
     const executor = createLocalExecutor();
     const outcome = await executor.launch({
       command: "/definitely/not/a/real/binary-pky",
@@ -197,6 +228,22 @@ describe("local 执行器 spawn 失败", () => {
     });
     expect(outcome.exitCode).toBeNull();
     expect(outcome.error).toMatch(/无法启动/);
+    expect(outcome.error).toMatch(/ENOENT/);
+    expect(outcome.error).toMatch(/绝对路径/);
+  });
+
+  it("工作目录不存在：同样 ENOENT，提示里点名工作目录", async () => {
+    const executor = createLocalExecutor();
+    const outcome = await executor.launch({
+      command: NODE,
+      args: "-e 0",
+      prompt: "",
+      workdir: "/definitely/not/a/real/dir-pky",
+      timeoutSecs: 60,
+    });
+    expect(outcome.exitCode).toBeNull();
+    expect(outcome.error).toMatch(/ENOENT/);
+    expect(outcome.error).toMatch(/工作目录/);
   });
 });
 

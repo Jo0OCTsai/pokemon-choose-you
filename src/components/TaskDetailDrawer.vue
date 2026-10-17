@@ -322,16 +322,7 @@ onMounted(async () => {
                 {{ dispatchBusy ? t("dispatch.working") : `⚡ ${t("dispatch.go")}` }}
               </button>
             </div>
-            <p class="d-hint">
-              {{
-                dispatchChannel === "headless"
-                  ? t("dispatch.headlessHint")
-                  : t("dispatch.hint", {
-                      tag: dispatchTarget.projectTag ?? "",
-                      src: dispatchTarget.source === "tag" ? t("dispatch.srcTag") : t("dispatch.srcDefault"),
-                    })
-              }}
-            </p>
+            <p v-if="dispatchChannel === 'headless'" class="d-hint">{{ t("dispatch.headlessHint") }}</p>
           </template>
         </template>
         <p v-if="dispatchMsg" class="dsp-ok">✅ {{ dispatchMsg }}</p>

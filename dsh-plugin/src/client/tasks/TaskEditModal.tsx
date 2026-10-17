@@ -1,8 +1,8 @@
 /**
  * 任务全字段编辑弹窗（对照主应用 TaskEditModal.vue）：标题（必填校验）/ 备注 /
  * 分类（启用中，任务自身已停用分类保留）/ 优先级（low/normal/high/urgent）/
- * 截止与提醒（datetime-local，空串 → null 清空）/ 标签按维度分组 chips（项目
- * 维度单选互斥、总数上限 3、超限禁用新选中、空态引导）。保存 → taskUpdate →
+ * 截止与提醒（DateTimePicker 弹层选择，空串 → null 清空）/ 标签按维度分组 chips
+ * （项目维度单选互斥、总数上限 3、超限禁用新选中、空态引导）。保存 → taskUpdate →
  * onChanged 刷新 + 关闭；取消 / 未保存关闭直接丢弃（跟随桌面）。
  */
 import { useMemo, useState } from "react";
@@ -11,6 +11,7 @@ import type { Tag } from "../../host/domain/vocabulary-tags";
 import { useClient } from "../clientContext";
 import { useT } from "../i18n";
 import type { PanelData } from "../model";
+import { DateTimePicker } from "../ui/DateTimePicker";
 import { Modal } from "../ui/Modal";
 import { Select, TextInput } from "../ui/controls";
 import styles from "./tasks.module.css";
@@ -141,7 +142,7 @@ export function TaskEditModal({
       note,
       categoryId,
       priority,
-      // datetime-local 空串转 null 表示清空；状态不手动改，由后端不变量归位
+      // picker 空串转 null 表示清空；状态不手动改，由后端不变量归位
       dueAt: dueAt === "" ? null : dueAt,
       remindAt: remindAt === "" ? null : remindAt,
       tagIds: selectedTagIds,
@@ -200,23 +201,11 @@ export function TaskEditModal({
         </div>
         <div className={styles.editRow}>
           <span className={styles.editRowLabel}>{t("edit.due")}</span>
-          <input
-            type="datetime-local"
-            className={styles.editDatetime}
-            value={dueAt}
-            aria-label={t("edit.due")}
-            onChange={(event) => setDueAt(event.target.value)}
-          />
+          <DateTimePicker value={dueAt} onChange={setDueAt} ariaLabel={t("edit.due")} />
         </div>
         <div className={styles.editRow}>
           <span className={styles.editRowLabel}>{t("edit.remind")}</span>
-          <input
-            type="datetime-local"
-            className={styles.editDatetime}
-            value={remindAt}
-            aria-label={t("edit.remind")}
-            onChange={(event) => setRemindAt(event.target.value)}
-          />
+          <DateTimePicker value={remindAt} onChange={setRemindAt} ariaLabel={t("edit.remind")} />
         </div>
         <div className={styles.editRow}>
           <span className={styles.editRowLabel}>{t("edit.tags")}</span>

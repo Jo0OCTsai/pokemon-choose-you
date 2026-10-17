@@ -64,10 +64,12 @@ export function DisplaySection({
             { value: "12h", label: t("display.h12") },
           ]}
           onChange={(v) => onField("time_format", v)}
+          labelExtra={
+            <span className={styles.previewLine} data-testid="display-preview">
+              {t("display.preview", { v: previewDateTime(draft) })}
+            </span>
+          }
         />
-        <p className={styles.previewLine} data-testid="display-preview">
-          {t("display.preview", { v: previewDateTime(draft) })}
-        </p>
         <Select
           label={t("display.overdueMode")}
           value={draft["overdue_mode"]}
@@ -80,10 +82,10 @@ export function DisplaySection({
         />
         <Toggle
           label={t("display.dueRelative")}
+          tip={t("display.dueRelativeDesc")}
           checked={draft["due_relative"] === "true"}
           onChange={(v) => onField("due_relative", String(v))}
         />
-        <p className={styles.cardHint}>{t("display.dueRelativeDesc")}</p>
       </div>
     </SectionShell>
   );

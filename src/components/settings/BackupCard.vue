@@ -82,7 +82,7 @@ async function doRestore(file: string) {
 
 <template>
   <section class="set-card">
-    <h3>💾 {{ t("backup.title") }}</h3>
+    <h3 :data-tip="t('backup.hint')">💾 {{ t("backup.title") }}</h3>
     <SettingRow :label="t('backup.enable')" :desc="t('backup.enableDesc')">
       <DexToggle v-model="backupOn" />
     </SettingRow>
@@ -108,7 +108,6 @@ async function doRestore(file: string) {
       </li>
     </ul>
     <p v-else-if="backupsLoaded" class="hint">{{ t("backup.empty") }}</p>
-    <p class="set-foot">{{ t("backup.hint") }}</p>
   </section>
 </template>
 
@@ -128,14 +127,6 @@ async function doRestore(file: string) {
 .set-card h3 {
   margin: 0 0 12px;
   font-size: 16px;
-}
-.set-foot {
-  margin: 12px 0 0;
-  padding-top: 10px;
-  border-top: 2px dashed var(--ink-faint);
-  font-size: 12px;
-  color: var(--ink-soft);
-  line-height: 1.7;
 }
 /* 瞬时反馈信息（保存结果 / 错误 / 空态），不是常驻说明 */
 .hint {

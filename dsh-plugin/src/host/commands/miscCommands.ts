@@ -1,6 +1,6 @@
 /**
  * host 命令 · 诊断/桌宠/通用/专注域（AD §4.1.1）：diagnosticsSnapshot /
- * supportReport / logQuery / petShow / petHide / petMove / dbStatus / pomoTryFive。
+ * supportReport / logQuery / petShow / petHide / petStatus / petMove / dbStatus / pomoTryFive。
  * logQuery 返回文本经三层脱敏（NFR-2 ⑥，与支持报告同管线——原始明文不出 host 边界）。
  */
 import type { CommandTable } from "./context";
@@ -12,7 +12,7 @@ import { setPetPos } from "../pet/stateFeed";
 import type { LogQueryParams } from "../health/logRing";
 import { logDirFrom } from "../storage/paths";
 
-/** 诊断/桌宠/通用/专注命令表（8 条） */
+/** 诊断/桌宠/通用/专注命令表（9 条） */
 export function miscCommands(): CommandTable {
   return {
     diagnosticsSnapshot: (_p, deps) => ({
@@ -36,6 +36,8 @@ export function miscCommands(): CommandTable {
       deps.pet.hide();
       return { ok: true };
     },
+    // 桌宠显隐状态（背包桌宠分区状态行回显源：running = helper 子进程存活——hide 即停进程）
+    petStatus: (_p, deps) => ({ running: deps.pet.running }),
     petMove: (p, deps) => {
       setPetPos(deps.conn, (p as { pos: { x: number; y: number } }).pos);
       deps.onWrites();

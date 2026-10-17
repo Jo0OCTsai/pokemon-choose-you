@@ -70,8 +70,8 @@ function isTaskArray(v: unknown): v is ActiveTask[] {
 function parsePomodoroConfig(v: Record<string, unknown>): DownstreamMsg | null {
   const durations = v.durations;
   if (!Array.isArray(durations) || durations.length === 0 || !durations.every(isNum)) return null;
-  if (!isNum(v.breakMin) || !isLang(v.lang)) return null;
-  return { type: "pomodoro-config", durations, breakMin: v.breakMin, lang: v.lang };
+  if (!isNum(v.breakMin) || typeof v.enabled !== "boolean" || !isLang(v.lang)) return null;
+  return { type: "pomodoro-config", durations, breakMin: v.breakMin, enabled: v.enabled, lang: v.lang };
 }
 
 function parseSprites(v: Record<string, unknown>): DownstreamMsg | null {

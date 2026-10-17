@@ -74,7 +74,7 @@ describe("下行发送（五种全集）", () => {
       { pendingSuggestions: 2, failures: 1 },
       123,
     );
-    client.sendPomodoroConfig({ durations: [15, 25, 45, 60], breakMin: 5, lang: "zh-Hans" });
+    client.sendPomodoroConfig({ durations: [15, 25, 45, 60], breakMin: 5, enabled: true, lang: "zh-Hans" });
     client.sendLang("en");
     client.sendSprites({
       builtin: [{ key: "pikachu", id: 25, name: { hans: "皮卡丘", hant: "皮卡丘", en: "Pikachu" } }],

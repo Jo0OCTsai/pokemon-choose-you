@@ -3,7 +3,7 @@
  * 两段删除与超时复位）+ taskHistory 操作历史渲染 + 底部「编辑」入口全字段弹窗。
  * 渲染壳经 drawerHarness 共用（从 drawer.spec 等量迁出）。
  */
-import { act, cleanup, fireEvent, screen } from "@testing-library/react";
+import { act, cleanup, fireEvent, screen, within } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { renderDrawer } from "./drawerHarness";
 import { makeData, makeTask } from "./fixtures";
@@ -107,10 +107,12 @@ describe("操作历史段（对照桌面 edit.history）", () => {
   });
 });
 
-describe("抽屉「编辑」入口（桌面同款）", () => {
-  it("底部编辑按钮打开全字段弹窗，保存走 taskUpdate 并刷新", async () => {
+describe("抽屉「编辑」入口（属性总览卡右上角）", () => {
+  it("基础信息卡右上角编辑按钮打开全字段弹窗，保存走 taskUpdate 并刷新", async () => {
     const data = makeData({ tasks: [makeTask({ id: 1 })] });
     const { host, onChanged } = renderDrawer(1, data);
+    // 编辑钮在基础信息卡（task-summary）内
+    expect(within(screen.getByTestId("task-summary")).getByRole("button", { name: "✎ 编辑" })).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: "✎ 编辑" }));
     expect(screen.getByText(/编辑待办/)).toBeTruthy();
     // 默认标题非空 → 保存直发全量 patch

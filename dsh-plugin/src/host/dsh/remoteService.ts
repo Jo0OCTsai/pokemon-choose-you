@@ -9,7 +9,7 @@
  * minify，参数名可解析），gateway 用 ctx.get("pky") 直取服务实例调用——无消费方
  * inject、无 webServer 依赖、注册即刻生效（无晚供问题）。
  *
- * 55 命令不拆分：单方法 call(command, payload) 直转 HostCommandCaller 分发器；业务信封
+ * 69 命令不拆分：单方法 call(command, payload) 直转 HostCommandCaller 分发器；业务信封
  * （PROTOCOL §2 ok/fail）作为 Remote 返回值透传——业务错误码不进传输层错误路径
  * （方法不抛错），客户端剥一层传输信封即得业务信封。
  */

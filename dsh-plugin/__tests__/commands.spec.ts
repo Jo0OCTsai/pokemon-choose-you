@@ -58,8 +58,8 @@ async function runTaskEditHistoryCase(): Promise<void> {
 }
 
 describe("host 命令装配面（AD §4.1.1）· 全集与任务域", () => {
-  it("命令名全集 = 68 条目（62 + 标签体检 3 + agent 工具面 3），未知命令 INVALID_ARGUMENT", async () => {
-    expect(HOST_COMMAND_NAMES).toHaveLength(68);
+  it("命令名全集 = 69 条目（62 + 标签体检 3 + agent 工具面 3 + 桌宠状态 1），未知命令 INVALID_ARGUMENT", async () => {
+    expect(HOST_COMMAND_NAMES).toHaveLength(69);
     const unknown = (await f.call("nope")) as { ok: boolean; error: { code: string } };
     expect(unknown.ok).toBe(false);
     expect(unknown.error.code).toBe("INVALID_ARGUMENT");
@@ -232,6 +232,7 @@ describe("host 命令装配面 · 背包/诊断/桌宠/通用/专注域", () => 
     expect(await f.call("logQuery", { limit: 5 })).toMatchObject({ ok: true });
     expect(await f.call("petShow")).toMatchObject({ ok: true, data: { ok: true, ready: false } });
     expect(await f.call("petHide")).toMatchObject({ ok: true, data: { ok: true } });
+    expect(await f.call("petStatus")).toMatchObject({ ok: true, data: { running: false } });
     expect(await f.call("petMove", { pos: { x: 1, y: 2 } })).toMatchObject({ ok: true });
     expect(await f.call("dbStatus")).toMatchObject({ ok: true, data: { userVersion: 2, mode: "ok" } });
     expect(await f.call("pomoTryFive", {})).toMatchObject({ ok: true, data: { ok: true } });

@@ -5,11 +5,13 @@
  * 抽象——真实 dsh 桥（subagent 适配 / SSH provider）后续装配，本模块提供 local 与 fake。
  *
  * 行为基准 = src-tauri/src/ai/invocation.rs build_invocation（本地分支：args 空白分词、
- * {prompt} 占位替换、无占位走 stdin、cwd）+ ai/runner.rs（超时 kill）+
+ * {prompt} 占位替换、无占位走 stdin、cwd；裸命令 which::resolve 补扫 + agent_workdir `~`
+ * 展开 → ./localEnv）+ ai/runner.rs（超时 kill、node 宿主目录前插子进程 PATH）+
  * commands/dispatch/headless.rs（DISPATCH_MIN_TIMEOUT_SECS=600 超时下限）。
  */
 import { spawn, type ChildProcess } from "node:child_process";
 import { DISPATCH_MIN_TIMEOUT_SECS } from "../domain/dispatch-slots";
+import { childEnvFor, expandHome, resolveCommand, spawnErrorHint } from "./localEnv";
 
 /** 一次无头执行的入参（agent 命令面 + 派发 prompt） */
 export interface DispatchJob {
@@ -125,16 +127,17 @@ export function createLocalExecutor(minTimeoutSecs: number = DISPATCH_MIN_TIMEOU
   };
 }
 
-/** 一次本地执行：spawn → 挂监听 → 等收口（失败/超时一律以 outcome 收场不抛错） */
+/** 一次本地执行：环境解析 → spawn → 挂监听 → 等收口（失败/超时一律以 outcome 收场不抛错） */
 function launchLocal(job: DispatchJob, minTimeoutSecs: number, runtime: LocalRuntime): Promise<ExecOutcome> {
   const { argv, stdin } = buildLocalArgv(job);
   const timeoutMs = effectiveTimeoutSecs(job.timeoutSecs, minTimeoutSecs) * 1000;
   const started = Date.now();
   let child: ChildProcess;
+  const program = resolveCommand(job.command);
   try {
-    child = spawn(job.command, argv, {
-      cwd: job.workdir != null && job.workdir.trim() !== "" ? job.workdir : undefined,
-      env: { ...process.env, ...job.env },
+    child = spawn(program, argv, {
+      cwd: expandHome(job.workdir),
+      env: childEnvFor(program, job.env),
       stdio: ["pipe", "pipe", "pipe"],
     });
   } catch (error) {
@@ -208,7 +211,7 @@ function collectOutput(child: ChildProcess): { stdout(): string; stderr(): strin
   return { stdout: () => stdout, stderr: () => stderr };
 }
 
-/** spawn error 事件的收口形态（无法启动） */
+/** spawn error 事件的收口形态（无法启动；ENOENT 附可操作指引） */
 function synthError(
   command: string,
   message: string,
@@ -220,7 +223,7 @@ function synthError(
     durationMs: Date.now() - started,
     stdout: out.stdout(),
     timedOut: false,
-    error: `无法启动 ${command}: ${message}`,
+    error: `无法启动 ${command}: ${message}${spawnErrorHint(message)}`,
   };
 }
 

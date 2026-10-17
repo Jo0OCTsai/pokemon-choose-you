@@ -40,7 +40,6 @@ export default {
     clear: "清除",
   },
   failed: {
-    group: "AI 判定失败 · {n} 条",
     retryAll: "一键重判",
     forceCapture: "强制捕捉",
     forceDismiss: "强制逃走",
@@ -53,8 +52,7 @@ export default {
     stateWarn: "重试中",
     stateFail: "未授权",
     failCount: "连续失败 {n}",
-    kbdHint:
-      "J/K 上下条 · C 捕捉 · X 逃走 · U 应用更新 · R 恢复（逃走留档项） · T 接受新标签提议 · Esc 收起（仅插件页面聚焦域内生效，不注册全局快捷键）",
+    kbdHint: "快捷键：J/K 上下条 · C 捕捉 · X 逃走 · U 应用更新 · R 恢复（逃走留档项） · T 接受新标签提议 · Esc 收起",
     acceptTag: "＋ 接受新标签提议",
     judging: "判定中…",
   },
@@ -88,12 +86,26 @@ export default {
   pet: {
     showNotReady: "桌宠未在 5 秒内完成启动握手，可能仍在启动中",
     clearMain: "清除",
+    showRow: "显示桌宠",
+    show: "显示",
+    hide: "隐藏",
+    stateLabel: "当前状态：",
+    stateShown: "显示中",
+    stateHidden: "已隐藏",
+    stateUnknown: "未知",
   },
   tag: {
     deleteConfirm: "删除标签「{name}」？其与待办的关联将一并清理。",
   },
   task: {
     reschedule: "改期",
+  },
+  dt: {
+    hour: "时",
+    minute: "分",
+    period: "上下午",
+    prevMonth: "上月",
+    nextMonth: "下月",
   },
   chip: {
     openPage: "打开图鉴机页面",
@@ -138,5 +150,6 @@ export default {
   prompts: {
     conflictRefreshed: "提示词已在另一形态更新，已为你刷新为最新版",
     forceOverwrite: "已在另一处被修改——确认覆盖？",
+    forceOverwriteConfirm: "仍要覆盖",
   },
 } as const;

@@ -36,7 +36,17 @@ describe("fetchPanelData", () => {
   it("读面直装：config/dbStatus/filters/promptSpecs + today/locale", async () => {
     const host = mockHost({
       settings: { language: "zh-Hant" },
-      filters: [{ chatId: "oc_1", chatName: "产品群", chatType: "group", state: "follow", updatedAt: null }],
+      filters: [
+        {
+          chatId: "oc_1",
+          chatName: "产品群",
+          chatType: "group",
+          state: "follow",
+          effective: "pull",
+          source: "follow",
+          updatedAt: null,
+        },
+      ],
       promptSpecs: [
         {
           id: "im_classify",
@@ -213,7 +223,8 @@ describe("fetchPanelData", () => {
     const data = await fetchPanelData(host);
     expect(data.dbStatus).toBeNull();
     expect(data.filters).toEqual([]);
-    expect(data.config).toEqual({});
+    // configRead 成功返回空设置——ai_agents 仍由 agent 列表派生（mock 真库单源保真）
+    expect(data.config).toEqual({ ai_agents: "[]" });
   });
 });
 

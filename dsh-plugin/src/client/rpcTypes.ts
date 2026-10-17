@@ -1,6 +1,6 @@
 /**
  * rpc 类型面（从 rpc.ts 拆出以控文件规模——复杂度棘轮 max-lines）：错误码 15 枚举 +
- * 60 命令 HostClient。客户端视图模型见 rpcViews.ts（本文件再出口）；rpc.ts 为统一
+ * 69 命令 HostClient。客户端视图模型见 rpcViews.ts（本文件再出口）；rpc.ts 为统一
  * 再出口（消费面不变）。
  */
 import type { ErrorCode, PkyResult } from "../host/storage/errors";
@@ -58,10 +58,10 @@ type _AssertExact = [_AssertCoversHost] extends [never] ? ([_AssertNoExtra] exte
 /** 编译期锚点（导出防 noUnusedLocals；断言通过时为 true，漂移时 never 拒绝赋值） */
 export const _ERROR_CODE_ASSERTION: _AssertExact = true;
 
-// ---- 60 个 client→host RPC 命令（AD §4.1.1 表逐行 + 实体读域 5 条 + 备份/导出域 3 条 + 标签体检 3 条） ----
+// ---- 69 个 client→host RPC 命令（AD §4.1.1 表逐行 + 实体读域 5 条 + 备份/导出域 3 条 + 标签体检 3 条 + 桌宠显隐状态 1 条） ----
 
 /**
- * HostClient：客户端半边消费的命令面。60 命令（57 + 标签体检 3 条）+
+ * HostClient：客户端半边消费的命令面。69 命令 +
  * 放生撤销（UIUX 触发入口表 host:taskDeleteUndo——墓碑审计恢复，AD §4.1.1 归并口径的显式
  * 撤销面）+ pageOpen 推送订阅。
  */
@@ -197,6 +197,8 @@ export interface HostClient {
   // 桌宠
   petShow(): Promise<PkyResult<{ ok: boolean }>>;
   petHide(): Promise<PkyResult<{ ok: boolean }>>;
+  /** 显隐状态（running = helper 子进程存活；背包桌宠分区状态行回显源） */
+  petStatus(): Promise<PkyResult<{ running: boolean }>>;
   petMove(params: { pos: { x: number; y: number } }): Promise<PkyResult<{ ok: boolean }>>;
   // 通用
   dbStatus(): Promise<PkyResult<DbStatus>>;

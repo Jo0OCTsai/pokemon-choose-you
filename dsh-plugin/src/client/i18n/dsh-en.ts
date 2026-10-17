@@ -42,7 +42,6 @@ export default {
     clear: "Clear",
   },
   failed: {
-    group: "AI judging failed · {n}",
     retryAll: "Retry all",
     forceCapture: "Force catch",
     forceDismiss: "Force release",
@@ -90,12 +89,26 @@ export default {
   pet: {
     showNotReady: "The pet didn't finish its startup handshake within 5 seconds — it may still be starting",
     clearMain: "Clear",
+    showRow: "Show pet",
+    show: "Show",
+    hide: "Hide",
+    stateLabel: "Current state: ",
+    stateShown: "Visible",
+    stateHidden: "Hidden",
+    stateUnknown: "Unknown",
   },
   tag: {
     deleteConfirm: 'Delete tag "{name}"? Its task links will be removed as well.',
   },
   task: {
     reschedule: "Reschedule",
+  },
+  dt: {
+    hour: "Hour",
+    minute: "Minute",
+    period: "AM/PM",
+    prevMonth: "Previous month",
+    nextMonth: "Next month",
   },
   chip: {
     openPage: "Open the Pokédex page",
@@ -141,5 +154,6 @@ export default {
   prompts: {
     conflictRefreshed: "This prompt was updated on the other side — refreshed to the latest",
     forceOverwrite: "Modified elsewhere — overwrite?",
+    forceOverwriteConfirm: "Overwrite anyway",
   },
 } as const;

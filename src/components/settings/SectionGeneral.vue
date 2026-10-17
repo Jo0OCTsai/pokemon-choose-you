@@ -43,14 +43,13 @@ const reviewDowOptions = computed(() =>
 
 <template>
   <section class="set-card">
-    <h3>⚙️ {{ t("stabs.general") }}</h3>
+    <h3 :data-tip="t('general.shortcuts')">⚙️ {{ t("stabs.general") }}</h3>
     <SettingRow :label="t('general.autostart')" :desc="t('general.autostartDesc')">
       <DexToggle :model-value="autostart" @update:model-value="(v) => emit('autostart', v)" />
     </SettingRow>
     <SettingRow :label="t('general.closeToTray')" :desc="t('general.closeToTrayDesc')">
       <DexToggle v-model="closeToTrayOn" />
     </SettingRow>
-    <p class="set-foot">{{ t("general.shortcuts") }}</p>
   </section>
 
   <BackupCard :backups="backups" :backups-loaded="backupsLoaded" :reload="reloadBackups" />
@@ -93,13 +92,5 @@ const reviewDowOptions = computed(() =>
 .set-card h3 {
   margin: 0 0 12px;
   font-size: 16px;
-}
-.set-foot {
-  margin: 12px 0 0;
-  padding-top: 10px;
-  border-top: 2px dashed var(--ink-faint);
-  font-size: 12px;
-  color: var(--ink-soft);
-  line-height: 1.7;
 }
 </style>

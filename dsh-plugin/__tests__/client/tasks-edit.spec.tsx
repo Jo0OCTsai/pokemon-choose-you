@@ -7,6 +7,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { ClientProvider } from "../../src/client/clientContext";
 import { I18nProvider } from "../../src/client/i18n";
 import { mockHost } from "../../src/client/rpc";
+import { defaultOpenValue } from "../../src/client/ui/dateTime";
 import { TaskCard } from "../../src/client/tasks/TaskCard";
 import { TaskEditModal } from "../../src/client/tasks/TaskEditModal";
 import type { Tag, TagDimension } from "../../src/host/domain/vocabulary-tags";
@@ -65,6 +66,11 @@ function inputByLabel(label: string): HTMLInputElement {
   return screen.getByLabelText(label) as HTMLInputElement;
 }
 
+/** 日期时间选择器触发钮（弹层选择，零键入） */
+function pickerTrigger(label: string): HTMLElement {
+  return screen.getByLabelText(label) as HTMLElement;
+}
+
 describe("TaskEditModal 字段绑定", () => {
   it("打开即回填任务字段（标题/备注/分类/优先级/截止/提醒/标签选中）", () => {
     renderModal(
@@ -83,8 +89,8 @@ describe("TaskEditModal 字段绑定", () => {
     expect((screen.getByLabelText("备注") as HTMLTextAreaElement).value).toBe("差 3 个数字");
     expect((screen.getByLabelText("分类") as HTMLSelectElement).value).toBe("2");
     expect((screen.getByLabelText("优先级") as HTMLSelectElement).value).toBe("high");
-    expect(inputByLabel("截止").value).toBe("2026-10-12T18:00");
-    expect(inputByLabel("提醒").value).toBe("2026-10-12T09:30");
+    expect(pickerTrigger("截止").textContent).toContain("2026-10-12 18:00");
+    expect(pickerTrigger("提醒").textContent).toContain("2026-10-12 09:30");
     // 标签引用（name+dimension）→ id 选中
     expect(screen.getByText("pkm").getAttribute("aria-pressed")).toBe("true");
     expect(screen.getByText("blog").getAttribute("aria-pressed")).toBe("false");
@@ -121,9 +127,12 @@ describe("TaskEditModal 保存与校验", () => {
     fireEvent.change(screen.getByLabelText("备注"), { target: { value: "加备注" } });
     fireEvent.change(screen.getByLabelText("分类"), { target: { value: "2" } });
     fireEvent.change(screen.getByLabelText("优先级"), { target: { value: "urgent" } });
-    // 清空截止（datetime-local 空串 → null）；提醒设新值
-    fireEvent.change(inputByLabel("截止"), { target: { value: "" } });
-    fireEvent.change(inputByLabel("提醒"), { target: { value: "2026-10-13T08:00" } });
+    // 清空截止：开弹层（有值不动）→ 清空（空串 → null）；提醒空值打开落默认 18:00，改小时到 08
+    fireEvent.click(pickerTrigger("截止"));
+    fireEvent.click(screen.getByText("清空"));
+    fireEvent.click(pickerTrigger("提醒"));
+    fireEvent.change(screen.getByLabelText("提醒 时"), { target: { value: "08" } });
+    const remindAt = `${defaultOpenValue().slice(0, 10)}T08:00`;
     // 换项目标签（pkm → blog）
     fireEvent.click(screen.getByText("blog"));
     fireEvent.click(screen.getByText("t1"));
@@ -137,7 +146,7 @@ describe("TaskEditModal 保存与校验", () => {
       categoryId: 2,
       priority: "urgent",
       dueAt: null,
-      remindAt: "2026-10-13T08:00",
+      remindAt,
       tagIds: [2, 3],
     });
     expect(onChanged).toHaveBeenCalledTimes(1);

@@ -7,12 +7,11 @@
  * （dsh Config schema，A2 双轨——插件私有配置在宿主 ConfigEditor）。
  * 宝可梦选择 = PokemonPicker 内联下拉（桌面 PokemonPicker 同构交互）。
  */
-import { useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useClient } from "../../clientContext";
 import { useI18n, useT } from "../../i18n";
 import { createPokemonName, createPokemonSearch } from "../../dsh/panelData";
-import { TextInput, Toggle } from "../../ui/controls";
-import { Sprite } from "../../ui/Sprite";
+import { Toggle } from "../../ui/controls";
 import ui from "../../ui/ui.module.css";
 import type { SectionProps } from "../sectionProps";
 import { SectionShell } from "../SectionShell";
@@ -61,6 +60,18 @@ export function PetSection({
   const [quotePokemon, setQuotePokemon] = useState(draft["main_pokemon"] || DEFAULT_QUOTE_POKEMON);
   /** petShow ready=false 警告（hello 握手 5 秒超时；简单起见不自隐，下次动作自然覆盖） */
   const [showWarn, setShowWarn] = useState<string | null>(null);
+  /** 显隐状态回显（petStatus 查询；真机踩坑：只有动作按钮无状态行，看不出当前是否显示） */
+  const [petRunning, setPetRunning] = useState<boolean | null>(null);
+  const refreshPetStatus = useCallback(() => {
+    void client.petStatus().then((r) => {
+      if (r.ok) {
+        setPetRunning(r.data.running);
+      }
+    });
+  }, [client]);
+  useEffect(() => {
+    refreshPetStatus();
+  }, [refreshPetStatus]);
 
   const mainKey = draft["main_pokemon"];
   const quotesMap = parseQuotes(draft["pokemon_quotes"]);
@@ -83,6 +94,7 @@ export function PetSection({
     // host 契约返回 { ok, ready }（rpcTypes 尚未带 ready——宽收读取，缺省视为正常）
     const ready = result.ok ? (result.data as { ready?: boolean }).ready : undefined;
     setShowWarn(ready === false ? t("dsh.pet.showNotReady") : null);
+    refreshPetStatus();
   }
 
   return (
@@ -90,12 +102,7 @@ export function PetSection({
       <div className={ui.card}>
         <h4 className={styles.cardTitle}>{t("cats.mainTitle")}</h4>
         <div className={styles.filterRow} data-testid="main-pokemon-row">
-          {mainKey !== "" && (
-            <span className={styles.entitySprite}>
-              <Sprite spriteKey={mainKey} size={28} alt={pokemonName(mainKey)} />
-            </span>
-          )}
-          <span style={{ flex: 1 }}>
+          <span style={{ flex: 1 }} data-tip={t("cats.mainDesc")}>
             {t("cats.mainLabel")}：{mainKey === "" ? t("cats.mainFollow") : pokemonName(mainKey)}
           </span>
           <PokemonPicker
@@ -107,8 +114,6 @@ export function PetSection({
             ariaLabel={t("cats.mainLabel")}
           />
         </div>
-        <p className={styles.cardHint}>{t("cats.mainDesc")}</p>
-        <p className={styles.cardHint}>{t("cats.spriteHint")}</p>
       </div>
       <div className={ui.card}>
         <h4 className={styles.cardTitle}>{t("cats.quotesTitle")}</h4>
@@ -139,54 +144,63 @@ export function PetSection({
         <h4 className={styles.cardTitle}>{t("focus.petTitle")}</h4>
         <Toggle
           label={t("focus.petInput")}
+          tip={t("focus.petInputDesc")}
           checked={draft["pet_input_response"] === "true"}
           onChange={(v) => onField("pet_input_response", String(v))}
           badge={t("dsh.badge.pet")}
         />
-        <p className={styles.cardHint}>{t("focus.petInputDesc")}</p>
         <Toggle
           label={t("focus.petInputWorking")}
+          tip={t("focus.petInputWorkingDesc")}
           checked={draft["pet_input_response_working"] === "true"}
           onChange={(v) => onField("pet_input_response_working", String(v))}
           badge={t("dsh.badge.pet")}
         />
-        <p className={styles.cardHint}>{t("focus.petInputWorkingDesc")}</p>
         <Toggle
           label={t("focus.petVoice")}
+          tip={t("focus.petVoiceDesc")}
           checked={draft["pet_voice"] === "true"}
           onChange={(v) => onField("pet_voice", String(v))}
           badge={t("dsh.badge.pet")}
         />
-        <p className={styles.cardHint}>{t("focus.petVoiceDesc")}</p>
         <Toggle
           label={t("focus.petMate")}
+          tip={t("focus.petMateDesc")}
           checked={draft["pet_mate"] === "true"}
           onChange={(v) => onField("pet_mate", String(v))}
           badge={t("dsh.badge.pet")}
         />
-        <p className={styles.cardHint}>{t("focus.petMateDesc")}</p>
       </div>
       <div className={ui.card}>
         <Toggle
           label={t("display.reduceMotion")}
+          tip={t("display.reduceMotionDesc")}
           checked={draft["reduce_motion"] === "true"}
           onChange={(v) => onField("reduce_motion", String(v))}
         />
-        <p className={styles.cardHint}>{t("display.reduceMotionDesc")}</p>
-        <div className={styles.filterRow}>
-          <span style={{ flex: 1 }}>{t("general.autostart")}</span>
-          <button type="button" className={ui.button} onClick={() => void showPet()}>
-            {t("pet.menuDex")}
+        {/* 显示桌宠 = 隐藏后的恢复入口（UIUX U4/SDD D18）：petShow/petHide 即时动作，非持久开关；
+            状态行回显当前显隐（petStatus 查询 + 动作后刷新） */}
+        <div className={styles.filterRow} data-testid="pet-show-row">
+          <span style={{ flex: 1 }}>{t("dsh.pet.showRow")}</span>
+          <span data-testid="pet-show-state">
+            {t("dsh.pet.stateLabel")}
+            {t(
+              petRunning === null ? "dsh.pet.stateUnknown" : petRunning ? "dsh.pet.stateShown" : "dsh.pet.stateHidden",
+            )}
+          </span>
+          <button type="button" className={ui.button} aria-label={t("dsh.pet.showRow")} onClick={() => void showPet()}>
+            {t("dsh.pet.show")}
           </button>
           <button
             type="button"
             className={ui.button}
+            aria-label={t("pet.menuHide")}
             onClick={() => {
               setShowWarn(null);
-              void client.petHide();
+              void client.petHide().then(refreshPetStatus);
             }}
           >
-            {t("pet.menuHide")}
+            {t("dsh.pet.hide")}
           </button>
         </div>
         {showWarn !== null && (
@@ -194,14 +208,6 @@ export function PetSection({
             {showWarn}
           </p>
         )}
-        <p className={styles.cardHint}>{t("general.autostartDesc")}</p>
-        <TextInput
-          ariaLabel={t("general.autostart")}
-          value=""
-          onChange={() => {}}
-          placeholder="dsh Config schema"
-          disabled
-        />
       </div>
     </SectionShell>
   );

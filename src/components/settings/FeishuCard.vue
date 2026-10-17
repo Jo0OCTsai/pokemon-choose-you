@@ -36,8 +36,7 @@ async function runTest(fn: () => Promise<string>) {
 
 <template>
   <section class="set-card">
-    <h3>💬 {{ t("tabs.im") === "Radio" ? "Feishu" : "飞书" }}</h3>
-    <p class="set-sub">{{ t("feishu.hint") }}</p>
+    <h3 :data-tip="t('feishu.hint')">💬 {{ t("tabs.im") === "Radio" ? "Feishu" : "飞书" }}</h3>
     <div class="auth-line">
       <span class="auth-state">
         {{
@@ -90,13 +89,6 @@ async function runTest(fn: () => Promise<string>) {
 .set-card h3 {
   margin: 0 0 12px;
   font-size: 16px;
-}
-/* 说明文字四层归属的页面两层（行内 desc 在 SettingRow 组件内）：区块副标题 + 卡片脚注 */
-.set-sub {
-  margin: -6px 0 12px;
-  font-size: 12px;
-  color: var(--ink-soft);
-  line-height: 1.7;
 }
 .btn-row {
   display: flex;

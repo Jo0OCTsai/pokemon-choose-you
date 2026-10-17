@@ -7,9 +7,17 @@
 import { PkyError } from "../host/storage/errors";
 import type { Category } from "../host/domain/vocabulary";
 import type { Tag, TagDimension } from "../host/domain/vocabulary-tags";
-import type { FilterItem } from "../host/domain/vocabulary-filters";
+import { filterDecision, type FilterItem } from "../host/domain/vocabulary-filters";
 import type { HostClient } from "./rpc";
 import type { MockContext } from "./mockHost";
+
+/** ai_agents 由 agent 列表派生（真库单源：agentUpsert 落 ai_agents 设置键——显式
+ *  settings 键优先，供夹具直接注入 JSON） */
+function deriveAgentsKey(ctx: MockContext, keys: string[] | undefined, keyValues: Record<string, string>): void {
+  if ((keys === undefined || keys.includes("ai_agents")) && keyValues.ai_agents === undefined) {
+    keyValues.ai_agents = JSON.stringify(ctx.state.agents);
+  }
+}
 
 /** 设置命令：configRead 过滤 / configWrite 校验（时钟格式 + 起止不同）+ 落库 */
 export function settingsCommands(
@@ -25,6 +33,7 @@ export function settingsCommands(
           keyValues[key] = value;
         }
       }
+      deriveAgentsKey(ctx, keys, keyValues);
       return { ok: true, data: { keyValues } };
     },
     async configWrite(params) {
@@ -213,13 +222,19 @@ export function filterCommands(ctx: MockContext): Pick<HostClient, "filterList" 
       const existing = ctx.state.filters.find((c) => c.chatId === params.chatId);
       if (existing !== undefined) {
         existing.state = params.state;
+        const decision = filterDecision(params.state, "unmuted", existing.chatType);
+        existing.effective = decision.effect;
+        existing.source = decision.source;
         return { ok: true, data: existing };
       }
+      const decision = filterDecision(params.state, "unmuted", "group");
       const item: FilterItem = {
         chatId: params.chatId,
         chatName: params.chatId,
         chatType: "group",
         state: params.state,
+        effective: decision.effect,
+        source: decision.source,
         updatedAt: "2026-10-11T09:00:00+08:00",
       };
       ctx.state.filters.push(item);

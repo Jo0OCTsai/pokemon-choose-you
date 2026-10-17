@@ -78,9 +78,9 @@ describe("数据导出卡（三种导出按钮）", () => {
     expect(host.calls).toContainEqual({ command: "exportRun", params: { kind: "report" } });
   });
 
-  it("导出卡脚注提示产物目录（export.hint）", () => {
+  it("导出卡说明挂卡标题 data-tip（export.hint）", () => {
     renderSection();
-    expect(screen.getByText(/导出产物在/)).toBeTruthy();
+    expect(screen.getByText("数据导出 / 导入").getAttribute("data-tip")).toContain("导出产物在");
   });
 });
 

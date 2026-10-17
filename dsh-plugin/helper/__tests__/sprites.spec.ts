@@ -22,7 +22,7 @@ describe("素材链（AD §3.3 A20：内置 → CDN → 双缺回退 + 单次缺
   });
 });
 
-describe("素材链 · CDN 候选与双缺回退", () => {
+describe("素材链 · CDN 候选", () => {
   it("非内置且 keyToId 有映射 → CDN 候选（≤#649 动图 + png；>649 只有 png）", () => {
     const r = new SpriteResolver(undefined, DEFAULT_CDN_BASE, (key) =>
       key === "charmander" ? 4 : key === "skeledirge" ? 911 : undefined,
@@ -34,7 +34,9 @@ describe("素材链 · CDN 候选与双缺回退", () => {
     expect(r.resolve("skeledirge").urls).toEqual([`${DEFAULT_CDN_BASE}/911.png`]);
     expect(ANIMATED_MAX_ID).toBe(649);
   });
+});
 
+describe("素材链 · 双缺回退与恢复", () => {
   it("非内置且无映射（双缺第一层）→ 回退主宝可梦占位 + 单次缺失事件（同 key 去重）", () => {
     const r = new SpriteResolver();
     const res = r.resolve("mysterymon");
@@ -66,6 +68,15 @@ describe("素材链 · CDN 候选与双缺回退", () => {
     const r = new SpriteResolver();
     expect(r.pokemonName("pikachu", "zh-Hans")).toBe("皮卡丘");
     expect(r.pokemonName("pikachu", "en")).toBe("Pikachu");
+    expect(r.pokemonName("who", "en")).toBe("who");
+  });
+
+  it("pokemonName：非内置但有 catalog 名字注入 → 按语言取名（气泡跟随配置语言）", () => {
+    const r = new SpriteResolver(undefined, DEFAULT_CDN_BASE, (key) => (key === "charmander" ? 4 : undefined));
+    r.setNameLookup((key) => (key === "charmander" ? { hans: "小火龙", hant: "小火龍", en: "Charmander" } : undefined));
+    expect(r.pokemonName("charmander", "zh-Hans")).toBe("小火龙");
+    expect(r.pokemonName("charmander", "zh-Hant")).toBe("小火龍");
+    expect(r.pokemonName("charmander", "en")).toBe("Charmander");
     expect(r.pokemonName("who", "en")).toBe("who");
   });
 });

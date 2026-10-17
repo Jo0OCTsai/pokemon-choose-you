@@ -10,8 +10,9 @@ export function refreshPill(
   pomo: { kind: string; msLeft: number } | null,
 ): void {
   const { pill, pillText, pillPause, pillResume, pillTrial } = refs;
-  pill.classList.toggle("on", !!task);
-  if (!task) return;
+  // 开关判定（主应用 parity）：pomodoro_enabled=false 时整个胶囊不显示，与有无任务无关
+  pill.classList.toggle("on", !!task && mirror.pomoEnabled);
+  if (!task || !mirror.pomoEnabled) return;
   const paused = mirror.petState.base === "paused";
   pill.classList.toggle("paused", paused);
   pill.classList.toggle("break", pomo?.kind === "break");

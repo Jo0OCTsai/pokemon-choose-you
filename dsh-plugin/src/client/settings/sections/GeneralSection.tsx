@@ -95,11 +95,11 @@ function BackupCard({
       <h4 className={styles.cardTitle}>{t("backup.title")}</h4>
       <Toggle
         label={t("backup.enable")}
+        tip={t("backup.enableDesc")}
         checked={draft["backup_enabled"] === "true"}
         onChange={(v) => onField("backup_enabled", String(v))}
         badge={t("dsh.badge.mainApp")}
       />
-      <p className={styles.cardHint}>{t("backup.enableDesc")}</p>
       {/* 保留份数 + 选择框 + 立即备份同行（桌面 BackupCard .backup-controls 同构） */}
       <div className={styles.filterRow}>
         <span>{t("backup.keep")}</span>
@@ -154,7 +154,9 @@ function ExportCard({ readonly }: { readonly: boolean }): React.JSX.Element {
 
   return (
     <div className={ui.card}>
-      <h4 className={styles.cardTitle}>{t("export.title")}</h4>
+      <h4 className={styles.cardTitle} data-tip={t("export.hint")}>
+        {t("export.title")}
+      </h4>
       <div className={styles.filterRow}>
         <button
           type="button"
@@ -189,7 +191,6 @@ function ExportCard({ readonly }: { readonly: boolean }): React.JSX.Element {
           </span>
         )}
       </div>
-      <p className={styles.cardHint}>{t("export.hint")}</p>
     </div>
   );
 }
@@ -218,11 +219,11 @@ export function GeneralSection(props: SectionProps): React.JSX.Element {
         <h4 className={styles.cardTitle}>{t("reviewCfg.title")}</h4>
         <Toggle
           label={t("reviewCfg.enable")}
+          tip={t("reviewCfg.enableDesc")}
           checked={draft["review_enabled"] === "true"}
           onChange={(v) => onField("review_enabled", String(v))}
           badge={t("dsh.badge.mainApp")}
         />
-        <p className={styles.cardHint}>{t("reviewCfg.enableDesc")}</p>
         <Select
           label={t("reviewCfg.dow")}
           value={draft["review_dow"]}
@@ -235,11 +236,11 @@ export function GeneralSection(props: SectionProps): React.JSX.Element {
       <div className={ui.card}>
         <Toggle
           label={t("general.closeToTray")}
+          tip={t("general.closeToTrayDesc")}
           checked={draft["close_to_tray"] === "true"}
           onChange={(v) => onField("close_to_tray", String(v))}
           badge={t("dsh.badge.mainApp")}
         />
-        <p className={styles.cardHint}>{t("general.closeToTrayDesc")}</p>
       </div>
       <div className={ui.card}>
         <h4 className={styles.cardTitle}>{t("dsh.settings.dbStatusTitle")}</h4>

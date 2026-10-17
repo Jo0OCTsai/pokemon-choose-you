@@ -193,7 +193,7 @@ export class RuntimeImpl implements HelperRuntime {
   }
 
   private onPomodoroConfig(msg: PomodoroConfigMsg): void {
-    this.pomoConfigValue = { durations: msg.durations, breakMin: msg.breakMin };
+    this.pomoConfigValue = { durations: msg.durations, breakMin: msg.breakMin, enabled: msg.enabled };
     this.langValue = msg.lang;
     this.opts.onUiEvent?.({ kind: "pomo-config", config: this.pomoConfigValue });
   }

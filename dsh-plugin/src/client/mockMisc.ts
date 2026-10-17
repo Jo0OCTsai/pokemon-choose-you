@@ -1,6 +1,6 @@
 /**
  * mockHost 命令组 · 诊断/桌宠/通用/专注：diagnosticsSnapshot、supportReport（脱敏文本）、
- * logQuery（级别/来源过滤 + 分页）、petShow/petHide/petMove、dbStatus、pomoTryFive。
+ * logQuery（级别/来源过滤 + 分页）、petShow/petHide/petStatus/petMove、dbStatus、pomoTryFive。
  */
 import { PkyError } from "../host/storage/errors";
 import type { HostClient } from "./rpc";
@@ -42,10 +42,10 @@ export function logCommands(ctx: MockContext): Pick<HostClient, "logQuery"> {
   };
 }
 
-/** 桌宠与杂项（petShow/Hide/Move + dbStatus + pomoTryFive + 收音机手动拉取） */
+/** 桌宠与杂项（petShow/Hide/Status/Move + dbStatus + pomoTryFive + 收音机手动拉取） */
 export function miscCommands(
   ctx: MockContext,
-): Pick<HostClient, "petShow" | "petHide" | "petMove" | "dbStatus" | "pomoTryFive" | "pollNow"> {
+): Pick<HostClient, "petShow" | "petHide" | "petStatus" | "petMove" | "dbStatus" | "pomoTryFive" | "pollNow"> {
   return {
     async pollNow() {
       ctx.record("pollNow");
@@ -57,11 +57,17 @@ export function miscCommands(
 
     async petShow() {
       ctx.record("petShow");
+      ctx.state.petRunning = true;
       return { ok: true, data: { ok: true } };
     },
     async petHide() {
       ctx.record("petHide");
+      ctx.state.petRunning = false;
       return { ok: true, data: { ok: true } };
+    },
+    async petStatus() {
+      ctx.record("petStatus");
+      return { ok: true, data: { running: ctx.state.petRunning } };
     },
     async petMove(params) {
       ctx.record("petMove", params);

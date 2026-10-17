@@ -51,6 +51,9 @@ function fmtDatePreview(fmt: string): string {
       <DexSelect v-model="settings.values.date_format" :options="dateFormatOptions" />
     </SettingRow>
     <SettingRow :label="t('display.time')">
+      <template #label-extra>
+        <span class="row-preview">{{ t("display.preview", { v: fmtDateTime(today.toISOString()) }) }}</span>
+      </template>
       <DexSelect v-model="settings.values.time_format" :options="timeFormatOptions" />
     </SettingRow>
     <SettingRow :label="t('display.dueRelative')" :desc="t('display.dueRelativeDesc')">
@@ -65,7 +68,6 @@ function fmtDatePreview(fmt: string): string {
     <SettingRow :label="t('display.language')">
       <DexSelect v-model="settings.values.language" :options="languageOptions" />
     </SettingRow>
-    <p class="set-foot">{{ t("display.preview", { v: fmtDateTime(today.toISOString()) }) }}</p>
   </section>
 </template>
 
@@ -85,13 +87,5 @@ function fmtDatePreview(fmt: string): string {
 .set-card h3 {
   margin: 0 0 12px;
   font-size: 16px;
-}
-.set-foot {
-  margin: 12px 0 0;
-  padding-top: 10px;
-  border-top: 2px dashed var(--ink-faint);
-  font-size: 12px;
-  color: var(--ink-soft);
-  line-height: 1.7;
 }
 </style>

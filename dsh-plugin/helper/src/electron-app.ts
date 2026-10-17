@@ -52,8 +52,11 @@ function injectCatalog(runtime: HelperRuntime, catalogPath: string): void {
     const raw = JSON.parse(fs.readFileSync(catalogPath, "utf8")) as {
       entries?: [number, string, string, string, string][];
     };
-    const idByKey = new Map<string, number>((raw.entries ?? []).map(([id, key]) => [key, id]));
+    const entries = raw.entries ?? [];
+    const idByKey = new Map<string, number>(entries.map(([id, key]) => [key, id]));
+    const nameByKey = new Map(entries.map(([, key, hans, hant, en]) => [key, { hans, hant, en }]));
     runtime.resolver.setKeyToId((key) => idByKey.get(key));
+    runtime.resolver.setNameLookup((key) => nameByKey.get(key));
   } catch {
     runtime.bridge.diag.push("catalog-miss", catalogPath);
   }
@@ -83,6 +86,9 @@ function createWindow(initialPos?: { x: number; y: number }): BrowserWindow {
     width: WINDOW_W,
     height: WINDOW_H,
     transparent: true,
+    // 显式全透明（#00000000）：BrowserWindow 默认 backgroundColor 是不透明白，
+    // 新版 macOS 上会压过 transparent:true 直接渲染成白色实底窗
+    backgroundColor: "#00000000",
     frame: false,
     alwaysOnTop: true,
     skipTaskbar: true,
@@ -99,6 +105,9 @@ function createWindow(initialPos?: { x: number; y: number }): BrowserWindow {
     },
   });
   win.setAlwaysOnTop(true, "screen-saver");
+  // 跨 Space 悬浮：窗口默认归属创建时所在的 Space（多全屏/多桌面切换即消失——真机反馈）。
+  // canJoinAllSpaces 跟随用户当前 Space + fullscreenAuxiliary 允许悬浮在全屏 app 之上
+  win.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
   // 默认点击穿透（forward 让渲染层仍能收到 mousemove 做命中翻转）
   win.setIgnoreMouseEvents(true, { forward: true });
   placeWindow(win, initialPos);

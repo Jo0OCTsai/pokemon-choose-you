@@ -334,8 +334,11 @@ onUnmounted(() => {
 
 <template>
   <section ref="rootEl" class="set-card cf-card">
-    <h3>📡 {{ t("feishu.filter.title") }}</h3>
-    <p class="set-sub">{{ t("feishu.filter.hint") }}</p>
+    <h3
+      :data-tip="`${t('feishu.filter.hint')}\n${t('feishu.filter.footImmediate')}\n${t('feishu.filter.footNoBackfill')}`"
+    >
+      📡 {{ t("feishu.filter.title") }}
+    </h3>
 
     <!-- 就绪：摘要行 + 工具行 + 列表（搜索无命中时列表区换空态文案） -->
     <template v-if="state === 'ready'">
@@ -452,12 +455,6 @@ onUnmounted(() => {
       <button type="button" class="btn ghost" @click="load">{{ t("feishu.filter.retry") }}</button>
     </div>
 
-    <!-- 脚注 ×2：即时生效语义 / 不回补不追溯 -->
-    <div class="cf-foot">
-      <p>{{ t("feishu.filter.footImmediate") }}</p>
-      <p>{{ t("feishu.filter.footNoBackfill") }}</p>
-    </div>
-
     <!-- 写入失败 / 拉取结果 toast（role=status 经隐式 aria-live 播报） -->
     <div v-if="toast" class="cf-toast" :class="{ error: toast.error }" role="status">
       <span>{{ toast.text }}</span>
@@ -481,26 +478,6 @@ onUnmounted(() => {
 .set-card h3 {
   margin: 0 0 12px;
   font-size: 16px;
-}
-.set-sub {
-  margin: -6px 0 12px;
-  font-size: 12px;
-  color: var(--ink-soft);
-  line-height: 1.7;
-}
-.cf-foot {
-  margin-top: 12px;
-  padding-top: 10px;
-  border-top: 2px dashed var(--ink-faint);
-  font-size: 12px;
-  color: var(--ink-soft);
-  line-height: 1.7;
-}
-.cf-foot p {
-  margin: 0 0 4px;
-}
-.cf-foot p:last-child {
-  margin-bottom: 0;
 }
 
 /* 仅读屏可见（降级说明的键盘/读屏通道，uiux §6.2） */

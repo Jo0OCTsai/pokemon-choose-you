@@ -65,10 +65,10 @@ export function AgentSshGroup({
           </FormRow>
           <Toggle
             label={t("ai.sshKeepAlive")}
+            tip={t("ai.sshKeepAliveDesc")}
             checked={form.remote.persistent}
             onChange={(persistent) => patchRemote({ persistent })}
           />
-          <p className={styles.cardHint}>{t("ai.sshKeepAliveDesc")}</p>
         </div>
       )}
     </>

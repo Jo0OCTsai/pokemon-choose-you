@@ -75,8 +75,9 @@ export function CategoryTagSection({
   return (
     <section className={styles.sectionPage} data-testid="section-page">
       <div className={ui.card}>
-        <h4 className={styles.cardTitle}>{t("cats.title")}</h4>
-        <p className={styles.cardHint}>{t("cats.hint")}</p>
+        <h4 className={styles.cardTitle} data-tip={t("cats.hint")}>
+          {t("cats.title")}
+        </h4>
         <div className={styles.entityList}>
           {categories.map((category) => (
             <div
@@ -155,15 +156,16 @@ export function CategoryTagSection({
       </div>
       <TagsManagerCard dimensions={dimensions} tags={tags} routes={routes} onChanged={onChanged} />
       <div className={ui.card}>
-        <h4 className={styles.cardTitle}>{t("tags.dimTitle")}</h4>
-        <p className={styles.cardHint}>{t("tags.dimManageHint")}</p>
+        <h4 className={styles.cardTitle} data-tip={`${t("tags.dimManageHint")}\n${t("tags.dimHint")}`}>
+          {t("tags.dimTitle")}
+        </h4>
         <div className={styles.entityList}>
           {dimensions.map((dimension) => (
             <DimensionCard key={dimension.key} dimension={dimension} onChanged={onChanged} />
           ))}
         </div>
         <p className={ui.muted}>
-          {t("tags.dimHint")} · {tags.length} {t("tags.title")}
+          {tags.length} {t("tags.title")}
         </p>
       </div>
       {releaseTarget !== null && (

@@ -147,12 +147,18 @@ export function buildSpritesMsg(conn: Conn): Omit<SpritesMsg, "type"> {
   };
 }
 
-/** pomodoro-config 下发（档位固定 [15,25,45,60]，breakMin 读共享设置；D2 本地计时） */
-export function buildPomodoroConfig(conn: Conn): { durations: number[]; breakMin: number; lang: Lang } {
+/** pomodoro-config 下发（档位固定 [15,25,45,60]，breakMin/enabled 读共享设置；D2 本地计时） */
+export function buildPomodoroConfig(conn: Conn): {
+  durations: number[];
+  breakMin: number;
+  enabled: boolean;
+  lang: Lang;
+} {
   const breakRaw = Number(getSetting(conn, "break_minutes"));
   return {
     durations: [15, 25, 45, 60],
     breakMin: Number.isInteger(breakRaw) && breakRaw > 0 ? breakRaw : 5,
+    enabled: getSetting(conn, "pomodoro_enabled") === "true",
     lang: resolveLang(conn),
   };
 }

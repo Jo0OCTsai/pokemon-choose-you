@@ -15,15 +15,18 @@ import styles from "../settings.module.css";
 import { AgentSkillRow } from "./AgentSkillRow";
 import { AgentSshGroup } from "./AgentSshGroup";
 
-/** 编辑态表单（form 状态由父卡自持；保存/取消动作经回调上抛） */
+/** 编辑态表单（form 状态由父卡自持；保存/取消动作经回调上抛；冲突时出「仍要覆盖」
+ *  force 重发钮——A24 确认覆盖出口，不再是只提示无出口的死胡同） */
 export function AgentEditForm({
   agentId,
   form,
   setForm,
   busy,
   error,
+  conflict,
   commandInvalid,
   onSave,
+  onForceSave,
   onCancel,
 }: {
   agentId: string;
@@ -31,8 +34,11 @@ export function AgentEditForm({
   setForm: React.Dispatch<React.SetStateAction<AgentConfig>>;
   busy: boolean;
   error: string | null;
+  /** 修订检测冲突已提示（SETTING_MODIFIED_ELSEWHERE）→ 显示 force 重发钮 */
+  conflict: boolean;
   commandInvalid: boolean;
   onSave: () => void;
+  onForceSave: () => void;
   onCancel: () => void;
 }): React.JSX.Element {
   const t = useT();
@@ -114,6 +120,17 @@ export function AgentEditForm({
       <AgentSshGroup form={form} setForm={setForm} />
       {commandInvalid && <span className={styles.saveFailHint}>{t("dsh.agents.commandRequired")}</span>}
       {error !== null && <span className={styles.saveFailHint}>{error}</span>}
+      {conflict && (
+        <button
+          type="button"
+          className={ui.button}
+          disabled={busy}
+          data-testid="agent-force-save"
+          onClick={onForceSave}
+        >
+          {t("dsh.prompts.forceOverwriteConfirm")}
+        </button>
+      )}
       {testMsg !== null && (
         <p className={styles.cardHint} data-testid="agent-test-msg">
           {testMsg}

@@ -1,6 +1,6 @@
 /**
  * 客户端半边 RPC 层（AD §4.1.1 host 命令契约）：
- * - HostClient（60 命令类型面——57 + 复盘向导标签体检 3 条）与错误码/
+ * - HostClient（69 命令类型面）与错误码/
  *   视图模型见 rpcTypes.ts（本文件再出口，消费面 import 不变）；内存 mockHost 见 mockHost.ts（同样再出口）。
  * - ok/fail 响应信封 + 可注入 transport（真实 dsh 桥后续接；测试用 mockHost 内存实现）。
  *
@@ -191,6 +191,7 @@ function miscFacade(
   | "logQuery"
   | "petShow"
   | "petHide"
+  | "petStatus"
   | "petMove"
   | "dbStatus"
   | "pomoTryFive"
@@ -206,6 +207,7 @@ function miscFacade(
     logQuery: (p) => call("logQuery", p),
     petShow: () => call("petShow"),
     petHide: () => call("petHide"),
+    petStatus: () => call("petStatus"),
     petMove: (p) => call("petMove", p),
     dbStatus: () => call("dbStatus"),
     pomoTryFive: (p) => call("pomoTryFive", p),

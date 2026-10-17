@@ -219,12 +219,16 @@ describe("BatchBar（U13）", () => {
 });
 
 describe("失败组与逃走组", () => {
-  it("AI 判定失败 · N 条 + 一键重判（retryJudge all）+ 强制捕捉/逃走", async () => {
+  it("⚠ AI 判定失败 + 独立计数徽标（其他状态组同构）+ 一键重判（retryJudge all）+ 强制捕捉/逃走", async () => {
     const { host } = renderRadio([
       makeMessage({ messageId: "f1", aiStatus: "error" }),
       makeMessage({ messageId: "f2", aiStatus: "error" }),
     ]);
-    expect(screen.getByTestId("failed-group").textContent).toContain("AI 判定失败 · 2 条");
+    const group = screen.getByTestId("failed-group");
+    // 组头 = 桌面 im.groupFailed 标题 + 计数徽标（非热点态，桌面 failed 组不传 count-hot）；不再把「· N 条」拼进标题
+    expect(within(group).getByText("⚠ AI 判定失败")).toBeTruthy();
+    expect(within(group).getByText("2").getAttribute("data-hot")).toBeNull();
+    expect(group.textContent).not.toContain("· 2 条");
     fireEvent.click(screen.getByText("一键重判"));
     await flush();
     expect(host.calls).toContainEqual({ command: "retryJudge", params: { messageIds: "all" } });

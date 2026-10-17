@@ -76,6 +76,7 @@ export function FocusSection(props: SectionProps): React.JSX.Element {
         />
         <Toggle
           label={t("remind.quiet")}
+          tip={t("remind.quietDesc")}
           checked={draft["quiet_hours_enabled"] === "true"}
           onChange={(v) => onField("quiet_hours_enabled", String(v))}
           badge={t("dsh.badge.notifications")}
@@ -93,7 +94,6 @@ export function FocusSection(props: SectionProps): React.JSX.Element {
           options={quietHours}
           onChange={(v) => onField("quiet_end", v)}
         />
-        <p className={styles.cardHint}>{t("remind.quietDesc")}</p>
       </div>
     </SectionShell>
   );

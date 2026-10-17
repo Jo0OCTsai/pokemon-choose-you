@@ -2,8 +2,9 @@
  * 飞书分区页（U20 原收音机段改组）：启用轮询/轮询间隔/我的称呼（保存制，U21）+
  * 授权登录/测试连接（即时动作）+ 会话过滤管理（对齐主应用 FeishuChatFilterManager：
  * 搜索/生效状态/偏好/类型三维前端筛选 + 汇总计数行 + 快照新鲜度（staleOk 时间行 /
- * 超 max(5, 2.5×轮询间隔) 分钟 staleWarn banner + 立即拉取一次）；行内乐观写——
- * 实体 CRUD，私聊固定跟随置灰只读，A23。快照时间 = host filterList 的 lastPollAt
+ * 超 max(5, 2.5×轮询间隔) 分钟 staleWarn banner + 立即拉取一次）；行内生效 chip
+ * （拉取/过滤 · 跟随/手动/降级，host 合并直出）+ 乐观写后返回值校正——实体 CRUD，
+ * 私聊固定跟随置灰只读，A23。快照时间 = host filterList 的 lastPollAt
  * （health 最近一次成功拉取）。
  */
 import { useState } from "react";
@@ -18,20 +19,14 @@ import { POLL_INTERVAL_SECS } from "../optionSets";
 import styles from "../settings.module.css";
 import { FeishuConnCard } from "./FeishuConnCard";
 
-/** 生效/偏好/类型三维筛选档（dsh 数据面：state 即偏好——手动=always_*，生效口径跟随手动值） */
+/** 生效/偏好/类型三维筛选档（生效 = host 合并直出的 effective——跟随态按免打扰推导） */
 type EffFilter = "all" | "pull" | "filter";
 type PrefFilter = "all" | "follow" | "manual";
 type TypeFilter = "all" | "group" | "bot";
 
-/** 生效档匹配（pull=always_pull / filter=always_filter / all 不筛） */
-function matchesEffState(state: FilterItem["state"], eff: EffFilter): boolean {
-  if (eff === "pull") {
-    return state === "always_pull";
-  }
-  if (eff === "filter") {
-    return state === "always_filter";
-  }
-  return true;
+/** 生效档匹配（host 合并值口径：follow+unmuted 行生效=拉取，与桌面一致） */
+function matchesEffState(chat: FilterItem, eff: EffFilter): boolean {
+  return eff === "all" || chat.effective === eff;
 }
 
 /** 偏好档匹配（follow=跟随 / manual=非 follow / all 不筛） */
@@ -50,7 +45,7 @@ function chatMatchesFilters(chat: FilterItem, q: string, eff: EffFilter, pref: P
   if (q !== "" && !chat.chatName.toLowerCase().includes(q)) {
     return false;
   }
-  if (!matchesEffState(chat.state, eff) || !matchesPrefState(chat.state, pref)) {
+  if (!matchesEffState(chat, eff) || !matchesPrefState(chat.state, pref)) {
     return false;
   }
   return type === "all" || chat.chatType === type;
@@ -86,26 +81,54 @@ export function FeishuSection({
   const [prefFilter, setPrefFilter] = useState<PrefFilter>("all");
   const [typeFilter, setTypeFilter] = useState<TypeFilter>("all");
 
-  /** 汇总计数（全量口径：拉取=always_pull、过滤=always_filter、手动=非 follow——前端计数） */
+  /** 汇总计数（全量口径，桌面同构：拉取/过滤 = 生效合并值，手动 = 非 follow 偏好） */
   const counts = {
     total: chatList.length,
-    pulling: chatList.filter((c) => c.state === "always_pull").length,
-    filtered: chatList.filter((c) => c.state === "always_filter").length,
+    pulling: chatList.filter((c) => c.effective === "pull").length,
+    filtered: chatList.filter((c) => c.effective === "filter").length,
     manual: chatList.filter((c) => c.state !== "follow").length,
   };
   const visibleChats = chatList.filter((chat) =>
     chatMatchesFilters(chat, query.trim().toLowerCase(), effFilter, prefFilter, typeFilter),
   );
 
+  /** 生效 chip（系统决策预演：拉取/过滤 × 手动/跟随/降级——host 合并直出，前端零合并逻辑） */
+  function effChip(chat: FilterItem): { text: string; title: string; tone: "pull" | "mute" | "degraded" } {
+    const srcKey =
+      chat.source === "manual"
+        ? "feishu.filter.srcManual"
+        : chat.source === "follow"
+          ? "feishu.filter.srcFollow"
+          : "feishu.filter.srcDegraded";
+    const base = t(chat.effective === "pull" ? "feishu.filter.effPull" : "feishu.filter.effFilter");
+    const src = t(srcKey);
+    const title =
+      chat.source === "followDegraded"
+        ? t("feishu.filter.srcDegradedTitle")
+        : chat.source === "manual"
+          ? t(chat.state === "always_pull" ? "feishu.filter.prefPullTitle" : "feishu.filter.prefFilterTitle")
+          : t("feishu.filter.prefFollowTitle");
+    return {
+      text: chat.source === "followDegraded" ? `${base} · ${src} ⚠` : `${base} · ${src}`,
+      title,
+      tone: chat.source === "followDegraded" ? "degraded" : chat.effective === "pull" ? "pull" : "mute",
+    };
+  }
+
   async function setFilter(chatId: string, state: FilterItem["state"]): Promise<void> {
-    // 行内乐观写：即时生效（不进保存制），失败回读
+    // 行内乐观写：即时生效（不进保存制）；成功用返回值校正（生效/来源以 host 合并值为准），失败回读/回滚
+    const prev = chatList.find((c) => c.chatId === chatId);
     setChatList((list) => list.map((c) => (c.chatId === chatId ? { ...c, state } : c)));
     const result = await client.filterUpsert({ chatId, state });
-    if (!result.ok) {
-      const fresh = await client.filterList();
-      if (fresh.ok) {
-        setChatList(fresh.data.chats);
-      }
+    if (result.ok) {
+      setChatList((list) => list.map((c) => (c.chatId === chatId ? result.data : c)));
+      return;
+    }
+    const fresh = await client.filterList();
+    if (fresh.ok) {
+      setChatList(fresh.data.chats);
+    } else if (prev !== undefined) {
+      setChatList((list) => list.map((c) => (c.chatId === chatId ? prev : c)));
     }
   }
 
@@ -130,8 +153,9 @@ export function FeishuSection({
     <SectionShell>
       <FeishuConnCard draft={draft} onField={onField} />
       <div className={ui.card}>
-        <h4 className={styles.cardTitle}>{t("feishu.filter.title")}</h4>
-        <p className={styles.cardHint}>{t("feishu.filter.hint")}</p>
+        <h4 className={styles.cardTitle} data-tip={`${t("feishu.filter.hint")}\n${t("feishu.filter.footImmediate")}`}>
+          {t("feishu.filter.title")}
+        </h4>
         <p className={styles.cardHint} data-testid="filter-summary">
           {t("feishu.filter.summary", {
             total: counts.total,
@@ -206,42 +230,59 @@ export function FeishuSection({
           />
         </div>
         <div className={styles.entityList}>
-          {visibleChats.map((chat) => (
-            <div key={chat.chatId} className={styles.filterRow} data-testid="filter-row">
-              <span className={styles.filterChatName}>{chat.chatName}</span>
-              {chat.chatType === "p2p" ? (
-                <span className={ui.muted} title={t("dsh.filter.p2pLocked")}>
-                  {t("feishu.filter.prefFollow")} · {t("dsh.filter.p2pLocked")}
-                </span>
-              ) : (
-                <span
-                  className={styles.triStateGroup}
-                  role="group"
-                  aria-label={`${chat.chatName}：${t("feishu.filter.prefGroupLabel", { name: "" })}`}
-                >
-                  {(
-                    [
-                      ["follow", t("feishu.filter.prefFollow")],
-                      ["always_pull", t("feishu.filter.prefPull")],
-                      ["always_filter", t("feishu.filter.prefFilter")],
-                    ] as const
-                  ).map(([state, label]) => (
-                    <button
-                      key={state}
-                      type="button"
-                      className={styles.triStateButton}
-                      aria-pressed={chat.state === state}
-                      onClick={() => void setFilter(chat.chatId, state)}
+          {visibleChats.map((chat) => {
+            const chip = effChip(chat);
+            return (
+              <div key={chat.chatId} className={styles.filterRow} data-testid="filter-row">
+                <span className={styles.filterChatName}>{chat.chatName}</span>
+                {chat.chatType === "p2p" ? (
+                  <span className={ui.muted} title={t("dsh.filter.p2pLocked")}>
+                    {t("feishu.filter.prefFollow")} · {t("dsh.filter.p2pLocked")}
+                  </span>
+                ) : (
+                  <>
+                    <span
+                      className={`${styles.filterEff} ${
+                        chip.tone === "pull"
+                          ? styles.filterEffPull
+                          : chip.tone === "mute"
+                            ? styles.filterEffMute
+                            : styles.filterEffDegraded
+                      }`}
+                      title={chip.title}
+                      data-testid="filter-eff"
                     >
-                      {label}
-                    </button>
-                  ))}
-                </span>
-              )}
-            </div>
-          ))}
+                      {chip.text}
+                    </span>
+                    <span
+                      className={styles.triStateGroup}
+                      role="group"
+                      aria-label={`${chat.chatName}：${t("feishu.filter.prefGroupLabel", { name: "" })}`}
+                    >
+                      {(
+                        [
+                          ["follow", t("feishu.filter.prefFollow")],
+                          ["always_pull", t("feishu.filter.prefPull")],
+                          ["always_filter", t("feishu.filter.prefFilter")],
+                        ] as const
+                      ).map(([state, label]) => (
+                        <button
+                          key={state}
+                          type="button"
+                          className={styles.triStateButton}
+                          aria-pressed={chat.state === state}
+                          onClick={() => void setFilter(chat.chatId, state)}
+                        >
+                          {label}
+                        </button>
+                      ))}
+                    </span>
+                  </>
+                )}
+              </div>
+            );
+          })}
         </div>
-        <p className={styles.cardHint}>{t("feishu.filter.footImmediate")}</p>
       </div>
     </SectionShell>
   );

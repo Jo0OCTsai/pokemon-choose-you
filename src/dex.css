@@ -519,3 +519,61 @@ html.reduce-motion *::after {
   animation-iteration-count: 1 !important;
   transition-duration: 0.01ms !important;
 }
+
+/* ---- 说明文字悬浮气泡（data-tip）：说明一律迁出常驻版面（原 .set-desc/.set-sub/.set-foot），
+   悬浮对应 label / 卡标题时以气泡呈现；箭头 = 旋转方块，藏于气泡同色底 ---- */
+[data-tip] {
+  position: relative;
+  cursor: help;
+}
+[data-tip]::after {
+  content: attr(data-tip);
+  position: absolute;
+  left: 0;
+  bottom: calc(100% + 7px);
+  z-index: 95;
+  width: max-content;
+  max-width: 320px;
+  padding: 6px 10px;
+  border-radius: 6px;
+  background: var(--dex-navy);
+  color: #fff;
+  font-size: 12px;
+  font-weight: 400;
+  line-height: 1.6;
+  text-align: left;
+  white-space: pre-line;
+  box-shadow: 3px 3px 0 rgba(26, 27, 37, 0.2);
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  transition:
+    opacity 0.1s ease 0s,
+    visibility 0s linear 0s;
+}
+[data-tip]::before {
+  content: "";
+  position: absolute;
+  left: 14px;
+  bottom: calc(100% + 4px);
+  z-index: 94;
+  width: 9px;
+  height: 9px;
+  background: var(--dex-navy);
+  transform: rotate(45deg);
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  transition:
+    opacity 0.1s ease 0s,
+    visibility 0s linear 0s;
+}
+/* 展示延迟 ≈ 原生 tooltip（0.45s），移开即隐：过渡参数取自目标态（hover 态带延迟） */
+[data-tip]:hover::after,
+[data-tip]:hover::before {
+  opacity: 1;
+  visibility: visible;
+  transition:
+    opacity 0.12s ease 0.45s,
+    visibility 0s linear 0.45s;
+}

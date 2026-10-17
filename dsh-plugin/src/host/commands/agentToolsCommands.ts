@@ -1,7 +1,8 @@
 /**
  * host 命令 · agent 工具面（3 条）：agentTest 连接探针（ai::test 同构——无头执行器跑
  * pk context，stdout 含 openTasks 即通；结果以数据面带回 connected + message，失败含
- * 可操作提示不占业务错误码）/ pkSkillCheck / pkSkillInstall（skills.rs 本机部分同构；
+ * 可操作提示不占业务错误码；远端 SSH agent 无 provider 装配时明确报告、不以本机同名 CLI
+ * 回落冒充）/ pkSkillCheck / pkSkillInstall（skills.rs 本机部分同构；
  * command/dir 覆盖 = 编辑态草稿值优先）。远端 SSH 操作无 provider 装配不提供。
  */
 import type { CommandTable, HostCommandDeps } from "./context";
@@ -14,6 +15,7 @@ import {
   skillDirFor,
 } from "../domain/skills";
 import { createLocalExecutor } from "../dispatch/executor";
+import type { ResolvedDispatchRoute } from "../dispatch/routes";
 import { paramError } from "../storage/errors";
 
 /** agent 连接测试探针提示词（ai::test 同字）：一次验证命令可用 + PATH + 数据库可达 */
@@ -58,24 +60,47 @@ function probeMessage(stdout: string): { connected: boolean; message: string } {
   };
 }
 
-/** 探针执行：执行器选择（注入 provider 优先）→ launch → 四路文案收口 */
+/** 远端 SSH 目标（host 非空才算远端，invocation.rs remote filter 同语义；空串 = 本地） */
+function remoteTarget(agent: AgentConfig): string {
+  return (agent.remote?.host ?? "").trim();
+}
+
+/** 探针用派发路由（缺省路由形态：本机 / 单槽 / 无 deployment） */
+function probeRoute(agent: AgentConfig): ResolvedDispatchRoute {
+  return {
+    agent,
+    source: "default",
+    projectTag: "",
+    workdir: agent.workdir ?? "",
+    context: null,
+    maxConcurrent: 1,
+    worktree: false,
+    auto: false,
+    deployment: null,
+    hostKey: "",
+  };
+}
+
+/**
+ * 探针执行：执行器选择（注入 provider 优先）→ launch → 四路文案收口。
+ * 远端 SSH agent 而平台未装配 provider 时明确报告——本机同名 CLI 跑出的结果指向错误目标，
+ * 不能冒充远端探测（本机回落只给无远端配置的 agent）。
+ */
 async function probeAgent(
   deps: Pick<HostCommandDeps, "dispatchDeps">,
   agent: AgentConfig,
 ): Promise<{ connected: boolean; message: string }> {
-  const executor =
-    deps.dispatchDeps.executorFor?.(agent, {
-      agent,
-      source: "default",
-      projectTag: "",
-      workdir: agent.workdir ?? "",
-      context: null,
-      maxConcurrent: 1,
-      worktree: false,
-      auto: false,
-      deployment: null,
-      hostKey: "",
-    }) ?? createLocalExecutor();
+  const injected = deps.dispatchDeps.executorFor?.(agent, probeRoute(agent));
+  const target = remoteTarget(agent);
+  if ((injected === null || injected === undefined) && target !== "") {
+    return {
+      connected: false,
+      message:
+        `该 agent 配置为远端 SSH 执行（${target}），dsh 插件尚未装配 SSH 执行 provider，` +
+        "不能用本机同名命令代测——请在桌面主应用中测试，或新建不带远端配置的本机 agent",
+    };
+  }
+  const executor = injected ?? createLocalExecutor();
   const outcome = await executor.launch({
     command: agent.command,
     args: agent.args ?? "",

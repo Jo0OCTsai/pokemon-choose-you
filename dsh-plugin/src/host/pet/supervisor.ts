@@ -213,6 +213,9 @@ export class PetSupervisor {
     this.child = null;
     this.bridge?.detach();
     this.bridge = null;
+    // 先闭 stdin（EOF → runtime quit 兜底）再 SIGTERM：确保 helper 退净——进程残留
+    // 则窗口残留，再 show 会叠出双桌宠（隐藏后「无法再显示」的真机根因）
+    child?.stdin.end();
     child?.kill("SIGTERM");
   }
 

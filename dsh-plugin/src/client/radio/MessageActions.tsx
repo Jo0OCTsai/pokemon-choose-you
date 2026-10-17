@@ -136,7 +136,7 @@ function ApplyButton({ message, readonly, run }: ActionProps): React.JSX.Element
   return (
     <button
       type="button"
-      className={ui.buttonPrimary}
+      className={ui.buttonDex}
       disabled={readonly}
       onClick={() => void run(() => client.reviewApplyUpdate({ messageId: message.messageId }))}
     >
@@ -152,7 +152,7 @@ function CatchButton({ message, readonly, run }: ActionProps): React.JSX.Element
   return (
     <button
       type="button"
-      className={ui.buttonPrimary}
+      className={ui.buttonDex}
       disabled={readonly}
       onClick={() => void run(() => client.reviewAccept({ messageId: message.messageId }))}
     >

@@ -39,7 +39,6 @@ export default {
     clear: "清除",
   },
   failed: {
-    group: "AI 判定失敗 · {n} 條",
     retryAll: "一鍵重判",
     forceCapture: "強制捕捉",
     forceDismiss: "強制逃走",
@@ -87,12 +86,26 @@ export default {
   pet: {
     showNotReady: "桌寵未在 5 秒內完成啟動握手，可能仍在啟動中",
     clearMain: "清除",
+    showRow: "顯示桌寵",
+    show: "顯示",
+    hide: "隱藏",
+    stateLabel: "目前狀態：",
+    stateShown: "顯示中",
+    stateHidden: "已隱藏",
+    stateUnknown: "未知",
   },
   tag: {
     deleteConfirm: "刪除標籤「{name}」？其與待辦的關聯將一併清理。",
   },
   task: {
     reschedule: "改期",
+  },
+  dt: {
+    hour: "時",
+    minute: "分",
+    period: "上下午",
+    prevMonth: "上月",
+    nextMonth: "下月",
   },
   chip: {
     openPage: "開啟圖鑑機頁面",
@@ -137,5 +150,6 @@ export default {
   prompts: {
     conflictRefreshed: "提示詞已在另一形態更新，已為你刷新到最新版",
     forceOverwrite: "已在另一處被修改——確認覆蓋？",
+    forceOverwriteConfirm: "仍要覆蓋",
   },
 } as const;
