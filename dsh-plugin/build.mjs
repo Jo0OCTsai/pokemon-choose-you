@@ -14,12 +14,23 @@
  *   @app-i18n 主应用字典 TS 源、@app-pokemon 名录 JSON、CSS modules 内联注入）
  */
 import * as esbuild from "esbuild";
+import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 const root = path.dirname(fileURLToPath(import.meta.url));
+
+// ---- 构建序：先 helper 后 host（D30/debt ⑥：helper 产物随插件包分发，files 含 helper/dist）----
+// 独立子进程跑 helper/build.mjs（同为 top-level-await 脚本，不可 import 复用；esbuild 由
+// helper 子包自己的 devDeps 解析）。失败即中断——host 打包不携带陈旧 helper 产物。
+const helperBuild = spawnSync(process.execPath, [path.join(root, "helper", "build.mjs")], {
+  stdio: "inherit",
+});
+if (helperBuild.status !== 0) {
+  throw new Error(`helper 构建失败（exit=${helperBuild.status}）——中止插件打包`);
+}
 
 /**
  * vite `?raw` 等价 loader：契约 SQL（contracts/schema/）编译期内嵌进产物——
@@ -125,7 +136,7 @@ await esbuild.build({
   format: "esm",
   platform: "node",
   target: "node24",
-  external: ["@deepseek-ai/*", "electron", "node:*"],
+  external: ["@deepseek-ai/*", "@electron/get", "electron", "node:*"],
   plugins: [rawPlugin],
   logLevel: "info",
 });

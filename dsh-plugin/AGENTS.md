@@ -7,9 +7,12 @@
 
 ## 不变量与红线
 
-- **业务核心零 dsh 依赖**：`domain/ radio/ judge/ anonymize/ dispatch/ storage/` 是纯逻辑 + SQL 原语，
+- **业务核心零 dsh 依赖**：`domain/ radio/ judge/ anonymize/ dispatch/ storage/ reminder/` 是纯逻辑 + SQL 原语，
   不 import 任何 dsh/Cordis 平台面；平台面（timer/subagent/worktrees/SSH/slots/terminal）只允许在
-  适配层（`index.ts` 装配、后续 tools 注册面、pet/dispatch 适配缝）触碰——RC 期破坏性变更被限制在薄适配层。
+  适配层（`dsh/`（含 sshScope 唯一 dsh-ssh 触碰点 + probeDsh 探测）、`index.ts` 装配、tools 注册面、
+  pet/dispatch 适配缝）触碰——RC 期破坏性变更被限制在薄适配层。**`remote/` 整体也零 dsh import**：
+  远端能力经 `remote/sshScope.ts` 的平台中立 `SshScope` 接口注入（实现在 `dsh/sshScope.ts`，按
+  spike 结论双 label isolate 装配——specs/dsh-plugin-full-parity/spike-dsh-ssh.md）。
 - **storage 是全插件唯一握连接的模块**：连接生命周期（WAL + busy_timeout=5000）、guarded 迁移**封顶
   minSchema**（`contracts/PROTOCOL.md` §1；「把库版本推到更高」只由主应用执行）、`BEGIN IMMEDIATE`
   事务助手。其他模块不得自开连接。
