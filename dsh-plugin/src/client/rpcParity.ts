@@ -18,6 +18,7 @@ export function parityFacade(
   | "sessionsPage"
   | "sessionReplay"
   | "deploymentList"
+  | "sshAliasList"
   | "deploymentUpsert"
   | "deploymentDelete"
   | "deploymentRecheck"
@@ -37,6 +38,7 @@ export function parityFacade(
     sessionsPage: (p) => call("sessionsPage", p),
     sessionReplay: (p) => call("sessionReplay", p),
     deploymentList: () => call("deploymentList"),
+    sshAliasList: () => call("sshAliasList"),
     deploymentUpsert: (p) => call("deploymentUpsert", p),
     deploymentDelete: (p) => call("deploymentDelete", p),
     deploymentRecheck: (p) => call("deploymentRecheck", p),

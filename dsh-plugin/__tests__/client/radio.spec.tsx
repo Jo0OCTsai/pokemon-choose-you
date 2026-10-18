@@ -251,6 +251,13 @@ describe("失败组与逃走组", () => {
 });
 
 describe("CaptureBar（⚡发报）", () => {
+  it("快捷键提示收敛为输入框内 ⌨ 图标：data-tip 气泡承载原 kbdHint 文案，通栏提示行已移除", () => {
+    renderRadio();
+    const glyph = screen.getByRole("img", { name: /快捷键：J\/K/ });
+    expect(glyph.getAttribute("data-tip")).toContain("Esc 收起");
+    expect(screen.queryByText(/^快捷键：J\/K/)).toBeNull();
+  });
+
   it("提报 → 判定中 → 建卡 + 5 秒撤销 toast；判重命中附更新建议提示", async () => {
     vi.useFakeTimers();
     const { host } = renderRadio();

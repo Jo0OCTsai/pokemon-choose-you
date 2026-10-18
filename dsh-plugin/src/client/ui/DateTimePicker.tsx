@@ -27,11 +27,14 @@ export function DateTimePicker({
   onChange,
   ariaLabel,
   disabled = false,
+  className,
 }: {
   value: string;
   onChange: (next: string) => void;
   ariaLabel?: string;
   disabled?: boolean;
+  /** 消费侧宽度控制（如改期弹窗定宽，防清空态缩成一小块） */
+  className?: string;
 }): React.JSX.Element {
   const t = useT();
   const { locale } = useI18n();
@@ -102,7 +105,7 @@ export function DateTimePicker({
   const draft = draftPartsOf(value);
 
   return (
-    <div ref={rootRef} className={styles.dtRoot}>
+    <div ref={rootRef} className={className === undefined ? styles.dtRoot : `${styles.dtRoot} ${className}`}>
       <button
         ref={triggerRef}
         type="button"

@@ -19,10 +19,10 @@ const PROVISION_STEPS: readonly ProvisionStep[] = ["probe-ssh", "probe-node", "u
 
 /** 步骤 ok 详情（向导输出屏示例行） */
 const STEP_OK_DETAIL: Record<ProvisionStep, string> = {
-  "probe-ssh": "BatchMode 连接成功 · $HOME=/home/trainer",
+  "probe-ssh": "SSH 连接成功 · 远端主目录 /home/trainer",
   "probe-node": "v20.11.0",
-  upload: "helper.js 已写入 · chmod 700 · 远端 sha256 复核一致",
-  verify: "远端摘要与预期一致",
+  upload: "远端组件安装完成",
+  verify: "远端组件验证通过",
 };
 
 /** 单步失败编排形态（MockHostState.provisionFail；kind → 错误码映射） */
@@ -72,11 +72,7 @@ function failProvisionStep(
   if (fail.kind === "auth") {
     return {
       ok: false,
-      error: new PkyError(
-        "SSH_AUTH_REQUIRED",
-        message,
-        "先在本机跑 ssh-copy-id（或把公钥加入 ssh-agent），再回到这里重试",
-      ).toShape(),
+      error: new PkyError("SSH_AUTH_REQUIRED", message, "先在本机执行 ssh-copy-id 配好免密登录，再重试").toShape(),
     };
   }
   if (fail.kind === "hash") {
@@ -85,7 +81,7 @@ function failProvisionStep(
       error: new PkyError(
         pendingCode("HELPER_HASH_MISMATCH"),
         message,
-        "远端 helper 摘要与预期不符——拒绝置为就绪；可经「转直连」显式降级（留痕）",
+        "远端组件验证未通过——可重新安装，或改用直连模式",
       ).toShape(),
     };
   }
@@ -95,7 +91,7 @@ function failProvisionStep(
   };
 }
 
-function mockProvisionRun(ctx: MockContext, params: { id: string }) {
+function mockProvisionRun(ctx: MockContext, params: { id: string; restart?: boolean }) {
   const blocked = writeBlocked(ctx);
   if (blocked !== null) {
     return blocked;
@@ -105,10 +101,22 @@ function mockProvisionRun(ctx: MockContext, params: { id: string }) {
     return notFound(`部署 ${params.id} 不存在`);
   }
   const provision = (entity.provision ??= initialProvision());
-  const next = PROVISION_STEPS.find((step) => provision.steps[step].status !== "ok");
+  let next = PROVISION_STEPS.find((step) => provision.steps[step].status !== "ok");
   if (next === undefined) {
-    // 幂等无操作（全部已完成）
-    return ctx.ok({ status: provisionView(entity) });
+    if (params.restart !== true) {
+      // 幂等无操作（全部已完成）
+      return ctx.ok({ status: provisionView(entity) });
+    }
+    // restart（重装远端组件）：就地重置步骤与 helper 落定，从步① 重跑（host provisionRun 同构）
+    for (const step of PROVISION_STEPS) {
+      provision.steps[step] = { status: "pending", at: "" };
+    }
+    provision.homeDir = null;
+    entity.helperHash = null;
+    entity.degraded = false;
+    entity.status = "not_ready";
+    entity.lastError = null;
+    next = "probe-ssh";
   }
   const fail = ctx.state.provisionFail;
   if (fail !== null && fail.step === next) {

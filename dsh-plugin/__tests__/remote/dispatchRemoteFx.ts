@@ -1,7 +1,8 @@
 /**
  * dispatchRemote 系列共享受测装配（从 dispatchRemote.spec.ts 拆出——棘轮 max-lines，
  * 等量迁移）：db/scope/platform 每用例重建（beforeEach/afterEach 内建）+ 种子件与
- * 查询辅助；消费面 = dispatchRemote*.spec.ts 四件。
+ * 查询辅助；消费面 = dispatchRemote*.spec.ts 四件。执行世界单源（2026-10-19 裁决）：
+ * 远端前提由默认 agent 绑定（deployment=ALIAS）承载，路由表不再携带 deployment。
  */
 import { afterEach, beforeEach } from "vitest";
 import { writeFileSync } from "node:fs";
@@ -43,12 +44,13 @@ interface FxRefs {
   platform: RemoteDispatchPlatform;
 }
 
-/** agent 种子（ai_agents 全量覆写——单 agent 形态） */
+/** agent 种子（ai_agents 全量覆写——单 agent 形态；deployment 缺省绑定测试部署 =
+ *  远端执行世界，显式 null = 本机形态——执行世界单源：agent 绑定承载） */
 function seedAgentInto(
   db: TestDb,
   id: string,
   args: string,
-  opts: { timeoutSecs?: number; command?: string } = {},
+  opts: { timeoutSecs?: number; command?: string; deployment?: string | null } = {},
 ): void {
   db.conn.prepare("INSERT OR REPLACE INTO settings (key, value) VALUES ('ai_agents', ?)").run(
     JSON.stringify([
@@ -61,6 +63,7 @@ function seedAgentInto(
         workdir: "",
         timeoutSecs: opts.timeoutSecs ?? 120,
         enabled: true,
+        deployment: opts.deployment ?? ALIAS,
       },
     ]),
   );
@@ -140,7 +143,8 @@ function seedReadyDeploymentInto(
   return deployment.id;
 }
 
-/** 建挂部署路由的任务（tag meta 携带 agentId/workdir；路由引用部署别名） */
+/** 建挂项目路由的任务（tag meta 携带 agentId/workdir；路由只带 agent/目录策略——
+ *  执行世界由 beforeEach 默认 agent 绑定承载，路由层不再有 deployment） */
 function seedDeploymentTaskInto(
   refs: { db: TestDb },
   title: string,
@@ -162,7 +166,6 @@ function seedDeploymentTaskInto(
     JSON.stringify({
       [title]: {
         agentId: "claude",
-        deployment: { ref: ALIAS, target: TARGET },
         ...(opts.workdir === undefined ? {} : { workdir: opts.workdir }),
         ...(opts.worktree === undefined ? {} : { worktree: opts.worktree }),
       },

@@ -213,8 +213,8 @@ export function suggestionGroups(messages: RadioMessage[]): SuggestionGroups {
   return groups;
 }
 
-/** 分段导航七段键（锚点参数：panel = 面板首段 / settings = 背包） */
-export const SEGMENTS = ["adventure", "grass", "route", "dex", "radio", "logs", "settings"] as const;
+/** 分段导航七段键（锚点参数：panel = 面板首段 / settings = 背包；草丛排在路线后——2026-10-18 用户裁决） */
+export const SEGMENTS = ["adventure", "route", "grass", "dex", "radio", "logs", "settings"] as const;
 export type SegmentKey = (typeof SEGMENTS)[number];
 
 /** 分段名 → 主应用字典键（同名同义词汇，A16） */

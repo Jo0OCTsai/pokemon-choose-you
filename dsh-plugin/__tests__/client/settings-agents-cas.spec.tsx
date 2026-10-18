@@ -6,29 +6,16 @@
  * - 删除错误分流：冲突 → 对话框停留转确认覆盖；其他错误显示真实信息（不误报冲突）
  * - 幽灵卡（未落库）取消/移除纯本地，不发服务端命令
  * - 折叠卡启用开关即时落库（持久卡；幽灵卡只记本地）；写成功请求面板重拉（onChanged）
+ * - 绑定部署（执行世界单源，2026-10-19 裁决）→ settings-agent-deployment.spec（文件行数棘轮拆出）
  */
 import { act, cleanup, fireEvent, screen, within } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { mockHost } from "../../src/client/rpc";
-import type { AgentConfig } from "../../src/host/domain/settings";
-import { makeData } from "./fixtures";
+import { makeAgent, makeData } from "./fixtures";
 import { getPage, gotoSection, renderSettings } from "./settingsHarness";
 
 afterEach(cleanup);
 vi.useFakeTimers();
-
-function makeAgent(overrides: Partial<AgentConfig> & { id: string }): AgentConfig {
-  return {
-    name: `Agent ${overrides.id}`,
-    command: "claude",
-    args: "-p {prompt}",
-    historyArgs: "",
-    workdir: "",
-    timeoutSecs: 120,
-    enabled: true,
-    ...overrides,
-  };
-}
 
 describe("agent CAS：新增首存基线", () => {
   it("新增 agent：乐观新 id 不计入 expectedAgentIds，首存成功", async () => {

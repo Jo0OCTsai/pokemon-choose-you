@@ -1,8 +1,8 @@
 /**
  * 派发确认面执行世界行 + 降级三枚举明示 + 占用探测条件行（U31/U32 · §8 派发确认文案）：
- * DispatchOps 经路由 deployment 别名解析执行世界（部署列表拉取）——远端世界出世界行 +
- * 就绪（直连）部署带 ⚠ 直连警示；交互降级/非 POSIX/占用行为条件行组件（host 派发期回填
- * 数据面，client 以纯呈现件承接）；本机/无路由不渲染（降噪）。
+ * DispatchOps 经所选 agent 的部署绑定解析执行世界（2026-10-19 裁决单源；部署列表拉取）——
+ * 远端世界出世界行 + 就绪（直连）部署带 ⚠ 直连警示；交互降级/非 POSIX/占用行为条件行
+ * 组件（host 派发期回填数据面，client 以纯呈现件承接）；本机/无绑定不渲染（降噪）。
  */
 import { cleanup, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it } from "vitest";
@@ -22,14 +22,12 @@ function taskWithProject() {
   return task;
 }
 
-function renderOps(deployments: ReturnType<typeof makeDeployment>[], routeDeployment?: string) {
+function renderOps(deployments: ReturnType<typeof makeDeployment>[], agentDeployment?: string) {
   const host = mockHost({ deployments });
   const data = makeData({
     tasks: [taskWithProject()],
-    routes:
-      routeDeployment !== undefined
-        ? [{ tag: "pkm", agentId: "a1", workdir: "", context: "", deployment: routeDeployment }]
-        : [],
+    // 路由决定所选 agent（agentId 预填）；执行世界 = 该 agent 的部署绑定（单源）
+    routes: [{ tag: "pkm", agentId: "a1", workdir: "", context: "" }],
     agents: [
       {
         id: "a1",
@@ -40,6 +38,7 @@ function renderOps(deployments: ReturnType<typeof makeDeployment>[], routeDeploy
         workdir: "",
         timeoutSecs: 120,
         enabled: true,
+        deployment: agentDeployment,
       },
     ],
   });
@@ -53,27 +52,26 @@ function renderOps(deployments: ReturnType<typeof makeDeployment>[], routeDeploy
   return host;
 }
 
-describe("DispatchOps 执行世界行（路由 deployment 解析）", () => {
-  it("无路由/本机路由：不渲染世界行（降噪——§8 世界行属远端明示面）", () => {
+describe("DispatchOps 执行世界行（agent 部署绑定解析）", () => {
+  it("无绑定/本机 agent：不渲染世界行（降噪——§8 世界行属远端明示面）", () => {
     renderOps([]);
     expect(screen.queryByTestId("dispatch-world-notes")).toBeNull();
   });
 
-  it("远端路由：世界行明示「部署 {别名} · 目录」+ 模型留本机说明", async () => {
+  it("绑定远端部署的 agent：世界行明示「部署 {别名} · 目录」", async () => {
     renderOps([makeDeployment({ id: "d1", alias: "gpu-1", status: "ready" })], "gpu-1");
     await act0();
     const notes = screen.getByTestId("dispatch-world-notes");
     expect(notes.textContent).toContain("即将派发：Claude Code · 部署 gpu-1");
-    expect(notes.textContent).toContain("远端执行时模型与会话留本机");
     // 就绪（非直连）部署无 ⚠ 行
     expect(notes.textContent).not.toContain("直连模式");
   });
 
-  it("就绪（直连）部署：⚠ 直连模式警示行（H1①——可派发但明示未经摘要校验）", async () => {
+  it("就绪（直连）部署：⚠ 直连模式警示行（H1①——可派发但明示不校验远端组件）", async () => {
     renderOps([makeDeployment({ id: "d1", alias: "gpu-1", status: "ready", degraded: true })], "gpu-1");
     await act0();
     const notes = screen.getByTestId("dispatch-world-notes");
-    expect(notes.textContent).toContain("⚠ 直连模式：未经 helper 摘要校验");
+    expect(notes.textContent).toContain("⚠ 直连模式：派发时不校验远端组件");
   });
 });
 
@@ -86,36 +84,36 @@ describe("降级三枚举与占用探测条件行（纯呈现件 · host 数据�
     );
   }
 
-  it("交互通道降级：复制完整命令行明示", () => {
+  it("终端无法打开：命令已复制明示", () => {
     renderNotes({
       world: { kind: "deployment", alias: "gpu-1", degraded: false },
       occupancySessionId: null,
       interactiveDegraded: true,
       nonPosix: false,
     });
-    expect(screen.getByText(/交互通道降级：将复制完整命令行/)).toBeTruthy();
+    expect(screen.getByText(/终端窗口无法打开——命令已复制/)).toBeTruthy();
   });
 
-  it("非 POSIX 端点：仅支持无头直连派发", () => {
+  it("不支持终端交互的远程机器：后台执行明示", () => {
     renderNotes({
       world: { kind: "deployment", alias: "win-1", degraded: false },
       occupancySessionId: null,
       interactiveDegraded: false,
       nonPosix: true,
     });
-    expect(screen.getByText(/目标非 POSIX：仅支持无头直连派发/)).toBeTruthy();
+    expect(screen.getByText(/不支持在终端中交互执行/)).toBeTruthy();
   });
 
-  it("占用探测条件行：同任务活动进程 + 会话 id + 建议先收口", () => {
+  it("占用探测条件行：远端仍在执行 + 建议先等它结束", () => {
     renderNotes({
       world: { kind: "deployment", alias: "gpu-1", degraded: false },
       occupancySessionId: "sess-live-9",
       interactiveDegraded: false,
       nonPosix: false,
     });
-    const line = screen.getByText(/远端仍有该任务的活动进程/);
-    expect(line.textContent).toContain("sess-live-9");
-    expect(line.textContent).toContain("建议先收口");
+    const line = screen.getByText(/远端仍在执行该任务/);
+    expect(line.textContent).toContain("两份同时跑");
+    expect(line.textContent).toContain("先等它结束");
   });
 
   it("world = null → 整组不渲染", () => {

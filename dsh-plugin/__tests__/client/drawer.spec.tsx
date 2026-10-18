@@ -18,7 +18,8 @@ vi.useFakeTimers();
 
 describe("抽屉焦点管理（a11y 断言②）", () => {
   it("打开即聚焦容器内首个可聚焦元素；Tab 循环不出容器", () => {
-    renderDrawer();
+    // 带派发行的夹具（来源筛选行已移除，默认夹具可聚焦元素不足以覆盖循环断言）
+    renderDrawer(1, dispatchData({ id: 1, tags: [{ name: "pokemon", dimension: "project" }] }));
     const drawer = screen.getByTestId("task-drawer");
     expect(drawer.contains(document.activeElement)).toBe(true);
     const focusables = Array.from(
@@ -64,7 +65,7 @@ describe("FollowupStream / DispatchTimeline", () => {
     expect(screen.getByText("暂无跟进记录")).toBeTruthy();
   });
 
-  it("Agent 时间线：时长/成本/退出码 + 来源过滤", () => {
+  it("Agent 时间线：时长/成本/退出码（按任务全量呈现，无来源筛选）", () => {
     const data = makeData({ tasks: [makeTask({ id: 1 })] });
     data.sessions = [
       {
@@ -96,9 +97,9 @@ describe("FollowupStream / DispatchTimeline", () => {
     expect(screen.getByText(/65s/)).toBeTruthy();
     expect(screen.getByText(/\$0\.021/)).toBeTruthy();
     expect(screen.getByText(/exit 0/)).toBeTruthy();
-    fireEvent.click(screen.getByRole("button", { name: "无头派发" }));
     expect(screen.getByText(/改了 2 个文件/)).toBeTruthy();
-    expect(screen.queryByText(/s-2/)).toBeNull();
+    // 全量呈现：两类来源（无头派发 + 抓捕）都在流里
+    expect(screen.getByText(/s-2/)).toBeTruthy();
   });
 
   it("无执行记录时空态：还没有派出过 agent", () => {
@@ -128,6 +129,14 @@ describe("属性总览 kv 栅格（桌面 d-summary 同构）", () => {
     expect(summary.textContent).toContain("⛳ pokemon");
     expect(summary.textContent).toContain("# 周报");
     expect(summary.textContent).toContain("2026-10-12 18:00");
+  });
+
+  it("备注块（桌面 .d-note 同构）：有内容渲染在总览卡下方，无内容不占位", () => {
+    renderDrawer(2, makeData({ tasks: [makeTask({ id: 2, note: "验收前先对齐口径" })] }));
+    expect(screen.getByTestId("task-note").textContent).toBe("验收前先对齐口径");
+    cleanup();
+    renderDrawer(2, makeData({ tasks: [makeTask({ id: 2 })] }));
+    expect(screen.queryByTestId("task-note")).toBeNull();
   });
 });
 
@@ -161,6 +170,72 @@ describe("DispatchOps", () => {
     fireEvent.click(screen.getByRole("button", { name: "⚡ 派发" }));
     await vi.runAllTimersAsync();
     expect(host.calls.map((c) => c.command)).toContain("dispatchInteractive");
+  });
+
+  it("改选 agent 派发：routeOverride 以字符串 agentId 上送（host pick 层按字符串消费——对象形态即崩）", async () => {
+    const data = dispatchData({ id: 1, tags: [{ name: "pokemon", dimension: "project" }] });
+    data.agents = [
+      ...(data.agents ?? []),
+      {
+        id: "dsh-remote",
+        name: "dsh-remote",
+        command: "dsh",
+        args: "",
+        historyArgs: "",
+        workdir: "",
+        timeoutSecs: 600,
+        enabled: true,
+      },
+    ];
+    data.routes = [{ tag: "pokemon", agentId: "claude", workdir: "~/projects/pkm", context: "" }];
+    const { host } = renderDrawer(1, data);
+    // 第二个 combobox = agent 改选下拉（首个为通道下拉）
+    fireEvent.change(screen.getAllByRole("combobox")[1], { target: { value: "dsh-remote" } });
+    fireEvent.click(screen.getByRole("button", { name: "⚡ 派发" }));
+    await vi.runAllTimersAsync();
+    const call = host.calls.find((c) => c.command === "dispatchInteractive");
+    expect(call?.params).toMatchObject({ taskId: 1, routeOverride: "dsh-remote" });
+  });
+
+  it("交互派发 handoff：命令行复制到剪贴板 + 常显可手抄（宿主无第三方终端面板）", async () => {
+    const writes: string[] = [];
+    Object.defineProperty(navigator, "clipboard", {
+      value: {
+        writeText: async (text: string) => {
+          writes.push(text);
+        },
+      },
+      configurable: true,
+    });
+    const data = dispatchData({ id: 1, tags: [{ name: "pokemon", dimension: "project" }] });
+    data.routes = [{ tag: "pokemon", agentId: "claude", workdir: "~/projects/pkm", context: "" }];
+    renderDrawer(1, data);
+    fireEvent.click(screen.getByRole("button", { name: "⚡ 派发" }));
+    await vi.runAllTimersAsync();
+    expect(writes).toHaveLength(1);
+    expect(writes[0]).toContain("claude");
+    expect(screen.getByTestId("dispatch-handoff-note").textContent).toContain("已复制");
+    expect(screen.getByTestId("dispatch-handoff-line").textContent).toContain("claude");
+  });
+
+  it("web 载体 handoff：呈现 Web 提示（窗口开在宿主屏幕不可见）+ 命令行仍复制", async () => {
+    const writes: string[] = [];
+    Object.defineProperty(navigator, "clipboard", {
+      value: {
+        writeText: async (text: string) => {
+          writes.push(text);
+        },
+      },
+      configurable: true,
+    });
+    const data = dispatchData({ id: 1, tags: [{ name: "pokemon", dimension: "project" }] });
+    data.routes = [{ tag: "pokemon", agentId: "claude", workdir: "~/projects/pkm", context: "" }];
+    renderDrawer(1, data, { dispatchHandoff: { reason: "web-carrier" } });
+    fireEvent.click(screen.getByRole("button", { name: "⚡ 派发" }));
+    await vi.runAllTimersAsync();
+    expect(writes).toHaveLength(1);
+    expect(screen.getByTestId("dispatch-handoff-note").textContent).toContain("Web 载体");
+    expect(screen.getByTestId("dispatch-handoff-line").textContent).toContain("claude");
   });
 
   it("无项目标签 → 引导 hint（不渲染派发行）", () => {

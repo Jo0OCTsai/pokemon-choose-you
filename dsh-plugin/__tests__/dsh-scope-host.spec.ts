@@ -14,6 +14,14 @@ import {
   type SshFamilyConfig,
 } from "../src/host/dsh/sshScope";
 
+/**
+ * broker 传输路由（compatibility.md A3 过渡通道）：transport 锁 broker 时装配走
+ * brokerScope 适配（spawnChild 注入内存替身——connect 握手与 op 透传全链路在测）。
+ */
+import { EventEmitter } from "node:events";
+import type { Readable } from "node:stream";
+import type { HostRequest } from "../src/host/dsh/brokerProtocol";
+
 /** 计数 fake scope（disconnect 收口 / 断开事件断言面；connect 注入按队列出队） */
 class FakeScope implements SshScope {
   disconnectCalls = 0;
@@ -40,7 +48,7 @@ class FakeScope implements SshScope {
 }
 
 function entity(
-  overrides: Partial<Pick<DeploymentEntity, "helperPath" | "helperHash" | "workdir" | "alias">> = {},
+  overrides: Partial<Pick<DeploymentEntity, "helperPath" | "helperHash" | "workdir" | "alias" | "provision">> = {},
 ): DeploymentEntity {
   return {
     id: "dep-1",
@@ -52,7 +60,7 @@ function entity(
     note: "",
     status: "not_ready",
     lastError: null,
-    provision: null,
+    provision: overrides.provision ?? null,
     degraded: false,
   };
 }
@@ -89,6 +97,27 @@ describe("familyProvisioned（helper 落定判定单源）", () => {
     expect(familyProvisioned(entity({ helperPath: "", helperHash: "a".repeat(64) }))).toBe(false);
     expect(familyProvisioned(entity({ helperPath: "/h", helperHash: null }))).toBe(false);
     expect(familyProvisioned(entity())).toBe(false);
+  });
+
+  it("重装进行中（provision 有记录且 upload 未 ok——mismatch/restart 重置）→ false（直连兜底，破家族链死锁）", () => {
+    const provisionState = (upload: "ok" | "pending"): DeploymentEntity["provision"] => ({
+      steps: {
+        "probe-ssh": { status: "ok", at: "t" },
+        "probe-node": { status: "ok", at: "t" },
+        upload: { status: upload, at: "t" },
+        verify: { status: "pending", at: "" },
+      },
+      homeDir: "/home/dev",
+    });
+    // 摘要不符重置（upload pending + helperHash 仍在）：旧规则会误走家族链 → 建连死锁
+    expect(
+      familyProvisioned(entity({ helperPath: "/h", helperHash: "a".repeat(64), provision: provisionState("pending") })),
+    ).toBe(false);
+    // 正常已开通（upload ok）与 provision null（既常态）不受影响
+    expect(
+      familyProvisioned(entity({ helperPath: "/h", helperHash: "a".repeat(64), provision: provisionState("ok") })),
+    ).toBe(true);
+    expect(familyProvisioned(entity({ helperPath: "/h", helperHash: "a".repeat(64) }))).toBe(true);
   });
 });
 
@@ -185,5 +214,68 @@ describe("scopeFor 路由：漂移 / 断连 / 装配失败", () => {
       connect: () => Promise.reject(new Error("helper 摘要不符")),
     });
     await expect(host.scopeFor(entity({ helperPath: "/h", helperHash: "a".repeat(64) }))).rejects.toThrow(/摘要不符/);
+  });
+});
+
+describe("传输面路由：transport=broker（TLS 栈不可用宿主的过渡通道）", () => {
+  it("落定部署 → broker 适配装配（内存子进程：connect 握手 + spawn 透传 + 断开通知）", async () => {
+    const requests: HostRequest[] = [];
+    const stdout = new EventEmitter();
+    const disconnected: string[] = [];
+    const exitListeners: Array<(...args: never[]) => void> = [];
+    const childLike = {
+      stdin: {
+        write: (chunk: string) => {
+          requests.push(JSON.parse(chunk.trim()) as HostRequest);
+          return true;
+        },
+        end: () => undefined,
+      },
+      stdout: Object.assign(stdout, { setEncoding: () => undefined }) as unknown as Readable,
+      stderr: Object.assign(new EventEmitter(), { setEncoding: () => undefined }),
+      on: (event: "exit" | "error", listener: (...args: never[]) => void) =>
+        event === "exit" ? exitListeners.push(listener) : undefined,
+      kill: () => true,
+    };
+    const host = createSshScopeHost(fakeCtx, {
+      transport: "broker",
+      broker: {
+        nodeBin: "node",
+        brokerJsPath: "/fake/broker.mjs",
+        spawnChild: () => childLike as never,
+      },
+    });
+    host.onScopeDisconnected((id) => disconnected.push(id));
+    const scopeP = host.scopeFor(entity({ helperPath: "/h", helperHash: "a".repeat(64) }));
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(requests[0]?.op).toBe("connect");
+    stdout.emit("data", `${JSON.stringify({ id: 1, ok: true, result: {} })}\n`);
+    const scope = await scopeP;
+    expect(scope.connected).toBe(true);
+    // spawn 透传（cwd = workdir）
+    const spawnP = scope.spawn(["/bin/echo", "hi"]);
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(requests[1]).toMatchObject({ op: "spawn", argv: ["/bin/echo", "hi"], cwd: "/srv/app" });
+    stdout.emit(
+      "data",
+      `${JSON.stringify({ id: 2, ok: true, result: { code: 0, stdout: "hi", stderr: "", durationMs: 1 } })}\n`,
+    );
+    await expect(spawnP).resolves.toMatchObject({ code: 0, stdout: "hi" });
+    // 子进程消亡 → 断开通知（live 注销，下次 scopeFor 重建）
+    for (const listener of exitListeners) (listener as (code: number | null) => void)(1);
+    expect(disconnected).toEqual(["dep-1"]);
+  });
+
+  it("未落定部署仍走直连兜底（broker 传输不改变 provision 前置步路径）", async () => {
+    const directAliases: string[] = [];
+    const host = createSshScopeHost(fakeCtx, {
+      transport: "broker",
+      directScopeFor: (alias) => {
+        directAliases.push(alias);
+        return new FakeScope();
+      },
+    });
+    await host.scopeFor(entity({ helperPath: "", helperHash: null }));
+    expect(directAliases).toEqual(["dev-box"]);
   });
 });

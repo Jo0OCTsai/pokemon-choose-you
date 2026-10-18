@@ -75,7 +75,7 @@ async function probeLiveness(
     return { kind: "disconnected", reason: `连接建立失败：${String(error).slice(0, 160)}` };
   }
   if (scope === null || !scope.connected) {
-    return { kind: "disconnected", reason: "连接不可用（免密未配置或已断开）" };
+    return { kind: "disconnected", reason: "连接不可用（免密登录未配置或已断开）" };
   }
   try {
     const alive = await scope.shell(livenessCommand());
@@ -101,18 +101,18 @@ async function probeHelperHash(
   try {
     const result = await scope.shell(sha256Command(entity.helperPath));
     if (result.code !== 0) {
-      return { kind: "hash-exec", reason: `摘要复核执行失败（exit ${result.code}）：${result.stderr.slice(0, 120)}` };
+      return { kind: "hash-exec", reason: `远端组件验证失败（exit ${result.code}）：${result.stderr.slice(0, 120)}` };
     }
     stdout = result.stdout;
   } catch (error) {
-    return { kind: "hash-exec", reason: `摘要复核执行异常：${String(error).slice(0, 160)}` };
+    return { kind: "hash-exec", reason: `远端组件验证异常：${String(error).slice(0, 160)}` };
   }
   const remote = parseSha256(stdout);
   const expected = deps.readHelperArtifact().sha256.toLowerCase();
   if (remote === null || remote !== expected) {
     return {
       kind: "mismatch",
-      reason: `远端 helper 摘要不符（远端 ${remote ?? "解析失败"} ≠ 预期 ${expected}）`,
+      reason: "远端组件验证未通过（与预期不一致）",
     };
   }
   return null;

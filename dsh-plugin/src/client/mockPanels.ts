@@ -262,6 +262,14 @@ export function agentCommands(ctx: MockContext): Pick<HostClient, "agentUpsert" 
       if (params.agent.command.trim() === "") {
         return { ok: false, error: new PkyError("AGENT_COMMAND_INVALID", "agent 命令不能为空").toShape() };
       }
+      // 绑定部署存在性（host backpackCommands 同款：alias 不在部署表 → 参数错）
+      const bound = params.agent.deployment?.trim() || null;
+      if (bound !== null && !ctx.state.deployments.some((d) => d.alias === bound)) {
+        return {
+          ok: false,
+          error: new PkyError("INVALID_ARGUMENT", `部署「${bound}」不存在，无法绑定 agent`).toShape(),
+        };
+      }
       const conflict = assertAgentRevision(ctx, params.expectedAgentIds, params.force);
       if (conflict !== null) {
         return { ok: false, error: conflict.toShape() };

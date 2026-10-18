@@ -207,6 +207,8 @@ onMounted(async () => {
       </header>
 
       <div class="d-summary">
+        <!-- 编辑钮浮层贴卡右上角（dsh-plugin summaryEdit 同位，不占 kv 栅格） -->
+        <button class="btn d-edit" type="button" @click="emit('edit', task)">✎ {{ t("detail.edit") }}</button>
         <div class="kv">
           <span class="k">{{ t("edit.category") }}</span
           ><span class="v">{{ catName }}</span>
@@ -291,12 +293,6 @@ onMounted(async () => {
           {{ t("dispatch.title") }}
           <span v-if="stateBadge" class="badge dsp-state" :class="stateBadge.cls">{{ stateBadge.text }}</span>
         </div>
-        <!-- 状态徽章行：queued/running 可手动收口（agent 未回传时的救援） -->
-        <div v-if="stateBadge && ['queued', 'running'].includes(stateBadge.cls)" class="dsp-mark">
-          <button class="btn ghost mini" @click="markDispatch('done')">{{ t("dispatch.markDone") }}</button>
-          <button class="btn ghost mini" @click="markDispatch('failed')">{{ t("dispatch.markFailed") }}</button>
-          <button class="btn ghost mini del" @click="markDispatch('idle')">{{ t("dispatch.markReset") }}</button>
-        </div>
         <p v-if="!hasProjectTag" class="d-hint">{{ t("dispatch.needTag") }}</p>
         <template v-else-if="dispatchTarget">
           <p v-if="!dispatchTarget.agentId" class="d-hint">{{ t("dispatch.noAgent") }}</p>
@@ -313,14 +309,24 @@ onMounted(async () => {
                 {{ chosenAgent.name }} · {{ chosenAgent.host ? `SSH ${chosenAgent.host}` : t("ai.local") }}
               </span>
               <span class="dsp-dir" :title="t('dispatch.dir')">📂 {{ workdirText }}</span>
+            </div>
+            <!-- 动作行在选择行下方（留距）：⚡派发 + queued/running 手动收口（agent 未回传时的救援） -->
+            <div class="dsp-actions">
               <button
-                class="btn"
+                class="btn dsp-go"
                 :disabled="dispatchBusy || dispatchState === 'running' || dispatchState === 'queued'"
                 :title="dispatchState === 'running' ? t('dispatch.busyHint') : ''"
                 @click="dispatchNow()"
               >
                 {{ dispatchBusy ? t("dispatch.working") : `⚡ ${t("dispatch.go")}` }}
               </button>
+              <div v-if="stateBadge && ['queued', 'running'].includes(stateBadge.cls)" class="dsp-mark">
+                <button class="btn ghost mini" @click="markDispatch('done')">{{ t("dispatch.markDone") }}</button>
+                <button class="btn ghost mini" @click="markDispatch('failed')">
+                  {{ t("dispatch.markFailed") }}
+                </button>
+                <button class="btn ghost mini del" @click="markDispatch('idle')">{{ t("dispatch.markReset") }}</button>
+              </div>
             </div>
             <p v-if="dispatchChannel === 'headless'" class="d-hint">{{ t("dispatch.headlessHint") }}</p>
           </template>
@@ -381,9 +387,6 @@ onMounted(async () => {
       </div>
 
       <p v-if="error" class="err">❌ {{ error }}</p>
-      <div class="btn-row">
-        <button class="btn" @click="emit('edit', task)">✎ {{ t("detail.edit") }}</button>
-      </div>
     </aside>
   </div>
 </template>
@@ -461,6 +464,7 @@ onMounted(async () => {
   transform: translate(1px, 1px);
 }
 .d-summary {
+  position: relative; /* 编辑钮浮层的定位锚 */
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 6px 14px;
@@ -468,6 +472,13 @@ onMounted(async () => {
   border: 3px solid var(--dex-navy);
   border-radius: 4px;
   padding: 10px 12px;
+}
+/* 编辑钮浮层贴卡右上角（dsh-plugin summaryEdit 同位：绝对定位不占 kv 栅格） */
+.d-edit {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  z-index: 1;
 }
 .kv {
   display: flex;
@@ -615,6 +626,14 @@ onMounted(async () => {
   gap: 8px;
   flex-wrap: wrap;
 }
+/* 派发动作行（选择行下方，留距）：⚡派发 + 手动收口 */
+.dsp-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-top: 6px;
+}
 .dsp-agent :deep(.ds-btn) {
   min-width: 130px;
   padding: 6px 9px;
@@ -646,7 +665,7 @@ onMounted(async () => {
   background: var(--dex-red);
   color: #fff;
 }
-/* 手动标记行（救援）：mini 档按钮 */
+/* 手动标记（救援，并入动作行）：mini 档按钮 */
 .dsp-mark {
   display: flex;
   gap: 8px;
@@ -673,7 +692,7 @@ onMounted(async () => {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.dsp-row .btn {
+.dsp-go {
   padding: 7px 12px;
   font-size: 13px;
   min-height: 36px;
@@ -694,10 +713,5 @@ onMounted(async () => {
   font-size: 12.5px;
   font-weight: 700;
   color: var(--danger);
-}
-.btn-row {
-  display: flex;
-  gap: 10px;
-  margin-top: auto;
 }
 </style>

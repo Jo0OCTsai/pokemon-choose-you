@@ -10,7 +10,7 @@
  * deploymentDelete.ts；本文件为统一再出口（消费面不变）。
  */
 import type { Conn } from "../storage/db";
-import { listRoutes } from "../dispatch/routes";
+import { loadAgents } from "../domain/settings";
 import type { ProvisionState } from "./provision";
 
 /** 部署实体存储键（host 半边内部态，随库备份/导出） */
@@ -100,16 +100,17 @@ export function deploymentByAlias(conn: Conn, alias: string): DeploymentEntity |
 }
 
 /**
- * 路由失配查询（§5.2 ② / A25）：列出 deployment.ref 无法解析到任何部署实体的路由——
- * 消费方（派发确认处）据此明示「该路由指向的部署缺失，将改在本机执行」并要求确认
- * （不再静默降级本机；不阻断其他路由）。delete 不做级联后的悬空引用由本面承接。
+ * 部署绑定失配查询（§5.2 ② / A25；2026-10-19 单源化后引用方 = agent 绑定）：
+ * 列出 ai_agents 中 deployment 指向不存在部署实体的 agent——delete 不做级联后的
+ * 悬空绑定由本面承接呈现（派发时 planRemoteRoute 硬拒 DEPLOYMENT_NOT_READY 兜底）。
  */
-export function danglingDeploymentRefs(conn: Conn): Array<{ tag: string; ref: string; target: string }> {
+export function danglingDeploymentRefs(conn: Conn): Array<{ agentId: string; agentName: string; ref: string }> {
   const aliases = new Set(Object.values(listDeployments(conn)).map((d) => d.alias));
-  const out: Array<{ tag: string; ref: string; target: string }> = [];
-  for (const [tag, route] of Object.entries(listRoutes(conn))) {
-    if (route.deployment !== undefined && !aliases.has(route.deployment.ref)) {
-      out.push({ tag, ref: route.deployment.ref, target: route.deployment.target });
+  const out: Array<{ agentId: string; agentName: string; ref: string }> = [];
+  for (const agent of loadAgents(conn)) {
+    const ref = agent.deployment?.trim();
+    if (ref !== undefined && ref !== "" && !aliases.has(ref)) {
+      out.push({ agentId: agent.id, agentName: agent.name, ref });
     }
   }
   return out;

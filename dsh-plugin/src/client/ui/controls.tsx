@@ -1,12 +1,13 @@
 /**
  * 表单原语：Toggle（开关，32px 命中区；整行形态——label 左、track 右，对齐主应用
  * SettingRow 与 Select 的 .row 布局；compact 内联形态用于实体行）/ Select /
- * TextInput（className 供行内定宽）/ ScopeBadge（作用于主应用×，U20）/
- * StatusDot（状态点 + 文字状态，非颜色冗余 a11y 断言③）/ FormRow（label + 控件行，
- * labelWidth=标签列定宽对齐主应用 SettingRow label-width，wide=控件占满标签右侧整行）。
+ * TextInput（className 供行内定宽）/ StatusDot（状态点 + 文字状态，非颜色冗余
+ * a11y 断言③）/ FormRow（label + 控件行，labelWidth=标签列定宽对齐主应用
+ * SettingRow label-width，wide=控件占满标签右侧整行）。
+ * （原 ScopeBadge/作用域徽标机制已随消费方清零移除——U29 触达类翻案 + 关闭到托盘
+ * 隐藏 + 终端偏好 dsh 自执行后无「作用于主应用」类标注。）
  */
 import type { ReactNode } from "react";
-import { useT } from "../i18n";
 import styles from "./ui.module.css";
 
 export function Toggle({
@@ -14,7 +15,6 @@ export function Toggle({
   onChange,
   label,
   disabled = false,
-  badge,
   compact = false,
   tip,
 }: {
@@ -22,7 +22,6 @@ export function Toggle({
   onChange: (next: boolean) => void;
   label: ReactNode;
   disabled?: boolean;
-  badge?: string;
   /** 内联紧凑形态（实体行内：不占整行宽，紧随相邻控件） */
   compact?: boolean;
   /** 说明文案：悬浮标签气泡展示（与主应用 SettingRow desc 同语义） */
@@ -41,7 +40,6 @@ export function Toggle({
     >
       <span className={styles.toggleLabel} data-tip={tip}>
         {label}
-        {badge !== undefined && <span className={styles.scopeBadge}>{badge}</span>}
       </span>
       <span className={styles.toggleTrack} aria-hidden="true">
         <span className={styles.toggleThumb} />
@@ -59,7 +57,6 @@ export function Select({
   ariaLabel,
   className,
   tip,
-  badge,
   labelExtra,
 }: {
   value: string;
@@ -72,8 +69,6 @@ export function Select({
   className?: string;
   /** 说明文案：悬浮标签气泡展示（与主应用 SettingRow desc 同语义） */
   tip?: string;
-  /** 作用域徽标（标签后内联，与 Toggle badge 同位） */
-  badge?: string;
   /** 标签右侧内联附加内容（如时间制式实时预览） */
   labelExtra?: ReactNode;
 }): React.JSX.Element {
@@ -89,7 +84,6 @@ export function Select({
       {label !== undefined && (
         <span className={styles.rowLabel} data-tip={tip}>
           {label}
-          {badge !== undefined && <span className={styles.scopeBadge}>{badge}</span>}
           {labelExtra !== undefined && <span className={styles.labelExtra}>{labelExtra}</span>}
         </span>
       )}
@@ -107,6 +101,41 @@ export function Select({
         ))}
       </select>
     </label>
+  );
+}
+
+/** 裸下拉（表单行内形态——外层 label/布局由调用方给，如 DeployFormModal 的 formRow；
+ * 选项 value 直传，不自带 label 行结构） */
+export function SelectInput({
+  value,
+  onChange,
+  options,
+  disabled = false,
+  ariaLabel,
+  className,
+}: {
+  value: string;
+  onChange: (next: string) => void;
+  options: ReadonlyArray<{ value: string; label: string }>;
+  disabled?: boolean;
+  ariaLabel?: string;
+  /** 追加类（与 TextInput 同族的行内定宽/伸缩挂点） */
+  className?: string;
+}): React.JSX.Element {
+  return (
+    <select
+      className={className !== undefined ? `${styles.select} ${className}` : styles.select}
+      value={value}
+      disabled={disabled}
+      aria-label={ariaLabel}
+      onChange={(event) => onChange(event.target.value)}
+    >
+      {options.map((option) => (
+        <option key={option.value} value={option.value}>
+          {option.label}
+        </option>
+      ))}
+    </select>
   );
 }
 
@@ -138,22 +167,6 @@ export function TextInput({
   );
 }
 
-/** 形态专属行为项标注（U20：共享值项不加 badge） */
-export function ScopeBadge({
-  kind,
-  title,
-}: {
-  kind: "mainApp" | "notifications" | "pet" | "dispatch";
-  title?: string;
-}): React.JSX.Element {
-  const t = useT();
-  return (
-    <span className={styles.scopeBadge} title={title ?? t(`dsh.badge.${kind}`)}>
-      {t(`dsh.badge.${kind}`)}
-    </span>
-  );
-}
-
 /** 状态点 + 文字状态（a11y 断言③：健康状态非颜色冗余） */
 export function StatusDot({ level, text }: { level: "ok" | "warn" | "fail"; text: string }): React.JSX.Element {
   return (
@@ -164,18 +177,16 @@ export function StatusDot({ level, text }: { level: "ok" | "warn" | "fail"; text
   );
 }
 
-/** 表单行容器（label + 控件 + 可选 badge；labelWidth=标签列定宽 + 控件贴右缘，
+/** 表单行容器（label + 控件；labelWidth=标签列定宽 + 控件贴右缘，
  * wide=控件占满标签右侧整行——对齐主应用 SettingRow 的 label-width / wide 两档） */
 export function FormRow({
   label,
-  badge,
   desc,
   labelWidth,
   wide = false,
   children,
 }: {
   label: ReactNode;
-  badge?: string;
   /** 说明文案：悬浮标签气泡展示 */
   desc?: string;
   /** 标签列定宽像素（如 agent 卡 128：与首行名称 120+间隙 8 同轴，命令框左缘对齐下方输入列） */
@@ -201,7 +212,6 @@ export function FormRow({
         }
       >
         {label}
-        {badge !== undefined && <span className={styles.scopeBadge}>{badge}</span>}
       </span>
       {children}
     </div>

@@ -8,7 +8,7 @@ import { dispatchHeadless, runQueuedHeadless } from "../../src/host/dispatch/hea
 import { remoteHeadlessDeps } from "../../src/host/remote/sshExecutor";
 import { listDeployments } from "../../src/host/remote/deployments";
 import { seedTask } from "../helpers";
-import { setupDispatchRemoteFx, ALIAS, ENVELOPE, TARGET, WORKDIR } from "./dispatchRemoteFx";
+import { setupDispatchRemoteFx, ALIAS, ENVELOPE, WORKDIR } from "./dispatchRemoteFx";
 
 const fx = setupDispatchRemoteFx();
 
@@ -30,10 +30,10 @@ describe("sshExecutor 家族链（无头）：就绪派发与信封回传", () =
     expect(script).toContain("exec /usr/local/bin/node /usr/local/bin/claude");
     expect(script).toContain("export PK_DISPATCH_TASK=");
     // prompt 无占位变体走 stdin（本用例 args 含 {prompt} → argv 内替换，不裸拼分隔符）
-    // 落账：执行世界快照 remote_host = 部署 target + workdir 生效目录（A27）
+    // 落账：执行世界快照 remote_host = 部署 target（= alias）+ workdir 生效目录（A27）
     const row = fx.lastSession(taskId);
     expect(row["kind"]).toBe("dispatch_headless");
-    expect(row["remote_host"]).toBe(TARGET);
+    expect(row["remote_host"]).toBe(ALIAS);
     expect(row["workdir"]).toBe(WORKDIR);
     expect(row["session_id"]).toBe("sess-remote-1");
     expect(fx.state(taskId)).toBe("done");
@@ -80,9 +80,7 @@ describe("sshExecutor 家族链（无头）：前置拒绝与排队", () => {
       ).lastInsertRowid,
     );
     fx.db.conn.prepare("INSERT INTO task_tags (task_id, tag_id) VALUES (?, ?)").run(taskId, tagId);
-    fx.db.conn
-      .prepare("INSERT OR REPLACE INTO settings (key, value) VALUES ('dsh:dispatch_routes', ?)")
-      .run(JSON.stringify({ 排队远端: { agentId: "claude", deployment: { ref: ALIAS, target: TARGET } } }));
+    // 执行世界 = 默认 agent 绑定（无路由/无 meta——解析走 default 层也命中绑定）
     const result = await runQueuedHeadless(fx.db.conn, remoteHeadlessDeps(fx.db.conn, fx.platform), taskId);
     expect(result.started).toBe(false);
     expect(fx.state(taskId)).toBe("queued");

@@ -1,39 +1,21 @@
 /**
- * Agent 执行时间线（时长/成本/退出码/会话标识 + 来源过滤回放，FR-D3）。
+ * Agent 执行时间线（时长/成本/退出码/会话标识，FR-D3；按任务全量呈现，不设来源筛选）。
  */
-import { useMemo, useState } from "react";
+import { useMemo } from "react";
 import { useT } from "../i18n";
 import type { PanelData } from "../model";
 import ui from "../ui/ui.module.css";
 import styles from "./tasks.module.css";
 
-export /** Agent 执行时间线（时长/成本/退出码/会话标识 + 来源过滤） */
+export /** Agent 执行时间线（时长/成本/退出码/会话标识，按任务全量呈现） */
 function DispatchTimeline({ data, taskId }: { data: PanelData; taskId: number }): React.JSX.Element {
   const t = useT();
-  const [filter, setFilter] = useState("all");
-  const sessions = useMemo(
-    () => data.sessions.filter((s) => s.taskId === taskId && (filter === "all" || s.kind === filter)),
-    [data.sessions, taskId, filter],
-  );
-  const kinds = ["all", "classify", "capture", "dispatch_headless", "dispatch_interactive"];
+  const sessions = useMemo(() => data.sessions.filter((s) => s.taskId === taskId), [data.sessions, taskId]);
   return (
-    <div data-testid="dispatch-timeline">
+    <div className={styles.drawerSection} data-testid="dispatch-timeline">
       <h4 className={styles.drawerSectionTitle}>{t("edit.agentRuns")}</h4>
-      <div className={styles.dexFilters} role="group" aria-label={t("sess.filter_all")}>
-        {kinds.map((kind) => (
-          <button
-            key={kind}
-            type="button"
-            className={styles.filterButton}
-            aria-pressed={filter === kind}
-            onClick={() => setFilter(kind)}
-          >
-            {kind === "all" ? t("sess.filter_all") : t(`sess.kind.${kind}`)}
-          </button>
-        ))}
-      </div>
       {sessions.length === 0 ? (
-        <div className={ui.muted}>{t("dsh.empty.dispatch")}</div>
+        <div className={`${ui.muted} ${styles.timelineEmpty}`}>{t("dsh.empty.dispatch")}</div>
       ) : (
         sessions.map((session) => (
           <div key={session.id} className={styles.timelineItem}>

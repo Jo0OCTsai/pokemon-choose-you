@@ -143,6 +143,11 @@ describe("agent 列表（ai_agents 整读-改-整写）", () => {
     // 基线匹配时正常写入
     agentUpsert(db.conn, agent({ id: "a4" }), { expectedAgentIds: ["a1", "a2", "a3"] });
   });
+
+  it("deployment 绑定字段透传存储（dsh 扩展字段——存在性校验归命令层跨域面）", () => {
+    agentUpsert(db.conn, agent({ id: "a1", deployment: "gpu-1" }));
+    expect(loadAgents(db.conn)[0].deployment).toBe("gpu-1");
+  });
 });
 
 describe("agent 列表（ai_agents 整读-改-整写）·下", () => {

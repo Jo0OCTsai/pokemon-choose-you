@@ -156,6 +156,12 @@ export interface AgentConfig {
   timeoutSecs: number;
   enabled: boolean;
   remote?: AgentRemote | null;
+  /**
+   * 绑定的远程部署 alias（dsh 扩展字段，Rust 侧未知字段容忍）：非空 = 该 agent 派发到
+   * 对应部署执行（执行世界单源；桌面 serde 与前端展开式回写均保留未知字段）。
+   * 存在性校验在命令层（domain 不反向依赖 remote/）。
+   */
+  deployment?: string | null;
 }
 
 /** 从 ai_agents 设置解析 agent 列表（load_agents 同构：坏数据按未配置、空 command 过滤） */
@@ -173,7 +179,8 @@ export function loadAgents(conn: Conn): AgentConfig[] {
   return list.filter((a) => (a.command ?? "").trim() !== "");
 }
 
-function storeAgents(conn: Conn, agents: AgentConfig[]): void {
+/** agents 整写（remote/ 级联消费：部署改名级联更新 agent 绑定——执行世界单源） */
+export function storeAgents(conn: Conn, agents: AgentConfig[]): void {
   setSetting(conn, "ai_agents", JSON.stringify(agents));
 }
 

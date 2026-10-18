@@ -7,7 +7,9 @@
  * 临时库/deps 装配/种子便捷件 → commandsSetup。
  */
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import type { AgentConfig } from "../src/host/domain/settings";
 import { HOST_COMMAND_NAMES } from "../src/host/commands";
+import { createHandoffTerminal } from "../src/host/dispatch/terminalAdapters";
 import { attachProjectTag, createCommandsFixture, seedMsg, seedTask, type CommandsFixture } from "./commandsSetup";
 
 let f: CommandsFixture;
@@ -57,9 +59,22 @@ async function runTaskEditHistoryCase(): Promise<void> {
   expect(after.data.followups).toHaveLength(0);
 }
 
+/** agent 绑定部署用例主体（行数棘轮提为命名函数）：存在才可绑定（INVALID_ARGUMENT）、空串归一 null */
+async function runAgentDeploymentBindingCase(agent: AgentConfig): Promise<void> {
+  const up = (a: AgentConfig) => f.call("agentUpsert", { agent: a });
+  expect(await f.call("deploymentUpsert", { alias: "gpu-1", nodePath: "/usr/bin/node" })).toMatchObject({ ok: true });
+  expect(await up({ ...agent, id: "ag-dep", deployment: "gpu-1" })).toMatchObject({ ok: true });
+  expect(await up({ ...agent, id: "ag-ghost", deployment: "no-such-box" })).toMatchObject({
+    ok: false,
+    error: { code: "INVALID_ARGUMENT" },
+  });
+  const blanked = (await up({ ...agent, id: "ag-dep", deployment: "" })) as { data: { agents: AgentConfig[] } };
+  expect(blanked.data.agents.find((a) => a.id === "ag-dep")?.deployment ?? null).toBeNull();
+}
+
 describe("host 命令装配面（AD §4.1.1）· 全集与任务域", () => {
-  it("命令名全集 = 86 条目（69 既有 + full-parity §4.1 新增 16 + macAuthPaneOpen 联调对齐 1；taskCreate 已移除），未知命令 INVALID_ARGUMENT", async () => {
-    expect(HOST_COMMAND_NAMES).toHaveLength(86);
+  it("命令名全集 = 87 条目（69 既有 + full-parity §4.1 新增 16 + macAuthPaneOpen 联调对齐 1 + sshAliasList 表单数据源 1；taskCreate 已移除），未知命令 INVALID_ARGUMENT", async () => {
+    expect(HOST_COMMAND_NAMES).toHaveLength(87);
     const unknown = (await f.call("nope")) as { ok: boolean; error: { code: string } };
     expect(unknown.ok).toBe(false);
     expect(unknown.error.code).toBe("INVALID_ARGUMENT");
@@ -218,6 +233,7 @@ describe("host 命令装配面 · 背包/诊断/桌宠/通用/专注域", () => 
     };
     expect(await f.call("agentUpsert", { agent })).toMatchObject({ ok: true });
     expect(await f.call("agentDelete", { id: "ag-9" })).toMatchObject({ ok: true });
+    await runAgentDeploymentBindingCase(agent);
     expect(await f.call("promptList")).toMatchObject({ ok: true });
     expect(await f.call("promptGet", { key: "ai_prompt_tag_health" })).toMatchObject({ ok: true });
     expect(await f.call("promptOverride", { key: "ai_prompt_tag_health", value: "自定义提示词" })).toMatchObject({
@@ -237,5 +253,47 @@ describe("host 命令装配面 · 背包/诊断/桌宠/通用/专注域", () => 
     expect(await f.call("dbStatus")).toMatchObject({ ok: true, data: { userVersion: 2, mode: "ok" } });
     expect(await f.call("pomoTryFive", {})).toMatchObject({ ok: true, data: { ok: true } });
     expect(f.writes()).toBeGreaterThan(0);
+  });
+});
+
+describe("host 命令装配面 · 交互派发 handoff 与远端件接线（debt ③）", () => {
+  it("dispatchInteractive：handoff 终端 → 响应带 line/note/handedOff（本机命令行回传）", async () => {
+    seedAgentEntry();
+    const inter = seedTask(f.conn, "handoff 派发");
+    attachProjectTag(f.conn, f.dir, inter);
+    f.deps.terminal = createHandoffTerminal("dsh 宿主无插件终端面板");
+    const out = (await f.call("dispatchInteractive", { taskId: inter })) as {
+      data: { state: string; handedOff?: boolean; line?: string; note?: string | null };
+    };
+    expect(out.data.state).toBe("running");
+    expect(out.data.handedOff).toBe(true);
+    expect(out.data.line).toContain("true"); // seedAgentEntry 的 command + 完整 prompt
+    expect(out.data.note).toContain("复制");
+  });
+
+  it("dispatchInteractive：remoteInteractive 在场 → terminalFor 适配器优先于 deps.terminal", async () => {
+    seedAgentEntry();
+    const inter = seedTask(f.conn, "远端交互");
+    attachProjectTag(f.conn, f.dir, inter);
+    const injected: string[] = [];
+    f.deps.remoteInteractive = {
+      terminalFor: () => ({
+        inject: async ({ line }) => {
+          injected.push(line);
+          return { terminal: "pty-x", sessionRef: "pty-x" };
+        },
+      }),
+      deploymentPrecheck: async () => {},
+    };
+    const out = (await f.call("dispatchInteractive", { taskId: inter })) as {
+      data: { handedOff?: boolean };
+    };
+    expect(injected).toHaveLength(1);
+    expect(injected[0]).toContain("true"); // seedAgentEntry 的 command 是 "true"
+    expect(out.data.handedOff).toBeUndefined(); // 真实注入，非 handoff
+    const row = f.conn.prepare("SELECT session_id FROM agent_sessions WHERE task_id=?").get(inter) as {
+      session_id: string | null;
+    };
+    expect(row.session_id).toBe("pty-x");
   });
 });

@@ -52,9 +52,16 @@ function fakeBridge(sysOk: boolean): BridgeClient {
 }
 
 describe("full-parity 命令面 · 全集断言", () => {
-  it("HOST_COMMAND_NAMES = 86（69 + §4.1 新增 16 + macAuthPaneOpen 联调对齐 1；taskCreate 已移除）", () => {
-    expect(HOST_COMMAND_NAMES).toHaveLength(86);
-    expect(new Set(HOST_COMMAND_NAMES).size).toBe(86);
+  it("HOST_COMMAND_NAMES = 87（69 + §4.1 新增 16 + macAuthPaneOpen 联调对齐 1 + sshAliasList 表单数据源 1；taskCreate 已移除）", () => {
+    expect(HOST_COMMAND_NAMES).toHaveLength(87);
+    expect(new Set(HOST_COMMAND_NAMES).size).toBe(87);
+  });
+
+  it("sshAliasList：信封 ok + 字符串数组（本机 ~/.ssh/config 解析；解析细节见 remote/ssh-config.spec）", async () => {
+    const out = (await f.call("sshAliasList")) as { ok: boolean; data: { aliases: unknown } };
+    expect(out.ok).toBe(true);
+    expect(Array.isArray(out.data.aliases)).toBe(true);
+    expect((out.data.aliases as unknown[]).every((a) => typeof a === "string")).toBe(true);
   });
 });
 
@@ -146,6 +153,28 @@ describe("full-parity 命令面 · 开通向导", () => {
     const id = seedDeployment();
     const out = (await f.call("deploymentRecheck", { id })) as { error: { code: string } };
     expect(out.error.code).toBe("HELPER_CAPABILITY_MISSING");
+  });
+});
+
+describe("full-parity 命令面 · 开通向导 restart（重装远端组件）", () => {
+  it("provisionRun restart：全 ok 后 restart=true → 重置重跑（信封 ok，四步重执行）", async () => {
+    const scope = new FakeSshScope();
+    const { call } = rigWithRemote(scope);
+    const id = seedDeployment();
+    for (let i = 0; i < 4; i += 1) {
+      await call("provisionRun", { id });
+    }
+    const before = scope.commands.length;
+    const noop = (await call("provisionRun", { id })) as { data: { status: { done: boolean } } };
+    expect(noop.data.status.done).toBe(true); // 无 restart → 短路无操作
+    expect(scope.commands.length).toBe(before);
+    const redo = (await call("provisionRun", { id, restart: true })) as {
+      ok: boolean;
+      data: { status: { done: boolean } };
+    };
+    expect(redo.ok).toBe(true);
+    expect(redo.data.status.done).toBe(false); // 重置后从步① 重跑
+    expect(scope.commands.slice(before).some((c) => c === 'printf %s "$HOME"')).toBe(true);
   });
 });
 

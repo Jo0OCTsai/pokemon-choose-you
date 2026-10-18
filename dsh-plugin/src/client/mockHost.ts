@@ -71,11 +71,15 @@ export interface MockHostState {
   // ---- full-parity 增量态（specs/dsh-plugin-full-parity） ----
   /** 部署实体（deploymentList/Upsert/Delete/Recheck/provision* 消费） */
   deployments: DeploymentEntity[];
+  /** 本机 ~/.ssh/config 可选别名（sshAliasList 消费——部署表单下拉数据源） */
+  sshAliases: string[];
   /** 开通向导单步失败编排（provisionRun 消费；null = 全步骤成功；测试中途可改写模拟重试成功） */
   provisionFail: { step: ProvisionStep; kind: MockProvisionFailKind; message?: string } | null;
-  /** 会话账本行（sessionsPage/sessionReplay 消费——SessionRow 形状，AD §4.1；
-   *  与既有 sessions（AgentSessionEntry，panelSnapshot 投影）分立） */
+  /** 重连复核结局（deploymentRecheck 消费——断开态部署恢复 ready 还是保持断开；对齐真实宿主两分支） */
+  recheckRecovers: boolean;
+  /** 会话账本行（sessionsPage/sessionReplay 消费——与既有 sessions 分立） */
   sessionRows: import("../host/dispatch/sessions").SessionRow[];
+  dispatchHandoff: { reason?: "web-carrier" | "no-terminal" | "spawn-failed" }; // handoff 原因编排（web 提示用例）
   /** 导入文件夹具（importValidate/importRun 按 path 匹配；reasons = 校验失败原因列表） */
   importFiles: Array<{
     path: string;
@@ -98,8 +102,8 @@ export interface MockHostState {
   helperCaps: Record<string, boolean> | null;
   /** 全局快捷键注册结果（diagnosticsSnapshot；false 才显诊断行） */
   shortcutRegistered: boolean;
-  /** dsh-ssh 家族探测（diagnosticsSnapshot；detail = 装载指引命令） */
-  sshFamily: { ok: boolean; detail?: string | null };
+  /** dsh-ssh 家族探测（diagnosticsSnapshot；detail = 装载指引命令；null = 未知——矩阵不显行） */
+  sshFamily: { ok: boolean; detail?: string | null } | null;
   /** helper 运行时版本（diagnosticsSnapshot 可选呈现；null 不显） */
   helperVersion: string | null;
 }
@@ -187,8 +191,11 @@ function defaultState(): MockHostState {
     pkSkill: { installedVersion: null, checked: false },
     petRunning: true,
     deployments: [],
+    sshAliases: [],
     provisionFail: null,
+    recheckRecovers: false,
     sessionRows: [],
+    dispatchHandoff: {},
     importFiles: [],
     importResult: { backupId: "pokemon-choose-you-20261017-090000.db", applied: 12 },
     restoreOutcome: null,

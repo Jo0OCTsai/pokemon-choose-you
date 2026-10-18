@@ -33,7 +33,7 @@ describe("步① probe-ssh（免密失败即停——Gherkin FR-RD2）", () => {
     expect(result.hint).toContain("ssh-copy-id");
     const entity = listDeployments(fx.db.conn)[id];
     expect(entity.status).toBe("not_ready");
-    expect(entity.lastError).toContain("免密探测失败");
+    expect(entity.lastError).toContain("SSH 连接失败");
     expect(result.status.retryable).toBe(true);
     expect(result.status.failedStep).toBe("probe-ssh");
     // 只执行了一步：远端零命令
@@ -157,7 +157,7 @@ describe("步④ verify：摘要不符与版本漂移（D31 拒绝就绪）", ()
     scope.files.set(defaultHelperPath("/home/dev", "0.1.0"), "tampered-artifact"); // 远端被篡改
     const mismatch = await provisionRun(fx.db.conn, id, makeDeps(scope));
     expect(mismatch).toMatchObject({ ok: false, step: "verify", tag: "HELPER_HASH_MISMATCH" });
-    expect(mismatch.hint).toContain("deploymentDegradeConfirm");
+    expect(mismatch.hint).toContain("重新安装");
     let entity = listDeployments(fx.db.conn)[id];
     expect(entity.status).toBe("not_ready");
     expect(entity.helperHash).toBeNull();
@@ -187,6 +187,43 @@ describe("步④ verify：摘要不符与版本漂移（D31 拒绝就绪）", ()
     const rest = await runWizard(id, drifted, 3); // 重装新闭包
     expect(rest.map((r) => r.step)).toEqual(["upload", "verify", null]);
     expect(listDeployments(fx.db.conn)[id].helperHash).toBe(sha256Of("NEW_ARTIFACT"));
+  });
+});
+
+describe("restart 重跑语义（helper 卸载恢复——破全 ok 短路死锁）", () => {
+  it("全 ok + restart → 重置后从步① 重跑（helperHash 清空 = 直连路由前提），全链恢复 ready", async () => {
+    const scope = new FakeSshScope();
+    const id = seedDeployment();
+    await runWizard(id, makeDeps(scope)); // 四步全 ok → ready + helperHash 落定
+    scope.files.delete(defaultHelperPath("/home/dev", "0.1.0")); // 模拟远端 helper 被卸载
+    // 无 restart：全 ok 短路成无操作（原死锁起点）
+    const noop = await provisionRun(fx.db.conn, id, makeDeps(scope));
+    expect(noop.step).toBeNull();
+    // restart：重置 provision 态 + helperHash，从步① 重跑
+    const before = scope.commands.length;
+    const result = await provisionRun(fx.db.conn, id, makeDeps(scope), { restart: true });
+    expect(result).toMatchObject({ ok: true, step: "probe-ssh" });
+    expect(scope.commands.slice(before).some((c) => c === 'printf %s "$HOME"')).toBe(true);
+    let entity = listDeployments(fx.db.conn)[id];
+    expect(entity.helperHash).toBeNull();
+    expect(entity.degraded).toBe(false);
+    expect(entity.provision?.steps["probe-ssh"].status).toBe("ok");
+    // 重装续跑至收敛：upload 重装 helper → verify 通过 → ready + 摘要回填
+    const rest = await runWizard(id, makeDeps(scope));
+    expect(rest.map((r) => r.step)).toEqual(["probe-node", "upload", "verify", null]);
+    entity = listDeployments(fx.db.conn)[id];
+    expect(entity.status).toBe("ready");
+    expect(entity.helperHash).toBe(sha256Of(DEFAULT_HELPER_CONTENT));
+  });
+
+  it("步骤未全 ok + restart → 不重置（幂等续跑语义不变，已完成步不重跑）", async () => {
+    const scope = new FakeSshScope();
+    const id = await seedAtProbing(scope); // ① ok、② pending
+    const before = scope.commands.length;
+    const result = await provisionRun(fx.db.conn, id, makeDeps(scope), { restart: true });
+    expect(result).toMatchObject({ ok: true, step: "probe-node" }); // 续跑② 而非重置回①
+    expect(scope.commands.slice(before).some((c) => c === 'printf %s "$HOME"')).toBe(false);
+    expect(listDeployments(fx.db.conn)[id].provision?.steps["probe-ssh"].status).toBe("ok");
   });
 });
 

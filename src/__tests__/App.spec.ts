@@ -856,8 +856,8 @@ describe("App 图鉴机主面板", () => {
     expect(drawer.text()).toContain("备注内容");
     expect(drawer.text()).toContain("跟进记录");
     expect(drawer.text()).toContain("操作历史");
-    // 从抽屉进入编辑弹窗（抽屉保持在下层）
-    await drawer.get(".btn-row .btn").trigger("click");
+    // 从抽屉进入编辑弹窗（抽屉保持在下层；编辑钮在总览卡右上角）
+    await drawer.get(".d-edit").trigger("click");
     expect(w.findComponent({ name: "TaskEditModal" }).exists()).toBe(true);
     expect(w.find(".drawer").exists()).toBe(true);
   });

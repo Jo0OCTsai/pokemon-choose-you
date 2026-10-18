@@ -1,7 +1,7 @@
 /**
  * dsh（DeepSeek Harness）宿主插件入口（平台胶水层，Phase A host 半边真实适配）。
  *
- * 形态（dsh 0.2.0-rc.2 插件清单）：本包经 `dsh plugin --profile <name> add file:…`
+ * 形态（dsh 0.2.1-rc.2 插件清单）：本包经 `dsh plugin --profile <name> add file:…`
  * 作为自注册 bundle 安装（包内 cordis.patch.yml insert 本 entry），loader 读
  * package.json main（dist/host.js）加载本模块，消费具名导出 name/inject/Config/apply。
  *
@@ -21,13 +21,20 @@ import z from "@deepseek-ai/schemastery";
 import type { Context } from "@deepseek-ai/cordis";
 import type {} from "@deepseek-ai/cordis-plugin-timer"; // 类型面：ctx.interval/ctx.timeout 增强
 import type {} from "@deepseek-ai/dsh-client-connection"; // 类型面：Context.connection 增强
-import { createPlugin, probeNodeSqlite, unsupportedSqliteError, type Plugin } from "../index";
+import { createPlugin, defaultJudgeExecutor, probeNodeSqlite, unsupportedSqliteError, type Plugin } from "../index";
+import { createHandoffTerminal } from "../dispatch/terminalAdapters";
+import {
+  createExternalTerminalAdapter,
+  detectExternalTerminal,
+  externalTerminalLine,
+  isDesktopCarrier,
+} from "./externalTerminal";
 import { ensureElectronDist } from "../pet/electronGet";
 import { electronSpawner } from "../pet/supervisor";
 import { dbFileFrom } from "../storage/paths";
 import { registerEmbeddedSchemas } from "../storage/migrate";
 import schemaRaw from "../storage/schema-raw";
-import { subagentExecutorPlaceholder } from "../judge/adapters";
+import { dshSubagentExecutorOf } from "./subagentExecutor";
 import type { HelperSpawner } from "../pet/supervisor";
 import type { TimerApi as LoopTimer } from "../dispatch/autoDispatch";
 import { registerTodoTools } from "./toolRegister";
@@ -44,11 +51,12 @@ registerEmbeddedSchemas({ ...schemaRaw });
 export { createSshScopeHost, type CordisHostContext, type SshScopeHost } from "./sshScope";
 export { DSH_CAPABILITY_KEYS, probeDshCapabilities, sshFamilyOf } from "./probeDsh";
 
-/** 入口 id（cordis.patch.yml 的 insert id 同名；包名 dsh-plugin 是安装定位面） */
+/** 入口 id（cordis.patch.yml 的 insert id 同名；包名 pokemon-choose-you-dsh 是安装定位面） */
 export const name = "pokemon-choose-you";
 
-/** 必需服务（timer 的 ctx.interval 增强面需要 inject 声明） */
-export const inject = ["tools", "timer"];
+/** 必需服务（timer 需 inject；agents/subagents/agentDefaultModel = 内置判定通道消费面——
+ *  dsh-base 恒在场，缺席则插件不装（fail fast）） */
+export const inject = ["tools", "timer", "agents", "subagents", "agentDefaultModel"];
 
 /**
  * 插件 Config（schemastery；A2 Config 双轨最小集）。
@@ -62,9 +70,10 @@ export const Config = z.object({
     .description("随宿主启动显示桌宠（helper/electron 就绪才生效；未就绪自动降级停用）"),
   judgeExecutor: z
     .union(["subagent", "cli"])
+    // A7 原裁恢复（2026-10-18 内置通道落型）：默认 subagent；cli = 外部 agent CLI 子进程
     .default("subagent")
     .volatile()
-    .description("判定执行方：subagent = dsh subagent 桥（Phase B 落型，当前占位）；cli = 主 agent CLI 子进程"),
+    .description("判定执行方：subagent = dsh 内置通道（无头 subagent）；cli = 外部 agent CLI 子进程"),
 });
 
 /** loader 解析后的 config 形态（volatile 字段为 { get() } 引用；兼容普通值便于测试） */
@@ -78,6 +87,14 @@ function readSetting<T>(field: { get(): T } | T): T {
   return typeof field === "object" && field !== null && typeof (field as { get?: unknown }).get === "function"
     ? (field as { get(): T }).get()
     : (field as T);
+}
+
+/** 交互终端装配：desktop 载体 → 外部终端适配器（按次解析偏好→探测链；唤起失败/无终端内部回落 handoff）；web 载体 → handoff + web-carrier 原因码 */
+function externalTerminal装配() {
+  if (isDesktopCarrier()) {
+    return createExternalTerminalAdapter();
+  }
+  return createHandoffTerminal("dsh web 载体：终端窗口会开在宿主机器的屏幕上", "web-carrier");
 }
 
 /** createPlugin 依赖注入面（timer/桌宠 spawner/判定执行方/远程平台——接线单源） */
@@ -105,11 +122,22 @@ function pluginDepsOf(
       get: () => readSetting(config.petAutoStart) !== false,
       set: () => undefined, // 平台持久化归 dsh 配置面（Phase B 客户端设置段写回）
     },
-    // 判定执行方：cli = 业务核心缺省（主 agent CLI 子进程）；subagent = 占位桥
-    // （调用即明确报错不静默——Phase B 换 dsh subagents 真实接面）
-    newExecutor: readSetting(config.judgeExecutor) === "cli" ? undefined : () => subagentExecutorPlaceholder(),
-    // dispatchDeps/terminal/larkBin 缺省：lark-cli 走 PATH；交互终端 fake 占位
-    // （dsh terminal 表面后续任务接面；无头派发 executorFor 缺省走 local 子进程）
+    // 判定执行方（volatile 活读——背包改值热应用后下一次判定即生效）：cli = 业务核心缺省
+    // （主 agent CLI 子进程）；subagent = dsh 内置通道（dsh/subagentExecutor.ts，A7 默认）。
+    // newExecutor 每次判定调用（pollLoop / 命令面），活闭包按当前配置值路由
+    newExecutor: (conn) =>
+      readSetting(config.judgeExecutor) === "cli" ? defaultJudgeExecutor(conn) : dshSubagentExecutorOf(ctx),
+    // dispatchDeps/larkBin 缺省：lark-cli 走 PATH；无头派发 executorFor 缺省走 local 子进程。
+    // 交互终端/terminalLine（debt ③ a desktop 载体解 + 终端偏好遵循）：dsh 桌面 app
+    // （Electron 宿主）→ 适配器按次解析（共享设置 terminal_preference 命中优先，探测链
+    // Ghostty → kitty → … → iTerm2 → Terminal.app 回落；唤起失败自动回落 copy-line
+    // handoff）；web/headless CLI 载体 → 无窗口可弹（远程浏览器看不见宿主屏幕），handoff
+    // 命令行回传 + 客户端 web 提示。远端交互不经本件（remoteInteractiveParts 真 PTY/
+    // copy-line，装配层接线）。
+    terminal: externalTerminal装配(),
+    // 回放/lark 登录的终端行注入（desktop 载体 → 外部终端真窗口，injectLineGuarded 统一
+    // 读偏好随行注入；web 载体缺省——回放自动走 handoff 命令行回传，lark 登录 note 携带命令行）
+    ...(isDesktopCarrier() && detectExternalTerminal() !== null ? { terminalLine: externalTerminalLine() } : {}),
   };
 }
 
@@ -151,7 +179,7 @@ export function apply(ctx: Context, config: ResolvedPkyConfig): void {
   }
   const dbPath = dbFileFrom();
   if (dbPath === undefined) {
-    throw new Error("[dsh-plugin] 无法定位待办库：CHOOSE_YOU_HOME 与 home 均不可用（AD §5.1 库定位）");
+    throw new Error("[pokemon-choose-you] 无法定位待办库：CHOOSE_YOU_HOME 与 home 均不可用（AD §5.1 库定位）");
   }
   process.stderr.write(`[pokemon-choose-you] 待办库：${dbPath}\n`);
   const petSpawner = detectPetSpawner();

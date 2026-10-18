@@ -1,7 +1,8 @@
 /**
- * 背包八分区键位与分区定义（U20/U21）：36 共享设置键全量分发到各分区页（键单源 =
- * host/domain/settings SETTING_KEYS，此处只读类型约束）；实体 CRUD 面（分类/标签/维度/
- * agent 卡/提示词/会话过滤）不走保存制、维持各自提交语义。
+ * 背包八分区键位与分区定义（U20/U21）：共享设置键分发到各分区页（键单源 =
+ * host/domain/settings SETTING_KEYS，此处只读类型约束）；close_to_tray 与 ai_agents
+ * 不进 dsh 分发（前者纯主应用行为项·dsh 不读写，后者经 agent 卡 CRUD 面）。实体
+ * CRUD 面（分类/标签/维度/agent 卡/提示词/会话过滤）不走保存制、维持各自提交语义。
  */
 import type { SettingKey } from "../../host/domain/settings";
 
@@ -55,13 +56,12 @@ export const FEISHU_KEYS = [
   "feishu_my_names",
 ] as const satisfies readonly SettingKey[];
 
-/** 通用分区（⚙️）：复盘提醒/备份/关闭到托盘（作用于主应用）+ 库状态/使用指南/双形态说明 */
+/** 通用分区（⚙️）：复盘提醒/备份 + 库状态/使用指南（close_to_tray 不在 dsh 呈现——纯主应用行为项） */
 export const GENERAL_KEYS = [
   "review_enabled",
   "review_dow",
   "backup_enabled",
   "backup_keep",
-  "close_to_tray",
 ] as const satisfies readonly SettingKey[];
 
 /** 八分区（对齐主应用设置中心同名同序，U21） */

@@ -2,21 +2,14 @@
  * dispatch/interactive：交互派发——终端适配器注入 + 会话/执行标识落库
  * （agent_sessions kind=dispatch_interactive）+ claim 互斥（DISPATCH_ALREADY_ACTIVE）+
  * 注入失败迁移 failed + dispatchReport 回传收口（幂等）+ 手动收口兜底（重置/标记）+
- * deployment 免密预检（SSH_AUTH_REQUIRED）。不解析终端输出（A15）。
+ * 终端偏好随注入传递 + deployment 免密预检（SSH_AUTH_REQUIRED——sshCheck 探测器
+ * 细节见 dispatch-ssh-check.spec）。不解析终端输出（A15）。
  */
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import {
-  createFakeTerminal,
-  dispatchInteractive,
-  dispatchReport,
-  dispatchReset,
-  localDispatchDir,
-} from "../src/host/dispatch/interactive";
-import { sshCheck, sshProbeArgv, systemSshProbe } from "../src/host/dispatch/sshCheck";
+import { dispatchInteractive, dispatchReport, dispatchReset, localDispatchDir } from "../src/host/dispatch/interactive";
+import { createFakeTerminal } from "../src/host/dispatch/terminalAdapters";
 import { agentLine, interactiveArgs, summarizeLine } from "../src/host/dispatch/cmdline";
-import { createTestDb, seedTask, type TestDb } from "./helpers";
-import { writeFileSync } from "node:fs";
-import { join } from "node:path";
+import { createTestDb, seedAgents, seedTask, type TestDb } from "./helpers";
 
 let db: TestDb;
 beforeEach(() => {
@@ -141,13 +134,9 @@ describe("交互派发前置校验", () => {
     expect(outcome.state).toBe("running");
   });
 
-  it("deployment 路由：免密预检失败 → SSH_AUTH_REQUIRED（claim 前拦截，不进终端）", async () => {
+  it("agent 绑定部署：免密预检失败 → SSH_AUTH_REQUIRED（claim 前拦截，不进终端）", async () => {
     const taskId = seedProjectTask("远端任务");
-    db.conn.prepare("INSERT OR REPLACE INTO settings (key, value) VALUES ('dsh:dispatch_routes', ?)").run(
-      JSON.stringify({
-        远端任务: { agentId: "ag-1", deployment: { ref: "dev-box", target: "vscode@localhost:1022" } },
-      }),
-    );
+    seedAgents(db.conn, [{ id: "ag-1", deployment: "dev-box" }]); // 执行世界单源：显式绑定
     const terminal = createFakeTerminal();
     await expect(
       dispatchInteractive(
@@ -166,13 +155,9 @@ describe("交互派发前置校验", () => {
 });
 
 describe("交互派发 deployment 预检", () => {
-  it("deployment 路由：预检通过 → 正常注入（远端目录不本地预检）", async () => {
+  it("agent 绑定部署：预检通过 → 正常注入（远端目录不本地预检）", async () => {
     const taskId = seedProjectTask("远端任务2");
-    db.conn.prepare("INSERT OR REPLACE INTO settings (key, value) VALUES ('dsh:dispatch_routes', ?)").run(
-      JSON.stringify({
-        远端任务2: { agentId: "ag-1", deployment: { ref: "dev-box", target: "vscode@localhost:1022" } },
-      }),
-    );
+    seedAgents(db.conn, [{ id: "ag-1", deployment: "dev-box" }]); // 执行世界单源：显式绑定
     const terminal = createFakeTerminal();
     const outcome = await dispatchInteractive(
       db.conn,
@@ -230,67 +215,13 @@ describe("dispatchReport（todo_dispatch_done/fail 工具语义 + 手动收口�
   });
 });
 
-describe("sshCheck 系统探测器（fake ssh 探测脚本：成功/失败）", () => {
-  /** 写一个 fake ssh 脚本（真实子进程路径，bin 注入） */
-  function fakeSshScript(body: string): string {
-    const path = join(db.dir, "fake-ssh.sh");
-    writeFileSync(path, `#!/bin/sh\n${body}\n`, { mode: 0o755 });
-    return path;
-  }
-
-  it("exit 0（带 stderr 告警文本）→ ok", async () => {
-    const probe = systemSshProbe(fakeSshScript("echo warning-to-stderr >&2; exit 0"));
-    expect(await sshCheck("u@h", { probe })).toEqual({ ok: true });
-  });
-
-  it("exit 255 无输出 → ok:false，错误文案取 exec 错误信息", async () => {
-    const probe = systemSshProbe(fakeSshScript("exit 255"));
-    const outcome = await sshCheck("u@h", { probe });
-    expect(outcome.ok).toBe(false);
-    if (!outcome.ok) {
-      expect(outcome.error.code).toBe("SSH_AUTH_REQUIRED");
-      expect(outcome.error.message).toMatch(/Command failed|u@h/);
-    }
-  });
-
-  it("不可达真实目标 → ok:false（SSH_AUTH_REQUIRED，不挂起）", async () => {
-    const outcome = await sshCheck("u@nonexistent-host-pky.invalid", { connectTimeoutSecs: 1 });
-    expect(outcome.ok).toBe(false);
-  });
-
-  it("sshProbeArgv：无端口目标不带 -p", () => {
-    expect(sshProbeArgv("u@h")).toEqual(["-o", "BatchMode=yes", "-o", "ConnectTimeout=10", "--", "u@h", "true"]);
-  });
-});
-
-describe("sshCheck 集成（fake 探测器：成功/失败）", () => {
-  it("exit 0 → ok；非 0 → SSH_AUTH_REQUIRED（argv 含 BatchMode/ConnectTimeout/端口解析）", async () => {
-    const seen: string[][] = [];
-    const okProbe = async (argv: string[], opts: { timeoutMs: number }) => {
-      seen.push(argv);
-      expect(opts.timeoutMs).toBe(15_000);
-      return { code: 0, stderr: "" };
-    };
-    expect(await sshCheck("vscode@localhost:1022", { probe: okProbe })).toEqual({ ok: true });
-    expect(seen[0]).toEqual([
-      "-o",
-      "BatchMode=yes",
-      "-o",
-      "ConnectTimeout=10",
-      "-p",
-      "1022",
-      "--",
-      "vscode@localhost",
-      "true",
-    ]);
-    const fail = await sshCheck("u@h", {
-      probe: async () => ({ code: 255, stderr: "Permission denied (publickey)." }),
-    });
-    expect(fail.ok).toBe(false);
-    if (!fail.ok) {
-      expect(fail.error.code).toBe("SSH_AUTH_REQUIRED");
-      expect(fail.error.message).toContain("Permission denied");
-      expect(fail.error.hint).toMatch(/免密/);
-    }
+describe("终端偏好随注入传递", () => {
+  it("terminal_preference 落库值 → inject 入参（未设 = null）", async () => {
+    const terminal = createFakeTerminal();
+    await dispatchInteractive(db.conn, { terminal }, seedProjectTask("偏好终端·未设"));
+    expect(terminal.injections[0]?.terminalPreference).toBeNull(); // 未设置
+    db.conn.prepare("INSERT OR REPLACE INTO settings (key, value) VALUES ('terminal_preference', 'iterm2')").run();
+    await dispatchInteractive(db.conn, { terminal }, seedProjectTask("偏好终端·iterm2"));
+    expect(terminal.injections[1]?.terminalPreference).toBe("iterm2");
   });
 });

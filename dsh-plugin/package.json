@@ -1,9 +1,9 @@
 {
-  "name": "dsh-plugin",
+  "name": "pokemon-choose-you-dsh",
   "private": true,
-  "version": "0.1.0",
+  "version": "0.1.2",
   "type": "module",
-  "description": "dsh（DeepSeek Harness）插件形态：host 半边 Node + client 半边 React 同包（specs/dsh-plugin）",
+  "description": "Pokédex Todo (pokemon-choose-you): catch Pokémon by finishing tasks — pomodoro focus, desktop pet, AI agent dispatch and Feishu radio triage",
   "engines": {
     "node": ">=24"
   },
@@ -12,15 +12,19 @@
     ".": "./dist/host.js",
     "./client": "./dist/client.js",
     "./cordis.patch.yml": "./cordis.patch.yml",
-    "./package.json": "./package.json"
+    "./package.json": "./package.json",
+    "./locale/*.json": "./locale/*.json"
   },
   "files": [
     "dist",
     "helper/dist",
     "helper/package.json",
     "helper/README.md",
-    "cordis.patch.yml"
+    "cordis.patch.yml",
+    "locale",
+    "icon.svg"
   ],
+  "icon": "./icon.svg",
   "dsh": {
     "manifestVersion": 1,
     "bundle": {
@@ -43,13 +47,13 @@
   },
   "peerDependencies": {
     "@deepseek-ai/cordis": "~4.0.4",
-    "@deepseek-ai/dsh-client-connection": "0.2.0-rc.2",
-    "@deepseek-ai/dsh-tools": "0.2.0-rc.2"
+    "@deepseek-ai/dsh-client-connection": "0.2.1-rc.2",
+    "@deepseek-ai/dsh-tools": "0.2.1-rc.2"
   },
   "dependencies": {
     "react": "^19.3.0",
     "react-dom": "^19.3.0",
-    "@deepseek-ai/dsh-typert-protocol": "0.2.0-rc.2",
+    "@deepseek-ai/dsh-typert-protocol": "0.2.1-rc.2",
     "@deepseek-ai/dsh-ssh": "0.1.6-alpha.1",
     "@deepseek-ai/dsh-subprocess-ssh": "0.1.6-alpha.1",
     "@electron/get": "5.1.0",
@@ -58,8 +62,8 @@
   "devDependencies": {
     "@deepseek-ai/cordis": "~4.0.4",
     "@deepseek-ai/cordis-plugin-timer": "~1.1.6",
-    "@deepseek-ai/dsh-client-connection": "0.2.0-rc.2",
-    "@deepseek-ai/dsh-tools": "0.2.0-rc.2",
+    "@deepseek-ai/dsh-client-connection": "0.2.1-rc.2",
+    "@deepseek-ai/dsh-tools": "0.2.1-rc.2",
     "@deepseek-ai/schemastery": "^3.18.4",
     "@testing-library/dom": "^10.4.2",
     "@testing-library/react": "^16.3.3",

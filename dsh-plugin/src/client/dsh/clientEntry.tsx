@@ -4,17 +4,19 @@
  * inject/apply——与宿主半边 hostEntry 同形（平台胶水；业务在 src/client/** 视图与
  * src/host/** 核心）。
  *
- * apply 职责：ctx.connection.rpc → DshRpcTransport → createHostClient，注册四个 slot：
- * ① plugins.detail.section（list/root）：owner props 携 subject——指向本包
- *   （pkg.name === "dsh-plugin"）才渲染 PluginDetailPage（七段面板），其余渲染 null
- *   （契约：他包 detail 页零占位）；
- * ② conversation.session.header.actions（list/session）：ConversationChip 四态挂载
+ * apply 职责：ctx.connection.rpc → DshRpcTransport → createHostClient，注册三个 slot：
+ * ① conversation.session.header.actions（list/session）：ConversationChip 四态挂载
  *   （无进行中任务零占位）。选 actions 而非 conversation.header：后者是 single 容器位
  *   （dsh 自身的会话头壳占据，第三方注册即同 cell 冲突），actions 是标题邻接控制 list
  *   位——多插件共存互不挤占；
- * ③ sidebar.panellist（list/root）+ ④ main（keyed/root，key = PANEL_ID）：侧边栏一级
+ * ② sidebar.panellist（list/root）+ ③ main（keyed/root，key = PANEL_ID）：侧边栏一级
  *   入口（图标 + locale-aware 标签）与主区全局面板（见 sidebarPanel.tsx——U16 的
  *   「仅 detail page 可达」平台事实已被 0.2.0-rc.2 全局面板机制取代）。
+ * ctx.configForms（ui-settings 设置域基础服务）经 createPluginConfig 绑定后随主面板
+ * Context 注入——背包分区行（AI 判定方式 / 启动时自动显示桌宠）的读写面（用户裁决
+ * 2026-10-18：插件私有配置背包为唯一编辑面，原 plugins.bundle.config 详情页配置区已撤）。
+ * 原第四槽 plugins.detail.section 已摘除（用户裁决）：插件管理器详情页回归纯信息页
+ * （元数据来自包清单 locale/*——readPluginMeta），图鉴机 UI 只经侧边栏面板呈现。
  *
  * chip 点击主体的 pageOpen 语义（打开插件页面）：经 ctx.layout.selectPanel 客户端
  * 闭环接真（见 sidebarPanel.createPanelOpener）；⏸/✔ 就近控制走 rpc 真实可用；
@@ -29,23 +31,21 @@ import { I18nProvider, type Locale } from "../i18n";
 import { createHostClient, type HostClient, type PageSection } from "../rpc";
 import type { Task } from "../../host/domain/tasks";
 import { loadLocale, pokemonNameOf } from "./panelData";
+import { createPluginConfig, type ConfigFormsFace } from "./pluginConfig";
 import { createDshRpcTransport, type DshConnectionRpc } from "./transport";
 import {
   createMainPanel,
   createPanelLabel,
   createPanelOpener,
-  createPanelRoot,
   PanelIcon,
   PANEL_ID,
   PANEL_ORDER,
   type PanelLayoutFace,
 } from "./sidebarPanel";
 
-/** 本包名（bundle 定位面；subject.pkg.name 与之比对） */
-const PKG_NAME = "dsh-plugin";
+/** 本包名（bundle 定位面） */
+const PKG_NAME = "pokemon-choose-you-dsh";
 
-/** 面板 section 槽（plugin-manager 契约：kind list / scope root / owner { subject }） */
-const PANEL_SLOT = "plugins.detail.section";
 /** 会话头 chip 槽（conversation 契约：kind list / scope session，标题邻接控制位） */
 const CHIP_SLOT = "conversation.session.header.actions";
 /** 侧边栏一级入口槽（sidebar 契约：kind list / scope root，id 寻址 main key） */
@@ -65,7 +65,7 @@ interface SlotRegisterOptions {
 /** slot 组件（框架 props 透传——owner/标准件按槽契约合成，本层只消费已知键） */
 type SlotComponent = (props: Record<string, unknown>) => ReactNode;
 
-/** dsh client 侧 ctx（结构化收窄：本入口消费的四个服务面） */
+/** dsh client 侧 ctx（结构化收窄：本入口消费的服务面） */
 export interface DshClientContext {
   slots: {
     inject(key: string, contribute: () => Iterable<() => void> | (() => void)): () => void;
@@ -74,32 +74,14 @@ export interface DshClientContext {
   /** 语言自持（共享设置 language 键经 rpc 读）；侧边栏标签额外读宿主 locale 快照 */
   locale: unknown;
   connection: { rpc: DshConnectionRpc };
+  /** 设置域基础服务（ui-settings 提供）：宿主 Config schema 的读写面（pluginConfig 绑定后线入背包分区行） */
+  configForms: ConfigFormsFace;
   /** 布局面（chip 点击直达的面板选中；web 组合由 ui-layout 供给） */
   layout?: PanelLayoutFace;
 }
 
-/** 必需服务（client 侧 ctx 属性名；web 组合四者齐备） */
-export const inject = ["slots", "locale", "connection", "layout"];
-
-/** plugins.detail.section 的 subject（plugin-manager 契约三态，本层只读 pkg.name） */
-type PluginsSubject = { kind?: string; pkg?: { name?: unknown }; id?: unknown };
-
-/** subject 是否指向本包（bundle/row 两形态都带 pkg；item 形态无 pkg → false） */
-function subjectIsSelf(subject: unknown): boolean {
-  const scoped = subject as PluginsSubject | undefined;
-  return scoped?.pkg?.name === PKG_NAME;
-}
-
-/** 面板 section 工厂：subject 自判 + 数据快照根（自然流容器，宿主 detail 页自滚动） */
-function createPanelSection(host: HostClient): SlotComponent {
-  const PanelRoot = createPanelRoot(host);
-  return function PanelSection(props): ReactNode {
-    if (!subjectIsSelf(props.subject)) {
-      return null;
-    }
-    return <PanelRoot />;
-  };
-}
+/** 必需服务（client 侧 ctx 属性名；web 组合齐备——configForms 随 ui-settings 装配） */
+export const inject = ["slots", "locale", "connection", "configForms", "layout"];
 
 /**
  * chip 数据源（v1 事件驱动面，NFR-6 客户端无周期性自动动作——不设轮询定时器）：
@@ -195,12 +177,10 @@ function createChipEntry(host: HostClient, openPage: (section?: PageSection) => 
   };
 }
 
-/** 客户端 apply：transport → HostClient → 四 slot 注册（fiber 卸载经 slots.inject 自带回收） */
+/** 客户端 apply：transport → HostClient → 三 slot 注册（fiber 卸载经 slots.inject 自带回收） */
 export function apply(ctx: DshClientContext): void {
   const host = createHostClient(createDshRpcTransport(ctx.connection.rpc));
-  ctx.slots.inject(PANEL_SLOT, () =>
-    ctx.slots.register({ name: PANEL_SLOT, id: `${PKG_NAME}#panel` }, createPanelSection(host)),
-  );
+  const pluginConfig = createPluginConfig(ctx.configForms);
   ctx.slots.inject(CHIP_SLOT, () =>
     ctx.slots.register(
       { name: CHIP_SLOT, id: `${PKG_NAME}#chip` },
@@ -213,5 +193,7 @@ export function apply(ctx: DshClientContext): void {
       PanelIcon,
     ),
   );
-  ctx.slots.inject(MAIN_SLOT, () => ctx.slots.register({ name: MAIN_SLOT, key: PANEL_ID }, createMainPanel(host)));
+  ctx.slots.inject(MAIN_SLOT, () =>
+    ctx.slots.register({ name: MAIN_SLOT, key: PANEL_ID }, createMainPanel(host, pluginConfig)),
+  );
 }

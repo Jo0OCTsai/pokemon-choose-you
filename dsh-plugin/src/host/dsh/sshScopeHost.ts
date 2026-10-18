@@ -7,7 +7,9 @@
 import type { DeploymentEntity } from "../remote/deployments";
 import type { SshScope } from "../remote/sshScope";
 import type { CordisFiber, CordisHostContext, SshFamilyConfig } from "./sshScope";
+import { createBrokerConnect, type BrokerHostOptions } from "./brokerConnect";
 import { createDirectSshScope } from "./directScope";
+import { tlsPskAvailable } from "./tlsStack";
 import { DshSshScope } from "./sshScopeImpl";
 import { loadConsumer, loadFamily } from "./sshScopeFamily";
 
@@ -29,11 +31,14 @@ function configKeyOf(config: SshFamilyConfig): string {
 }
 
 /**
- * helper 落定判定（scopeFor 路由单源）：helperPath 与 helperHash 均落定 → 家族链
- * 传输可用；任一未落定（provision 中 / 从未安装）→ 直连 ssh 传输兜底。
+ * helper 落定判定（scopeFor 路由单源）：helperPath 与 helperHash 均落定且不在
+ * 重装中 → 家族链传输可用；任一未落定（provision 中 / 从未安装）或重装进行中
+ * （provision 有记录且 upload 步未 ok——mismatch/restart 重置）→ 直连 ssh 兜底
+ * （重装经直连执行，破「装 helper 需先有 helper」的家族链建连死锁）。
  */
 export function familyProvisioned(entity: DeploymentEntity): boolean {
-  return entity.helperPath !== "" && entity.helperHash !== null;
+  const reinstalling = entity.provision !== null && entity.provision.steps.upload.status !== "ok";
+  return entity.helperPath !== "" && entity.helperHash !== null && !reinstalling;
 }
 
 // ---- 宿主（per-deployment scope 注册表；装配层消费面） ----
@@ -76,7 +81,17 @@ export interface SshScopeHostOptions {
     workdir: string,
     onDisconnected: ScopeDisconnectedListener,
   ): Promise<LiveScopeEntry>;
+  /** 传输面（缺省 auto = TLS 栈功能性探测：BoringSSL 宿主走 broker，OpenSSL 走进程内） */
+  transport?: ScopeTransportKind;
+  /** broker 传输可调项（transport 命中 broker 时生效；nodeBin/brokerJsPath/spawnChild 注入） */
+  broker?: BrokerHostOptions;
 }
+
+/**
+ * 传输面选择：auto（缺省——TLS 栈功能性探测，compatibility.md A3）/ inprocess
+ * （锁进程内家族链）/ broker（锁系统 Node 子进程传输——测试与诊断用）。
+ */
+export type ScopeTransportKind = "auto" | "inprocess" | "broker";
 
 /**
  * 建 per-deployment isolate 作用域并装载家族（spike 修正 A：双 label）。
@@ -153,7 +168,11 @@ function notifyDisconnected(
  * 家族链（recheck/派发用真连接）。
  */
 export function createSshScopeHost(ctx: CordisHostContext, options: SshScopeHostOptions = {}): SshScopeHost {
-  const connect = options.connect ?? connectScope;
+  // 传输面解析（compatibility.md A3）：显式 connect 注入优先（测试面）；auto =
+  // TLS 功能性探测——BoringSSL 宿主（dsh 桌面）家族连接外包给系统 Node broker
+  const transport = options.transport ?? "auto";
+  const useBroker = transport === "broker" || (transport === "auto" && !tlsPskAvailable());
+  const connect = options.connect ?? (useBroker ? createBrokerConnect(options.broker) : connectScope);
   const directScopeFor = options.directScopeFor ?? createDirectSshScope;
   const labelsById = new Map<string, { sshLabel: symbol; subLabel: symbol }>();
   const live = new Map<string, LiveScopeEntry>();

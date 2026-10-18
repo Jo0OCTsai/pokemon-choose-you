@@ -159,7 +159,6 @@ export function RadioSegment({
         </div>
       )}
       <CaptureBar readonly={readonly} onChanged={onChanged} />
-      <p className={styles.kbdHint}>{t("dsh.radio.kbdHint")}</p>
     </section>
   );
 }

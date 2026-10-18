@@ -7,7 +7,7 @@
 //! 保障远程登录 shell 的 PATH → 写回 agent 的隧道端口 → 真实隧道端到端验证。
 //! 全程幂等，重复执行安全；任一步失败即停并报告该步的修复建议。
 
-use crate::ai::{self, AgentConfig};
+use crate::ai;
 use crate::db::Db;
 use crate::error::{AppError, AppResult};
 use rusqlite::params;
@@ -731,33 +731,94 @@ pub async fn setup_remote_pk<R: tauri::Runtime>(
     // 成功才写回隧道端口（失败不动配置，便于改端口重试）
     if report.ok {
         let conn = db.0.lock().unwrap();
-        let raw: Option<String> = conn
-            .query_row(
-                "SELECT value FROM settings WHERE key='ai_agents'",
-                [],
-                |r| r.get(0),
-            )
-            .ok();
-        let mut agents: Vec<AgentConfig> =
-            serde_json::from_str(&raw.unwrap_or_default()).unwrap_or_default();
-        if let Some(a) = agents.iter_mut().find(|a| a.id == agent_id) {
-            let mut r = a.remote.clone().unwrap_or_default();
-            r.tunnel = Some(tunnel_port);
-            a.remote = Some(r);
-            let encoded = serde_json::to_string(&agents)
-                .map_err(|e| AppError::External(format!("序列化 agent 配置失败: {e}")))?;
-            conn.execute(
-                "INSERT OR REPLACE INTO settings (key, value) VALUES ('ai_agents', ?1)",
-                params![encoded],
-            )?;
-        }
+        write_back_tunnel_port(&conn, &agent_id, tunnel_port)?;
     }
     Ok(report)
+}
+
+/// 把隧道端口写回该 agent 的 SSH 配置（setup 成功后调用）。Value 级手术式改写：
+/// 只动目标 agent 的 remote.tunnel，其余键原样保留——dsh 插件在 ai_agents 内扩展
+/// 了未知字段（deployment 部署绑定），类型化往返会静默丢字段。
+fn write_back_tunnel_port(
+    conn: &rusqlite::Connection,
+    agent_id: &str,
+    tunnel_port: u16,
+) -> AppResult<()> {
+    let raw: Option<String> = conn
+        .query_row(
+            "SELECT value FROM settings WHERE key='ai_agents'",
+            [],
+            |r| r.get(0),
+        )
+        .ok();
+    let mut agents: serde_json::Value = serde_json::from_str(&raw.unwrap_or_default())
+        .unwrap_or_else(|_| serde_json::Value::Array(Vec::new()));
+    let Some(list) = agents.as_array_mut() else {
+        return Ok(()); // 非数组坏数据：找不到目标，不写（原空表语义）
+    };
+    for agent in list.iter_mut() {
+        if agent.get("id").and_then(|v| v.as_str()) != Some(agent_id) {
+            continue;
+        }
+        let mut remote = match agent.get("remote") {
+            Some(v) if v.is_object() => v.clone(),
+            _ => serde_json::to_value(crate::ai::AgentRemote::default()).unwrap_or_default(),
+        };
+        if let Some(obj) = remote.as_object_mut() {
+            obj.insert("tunnel".into(), serde_json::json!(tunnel_port));
+        }
+        if let Some(obj) = agent.as_object_mut() {
+            obj.insert("remote".into(), remote);
+        }
+        let encoded = serde_json::to_string(&agents)
+            .map_err(|e| AppError::External(format!("序列化 agent 配置失败: {e}")))?;
+        conn.execute(
+            "INSERT OR REPLACE INTO settings (key, value) VALUES ('ai_agents', ?1)",
+            params![encoded],
+        )?;
+        break;
+    }
+    Ok(())
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use rusqlite::Connection;
+
+    #[test]
+    fn tunnel_write_back_preserves_unknown_fields() {
+        let conn = Connection::open_in_memory().unwrap();
+        conn.execute(
+            "CREATE TABLE settings (key TEXT PRIMARY KEY, value TEXT NOT NULL)",
+            [],
+        )
+        .unwrap();
+        // dsh 插件扩展字段 deployment + 既有 remote 并存
+        let raw = r#"[{"id":"a1","name":"A","command":"claude","args":"","historyArgs":"","workdir":"","timeoutSecs":60,"enabled":true,"deployment":"gpu-1","remote":{"host":"u@h","port":22,"keyPath":null,"tunnel":null,"persistent":false}}]"#;
+        conn.execute(
+            "INSERT INTO settings (key, value) VALUES ('ai_agents', ?1)",
+            params![raw],
+        )
+        .unwrap();
+        write_back_tunnel_port(&conn, "a1", 10022).unwrap();
+        let after: String = conn
+            .query_row(
+                "SELECT value FROM settings WHERE key='ai_agents'",
+                [],
+                |r| r.get(0),
+            )
+            .unwrap();
+        assert!(
+            after.contains(r#""deployment":"gpu-1""#),
+            "未知字段保留: {after}"
+        );
+        assert!(after.contains(r#""tunnel":10022"#), "隧道端口写回: {after}");
+        assert!(
+            after.contains(r#""host":"u@h""#),
+            "既有 remote 字段保留: {after}"
+        );
+    }
 
     #[test]
     fn shim_script_embeds_tunnel_and_absolute_pk() {

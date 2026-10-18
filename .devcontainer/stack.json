@@ -23,7 +23,7 @@
       "port": 8080
     },
     {
-      "name": "dsh-plugin",
+      "name": "pokemon-choose-you-dsh",
       "dir": "dsh-plugin",
       "stack": "node-pnpm",
       "lint_fix": "pnpm exec eslint --fix '{file}' && pnpm exec prettier --write '{file}'",

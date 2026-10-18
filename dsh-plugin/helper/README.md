@@ -1,4 +1,4 @@
-# dsh-plugin-helper —— 桌宠 Electron helper 子包
+# pokemon-choose-you-helper —— 桌宠 Electron helper 子包
 
 > specs/dsh-plugin AD §3.3（并行组 2）。sidecar Electron helper：透明置顶局部小窗（300×330，
 > **禁止全屏透明画布**——Windows DWM 视频合成黑屏坑位）+ stdio JSON 行桥 + 宿主存亡绑定。
@@ -23,7 +23,7 @@ Nintendo / Creatures Inc. / GAME FREAK inc.；PokeAPI 素材库依其仓库声�
 
 | 形态                      | 入口                                  | 说明                                                                        |
 | ------------------------- | ------------------------------------- | --------------------------------------------------------------------------- |
-| Electron 窗体（开发机）   | `pnpm --filter dsh-plugin-helper dev` | 本地 devDep electron 跑真窗体；参数 `--host-pid=<pid>` `--pos=<x>,<y>`      |
+| Electron 窗体（开发机）   | `pnpm --filter pokemon-choose-you-helper dev` | 本地 devDep electron 跑真窗体；参数 `--host-pid=<pid>` `--pos=<x>,<y>`      |
 | headless（CI/无显示环境） | `HELPER_HEADLESS=1 node src/main.ts`  | 跳过一切 BrowserWindow/Electron 创建，只跑桥/状态机（Node 24 原生执行 .ts） |
 | 生产（插件宿主 spawn）    | `dist/main.js`                        | Electron 运行时由插件侧探测下载 `~/.dsh/electron/`（本包不打包运行时）      |
 

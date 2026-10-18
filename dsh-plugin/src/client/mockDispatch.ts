@@ -53,7 +53,19 @@ export function dispatchCommands(ctx: MockContext): Pick<HostClient, "dispatchIn
       }
       const task = ctx.findTask(params.taskId)!;
       task.dispatchState = "running";
-      return { ok: true, data: view(params.taskId, "running", "2026-10-11T09:00:00+08:00", null, ctx) };
+      // 本机交互 = handoff（镜像真实 dsh 宿主：命令行回传复制执行——debt ③）
+      return {
+        ok: true,
+        data: {
+          ...view(params.taskId, "running", "2026-10-11T09:00:00+08:00", null, ctx),
+          handedOff: true,
+          line: "claude '处理这条待办（mock 派发命令行）'",
+          note: "dsh 宿主暂无插件可驱动的终端面板——请复制完整命令行到终端手动执行",
+          ...(ctx.state.dispatchHandoff.reason === undefined
+            ? {}
+            : { handoffReason: ctx.state.dispatchHandoff.reason }),
+        },
+      };
     },
     async dispatchHeadless(params) {
       ctx.record("dispatchHeadless", params);

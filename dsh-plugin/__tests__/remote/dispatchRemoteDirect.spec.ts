@@ -7,10 +7,11 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { dispatchHeadless } from "../../src/host/dispatch/headless";
-import { createFakeTerminal, dispatchInteractive } from "../../src/host/dispatch/interactive";
+import { dispatchInteractive } from "../../src/host/dispatch/interactive";
+import { createFakeTerminal } from "../../src/host/dispatch/terminalAdapters";
 import { remoteHeadlessDeps, remoteInteractiveParts, RemoteDispatchRejection } from "../../src/host/remote/sshExecutor";
 import { listDeployments } from "../../src/host/remote/deployments";
-import { setupDispatchRemoteFx, TARGET, WORKDIR } from "./dispatchRemoteFx";
+import { setupDispatchRemoteFx, ALIAS, WORKDIR } from "./dispatchRemoteFx";
 
 const fx = setupDispatchRemoteFx();
 
@@ -35,10 +36,10 @@ describe("降级链：degraded 直连 ssh", () => {
     expect(lines.length).toBeGreaterThanOrEqual(2); // 预检探测（… true）+ 派发执行
     expect(lines[0]).toContain("BatchMode=yes");
     expect(lines[0].trim().endsWith("true")).toBe(true); // 免密预检先行
-    expect(lines[1]).toContain("-p 22"); // target user@host:port 端口解析
+    expect(lines[1]).toContain(`-- ${ALIAS}`); // target = 部署 alias（OpenSSH 别名即连接目标，无端口后缀）
     expect(lines[1]).toContain(`cd /srv/app || exit 1; exec /usr/local/bin/node /usr/local/bin/claude`);
-    // 落账执行世界快照照常（remote_host = target）
-    expect(fx.lastSession(taskId)["remote_host"]).toBe(TARGET);
+    // 落账执行世界快照照常（remote_host = target = alias）
+    expect(fx.lastSession(taskId)["remote_host"]).toBe(ALIAS);
     expect(listDeployments(fx.db.conn)[depId]?.degraded).toBe(true);
   });
 });
@@ -51,7 +52,7 @@ describe("降级链：家族缺失拒绝与悬空路由", () => {
     const headlessDeps = remoteHeadlessDeps(fx.db.conn, fx.platform);
     await expect(dispatchHeadless(fx.db.conn, headlessDeps, taskId)).rejects.toMatchObject({
       tag: "SSH_FAMILY_MISSING",
-      message: expect.stringContaining("dsh-ssh 家族未装载"),
+      message: expect.stringContaining("SSH 组件未安装"),
     });
     expect(fx.state(taskId)).toBeNull();
     expect(fx.scope.commands).toHaveLength(0); // 零远端探测
@@ -66,7 +67,7 @@ describe("降级链：家族缺失拒绝与悬空路由", () => {
     );
     expect(outcome.terminal).toBe("copy-line");
     expect(outcome.note).toContain("复制完整命令行");
-    expect(outcome.note).toContain(TARGET);
+    expect(outcome.note).toContain(ALIAS);
     expect(outcome.note).toContain("claude");
     expect(fx.lastSession(taskId2)["session_id"]).toBeNull(); // 无 PTY 会话标识
   });

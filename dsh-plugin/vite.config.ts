@@ -24,7 +24,9 @@ export default defineConfig({
       // src/host/dsh/ 是 dsh 平台胶水层（hostEntry 接线/patch 面）——与 GUI 胶水同口径不进
       // 覆盖率门禁（lint/棘轮照常覆盖）；其纯逻辑映射件（toolSchema/rpcDispatch）有独立单测，
       // 真实加载面走 profile 安装冒烟验证（specs/dsh-plugin Phase A 验收口径）。
-      exclude: ["src/host/dsh/**"],
+      // broker/ 同 dsh/ 口径：子进程入口薄件（装配 + runtime guard），真机验证归
+      // dist 产物端到端（compatibility.md A3）与 profile 冒烟——不进覆盖率门禁。
+      exclude: ["src/host/dsh/**", "src/host/broker/**"],
       reporter: ["text", "html", "lcov", "json-summary"],
       // 阈值四维同值（quality_ratchet_check.py ② 覆盖率地板发现口径）；下调须先改棘轮基线
       thresholds: { lines: 85, branches: 85, functions: 85, statements: 85 },

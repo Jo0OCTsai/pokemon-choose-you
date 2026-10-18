@@ -598,13 +598,8 @@
   cursor: not-allowed;
 }
 
-/* 诊断 · 集成健康行（桌面 HealthCard .health-row 同构：点 + 名称 + 状态章 + 元信息伸缩 + 动作钮右置） */
-.healthItem {
-  margin-bottom: 10px;
-}
-.healthItem:last-of-type {
-  margin-bottom: 0;
-}
+/* 诊断 · 集成健康行（桌面 HealthCard .health-row 同构：点 + 名称 + 状态章 + 元信息伸缩 + 动作钮右置）。
+ * 行距 = 卡 gap 10px（与标题→首行同距；不再自带 margin 叠加） */
 .healthRow {
   display: flex;
   align-items: center;
@@ -847,12 +842,6 @@
   font-size: 12px;
   color: var(--dsw-alias-label-secondary, #57606a);
 }
-.dualFormTip {
-  margin: 0;
-  font-size: 12px;
-  line-height: 1.8;
-  color: var(--dsw-alias-label-secondary, #57606a);
-}
 
 /* ---- AX 授权引导块（U26：输入响应卡的授权门槛伴随态） ---- */
 .axPermHint {
@@ -930,24 +919,8 @@
   font-size: 12px;
   color: var(--dsw-alias-label-secondary, #57606a);
 }
-.capGuide {
-  flex-basis: 100%;
-  font-size: 11px;
-  color: var(--dsw-alias-label-secondary, #57606a);
-}
-.capVersion {
-  margin: 8px 0 0;
-  font-size: 11px;
-  color: var(--dsw-alias-label-secondary, #57606a);
-  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-}
 .shortcutLine {
   margin: 0;
   font-size: 12px;
   color: var(--pcy-danger, #b3590f);
-}
-.sshLine {
-  margin: 4px 0 0;
-  font-size: 12px;
-  color: var(--dsw-alias-label-secondary, #57606a);
 }

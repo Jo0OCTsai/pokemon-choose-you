@@ -2,12 +2,12 @@
  * 部署 upsert（从 deployments.ts 拆出——棘轮 max-lines，等量迁移；deployments.ts
  * 为统一再出口，消费面不变）：新建/编辑两分支 + alias 唯一索引校验 + 路径不变式
  * （§4.5：nodePath/workdir 只存展开后 POSIX 绝对路径——显式拒 `~` 前缀与相对路径）
- * + 改名被路由引用时的级联/拒绝。
+ * + 改名被 agent 绑定引用时的级联/拒绝（执行世界单源）。
  */
 import { randomUUID } from "node:crypto";
 import { txImmediate, type Conn } from "../storage/db";
 import { notFound, paramError } from "../storage/errors";
-import { listRoutes } from "../dispatch/routes";
+import { loadAgents, storeAgents, type AgentConfig } from "../domain/settings";
 import { listDeployments, storeDeployments, type DeploymentEntity } from "./deployments";
 
 /** upsert 入参（AD §4.1：helperPath 不在编辑面——provision 步③ 落定；
@@ -18,7 +18,7 @@ export interface DeploymentUpsertInput {
   nodePath?: string;
   workdir?: string;
   note?: string;
-  /** alias 改名且被 dsh:dispatch_routes 引用时：true = 级联更新路由 ref */
+  /** alias 改名且被 agent 绑定（ai_agents.deployment）引用时：true = 级联更新绑定 */
   confirmAliasRefs?: boolean;
 }
 
@@ -43,15 +43,9 @@ function validateRemotePath(field: string, value: string, allowEmpty: boolean): 
   return v;
 }
 
-/** 引用了某 alias 的路由条目（改名级联/拒绝的判定面） */
-function routesReferencingAlias(conn: Conn, alias: string): Array<{ tag: string; ref: string; target: string }> {
-  const out: Array<{ tag: string; ref: string; target: string }> = [];
-  for (const [tag, route] of Object.entries(listRoutes(conn))) {
-    if (route.deployment?.ref === alias) {
-      out.push({ tag, ref: route.deployment.ref, target: route.deployment.target });
-    }
-  }
-  return out;
+/** 绑定了某 alias 的 agent 列表（改名级联/拒绝的判定面——执行世界单源） */
+function agentsBoundToAlias(conn: Conn, alias: string): AgentConfig[] {
+  return loadAgents(conn).filter((a) => a.deployment?.trim() === alias);
 }
 
 /** 是否发生实质字段变更（连接相关字段变动 → 需重跑开通向导） */
@@ -79,31 +73,28 @@ function newDeploymentEntity(alias: string, nodePath: string, workdir: string, n
   };
 }
 
-/** 改名被路由引用时的级联处理（未确认 → 拒绝并列出受影响路由；确认 → 同事务更新路由 ref） */
+/** 改名被 agent 绑定引用时的级联处理（未确认 → 拒绝并列出受影响 agent；确认 → 同事务更新绑定） */
 function applyAliasRename(conn: Conn, current: DeploymentEntity, alias: string, confirmAliasRefs: boolean): void {
   if (current.alias === alias) {
     return;
   }
-  const refs = routesReferencingAlias(conn, current.alias);
-  if (refs.length === 0) {
+  const bound = agentsBoundToAlias(conn, current.alias);
+  if (bound.length === 0) {
     return;
   }
   if (!confirmAliasRefs) {
     throw paramError(
-      `别名「${current.alias}」正被 ${refs.length} 条路由引用（${refs.map((r) => r.tag).join("、")}）；` +
-        "改名需携带 confirmAliasRefs:true 级联更新路由引用",
+      `别名「${current.alias}」正被 ${bound.length} 个 agent 绑定（${bound.map((a) => a.name || a.id).join("、")}）；` +
+        "改名需携带 confirmAliasRefs:true 级联更新 agent 绑定",
     );
   }
-  const routes = listRoutes(conn);
-  for (const ref of refs) {
-    const route = routes[ref.tag];
-    if (route?.deployment !== undefined) {
-      route.deployment = { ...route.deployment, ref: alias };
+  const agents = loadAgents(conn);
+  for (const agent of agents) {
+    if (agent.deployment?.trim() === current.alias) {
+      agent.deployment = alias;
     }
   }
-  conn
-    .prepare("INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)")
-    .run("dsh:dispatch_routes", JSON.stringify(routes));
+  storeAgents(conn, agents);
 }
 
 /** 编辑分支实体构造（实质变更 → 回落未就绪并清空开通产物；仅改 note 不触发回落） */
@@ -140,8 +131,8 @@ function editedDeploymentEntity(
  *   （provision/helperPath/helperHash/degraded——编辑后需重跑向导，目标世界已变）；
  *   仅改 note 不触发回落；
  * - alias 唯一（重复拒）；nodePath/workdir 拒 `~` 前缀与相对路径（路径不变式）；
- * - alias 改名且被 dsh:dispatch_routes 引用 → 须携带 confirmAliasRefs:true 级联更新
- *   路由 ref（与部署键同一条 BEGIN IMMEDIATE 收口），否则拒绝并列出受影响路由。
+ * - alias 改名且被 agent 绑定（ai_agents.deployment）引用 → 须携带 confirmAliasRefs:true
+ *   级联更新绑定（与部署键同一条 BEGIN IMMEDIATE 收口），否则拒绝并列出受影响 agent。
  */
 export function deploymentUpsert(conn: Conn, input: DeploymentUpsertInput): { deployment: DeploymentEntity } {
   const alias = input.alias.trim();

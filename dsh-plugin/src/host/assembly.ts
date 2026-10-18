@@ -22,7 +22,9 @@ import {
 } from "./commands";
 import { type AutoDispatchLoop, type TimerApi as AutoTimer } from "./dispatch/autoDispatch";
 import type { HeadlessDeps } from "./dispatch/headless";
-import { createFakeTerminal, type TerminalAdapter } from "./dispatch/interactive";
+import { createFakeTerminal } from "./dispatch/terminalAdapters";
+import type { TerminalAdapter } from "./dispatch/interactive";
+import type { TerminalLineInjector } from "./commands/context";
 import { cliJudgeExecutor, type JudgeExecutor } from "./judge/adapters";
 import { primaryAgent } from "./domain/settings";
 import { StateFeed, type FeedTimerApi } from "./pet/stateFeed";
@@ -36,8 +38,9 @@ import type { ReminderLoop } from "./reminder/loop";
 import { ReminderDelivery } from "./reminder/deliver";
 import type { DailyBackupOutcome } from "./domain/backup-loop";
 
-/** 判定执行方工厂缺省实现：主 agent（收音机分类指定/首个启用）CLI 形态 */
-function defaultJudgeExecutor(conn: Conn): JudgeExecutor | null {
+/** 判定执行方工厂缺省实现：主 agent（收音机分类指定/首个启用）CLI 形态
+ * （导出面 = dsh 适配层 volatile 活读的 cli 分支单源，hostEntry 消费） */
+export function defaultJudgeExecutor(conn: Conn): JudgeExecutor | null {
   const agent = primaryAgent(conn);
   return agent === null ? null : cliJudgeExecutor({ conn, agent });
 }
@@ -62,8 +65,10 @@ export interface PluginDeps {
   newExecutor?: (conn: Conn) => JudgeExecutor | null;
   /** 无头派发依赖（执行器/worktree/ssh 预检——dsh 适配层注入） */
   dispatchDeps?: HeadlessDeps;
-  /** 交互派发终端适配器（dsh terminal 表面；缺省 = fake 终端占位） */
+  /** 交互派发终端适配器（dsh terminal 表面；缺省 = fake 终端占位——真实宿主注入外部终端/handoff） */
   terminal?: TerminalAdapter;
+  /** 终端行注入面（回放本机分支/lark 登录；dsh 适配层注入外部终端行注入件） */
+  terminalLine?: TerminalLineInjector;
   /** 支持报告元信息 */
   meta?: { pluginVersion?: string; dshVersion?: string | null };
   /** lark-cli 可执行存在性（diagnosticsSnapshot 的 feishuConfigured 位；缺省 true） */
@@ -133,6 +138,7 @@ function buildCommandDeps(args: {
     larkBin: deps.larkBin ?? "lark-cli",
     newExecutor: () => args.newExecutor(conn),
     terminal: deps.terminal ?? createFakeTerminal(),
+    ...(deps.terminalLine === undefined ? {} : { terminalLine: deps.terminalLine }),
     pet: petFaceOf(args.supervisor),
     onWrites: () => args.stateFeed.notifyLocalWrite(),
     openPage: args.openPage,

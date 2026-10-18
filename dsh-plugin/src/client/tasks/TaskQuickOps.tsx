@@ -2,7 +2,7 @@
  * 卡内操作行（桌面 TaskCard .ops 同构，内联不折叠进菜单）：出发/暂停随状态、
  * 📅 改期（草丛卡）、✎ 编辑、✔ 完成、🚪 逃走、✕ 放生（两层确认弹层承接）；
  * 已捕捉/已逃走卡 = 状态标 + ↩撤销（taskUpdate 回 scheduled）。日期选择走
- * 改期弹窗（DateTimePicker 弹层 + 保存/取消——桌面 sched-card 同构，零键入）。
+ * 改期弹窗（DateTimePicker 弹层 + 保存/取消贴选择器右侧——桌面 sched-card 同构，零键入）。
  */
 import { useState } from "react";
 import type { Task } from "../../host/domain/tasks";
@@ -145,7 +145,8 @@ export function TaskQuickOps({
   );
 }
 
-/** 改期弹窗（桌面 TaskTab sched-card 同构：日期时间 + 保存/取消；清空 = 回草丛） */
+/** 改期弹窗（桌面 TaskTab sched-card 同构）：日期时间与保存/取消同行、按钮贴选择器
+ *  右侧（桌面 sched-row 同构，日历弹层向下悬浮不占布局）；清空 = 回草丛 */
 function ScheduleModal({
   task,
   readonly,
@@ -161,23 +162,25 @@ function ScheduleModal({
   const client = useClient();
   const [due, setDue] = useState(task.dueAt === null ? "" : task.dueAt.slice(0, 16));
   return (
-    <Modal
-      title={`📅 ${t("dsh.task.reschedule")}`}
-      ariaLabel={t("dsh.task.reschedule")}
-      actions={[
-        {
-          label: t("save2"),
-          variant: "primary",
-          disabled: readonly,
-          onChoose: () => {
-            void client.taskReschedule({ taskId: task.id, due }).then(() => onChanged());
-          },
-        },
-        { label: t("cancel"), onChoose: onClose },
-      ]}
-      onClose={onClose}
-    >
-      <DateTimePicker value={due} onChange={setDue} ariaLabel={t("edit.due")} />
+    <Modal title={`📅 ${t("dsh.task.reschedule")}`} ariaLabel={t("dsh.task.reschedule")} onClose={onClose}>
+      <div className={styles.schedRow}>
+        <DateTimePicker value={due} onChange={setDue} ariaLabel={t("edit.due")} className={styles.schedPicker} />
+        <div className={styles.schedBtns}>
+          <button
+            type="button"
+            className={ui.buttonPrimary}
+            disabled={readonly}
+            onClick={() => {
+              void client.taskReschedule({ taskId: task.id, due }).then(() => onChanged());
+            }}
+          >
+            {t("save2")}
+          </button>
+          <button type="button" className={ui.button} onClick={onClose}>
+            {t("cancel")}
+          </button>
+        </div>
+      </div>
     </Modal>
   );
 }

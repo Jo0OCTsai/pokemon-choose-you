@@ -187,10 +187,10 @@
 .segmentBody {
   min-height: 200px;
 }
-/* 收音机/背包段填充窗口剩余高度（--pcy-remaining 由 PluginDetailPage 按段体顶缘实测写入）：
- * 整页不出滚动条——段内滚动位各自治内滚（收音机 = 列表/详情；背包 = 分区页内容），
- * 页头/选单常驻可视。
- * 收音机列表/详情伸缩口径经自定义属性下传（radio.module.css 消费：--list-cap/--list-floor/--detail-floor） */
+/* 收音机/日志/背包段填充窗口剩余高度（--pcy-remaining 由 PluginDetailPage 按段体顶缘实测写入）：
+ * 整页不出滚动条——段内滚动位各自治内滚（收音机 = 列表/详情；日志 = 会话记录列表，
+ * 分页器常驻；背包 = 分区页内容），页头/选单常驻可视。
+ * 收音机/日志列表伸缩口径经自定义属性下传（radio.module.css / tasks.module.css 消费：--list-cap/--list-floor/--detail-floor） */
 .segmentFill {
   height: var(--pcy-remaining, auto);
   min-height: 260px;

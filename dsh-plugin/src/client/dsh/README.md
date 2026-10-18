@@ -8,19 +8,30 @@
 
 - `clientEntry.tsx` —— 客户端入口（浏览器 Loader 经 `window.__ModuleLoader__.load` 挂载
   dist/client.js，消费 `inject`/`apply`）：`ctx.connection.rpc` → transport →
-  `createHostClient` → 四 slot 注册——`plugins.detail.section`（list/root，subject 指向
-  本包 `pkg.name === "dsh-plugin"` 才渲染 PluginDetailPage，他包 null 零占位）、
-  `conversation.session.header.actions`（list/session，ConversationChip；选 actions 而非
-  single 容器位 `conversation.header`——多插件共存不冲突）、`sidebar.panellist`（list/root，
-  侧边栏一级入口）与 `main`（keyed/root，主区全局面板）。chip 点击经
-  `ctx.layout.selectPanel` 客户端闭环直达面板；`slots.inject` 自带纤维回收。
+  `createHostClient` → 三 slot 注册——`conversation.session.header.actions`（list/session，
+  ConversationChip；选 actions 而非 single 容器位 `conversation.header`——多插件共存不冲突）、
+  `sidebar.panellist`（list/root，侧边栏一级入口）与 `main`（keyed/root，主区全局面板）。
+  原 `plugins.detail.section` 槽已摘除（用户裁决：插件管理器详情页回归纯信息页——元数据
+  由宿主 readPluginMeta 读包清单 `locale/*.json`，图鉴机 UI 仅经侧边栏面板呈现）。chip
+  点击经 `ctx.layout.selectPanel` 客户端闭环直达面板；`slots.inject` 自带纤维回收。
+- `pluginConfig.tsx` —— 插件私有配置消费面（dsh Config 键 judgeExecutor/petAutoStart）：
+  `ctx.configForms`（ui-settings 设置域基础服务，随 dsh-base → dsh-settings 链装配，
+  `inject` 必需声明）按 host entry id（`pokemon-choose-you`）取 scope，`createPluginConfig`
+  工厂期箭头绑定方法 receiver（ConfigFormController 是 class，React 裸函数调用回调，
+  解绑即 this 丢失渲染崩——真机踩坑回归项）后经 `PluginConfigProvider` Context 随主面板
+  注入。读 = describe 镜像快照，写 = set() 排队 → remote.settings → 宿主 configEditor 落
+  profile patch（cordis.patch.yml；volatile 强校验 + revision CAS + Loader 热应用）——
+  与手写 patch 同层同效。**背包为唯一编辑面**（用户裁决 2026-10-18：原
+  plugins.bundle.config 详情页配置区已撤——详情页纯信息页；消费行 =
+  `src/client/settings/PluginConfigRows.tsx`：JudgeRunnerRow 平铺选择器
+  （内置通道/不指定/agents——选 agent 即时双写 judgeExecutor=cli + ai_agent_id 共享键）+
+  PetAutoStartRow 开关）。
 - `sidebarPanel.tsx` —— 侧边栏一级入口 + 主区面板（`sidebar.panellist` + `main` keyed
   槽，id/key 同源 `PANEL_ID = "pokemon-choose-you"`、order 20 排内置插件 0 / 自动化任务
   10 之后）：图标组件（装饰性精灵球 SVG，无障碍标签归侧边栏行壳）、locale-aware 标签
   （宿主 locale 快照映射三语 `dsh.page.title`）、主面板壳（darwin 顶部
   `--dsh-frame-top-clearance` 避让红绿灯带 + 整页自滚动，`mainPanel.module.css`）、
-  `createPanelOpener`（chip 点击导航）与 `createPanelRoot`（detail section / 主面板共用
-  的数据快照根）。
+  `createPanelOpener`（chip 点击导航）与 `createPanelRoot`（主面板的数据快照根）。
 - `transport.ts` —— DshRpcTransport（Typert Remote 迁移后形态，2026-10-13）：命令 →
   共享 `/api` 通道 Remote 端点 `pky/call`（args 按源码参数名键控 `{command, payload?}`，
   单源锚定 host 侧 remoteService.ts），双信封剥层——传输层 ConnectionRpcResult 的
@@ -46,8 +57,10 @@
   @app-i18n/@app-pokemon 经 tsconfig paths 解析后整体 bundle。
 - 单测：`__tests__/client/dsh-transport.spec.ts`（信封还原/归一/监听面）、
   `__tests__/client/dsh-panel-data.spec.ts`（组装/派生件）、
-  `__tests__/client/dsh-client-entry.spec.tsx`（四 slot 注册/subject 自判/侧边栏入口与
-  标签映射/主面板渲染/chip 导航与零占位——fake slots + mockHost 信封正向转换）。
+  `__tests__/client/dsh-client-entry.spec.tsx`（三 slot 注册/侧边栏入口与标签映射/
+  主面板渲染/chip 导航与零占位——fake slots + mockHost 信封正向转换）、
+  `__tests__/client/dsh-plugin-config.spec.tsx`（receiver 绑定回归（class fake scope）/
+  平铺判定行双写与降级/桌宠开关即时写）。
 - client 代码不进覆盖率门禁（vite.config include 只扫 src/host），进 lint/棘轮。
 - 真实加载走 pky-test profile 冒烟（`dsh --profile pky-test --no-open --port <p>` 后
   浏览器验证——侧边栏入口出现 + 主面板七段渲染；注意 profile 的 node_modules 若是

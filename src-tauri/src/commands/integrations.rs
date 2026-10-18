@@ -24,6 +24,10 @@ pub(crate) enum TerminalPref {
     ITerm2,
     /// Ghostty（macOS 经 `open -na`、Linux 直启，-e 执行命令行）
     Ghostty,
+    /// kitty（macOS 双形态：remote control socket 在场 → 复用最近活跃窗口开 tab，缺席
+    /// → `open -na` 自举带 socket 的新实例——与 dsh 插件 externalTerminal.ts 同构；
+    /// Linux 直启新窗口）
+    Kitty,
     /// Windows Terminal（wt.exe，仅 Windows）
     WindowsTerminal,
 }
@@ -34,6 +38,7 @@ impl TerminalPref {
         match v.unwrap_or_default() {
             "iterm2" => Self::ITerm2,
             "ghostty" => Self::Ghostty,
+            "kitty" => Self::Kitty,
             "windows-terminal" => Self::WindowsTerminal,
             _ => Self::Builtin,
         }
@@ -304,6 +309,7 @@ pub(crate) async fn spawn_line_in_terminal(
     match pref {
         TerminalPref::ITerm2 => spawn_iterm2(line).await,
         TerminalPref::Ghostty => spawn_ghostty(line).await,
+        TerminalPref::Kitty => spawn_kitty(line).await,
         // 跨平台错配（如库迁移）显式报错而不是静默回落：用户选的终端没被尊重应当可感知
         TerminalPref::WindowsTerminal => Err(AppError::Invalid(
             "终端偏好 Windows Terminal 仅 Windows 可用，请在设置里改回".into(),
@@ -314,15 +320,18 @@ pub(crate) async fn spawn_line_in_terminal(
     #[cfg(target_os = "windows")]
     match pref {
         TerminalPref::WindowsTerminal => spawn_windows_terminal(line).await,
-        TerminalPref::ITerm2 | TerminalPref::Ghostty => Err(AppError::Invalid(
-            "终端偏好 iTerm2 / Ghostty 仅 macOS / Linux 可用，请在设置里改回".into(),
-        )),
+        TerminalPref::ITerm2 | TerminalPref::Ghostty | TerminalPref::Kitty => {
+            Err(AppError::Invalid(
+                "终端偏好 iTerm2 / Ghostty / kitty 仅 macOS / Linux 可用，请在设置里改回".into(),
+            ))
+        }
         TerminalPref::Builtin => spawn_powershell_window(line).await,
     }
 
     #[cfg(all(unix, not(target_os = "macos")))]
     match pref {
         TerminalPref::Ghostty => spawn_ghostty(line).await,
+        TerminalPref::Kitty => spawn_kitty(line).await,
         TerminalPref::ITerm2 | TerminalPref::WindowsTerminal => Err(AppError::Invalid(
             "终端偏好 iTerm2 / Windows Terminal 仅 macOS / Windows 可用，请在设置里改回".into(),
         )),
@@ -425,6 +434,102 @@ async fn spawn_ghostty(line: &str) -> AppResult<&'static str> {
         "打开 Ghostty 失败（未安装？）：{}（命令行：{line}）",
         String::from_utf8_lossy(&out.stderr).trim()
     )))
+}
+
+/// kitty remote control socket 约定路径（与 dsh 插件 externalTerminal.ts 同一常量，
+/// 两形态共用）
+#[cfg(target_os = "macos")]
+const KITTY_SOCKET_ADDR: &str = "unix:/tmp/kitty.sock";
+#[cfg(target_os = "macos")]
+const KITTY_SOCKET_PATH: &str = "/tmp/kitty.sock";
+
+/// macOS kitty 双形态（与 dsh 插件 externalTerminal.ts 同构）：socket 在场 →
+/// `kitten @ launch --type=tab` 复用最近活跃窗口开 tab（返回 "kitty@tab"）；缺席或
+/// tab 失败 → `open -na` 自举带 socket 的新实例（--listen-on/--override 经启动旗标
+/// 传递——listen socket 只认启动旗标，kitty.conf 的 listen_on 解析但不建 socket
+/// （0.49.2 实证），自举不依赖用户配置，后续唤起经 socket 全走 tab）。tab 失败先清
+/// 陈旧 socket 再自举（残档不清自举 bind 必失败）。argv 构造抽为纯函数供单测。
+#[cfg(target_os = "macos")]
+async fn spawn_kitty(line: &str) -> AppResult<&'static str> {
+    if std::path::Path::new(KITTY_SOCKET_PATH).exists() {
+        let out = tokio::process::Command::new(kitten_bin())
+            .args(kitty_tab_argv(line))
+            .output()
+            .await
+            .map_err(|e| AppError::External(format!("无法执行 kitten: {e}")))?;
+        if out.status.success() {
+            return Ok("kitty@tab");
+        }
+        // 陈旧 socket（实例已亡）：尽力清理后自举
+        let _ = std::fs::remove_file(KITTY_SOCKET_PATH);
+    }
+    let out = tokio::process::Command::new("open")
+        .args(kitty_bootstrap_argv(line))
+        .output()
+        .await
+        .map_err(|e| AppError::External(format!("打开 kitty 失败: {e}")))?;
+    if out.status.success() {
+        return Ok("kitty");
+    }
+    Err(AppError::External(format!(
+        "打开 kitty 失败（未安装？）：{}（命令行：{line}）",
+        String::from_utf8_lossy(&out.stderr).trim()
+    )))
+}
+
+/// kitten 二进制（随 kitty.app 分发，不在 PATH——两处装载位探测，皆缺用
+/// /Applications 缺省位让 spawn 报错带可读上下文）
+#[cfg(target_os = "macos")]
+fn kitten_bin() -> String {
+    let default = "/Applications/kitty.app/Contents/MacOS/kitten";
+    let home = dirs::home_dir()
+        .map(|h| {
+            format!(
+                "{}/Applications/kitty.app/Contents/MacOS/kitten",
+                h.display()
+            )
+        })
+        .unwrap_or_default();
+    [default.to_string(), home]
+        .into_iter()
+        .find(|p| std::path::Path::new(p).exists())
+        .unwrap_or_else(|| default.to_string())
+}
+
+/// tab 形态 argv（kitten 子命令——首参起；命令行经 bash -lc 带用户 PATH）
+#[cfg(target_os = "macos")]
+fn kitty_tab_argv(line: &str) -> Vec<String> {
+    [
+        "@",
+        "--to",
+        KITTY_SOCKET_ADDR,
+        "launch",
+        "--type=tab",
+        "bash",
+        "-lc",
+        line,
+    ]
+    .into_iter()
+    .map(String::from)
+    .collect()
+}
+
+/// 自举形态 argv（open 旗标起——新实例带 listen socket + socket-only 远程控制权限）
+#[cfg(target_os = "macos")]
+fn kitty_bootstrap_argv(line: &str) -> Vec<String> {
+    [
+        "-na",
+        "kitty",
+        "--args",
+        &format!("--listen-on={KITTY_SOCKET_ADDR}"),
+        "--override=allow_remote_control=socket-only",
+        "bash",
+        "-lc",
+        line,
+    ]
+    .into_iter()
+    .map(String::from)
+    .collect()
 }
 
 /// Windows 内置 PowerShell（PS 5.1 随系统自带）：`start` 开新窗口跑
@@ -573,6 +678,23 @@ async fn spawn_ghostty(line: &str) -> AppResult<&'static str> {
             }
         })?;
     Ok("Ghostty")
+}
+
+/// Linux kitty：直启新窗口（remote control 双形态是 macOS 专属；builtin 候选链里
+/// kitty 本就在列，此处是显式偏好路径）。spawn 不等退出，理由同 spawn_ghostty
+#[cfg(all(unix, not(target_os = "macos")))]
+async fn spawn_kitty(line: &str) -> AppResult<&'static str> {
+    tokio::process::Command::new("kitty")
+        .args(["bash", "-lc", line])
+        .spawn()
+        .map_err(|e| {
+            if e.kind() == std::io::ErrorKind::NotFound {
+                AppError::External("未找到 kitty，请安装或把终端偏好切回「系统内置」".into())
+            } else {
+                AppError::External(format!("无法打开 kitty: {e}"))
+            }
+        })?;
+    Ok("kitty")
 }
 
 /// POSIX 风格的 shell 引用：含特殊字符时包单引号，内部单引号转义。
@@ -1284,7 +1406,7 @@ mod tests {
 
     #[test]
     fn terminal_pref_parses_setting_values() {
-        use TerminalPref::{Builtin, Ghostty, ITerm2, WindowsTerminal};
+        use TerminalPref::{Builtin, Ghostty, ITerm2, Kitty, WindowsTerminal};
         // 未设置 / 空串 / 缺省值 / 未知值一律回落内置（旧库无此键是常态）
         assert_eq!(TerminalPref::from_setting(None), Builtin);
         assert_eq!(TerminalPref::from_setting(Some("")), Builtin);
@@ -1292,10 +1414,32 @@ mod tests {
         assert_eq!(TerminalPref::from_setting(Some("bogus")), Builtin);
         assert_eq!(TerminalPref::from_setting(Some("iterm2")), ITerm2);
         assert_eq!(TerminalPref::from_setting(Some("ghostty")), Ghostty);
+        assert_eq!(TerminalPref::from_setting(Some("kitty")), Kitty);
         assert_eq!(
             TerminalPref::from_setting(Some("windows-terminal")),
             WindowsTerminal
         );
+    }
+
+    /// kitty 双形态 argv：tab = kitten @ launch --type=tab（socket 约定与 dsh 插件
+    /// externalTerminal.ts 同源），自举 = open -na 带 --listen-on/--override 启动旗标
+    /// （listen socket 只认旗标，kitty.conf 的 listen_on 不生效——0.49.2 实证）
+    #[test]
+    #[cfg(target_os = "macos")]
+    fn kitty_argv_shapes() {
+        let tab = kitty_tab_argv("claude --resume s1");
+        assert_eq!(tab[0], "@", "kitten 子命令形态（首参起）");
+        assert_eq!(tab[2], "unix:/tmp/kitty.sock");
+        assert_eq!(tab[4], "--type=tab");
+        assert_eq!(tab[6], "-lc");
+        assert_eq!(tab.last().unwrap(), "claude --resume s1");
+
+        let boot = kitty_bootstrap_argv("claude --resume s1");
+        assert_eq!(boot[0], "-na", "open 旗标形态");
+        assert_eq!(boot[1], "kitty");
+        assert_eq!(boot[3], "--listen-on=unix:/tmp/kitty.sock");
+        assert_eq!(boot[4], "--override=allow_remote_control=socket-only");
+        assert_eq!(boot.last().unwrap(), "claude --resume s1");
     }
 
     #[test]

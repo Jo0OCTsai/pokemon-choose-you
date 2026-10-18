@@ -91,6 +91,10 @@
   line-height: 1.6;
   color: var(--dsw-alias-label-secondary, #57606a);
 }
+/* 无底部动作区（actions 缺省、调用方自排）时去掉与动作区的预留间距 */
+.dialogBody[data-flush="true"] {
+  margin-bottom: 0;
+}
 .dialogActions {
   display: flex;
   gap: 8px;
@@ -424,19 +428,6 @@
 }
 .statusDot[data-level="fail"] {
   background: var(--pcy-fail, #b3590f);
-}
-
-/* ---- 作用域 badge（作用于主应用×，U20） ---- */
-.scopeBadge {
-  display: inline-block;
-  margin-left: 8px;
-  padding: 1px 8px;
-  border-radius: 999px;
-  border: 1px solid var(--dsw-alias-border-l2, #d0d7de);
-  background: var(--dsw-alias-bg-layer-1, #f2f4f7);
-  color: var(--dsw-alias-label-secondary, #57606a);
-  font-size: 11px;
-  white-space: nowrap;
 }
 
 /* ---- 撤销 toast（右下角，role=status，不抢焦点） ---- */

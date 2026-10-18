@@ -1,9 +1,11 @@
 /**
  * host 命令装配（AD §4.1.1 既有 69 + full-parity AD §4.1 新增 16 条 + 联调对齐
- * macAuthPaneOpen 1 条，共 86 条目）：实体读域 5 条为 Phase B 契约缺口补齐 + 任务
+ * macAuthPaneOpen 1 条 + 部署表单别名数据源 sshAliasList 1 条，共 87 条目）：实体读域 5 条为
+ * Phase B 契约缺口补齐 + 任务
  * 编辑/跟进/历史 4 条 + 备份/导出域（full-parity 扩导入恢复与导出目录）7 条 + 复盘向导
  * 标签体检 3 条 + agent 工具面 3 条（连接探针 / pk 技能检查与安装）+ 桌宠显隐状态 1 条 +
- * 远程部署/开通向导 8 条 + 会话分页回放 2 条 + 图鉴连胜 1 条 + lark 一键登录 1 条 +
+ * 远程部署/开通向导 9 条（部署族 7 + D31 降级确认 1 + sshAliasList）+ 会话分页回放 2 条 +
+ * 图鉴连胜 1 条 + lark 一键登录 1 条 +
  * AX 授权 2 条（macAuthorizationStatus + macAuthPaneOpen——纪要 §1 联调对齐）。
  * （面板手动新建 taskCreate 已移除——2026-10-17 用户裁决「完全不需要」，FR-C1 回流。）
  * 分域实现表见 commands/ 目录；本文件装配统一调用面（ok/fail 信封）+ pageOpen 推送出口 +
@@ -104,7 +106,7 @@ export const HOST_COMMAND_NAMES = [
   "backupRun",
   "backupList",
   "exportRun",
-  // ---- full-parity 增量（AD §4.1 · 69→85 + macAuthPaneOpen 联调对齐 = 86；taskCreate 已移除） ----
+  // ---- full-parity 增量（AD §4.1 · 69→85 + macAuthPaneOpen 联调对齐 1 + sshAliasList 表单数据源 1 = 87；taskCreate 已移除） ----
   // 会话（FR-C2 分页 + 回放）
   "sessionsPage",
   "sessionReplay",
@@ -116,6 +118,7 @@ export const HOST_COMMAND_NAMES = [
   "provisionRun",
   "provisionStatus",
   "deploymentDegradeConfirm",
+  "sshAliasList",
   // 导入/恢复/导出目录（FR-A5/A6 · D25 前置备份）
   "importValidate",
   "importRun",

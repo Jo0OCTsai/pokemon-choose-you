@@ -1,7 +1,8 @@
 /**
  * 任务详情抽屉（桌面 TaskDetailDrawer 同构）：属性总览 kv 栅格（分类/优先级/状态/截止/
- * 提醒/标签/来源/专注/创建/完成——卡右上角「编辑」入口）+ 跟进记录（FollowupStream）+
- * Agent 派发（DispatchOps）+ Agent 执行时间线（DispatchTimeline）+ 操作历史段；
+ * 提醒/标签/来源/专注/创建/完成——卡右上角「编辑」入口）+ 备注块（.summaryNote，桌面
+ * .d-note 同构）+ 跟进记录（FollowupStream）+ Agent 派发（DispatchOps）+ Agent 执行
+ * 时间线（DispatchTimeline）+ 操作历史段；总览后各段顶部虚线分隔（桌面 .notes 同构）；
  * focus trap + Esc 关闭 + 焦点回归。放生走卡片 ✕（桌面同位），抽屉不设危险区。
  * 跟进流与该任务的 agent 时间线经 taskDetail 懒载（实体读域按需命令）——拉回后以
  * overlay PanelData 下传，FollowupStream/DispatchTimeline 契约不变；旧 host 无此
@@ -74,6 +75,11 @@ export function TaskDetailDrawer({
             readonly={readonly}
             onEdit={() => setEditing(true)}
           />
+          {task.note !== null && task.note !== "" && (
+            <p className={styles.summaryNote} data-testid="task-note">
+              {task.note}
+            </p>
+          )}
           <FollowupStream data={overlay} taskId={task.id} onRefresh={reloadDetail} readonly={readonly} />
           <DispatchOps task={task} data={data} readonly={readonly} onChanged={onChanged} />
           <DispatchTimeline data={overlay} taskId={task.id} />
@@ -172,7 +178,7 @@ function HistorySection({ logs }: { logs: TaskLog[] }): React.JSX.Element {
     return field === "status" ? tx(`status.${value}`, value) : value;
   };
   return (
-    <div data-testid="task-history">
+    <div className={styles.drawerSection} data-testid="task-history">
       <h4 className={styles.drawerSectionTitle}>{t("edit.history")}</h4>
       {logs.length === 0 ? (
         <div className={styles.followupEmpty}>{t("edit.noHistory")}</div>

@@ -127,6 +127,21 @@ export function makeData(overrides: Partial<PanelData> = {}): PanelData {
 
 // ---- full-parity 夹具（specs/dsh-plugin-full-parity 组件测试） ----
 import type { DeploymentEntity, SessionRow } from "../../src/client/rpc";
+import type { AgentConfig } from "../../src/host/domain/settings";
+
+/** agent 配置夹具（settings 系 spec 共用——2026-10-19 自 settings-agents-cas 提升共享） */
+export function makeAgent(overrides: Partial<AgentConfig> & { id: string }): AgentConfig {
+  return {
+    name: `Agent ${overrides.id}`,
+    command: "claude",
+    args: "-p {prompt}",
+    historyArgs: "",
+    workdir: "",
+    timeoutSecs: 120,
+    enabled: true,
+    ...overrides,
+  };
+}
 
 /** 部署实体夹具（缺省未就绪 + 凭据零存储字段形态） */
 export function makeDeployment(overrides: Partial<DeploymentEntity> & { id: string; alias: string }): DeploymentEntity {

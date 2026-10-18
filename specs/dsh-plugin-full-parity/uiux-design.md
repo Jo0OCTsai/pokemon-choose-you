@@ -338,9 +338,9 @@ PluginDetailPage（七分段不变）
 │   ├── FocusSection（提醒与勿扰组——badge 移除【U29】；控件不变）
 │   ├── FeishuSection（授权状态行：[授权登录] → 终端面板启动反馈【U28】）
 │   └── DiagnosticsSection（+）
-│       ├── HelperCapabilityMatrix（六能力 × 可用/降级 + 缺失指引行；运行时来源与版本）
+│       ├── HelperCapabilityMatrix（六能力 × 可用/降级 + 缺失指引行；运行时来源与版本）〔2026-10-17 用户裁决降噪：降级指引挂行名悬浮气泡、运行时版本/缺席指引挂卡标题气泡——说明文案不占常驻版面；更名 CapabilityMatrix〕
 │       ├── ShortcutStatusLine（全局快捷键注册状态——失败才显示）
-│       └── SshFamilyStatus（dsh-ssh 家族探测——就绪/缺失+装载指引）
+│       └── SshFamilyStatus（dsh-ssh 家族探测——就绪/缺失+装载指引）〔2026-10-17 用户裁决：先改就绪态不显（成功即透明），后按用户裁决并入 CapabilityMatrix 作第七行「远程派发（dsh-ssh）」——未装载 = 降级 + 行名气泡装载指引、未知不显行；独立行下线〕
 └── Modal：TaskEditModal（create 模式扩展【U22】：task 入参可选；缺省 分类=第一个启用/优先级=normal/状态=排期?scheduled:inbox；标题必填行内校验）〔已移除 2026-10-17 · 用户裁决「完全不需要」——恢复纯编辑模式〕
 ```
 
@@ -541,7 +541,7 @@ stateDiagram-v2
 | 建卡成功 | 列表即时呈现（无 toast） | —（新卡入列即为反馈） | —〔已移除·同上〕 |
 | 部署卡标题 | 背包·Agent 分区 | 远程部署 | Remote deployments |
 | 部署空态 | 部署卡 | 还没有远程部署。添加一台远端机器，把 agent 派去远方 | No remote deployments yet. Add a machine to send agents afar |
-| 部署表单 | DeployFormModal | OpenSSH 别名（凭据由别名承载，插件不存私钥）/ 远端 Node 路径 / 默认远端工作目录 / 备注 | OpenSSH alias (credentials stay with ssh; nothing stored here) / Remote Node path / Default remote workdir / Note |
+| 部署表单 | DeployFormModal | OpenSSH 别名 / 远端 Node 路径 / 默认远端工作目录 / 备注 | OpenSSH alias (credentials stay with ssh; nothing stored here) / Remote Node path / Default remote workdir / Note |
 | 部署表单校验 | DeployFormModal（行内，保存禁用） | 别名不能为空 / Node 路径不能为空 | Alias required / Node path required |
 | 部署编辑回落 | DeployFormModal 保存后（编辑模式） | 已保存。部署已回落为未就绪——路径变更后请重跑开通向导复核 | Saved. Deployment reset to not-ready — re-run the wizard to re-verify |
 | 部署状态徽章 | 部署行卡 | 就绪 / 就绪（直连） / 未就绪 / 断开 | Ready / Ready (direct) / Not ready / Disconnected |
@@ -588,7 +588,7 @@ stateDiagram-v2
 | 依赖缺失·agent CLI | 派发确认处（无可用 agent 时） | 没有可用的 agent CLI——安装后回到这里派发（指引：{安装说明}） | No usable agent CLI — install one, then dispatch from here (guide: {install}) |
 | 依赖缺失·pk | pk 消费面（技能安装等） | 未找到 pk CLI。技能安装与桌面侧判定依赖它（指引：{安装命令}） | pk CLI not found — skill install & desktop-side judging need it (guide: {command}) |
 | HelperBanner | 面板顶部 | 系统能力面降级：桌宠与系统通知暂不可用（helper 未运行）。核心待办不受影响 · 查看诊断 | System features degraded: pet & notifications unavailable (helper not running). Core todos unaffected · Diagnostics |
-| 诊断·能力矩阵 | 诊断分区 | 系统能力面：托盘 ● / 全局快捷键 ● / 通知 ● / 文件对话框 ● / 语音 ● / 输入计数 ●（●=可用 ○=降级；降级行附指引） | System features: tray / shortcuts / notifications / file dialogs / voice / input counting (each ok or degraded, with guidance) |
+| 诊断·能力矩阵 | 诊断分区 | 系统能力面：托盘 ● / 全局快捷键 ● / 通知 ● / 文件对话框 ● / 语音 ● / 输入计数 ●（●=可用 ○=降级；降级行附指引）〔2026-10-17 用户裁决降噪：降级指引挂行名悬浮气泡、运行时版本/缺席指引挂卡标题气泡——常驻版面只留能力名与状态；再裁决并入 dsh-ssh 第七行「远程派发（dsh-ssh）」——指引文案改桌宠助手口径〕 | System features: tray / shortcuts / notifications / file dialogs / voice / input counting (each ok or degraded, with guidance) |
 | 诊断·快捷键 | 诊断分区 | 全局快捷键注册失败（可能被占用）——面板聚焦时 ⌘⇧K 仍可快捕 | Global shortcut registration failed (possibly taken) — ⌘⇧K still works while the panel is focused |
 | 诊断·SSH 家族 | 诊断分区 | dsh-ssh 家族：未装载——远程派发需要它（装载指引：{命令}） | dsh-ssh family: not loaded — remote dispatch needs it (guide: {command}) |
 | 托盘菜单 | 系统托盘 | 打开图鉴机 / 隐藏桌宠（隐藏时：显示桌宠）/ 设置 / 退出 · tooltip：就决定是你了 | Open Pokédex / Hide pet (Show pet) / Settings / Quit · tooltip: I choose you! |
@@ -605,7 +605,7 @@ stateDiagram-v2
 | 桌宠对话失败 | ChatBox 气泡 | （{p}没听清，再说一次？） | ({p} didn't catch that — once more?) |
 | 坐栖台词 | 桌宠气泡 | {p}在桌沿坐下来了 | {p} settles on the desk edge |
 | 生日台词 | 桌宠气泡 | 今天是和{p}相遇的第 {n} 天！ | Day {n} with {p}! |
-| 双形态说明更新 | 背包·通用分区 | 双形态小贴士：dsh 与主应用共用同一份待办数据与设置——同一到期任务全系统只发一条通知（双形态自动让位）；郑重时刻的演出与语音只在完成动作的那一侧发生；提示词两处可编辑，同时改动会提示并刷新到最新。 | Two forms, one database & settings — one notification per due task system-wide (the other form yields); ceremonies & voice only on the side where you completed; prompts editable on both, with refresh prompts on conflicts. |
+| 双形态说明更新 | 背包·通用分区 | 双形态小贴士：dsh 与主应用共用同一份待办数据与设置——同一到期任务全系统只发一条通知（双形态自动让位）；郑重时刻的演出与语音只在完成动作的那一侧发生；提示词两处可编辑，同时改动会提示并刷新到最新。〔已移除 2026-10-17 · 用户裁决「移除双形态小贴士」——通用分区整卡下线，仲裁语义保留在 USER_GUIDE 双形态对照表〕 | Two forms, one database & settings — one notification per due task system-wide (the other form yields); ceremonies & voice only on the side where you completed; prompts editable on both, with refresh prompts on conflicts. |
 | 作用域 badge 更新（D33 修订） | 配置行尾 | 移除清单：提醒触达/番茄通知/输入响应/语音/陪跑/**每日备份 backup_\***（→ dsh 形态自执行——每日备份由 host backupLoop 承担，D33 推翻 U35）；保留：终端偏好（作用于主应用交互派发）/**关闭到托盘**（作用于主应用——dsh 无主窗口关闭行为，只翻 backup_*）【U29】 | Removals: reminders, pomodoro alerts, input response, voice, companion, **daily backup** (now native to dsh, D33); kept: terminal preference & close-to-tray (main-app only — dsh has no main window to close) |
 
 ## 9. UIUX 验收（Gherkin）

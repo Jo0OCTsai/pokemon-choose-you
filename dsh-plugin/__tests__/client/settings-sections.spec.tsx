@@ -130,7 +130,7 @@ describe("分区内容对齐主应用（U20）", () => {
     expect(dmRow.querySelector("button[aria-pressed]")).toBeNull();
   });
 
-  it("Agent 分区：判定执行方（分支 C 文案）+ 终端偏好 badge + agent 卡删除（修订检测面）", async () => {
+  it("Agent 分区：AI 判定方式行随 pluginConfig provider 在场（本 harness 无 provider → 行不渲染）+ 终端偏好（badge 已移除）+ agent 卡删除（修订检测面）", async () => {
     const data = makeData();
     data.agents = [
       {
@@ -148,9 +148,11 @@ describe("分区内容对齐主应用（U20）", () => {
     gotoSection("Agent");
     const page = getPage("agents");
     expect(within(page).getAllByText("Claude Code").length).toBeGreaterThan(0);
-    // 分支 C 文案（判定执行方说明）迁为「用于收音机分类」标签的 data-tip 气泡
-    expect(within(page).getByText("用于收音机分类").getAttribute("data-tip")).toContain("当前：消费主应用结果");
-    expect(within(page).getAllByText("作用于主应用交互派发").length).toBeGreaterThanOrEqual(1);
+    // 平铺判定行（JudgeRunnerRow）经 PluginConfigContext 注入——本 harness 不包 provider，
+    // 行不渲染（行为面见 dsh-plugin-config.spec.tsx）
+    expect(within(page).queryByText("AI 判定方式")).toBeNull();
+    // 终端偏好 badge 翻案移除：dsh desktop 外部终端唤起已读该偏好（不再纯主应用消费）
+    expect(within(page).queryAllByText("作用于主应用交互派发")).toHaveLength(0);
     fireEvent.click(within(page).getAllByText("删除")[0]);
     // 确认弹层的确认键与卡上删除同名——取弹层内最后一个
     fireEvent.click(screen.getAllByRole("button", { name: "删除" }).pop() as HTMLElement);
@@ -158,7 +160,7 @@ describe("分区内容对齐主应用（U20）", () => {
     expect(host.calls.map((c) => c.command)).toContain("agentDelete");
   });
 
-  it("诊断分区：两链路面板（状态点+文字非颜色冗余）+ 日志查看器 + 支持报告", async () => {
+  it("诊断分区：两链路面板（状态点+文字非颜色冗余）+ 日志查看器（支持报告按钮已移除——host RPC 保留）", async () => {
     const host = mockHost();
     host.state.diagnostics = [
       {
@@ -196,17 +198,18 @@ describe("分区内容对齐主应用（U20）", () => {
     expect(within(page).getByText("降级重试中")).toBeTruthy();
     expect(within(page).getByText(/待确认建议 2/)).toBeTruthy();
     expect(within(page).getByText("退避重试")).toBeTruthy();
-    fireEvent.click(within(page).getByText("复制支持报告"));
-    await vi.runAllTimersAsync();
-    expect(host.calls.map((c) => c.command)).toContain("supportReport");
+    // 支持报告按钮已移除（用户裁决：诊断页降噪）；supportReport host 命令仍在（RPC parity 面）
+    expect(within(page).queryByText("复制支持报告")).toBeNull();
   });
 
-  it("通用分区：仅关闭到托盘保留 badge（U29/D33——复盘/备份已移除）+ 库状态 + 使用指南", async () => {
+  it("通用分区：关闭到托盘整项不呈现（纯主应用行为项）+ 全部作用域 badge 清零 + 库状态 + 使用指南", async () => {
     const { host } = renderSettings();
     gotoSection("通用");
     const page = getPage("general");
-    expect(within(page).getAllByText("作用于主应用").length).toBe(1);
-    // 复盘/备份 badge 翻案（dsh 自执行——D24/D33）
+    // 关闭到托盘隐藏（dsh 无主窗口关闭行为——设置项不呈现、键不读写，值随主应用自管）
+    expect(within(page).queryByText("关闭主窗口时收到托盘")).toBeNull();
+    // 作用域 badge 全清（U29/D33 触达类 + 终端偏好翻案后，dsh 背包无「作用于主应用」类标注）
+    expect(within(page).queryAllByText("作用于主应用")).toHaveLength(0);
     expect(within(page).queryAllByText("作用于主应用触达")).toHaveLength(0);
     // 使用指南 = GitHub 文档外链（dsh 形态章节锚点，新窗口打开）
     const guide = within(page).getByTestId("guide-link");

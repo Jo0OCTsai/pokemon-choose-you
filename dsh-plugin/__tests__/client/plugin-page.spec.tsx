@@ -17,13 +17,16 @@ function renderPage(data = makeData(), host = mockHost()) {
 }
 
 describe("PluginDetailPage · 分段导航", () => {
-  it("七段齐全（冒险/草丛/路线/图鉴/收音机/日志/背包）且可切换", () => {
+  it("七段齐全（冒险/路线/草丛/图鉴/收音机/日志/背包——草丛在路线后）且可切换", () => {
     renderPage();
     const nav = screen.getByTestId("segment-nav");
     const labels = nav.textContent ?? "";
-    for (const name of ["冒险", "草丛", "路线", "图鉴", "收音机", "日志", "背包"]) {
+    for (const name of ["冒险", "路线", "草丛", "图鉴", "收音机", "日志", "背包"]) {
       expect(labels).toContain(name);
     }
+    // tab 顺序钉住：冒险 → 路线 → 草丛 → 图鉴 → 收音机 → 日志 → 背包
+    const order = Array.from(nav.querySelectorAll<HTMLElement>("[data-segment]")).map((el) => el.dataset.segment);
+    expect(order).toEqual(["adventure", "route", "grass", "dex", "radio", "logs", "settings"]);
     fireEvent.click(screen.getByText("草丛"));
     expect(screen.getByTestId("segment-grass")).toBeTruthy();
     fireEvent.click(screen.getByText("图鉴"));

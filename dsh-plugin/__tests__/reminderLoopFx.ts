@@ -14,11 +14,10 @@ import type { BridgeClient } from "../src/host/pet/bridge";
 export type Notified = { kind: string; title: string; body: string };
 export type DeliveryRig = { delivery: ReminderDelivery; notified: Notified[]; toasts: ReminderToastPayload[] };
 
-/** 正午基准时刻（提醒窗口的中点基准） */
+/** 正午基准时刻（提醒窗口的中点基准；固定日期锚定——真实日期会在「缺省 review_dow=周一」
+ *  与真实星期撞车时触发无关复盘提醒（周一时炸），确定性取周三） */
 function noonNow(): number {
-  const d = new Date();
-  d.setHours(12, 0, 0, 0);
-  return d.getTime();
+  return new Date(2026, 5, 10, 12, 0, 0, 0).getTime();
 }
 
 /** 直插带提醒任务行（naive-local 格式——桌面主形态） */

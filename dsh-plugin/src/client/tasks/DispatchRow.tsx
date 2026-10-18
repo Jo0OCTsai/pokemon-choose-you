@@ -1,6 +1,7 @@
 /**
- * 派发操作呈现件（DispatchOps 拆件，桌面抽屉 .dsp-row 同构）：状态徽章 / 手动收口行 /
- * 派发主体行（通道 + agent 改选下拉 + agent 徽章 + 工作目录 + ⚡派发钮）+ 派生文案 helper。
+ * 派发操作呈现件（DispatchOps 拆件，桌面抽屉同构）：状态徽章 / 选择行（通道 + agent
+ * 改选下拉 + agent 徽章 + 工作目录）/ 动作行（选择行下方留距：⚡派发 + 手动收口三钮）
+ * + 派生文案 helper。
  */
 import type { AgentConfig } from "../../host/domain/settings";
 import type { Task } from "../../host/domain/tasks";
@@ -23,7 +24,7 @@ export function StateBadge({ state }: { state: string | null }): React.JSX.Eleme
   );
 }
 
-/** 手动收口行（桌面 dsp-mark 同位）：queued/running 才出（agent 未回传时的救援） */
+/** 手动收口三钮（并入动作行，桌面 dsp-mark 同款）：queued/running 才出（agent 未回传时的救援） */
 export function MarkRow({
   state,
   readonly,
@@ -40,11 +41,11 @@ export function MarkRow({
     return null;
   }
   return (
-    <div className={styles.opsRow}>
+    <>
       <MarkButton label={t("dispatch.markDone")} state="done" {...{ readonly, busy, onMark }} />
       <MarkButton label={t("dispatch.markFailed")} state="failed" {...{ readonly, busy, onMark }} />
       <MarkButton label={t("dispatch.markReset")} state="reset" danger {...{ readonly, busy, onMark }} />
-    </div>
+    </>
   );
 }
 
@@ -75,8 +76,8 @@ function MarkButton({
   );
 }
 
-/** 派发主体：无项目标签/无 agent 给引导 hint；否则 = 通道 + agent + 目录 + ⚡派发行
- *  （派生文案/禁用态由 DispatchOps 预计算，本组件只做纯呈现） */
+/** 派发主体：无项目标签/无 agent 给引导 hint；否则 = 选择行（通道 + agent + 目录）+
+ *  动作行（⚡派发 + 手动收口三钮；派生文案/禁用态由 DispatchOps 预计算，本组件只做纯呈现） */
 export type Channel = "interactive" | "headless";
 
 export function DispatchBody(props: {
@@ -91,10 +92,23 @@ export function DispatchBody(props: {
   onChannel: (c: Channel) => void;
   onAgent: (id: string) => void;
   onDispatch: () => void;
+  onMark: (state: "done" | "failed" | "reset") => void;
 }): React.JSX.Element {
   const t = useT();
-  const { task, route, agents, channel, agentId, busy, dispatchState, readonly, onChannel, onAgent, onDispatch } =
-    props;
+  const {
+    task,
+    route,
+    agents,
+    channel,
+    agentId,
+    busy,
+    dispatchState,
+    readonly,
+    onChannel,
+    onAgent,
+    onDispatch,
+    onMark,
+  } = props;
   if (!hasProjectTag(task)) {
     return <p className={styles.drawerHint}>{t("dispatch.needTag")}</p>;
   }
@@ -120,7 +134,11 @@ export function DispatchBody(props: {
         <span className={styles.dspDir} title={t("dispatch.dir")}>
           📂 {workdirText(route, t)}
         </span>
+      </div>
+      {/* 动作行在选择行下方（留距）：⚡派发 + 手动收口（queued/running 救援） */}
+      <div className={styles.dispatchActions}>
         <GoButton {...{ readonly, busy, dispatchState, onDispatch }} />
+        <MarkRow state={dispatchState} readonly={readonly} busy={busy} onMark={onMark} />
       </div>
       {channel === "headless" && <p className={styles.drawerHint}>{t("dispatch.headlessHint")}</p>}
     </>
@@ -251,9 +269,7 @@ export function DispatchWorldNotes({
       )}
       {info.interactiveDegraded && <p className={styles.worldWarn}>⚠ {t("dsh.dispatch.degradeInteractive")}</p>}
       {info.nonPosix && <p className={styles.worldWarn}>⚠ {t("dsh.dispatch.degradeNonPosix")}</p>}
-      {info.occupancySessionId !== null && (
-        <p className={styles.worldWarn}>{t("dsh.dispatch.occupancy", { id: info.occupancySessionId })}</p>
-      )}
+      {info.occupancySessionId !== null && <p className={styles.worldWarn}>{t("dsh.dispatch.occupancy")}</p>}
     </div>
   );
 }

@@ -13,6 +13,8 @@ import { dimensionUpdate, tagDelete, tagUpsert } from "../domain/vocabulary-tags
 import { mergeTag, moveTagsToDimension, tagCheckup } from "../domain/tag-health";
 import { filterList, filterUpsert, type FilterState } from "../domain/vocabulary-filters";
 import { agentDelete, agentUpsert, type AgentConfig } from "../domain/settings";
+import { deploymentByAlias } from "../remote/deployments";
+import { paramError } from "../storage/errors";
 import { promptGet, promptList, promptOverride, promptReset } from "../domain/prompt-overrides";
 import { FEISHU } from "../health/snapshot";
 
@@ -81,7 +83,16 @@ function agentPromptCommands(): CommandTable {
   return {
     agentUpsert: (p, deps) => {
       const args = p as { agent: AgentConfig; expectedAgentIds?: string[]; force?: boolean };
-      const agents = agentUpsert(deps.conn, args.agent, { expectedAgentIds: args.expectedAgentIds, force: args.force });
+      // 部署绑定归一（空串 = 本机）+ 存在性校验（命令层跨域面——domain 不依赖 remote/）
+      const deployment = args.agent.deployment?.trim() || null;
+      if (deployment !== null && deploymentByAlias(deps.conn, deployment) === null) {
+        throw paramError(`部署「${deployment}」不存在，无法绑定 agent（先在设置的远程部署里添加）`);
+      }
+      const agents = agentUpsert(
+        deps.conn,
+        deployment === (args.agent.deployment ?? null) ? args.agent : { ...args.agent, deployment },
+        { expectedAgentIds: args.expectedAgentIds, force: args.force },
+      );
       deps.onWrites();
       return { agents };
     },

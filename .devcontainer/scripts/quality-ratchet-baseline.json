@@ -85,11 +85,11 @@
       "src/lib.rs:clippy::too_many_lines": 2,
       "src/scheduler.rs:clippy::too_many_lines": 2
     },
-    "dsh-plugin": {}
+    "pokemon-choose-you-dsh": {}
   },
   "coverage_floor": {
     "pokemon-choose-you": 65,
     "src-tauri": 85,
-    "dsh-plugin": 85
+    "pokemon-choose-you-dsh": 85
   }
 }

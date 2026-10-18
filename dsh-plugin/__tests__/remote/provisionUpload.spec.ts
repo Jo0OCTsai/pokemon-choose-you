@@ -98,7 +98,7 @@ describe("步③ upload：失败路径", () => {
     await provisionRun(fx.db.conn, id, makeDeps(scope)); // 步②
     const result = await provisionRun(fx.db.conn, id, makeDeps(scope));
     expect(result).toMatchObject({ ok: false, step: "upload", tag: "PROVISION_STEP_FAILED" });
-    expect(result.hint).toContain("npm registry");
+    expect(result.hint).toContain("npm");
     expect(listDeployments(fx.db.conn)[id].status).toBe("not_ready");
   });
 
@@ -118,8 +118,8 @@ describe("步③ upload：失败路径", () => {
     scope.program(/ install --prefix /, { code: 1, stderr: "network unreachable" });
     const result = await provisionRun(fx.db.conn, id, makeDeps(scope));
     expect(result).toMatchObject({ ok: false, step: "upload", tag: "PROVISION_STEP_FAILED" });
-    expect(result.message).toContain("npm 闭包安装失败");
-    expect(result.hint).toContain("npm registry");
+    expect(result.message).toContain("远端组件安装失败");
+    expect(result.hint).toContain("npm");
     expect(listDeployments(fx.db.conn)[id].status).toBe("not_ready");
   });
 
@@ -133,6 +133,6 @@ describe("步③ upload：失败路径", () => {
     };
     const result = await provisionRun(fx.db.conn, id, deps);
     expect(result).toMatchObject({ ok: false, step: "upload", tag: "PROVISION_STEP_FAILED" });
-    expect(result.message).toContain("制品读取失败");
+    expect(result.message).toContain("组件读取失败");
   });
 });

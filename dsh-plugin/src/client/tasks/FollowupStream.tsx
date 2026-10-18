@@ -81,7 +81,7 @@ function FollowupStream({
   }
 
   return (
-    <div data-testid="followup-stream">
+    <div className={styles.drawerSection} data-testid="followup-stream">
       <h4 className={styles.drawerSectionTitle}>{t("edit.followUps")}</h4>
       {notes.length === 0 ? (
         <div className={styles.followupEmpty}>{t("edit.noFollowUps")}</div>

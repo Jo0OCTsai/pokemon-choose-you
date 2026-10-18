@@ -5,13 +5,16 @@
  * - SessionPager：counts 汇总常显「共 N 条 · 第 p/总页 页」+ 上一页/下一页（翻页保留旧页
  *   不闪空——stale-while-revalidate）；每页条数 20/50/100（1–100 钳制在控件内）。
  * - 行内「回放」按钮（无 session_id 与 tmux 会话名的行不渲染）+ 执行世界徽章
- *   （本机 / 部署别名）；快照指向已移除部署 = 徽章删除线 + 回放中性提示。
+ *   （本机 / 部署别名）；已移除部署 = 回放时中性提示（host 侧判定）。本机回放
+ *   handoff（宿主无第三方终端面板）：命令行复制到剪贴板（不可用 → 手动复制提示），
+ *   命令行与工作目录常显可选中复制——零静默。
  */
 import { useEffect, useState } from "react";
 import { useClient } from "../clientContext";
 import { useT } from "../i18n";
-import { isErrorCode, type DeploymentListResult, type SessionGroup, type SessionRow } from "../rpc";
+import { isErrorCode, type SessionGroup, type SessionRow } from "../rpc";
 import { EmptyState } from "./TaskList";
+import { copyText, HandoffLine } from "./handoff";
 import styles from "./tasks.module.css";
 import ui from "../ui/ui.module.css";
 
@@ -20,17 +23,18 @@ const GROUPS: readonly SessionGroup[] = ["all", "radio", "dispatch", "other"];
 /** 每页条数档（limit 钳 1–100 默认 20——档位在控件内，杜绝越界值） */
 const LIMIT_OPTIONS = [20, 50, 100] as const;
 
-/** 回放可发起判定（session_id 或 tmux 会话名任一非空才有回放句柄） */
+/** 回放可发起判定（与 domain sessionReplayable 同口径：session_id 或 tmux 会话名任一非空） */
 function replayable(row: SessionRow): boolean {
   return row.tmuxSession.trim() !== "" || (row.sessionId ?? "").trim() !== "";
 }
 
-/** 已移除部署判定：远端快照别名不在部署列表（拉 deploymentList 一次对照） */
-function deploymentGone(alias: string, list: DeploymentListResult | null): boolean {
-  if (alias === "" || list === null) {
-    return false;
+/** 世界徽章显示名：host + 非默认端口（快照端口独立列——target 串自带冒号不重复拼） */
+function worldLabelOf(row: SessionRow): string {
+  const host = row.remoteHost.trim();
+  if (host === "" || host.includes(":") || (row.remotePort !== 0 && row.remotePort !== 22)) {
+    return host === "" || host.includes(":") ? host : `${host}:${row.remotePort}`;
   }
-  return !list.deployments.some((d) => d.alias === alias);
+  return host;
 }
 
 /** 会话来源标签（既有键翻译；未知 kind 回落原值——legacy/新增来源） */
@@ -48,17 +52,10 @@ export function LogSegment({ readonly }: { readonly: boolean }): React.JSX.Eleme
   const [offset, setOffset] = useState(0);
   const [page, setPage] = useState<{ rows: SessionRow[]; total: number } | null>(null);
   const [loading, setLoading] = useState(true);
-  const [deployments, setDeployments] = useState<DeploymentListResult | null>(null);
   const [note, setNote] = useState<string | null>(null);
-
-  // 部署列表对照（执行世界徽章删除线判定；拉一次，快照压过当前配置——列表变化由刷新广播重拉）
-  useEffect(() => {
-    void client.deploymentList().then((result) => {
-      if (result.ok) {
-        setDeployments(result.data);
-      }
-    });
-  }, [client]);
+  // 本机回放 handoff 载荷（命令行 + 工作目录——宿主无第三方终端面板，复制执行）
+  const [replayLine, setReplayLine] = useState<string | null>(null);
+  const [replayDir, setReplayDir] = useState<string>("");
 
   // 分组/翻页/条数变化即重查（旧页保留到新页到达——不闪空）
   useEffect(() => {
@@ -91,19 +88,36 @@ export function LogSegment({ readonly }: { readonly: boolean }): React.JSX.Eleme
   const pages = Math.max(1, Math.ceil(total / limit));
   const current = Math.min(pages, Math.floor(offset / limit) + 1);
 
-  /** 行内回放：按落库执行世界快照路由（本机 → 终端面板；远端 → 部署唤起；已移除 → 中性提示） */
+  /**
+   * 行内回放：按落库执行世界快照路由——本机 handoff（宿主无第三方可驱动的终端面板）
+   * → 命令行复制到剪贴板（失败走手动复制提示）；注入形态 → 终端面板已打开；已移除
+   * 部署 → 中性提示。
+   */
   async function replay(row: SessionRow): Promise<void> {
     setNote(null);
+    setReplayLine(null);
+    setReplayDir("");
     const result = await client.sessionReplay({ rowId: row.id });
     if (result.ok) {
       const world = result.data.routed.world;
-      setNote(
+      const worldLabel =
         world === "local"
-          ? t("dsh.sess.replayOpened", { world: t("dsh.sess.worldLocal") })
-          : t("dsh.sess.replayOpened", {
-              world: t("dsh.sess.worldDeployment", { alias: world.deploymentAlias }),
-            }),
-      );
+          ? t("dsh.sess.worldLocal")
+          : "sshTarget" in world
+            ? t("dsh.sess.worldSsh", { target: world.sshTarget })
+            : t("dsh.sess.worldDeployment", { alias: world.deploymentAlias });
+      if (world === "local" && result.data.routed.opened === false && result.data.routed.line !== undefined) {
+        setReplayLine(result.data.routed.line);
+        setReplayDir(result.data.routed.workdir ?? "");
+        const copied = await copyText(result.data.routed.line);
+        setNote(
+          copied
+            ? t("dsh.sess.replayCopied", { world: worldLabel })
+            : t("dsh.sess.replayManual", { world: worldLabel }),
+        );
+        return;
+      }
+      setNote(t("dsh.sess.replayOpened", { world: worldLabel }));
       return;
     }
     if (isErrorCode(result.error, "DEPLOYMENT_NOT_READY")) {
@@ -114,7 +128,7 @@ export function LogSegment({ readonly }: { readonly: boolean }): React.JSX.Eleme
   }
 
   return (
-    <section className={styles.segmentWrap} data-testid="segment-logs">
+    <section className={`${styles.segmentWrap} ${styles.logSegment}`} data-testid="segment-logs">
       <div className={styles.dexFilters} role="group" aria-label={t("sess.filter_all")}>
         {GROUPS.map((key) => (
           <button
@@ -131,26 +145,27 @@ export function LogSegment({ readonly }: { readonly: boolean }): React.JSX.Eleme
           </button>
         ))}
       </div>
-      {total === 0 && !loading ? (
-        group === "all" ? (
-          <EmptyState kind="dispatch" />
+      {/* 记录列表占满剩余高内滚（填充形态 segmentFill 定高，收音机 listBox 同构口径）：
+       * 过滤行/分页器常驻可视，翻页/长列表不出页面滚动条 */}
+      <div className={styles.sessListBox} data-testid="session-list">
+        {total === 0 && !loading ? (
+          group === "all" ? (
+            <EmptyState kind="dispatch" />
+          ) : (
+            <p className={styles.emptyState} data-testid="session-group-empty">
+              {t("dsh.sess.emptyGroup")}
+            </p>
+          )
         ) : (
-          <p className={styles.emptyState} data-testid="session-group-empty">
-            {t("dsh.sess.emptyGroup")}
-          </p>
-        )
-      ) : (
-        rows.map((session) => {
-          const gone = deploymentGone(session.remoteHost.trim(), deployments);
-          return (
+          rows.map((session) => (
             <div key={session.id} className={styles.ledger} data-testid="session-row">
               <span className={styles.ledgerAgent}>{session.agentName || session.agentId}</span>
               <span>{kindLabel(t, session.kind)}</span>
               {session.remoteHost.trim() === "" ? (
                 <span className={styles.worldBadge}>{t("dsh.sess.worldLocal")}</span>
               ) : (
-                <span className={styles.worldBadge} data-gone={gone ? "true" : undefined} title={session.remoteHost}>
-                  {session.remoteHost}
+                <span className={styles.worldBadge} title={session.remoteHost}>
+                  {worldLabelOf(session)}
                 </span>
               )}
               {session.durationMs !== null && <span>{Math.round(session.durationMs / 1000)}s</span>}
@@ -173,9 +188,9 @@ export function LogSegment({ readonly }: { readonly: boolean }): React.JSX.Eleme
                 </button>
               )}
             </div>
-          );
-        })
-      )}
+          ))
+        )}
+      </div>
       {/* counts 汇总常显（不随翻页变化）+ 分页器（首页/末页置灰；命中区 ≥32px） */}
       <div className={styles.sessPager} data-testid="session-pager">
         <span className={styles.sessCounts}>{t("dsh.sess.counts", { n: total, page: current, pages })}</span>
@@ -216,6 +231,19 @@ export function LogSegment({ readonly }: { readonly: boolean }): React.JSX.Eleme
           {note}
         </p>
       )}
+      {replayLine !== null && <ReplayHandoff line={replayLine} dir={replayDir} />}
     </section>
+  );
+}
+
+/** 回放 handoff 命令行 + 工作目录标注（共享 HandoffLine 的会话段封装） */
+function ReplayHandoff({ line, dir }: { line: string; dir: string }): React.JSX.Element {
+  const t = useT();
+  return (
+    <HandoffLine
+      line={line}
+      aside={dir === "" ? undefined : t("dsh.sess.replayDir", { dir })}
+      testId="session-replay-line"
+    />
   );
 }

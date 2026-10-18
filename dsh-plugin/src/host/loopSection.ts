@@ -15,7 +15,7 @@ import type { PetSupervisor } from "./pet/supervisor";
 import { createReminderLoop, type ReminderLoop } from "./reminder/loop";
 import { ReminderDelivery } from "./reminder/deliver";
 import type { HostCommandDeps, RemoteCommandPlatform } from "./commands";
-import { remoteHeadlessDeps } from "./remote/sshExecutor";
+import { remoteHeadlessDeps, remoteInteractiveParts } from "./remote/sshExecutor";
 import type { PluginDeps } from "./assembly";
 import type { JudgeExecutor } from "./judge/adapters";
 
@@ -111,7 +111,14 @@ export function parityCommandDeps(args: {
   stateFeed: StateFeed;
 }): Pick<
   HostCommandDeps,
-  "dispatchDeps" | "remote" | "petBridge" | "helperPath" | "sshFamily" | "announceCaught" | "onPetLifecycle"
+  | "dispatchDeps"
+  | "remote"
+  | "remoteInteractive"
+  | "petBridge"
+  | "helperPath"
+  | "sshFamily"
+  | "announceCaught"
+  | "onPetLifecycle"
 > & { dispatchDeps: HostCommandDeps["dispatchDeps"] } {
   const { conn, deps, supervisor, stateFeed } = args;
   const remote: RemoteCommandPlatform | undefined = deps.remote;
@@ -122,6 +129,9 @@ export function parityCommandDeps(args: {
         ? (deps.dispatchDeps ?? {})
         : { ...(deps.dispatchDeps ?? {}), ...remoteHeadlessDeps(conn, remote) },
     ...(remote === undefined ? {} : { remote }),
+    // 交互派发远端件（terminalFor 真 PTY/copy-line + 就绪复核——debt ③ 接线；
+    // 本机分支不经过本件：dsh 宿主侧 deps.terminal = createHandoffTerminal 诚实化）
+    ...(remote === undefined ? {} : { remoteInteractive: remoteInteractiveParts(conn, remote) }),
     ...(supervisor === null ? {} : { petBridge: () => supervisor.currentBridge() }),
     ...(deps.helperPath === undefined ? {} : { helperPath: deps.helperPath }),
     ...(deps.sshFamily === undefined ? {} : { sshFamily: deps.sshFamily }),

@@ -5,13 +5,14 @@
  */
 import type { Conn } from "../storage/db";
 import { fail, ok, PkyError, type PkyResult } from "../storage/errors";
+import { getSetting } from "../domain/settings";
 import type { HealthState } from "../health/snapshot";
 import type { LogRing } from "../health/logRing";
 import type { PollLoop } from "../radio/pollLoop";
 import type { LarkCli } from "../radio/lark";
 import type { JudgeExecutor } from "../judge/adapters";
 import type { HeadlessDeps } from "../dispatch/headless";
-import type { TerminalAdapter } from "../dispatch/interactive";
+import type { InteractiveDeps, TerminalAdapter } from "../dispatch/interactive";
 import type { DeploymentEntity } from "../remote/deployments";
 import { RemoteDispatchRejection, type SshTerminalScope } from "../remote/sshExecutor";
 import type { SshFamilyProjection } from "../dsh/probeDsh";
@@ -34,9 +35,13 @@ export interface RemoteCommandPlatform {
   disconnect(deploymentId: string): Promise<void>;
 }
 
-/** 通用终端行注入面（larkLoginStart / 回放本机分支）：向 dsh 终端面板写一行命令 */
+/**
+ * 通用终端行注入面（larkLoginStart / 回放本机分支）：向 dsh 终端面板写一行命令。
+ * preference = 共享设置 terminal_preference 当前值（desktop 外部终端解析用——调用方
+ * 经 injectLineGuarded 统一读取注入）。
+ */
 export interface TerminalLineInjector {
-  injectLine(line: string): Promise<void>;
+  injectLine(line: string, preference?: string | null): Promise<void>;
 }
 
 /** host 命令实现依赖（createPlugin 装配；测试逐项注入替身） */
@@ -70,6 +75,12 @@ export interface HostCommandDeps {
   // ---- full-parity 2.9 增量（全部可选——未装配时按能力缺失降级，零静默） ----
   /** 远程部署平台面（deployment、provision 族与回放远端分支；缺省 = 相关命令降级拒绝） */
   remote?: RemoteCommandPlatform;
+  /**
+   * 交互派发远端件（terminalFor 远端分支 + 派发前就绪复核——remoteInteractiveParts
+   * 装配；缺省 = 远端交互回落 deps.terminal。debt ③ 接线：本机诚实化由 deps.terminal
+   * 承载（dsh 宿主注入 createHandoffTerminal），远端真 PTY/copy-line 由本件承载）
+   */
+  remoteInteractive?: Pick<InteractiveDeps, "terminalFor" | "deploymentPrecheck">;
   /** 终端行注入面（larkLoginStart/回放本机分支；缺省包装 terminal 适配器） */
   terminalLine?: TerminalLineInjector;
   /** helper 桥面（diagnosticsSnapshot helperCaps / macAuthorizationStatus / exportDirOpen） */
@@ -92,10 +103,10 @@ export type CommandFn<P = never> = (params: P, deps: HostCommandDeps) => unknown
 /** 命令名 → 实现的分域表 */
 export type CommandTable = Record<string, CommandFn<never>>;
 
-/** 终端行注入缺省实现：复用交互派发终端适配器（agent/taskId 为占位——真实适配器只消费 line） */
+/** 终端行注入缺省实现：复用交互派发终端适配器（agent/taskId 为占位——真实适配器只消费 line/preference） */
 export function terminalLineOf(deps: Pick<HostCommandDeps, "terminal">): TerminalLineInjector {
   return {
-    async injectLine(line) {
+    async injectLine(line, preference) {
       try {
         await deps.terminal.inject({
           line,
@@ -111,6 +122,7 @@ export function terminalLineOf(deps: Pick<HostCommandDeps, "terminal">): Termina
           },
           taskId: 0,
           workdir: null,
+          terminalPreference: preference,
         });
       } catch (error) {
         throw new PkyError(
@@ -128,10 +140,15 @@ export function lineInjector(deps: HostCommandDeps): TerminalLineInjector {
   return deps.terminalLine ?? terminalLineOf(deps);
 }
 
-/** 终端行注入 + 失败映射兜底（非 PkyError 一律折 DISPATCH_LAUNCH_FAILED——契约不因注入实现而漂移） */
+/**
+ * 终端行注入 + 偏好统一读取 + 失败映射兜底（非 PkyError 一律折 DISPATCH_LAUNCH_FAILED
+ * ——契约不因注入实现而漂移）。preference 读 deps.conn（主应用 exec.rs 每次唤起前读
+ * terminal_pref 同构——运行期改设置即时生效）。
+ */
 export async function injectLineGuarded(deps: HostCommandDeps, line: string): Promise<void> {
+  const preference = getSetting(deps.conn, "terminal_preference");
   try {
-    await lineInjector(deps).injectLine(line);
+    await lineInjector(deps).injectLine(line, preference);
   } catch (error) {
     if (error instanceof PkyError) {
       throw error;

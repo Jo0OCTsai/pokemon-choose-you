@@ -19,10 +19,8 @@ import type { HelperArtifactInfo, ProvisionDeps } from "./provision";
 import { failOutcome, liveScope, parseSha256, type StepOutcome } from "./provisionSteps";
 import type { SshScope } from "./sshScope";
 
-const NPM_INSTALL_HINT =
-  "步③ 经 npm 在远端安装 dsh-ssh 运行时闭包：远端需可达 npm 且 npm 与 node 同目录或入 PATH（随 Node ≥ 20 附带）且可达 npm registry；离线远端暂不支持（全量树上传为未来增强，见 docs/debt.md）";
-const MISMATCH_HINT =
-  "远端 helper 摘要与预期不符：重跑向导重新安装；如确认降级 ShellRunner 直连须显式确认（deploymentDegradeConfirm）";
+const NPM_INSTALL_HINT = "远端需要能访问 npm 与网络（npm 随 Node ≥ 20 附带）；离线机器暂不支持自动安装";
+const MISMATCH_HINT = "可重跑开通向导重新安装；如确认要改用直连，请在向导中显式确认";
 
 /** 摘要不符落库（拒绝就绪不降级直连——D31；强制 upload 重置 → 下轮重跑重新安装） */
 export function markHelperMismatch(entity: DeploymentEntity, message: string, now = nowRfc3339()): DeploymentEntity {
@@ -55,7 +53,7 @@ async function probeRemoteNpm(scope: SshScope, nodePath: string): Promise<string
       return failOutcome(
         "upload",
         "PROVISION_STEP_FAILED",
-        "远端 npm 探测失败（与 node 不同目录且不在 PATH）",
+        "远端 npm 不可用（未随 Node 安装且不在 PATH）",
         NPM_INSTALL_HINT,
       );
     }
@@ -64,7 +62,7 @@ async function probeRemoteNpm(scope: SshScope, nodePath: string): Promise<string
     return failOutcome(
       "upload",
       "PROVISION_STEP_FAILED",
-      `远端 npm 探测执行失败：${String(error).slice(0, 160)}`,
+      `远端 npm 检查失败：${String(error).slice(0, 160)}`,
       NPM_INSTALL_HINT,
     );
   }
@@ -86,7 +84,7 @@ async function installSshClosure(
       return failOutcome(
         "upload",
         "PROVISION_STEP_FAILED",
-        `npm 闭包安装失败（exit ${install.code}）：${install.stderr.slice(0, 160)}`,
+        `远端组件安装失败（exit ${install.code}）：${install.stderr.slice(0, 160)}`,
         NPM_INSTALL_HINT,
       );
     }
@@ -95,7 +93,7 @@ async function installSshClosure(
     return failOutcome(
       "upload",
       "PROVISION_STEP_FAILED",
-      `npm 闭包安装执行失败：${String(error).slice(0, 160)}`,
+      `远端组件安装失败：${String(error).slice(0, 160)}`,
       NPM_INSTALL_HINT,
     );
   }
@@ -123,7 +121,7 @@ export async function execUpload(entity: DeploymentEntity, deps: ProvisionDeps):
   try {
     artifact = deps.readHelperArtifact();
   } catch (error) {
-    return failOutcome("upload", "PROVISION_STEP_FAILED", `本地 helper 制品读取失败：${String(error).slice(0, 160)}`);
+    return failOutcome("upload", "PROVISION_STEP_FAILED", `本地组件读取失败：${String(error).slice(0, 160)}`);
   }
   const got = await liveScope(entity, deps);
   if ("unavailable" in got) {
@@ -140,7 +138,7 @@ export async function execUpload(entity: DeploymentEntity, deps: ProvisionDeps):
   const at = nowRfc3339();
   return {
     ok: true,
-    message: `已安装闭包 ${helperPath}`,
+    message: `远端组件安装完成（${helperPath}）`,
     apply(e) {
       const state = e.provision ?? initialProvisionState();
       return {
@@ -162,15 +160,15 @@ async function fetchRemoteSha256(scope: SshScope, helperPath: string): Promise<s
       return failOutcome(
         "verify",
         "PROVISION_STEP_FAILED",
-        `摘要复核执行失败（exit ${result.code}，如远端缺 sha256sum）：${result.stderr.slice(0, 120)}`,
+        `远端组件验证失败（远端可能缺少 sha256sum 命令）：${result.stderr.slice(0, 120)}`,
       );
     }
     remote = parseSha256(result.stdout);
   } catch (error) {
-    return failOutcome("verify", "PROVISION_STEP_FAILED", `摘要复核执行失败：${String(error).slice(0, 160)}`);
+    return failOutcome("verify", "PROVISION_STEP_FAILED", `远端组件验证失败：${String(error).slice(0, 160)}`);
   }
   if (remote === null) {
-    return failOutcome("verify", "PROVISION_STEP_FAILED", "摘要复核输出无法解析（sha256sum 首段非 64 位 hex）");
+    return failOutcome("verify", "PROVISION_STEP_FAILED", "远端组件验证结果异常");
   }
   return remote;
 }
@@ -182,7 +180,7 @@ export async function execVerify(entity: DeploymentEntity, deps: ProvisionDeps):
   try {
     expected = deps.readHelperArtifact().sha256.toLowerCase();
   } catch (error) {
-    return failOutcome("verify", "PROVISION_STEP_FAILED", `本地 helper 制品读取失败：${String(error).slice(0, 160)}`);
+    return failOutcome("verify", "PROVISION_STEP_FAILED", `本地组件读取失败：${String(error).slice(0, 160)}`);
   }
   const got = await liveScope(entity, deps);
   if ("unavailable" in got) {
@@ -192,7 +190,7 @@ export async function execVerify(entity: DeploymentEntity, deps: ProvisionDeps):
   if (typeof remote !== "string") {
     return remote;
   }
-  const mismatchMessage = `远端 helper 摘要不符（远端 ${remote} ≠ 预期 ${expected}）`;
+  const mismatchMessage = "远端组件验证未通过（与预期不一致）";
   if (remote !== expected) {
     // 摘要不符：拒绝就绪、不降级直连（D31）；upload 重置 → 下轮重跑重新安装
     return {
@@ -208,7 +206,7 @@ export async function execVerify(entity: DeploymentEntity, deps: ProvisionDeps):
   const at = nowRfc3339();
   return {
     ok: true,
-    message: `摘要一致（${expected}）`,
+    message: "远端组件验证通过",
     apply(e) {
       const state = e.provision ?? initialProvisionState();
       return {
@@ -216,7 +214,7 @@ export async function execVerify(entity: DeploymentEntity, deps: ProvisionDeps):
         status: "ready",
         helperHash: expected,
         lastError: null,
-        provision: { ...state, steps: { ...state.steps, verify: { status: "ok", message: expected, at } } },
+        provision: { ...state, steps: { ...state.steps, verify: { status: "ok", message: "验证通过", at } } },
       };
     },
   };

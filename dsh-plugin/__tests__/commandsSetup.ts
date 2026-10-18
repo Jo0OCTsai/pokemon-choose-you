@@ -11,7 +11,7 @@ import { initConn } from "../src/host/storage/init";
 import { open, type Conn } from "../src/host/storage/db";
 import { LogRing } from "../src/host/health/logRing";
 import { HealthState } from "../src/host/health/snapshot";
-import { createFakeTerminal } from "../src/host/dispatch/interactive";
+import { createFakeTerminal } from "../src/host/dispatch/terminalAdapters";
 import { fakeSubagentExecutor } from "../src/host/judge/adapters";
 import type { DispatchExecutor, ExecOutcome } from "../src/host/dispatch/executor";
 

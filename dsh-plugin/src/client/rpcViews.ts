@@ -41,13 +41,25 @@ export interface RadioMessage {
   updateTaskId: number | null;
 }
 
-/** 派发执行视图（任务卡徽标 + 详情时间线共用） */
+/**
+ * 派发执行视图（任务卡徽标 + 详情时间线共用）。handoff 三字段（debt ③）：本机交互
+ * 派发在宿主无第三方终端面板时命令行回传客户端复制执行（handedOff + line + note）；
+ * 真实注入（远端 PTY 等）不携带。
+ */
 export interface DispatchView {
   taskId: number;
   state: "queued" | "running" | "done" | "failed";
   agentId: string | null;
   startedAt: string | null;
   endedAt: string | null;
+  /** true = 命令行已回传（复制执行），任务已置 running 等回传 */
+  handedOff?: boolean;
+  /** handoff 命令行（完整派发行——命令 + 参数 + prompt） */
+  line?: string | null;
+  /** host 侧 handoff 说明（呈现面用客户端 i18n，此字段为审计/兜底） */
+  note?: string | null;
+  /** handoff 原因（web-carrier = 宿主在远程机器无法弹窗 → 客户端 web 提示） */
+  handoffReason?: "web-carrier" | "no-terminal" | "spawn-failed";
 }
 
 /** 派发时间线账本行（agent_sessions 投影；日志分段共用） */
@@ -74,13 +86,12 @@ export interface FollowupNote {
 }
 
 /** 项目派发路由（dsh:dispatch_routes 以项目标签名为键，A13；
- *  full-parity 增量可选 deployment = 执行世界部署别名——旧路由无此字段 = 本机） */
+ *  执行世界不在此层（2026-10-19 裁决）——agent 绑定部署（ai_agents.deployment）单源驱动 */
 export interface DispatchRoute {
   tag: string;
   agentId: string;
   workdir: string;
   context: string;
-  deployment?: string;
 }
 
 /** 待办库状态（dbStatus；mode=ro 时面板进只读） */
@@ -153,8 +164,18 @@ export type SessionGroup = "all" | "radio" | "dispatch" | "other";
 
 /** 回放路由结果（sessionReplay；快照压过当前配置） */
 export interface SessionReplayRouted {
-  world: "local" | { deploymentAlias: string };
+  world: "local" | { deploymentAlias: string } | { sshTarget: string };
   note?: string;
+  /**
+   * 本机回放命令行（handoff 形态）：宿主无第三方可驱动的终端面板（dsh 0.2.x 平台事实——
+   * 浏览器终端 Session 私有、ctx.terminals 为 agent 工具注册表），命令行回传客户端
+   * 复制执行（AD §4.8「复制命令行」降级口径，零静默）
+   */
+  line?: string;
+  /** 会话工作目录（handoff 提示呈现；空串 = 落库时未记） */
+  workdir?: string;
+  /** false = 未注入终端（line 已回传，复制执行）；true/缺省 = 已真实注入 */
+  opened?: boolean;
 }
 
 /** 导入文件结构预检摘要（importValidate；reasons = 校验失败原因列表，0 行变更） */

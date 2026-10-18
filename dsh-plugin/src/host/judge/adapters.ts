@@ -5,9 +5,12 @@
  * agent 经 pk suggest batch 写回后从库回读——结果落库与进程退出是两件事）、
  * src-tauri/src/commands/radio/judge.rs 的 run_and_collect（整批遗漏判失败）。
  * 会话账本落 agent_sessions（kind=classify，sessions.rs log_session_conn 同构）。
- * 零 dsh 依赖：spawn 可注入；subagent 真实桥后续装配（占位 + 本地 fake）。
+ * 零 dsh 依赖：spawn 可注入；dsh subagent 真实桥在适配层 dsh/subagentExecutor.ts
+ * （结构化输出 + 非 selfLanding 落库，本文件 fake 仍为测试替身）。
  */
 import { spawn } from "node:child_process";
+import { existsSync } from "node:fs";
+import { childEnvFor, expandHome, resolveCommand, spawnErrorHint } from "../dispatch/localEnv";
 import { nowRfc3339, type Conn } from "../storage/db";
 import { PkyError } from "../storage/errors";
 import type { AgentConfig } from "../domain/settings";
@@ -59,18 +62,6 @@ export function fakeSubagentExecutor(
   };
 }
 
-/** 真实 dsh subagent 桥的接口占位（后续装配任务落型；调用即明确报错不静默） */
-export function subagentExecutorPlaceholder(): JudgeExecutor {
-  return {
-    id: "subagent",
-    name: "subagent",
-    selfLanding: true,
-    async run() {
-      throw new Error("dsh subagent 桥未装配：判定执行方请在设置中选择外部 agent CLI 或等待 subagent 装配");
-    },
-  };
-}
-
 // ---- 子进程执行面（可注入） ----
 
 export interface AgentSpawn {
@@ -84,9 +75,20 @@ export interface AgentSpawn {
   }>;
 }
 
+/**
+ * 真实子进程执行面：GUI 进程精简 PATH 适配同构 dispatch/localEnv（which.rs/runner.rs 基准）——
+ * 裸名补扫解析绝对路径、workdir `~/` 展开 + 存在性预检（目录缺失独立报错，不与命令
+ * 找不到的 ENOENT 混淆）、子进程 PATH 前插 node 宿主目录（`#!/usr/bin/env node` 脚本）。
+ */
 export const realAgentSpawn: AgentSpawn = (program, argv, opts) =>
   new Promise((resolve, reject) => {
-    const child = spawn(program, argv, { cwd: opts.cwd, stdio: ["pipe", "pipe", "pipe"] });
+    const bin = resolveCommand(program);
+    const cwd = expandHome(opts.cwd);
+    if (cwd !== undefined && !existsSync(cwd)) {
+      reject(new Error(`Agent 工作目录不存在: ${cwd}（请在设置中改正）`));
+      return;
+    }
+    const child = spawn(bin, argv, { cwd, env: childEnvFor(bin, undefined), stdio: ["pipe", "pipe", "pipe"] });
     const out: Buffer[] = [];
     const err: Buffer[] = [];
     const timer = setTimeout(() => {
@@ -99,7 +101,7 @@ export const realAgentSpawn: AgentSpawn = (program, argv, opts) =>
     child.stderr?.on("data", (c: Buffer) => err.push(c));
     child.on("error", (e) => {
       clearTimeout(timer);
-      reject(new Error(`Agent「${program}」执行失败: ${e.message}`));
+      reject(new Error(`Agent「${program}」执行失败: ${e.message}${spawnErrorHint(e.message)}`));
     });
     child.on("close", (code) => {
       clearTimeout(timer);

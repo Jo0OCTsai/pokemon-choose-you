@@ -109,6 +109,12 @@ function mockDeploymentList(ctx: MockContext) {
   return ctx.ok({ deployments: ds, counts });
 }
 
+/** 本机 ssh config 别名（部署表单下拉数据源——真实侧解析见 host remote/sshConfig） */
+function mockSshAliasList(ctx: MockContext) {
+  ctx.record("sshAliasList");
+  return ctx.ok({ aliases: [...ctx.state.sshAliases] });
+}
+
 function mockDeploymentUpsert(ctx: MockContext, params: DeploymentUpsertInput) {
   ctx.record("deploymentUpsert", params);
   const blocked = writeBlocked(ctx);
@@ -156,20 +162,27 @@ function mockDeploymentRecheck(ctx: MockContext, params: { id: string }) {
     return notFound(`部署 ${params.id} 不存在`);
   }
   if (entity.status === "disconnected") {
-    // 重连复核：断开态复位未就绪（后续走开通向导或就绪复核通过回升）
-    entity.status = "not_ready";
-    entity.lastError = null;
+    // 重连复核两分支（对齐真实宿主 recheckDeployment：结果落实体状态呈现）
+    if (ctx.state.recheckRecovers) {
+      entity.status = "ready";
+      entity.lastError = null;
+    } else {
+      entity.lastError = "连接不可用（免密登录未配置或已断开）";
+    }
   }
   return ctx.ok({ deployment: entity });
 }
 
-/** 部署 CRUD 与复核 */
+/** 部署 CRUD 与复核（+ 表单别名数据源） */
 export function deploymentCommands(
   ctx: MockContext,
-): Pick<HostClient, "deploymentList" | "deploymentUpsert" | "deploymentDelete" | "deploymentRecheck"> {
+): Pick<HostClient, "deploymentList" | "sshAliasList" | "deploymentUpsert" | "deploymentDelete" | "deploymentRecheck"> {
   return {
     async deploymentList() {
       return await mockDeploymentList(ctx);
+    },
+    async sshAliasList() {
+      return await mockSshAliasList(ctx);
     },
     async deploymentUpsert(params) {
       return await mockDeploymentUpsert(ctx, params);

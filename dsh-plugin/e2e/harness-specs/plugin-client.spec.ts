@@ -33,6 +33,23 @@ test("日志段：过滤胶囊四选 + 分页汇总常显", async ({ page }) => 
   });
 });
 
+test("日志段：派发记录回放（本机 handoff）→ 命令行回传可见（复制或手动复制，零静默）", async ({ page }) => {
+  await page.locator('[data-segment="logs"]').click();
+  await expect(page.getByText(/共 3 条/)).toBeVisible();
+  // 行序（id 降序）：gpu-1 远端 → tmux 交互 → 本机 headless（sess-e2e-1）
+  // 本机 headless 行（--resume 分支）：点回放 → note（已复制/手动复制两态之一）+ 命令行可见
+  await page.locator('[data-testid="session-replay"]').nth(2).click();
+  await expect(page.getByTestId("session-note")).toContainText(/回放命令已复制|请手动复制/);
+  await expect(page.getByTestId("session-replay-line")).toContainText("claude --resume sess-e2e-1");
+  await expect(page.getByTestId("session-replay-line")).toContainText("工作目录：/srv/work");
+  // 本机 tmux 交互行（tmux attach 分支）
+  await page.locator('[data-testid="session-replay"]').nth(1).click();
+  await expect(page.getByTestId("session-replay-line")).toContainText("tmux attach-session -t pky-e2e");
+  await page.screenshot({
+    path: join(here, "../../../specs/dsh-plugin-full-parity/reports/screenshots/e2e-04b-replay-handoff.png"),
+  });
+});
+
 test("背包·Agent 分区：远程部署卡与就绪徽章", async ({ page }) => {
   await page.locator('[data-segment="settings"]').click();
   await page.getByText("Agent").first().click();
@@ -48,7 +65,8 @@ test("背包·Agent 分区：远程部署卡与就绪徽章", async ({ page }) =
 test("背包·诊断分区：helper 能力矩阵与 SSH 家族行（helper 在位 → 无降级横幅）", async ({ page }) => {
   await page.locator('[data-segment="settings"]').click();
   await page.getByText("诊断").first().click();
-  await expect(page.getByText("dsh-ssh 家族").first()).toBeVisible();
+  // 行名随文案演进（现行「远程派发（dsh-ssh）」）——断言锚定稳定 testid（与单测同口径）
+  await expect(page.getByTestId("ssh-cap-row")).toBeVisible();
   await page.screenshot({
     path: join(here, "../../../specs/dsh-plugin-full-parity/reports/screenshots/e2e-06-diagnostics.png"),
     fullPage: true,

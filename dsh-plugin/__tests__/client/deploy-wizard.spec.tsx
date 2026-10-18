@@ -113,14 +113,14 @@ describe("开通向导（拉式步进）", () => {
     );
     fireEvent.click(screen.getByTestId("deploy-provision"));
     await flush(16);
-    expect(screen.getByTestId("wizard-failure").textContent).toContain("拒绝置为就绪");
-    fireEvent.click(screen.getByText("转直连"));
-    expect(screen.getByText("转为直连确认")).toBeTruthy();
-    expect(screen.getByText(/留痕到诊断段/)).toBeTruthy();
-    fireEvent.click(screen.getByText("确认转直连"));
+    expect(screen.getByTestId("wizard-failure").textContent).toContain("组件验证未通过");
+    fireEvent.click(screen.getByText("改用直连"));
+    expect(screen.getByText("改用直连模式")).toBeTruthy();
+    expect(screen.getByText(/不再校验远端组件/)).toBeTruthy();
+    fireEvent.click(screen.getByText("确认改用直连"));
     await flush();
     expect(screen.getByText("就绪（直连）")).toBeTruthy();
-    expect(screen.getByText("直连模式（未经摘要校验）")).toBeTruthy();
+    expect(screen.getByText("直连模式")).toBeTruthy();
   });
 
   it("D31 第一分支（helper 从未安装）：③失败给「跳过安装，转直连…」入口", async () => {
@@ -132,8 +132,8 @@ describe("开通向导（拉式步进）", () => {
     );
     fireEvent.click(screen.getByTestId("deploy-provision"));
     await flush(16);
-    fireEvent.click(screen.getByText("跳过安装，转直连…"));
-    fireEvent.click(screen.getByText("确认转直连"));
+    fireEvent.click(screen.getByText("跳过安装，改用直连…"));
+    fireEvent.click(screen.getByText("确认改用直连"));
     await flush();
     expect(screen.getByText("就绪（直连）")).toBeTruthy();
   });
@@ -158,7 +158,7 @@ describe("开通向导（拉式步进）", () => {
     fireEvent.click(screen.getByTestId("deploy-provision"));
     await flush();
     // 首步挂起中：并发重入中性提示 + 执行中徽章
-    expect(screen.getByText(/向导正在执行中/)).toBeTruthy();
+    expect(screen.getByText(/正在执行中/)).toBeTruthy();
     expect(screen.getByTestId("deploy-wizard-running")).toBeTruthy();
     // Esc 关闭 = 后台继续（非中止）
     fireEvent.keyDown(document, { key: "Escape" });
@@ -177,8 +177,8 @@ describe("移除与只读", () => {
   it("移除确认：尽力自清理说明 + 确认后列表移除", async () => {
     const host = await boot(mockHost({ deployments: [makeDeployment({ id: "d1", alias: "gpu-1" })] }));
     fireEvent.click(screen.getByText("移除"));
-    expect(screen.getByText(/尽力触发远端 helper 自清理/)).toBeTruthy();
-    expect(screen.getByText(/本机记录随之删除/)).toBeTruthy();
+    expect(screen.getByText(/删除本机的部署记录/)).toBeTruthy();
+    expect(screen.getByText(/清理远端已安装的组件/)).toBeTruthy();
     fireEvent.click(screen.getByText("确认移除"));
     await flush();
     expect(host.calls.some((c) => c.command === "deploymentDelete" && (c.params as { id: string }).id === "d1")).toBe(

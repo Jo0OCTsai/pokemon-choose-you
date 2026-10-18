@@ -7,51 +7,73 @@
 import { dispatchHeadless } from "../dispatch/headless";
 import { dispatchInteractive, dispatchReport, dispatchReset } from "../dispatch/interactive";
 import { dispatchTransition } from "../domain/dispatch";
-import { routeUpsert as routeUpsertDomain, type DispatchRoute, listRoutes } from "../dispatch/routes";
+import { routeUpsert as routeUpsertDomain, type DispatchRoute } from "../dispatch/routes";
 import { readSettings, writeSettings } from "../domain/settings";
 import { paramError, PkyError } from "../storage/errors";
 import { authLoginCommandLine } from "../radio/lark";
 import { listAllChats } from "../radio/fetcher";
-import type { CommandTable, HostCommandDeps } from "./context";
+import type { CommandFn, CommandTable } from "./context";
 import { injectLineGuarded } from "./context";
-import {
-  kindForCommand,
-  sessionFlags,
-  sessionReplay as sessionReplayDomain,
-  type LocalReplayLaunch,
-  type ReplayLauncher,
-} from "../dispatch/sessions";
-import { createRemoteTerminalAdapter } from "../remote/sshExecutor";
-import { deploymentByAlias } from "../remote/deployments";
-import { posixQuote } from "../dispatch/cmdline";
+import { replayLauncherOf } from "./replayRig";
+import { sessionReplay as sessionReplayDomain } from "../dispatch/sessions";
 
-/** 派发视图（客户端 DispatchView 投影；startedAt/endedAt 取任务行时间线锚点） */
-function dispatchView(conn: Parameters<CommandTable["dbStatus"]>[1]["conn"], taskId: number, state: string | null) {
+/**
+ * 派发视图（客户端 DispatchView 投影；startedAt/endedAt 取任务行时间线锚点）。
+ * outcome 为 handoff（terminal="copy-line"——宿主无第三方终端面板）时带出命令行与
+ * note 供客户端复制执行（debt ③ 诚实化回传）；真实注入不回显命令行。
+ */
+function dispatchView(
+  conn: Parameters<CommandTable["dbStatus"]>[1]["conn"],
+  taskId: number,
+  state: string | null,
+  outcome?: { terminal: string; note: string | null; line: string; reason?: string },
+) {
   const row = conn.prepare("SELECT dispatch_state, started_at, completed_at FROM tasks WHERE id=?").get(taskId) as
     { dispatch_state: string | null; started_at: string | null; completed_at: string | null } | undefined;
-  return {
+  const base = {
     taskId,
     state: (row?.dispatch_state ?? state) as string | null,
     agentId: null,
     startedAt: row?.started_at ?? null,
     endedAt: row?.completed_at ?? null,
   };
+  if (outcome === undefined || outcome.terminal !== "copy-line") {
+    return base;
+  }
+  return {
+    ...base,
+    note: outcome.note,
+    line: outcome.line,
+    handedOff: true as const,
+    ...(outcome.reason === undefined ? {} : { handoffReason: outcome.reason }),
+  };
+}
+
+/**
+ * 交互派发命令实现（debt ③ 接线）：本机 = deps.terminal（dsh 宿主注入 handoff
+ * 终端——命令行回传）；远端 = remoteInteractive 件（terminalFor 真 PTY/copy-line
+ * + 就绪复核；缺席回落 terminal）。outcome 经 dispatchView 带 handoff 载荷。
+ */
+async function runDispatchInteractive(p: unknown, deps: Parameters<CommandFn>[1]) {
+  const args = p as { taskId: number; routeOverride?: string };
+  const out = await dispatchInteractive(
+    deps.conn,
+    {
+      terminal: deps.terminal,
+      sshCheck: deps.dispatchDeps.sshCheck,
+      ...(deps.remoteInteractive ?? {}),
+    },
+    args.taskId,
+    { routeOverride: args.routeOverride },
+  );
+  deps.onWrites();
+  return dispatchView(deps.conn, args.taskId, out.state, out);
 }
 
 /** 派发段（6 条） */
 function dispatchCommandSet(): CommandTable {
   return {
-    dispatchInteractive: async (p, deps) => {
-      const args = p as { taskId: number; routeOverride?: string };
-      const out = await dispatchInteractive(
-        deps.conn,
-        { terminal: deps.terminal, sshCheck: deps.dispatchDeps.sshCheck },
-        args.taskId,
-        { routeOverride: args.routeOverride },
-      );
-      deps.onWrites();
-      return dispatchView(deps.conn, args.taskId, out.state);
-    },
+    dispatchInteractive: (p, deps) => runDispatchInteractive(p, deps),
     dispatchHeadless: async (p, deps) => {
       const args = p as { taskId: number; routeOverride?: string };
       const out = await dispatchHeadless(deps.conn, deps.dispatchDeps, args.taskId, {
@@ -150,116 +172,14 @@ export function dispatchSettingsCommands(): CommandTable {
           ? new PkyError(outcome.tag, outcome.message)
           : new PkyError(outcome.tag, outcome.message, outcome.hint);
       }
+      // 本机 handoff（无终端注入面）：命令行回传客户端复制执行——零静默（不再落入
+      // fake 终端静默成功的假象），审计留痕
+      const handoff = rig.localHandoff();
+      if (handoff !== null) {
+        deps.log("info", "dsh:replay", `本机回放 handoff（命令行回传）：${handoff.line}`);
+        return { routed: { world: outcome.world, line: handoff.line, workdir: handoff.workdir, opened: false } };
+      }
       return { routed: { world: outcome.world } };
     },
   };
-}
-
-// ---- 回放唤起装配（sessions.ts ReplayLauncher 注入件——本文件属命令装配层） ----
-
-/** 回放命令行组装：tmux attach 优先 → agent 会话续接旗标 → agent 自带选择器兜底 */
-export function replayCommandLine(l: LocalReplayLaunch): string {
-  if (l.branch === "tmux" && l.tmuxSession !== null) {
-    return `tmux attach-session -t ${posixQuote(l.tmuxSession)}`;
-  }
-  const kind = kindForCommand(l.agentCommand);
-  if (l.branch === "resume" && l.sessionId !== null && (kind === "claude-code" || kind === "pi")) {
-    return `${posixQuote(l.agentCommand)} ${sessionFlags(kind, l.sessionId).flags}`;
-  }
-  return kind === "claude-code" ? `${posixQuote(l.agentCommand)} --resume` : posixQuote(l.agentCommand);
-}
-
-/** target（user@host[:port]）→ 部署实体（先按 alias 直配；再扫路由 target 反解 ref） */
-function deploymentForTarget(deps: HostCommandDeps, target: string) {
-  const t = target.trim();
-  const direct = deploymentByAlias(deps.conn, t);
-  if (direct !== null) {
-    return direct;
-  }
-  for (const route of Object.values(listRoutes(deps.conn))) {
-    if (route.deployment?.target === t) {
-      return deploymentByAlias(deps.conn, route.deployment.ref);
-    }
-  }
-  return null;
-}
-
-/**
- * 回放唤起装配 rig：launcher 保持 domain 要求的同步签名（launch 触发即返回），
- * 实际异步注入在 settle() 收口——失败（DISPATCH_LAUNCH_FAILED / SSH_AUTH_REQUIRED）
- * 由命令层 await settle 浮出为错误信封（不逃逸为未处理 rejection）。
- */
-function replayLauncherOf(deps: HostCommandDeps): { launcher: ReplayLauncher; settle(): Promise<void> } {
-  let inflight: Promise<void> = Promise.resolve();
-  return {
-    launcher: {
-      resolveDeployment(target) {
-        const entity = deploymentForTarget(deps, target);
-        return entity === null ? null : { alias: entity.alias, ready: entity.status === "ready" };
-      },
-      launchLocal(l) {
-        inflight = injectLineGuarded(deps, replayCommandLine(l));
-      },
-      launchRemote(l) {
-        inflight = launchRemoteReplay(deps, l);
-      },
-    },
-    settle: () => inflight,
-  };
-}
-
-/** 远端回放唤起（部署 PTY 写入；失败折算 SSH_AUTH_REQUIRED——免密/连接失败口径） */
-async function launchRemoteReplay(
-  deps: HostCommandDeps,
-  l: Parameters<ReplayLauncher["launchRemote"]>[0],
-): Promise<void> {
-  const platform = deps.remote;
-  if (platform === undefined) {
-    throw new PkyError(
-      "SSH_AUTH_REQUIRED",
-      "远程部署平台面未装配（不在 dsh 宿主内运行），无法唤起远端回放",
-      "可在本机打开该会话所属 agent 的历史选择器回放",
-    );
-  }
-  const entity = deploymentByAlias(deps.conn, l.deploymentAlias) ?? deploymentForTarget(deps, l.target);
-  if (entity === null) {
-    throw new PkyError("SSH_AUTH_REQUIRED", `部署「${l.deploymentAlias}」实体缺失，无法唤起远端回放`);
-  }
-  const adapter = createRemoteTerminalAdapter({
-    conn: deps.conn,
-    scopeFor: () => platform.scopeFor(entity),
-    entity,
-    target: l.target,
-  });
-  try {
-    await adapter.inject({
-      line: replayCommandLine(replayLaunchOf(l)),
-      agent: syntheticAgent(l.agentId, l.agentCommand, l.workdir),
-      taskId: 0,
-      workdir: l.workdir === "" ? null : l.workdir,
-    });
-  } catch (error) {
-    throw new PkyError(
-      "SSH_AUTH_REQUIRED",
-      `远端回放唤起失败：${String(error instanceof Error ? error.message : error).slice(0, 160)}`,
-      "确认部署免密可达（deploymentRecheck 复核）后重试",
-    );
-  }
-}
-
-/** 远端回放载荷 → 本机回放载荷形状（replayCommandLine 组装共用） */
-function replayLaunchOf(l: Parameters<ReplayLauncher["launchRemote"]>[0]): LocalReplayLaunch {
-  return {
-    branch: l.branch,
-    agentId: l.agentId,
-    agentCommand: l.agentCommand,
-    sessionId: l.sessionId,
-    tmuxSession: l.tmuxSession,
-    workdir: l.workdir,
-  };
-}
-
-/** 终端适配器合成 agent 配置（回放注入占位——适配器只消费 line/workdir） */
-function syntheticAgent(id: string, command: string, workdir: string) {
-  return { id, name: id, command, args: "", historyArgs: "", workdir, timeoutSecs: 60, enabled: true };
 }

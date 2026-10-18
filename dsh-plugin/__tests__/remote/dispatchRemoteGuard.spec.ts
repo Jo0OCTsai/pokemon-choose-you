@@ -10,7 +10,7 @@ import { listDeployments } from "../../src/host/remote/deployments";
 import { LATE_REPORT_ORIGIN } from "../../src/host/remote/lateReport";
 import { normalizeTraceTimestamp, traceProbeCommand } from "../../src/host/remote/sshExecutor";
 import { seedTask } from "../helpers";
-import { setupDispatchRemoteFx, ALIAS, ENVELOPE, TARGET, WORKDIR } from "./dispatchRemoteFx";
+import { setupDispatchRemoteFx, ALIAS, ENVELOPE, WORKDIR } from "./dispatchRemoteFx";
 
 const fx = setupDispatchRemoteFx();
 
@@ -24,7 +24,7 @@ function insertFailedSession(taskId: number): number {
             "kind, workdir, remote_host, remote_port, remote_key, created_at) " +
             "VALUES (?, 'claude', 'claude', 'dead-1', '无头派发 · 失败', 255, 'error', 'dispatch_headless', ?, ?, 0, '', ?)",
         )
-        .run(taskId, WORKDIR, TARGET, new Date().toISOString()) as { lastInsertRowid: number | bigint }
+        .run(taskId, WORKDIR, ALIAS, new Date().toISOString()) as { lastInsertRowid: number | bigint }
     ).lastInsertRowid,
   );
 }
@@ -44,7 +44,7 @@ describe("断连收口（scope 断开事件）", () => {
     expect(fx.slotCount()).toBe(0);
     const row = fx.lastSession(taskId);
     expect(row["status"]).toBe("error");
-    expect(row["remote_host"]).toBe(TARGET);
+    expect(row["remote_host"]).toBe(ALIAS);
     expect(String(row["command"])).toContain("连接断开");
     expect(listDeployments(fx.db.conn)[depId]?.status).toBe("disconnected");
 
@@ -89,7 +89,7 @@ function expectLateReportRows(taskId: number, failedRowId: number, failedRowBefo
     Record<string, unknown>
   >;
   expect(supplemented).toHaveLength(1);
-  expect(supplemented[0]?.["remote_host"]).toBe(TARGET);
+  expect(supplemented[0]?.["remote_host"]).toBe(ALIAS);
   // 不改写：任务态保持 failed、既有失败行逐字段一致
   expect(fx.state(taskId)).toBe("failed");
   const failedRowAfter = fx.db.conn.prepare("SELECT * FROM agent_sessions WHERE id=?").get(failedRowId) as Record<
@@ -102,10 +102,7 @@ function expectLateReportRows(taskId: number, failedRowId: number, failedRowBefo
 describe("迟到回传留痕（recheck 恢复挂 lateReport）", () => {
   it("窗口内痕迹 → 审计留痕 + agent_sessions 补录；失败结论与既有行不改写", async () => {
     const depId = fx.seedReadyDeployment();
-    // 路由引用该部署（guard 的 target/失败行查询面）——任务本身无需挂路由
-    fx.db.conn
-      .prepare("INSERT OR REPLACE INTO settings (key, value) VALUES ('dsh:dispatch_routes', ?)")
-      .run(JSON.stringify({ 迟到项目: { agentId: "claude", deployment: { ref: ALIAS, target: TARGET } } }));
+    // agent 绑定该部署（guard 的 target/失败行查询面）——夹具默认绑定即引用面，无需路由
     const guard = createRemoteDispatchGuard(fx.db.conn, fx.platform);
     const taskId = seedTask(fx.db.conn, "迟到任务");
     fx.db.conn.prepare("UPDATE tasks SET dispatch_state='failed' WHERE id=?").run(taskId);

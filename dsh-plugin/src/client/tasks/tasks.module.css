@@ -490,7 +490,7 @@
   font-variant-numeric: tabular-nums;
 }
 
-/* 执行世界徽章（FR-C2：本机/部署别名；等宽丝印位——快照指向已移除部署 = 删除线中性呈现） */
+/* 执行世界徽章（FR-C2：本机/部署别名；等宽丝印位） */
 .worldBadge {
   font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
   letter-spacing: 1px;
@@ -500,8 +500,22 @@
   padding: 1px 6px;
   color: var(--dsw-alias-label-secondary, #57606a);
 }
-.worldBadge[data-gone="true"] {
-  text-decoration: line-through;
+
+/* 日志段填充形态（segmentFill 定高，收音机 radioSegment 同构）：过滤行/分页器/回放提示
+ * 常驻可视；上下限经 segmentFill 下传变量（填充形态放开上限、允许压缩；窄屏回落定值） */
+.logSegment {
+  height: 100%;
+  min-height: 0;
+}
+/* 记录列表容器（收音机 listBox 同构：占满剩余高、内部滚动——翻页/长列表不出页面滚动条） */
+.sessListBox {
+  flex: 1;
+  min-height: var(--list-floor, 220px);
+  max-height: var(--list-cap, 560px);
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
 }
 
 /* 会话分页器（counts 常显 + 上下页 + 每页条数档；命中区 ≥32px） */
@@ -567,12 +581,17 @@
   padding: 14px 16px;
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: 12px;
 }
 .drawerSectionTitle {
   font-size: 13px;
   font-weight: 700;
   margin: 0 0 6px;
+}
+/* 区块分隔（桌面 .notes 顶部虚线同构）：总览后的信息段统一虚线起段 */
+.drawerSection {
+  border-top: 1px dashed var(--dsw-alias-border-l3, #c7cdd4);
+  padding-top: 12px;
 }
 /* 属性总览（桌面 .d-summary 同构：两列 kv + 面板底；卡内右上角「编辑」入口浮层） */
 .summarySection {
@@ -622,6 +641,15 @@
   display: inline-flex;
   gap: 4px;
   flex-wrap: wrap;
+}
+/* 备注块（桌面 .d-note 同构：dashed 描边，紧跟属性总览卡；有内容才渲染） */
+.summaryNote {
+  margin: 0;
+  font-size: 12.5px;
+  border: 1px dashed var(--dsw-alias-border-l3, #c7cdd4);
+  border-radius: 8px;
+  padding: 8px 10px;
+  overflow-wrap: break-word;
 }
 .followupItem {
   padding: 4px 0 4px 12px;
@@ -693,6 +721,8 @@
 .followupComposer {
   display: flex;
   gap: 6px;
+  /* 与上方空态提示/最后一条跟进拉开间距（空列表提示不贴输入框） */
+  margin-top: 10px;
 }
 
 /* 操作历史段（对照桌面 log 行：origin + 时间 + 动作/字段旧→新） */
@@ -724,6 +754,10 @@
   padding: 6px 0;
   font-size: 12px;
 }
+/* 时间线空态：与标题行拉开间距 */
+.timelineEmpty {
+  margin-top: 8px;
+}
 .timelineDot {
   width: 8px;
   height: 8px;
@@ -740,6 +774,30 @@
   gap: 6px;
   flex-wrap: wrap;
   align-items: center;
+}
+/* 派发动作行（选择行下方，留距）：⚡派发 + 手动收口三钮 */
+.dispatchActions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  align-items: center;
+  margin-top: 8px;
+}
+/* 改期弹窗行（桌面 sched-row 同构）：选择器与保存/取消同行、按钮贴右；
+ * 日历弹层向下悬浮不占布局 */
+.schedRow {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+/* 改期弹窗选择器定宽：清空/未设置态不缩块（有值态本就是最宽档） */
+.schedPicker {
+  min-width: 200px;
+}
+.schedBtns {
+  margin-left: auto;
+  display: flex;
+  gap: 8px;
 }
 /* 派发行（桌面 dsp-row 同构）：通道/agent 下拉定宽、agent 徽章、目录省略、出发主钮 */
 .dspChannel {

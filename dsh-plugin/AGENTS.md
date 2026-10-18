@@ -1,16 +1,18 @@
 # dsh-plugin/ 插件包约定（host + client + helper）
 
 > dsh（DeepSeek Harness）Cordis 插件形态：宿主半边 `src/host/`（Node）+ 客户端半边 `src/client/`（React，
-> `plugins.detail.section` 页面载体）+ 桌宠 `helper/`（Electron sidecar 子包，workspace member
-> `dsh-plugin-helper`）。模块挂点职责见各子目录 README.md；设计与决策见 `specs/dsh-plugin/` 与
+> sidebar main 全局面板载体——原 `plugins.detail.section` 槽已摘除，插件私有配置经 pluginConfig
+> Context 线入背包分区行、背包为唯一编辑面）+ 桌宠 `helper/`（Electron sidecar 子包，workspace member
+> `pokemon-choose-you-helper`）。模块挂点职责见各子目录 README.md；设计与决策见 `specs/dsh-plugin/` 与
 > `docs/decisions/0001|0002`。
 
 ## 不变量与红线
 
 - **业务核心零 dsh 依赖**：`domain/ radio/ judge/ anonymize/ dispatch/ storage/ reminder/` 是纯逻辑 + SQL 原语，
   不 import 任何 dsh/Cordis 平台面；平台面（timer/subagent/worktrees/SSH/slots/terminal）只允许在
-  适配层（`dsh/`（含 sshScope 唯一 dsh-ssh 触碰点 + probeDsh 探测）、`index.ts` 装配、tools 注册面、
-  pet/dispatch 适配缝）触碰——RC 期破坏性变更被限制在薄适配层。**`remote/` 整体也零 dsh import**：
+  适配层（`dsh/`（含 sshScope 唯一 dsh-ssh 触碰点 + probeDsh 探测 + tlsStack/broker* BoringSSL
+  宿主过渡传输）、`broker/`（brokerMain——dist/broker.mjs 入口，系统 Node 子进程侧零 dsh 宿主依赖）、
+  `index.ts` 装配、tools 注册面、pet/dispatch 适配缝）触碰——RC 期破坏性变更被限制在薄适配层。**`remote/` 整体也零 dsh import**：
   远端能力经 `remote/sshScope.ts` 的平台中立 `SshScope` 接口注入（实现在 `dsh/sshScope.ts`，按
   spike 结论双 label isolate 装配——specs/dsh-plugin-full-parity/spike-dsh-ssh.md）。
 - **storage 是全插件唯一握连接的模块**：连接生命周期（WAL + busy_timeout=5000）、guarded 迁移**封顶
@@ -21,6 +23,11 @@
 - **domain 与 Rust 逐 `contracts/PROTOCOL.md` 对齐（FR-X3）**：行为以 `contracts/fixtures/` 锁定的代码
   行为为准；发现与 AD 文字矩阵差异时 TS 对齐实际行为，并在代码注释标注差异点（见 PROTOCOL §5「代码优先
   行为发现」清单，如 conn 层不设状态迁移守卫、停用维度建标签放行）——不要"顺手修正"为文档语义。
+- **执行世界单源 = agent 绑定部署（2026-10-19 裁决）**：`AgentConfig.deployment`（`ai_agents` JSON 内
+  dsh 扩展字段，存部署 alias；Rust serde 未知字段容忍）驱动派发本地/远端，路由级 deployment 已移除；
+  存在性校验在命令层（domain 不反向依赖 `remote/`），alias 改名级联改写 `ai_agents`（`confirmAliasRefs`）；
+  生效引用 `ref = target = alias`，hostKey 归一 `ssh:<alias>`；`agent.remote`（SSH host/端口表单）保留为
+  桌面共享面，不驱动插件派发。
 - **coverage 口径**：`vite.config.ts` thresholds 四维 85 只统计 `src/host/**`（business core）；
   client 组件不入口径但**进质量棘轮**（复杂度/覆盖率地板按服务全量）。**不要把 vite.config.ts 改名为
   vitest.config.ts**（会脱离棘轮发现面）。
@@ -35,9 +42,9 @@
 - **TODO 纪律**：源码内不落 TODO 字面量（全仓棘轮 hygiene 基线 = 0），待办写各模块 README.md（.md
   不入卫生扫描口径）。
 
-## 命令速查（stack.json `dsh-plugin` 服务单源）
+## 命令速查（stack.json `pokemon-choose-you-dsh` 服务单源）
 
 - lint：`pnpm --filter dsh-plugin lint`（eslint + prettier + tsc --noEmit 分脚本）
 - 测试：`pnpm --filter dsh-plugin test`（vitest 全量，含契约回放与组件测试）
-- helper：`pnpm --filter dsh-plugin-helper test|build|dev`（dev 需本机 electron；CI 跳过二进制下载）
+- helper：`pnpm --filter pokemon-choose-you-helper test|build|dev`（dev 需本机 electron；CI 跳过二进制下载）
 - 契约夹具重生成：见 `contracts/AGENTS.md`

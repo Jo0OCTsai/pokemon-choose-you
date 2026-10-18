@@ -632,7 +632,8 @@
   user-select: none;
 }
 
-/* CaptureBar（通栏垫底；原型 capture：顶部重墨分隔线——桌面 3px navy 的宿主降档） */
+/* CaptureBar（通栏垫底；原型 capture：顶部重墨分隔线——桌面 3px navy 的宿主降档）。
+ * kbdHint 行已收敛为输入框内 ⌨ 图标（悬浮气泡）——主区/空态经 flex 各自吸收腾出的高度 */
 .captureBar {
   display: flex;
   gap: 8px;
@@ -640,11 +641,17 @@
   padding-top: 12px;
   border-top: 2px solid var(--dsw-alias-label-primary, #1f2328);
 }
+.captureWrap {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+  display: flex;
+}
 .captureInput {
   flex: 1;
   box-sizing: border-box;
   height: var(--pcy-control-h, 32px);
-  padding: 4px 10px;
+  padding: 4px 10px 4px 30px;
   border-radius: 8px;
   border: 1px solid var(--dsw-alias-border-l2, #d0d7de);
   background: var(--dsw-alias-bg-layer-1, #ffffff);
@@ -659,7 +666,16 @@
   font-size: 12px;
   color: var(--dsw-alias-label-secondary, #57606a);
 }
-.kbdHint {
-  font-size: 11px;
+/* 快捷键提示图标锚（绝对定位于输入框左内侧；气泡内容 = dsh.radio.kbdHint） */
+.kbdTipAnchor {
+  position: absolute;
+  left: 8px;
+  top: 50%;
+  transform: translateY(-50%);
+}
+.kbdTipGlyph {
+  font-size: 14px;
+  line-height: 1;
   color: var(--dsw-alias-label-secondary, #57606a);
+  user-select: none;
 }

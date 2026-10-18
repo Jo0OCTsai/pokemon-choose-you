@@ -6,8 +6,8 @@
 import { nowRfc3339, txImmediate, type Conn } from "../storage/db";
 import { dispatchTransition, DS_FAILED } from "../domain/dispatch";
 import { dispatchHostKey } from "../domain/dispatch-slots";
+import { loadAgents } from "../domain/settings";
 import { posixQuote } from "../dispatch/cmdline";
-import { listRoutes } from "../dispatch/routes";
 import { logAgentSession } from "../dispatch/sessions";
 import { listDeployments, type DeploymentEntity } from "./deployments";
 import { lateReport, type LateReportFailedRow, type LateReportTrace } from "./lateReport";
@@ -15,15 +15,10 @@ import { recheckDeployment, type RecheckOutcome } from "./recheck";
 import type { RemoteDispatchPlatform, SshTerminalScope } from "./sshExecutor";
 import type { SshScope } from "./sshScope";
 
-/** 引用了某部署别名（alias）的路由 target 列表（hostKey / 失败行查询共用） */
+/** 绑定了某部署别名（alias）的连接目标列表（hostKey / 失败行查询共用）——执行世界
+ *  单源：引用面 = agent 绑定（ai_agents.deployment），target = alias（OpenSSH 别名即连接目标） */
 function targetsForAlias(conn: Conn, alias: string): string[] {
-  const out: string[] = [];
-  for (const route of Object.values(listRoutes(conn))) {
-    if (route.deployment?.ref === alias) {
-      out.push(route.deployment.target);
-    }
-  }
-  return out;
+  return loadAgents(conn).some((a) => a.deployment?.trim() === alias) ? [alias] : [];
 }
 
 /** 断连收口 + recheck 恢复入口（挂 SshScopeHost.onScopeDisconnected / 周期 timer——装配归 2.9） */

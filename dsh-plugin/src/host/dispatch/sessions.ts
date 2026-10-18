@@ -52,29 +52,19 @@ function agentNameOf(conn: Conn, agentId: string): string {
   }
 }
 
-/** 执行时远端快照（remote_snapshot 同构：host 空 = 本地执行） */
-export function remoteSnapshot(
-  agent: AgentConfig,
-): Pick<AgentSessionRecord, "remoteHost" | "remotePort" | "remoteKey"> {
-  const r = agent.remote;
-  if (r === null || r === undefined || r.host.trim() === "") {
-    return { remoteHost: "", remotePort: 0, remoteKey: "" };
-  }
-  return { remoteHost: r.host.trim(), remotePort: r.port, remoteKey: (r.keyPath ?? "").trim() };
-}
-
 /**
- * 执行世界快照（A27）：deployment 路由 = 部署 target（remote_host 快照自包含——
- * 回放路由不依赖实体在位，压过 agent 级 remote 配置）；本机路由 = agent 快照面。
+ * 执行时远端快照（remote_snapshot 同构）：deployment 路由 = 部署 alias（凭据归 ~/.ssh，
+ * port/密钥零记录）；本机路由 = 空（本地执行不记远端——2026-10-19 落账诚实化，
+ * agent.remote 不再进插件派发行的执行世界快照；桌面来源行的既有快照不受影响）。
  */
 export function executionWorld(
-  agent: AgentConfig,
+  _agent: AgentConfig,
   route: { deployment: { target: string } | null },
 ): Pick<AgentSessionRecord, "remoteHost" | "remotePort" | "remoteKey"> {
   if (route.deployment !== null) {
     return { remoteHost: route.deployment.target.trim(), remotePort: 0, remoteKey: "" };
   }
-  return remoteSnapshot(agent);
+  return { remoteHost: "", remotePort: 0, remoteKey: "" };
 }
 
 /** 写一条会话记录（log_session_conn 同构：任务存在性校验；status 非 ok 归 error） */

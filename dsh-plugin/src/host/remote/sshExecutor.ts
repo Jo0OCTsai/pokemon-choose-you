@@ -105,8 +105,8 @@ export function planRemoteRoute(
     return {
       kind: "reject",
       tag: "DEPLOYMENT_NOT_READY",
-      message: `路由指向的部署「${ref}」缺失——执行世界错置是现实危害面，不静默降级本机`,
-      hint: "在设置的远程部署里重建同名部署，或编辑项目路由解除 deployment 引用改回本机执行",
+      message: `部署「${ref}」已被移除，无法远程派发`,
+      hint: "可在设置的远程部署中重新添加，或解除该 agent 的部署绑定改回本机执行",
     };
   }
   if (entity.degraded) {
@@ -116,8 +116,8 @@ export function planRemoteRoute(
     return {
       kind: "reject",
       tag: "SSH_FAMILY_MISSING",
-      message: `dsh-ssh 家族未装载（capability 红），部署「${ref}」远程派发不可用`,
-      hint: "按诊断段指引装载/重装 dsh-ssh 家族后重试；或在部署上经 deploymentDegradeConfirm 显式确认降级直连",
+      message: `SSH 组件未安装，无法远程派发「${ref}」`,
+      hint: "可在设置页按指引安装 SSH 组件后重试",
     };
   }
   return { kind: "family", entity };

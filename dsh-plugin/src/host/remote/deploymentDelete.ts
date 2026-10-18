@@ -91,7 +91,7 @@ async function runDeploymentCleanup(
 /**
  * 移除部署（AD §4.1 deploymentDelete）：关连接 + 远端 helper 托管目录自清理尽力执行
  * （事务外编排），失败不阻塞；本机记录删除单条 BEGIN IMMEDIATE 收口。
- * 路由悬空引用不做级联（§5.2 ②——由 danglingDeploymentRefs 承接呈现）。
+ * agent 绑定悬空引用不做级联（§5.2 ②——由 danglingDeploymentRefs 承接呈现）。
  */
 export async function deploymentDelete(
   conn: Conn,

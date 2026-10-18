@@ -51,7 +51,11 @@ function insertLocalMessage(conn: Conn, text: string, anon: string, nowMs: numbe
 }
 
 /** 捕捉判定（无 claim：手动捕捉无并发判定方）：selfLanding 读回、内存态走提交期校验（A21 重试 ≤2） */
-async function runCapture(deps: CaptureDeps, prompt: string, messageId: string): Promise<AiSuggestion> {
+async function runCapture(
+  deps: CaptureDeps,
+  prompt: string,
+  messageId: string,
+): Promise<{ hit: AiSuggestion; sessionId: string | null }> {
   let feedback: string | undefined;
   for (let attempt = 0; ; attempt++) {
     const outcome = await deps.executor.run({ prompt, messageIds: [messageId], feedback });
@@ -62,11 +66,11 @@ async function runCapture(deps: CaptureDeps, prompt: string, messageId: string):
       throw new Error("agent 未返回捕捉判定");
     }
     if (deps.executor.selfLanding) {
-      return hit;
+      return { hit, sessionId: outcome.sessionId };
     }
     try {
       suggestBatch(deps.conn, [hit], deps.executor.id);
-      return hit;
+      return { hit, sessionId: outcome.sessionId };
     } catch (error) {
       if (error instanceof PkyError && error.code === "JUDGE_INVALID_RESULT" && attempt < MAX_VALIDATE_RETRIES) {
         feedback = error.message;
@@ -87,12 +91,12 @@ function assertCaptureInput(text: string): void {
   }
 }
 
-/** 捕捉会话账本（kind=capture，成败两态共用） */
-function logCaptureSession(deps: CaptureDeps, started: number, status: "ok" | "error"): void {
+/** 捕捉会话账本（kind=capture，成败两态共用；sessionId = 执行方会话（subagent childId / CLI 信封）） */
+function logCaptureSession(deps: CaptureDeps, started: number, status: "ok" | "error", sessionId: string | null): void {
   logJudgeSession(deps.conn, {
     agentId: deps.executor.id,
     agentName: deps.executor.name,
-    sessionId: null,
+    sessionId,
     durationMs: Date.now() - started,
     status,
     kind: "capture",
@@ -120,15 +124,15 @@ export async function captureTodo(deps: CaptureDeps, input: string): Promise<Cap
   });
   const started = Date.now();
   try {
-    const suggestion = await runCapture(deps, prompt, messageId);
-    logCaptureSession(deps, started, "ok");
+    const { hit: suggestion, sessionId } = await runCapture(deps, prompt, messageId);
+    logCaptureSession(deps, started, "ok", sessionId);
     deps.health?.recordSuccess(AI, now);
     return suggestion.action === "todo"
       ? finishCapture(deps.conn, messageId, now)
       : { messageId, outcome: "suggestion", taskId: null };
   } catch (error) {
     markAiError(deps.conn, [messageId]);
-    logCaptureSession(deps, started, "error");
+    logCaptureSession(deps, started, "error", null);
     deps.health?.recordFailure(AI, error instanceof Error ? error.message : String(error));
     throw error;
   }

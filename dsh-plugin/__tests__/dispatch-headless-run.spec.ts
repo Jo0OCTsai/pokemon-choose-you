@@ -31,6 +31,7 @@ function seedAgent(agentId: string): void {
         workdir: "",
         timeoutSecs: 120,
         enabled: true,
+        deployment: "dev-box", // 执行世界单源：agent 绑定部署（远端路由前提）
       },
     ]),
   );
@@ -65,13 +66,10 @@ function sessionRow(taskId: number): Record<string, unknown> {
   >;
 }
 
-describe("远端执行世界（deployment 路由）", () => {
+describe("远端执行世界（agent 绑定部署）", () => {
   function seedDeploymentTask(title: string): number {
-    const taskId = seedProjectTask(title);
-    db.conn
-      .prepare("INSERT OR REPLACE INTO settings (key, value) VALUES ('dsh:dispatch_routes', ?)")
-      .run(JSON.stringify({ [title]: { agentId: "ag-1", deployment: { ref: "dev-box", target: "u@h:22" } } }));
-    return taskId;
+    // 执行世界由 seedAgent 的 deployment 绑定承载（路由层不再携带）
+    return seedProjectTask(title);
   }
 
   it("provider 未装配（executorFor 返回 null）→ failed + 未装配 note + 删槽（不抛）", async () => {

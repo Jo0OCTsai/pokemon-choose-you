@@ -133,7 +133,7 @@ function surfaceOf(ctx: DshHostSurface | undefined, key: keyof DshHostSurface): 
 
 function probePlatform(ctx?: DshHostSurface): CapabilityProbe {
   if (ctx !== undefined && typeof ctx.isolate === "function" && typeof ctx.plugin === "function") {
-    return { ok: true, detail: "dsh 宿主进程内运行（ctx.isolate/plugin 表面在场；基线 0.2.0-rc.2）" };
+    return { ok: true, detail: "dsh 宿主进程内运行（ctx.isolate/plugin 表面在场；基线 0.2.1-rc.2）" };
   }
   return { ok: false, detail: "宿主 ctx 表面缺席（不在 dsh 宿主内运行或表面未注入）" };
 }
@@ -191,7 +191,7 @@ export async function probeDshCapabilities(ctx?: DshHostSurface): Promise<DshCap
     "dsh-ssh": await probeSshFamily(),
     "dsh-terminal": probeTerminal(ctx),
     "dsh-subagent": probeInjectSurface(ctx, "subagents", "判定执行方 subagent 桥不可用（诊断呈现，不阻断核心闭环）"),
-    "dsh-worktrees": probeInjectSurface(ctx, "worktrees", "宿主无 worktrees 注入面（dsh 0.2.0-rc.2 未提供；诊断呈现）"),
+    "dsh-worktrees": probeInjectSurface(ctx, "worktrees", "宿主无 worktrees 注入面（基线宿主未提供；诊断呈现）"),
     "dsh-timer": probeTimer(ctx),
     "dsh-storage": probeSelfHosted(ctx, "storage", "插件 storage 唯一握连接，不依赖宿主 storage 服务"),
     "dsh-slots": probeSelfHosted(ctx, "slots", "并发槽由插件 dispatch_slots 库内实现，不依赖宿主 slots 服务"),

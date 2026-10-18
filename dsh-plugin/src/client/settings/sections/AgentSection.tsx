@@ -2,8 +2,10 @@
  * Agent 分区页（🤖，U20：原派发段并入 + 判定执行方移入）：
  * - AgentConfigCard（agent 列表配置卡 CRUD：名称/命令/历史参数/技能根目录——卡自持保存，
  *   实体 CRUD 不走分区保存制；命令行内校验：空阻断；修订检测 SETTING_MODIFIED_ELSEWHERE）
- * - 判定执行方（ai_agent_id，保存制）/ 终端偏好（标「作用于主应用交互派发」，保存制）
- * - 项目派发路由（routeUpsert 实体 CRUD）/ 自动派发/并发/worktree（保存制）
+ * - AI 判定方式（平铺选择器：内置通道/不指定/agents，即时写双键——judgeExecutor 走
+ *   pluginConfig、ai_agent_id 走 configWrite）/ 终端偏好（保存制——dsh desktop 外部终端
+ *   唤起同读该值，badge 已随偏好遵循移除）/ 项目派发路由（routeUpsert 实体 CRUD）/
+ *   自动派发/并发/worktree（保存制）
  * - PromptOverrideEditor（4 处提示词查看/编辑覆盖/恢复默认——自持保存 + hint 自隐 4s）
  */
 import { useEffect, useMemo, useState } from "react";
@@ -17,6 +19,7 @@ import ui from "../../ui/ui.module.css";
 import { AgentConfigCard, RouteRow } from "./AgentConfigCard";
 import { PromptOverrideEditor } from "./PromptOverrideEditor";
 import { DeploymentCard } from "../deploy/DeploymentCard";
+import { JudgeRunnerRow } from "../PluginConfigRows";
 import type { SectionProps } from "../sectionProps";
 import type { DispatchRoute } from "../../rpc";
 import { SectionShell } from "../SectionShell";
@@ -199,22 +202,26 @@ export function AgentSection({
         <h4 className={styles.cardTitle} data-tip={t("dispatchCfg.hint")}>
           {t("dispatchCfg.title")}
         </h4>
-        <Select
-          label={t("ai.primary")}
-          tip={t("dsh.settings.judgeSource")}
-          value={draft["ai_agent_id"]}
-          options={agentOptions}
-          onChange={(v) => onField("ai_agent_id", v)}
+        {/* AI 判定方式平铺选择器（用户裁决 2026-10-18）：[dsh 内置通道（建设中）] +
+            [不指定] + agents 一级收口，即时写双键（judgeExecutor 走 pluginConfig，
+            ai_agent_id 走 configWrite 共享键）——controller 缺席行不渲染（分区单测） */}
+        <JudgeRunnerRow
+          agentOptions={agentOptions}
+          agentId={draft["ai_agent_id"]}
+          onAgentPicked={(v) => {
+            onField("ai_agent_id", v);
+            props.onSavedKeys(["ai_agent_id"], { ai_agent_id: v });
+          }}
         />
         <Select
           label={t("ai.terminal")}
           tip={t("ai.terminalDesc")}
-          badge={t("dsh.badge.dispatch")}
           value={draft["terminal_preference"]}
           options={[
             { value: "default", label: t("ai.termBuiltin") },
             { value: "iterm2", label: "iTerm2" },
             { value: "ghostty", label: "Ghostty" },
+            { value: "kitty", label: "kitty" },
             { value: "windows-terminal", label: "Windows Terminal" },
           ]}
           onChange={(v) => onField("terminal_preference", v)}

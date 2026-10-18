@@ -219,7 +219,9 @@ export function DeploymentWizard({
           ) : (
             log.map((line, index) => (
               <div key={index} className={styles.logLine} data-ok={line.ok === null ? undefined : String(line.ok)}>
-                <span className={styles.logStep}>{line.step === "info" ? "···" : line.step}</span>
+                <span className={styles.logStep}>
+                  {line.step === "info" ? "···" : t(`dsh.deploy.wizard.step.${line.step}`)}
+                </span>
                 <span className={styles.logText}>{line.text}</span>
               </div>
             ))

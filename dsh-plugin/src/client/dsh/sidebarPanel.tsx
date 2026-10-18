@@ -16,6 +16,7 @@ import dshZhHans from "../i18n/dsh-zh-Hans";
 import dshZhHant from "../i18n/dsh-zh-Hant";
 import type { PanelData } from "../model";
 import { fetchPanelData } from "./panelData";
+import { PluginConfigProvider, type PluginConfigController } from "./pluginConfig";
 import type { HostClient, PageSection } from "../rpc";
 import styles from "./mainPanel.module.css";
 
@@ -93,8 +94,12 @@ export function createPanelOpener(layout: PanelLayoutFace | undefined): (section
   };
 }
 
-/** 数据快照根（detail section 与主区面板共用的拉取/刷新壳） */
-export function createPanelRoot(host: HostClient): () => React.JSX.Element {
+/** 数据快照根（主区面板的拉取/刷新壳——plugins.detail.section 摘除后图鉴机 UI 唯一载体；
+ *  pluginConfig = 插件私有配置控制器（背包分区行消费——Context 注入，null = 行不渲染）） */
+export function createPanelRoot(
+  host: HostClient,
+  config: PluginConfigController | null = null,
+): () => React.JSX.Element {
   function PanelRoot(): React.JSX.Element {
     const [data, setData] = useState<PanelData | null>(null);
     const refresh = useCallback((): void => {
@@ -108,7 +113,9 @@ export function createPanelRoot(host: HostClient): () => React.JSX.Element {
     }
     return (
       <div data-pky-panel="" style={{ minHeight: 0 }}>
-        <PluginDetailPage client={host} data={data} onChanged={refresh} />
+        <PluginConfigProvider controller={config}>
+          <PluginDetailPage client={host} data={data} onChanged={refresh} />
+        </PluginConfigProvider>
       </div>
     );
   }
@@ -116,8 +123,11 @@ export function createPanelRoot(host: HostClient): () => React.JSX.Element {
 }
 
 /** 主区全局面板（main keyed 槽组件：darwin 顶部避让 + 整页自滚动） */
-export function createMainPanel(host: HostClient): (props: Record<string, unknown>) => ReactNode {
-  const PanelRoot = createPanelRoot(host);
+export function createMainPanel(
+  host: HostClient,
+  config: PluginConfigController | null = null,
+): (props: Record<string, unknown>) => ReactNode {
+  const PanelRoot = createPanelRoot(host, config);
   return function MainPanel(): ReactNode {
     return (
       <div className={styles.shell}>

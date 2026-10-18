@@ -11,9 +11,7 @@
       this.hint = hint;
     }
     toShape() {
-      return this.hint === void 0
-        ? { code: this.code, message: this.message }
-        : { code: this.code, message: this.message, hint: this.hint };
+      return this.hint === void 0 ? { code: this.code, message: this.message } : { code: this.code, message: this.message, hint: this.hint };
     }
   };
 
@@ -28,25 +26,19 @@
         }
         const task = ctx.findTask(params.taskId);
         if (task === void 0) {
-          return {
-            ok: false,
-            error: new PkyError("NOT_FOUND", `\u4EFB\u52A1 ${params.taskId} \u4E0D\u5B58\u5728`).toShape(),
-          };
+          return { ok: false, error: new PkyError("NOT_FOUND", `\u4EFB\u52A1 ${params.taskId} \u4E0D\u5B58\u5728`).toShape() };
         }
         const content = params.content.trim();
         if (content === "") {
-          return {
-            ok: false,
-            error: new PkyError("INVALID_ARGUMENT", "\u8DDF\u8FDB\u5185\u5BB9\u4E0D\u80FD\u4E3A\u7A7A").toShape(),
-          };
+          return { ok: false, error: new PkyError("INVALID_ARGUMENT", "\u8DDF\u8FDB\u5185\u5BB9\u4E0D\u80FD\u4E3A\u7A7A").toShape() };
         }
-        const list = (ctx.state.followups[params.taskId] ??= []);
+        const list = ctx.state.followups[params.taskId] ??= [];
         const note = {
           id: list.reduce((max, n) => Math.max(max, n.id), 0) + 1,
           taskId: params.taskId,
           content,
           source: "manual",
-          createdAt: "2026-10-14T08:00:00+00:00",
+          createdAt: "2026-10-14T08:00:00+00:00"
         };
         list.push(note);
         return ctx.ok(note);
@@ -66,7 +58,7 @@
       async taskHistory(params) {
         ctx.record("taskHistory", params);
         return ctx.ok({ logs: ctx.state.taskLogs[params.taskId] ?? [] });
-      },
+      }
     };
   }
 
@@ -81,10 +73,7 @@
         }
         const task = ctx.findTask(params.taskId);
         if (task === void 0) {
-          return {
-            ok: false,
-            error: new PkyError("NOT_FOUND", `\u4EFB\u52A1 ${params.taskId} \u4E0D\u5B58\u5728`).toShape(),
-          };
+          return { ok: false, error: new PkyError("NOT_FOUND", `\u4EFB\u52A1 ${params.taskId} \u4E0D\u5B58\u5728`).toShape() };
         }
         for (const other of ctx.state.tasks) {
           if (other.id !== task.id && (other.status === "active" || other.status === "paused")) {
@@ -100,8 +89,7 @@
         if (blocked !== null) {
           return { ok: false, error: blocked.toShape() };
         }
-        const target =
-          params?.taskId !== void 0 ? ctx.findTask(params.taskId) : ctx.state.tasks.find((t) => t.status === "active");
+        const target = params?.taskId !== void 0 ? ctx.findTask(params.taskId) : ctx.state.tasks.find((t) => t.status === "active");
         if (target === void 0) {
           return { ok: true, data: null };
         }
@@ -114,14 +102,13 @@
         if (blocked !== null) {
           return { ok: false, error: blocked.toShape() };
         }
-        const target =
-          params?.taskId !== void 0 ? ctx.findTask(params.taskId) : ctx.state.tasks.find((t) => t.status === "paused");
+        const target = params?.taskId !== void 0 ? ctx.findTask(params.taskId) : ctx.state.tasks.find((t) => t.status === "paused");
         if (target === void 0) {
           return { ok: true, data: null };
         }
         target.status = "active";
         return { ok: true, data: target };
-      },
+      }
     };
   }
   function taskCloseCommands(ctx) {
@@ -132,13 +119,9 @@
         if (blocked !== null) {
           return { ok: false, error: blocked.toShape() };
         }
-        const target =
-          params?.taskId !== void 0 ? ctx.findTask(params.taskId) : ctx.state.tasks.find((t) => t.status !== "done");
+        const target = params?.taskId !== void 0 ? ctx.findTask(params.taskId) : ctx.state.tasks.find((t) => t.status !== "done");
         if (target === void 0) {
-          return {
-            ok: false,
-            error: new PkyError("NOT_FOUND", "\u6CA1\u6709\u53EF\u5B8C\u6210\u7684\u4EFB\u52A1").toShape(),
-          };
+          return { ok: false, error: new PkyError("NOT_FOUND", "\u6CA1\u6709\u53EF\u5B8C\u6210\u7684\u4EFB\u52A1").toShape() };
         }
         target.status = "done";
         target.completedAt = "2026-10-11T09:00:00+08:00";
@@ -152,15 +135,12 @@
         }
         const task = ctx.findTask(params.taskId);
         if (task === void 0) {
-          return {
-            ok: false,
-            error: new PkyError("NOT_FOUND", `\u4EFB\u52A1 ${params.taskId} \u4E0D\u5B58\u5728`).toShape(),
-          };
+          return { ok: false, error: new PkyError("NOT_FOUND", `\u4EFB\u52A1 ${params.taskId} \u4E0D\u5B58\u5728`).toShape() };
         }
         task.status = "cancelled";
         task.cancelledAt = "2026-10-11T09:00:00+08:00";
         return { ok: true, data: task };
-      },
+      }
     };
   }
   function releaseCommands(ctx) {
@@ -182,13 +162,7 @@
         ctx.record("taskDeleteUndo", params);
         const tombstone = ctx.state.deleted.find((t) => t.id === params.taskId);
         if (tombstone === void 0) {
-          return {
-            ok: false,
-            error: new PkyError(
-              "INVALID_ARGUMENT",
-              "\u64A4\u9500\u7A97\u53E3\u5DF2\u8FC7\u6216\u4EFB\u52A1\u672A\u88AB\u653E\u751F",
-            ).toShape(),
-          };
+          return { ok: false, error: new PkyError("INVALID_ARGUMENT", "\u64A4\u9500\u7A97\u53E3\u5DF2\u8FC7\u6216\u4EFB\u52A1\u672A\u88AB\u653E\u751F").toShape() };
         }
         ctx.state.deleted = ctx.state.deleted.filter((t) => t.id !== params.taskId);
         ctx.state.tasks.push(tombstone);
@@ -202,10 +176,7 @@
         }
         const task = ctx.findTask(params.taskId);
         if (task === void 0) {
-          return {
-            ok: false,
-            error: new PkyError("NOT_FOUND", `\u4EFB\u52A1 ${params.taskId} \u4E0D\u5B58\u5728`).toShape(),
-          };
+          return { ok: false, error: new PkyError("NOT_FOUND", `\u4EFB\u52A1 ${params.taskId} \u4E0D\u5B58\u5728`).toShape() };
         }
         task.dueAt = params.due === void 0 ? task.dueAt : params.due === "" ? null : params.due;
         if (task.dueAt === null && task.startedAt === null) {
@@ -214,7 +185,7 @@
           task.status = "scheduled";
         }
         return { ok: true, data: task };
-      },
+      }
     };
   }
   function taskEditCommands(ctx) {
@@ -230,10 +201,7 @@
         }
         const task = ctx.findTask(params.id);
         if (task === void 0) {
-          return {
-            ok: false,
-            error: new PkyError("NOT_FOUND", `\u4EFB\u52A1 ${params.id} \u4E0D\u5B58\u5728`).toShape(),
-          };
+          return { ok: false, error: new PkyError("NOT_FOUND", `\u4EFB\u52A1 ${params.id} \u4E0D\u5B58\u5728`).toShape() };
         }
         if (params.title !== void 0) task.title = params.title;
         if (params.note !== void 0) task.note = params.note;
@@ -243,7 +211,7 @@
         if (params.remindAt !== void 0) task.remindAt = params.remindAt;
         if (params.status !== void 0) task.status = params.status;
         return ctx.ok(task);
-      },
+      }
     };
   }
 
@@ -259,7 +227,7 @@
     // 闲聊/噪音
     "outdated",
     // 已过期
-    "other",
+    "other"
     // 其他
   ];
 
@@ -286,7 +254,7 @@
       reason: null,
       dismissReason: "",
       taskId: task.id,
-      updateTaskId: null,
+      updateTaskId: null
     };
     ctx.state.messages.push(message);
   }
@@ -299,7 +267,7 @@
           return { ok: false, error: blocked.toShape() };
         }
         const duplicate = ctx.state.messages.find(
-          (m) => m.aiStatus === "update" && m.reviewStatus === "pending" && params.text.includes(m.content.slice(0, 4)),
+          (m) => m.aiStatus === "update" && m.reviewStatus === "pending" && params.text.includes(m.content.slice(0, 4))
         );
         if (duplicate !== void 0) {
           return {
@@ -308,8 +276,8 @@
               messageId: duplicate.messageId,
               outcome: "updateSuggested",
               taskId: null,
-              title: duplicate.suggestedTitle,
-            },
+              title: duplicate.suggestedTitle
+            }
           };
         }
         const messageId = `mock-cap-${ctx.calls.length}`;
@@ -332,12 +300,12 @@
           focusSeconds: 0,
           tags: [],
           dispatchState: null,
-          dispatchedSession: null,
+          dispatchedSession: null
         };
         ctx.state.tasks.push(task);
         pushCaptureMessage(ctx, messageId, params.text, task);
         return { ok: true, data: { messageId, outcome: "caught", taskId: task.id, title: task.title } };
-      },
+      }
     };
   }
   function acceptCommands(ctx) {
@@ -354,10 +322,7 @@
         }
         const message = ctx.findMessage(params.messageId);
         if (message === void 0) {
-          return {
-            ok: false,
-            error: new PkyError("NOT_FOUND", `\u6D88\u606F ${params.messageId} \u4E0D\u5B58\u5728`).toShape(),
-          };
+          return { ok: false, error: new PkyError("NOT_FOUND", `\u6D88\u606F ${params.messageId} \u4E0D\u5B58\u5728`).toShape() };
         }
         message.reviewStatus = "accepted";
         const task = taskFromMessage(ctx, message);
@@ -376,14 +341,11 @@
         }
         const message = ctx.findMessage(params.messageId);
         if (message === void 0) {
-          return {
-            ok: false,
-            error: new PkyError("NOT_FOUND", `\u6D88\u606F ${params.messageId} \u4E0D\u5B58\u5728`).toShape(),
-          };
+          return { ok: false, error: new PkyError("NOT_FOUND", `\u6D88\u606F ${params.messageId} \u4E0D\u5B58\u5728`).toShape() };
         }
         message.reviewStatus = "accepted";
         return { ok: true, data: { taskId: message.updateTaskId, messageId: message.messageId } };
-      },
+      }
     };
   }
   function dismissCommands(ctx) {
@@ -396,10 +358,7 @@
         }
         const message = ctx.findMessage(params.messageId);
         if (message === void 0) {
-          return {
-            ok: false,
-            error: new PkyError("NOT_FOUND", `\u6D88\u606F ${params.messageId} \u4E0D\u5B58\u5728`).toShape(),
-          };
+          return { ok: false, error: new PkyError("NOT_FOUND", `\u6D88\u606F ${params.messageId} \u4E0D\u5B58\u5728`).toShape() };
         }
         message.reviewStatus = "dismissed";
         message.dismissReason = params.reasonCode;
@@ -413,19 +372,10 @@
         }
         const message = ctx.findMessage(params.messageId);
         if (message === void 0) {
-          return {
-            ok: false,
-            error: new PkyError("NOT_FOUND", `\u6D88\u606F ${params.messageId} \u4E0D\u5B58\u5728`).toShape(),
-          };
+          return { ok: false, error: new PkyError("NOT_FOUND", `\u6D88\u606F ${params.messageId} \u4E0D\u5B58\u5728`).toShape() };
         }
         if (message.reviewStatus !== "dismissed") {
-          return {
-            ok: false,
-            error: new PkyError(
-              "SUGGESTION_ALREADY_RESOLVED",
-              "\u8BE5\u5EFA\u8BAE\u5DF2\u5728\u53E6\u4E00\u5904\u5904\u7F6E",
-            ).toShape(),
-          };
+          return { ok: false, error: new PkyError("SUGGESTION_ALREADY_RESOLVED", "\u8BE5\u5EFA\u8BAE\u5DF2\u5728\u53E6\u4E00\u5904\u5904\u7F6E").toShape() };
         }
         message.reviewStatus = "pending";
         message.dismissReason = "";
@@ -437,11 +387,11 @@
         if (blocked !== null) {
           return { ok: false, error: blocked.toShape() };
         }
-        const results = params.messageIds.map((messageId) =>
-          reviewBatchOne(ctx, messageId, params.op, params.reasonCode),
+        const results = params.messageIds.map(
+          (messageId) => reviewBatchOne(ctx, messageId, params.op, params.reasonCode)
         );
         return { ok: true, data: { results } };
-      },
+      }
     };
   }
   function taskFromMessage(ctx, message) {
@@ -464,7 +414,7 @@
       focusSeconds: 0,
       tags: [],
       dispatchState: null,
-      dispatchedSession: null,
+      dispatchedSession: null
     };
     ctx.state.tasks.push(task);
     return task;
@@ -479,13 +429,7 @@
       return { ok: false, error: conflict.toShape() };
     }
     if (!ESCAPE_REASON_CODES.includes(reasonCode)) {
-      return {
-        ok: false,
-        error: new PkyError(
-          "INVALID_ARGUMENT",
-          `\u672A\u77E5\u9003\u8D70\u539F\u56E0\u7801\uFF1A${reasonCode}`,
-        ).toShape(),
-      };
+      return { ok: false, error: new PkyError("INVALID_ARGUMENT", `\u672A\u77E5\u9003\u8D70\u539F\u56E0\u7801\uFF1A${reasonCode}`).toShape() };
     }
     return null;
   }
@@ -506,10 +450,7 @@
     return {
       async retryJudge(params) {
         ctx.record("retryJudge", params);
-        const targets =
-          params.messageIds === "all"
-            ? ctx.state.messages.filter((m) => m.aiStatus === "error")
-            : ctx.state.messages.filter((m) => params.messageIds.includes(m.messageId));
+        const targets = params.messageIds === "all" ? ctx.state.messages.filter((m) => m.aiStatus === "error") : ctx.state.messages.filter((m) => params.messageIds.includes(m.messageId));
         for (const message of targets) {
           message.aiStatus = "judging";
         }
@@ -523,10 +464,7 @@
         }
         const message = ctx.findMessage(params.messageId);
         if (message === void 0) {
-          return {
-            ok: false,
-            error: new PkyError("NOT_FOUND", `\u6D88\u606F ${params.messageId} \u4E0D\u5B58\u5728`).toShape(),
-          };
+          return { ok: false, error: new PkyError("NOT_FOUND", `\u6D88\u606F ${params.messageId} \u4E0D\u5B58\u5728`).toShape() };
         }
         message.aiStatus = "todo";
         message.reviewStatus = "accepted";
@@ -540,16 +478,13 @@
         }
         const message = ctx.findMessage(params.messageId);
         if (message === void 0) {
-          return {
-            ok: false,
-            error: new PkyError("NOT_FOUND", `\u6D88\u606F ${params.messageId} \u4E0D\u5B58\u5728`).toShape(),
-          };
+          return { ok: false, error: new PkyError("NOT_FOUND", `\u6D88\u606F ${params.messageId} \u4E0D\u5B58\u5728`).toShape() };
         }
         message.aiStatus = "none";
         message.reviewStatus = "dismissed";
         message.dismissReason = params.reasonCode ?? "other";
         return { ok: true, data: { messageId: message.messageId } };
-      },
+      }
     };
   }
 
@@ -571,10 +506,7 @@
     if (task.dispatchState === "running" || task.dispatchState === "queued") {
       return {
         ok: false,
-        error: new PkyError(
-          "DISPATCH_ALREADY_ACTIVE",
-          "\u8BE5\u4EFB\u52A1\u5DF2\u6709\u8FDB\u884C\u4E2D\u7684\u6D3E\u53D1\uFF0C\u8BF7\u5148\u6536\u53E3\u6216\u91CD\u7F6E",
-        ).toShape(),
+        error: new PkyError("DISPATCH_ALREADY_ACTIVE", "\u8BE5\u4EFB\u52A1\u5DF2\u6709\u8FDB\u884C\u4E2D\u7684\u6D3E\u53D1\uFF0C\u8BF7\u5148\u6536\u53E3\u6216\u91CD\u7F6E").toShape()
       };
     }
     return null;
@@ -589,7 +521,16 @@
         }
         const task = ctx.findTask(params.taskId);
         task.dispatchState = "running";
-        return { ok: true, data: view(params.taskId, "running", "2026-10-11T09:00:00+08:00", null, ctx) };
+        return {
+          ok: true,
+          data: {
+            ...view(params.taskId, "running", "2026-10-11T09:00:00+08:00", null, ctx),
+            handedOff: true,
+            line: "claude '\u5904\u7406\u8FD9\u6761\u5F85\u529E\uFF08mock \u6D3E\u53D1\u547D\u4EE4\u884C\uFF09'",
+            note: "dsh \u5BBF\u4E3B\u6682\u65E0\u63D2\u4EF6\u53EF\u9A71\u52A8\u7684\u7EC8\u7AEF\u9762\u677F\u2014\u2014\u8BF7\u590D\u5236\u5B8C\u6574\u547D\u4EE4\u884C\u5230\u7EC8\u7AEF\u624B\u52A8\u6267\u884C",
+            ...ctx.state.dispatchHandoff.reason === void 0 ? {} : { handoffReason: ctx.state.dispatchHandoff.reason }
+          }
+        };
       },
       async dispatchHeadless(params) {
         ctx.record("dispatchHeadless", params);
@@ -600,7 +541,7 @@
         const task = ctx.findTask(params.taskId);
         task.dispatchState = "queued";
         return { ok: true, data: view(params.taskId, "queued", null, null, ctx) };
-      },
+      }
     };
   }
   function dispatchControlCommands(ctx) {
@@ -613,10 +554,7 @@
         }
         const task = ctx.findTask(params.taskId);
         if (task === void 0) {
-          return {
-            ok: false,
-            error: new PkyError("NOT_FOUND", `\u4EFB\u52A1 ${params.taskId} \u4E0D\u5B58\u5728`).toShape(),
-          };
+          return { ok: false, error: new PkyError("NOT_FOUND", `\u4EFB\u52A1 ${params.taskId} \u4E0D\u5B58\u5728`).toShape() };
         }
         task.dispatchState = params.result;
         return { ok: true, data: view(params.taskId, params.result, null, "2026-10-11T09:30:00+08:00", ctx) };
@@ -625,10 +563,7 @@
         ctx.record("dispatchReset", params);
         const task = ctx.findTask(params.taskId);
         if (task === void 0) {
-          return {
-            ok: false,
-            error: new PkyError("NOT_FOUND", `\u4EFB\u52A1 ${params.taskId} \u4E0D\u5B58\u5728`).toShape(),
-          };
+          return { ok: false, error: new PkyError("NOT_FOUND", `\u4EFB\u52A1 ${params.taskId} \u4E0D\u5B58\u5728`).toShape() };
         }
         task.dispatchState = null;
         return { ok: true, data: view(params.taskId, "queued", null, null, ctx) };
@@ -637,19 +572,10 @@
         ctx.record("dispatchCancel", params);
         const task = ctx.findTask(params.taskId);
         if (task === void 0) {
-          return {
-            ok: false,
-            error: new PkyError("NOT_FOUND", `\u4EFB\u52A1 ${params.taskId} \u4E0D\u5B58\u5728`).toShape(),
-          };
+          return { ok: false, error: new PkyError("NOT_FOUND", `\u4EFB\u52A1 ${params.taskId} \u4E0D\u5B58\u5728`).toShape() };
         }
         if (task.dispatchState !== "queued") {
-          return {
-            ok: false,
-            error: new PkyError(
-              "INVALID_ARGUMENT",
-              "\u53EA\u6709\u6392\u961F\u4E2D\u7684\u6D3E\u53D1\u53EF\u4EE5\u53D6\u6D88",
-            ).toShape(),
-          };
+          return { ok: false, error: new PkyError("INVALID_ARGUMENT", "\u53EA\u6709\u6392\u961F\u4E2D\u7684\u6D3E\u53D1\u53EF\u4EE5\u53D6\u6D88").toShape() };
         }
         task.dispatchState = null;
         return { ok: true, data: view(params.taskId, "queued", null, null, ctx) };
@@ -663,7 +589,7 @@
         const task = ctx.findTask(params.taskId);
         task.dispatchState = "running";
         return { ok: true, data: view(params.taskId, "running", "2026-10-11T10:00:00+08:00", null, ctx) };
-      },
+      }
     };
   }
 
@@ -738,7 +664,7 @@
         }
         return { ok: true, data: { identity: "\u8BAD\u7EC3\u5BB6", chatCount: 12 } };
       },
-      larkLoginStart: () => mockLarkLoginStart(ctx),
+      larkLoginStart: () => mockLarkLoginStart(ctx)
     };
   }
   function validateConfig(keyValues) {
@@ -756,16 +682,9 @@
     if (force || expectedAgentIds === void 0) {
       return null;
     }
-    const currentIds = ctx.state.agents
-      .map((a) => a.id)
-      .sort()
-      .join("\n");
+    const currentIds = ctx.state.agents.map((a) => a.id).sort().join("\n");
     if (currentIds !== [...expectedAgentIds].sort().join("\n")) {
-      return new PkyError(
-        "SETTING_MODIFIED_ELSEWHERE",
-        "agent \u5217\u8868\u5DF2\u5728\u53E6\u4E00\u5904\u88AB\u4FEE\u6539",
-        "\u786E\u8BA4\u8986\u76D6\u8BF7\u5E26 force \u91CD\u53D1\u6574\u503C",
-      );
+      return new PkyError("SETTING_MODIFIED_ELSEWHERE", "agent \u5217\u8868\u5DF2\u5728\u53E6\u4E00\u5904\u88AB\u4FEE\u6539", "\u786E\u8BA4\u8986\u76D6\u8BF7\u5E26 force \u91CD\u53D1\u6574\u503C");
     }
     return null;
   }
@@ -790,7 +709,7 @@
       pokemon: pick(params.pokemon, base.pokemon),
       sprite: pick(params.sprite, base.sprite),
       enabled: pick(params.enabled, base.enabled),
-      description: pick(params.description, base.description),
+      description: pick(params.description, base.description)
     };
   }
   function categoryCommands(ctx) {
@@ -810,17 +729,11 @@
           return { ok: false, error: blocked.toShape() };
         }
         if (ctx.state.categories.length <= 1) {
-          return {
-            ok: false,
-            error: new PkyError("INVALID_ARGUMENT", "\u81F3\u5C11\u4FDD\u7559\u4E00\u4E2A\u5206\u7C7B").toShape(),
-          };
+          return { ok: false, error: new PkyError("INVALID_ARGUMENT", "\u81F3\u5C11\u4FDD\u7559\u4E00\u4E2A\u5206\u7C7B").toShape() };
         }
         const index = ctx.state.categories.findIndex((c) => c.id === params.id);
         if (index < 0) {
-          return {
-            ok: false,
-            error: new PkyError("NOT_FOUND", `\u5206\u7C7B ${params.id} \u4E0D\u5B58\u5728`).toShape(),
-          };
+          return { ok: false, error: new PkyError("NOT_FOUND", `\u5206\u7C7B ${params.id} \u4E0D\u5B58\u5728`).toShape() };
         }
         ctx.state.categories.splice(index, 1);
         const fallback = ctx.state.categories[0];
@@ -831,7 +744,7 @@
           }
         }
         return { ok: true, data: { id: params.id, movedTaskCount } };
-      },
+      }
     };
   }
   function vocabularyCommands(ctx) {
@@ -845,7 +758,7 @@
           dimension: params.dimension,
           origin: "manual",
           createdAt: "2026-10-11T09:00:00+08:00",
-          usage: 0,
+          usage: 0
         };
         return { ok: true, data: tag };
       },
@@ -863,10 +776,10 @@
           cardinality: "multi",
           maxTags: params.maxTags ?? 12,
           sort: 1,
-          enabled: params.enabled ?? true,
+          enabled: params.enabled ?? true
         };
         return { ok: true, data: dimension };
-      },
+      }
     };
   }
   function filterCommands(ctx) {
@@ -897,11 +810,11 @@
           state: params.state,
           effective: decision.effect,
           source: decision.source,
-          updatedAt: "2026-10-11T09:00:00+08:00",
+          updatedAt: "2026-10-11T09:00:00+08:00"
         };
         ctx.state.filters.push(item);
         return { ok: true, data: item };
-      },
+      }
     };
   }
   function agentCommands(ctx) {
@@ -913,10 +826,7 @@
           return { ok: false, error: blocked.toShape() };
         }
         if (params.agent.command.trim() === "") {
-          return {
-            ok: false,
-            error: new PkyError("AGENT_COMMAND_INVALID", "agent \u547D\u4EE4\u4E0D\u80FD\u4E3A\u7A7A").toShape(),
-          };
+          return { ok: false, error: new PkyError("AGENT_COMMAND_INVALID", "agent \u547D\u4EE4\u4E0D\u80FD\u4E3A\u7A7A").toShape() };
         }
         const conflict = assertAgentRevision(ctx, params.expectedAgentIds, params.force);
         if (conflict !== null) {
@@ -942,7 +852,7 @@
         }
         ctx.state.agents = ctx.state.agents.filter((a) => a.id !== params.id);
         return { ok: true, data: { agents: [...ctx.state.agents] } };
-      },
+      }
     };
   }
 
@@ -951,27 +861,23 @@
     return {
       async agentTest(params) {
         ctx.record("agentTest", params);
-        return ctx.ok({
-          connected: true,
-          message:
-            "Agent \u8C03\u7528\u6210\u529F\uFF0Cpk \u5DE5\u5177\u94FE\u5DF2\u8FDE\u901A\uFF08context \u6B63\u5E38\u8FD4\u56DE\uFF09",
-        });
+        return ctx.ok({ connected: true, message: "Agent \u8C03\u7528\u6210\u529F\uFF0Cpk \u5DE5\u5177\u94FE\u5DF2\u8FDE\u901A\uFF08context \u6B63\u5E38\u8FD4\u56DE\uFF09" });
       },
       async pkSkillCheck(params) {
         ctx.record("pkSkillCheck", params);
-        const skill = (ctx.state.pkSkill ??= { installedVersion: null, checked: false });
+        const skill = ctx.state.pkSkill ??= { installedVersion: null, checked: false };
         skill.checked = true;
         return ctx.ok({
           kind: "claude-code",
           dir: "/tmp/mock/.claude/skills/pokemon-choose-you",
           installed: skill.installedVersion !== null,
           installedVersion: skill.installedVersion,
-          bundledVersion: "9",
+          bundledVersion: "9"
         });
       },
       async pkSkillInstall(params) {
         ctx.record("pkSkillInstall", params);
-        const skill = (ctx.state.pkSkill ??= { installedVersion: null, checked: false });
+        const skill = ctx.state.pkSkill ??= { installedVersion: null, checked: false };
         const previous = skill.installedVersion;
         skill.installedVersion = "9";
         return ctx.ok({
@@ -979,9 +885,9 @@
           dir: "/tmp/mock/.claude/skills/pokemon-choose-you",
           previousVersion: previous,
           version: "9",
-          path: "/tmp/mock/.claude/skills/pokemon-choose-you/SKILL.md",
+          path: "/tmp/mock/.claude/skills/pokemon-choose-you/SKILL.md"
         });
-      },
+      }
     };
   }
 
@@ -994,7 +900,7 @@
       async tagCheckup() {
         ctx.record("tagCheckup");
         return { ok: true, data: ctx.state.tagCheckup };
-      },
+      }
     };
   }
   function mergeCommand(ctx) {
@@ -1011,16 +917,13 @@
           return { ok: false, error: new PkyError("NOT_FOUND", "\u6807\u7B7E\u4E0D\u5B58\u5728").toShape() };
         }
         if (from.id === into.id) {
-          return {
-            ok: false,
-            error: new PkyError("INVALID_ARGUMENT", "\u4E0D\u80FD\u5408\u5E76\u5230\u81EA\u8EAB").toShape(),
-          };
+          return { ok: false, error: new PkyError("INVALID_ARGUMENT", "\u4E0D\u80FD\u5408\u5E76\u5230\u81EA\u8EAB").toShape() };
         }
         reassignTaskTags(ctx, from, into);
         ctx.state.tags = ctx.state.tags.filter((t) => t.id !== from.id);
         recomputeUsage(ctx);
         return { ok: true, data: { ok: true } };
-      },
+      }
     };
   }
   function reassignTaskTags(ctx, from, into) {
@@ -1044,23 +947,14 @@
         }
         const name = params.name.trim();
         if (name === "" || params.tagIds.length === 0) {
-          return {
-            ok: false,
-            error: new PkyError(
-              "INVALID_ARGUMENT",
-              "\u7EF4\u5EA6\u540D\u4E0E\u6807\u7B7E\u5217\u8868\u4E0D\u80FD\u4E3A\u7A7A",
-            ).toShape(),
-          };
+          return { ok: false, error: new PkyError("INVALID_ARGUMENT", "\u7EF4\u5EA6\u540D\u4E0E\u6807\u7B7E\u5217\u8868\u4E0D\u80FD\u4E3A\u7A7A").toShape() };
         }
         const found = ctx.state.dimensions.find((d) => d.key === params.key);
         const dim = found ?? createDimension(ctx, params.key, name);
         if (dim === null) {
           return {
             ok: false,
-            error: new PkyError(
-              "INVALID_ARGUMENT",
-              "\u7EF4\u5EA6 key \u53EA\u80FD\u5305\u542B\u5C0F\u5199\u5B57\u6BCD\u3001\u6570\u5B57\u3001-\u3001_",
-            ).toShape(),
+            error: new PkyError("INVALID_ARGUMENT", "\u7EF4\u5EA6 key \u53EA\u80FD\u5305\u542B\u5C0F\u5199\u5B57\u6BCD\u3001\u6570\u5B57\u3001-\u3001_").toShape()
           };
         }
         const moving = ctx.state.tags.filter((t) => params.tagIds.includes(t.id) && t.dimension !== dim.key);
@@ -1068,17 +962,14 @@
         if (dim.maxTags - used < moving.length) {
           return {
             ok: false,
-            error: new PkyError(
-              "INVALID_ARGUMENT",
-              "\u76EE\u6807\u7EF4\u5EA6\u5269\u4F59\u540D\u989D\u4E0D\u8DB3\uFF0C\u5148\u6E05\u7406\u6216\u8C03\u9AD8\u4E0A\u9650",
-            ).toShape(),
+            error: new PkyError("INVALID_ARGUMENT", "\u76EE\u6807\u7EF4\u5EA6\u5269\u4F59\u540D\u989D\u4E0D\u8DB3\uFF0C\u5148\u6E05\u7406\u6216\u8C03\u9AD8\u4E0A\u9650").toShape()
           };
         }
         for (const tag of moving) {
           tag.dimension = dim.key;
         }
         return { ok: true, data: { ok: true } };
-      },
+      }
     };
   }
   function createDimension(ctx, rawKey, name) {
@@ -1093,15 +984,15 @@
       cardinality: "multi",
       maxTags: 30,
       sort: ctx.state.dimensions.reduce((max, d) => Math.max(max, d.sort), 0) + 1,
-      enabled: true,
+      enabled: true
     };
     ctx.state.dimensions.push(dim);
     return dim;
   }
   function recomputeUsage(ctx) {
     for (const tag of ctx.state.tags) {
-      tag.usage = ctx.state.tasks.filter((task) =>
-        task.tags.some((r) => r.name === tag.name && r.dimension === tag.dimension),
+      tag.usage = ctx.state.tasks.filter(
+        (task) => task.tags.some((r) => r.name === tag.name && r.dimension === tag.dimension)
       ).length;
     }
   }
@@ -1120,10 +1011,7 @@
         ctx.record("promptGet", params);
         const spec = findPromptSpec(ctx, params.key);
         if (spec === void 0) {
-          return {
-            ok: false,
-            error: new PkyError("INVALID_ARGUMENT", "\u8BE5\u63D0\u793A\u8BCD\u4E0D\u652F\u6301\u7F16\u8F91").toShape(),
-          };
+          return { ok: false, error: new PkyError("INVALID_ARGUMENT", "\u8BE5\u63D0\u793A\u8BCD\u4E0D\u652F\u6301\u7F16\u8F91").toShape() };
         }
         return { ok: true, data: spec };
       },
@@ -1135,25 +1023,19 @@
         ctx.record("promptReset", params);
         const spec = findPromptSpec(ctx, params.key);
         if (spec === void 0) {
-          return {
-            ok: false,
-            error: new PkyError("INVALID_ARGUMENT", "\u8BE5\u63D0\u793A\u8BCD\u4E0D\u652F\u6301\u7F16\u8F91").toShape(),
-          };
+          return { ok: false, error: new PkyError("INVALID_ARGUMENT", "\u8BE5\u63D0\u793A\u8BCD\u4E0D\u652F\u6301\u7F16\u8F91").toShape() };
         }
         spec.overrideText = null;
         spec.source = "default";
         spec.text = spec.defaultText;
         return { ok: true, data: spec };
-      },
+      }
     };
   }
   async function applyPromptOverride(ctx, params) {
     const spec = findPromptSpec(ctx, params.key);
     if (spec === void 0) {
-      return {
-        ok: false,
-        error: new PkyError("INVALID_ARGUMENT", "\u8BE5\u63D0\u793A\u8BCD\u4E0D\u652F\u6301\u7F16\u8F91").toShape(),
-      };
+      return { ok: false, error: new PkyError("INVALID_ARGUMENT", "\u8BE5\u63D0\u793A\u8BCD\u4E0D\u652F\u6301\u7F16\u8F91").toShape() };
     }
     const revision = promptRevisionError(spec, params);
     if (revision !== null) {
@@ -1174,27 +1056,17 @@
     }
     const current = spec.overrideText ?? "";
     if (current !== (params.expectedValue ?? "")) {
-      return new PkyError(
-        "SETTING_MODIFIED_ELSEWHERE",
-        "\u63D0\u793A\u8BCD\u8986\u76D6\u5DF2\u5728\u53E6\u4E00\u5904\u88AB\u4FEE\u6539",
-        "\u786E\u8BA4\u8986\u76D6\u8BF7\u5E26 force \u91CD\u53D1\u6574\u503C",
-      );
+      return new PkyError("SETTING_MODIFIED_ELSEWHERE", "\u63D0\u793A\u8BCD\u8986\u76D6\u5DF2\u5728\u53E6\u4E00\u5904\u88AB\u4FEE\u6539", "\u786E\u8BA4\u8986\u76D6\u8BF7\u5E26 force \u91CD\u53D1\u6574\u503C");
     }
     return null;
   }
   function promptValidationError(spec, value) {
     if (Array.from(value).length > 2e4) {
-      return new PkyError(
-        "PROMPT_VALIDATION_FAILED",
-        "\u63D0\u793A\u8BCD\u957F\u5EA6\u8D85\u8FC7\u4E0A\u9650\uFF08\u6700\u591A 20000 \u5B57\u7B26\uFF09",
-      );
+      return new PkyError("PROMPT_VALIDATION_FAILED", "\u63D0\u793A\u8BCD\u957F\u5EA6\u8D85\u8FC7\u4E0A\u9650\uFF08\u6700\u591A 20000 \u5B57\u7B26\uFF09");
     }
     const missing = spec.requiredPlaceholders.filter((p) => !value.includes(p));
     if (value.trim() !== "" && missing.length > 0) {
-      return new PkyError(
-        "PROMPT_VALIDATION_FAILED",
-        `\u7F3A\u5C11\u5FC5\u8981\u5360\u4F4D\u7B26\uFF1A${missing.join("\u3001")}`,
-      );
+      return new PkyError("PROMPT_VALIDATION_FAILED", `\u7F3A\u5C11\u5FC5\u8981\u5360\u4F4D\u7B26\uFF1A${missing.join("\u3001")}`);
     }
     return null;
   }
@@ -1209,14 +1081,14 @@
           helperCaps: ctx.state.helperCaps,
           shortcutRegistered: ctx.state.shortcutRegistered,
           sshFamily: ctx.state.sshFamily,
-          helperVersion: ctx.state.helperVersion,
+          helperVersion: ctx.state.helperVersion
         };
         return { ok: true, data };
       },
       async supportReport() {
         ctx.record("supportReport");
         return { ok: true, data: { text: "pokemon-choose-you dsh plugin support report (redacted)" } };
-      },
+      }
     };
   }
   function logCommands(ctx) {
@@ -1235,19 +1107,13 @@
         const offset = params?.offset ?? 0;
         const limit = params?.limit ?? 500;
         return { ok: true, data: { entries: entries.slice(offset, offset + limit), total } };
-      },
+      }
     };
   }
   function mockPollNow(ctx) {
     ctx.record("pollNow");
     if (!ctx.state.larkAuthorized) {
-      return {
-        ok: false,
-        error: new PkyError(
-          "LARK_UNAUTHORIZED",
-          "\u98DE\u4E66\u672A\u6388\u6743\uFF0C\u8F6E\u8BE2\u5DF2\u6682\u505C",
-        ).toShape(),
-      };
+      return { ok: false, error: new PkyError("LARK_UNAUTHORIZED", "\u98DE\u4E66\u672A\u6388\u6743\uFF0C\u8F6E\u8BE2\u5DF2\u6682\u505C").toShape() };
     }
     return { ok: true, data: ctx.state.health };
   }
@@ -1259,13 +1125,7 @@
   function mockMacAuthorizationStatus(ctx, params) {
     ctx.record("macAuthorizationStatus", params);
     if (params?.kind !== "accessibility") {
-      return {
-        ok: false,
-        error: new PkyError(
-          "INVALID_ARGUMENT",
-          `\u672A\u77E5\u6388\u6743\u7C7B\u578B ${String(params?.kind)}`,
-        ).toShape(),
-      };
+      return { ok: false, error: new PkyError("INVALID_ARGUMENT", `\u672A\u77E5\u6388\u6743\u7C7B\u578B ${String(params?.kind)}`).toShape() };
     }
     return { ok: true, data: { ...ctx.state.macAuth } };
   }
@@ -1302,7 +1162,7 @@
       async macAuthPaneOpen() {
         ctx.record("macAuthPaneOpen");
         return { ok: true, data: { ok: true } };
-      },
+      }
     };
   }
 
@@ -1329,7 +1189,7 @@
       todayTasks: [...activeOrPaused, ...dueToday],
       total: activeOrPaused.length + dueToday.length + doneToday.length,
       caught: doneToday.length,
-      overdueTasks: open.filter((t) => isOverdue(t, today)),
+      overdueTasks: open.filter((t) => isOverdue(t, today))
     };
   }
   function routeGroups(tasks) {
@@ -1346,10 +1206,7 @@
         bucket.push(task);
       }
     }
-    return [...groups.entries()]
-      .filter(([date]) => date !== "")
-      .sort(([a], [b]) => a.localeCompare(b))
-      .map(([date, list]) => ({ date, tasks: list }));
+    return [...groups.entries()].filter(([date]) => date !== "").sort(([a], [b]) => a.localeCompare(b)).map(([date, list]) => ({ date, tasks: list }));
   }
   function grassTasks(tasks) {
     return tasks.filter((t) => t.status === "inbox");
@@ -1422,14 +1279,14 @@
       adventure: {
         active: tasks.filter((t) => t.status === "active" || t.status === "paused"),
         dueToday: snapshot.todayTasks.filter((t) => t.status !== "active" && t.status !== "paused"),
-        overdue: snapshot.overdueTasks,
+        overdue: snapshot.overdueTasks
       },
       grass: grassTasks(tasks),
       route: routeGroups(tasks).flatMap((group) => group.tasks),
       dex: {
         done: tasks.filter((t) => t.status === "done"),
         cancelled: tasks.filter((t) => t.status === "cancelled"),
-        stats: { caught: stats.caught, escaped: stats.escaped },
+        stats: { caught: stats.caught, escaped: stats.escaped }
       },
       radio: {
         pending: groups.pending,
@@ -1437,13 +1294,13 @@
         error: groups.failed,
         escaped: groups.escaped,
         accepted: groups.caught,
-        health: ctx.state.health,
+        health: ctx.state.health
       },
       logs: ctx.state.sessions,
       currentTask: tasks.find((t) => t.status === "active") ?? null,
       categories: ctx.state.categories,
       dimensions: ctx.state.dimensions,
-      tags: ctx.state.tags,
+      tags: ctx.state.tags
     };
   }
   function mockTaskDetail(ctx, task) {
@@ -1453,18 +1310,16 @@
       dispatch: {
         state: task.dispatchState,
         dispatchedSession: task.dispatchedSession,
-        dispatchable: dispatchableOf(task),
+        dispatchable: dispatchableOf(task)
       },
-      timeline: ctx.state.sessions.filter((s) => s.taskId === task.id),
+      timeline: ctx.state.sessions.filter((s) => s.taskId === task.id)
     };
   }
   async function mockStreakInfo(ctx) {
     ctx.record("streakInfo");
     const today = mockToday();
     const doneDays = new Set(
-      ctx.state.tasks
-        .filter((t) => t.status === "done" && t.completedAt !== null)
-        .map((t) => t.completedAt.slice(0, 10)),
+      ctx.state.tasks.filter((t) => t.status === "done" && t.completedAt !== null).map((t) => t.completedAt.slice(0, 10))
     );
     let days = 0;
     let grace = 1;
@@ -1480,9 +1335,7 @@
       }
       cursor.setUTCDate(cursor.getUTCDate() - 1);
     }
-    const todayCount = ctx.state.tasks.filter(
-      (t) => t.status === "done" && t.completedAt?.slice(0, 10) === today,
-    ).length;
+    const todayCount = ctx.state.tasks.filter((t) => t.status === "done" && t.completedAt?.slice(0, 10) === today).length;
     const next = [10, 50, 100, 200, 500, 1e3].find((m) => m > days);
     return { ok: true, data: next === void 0 ? { days, todayCount } : { days, todayCount, nextMilestone: next } };
   }
@@ -1496,10 +1349,7 @@
         ctx.record("taskDetail", params);
         const task = ctx.findTask(params.taskId);
         if (task === void 0) {
-          return {
-            ok: false,
-            error: new PkyError("NOT_FOUND", `\u4EFB\u52A1 ${params.taskId} \u4E0D\u5B58\u5728`).toShape(),
-          };
+          return { ok: false, error: new PkyError("NOT_FOUND", `\u4EFB\u52A1 ${params.taskId} \u4E0D\u5B58\u5728`).toShape() };
         }
         return { ok: true, data: mockTaskDetail(ctx, task) };
       },
@@ -1516,7 +1366,7 @@
         ctx.record("categoriesList");
         return { ok: true, data: { categories: ctx.state.categories } };
       },
-      streakInfo: () => mockStreakInfo(ctx),
+      streakInfo: () => mockStreakInfo(ctx)
     };
   }
   function searchMockTasks(ctx, query) {
@@ -1526,12 +1376,7 @@
     }
     return ctx.state.tasks.filter((task) => {
       const followups = ctx.state.followups[task.id] ?? [];
-      return (
-        task.title.includes(q) ||
-        (task.note ?? "").includes(q) ||
-        task.tags.some((tag) => tag.name.includes(q)) ||
-        followups.some((note) => note.content.includes(q))
-      );
+      return task.title.includes(q) || (task.note ?? "").includes(q) || task.tags.some((tag) => tag.name.includes(q)) || followups.some((note) => note.content.includes(q));
     });
   }
 
@@ -1556,9 +1401,7 @@
   // src/client/mockDeployments.ts
   function validatePathField(label, value) {
     if (value.startsWith("~")) {
-      return paramError2(
-        `${label}\u9700\u4E3A\u5C55\u5F00\u540E\u7684\u7EDD\u5BF9\u8DEF\u5F84\uFF08\u4E0D\u652F\u6301 ~ \u524D\u7F00\uFF09`,
-      );
+      return paramError2(`${label}\u9700\u4E3A\u5C55\u5F00\u540E\u7684\u7EDD\u5BF9\u8DEF\u5F84\uFF08\u4E0D\u652F\u6301 ~ \u524D\u7F00\uFF09`);
     }
     return value;
   }
@@ -1599,7 +1442,7 @@
       status: "not_ready",
       lastError: null,
       provision: null,
-      degraded: false,
+      degraded: false
     };
     ctx.state.deployments.push(entity);
     return ctx.ok({ deployment: entity });
@@ -1629,9 +1472,13 @@
     const counts = {
       ready: ds.filter((d) => d.status === "ready").length,
       pending: ds.filter((d) => d.status !== "ready" && d.status !== "disconnected").length,
-      broken: ds.filter((d) => d.status === "disconnected").length,
+      broken: ds.filter((d) => d.status === "disconnected").length
     };
     return ctx.ok({ deployments: ds, counts });
+  }
+  function mockSshAliasList(ctx) {
+    ctx.record("sshAliasList");
+    return ctx.ok({ aliases: [...ctx.state.sshAliases] });
   }
   function mockDeploymentUpsert(ctx, params) {
     ctx.record("deploymentUpsert", params);
@@ -1659,16 +1506,7 @@
     const attempted = entity.status === "ready" || entity.status === "disconnected";
     return ctx.ok({
       id: params.id,
-      cleanup: attempted
-        ? entity.status === "disconnected"
-          ? {
-              attempted: true,
-              ok: false,
-              detail:
-                "\u8FDE\u63A5\u5DF2\u65AD\u5F00\uFF0C\u8FDC\u7AEF\u81EA\u6E05\u7406\u8DF3\u8FC7\uFF08\u4EC5\u8BB0\u5F55\u5230\u8BCA\u65AD\u6BB5\uFF09",
-            }
-          : { attempted: true, ok: true }
-        : { attempted: false, ok: true },
+      cleanup: attempted ? entity.status === "disconnected" ? { attempted: true, ok: false, detail: "\u8FDE\u63A5\u5DF2\u65AD\u5F00\uFF0C\u8FDC\u7AEF\u81EA\u6E05\u7406\u8DF3\u8FC7\uFF08\u4EC5\u8BB0\u5F55\u5230\u8BCA\u65AD\u6BB5\uFF09" } : { attempted: true, ok: true } : { attempted: false, ok: true }
     });
   }
   function mockDeploymentRecheck(ctx, params) {
@@ -1682,8 +1520,12 @@
       return notFound(`\u90E8\u7F72 ${params.id} \u4E0D\u5B58\u5728`);
     }
     if (entity.status === "disconnected") {
-      entity.status = "not_ready";
-      entity.lastError = null;
+      if (ctx.state.recheckRecovers) {
+        entity.status = "ready";
+        entity.lastError = null;
+      } else {
+        entity.lastError = "\u8FDE\u63A5\u4E0D\u53EF\u7528\uFF08\u514D\u5BC6\u767B\u5F55\u672A\u914D\u7F6E\u6216\u5DF2\u65AD\u5F00\uFF09";
+      }
     }
     return ctx.ok({ deployment: entity });
   }
@@ -1691,6 +1533,9 @@
     return {
       async deploymentList() {
         return await mockDeploymentList(ctx);
+      },
+      async sshAliasList() {
+        return await mockSshAliasList(ctx);
       },
       async deploymentUpsert(params) {
         return await mockDeploymentUpsert(ctx, params);
@@ -1700,7 +1545,7 @@
       },
       async deploymentRecheck(params) {
         return await mockDeploymentRecheck(ctx, params);
-      },
+      }
     };
   }
 
@@ -1708,10 +1553,10 @@
   var MOCK_NOW2 = "2026-10-17T09:00:00+08:00";
   var PROVISION_STEPS = ["probe-ssh", "probe-node", "upload", "verify"];
   var STEP_OK_DETAIL = {
-    "probe-ssh": "BatchMode \u8FDE\u63A5\u6210\u529F \xB7 $HOME=/home/trainer",
+    "probe-ssh": "SSH \u8FDE\u63A5\u6210\u529F \xB7 \u8FDC\u7AEF\u4E3B\u76EE\u5F55 /home/trainer",
     "probe-node": "v20.11.0",
-    upload: "helper.js \u5DF2\u5199\u5165 \xB7 chmod 700 \xB7 \u8FDC\u7AEF sha256 \u590D\u6838\u4E00\u81F4",
-    verify: "\u8FDC\u7AEF\u6458\u8981\u4E0E\u9884\u671F\u4E00\u81F4",
+    upload: "\u8FDC\u7AEF\u7EC4\u4EF6\u5B89\u88C5\u5B8C\u6210",
+    verify: "\u8FDC\u7AEF\u7EC4\u4EF6\u9A8C\u8BC1\u901A\u8FC7"
   };
   function initialProvision() {
     const steps = {};
@@ -1730,28 +1575,19 @@
       steps,
       failedStep: failed?.step ?? null,
       retryable: failed !== void 0,
-      done: steps.every((s) => s.status === "ok"),
+      done: steps.every((s) => s.status === "ok")
     };
   }
   function failProvisionStep(entity, provision, next, fail2) {
     const message = fail2.message ?? `\u6B65\u9AA4 ${next} \u6267\u884C\u5931\u8D25`;
-    const tag =
-      fail2.kind === "auth"
-        ? "SSH_AUTH_REQUIRED"
-        : fail2.kind === "hash"
-          ? "HELPER_HASH_MISMATCH"
-          : "PROVISION_STEP_FAILED";
+    const tag = fail2.kind === "auth" ? "SSH_AUTH_REQUIRED" : fail2.kind === "hash" ? "HELPER_HASH_MISMATCH" : "PROVISION_STEP_FAILED";
     provision.steps[next] = { status: "failed", tag, message, at: MOCK_NOW2 };
     entity.status = "not_ready";
     entity.lastError = message;
     if (fail2.kind === "auth") {
       return {
         ok: false,
-        error: new PkyError(
-          "SSH_AUTH_REQUIRED",
-          message,
-          "\u5148\u5728\u672C\u673A\u8DD1 ssh-copy-id\uFF08\u6216\u628A\u516C\u94A5\u52A0\u5165 ssh-agent\uFF09\uFF0C\u518D\u56DE\u5230\u8FD9\u91CC\u91CD\u8BD5",
-        ).toShape(),
+        error: new PkyError("SSH_AUTH_REQUIRED", message, "\u5148\u5728\u672C\u673A\u6267\u884C ssh-copy-id \u914D\u597D\u514D\u5BC6\u767B\u5F55\uFF0C\u518D\u91CD\u8BD5").toShape()
       };
     }
     if (fail2.kind === "hash") {
@@ -1760,17 +1596,13 @@
         error: new PkyError(
           pendingCode("HELPER_HASH_MISMATCH"),
           message,
-          "\u8FDC\u7AEF helper \u6458\u8981\u4E0E\u9884\u671F\u4E0D\u7B26\u2014\u2014\u62D2\u7EDD\u7F6E\u4E3A\u5C31\u7EEA\uFF1B\u53EF\u7ECF\u300C\u8F6C\u76F4\u8FDE\u300D\u663E\u5F0F\u964D\u7EA7\uFF08\u7559\u75D5\uFF09",
-        ).toShape(),
+          "\u8FDC\u7AEF\u7EC4\u4EF6\u9A8C\u8BC1\u672A\u901A\u8FC7\u2014\u2014\u53EF\u91CD\u65B0\u5B89\u88C5\uFF0C\u6216\u6539\u7528\u76F4\u8FDE\u6A21\u5F0F"
+        ).toShape()
       };
     }
     return {
       ok: false,
-      error: new PkyError(
-        pendingCode("PROVISION_STEP_FAILED"),
-        message,
-        `\u5931\u8D25\u6B65\u9AA4\uFF1A${next}`,
-      ).toShape(),
+      error: new PkyError(pendingCode("PROVISION_STEP_FAILED"), message, `\u5931\u8D25\u6B65\u9AA4\uFF1A${next}`).toShape()
     };
   }
   function mockProvisionRun(ctx, params) {
@@ -1782,10 +1614,21 @@
     if (entity === void 0) {
       return notFound(`\u90E8\u7F72 ${params.id} \u4E0D\u5B58\u5728`);
     }
-    const provision = (entity.provision ??= initialProvision());
-    const next = PROVISION_STEPS.find((step) => provision.steps[step].status !== "ok");
+    const provision = entity.provision ??= initialProvision();
+    let next = PROVISION_STEPS.find((step) => provision.steps[step].status !== "ok");
     if (next === void 0) {
-      return ctx.ok({ status: provisionView(entity) });
+      if (params.restart !== true) {
+        return ctx.ok({ status: provisionView(entity) });
+      }
+      for (const step of PROVISION_STEPS) {
+        provision.steps[step] = { status: "pending", at: "" };
+      }
+      provision.homeDir = null;
+      entity.helperHash = null;
+      entity.degraded = false;
+      entity.status = "not_ready";
+      entity.lastError = null;
+      next = "probe-ssh";
     }
     const fail2 = ctx.state.provisionFail;
     if (fail2 !== null && fail2.step === next) {
@@ -1820,9 +1663,7 @@
       return notFound(`\u90E8\u7F72 ${params.id} \u4E0D\u5B58\u5728`);
     }
     if (params.acknowledgedRisk !== true) {
-      return paramError2(
-        "\u8F6C\u76F4\u8FDE\u9700\u663E\u5F0F\u786E\u8BA4\u98CE\u9669\uFF08acknowledgedRisk: true\uFF09",
-      );
+      return paramError2("\u8F6C\u76F4\u8FDE\u9700\u663E\u5F0F\u786E\u8BA4\u98CE\u9669\uFF08acknowledgedRisk: true\uFF09");
     }
     entity.degraded = true;
     entity.status = "ready";
@@ -1840,7 +1681,7 @@
       },
       async deploymentDegradeConfirm(params) {
         return await mockDegradeConfirm(ctx, params);
-      },
+      }
     };
   }
 
@@ -1858,60 +1699,83 @@
     const n = typeof value === "number" && Number.isFinite(value) ? Math.trunc(value) : fallback;
     return Math.min(max, Math.max(min, n));
   }
+  function sessionsPageOf(ctx) {
+    return async (params) => {
+      ctx.record("sessionsPage", params);
+      const group = params?.group ?? "all";
+      const limit = clampInt(params?.limit, 20, 1, 100);
+      const offset = clampInt(params?.offset, 0, 0, Number.MAX_SAFE_INTEGER);
+      const rows = ctx.state.sessionRows;
+      const counts = {
+        all: rows.length,
+        radio: rows.filter((r) => kindOfGroup(r.kind, "radio")).length,
+        dispatch: rows.filter((r) => kindOfGroup(r.kind, "dispatch")).length,
+        other: rows.filter((r) => kindOfGroup(r.kind, "other")).length
+      };
+      const matched = group === "all" ? rows : rows.filter((r) => kindOfGroup(r.kind, group));
+      const total = matched.length;
+      const page = [...matched].sort((a, b) => b.id - a.id).slice(offset, offset + limit);
+      return ctx.ok({ rows: page, counts, total });
+    };
+  }
+  function mockReplayLine(row) {
+    if (row.tmuxSession.trim() !== "") {
+      return `tmux attach-session -t ${row.tmuxSession.trim()}`;
+    }
+    return `${row.command ?? "claude"} --resume ${row.sessionId}`;
+  }
+  function sessionReplayOf(ctx) {
+    return async (params) => {
+      ctx.record("sessionReplay", params);
+      const row = ctx.state.sessionRows.find((r) => r.id === params.rowId);
+      if (row === void 0) {
+        return notFound(`\u4F1A\u8BDD\u8BB0\u5F55 No.${params.rowId} \u4E0D\u5B58\u5728`);
+      }
+      const replayable = row.tmuxSession.trim() !== "" || (row.sessionId ?? "").trim() !== "";
+      if (!replayable) {
+        return paramError2("\u8BE5\u4F1A\u8BDD\u65E0\u56DE\u653E\u53E5\u67C4\uFF08session_id \u4E0E tmux \u4F1A\u8BDD\u540D\u7686\u65E0\uFF09");
+      }
+      if (row.remoteHost.trim() === "") {
+        return ctx.ok({
+          routed: {
+            world: "local",
+            line: mockReplayLine(row),
+            workdir: row.workdir,
+            opened: false,
+            note: "\u5BBF\u4E3B\u65E0\u7B2C\u4E09\u65B9\u7EC8\u7AEF\u9762\u677F\u2014\u2014\u547D\u4EE4\u884C\u56DE\u4F20\u5BA2\u6237\u7AEF\u590D\u5236\u6267\u884C"
+          }
+        });
+      }
+      return remoteReplayOutcome(ctx, row);
+    };
+  }
+  async function remoteReplayOutcome(ctx, row) {
+    const target = row.remoteHost.trim();
+    const dep = ctx.state.deployments.find((d) => d.alias === target);
+    if (dep === void 0 && (row.remotePort > 0 || row.remoteKey.trim() !== "")) {
+      return ctx.ok({
+        routed: {
+          world: { sshTarget: target },
+          note: `ssh \u522B\u540D\u56DE\u653E\uFF08\u5FEB\u7167 ${target}:${row.remotePort}\uFF09\u2014\u2014desktop \u8F7D\u4F53\u5F39\u5916\u90E8\u7EC8\u7AEF`
+        }
+      });
+    }
+    if (dep === void 0 || dep.status !== "ready") {
+      return {
+        ok: false,
+        error: new PkyError(
+          pendingCode("DEPLOYMENT_NOT_READY"),
+          `\u4F1A\u8BDD\u7684\u6267\u884C\u90E8\u7F72\u300C${target}\u300D${dep === void 0 ? "\u5DF2\u88AB\u79FB\u9664" : "\u672A\u5C31\u7EEA"}\uFF0C\u65E0\u6CD5\u56DE\u653E`,
+          "\u53EF\u5728\u672C\u673A\u6253\u5F00\u8BE5\u4F1A\u8BDD\u6240\u5C5E agent \u7684\u5386\u53F2\u9009\u62E9\u5668\u56DE\u653E\uFF0C\u6216\u91CD\u65B0\u5F00\u901A\u8BE5\u90E8\u7F72\u540E\u518D\u8BD5"
+        ).toShape()
+      };
+    }
+    return ctx.ok({ routed: { world: { deploymentAlias: dep.alias }, note: "\u8FDC\u7AEF\u56DE\u653E\u5DF2\u5524\u8D77" } });
+  }
   function sessionCommands(ctx) {
     return {
-      async sessionsPage(params) {
-        ctx.record("sessionsPage", params);
-        const group = params?.group ?? "all";
-        const limit = clampInt(params?.limit, 20, 1, 100);
-        const offset = clampInt(params?.offset, 0, 0, Number.MAX_SAFE_INTEGER);
-        const rows = ctx.state.sessionRows;
-        const counts = {
-          all: rows.length,
-          radio: rows.filter((r) => kindOfGroup(r.kind, "radio")).length,
-          dispatch: rows.filter((r) => kindOfGroup(r.kind, "dispatch")).length,
-          other: rows.filter((r) => kindOfGroup(r.kind, "other")).length,
-        };
-        const matched = group === "all" ? rows : rows.filter((r) => kindOfGroup(r.kind, group));
-        const total = matched.length;
-        const page = [...matched].sort((a, b) => b.id - a.id).slice(offset, offset + limit);
-        return ctx.ok({ rows: page, counts, total });
-      },
-      async sessionReplay(params) {
-        ctx.record("sessionReplay", params);
-        const row = ctx.state.sessionRows.find((r) => r.id === params.rowId);
-        if (row === void 0) {
-          return notFound(`\u4F1A\u8BDD\u8BB0\u5F55 No.${params.rowId} \u4E0D\u5B58\u5728`);
-        }
-        const replayable = row.tmuxSession.trim() !== "" || (row.sessionId ?? "").trim() !== "";
-        if (!replayable) {
-          return paramError2(
-            "\u8BE5\u4F1A\u8BDD\u65E0\u56DE\u653E\u53E5\u67C4\uFF08session_id \u4E0E tmux \u4F1A\u8BDD\u540D\u7686\u65E0\uFF09",
-          );
-        }
-        if (row.remoteHost.trim() === "") {
-          return ctx.ok({
-            routed: {
-              world: "local",
-              note: "tmux attach \u4F18\u5148 \u2192 --resume \u4F1A\u8BDD id \u2192 \u9009\u62E9\u5668\u515C\u5E95",
-            },
-          });
-        }
-        const dep = ctx.state.deployments.find((d) => d.alias === row.remoteHost.trim());
-        if (dep === void 0 || dep.status !== "ready") {
-          return {
-            ok: false,
-            error: new PkyError(
-              pendingCode("DEPLOYMENT_NOT_READY"),
-              `\u4F1A\u8BDD\u7684\u6267\u884C\u90E8\u7F72\u300C${row.remoteHost.trim()}\u300D${dep === void 0 ? "\u5DF2\u88AB\u79FB\u9664" : "\u672A\u5C31\u7EEA"}\uFF0C\u65E0\u6CD5\u56DE\u653E`,
-              "\u53EF\u5728\u672C\u673A\u6253\u5F00\u8BE5\u4F1A\u8BDD\u6240\u5C5E agent \u7684\u5386\u53F2\u9009\u62E9\u5668\u56DE\u653E\uFF0C\u6216\u91CD\u65B0\u5F00\u901A\u8BE5\u90E8\u7F72\u540E\u518D\u8BD5",
-            ).toShape(),
-          };
-        }
-        return ctx.ok({
-          routed: { world: { deploymentAlias: dep.alias }, note: "\u8FDC\u7AEF\u56DE\u653E\u5DF2\u5524\u8D77" },
-        });
-      },
+      sessionsPage: sessionsPageOf(ctx),
+      sessionReplay: sessionReplayOf(ctx)
     };
   }
 
@@ -1920,7 +1784,7 @@
   var MOCK_EXPORT_PATHS = {
     json: "/mock/.choose-you/data/exports/pokemon-choose-you-full-20261011-080000.json",
     csv: "/mock/.choose-you/data/exports/pokemon-choose-you-tasks-20261011-080000.csv",
-    report: "/mock/.choose-you/data/exports/pokemon-choose-you-daily-2026-10-11.md",
+    report: "/mock/.choose-you/data/exports/pokemon-choose-you-daily-2026-10-11.md"
   };
   function mockBackupRun(ctx) {
     ctx.record("backupRun");
@@ -1941,8 +1805,8 @@
         error: new PkyError(
           "INVALID_ARGUMENT",
           `\u672A\u77E5\u5BFC\u51FA\u7C7B\u578B ${String(kind)}`,
-          "kind \u987B\u4E3A json / csv / report",
-        ).toShape(),
+          "kind \u987B\u4E3A json / csv / report"
+        ).toShape()
       };
     }
     return { ok: true, data: { path: MOCK_EXPORT_PATHS[kind] } };
@@ -1953,16 +1817,13 @@
     if (fixture === void 0) {
       return {
         ok: false,
-        error: new PkyError(
-          "IMPORT_VALIDATION_FAILED",
-          "\u6587\u4EF6\u4E0D\u5B58\u5728\u6216\u4E0D\u53EF\u8BFB",
-        ).toShape(),
+        error: new PkyError("IMPORT_VALIDATION_FAILED", "\u6587\u4EF6\u4E0D\u5B58\u5728\u6216\u4E0D\u53EF\u8BFB").toShape()
       };
     }
     if (fixture.reasons !== void 0 && fixture.reasons.length > 0) {
       return {
         ok: false,
-        error: new PkyError("IMPORT_VALIDATION_FAILED", fixture.reasons.join("\uFF1B")).toShape(),
+        error: new PkyError("IMPORT_VALIDATION_FAILED", fixture.reasons.join("\uFF1B")).toShape()
       };
     }
     const summary = fixture.summary ?? {
@@ -1970,7 +1831,7 @@
       schemaVersion: 1,
       counts: { tasks: 12, categories: 2, tags: 5 },
       compatible: true,
-      backupFile: ctx.state.importResult.backupId,
+      backupFile: ctx.state.importResult.backupId
     };
     return { ok: true, data: { summary } };
   }
@@ -1981,31 +1842,16 @@
       return { ok: false, error: blocked.toShape() };
     }
     if (params?.confirmed !== true) {
-      return {
-        ok: false,
-        error: new PkyError(
-          "INVALID_ARGUMENT",
-          "\u5BFC\u5165\u987B\u663E\u5F0F\u786E\u8BA4\uFF08confirmed: true\uFF09",
-        ).toShape(),
-      };
+      return { ok: false, error: new PkyError("INVALID_ARGUMENT", "\u5BFC\u5165\u987B\u663E\u5F0F\u786E\u8BA4\uFF08confirmed: true\uFF09").toShape() };
     }
     const fixture = ctx.state.importFiles.find((f) => f.path === params.path);
-    if (fixture === void 0 || (fixture.reasons !== void 0 && fixture.reasons.length > 0)) {
-      return {
-        ok: false,
-        error: new PkyError(
-          "IMPORT_VALIDATION_FAILED",
-          "\u6587\u4EF6\u6821\u9A8C\u672A\u901A\u8FC7\uFF0C0 \u884C\u53D8\u66F4",
-        ).toShape(),
-      };
+    if (fixture === void 0 || fixture.reasons !== void 0 && fixture.reasons.length > 0) {
+      return { ok: false, error: new PkyError("IMPORT_VALIDATION_FAILED", "\u6587\u4EF6\u6821\u9A8C\u672A\u901A\u8FC7\uFF0C0 \u884C\u53D8\u66F4").toShape() };
     }
     if (fixture.backupFail === true) {
       return {
         ok: false,
-        error: new PkyError(
-          "BACKUP_FAILED",
-          "\u78C1\u76D8\u7A7A\u95F4\u4E0D\u8DB3\uFF0C\u81EA\u52A8\u5907\u4EFD\u5931\u8D25",
-        ).toShape(),
+        error: new PkyError("BACKUP_FAILED", "\u78C1\u76D8\u7A7A\u95F4\u4E0D\u8DB3\uFF0C\u81EA\u52A8\u5907\u4EFD\u5931\u8D25").toShape()
       };
     }
     return { ok: true, data: { result: { ...ctx.state.importResult } } };
@@ -2017,22 +1863,13 @@
       return { ok: false, error: blocked.toShape() };
     }
     if (params?.confirmed !== true) {
-      return {
-        ok: false,
-        error: new PkyError(
-          "INVALID_ARGUMENT",
-          "\u6062\u590D\u987B\u663E\u5F0F\u786E\u8BA4\uFF08confirmed: true\uFF09",
-        ).toShape(),
-      };
+      return { ok: false, error: new PkyError("INVALID_ARGUMENT", "\u6062\u590D\u987B\u663E\u5F0F\u786E\u8BA4\uFF08confirmed: true\uFF09").toShape() };
     }
     const outcome = ctx.state.restoreOutcome;
     if (outcome !== null && !outcome.ok) {
       return { ok: false, error: new PkyError(outcome.code, outcome.message).toShape() };
     }
-    const result =
-      outcome !== null
-        ? outcome.result
-        : { backupId: "pokemon-choose-you-20261017-090000.db", migratedTo: 1, seeded: 2 };
+    const result = outcome !== null ? outcome.result : { backupId: "pokemon-choose-you-20261017-090000.db", migratedTo: 1, seeded: 2 };
     return { ok: true, data: { result } };
   }
   function mockExportDirOpen(ctx) {
@@ -2041,7 +1878,7 @@
     if (dir.error !== void 0) {
       return {
         ok: false,
-        error: new PkyError(pendingCode("HELPER_CAPABILITY_MISSING"), dir.error, dir.path).toShape(),
+        error: new PkyError(pendingCode("HELPER_CAPABILITY_MISSING"), dir.error, dir.path).toShape()
       };
     }
     return { ok: true, data: { ok: true, path: dir.path } };
@@ -2068,7 +1905,7 @@
       },
       async exportDirOpen() {
         return await mockExportDirOpen(ctx);
-      },
+      }
     };
   }
 
@@ -2082,7 +1919,7 @@
       lastSuccessAt: "2026-10-11T08:00:00+08:00",
       nextPollAt: "2026-10-11T08:02:00+08:00",
       consecutiveFailures: 0,
-      pendingCount: 0,
+      pendingCount: 0
     };
   }
   function defaultHelperCaps() {
@@ -2094,7 +1931,7 @@
       "sys-dialog": true,
       "sys-open": true,
       "input-count": true,
-      "mac-auth": true,
+      "mac-auth": true
     };
   }
   function defaultState() {
@@ -2122,20 +1959,23 @@
       pkSkill: { installedVersion: null, checked: false },
       petRunning: true,
       deployments: [],
+      sshAliases: [],
       provisionFail: null,
+      recheckRecovers: false,
       sessionRows: [],
+      dispatchHandoff: {},
       importFiles: [],
       importResult: { backupId: "pokemon-choose-you-20261017-090000.db", applied: 12 },
       restoreOutcome: null,
       exportDir: { path: "/mock/.choose-you/data/exports" },
       macAuth: {
         granted: false,
-        helperPath: "/mock/.dsh/electron/dist/pky-helper.app/Contents/MacOS/pky-helper",
+        helperPath: "/mock/.dsh/electron/dist/pky-helper.app/Contents/MacOS/pky-helper"
       },
       helperCaps: defaultHelperCaps(),
       shortcutRegistered: true,
       sshFamily: { ok: true },
-      helperVersion: null,
+      helperVersion: null
     };
   }
   function createContext(initial) {
@@ -2154,28 +1994,21 @@
         return state.messages.find((m) => m.messageId === messageId);
       },
       guardWritable() {
-        return state.dbStatus.mode === "ro"
-          ? new PkyError(
-              "DB_SCHEMA_TOO_NEW",
-              "\u5F85\u529E\u5E93\u7248\u672C\u8F83\u65B0\uFF0C\u9700\u5347\u7EA7\u63D2\u4EF6\u540E\u624D\u80FD\u5199\u5165",
-            )
-          : null;
+        return state.dbStatus.mode === "ro" ? new PkyError("DB_SCHEMA_TOO_NEW", "\u5F85\u529E\u5E93\u7248\u672C\u8F83\u65B0\uFF0C\u9700\u5347\u7EA7\u63D2\u4EF6\u540E\u624D\u80FD\u5199\u5165") : null;
       },
       guardPending(messageId) {
         const message = state.messages.find((m) => m.messageId === messageId);
         if (message === void 0) {
           return new PkyError("INVALID_ARGUMENT", `\u6D88\u606F ${messageId} \u4E0D\u5B58\u5728`);
         }
-        return message.reviewStatus === "pending"
-          ? null
-          : new PkyError("SUGGESTION_ALREADY_RESOLVED", "\u8BE5\u5EFA\u8BAE\u5DF2\u5728\u53E6\u4E00\u5904\u5904\u7F6E");
+        return message.reviewStatus === "pending" ? null : new PkyError("SUGGESTION_ALREADY_RESOLVED", "\u8BE5\u5EFA\u8BAE\u5DF2\u5728\u53E6\u4E00\u5904\u5904\u7F6E");
       },
       nextTaskId() {
         return state.tasks.reduce((max, t) => Math.max(max, t.id), 0) + 1;
       },
       ok(data) {
         return delay({ ok: true, data });
-      },
+      }
     };
   }
   function mockHost(initial = {}) {
@@ -2213,7 +2046,7 @@
         return () => {
           pageOpenListeners.delete(listener);
         };
-      },
+      }
     };
     host.state = ctx.state;
     host.calls = ctx.calls;
@@ -2233,7 +2066,7 @@
       sprite: "pokemon/pikachu.gif",
       enabled: true,
       description: "",
-      ...overrides,
+      ...overrides
     };
   }
   function makeData(overrides = {}) {
@@ -2241,17 +2074,14 @@
       locale: "zh-Hans",
       today: "2026-10-11",
       tasks: [],
-      categories: [
-        makeCategory({ id: 1, name: "\u5DE5\u4F5C" }),
-        makeCategory({ id: 2, name: "\u751F\u6D3B", pokemon: "eevee" }),
-      ],
+      categories: [makeCategory({ id: 1, name: "\u5DE5\u4F5C" }), makeCategory({ id: 2, name: "\u751F\u6D3B", pokemon: "eevee" })],
       messages: [],
       health: {
         level: "ok",
         lastSuccessAt: "2026-10-11T08:00:00+08:00",
         nextPollAt: "2026-10-11T08:02:00+08:00",
         consecutiveFailures: 0,
-        pendingCount: 0,
+        pendingCount: 0
       },
       auth: { authorized: true, expired: false },
       followups: {},
@@ -2293,10 +2123,10 @@
         dispatch_auto_enabled: "false",
         dispatch_max_concurrent: "2",
         dispatch_worktree: "true",
-        feishu_enabled: "false",
+        feishu_enabled: "false"
       },
       dbStatus: { userVersion: 1, pluginWindow: { min: 1, max: 1 }, mode: "rw" },
-      ...overrides,
+      ...overrides
     };
   }
 
@@ -2306,7 +2136,7 @@
     rpc: void 0,
     ctx: void 0,
     clientExports: null,
-    registry: {},
+    registry: {}
   };
   window.__pky = pky;
   function seedMockState() {
@@ -2314,7 +2144,7 @@
     Object.assign(pky.mock.state, {
       tasks: data.tasks,
       categories: data.categories,
-      settings: { ...data.config },
+      settings: { ...data.config }
     });
     pky.mock.state.deployments = [
       {
@@ -2328,9 +2158,10 @@
         status: "ready",
         lastError: null,
         provision: { "probe-ssh": "done", "probe-node": "done", upload: "done", verify: "done" },
-        degraded: false,
-      },
+        degraded: false
+      }
     ];
+    pky.mock.state.sshAliases = ["gpu-1", "pky-remote"];
     pky.mock.state.helperCaps = {
       "sys-tray": true,
       "sys-shortcut": true,
@@ -2339,10 +2170,42 @@
       "sys-dialog": true,
       "sys-open": true,
       "input-count": false,
-      "mac-auth": true,
+      "mac-auth": true
     };
     pky.mock.state.sshFamily = { ok: true, detail: null };
     pky.mock.state.shortcutRegistered = true;
+    seedSessionRows();
+  }
+  function sessionRow(id, over) {
+    return {
+      id,
+      taskId: null,
+      agentId: "agent-1",
+      agentName: "Claude Code",
+      sessionId: null,
+      command: "claude",
+      exitCode: 0,
+      status: "ok",
+      durationMs: null,
+      costUsd: null,
+      inputTokens: null,
+      outputTokens: null,
+      kind: "dispatch_headless",
+      workdir: "",
+      tmuxSession: "",
+      remoteHost: "",
+      remotePort: 0,
+      remoteKey: "",
+      createdAt: "2026-10-17T08:00:00+08:00",
+      ...over
+    };
+  }
+  function seedSessionRows() {
+    pky.mock.state.sessionRows = [
+      sessionRow(1, { sessionId: "sess-e2e-1", workdir: "/srv/work", durationMs: 61e3, costUsd: 0.012 }),
+      sessionRow(2, { kind: "dispatch_interactive", sessionId: null, tmuxSession: "pky-e2e", durationMs: 12e4 }),
+      sessionRow(3, { sessionId: "sess-e2e-3", workdir: "/srv/work", remoteHost: "gpu-1", remotePort: 22 })
+    ];
   }
   function installRpc() {
     pky.rpc = {
@@ -2350,11 +2213,7 @@
         if (endpoint !== "pky/call") {
           return {
             ok: false,
-            error: {
-              code: "INVALID_ARGUMENT",
-              message: `harness \u53EA\u63A5 pky/call\uFF08got ${endpoint}\uFF09`,
-              details: {},
-            },
+            error: { code: "INVALID_ARGUMENT", message: `harness \u53EA\u63A5 pky/call\uFF08got ${endpoint}\uFF09`, details: {} }
           };
         }
         const { args } = payload ?? {};
@@ -2364,11 +2223,11 @@
         if (typeof fn !== "function") {
           return {
             ok: false,
-            error: { code: "INVALID_ARGUMENT", message: `mock \u65E0\u547D\u4EE4 ${String(command)}`, details: {} },
+            error: { code: "INVALID_ARGUMENT", message: `mock \u65E0\u547D\u4EE4 ${String(command)}`, details: {} }
           };
         }
         return { ok: true, value: await fn.call(pky.mock, args?.payload) };
-      },
+      }
     };
   }
   function installModuleLoader() {
@@ -2387,7 +2246,7 @@
       load(mod) {
         const returned = mod.factory(requireOf);
         pky.clientExports = returned ?? {};
-      },
+      }
     };
   }
   function installCtx() {
@@ -2400,13 +2259,24 @@
         register(options, component) {
           pky.registry[options.key ?? options.id ?? options.name ?? "unknown"] = component;
           return () => void 0;
-        },
+        }
       },
       locale: { tag: "zh-Hans" },
       connection: { rpc: pky.rpc },
       layout: { selectPanel: () => void 0 },
+      // configForms 假件（clientEntry 装配期即消费 get()）：unavailable 固定快照——
+      // 背包配置分区行不渲染（E2E 无该面用例；真值面经 mock rpc settings 键）。
+      // getSnapshot 必须返回缓存引用（useSyncExternalStore 契约——新对象会渲染死循环）
+      configForms: {
+        get: () => ({
+          subscribe: () => () => void 0,
+          getSnapshot: () => CONFIG_FORMS_UNAVAILABLE,
+          set: async () => false
+        })
+      }
     };
   }
+  var CONFIG_FORMS_UNAVAILABLE = { status: "unavailable", writable: false };
   seedMockState();
   installRpc();
   installModuleLoader();

@@ -2,7 +2,8 @@
  * 远程部署卡（U23 · 背包·Agent 分区挂载）：远端机器的「图鉴条目」总览与操作入口——
  * - DeploymentRow 列表：别名（等宽编号位）/ 远端三元组（截断 + title 全文）/ 状态徽章四呈现
  *   （就绪 ● / 就绪（直连）● 琥珀点 / 未就绪 ● / 断开 ●；文字恒墨色仅状态点着色）+ 最近错误行
- *   + 「直连模式」角标（D31 留痕）+ 操作（开通 · 编辑 · 移除；断开态给「重连并检查」）。
+ *   + 「直连模式」角标（D31 留痕）+ 操作（开通 · 编辑 · 移除；断开态给「重连并检查」——
+ *   busy 态 + 复核结局行内呈现零静默，常驻「重装远端组件」链接走 restart 向导）。
  * - 「＋ 添加部署」→ DeployFormModal（新增保存后自动进向导——草稿→探测中）。
  * - 开通向导：provisionRun 单步同步 + provisionStatus 呈现（拉式步进）；Esc/✕ 关闭 =
  *   后台继续（卡面「向导执行中」中性徽章反映，M8）；[中止] 显式停止（幂等续跑）。
@@ -20,7 +21,7 @@ import cardStyles from "../settings.module.css";
 import { DeployFormModal } from "./DeployFormModal";
 import { DeploymentWizard } from "./DeploymentWizard";
 import { useWizardRunner } from "./deploymentWizardRun";
-import { DeploymentRowItem } from "./deploymentRow";
+import { DeploymentRowItem, type RecheckFeedback } from "./deploymentRow";
 import styles from "./deploy.module.css";
 import type { WizardState } from "./deploymentWizardRun";
 
@@ -69,6 +70,7 @@ export function DeploymentCard({ onChanged }: { onChanged: () => void }): React.
   const [removeTarget, setRemoveTarget] = useState<DeploymentEntity | null>(null);
   const [removeBusy, setRemoveBusy] = useState(false);
   const [saveHint, setSaveHint] = useState("");
+  const [recheck, setRecheck] = useState<({ id: string } & RecheckFeedback) | null>(null);
 
   const reload = useCallback(() => {
     void client.deploymentList().then((result) => {
@@ -146,9 +148,27 @@ export function DeploymentCard({ onChanged }: { onChanged: () => void }): React.
                 entity={entity}
                 wizardRunning={wizard !== null && wizard.id === entity.id && wizard.running}
                 readonly={readonly}
+                recheck={recheck !== null && recheck.id === entity.id ? recheck : null}
                 onReconnect={() => {
-                  void client.deploymentRecheck({ id: entity.id }).then(() => reload());
+                  // 复核反馈闭环（零静默）：busy → 结局行内呈现（恢复看徽章翻就绪；仍断开
+                  // status 行；RPC 失败 alert 行——结果从返回实体同步判，避免 reload 竞态）
+                  setRecheck({ id: entity.id, phase: "busy" });
+                  void client.deploymentRecheck({ id: entity.id }).then((result) => {
+                    if (result.ok && result.data.deployment.status === "ready") {
+                      setRecheck(null);
+                    } else if (result.ok) {
+                      setRecheck({ id: entity.id, phase: "down" });
+                    } else {
+                      const message =
+                        result.error.hint !== undefined
+                          ? `${result.error.message} — ${result.error.hint}`
+                          : result.error.message;
+                      setRecheck({ id: entity.id, phase: "error", text: message });
+                    }
+                    reload();
+                  });
                 }}
+                onReinstall={() => void runWizard(entity.id, { restart: true })}
                 onProvision={() => void runWizard(entity.id)}
                 onEdit={() => setForm({ entity })}
                 onRemove={() => setRemoveTarget(entity)}

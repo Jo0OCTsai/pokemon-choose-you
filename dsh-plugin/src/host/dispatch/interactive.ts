@@ -20,18 +20,20 @@ import {
   markDispatchIdle,
   transitionOrAlready,
 } from "../domain/dispatch";
-import type { AgentConfig } from "../domain/settings";
+import { getSetting, type AgentConfig } from "../domain/settings";
 import { getTask } from "../domain/tasks";
 import { agentLine, interactiveArgs, summarizeLine } from "./cmdline";
 import { prepareDispatchPrompt, type DispatchPromptPrep } from "./prompt";
 import type { ResolvedDispatchRoute } from "./routes";
 import { logAgentSession, executionWorld } from "./sessions";
 import type { SshCheckOutcome } from "./sshCheck";
+import type { HandoffReasonCode } from "./terminalAdapters";
 
 /**
  * 终端面板适配器（真实 dsh 终端面板后续装配）：注入一行命令到目标终端，返回
  * 终端标识（呈现用）与可选会话/执行标识（落 agent_sessions.session_id——dsh 终端
  * pane/会话 id，交互回放路由用）。不解析终端输出（A15）。
+ * 实现件：handoff/fake = terminalAdapters.ts；desktop 外部终端 = dsh/externalTerminal.ts。
  */
 export interface TerminalAdapter {
   inject(input: {
@@ -39,34 +41,9 @@ export interface TerminalAdapter {
     agent: AgentConfig;
     taskId: number;
     workdir: string | null;
-  }): Promise<{ terminal: string; sessionRef?: string; note?: string }>;
-}
-
-/** fake 终端适配器（测试）：记录注入行，可编程结果 */
-export interface FakeTerminal extends TerminalAdapter {
-  readonly injections: Array<{ line: string; taskId: number; workdir: string | null; agentId: string }>;
-  /** 下一次 inject 抛错（驱动唤起失败路径）；传 null 清除 */
-  failNext(message: string | null): void;
-}
-
-export function createFakeTerminal(): FakeTerminal {
-  const injections: FakeTerminal["injections"] = [];
-  const state = { failMessage: null as string | null };
-  return {
-    injections,
-    failNext(message) {
-      state.failMessage = message;
-    },
-    async inject(input) {
-      injections.push({ line: input.line, taskId: input.taskId, workdir: input.workdir, agentId: input.agent.id });
-      if (state.failMessage !== null) {
-        const message = state.failMessage;
-        state.failMessage = null;
-        throw new Error(message);
-      }
-      return { terminal: "fake-terminal", sessionRef: `pane-${input.taskId}` };
-    },
-  };
+    /** 终端偏好值（共享设置 terminal_preference——desktop 外部终端解析用；适配器自决是否消费） */
+    terminalPreference?: string | null;
+  }): Promise<{ terminal: string; sessionRef?: string; note?: string; reason?: HandoffReasonCode }>;
 }
 
 export interface InteractiveDeps {
@@ -91,6 +68,8 @@ export interface InteractiveOutcome {
   sessionRowId: number;
   /** 注入的命令行（呈现/审计） */
   line: string;
+  /** handoff 原因（terminal=copy-line 时在场——客户端 web 提示分流） */
+  reason?: HandoffReasonCode;
 }
 
 /**
@@ -200,10 +179,19 @@ export async function dispatchInteractive(
       agent,
       taskId,
       workdir: route.workdir === "" ? null : route.workdir,
+      // 终端偏好随注入传递（desktop 外部终端按此解析；主应用 exec.rs 每次唤起前读 pref 同构）
+      terminalPreference: getSetting(conn, "terminal_preference"),
     });
     const sessionRowId = logInteractiveSession(conn, prep, launched);
     const note = [launched.note].filter((n): n is string => n !== undefined && n !== "").join("；");
-    return { state: DS_RUNNING, terminal: launched.terminal, note: note === "" ? null : note, sessionRowId, line };
+    return {
+      state: DS_RUNNING,
+      terminal: launched.terminal,
+      note: note === "" ? null : note,
+      sessionRowId,
+      line,
+      ...(launched.reason === undefined ? {} : { reason: launched.reason }),
+    };
   } catch (error) {
     throw failInteractiveLaunch(conn, taskId, error);
   }

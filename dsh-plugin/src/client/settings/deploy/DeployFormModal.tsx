@@ -1,15 +1,17 @@
 /**
- * 部署表单弹窗（U23 · 新增/编辑双模式）：别名（OpenSSH 别名——凭据由别名承载，插件不存
- * 私钥）/ 远端 Node 路径 / 默认远端工作目录 / 备注。行内校验：别名不能为空 / Node 路径不能为
- * 空（保存禁用 + 行内红字）；`~` 前缀与重复别名由 host 校验回显（error.message 行内）。
- * 编辑保存成功后回落未就绪——提示重跑开通向导复核（§8「部署编辑回落」）。
+ * 部署表单弹窗（U23 · 新增/编辑双模式）：别名（OpenSSH 别名下拉——数据源 sshAliasList
+ * 读本机 ~/.ssh/config，凭据由别名承载，插件不存私钥；编辑态当前别名不在列表时保留
+ * 可选——config 漂移不吞既有值）/ 远端 Node 路径 / 默认远端工作目录 / 备注。行内校验：
+ * 别名不能为空 / Node 路径不能为空（保存禁用 + 行内红字）；`~` 前缀与重复别名由 host
+ * 校验回显（error.message 行内）。编辑保存成功后回落未就绪——提示重跑开通向导复核
+ * （§8「部署编辑回落」）。
  */
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import type { DeploymentEntity } from "../../rpc";
 import { useClient } from "../../clientContext";
 import { useT } from "../../i18n";
 import { Modal } from "../../ui/Modal";
-import { TextInput } from "../../ui/controls";
+import { SelectInput, TextInput } from "../../ui/controls";
 import styles from "./deploy.module.css";
 
 /** 表单初值（编辑预填实体字段；新增空态） */
@@ -56,6 +58,39 @@ export function DeployFormModal({
   const [aliasError, setAliasError] = useState("");
   const [pathError, setPathError] = useState("");
   const [serverError, setServerError] = useState("");
+  const [sshAliases, setSshAliases] = useState<string[] | null>(null);
+
+  // 可选别名加载（sshAliasList 读本机 ~/.ssh/config；失败/缺席 = 空列表走空态提示）
+  useEffect(() => {
+    let alive = true;
+    void client.sshAliasList().then((result) => {
+      if (alive) {
+        setSshAliases(result.ok ? result.data.aliases : []);
+      }
+    });
+    return () => {
+      alive = false;
+    };
+  }, [client]);
+
+  // 下拉选项：占位（未选/加载中）/ 编辑态当前别名保留（config 漂移不吞既有值）/
+  // config 别名；加载完成且无任何可选项 → 空态提示（缺席不是错误态——不报错只提示）
+  const aliasList = sshAliases ?? [];
+  const preserveCurrent = editing && entity !== undefined && entity.alias !== "" && !aliasList.includes(entity.alias);
+  const aliasOptions: Array<{ value: string; label: string }> = [];
+  if (sshAliases !== null && aliasList.length === 0 && !preserveCurrent) {
+    aliasOptions.push({ value: "", label: t("dsh.deploy.form.aliasEmpty") });
+  } else {
+    if (alias === "") {
+      aliasOptions.push({ value: "", label: t("dsh.deploy.form.aliasPlaceholder") });
+    }
+    if (preserveCurrent && entity !== undefined) {
+      aliasOptions.push({ value: entity.alias, label: entity.alias });
+    }
+    for (const name of aliasList) {
+      aliasOptions.push({ value: name, label: name });
+    }
+  }
 
   async function save(): Promise<void> {
     setAliasError("");
@@ -99,7 +134,12 @@ export function DeployFormModal({
       <div data-testid="deploy-form">
         <label className={styles.formRow}>
           <span className={styles.formLabel}>{t("dsh.deploy.form.alias")}</span>
-          <TextInput value={alias} onChange={setAlias} ariaLabel={t("dsh.deploy.form.alias")} />
+          <SelectInput
+            value={alias}
+            onChange={setAlias}
+            options={aliasOptions}
+            ariaLabel={t("dsh.deploy.form.alias")}
+          />
         </label>
         {aliasError !== "" && (
           <p className={styles.formError} role="alert">

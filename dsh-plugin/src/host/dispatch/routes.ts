@@ -1,8 +1,8 @@
 /**
  * 项目路由（A13 / AD §5.2）：settings 键 `dsh:dispatch_routes` 以项目标签名为键，
  * 与主应用 tags.meta 平行双轨各一份（以标签名对齐）。字段对齐主应用 tags.meta
- * {workdir, agentId, context} 并扩展（deployment 引用 / maxConcurrent / worktree / auto）。
- * deployment 只存引用（deployment 名 + user@host 连接目标）——连接细节归 dsh 平台。
+ * {workdir, agentId, context} 并扩展（maxConcurrent / worktree / auto）。
+ * 执行世界不在此层（2026-10-19 裁决）：agent 绑定部署（ai_agents.deployment alias）单源驱动。
  *
  * 行为基准 = src-tauri/src/commands/dispatch/route.rs（resolve_route /
  * effective_workdir 的取数顺序）+ meta.rs（project_tag_meta）。
@@ -17,19 +17,16 @@ import { dispatchHostKey } from "../domain/dispatch-slots";
 /** 路由存储键（host 半边内部态，随库备份/导出——AD §5.2） */
 export const DISPATCH_ROUTES_KEY = "dsh:dispatch_routes";
 
-/** SSH deployment 引用（A13：名 + 连接目标 user@host[:port]，不存密钥/端口等连接细节） */
+/** 解析产物：生效部署引用（ref = target = 部署 alias——OpenSSH 别名即 ssh 连接目标，凭据归 ~/.ssh） */
 export interface RouteDeployment {
-  /** dsh deployment 名 */
   ref: string;
-  /** 连接目标（user@host[:port]，hostKey 归一输入） */
   target: string;
 }
 
-/** 一条项目路由（键 = 项目标签名） */
+/** 一条项目路由（键 = 项目标签名；执行世界不在此层——agent 绑定部署单源，路由级 deployment 已移除） */
 export interface DispatchRoute {
   agentId: string;
   workdir?: string;
-  deployment?: RouteDeployment;
   context?: string;
   maxConcurrent?: number;
   worktree?: boolean;
@@ -76,7 +73,7 @@ export function listRoutes(conn: Conn): Record<string, DispatchRoute> {
 
 /**
  * 路由条目校验：tag 必填；agentId 允许空（空 = 不指定，解析时回落标签 meta / 全局默认——
- * 与主应用 tags.meta 双轨语义一致）；deployment.target 非空；maxConcurrent 正整数
+ * 与主应用 tags.meta 双轨语义一致）；maxConcurrent 正整数
  */
 function validateRoute(tag: string, route: DispatchRoute): void {
   if (tag.trim() === "") {
@@ -84,11 +81,6 @@ function validateRoute(tag: string, route: DispatchRoute): void {
   }
   if (route.agentId !== undefined && typeof route.agentId !== "string") {
     throw paramError(`路由「${tag}」的 agentId 必须是字符串`);
-  }
-  if (route.deployment !== undefined) {
-    if (route.deployment.ref.trim() === "" || route.deployment.target.trim() === "") {
-      throw paramError(`路由「${tag}」的 deployment 需要 ref 与 target（user@host）`);
-    }
   }
   if (route.maxConcurrent !== undefined && (!Number.isInteger(route.maxConcurrent) || route.maxConcurrent < 1)) {
     throw paramError(`路由「${tag}」的 maxConcurrent 必须为正整数`);
@@ -180,6 +172,12 @@ function resolveMaxConcurrent(conn: Conn, route: DispatchRoute | undefined): num
   return Number.isInteger(v) && v > 0 ? v : 1;
 }
 
+/** agent 绑定部署 → 生效引用（ref = target = alias；未绑定/空白 = null 本机） */
+function agentDeployment(agent: AgentConfig): RouteDeployment | null {
+  const alias = agent.deployment?.trim();
+  return alias ? { ref: alias, target: alias } : null;
+}
+
 export function resolveDispatchRoute(conn: Conn, taskId: number, routeOverride?: string): ResolvedDispatchRoute {
   const task = getTask(conn, taskId);
   const projectTag = task.tags.find((t) => t.dimension === "project")?.name;
@@ -194,6 +192,8 @@ export function resolveDispatchRoute(conn: Conn, taskId: number, routeOverride?:
     { agentId: meta?.agentId, source: "meta" },
   ]);
   const config = routeConfig(conn, route, meta);
+  // 执行世界单源：所选 agent 的部署绑定（实体缺失由派发时 planRemoteRoute 硬拒，解析不查实体）
+  const deployment = agentDeployment(picked.agent);
   return {
     agent: picked.agent,
     source: picked.source,
@@ -203,8 +203,8 @@ export function resolveDispatchRoute(conn: Conn, taskId: number, routeOverride?:
     maxConcurrent: resolveMaxConcurrent(conn, route),
     worktree: config.worktree,
     auto: config.auto,
-    deployment: route?.deployment ?? null,
-    hostKey: routeHostKey(route),
+    deployment,
+    hostKey: dispatchHostKey(deployment !== null ? { host: deployment.target } : null),
   };
 }
 
@@ -221,9 +221,4 @@ function routeConfig(
     worktree: route?.worktree ?? getSetting(conn, "dispatch_worktree") === "true",
     auto: route?.auto ?? true,
   };
-}
-
-/** host_key 归一（deployment 目标 → ssh:user@host[:port]；本机 local） */
-function routeHostKey(route: DispatchRoute | undefined): string {
-  return dispatchHostKey(route?.deployment !== undefined ? { host: route.deployment.target } : null);
 }

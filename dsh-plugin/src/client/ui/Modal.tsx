@@ -23,13 +23,14 @@ export function Modal({
 }: {
   title: string;
   children?: ReactNode;
-  actions: ModalAction[];
+  /** 底部动作区；缺省 = 调用方在 children 内自排动作行（如改期弹窗按钮贴选择器右侧） */
+  actions?: ModalAction[];
   /** Esc / overlay 点击外的关闭语义（与「留在这里」一致） */
   onClose?: () => void;
   ariaLabel?: string;
 }): React.JSX.Element {
   const ref = useRef<HTMLDivElement>(null);
-  const close = onClose ?? (() => actions.find((a) => a.variant !== "primary")?.onChoose());
+  const close = onClose ?? (() => actions?.find((a) => a.variant !== "primary")?.onChoose());
   useFocusTrap(ref, true, close);
   return (
     <div className={styles.overlay} data-testid="modal-overlay">
@@ -42,26 +43,32 @@ export function Modal({
         tabIndex={-1}
       >
         <h3 className={styles.dialogTitle}>{title}</h3>
-        {children !== undefined && <div className={styles.dialogBody}>{children}</div>}
-        <div className={styles.dialogActions}>
-          {actions.map((action) => (
-            <button
-              key={action.label}
-              type="button"
-              className={
-                action.variant === "primary"
-                  ? styles.buttonPrimary
-                  : action.variant === "danger"
-                    ? styles.buttonDanger
-                    : styles.button
-              }
-              onClick={action.onChoose}
-              disabled={action.disabled}
-            >
-              {action.label}
-            </button>
-          ))}
-        </div>
+        {children !== undefined && (
+          <div className={styles.dialogBody} data-flush={actions === undefined}>
+            {children}
+          </div>
+        )}
+        {actions !== undefined && (
+          <div className={styles.dialogActions}>
+            {actions.map((action) => (
+              <button
+                key={action.label}
+                type="button"
+                className={
+                  action.variant === "primary"
+                    ? styles.buttonPrimary
+                    : action.variant === "danger"
+                      ? styles.buttonDanger
+                      : styles.button
+                }
+                onClick={action.onChoose}
+                disabled={action.disabled}
+              >
+                {action.label}
+              </button>
+            ))}
+          </div>
+        )}
       </div>
     </div>
   );

@@ -1,15 +1,19 @@
 /**
- * clientEntry 装配（Phase B 适配层）：apply(ctx) 的四 slot 注册——plugins.detail.section
- * （subject 自判：本包渲染面板 / 他包 null 零占位）、conversation.session.header.actions
- * （chip 挂载，无进行中任务零占位）、sidebar.panellist + main（侧边栏一级入口与主区
- * 全局面板：id/key 同源寻址、order、locale-aware 标签、chip 点击经 ctx.layout.selectPanel
- * 客户端闭环导航）；rpc 经 fake connection（mockHost + dsh 信封正向转换）走真实
- * transport 链路；slots.inject 的卸载清理形态。
+ * clientEntry 装配（Phase B 适配层）：apply(ctx) 的三 slot 注册——
+ * conversation.session.header.actions（chip 挂载，无进行中任务零占位）、
+ * sidebar.panellist + main（侧边栏一级入口与主区全局面板：id/key 同源寻址、order、
+ * locale-aware 标签、chip 点击经 ctx.layout.selectPanel 客户端闭环导航）。
+ * ctx.configForms 经 createPluginConfig 绑定随主面板 Context 注入（背包分区行消费，
+ * 行为面见 dsh-plugin-config.spec.tsx）。plugins.detail.section 与 plugins.bundle.config
+ * 两槽均不注册（用户裁决：详情页回归纯信息页，插件私有配置背包为唯一编辑面）；rpc 经
+ * fake connection（mockHost + dsh 信封正向转换）走真实 transport 链路；slots.inject
+ * 的卸载清理形态。
  */
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import type { ComponentType } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { apply, type DshClientContext } from "../../src/client/dsh/clientEntry";
+import { type ConfigFormsFace } from "../../src/client/dsh/pluginConfig";
 import {
   createPanelLabel,
   createPanelOpener,
@@ -33,12 +37,6 @@ type Registration = {
   component: (props: Record<string, unknown>) => unknown;
 };
 
-function panelOf(registrations: Registration[]): SlotC {
-  const component = registrations.find((r) => r.id === "dsh-plugin#panel")?.component;
-  expect(component).toBeDefined();
-  return component as SlotC;
-}
-
 /** mockHost → fake dsh connection rpc（Typert Remote 迁移后 wire 形态：/api + pky/call + 双信封） */
 function mockHostRpc(host: MockHost): DshConnectionRpc {
   return {
@@ -61,12 +59,18 @@ function mockHostRpc(host: MockHost): DshConnectionRpc {
   };
 }
 
-/** slots 服务替身：inject 即执行贡献（本层贡献形态 = register 的单 disposer），register 记录并返回注销件 */
+/** slots 服务替身：inject 即执行贡献（贡献形态 = 单 disposer 或 disposer 数组——配置槽
+ * 双键并注返回数组），register 记录并返回注销件 */
 function fakeSlots() {
   const registrations: Registration[] = [];
   const slots: DshClientContext["slots"] = {
     inject(_key, contribute) {
-      const dispose = contribute() as () => void;
+      const contributed = contribute();
+      const dispose = Array.isArray(contributed)
+        ? () => {
+            for (const off of contributed) off();
+          }
+        : (contributed as () => void);
       return () => {
         dispose();
       };
@@ -85,8 +89,13 @@ function fakeSlots() {
   return { slots, registrations };
 }
 
-/** apply 替身装配：可选注入宿主 locale 快照替身与 layout 替身（缺省不给——健壮性口径） */
-function applyWith(host = mockHost(), faces: { locale?: unknown; layout?: PanelLayoutFace } = {}) {
+/** apply 替身装配：可选注入宿主 locale 快照替身与 layout 替身（缺省不给——健壮性口径；
+ * configForms 缺省给 unavailable 态替身——注册面断言不渲染配置区，行为面归
+ * dsh-config-section.spec.tsx） */
+function applyWith(
+  host = mockHost(),
+  faces: { locale?: unknown; layout?: PanelLayoutFace; configForms?: ConfigFormsFace } = {},
+) {
   const slots = fakeSlots();
   const injectDisposers: Array<() => void> = [];
   const realInject = slots.slots.inject.bind(slots.slots);
@@ -99,6 +108,15 @@ function applyWith(host = mockHost(), faces: { locale?: unknown; layout?: PanelL
     slots: slots.slots,
     locale: faces.locale ?? null,
     connection: { rpc: mockHostRpc(host) },
+    configForms:
+      faces.configForms ??
+      ({
+        get: () => ({
+          getSnapshot: () => ({ status: "unavailable", writable: false }),
+          subscribe: () => () => undefined,
+          set: () => Promise.resolve(false),
+        }),
+      } as ConfigFormsFace),
     layout: faces.layout,
   });
   return { ...slots, injectDisposers };
@@ -111,20 +129,22 @@ function fakeLocale(tag: string): unknown {
 
 afterEach(cleanup);
 
-describe("clientEntry · apply 四 slot 注册", () => {
-  it("注册 detail section / 会话头 chip / 侧边栏一级入口 / 主区面板（list id + keyed key 同源寻址）", () => {
+describe("clientEntry · apply 三 slot 注册", () => {
+  it("注册会话头 chip / 侧边栏一级入口 / 主区面板（list id + keyed key 同源寻址）；配置类槽不再注册", () => {
     const { registrations } = applyWith();
     expect(registrations.map((r) => `${r.name}#${r.id}`)).toEqual([
-      "plugins.detail.section#dsh-plugin#panel",
-      "conversation.session.header.actions#dsh-plugin#chip",
+      "conversation.session.header.actions#pokemon-choose-you-dsh#chip",
       `sidebar.panellist#${PANEL_ID}`,
       `main#${PANEL_ID}`,
     ]);
+    // 详情页纯信息页 + 插件私有配置背包唯一编辑面（plugins.bundle.config 槽已撤，用户裁决）
+    expect(registrations.some((r) => r.name === "plugins.detail.section")).toBe(false);
+    expect(registrations.some((r) => r.name === "plugins.bundle.config")).toBe(false);
   });
 
   it("slots.inject 卸载清理：注销后注册表清空", () => {
     const { registrations, injectDisposers } = applyWith();
-    expect(injectDisposers).toHaveLength(4);
+    expect(injectDisposers).toHaveLength(3);
     for (const dispose of injectDisposers) {
       dispose();
     }
@@ -132,41 +152,10 @@ describe("clientEntry · apply 四 slot 注册", () => {
   });
 });
 
-describe("clientEntry · 面板 section（subject 自判 + 数据装配）", () => {
-  const foreign = { kind: "bundle", pkg: { name: "@acme/other" } };
-  const self = { kind: "bundle", pkg: { name: "dsh-plugin" } };
-
-  it("他包 subject（bundle/row/item）渲染 null——detail 页零占位", () => {
-    const { registrations } = applyWith();
-    const panel = registrations.find((r) => r.id === "dsh-plugin#panel")?.component;
-    expect(panel).toBeDefined();
-    expect(panel?.({ subject: foreign })).toBeNull();
-    expect(panel?.({ subject: { kind: "row", pkg: { name: "@acme/other" }, row: {} } })).toBeNull();
-    expect(panel?.({ subject: { kind: "item", id: "settings-shell" } })).toBeNull();
-    expect(panel?.({})).toBeNull();
-  });
-
-  it("本包 subject：经真实 transport 链路拉数据并渲染七段面板", async () => {
-    const { registrations } = applyWith();
-    const Panel = panelOf(registrations);
-    render(<Panel subject={self} />);
-    // 快照拉取异步完成 → 面板落地（SegmentNav 七段）；无待处理（0）红徽章不渲染（被动信号不强调零态）
-    expect(await screen.findByTestId("segment-nav")).toBeTruthy();
-    expect(screen.queryByTestId("pending-count")).toBeNull();
-  });
-
-  it("本包 subject（row 形态，pkg 同名）同样渲染", async () => {
-    const { registrations } = applyWith();
-    const Panel = panelOf(registrations);
-    render(<Panel subject={{ kind: "row", pkg: { name: "dsh-plugin" }, row: { rowId: "host" } }} />);
-    expect(await screen.findByTestId("segment-nav")).toBeTruthy();
-  });
-});
-
 describe("clientEntry · 会话头 chip（零占位）", () => {
   it("无进行中任务数据源（读命令/推送未落型）→ chip 不渲染", () => {
     const { registrations } = applyWith();
-    const chip = registrations.find((r) => r.id === "dsh-plugin#chip")?.component;
+    const chip = registrations.find((r) => r.id === "pokemon-choose-you-dsh#chip")?.component;
     expect(chip).toBeDefined();
     const Chip = chip as SlotC;
     const { container } = render(<Chip sessionId="s1" />);
@@ -179,7 +168,7 @@ describe("clientEntry · 会话头 chip（零占位）", () => {
       categories: [makeCategory({ id: 1, name: "工作", pokemon: "pikachu" })],
     });
     const { registrations } = applyWith(host);
-    const Chip = registrations.find((r) => r.id === "dsh-plugin#chip")?.component as SlotC;
+    const Chip = registrations.find((r) => r.id === "pokemon-choose-you-dsh#chip")?.component as SlotC;
     render(<Chip sessionId="s1" />);
     // panelSnapshot 异步链路后渲染（皮卡丘 = pikachu 的 zh-Hans 名，经 catalog 查名）
     const chipEl = await screen.findByTestId("conversation-chip");
@@ -232,7 +221,7 @@ describe("clientEntry · 侧边栏一级入口 + 主区全局面板", () => {
     expect(svg?.getAttribute("aria-hidden")).toBe("true");
   });
 
-  it("主面板组件：经真实 transport 链路拉数据并渲染七段面板（与 detail section 同一组件双载体）", async () => {
+  it("主面板组件：经真实 transport 链路拉数据并渲染七段面板（图鉴机 UI 唯一载体）", async () => {
     const { registrations } = applyWith();
     const component = registrations.find((r) => r.name === "main")?.component;
     expect(component).toBeDefined();

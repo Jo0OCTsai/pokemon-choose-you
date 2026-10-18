@@ -96,14 +96,8 @@ export interface HostClient {
   // 收音机
   pollNow(): Promise<PkyResult<RadioHealth>>;
   // 派发
-  dispatchInteractive(params: {
-    taskId: number;
-    routeOverride?: Partial<DispatchRoute>;
-  }): Promise<PkyResult<DispatchView>>;
-  dispatchHeadless(params: {
-    taskId: number;
-    routeOverride?: Partial<DispatchRoute>;
-  }): Promise<PkyResult<DispatchView>>;
+  dispatchInteractive(params: { taskId: number; routeOverride?: string }): Promise<PkyResult<DispatchView>>;
+  dispatchHeadless(params: { taskId: number; routeOverride?: string }): Promise<PkyResult<DispatchView>>;
   dispatchClose(params: { taskId: number; result: "done" | "failed"; note?: string }): Promise<PkyResult<DispatchView>>;
   dispatchReset(params: { taskId: number }): Promise<PkyResult<DispatchView>>;
   dispatchCancel(params: { taskId: number }): Promise<PkyResult<DispatchView>>;
@@ -210,14 +204,16 @@ export interface HostClient {
   sessionReplay(params: { rowId: number }): Promise<PkyResult<{ routed: SessionReplayRouted }>>;
   // 远程部署（FR-RD1/RD2 · D31）
   deploymentList(): Promise<PkyResult<DeploymentListResult>>;
+  /** 本机 ~/.ssh/config 可选 OpenSSH 别名（部署表单下拉数据源；缺席 = 空列表） */
+  sshAliasList(): Promise<PkyResult<{ aliases: string[] }>>;
   /** 新增（无 id，保存后草稿→未就绪）/ 编辑（回落未就绪 + 提示重跑向导） */
   deploymentUpsert(params: DeploymentUpsertInput): Promise<PkyResult<{ deployment: DeploymentEntity }>>;
   /** 移除 = 关连接 + 远端 helper 托管自清理尽力执行（失败不阻塞） */
   deploymentDelete(params: { id: string }): Promise<PkyResult<DeploymentDeleteResult>>;
   /** 手动重连复核（断开态入口；结果落实体状态呈现） */
   deploymentRecheck(params: { id: string }): Promise<PkyResult<{ deployment: DeploymentEntity }>>;
-  /** 开通向导单步执行（客户端步进驱动；已完成步骤跳过） */
-  provisionRun(params: { id: string }): Promise<PkyResult<{ status: ProvisionStatus }>>;
+  /** 开通向导单步执行（客户端步进驱动；已完成步骤跳过；restart = 全 ok 时重置重跑——重装远端组件） */
+  provisionRun(params: { id: string; restart?: boolean }): Promise<PkyResult<{ status: ProvisionStatus }>>;
   /** 向导呈现（各步骤结果 + 失败步 + 可重试标记） */
   provisionStatus(params: { id: string }): Promise<PkyResult<{ status: ProvisionStatus }>>;
   /** D31 显式降级确认（须 acknowledgedRisk:true；留痕诊断段；未经确认直连态不可达） */

@@ -1,19 +1,26 @@
 /**
  * 回放路由（FR-C2 / AD §4.1 sessionReplay；从 sessions.ts 拆出——棘轮 max-lines，
  * 等量迁移；sessions.ts 为统一再出口，消费面不变）——行为基准 = src-tauri/src/
- * commands/integrations.rs 的 resume_route 回放三分支。快照压过当前配置：会话在哪台
- * 机器录的就回哪台（不读 ai_agents 当前配置）。
+ * commands/integrations.rs 的 resume_route 回放三分支。**执行世界**快照压过当前配置
+ * （会话在哪台机器录的就回哪台）；**agent 命令**按 agent_id 解析 ai_agents 配置
+ * （删除回落主 agent——desktop open_recorded_session 同构，行内 command 不是回放
+ * 命令来源）。
  */
 import type { Conn } from "../storage/db";
-import { notFound } from "../storage/errors";
+import { notFound, paramError } from "../storage/errors";
 import { PkyError } from "../storage/errors";
+import { loadAgents, primaryAgent, type AgentConfig } from "../domain/settings";
 import { SESSION_COLS, rowToSession, type SessionSqlRow } from "./sessionsPage";
 
 /** 回放分支：tmux attach 优先 → `--resume <会话id>` → agent 自带历史选择器兜底 */
 export type ReplayBranch = "tmux" | "resume" | "picker";
 
-/** 执行世界：本机 或 某部署（快照 target 解析出的部署别名） */
-export type ReplayWorld = "local" | { deploymentAlias: string };
+/**
+ * 执行世界：本机 / 某部署（快照 target 解析出的部署别名）/ **ssh 别名**（快照三元组
+ * 自包含——桌面 agent-remote 来源的行，解析不到部署实体时按快照 host/port/key 直连
+ * 回放，desktop open_agent_in_terminal 远端分支同构）。
+ */
+export type ReplayWorld = "local" | { deploymentAlias: string } | { sshTarget: string };
 
 /** 错误语义 tag（命令装配层 2.9 映射到 PROTOCOL §2 错误码；domain 不定义错误码） */
 export type ReplayErrorTag = "DEPLOYMENT_NOT_READY" | "DISPATCH_LAUNCH_FAILED" | "SSH_AUTH_REQUIRED";
@@ -24,11 +31,19 @@ export interface ReplayDeploymentRef {
   ready: boolean;
 }
 
-/** 本机回放唤起参数（三分支由 branch 给出，命令行组装归注入实现） */
+/**
+ * 本机回放唤起参数（三分支由 branch 给出，命令行组装归注入实现）。agentCommand/
+ * historyArgs 来自 **ai_agents 按 agent_id 解析的配置**（删除回落主 agent——desktop
+ * open_recorded_session 同构），不是行内记录的派发命令行：判定行（command 空）与
+ * 派发行（command 含 prompt）都按 agent 配置回放。
+ */
 export interface LocalReplayLaunch {
   branch: ReplayBranch;
   agentId: string;
+  /** agent 配置命令（裸命令，如 claude） */
   agentCommand: string;
+  /** agent 配置历史参数（会话 id 注入位——adapt_history_args 同构） */
+  historyArgs: string;
   sessionId: string | null;
   tmuxSession: string | null;
   workdir: string;
@@ -42,6 +57,7 @@ export interface RemoteReplayLaunch {
   deploymentAlias: string;
   agentId: string;
   agentCommand: string;
+  historyArgs: string;
   sessionId: string | null;
   tmuxSession: string | null;
   workdir: string;
@@ -58,6 +74,8 @@ export interface ReplayLauncher {
   resolveDeployment(target: string): ReplayDeploymentRef | null;
   launchLocal(launch: LocalReplayLaunch): void;
   launchRemote(launch: RemoteReplayLaunch): void;
+  /** ssh 别名回放（快照三元组自包含——desktop 载体弹外部终端 / web 回传命令行） */
+  launchAlias(launch: RemoteReplayLaunch): void;
 }
 
 export type SessionReplayOutcome =
@@ -76,7 +94,7 @@ export function replayBranchOf(row: { tmuxSession: string; sessionId: string | n
   return "picker";
 }
 
-/** 可回放判定：session_id 或 tmux 会话名任一非空才有回放句柄（UI 按行数据渲染按钮） */
+/** 可回放判定：session_id 或 tmux 会话名任一非空（UI 按行数据渲染按钮——desktop 同口径） */
 export function sessionReplayable(row: { sessionId: string | null; tmuxSession: string }): boolean {
   return row.tmuxSession.trim() !== "" || (row.sessionId ?? "").trim() !== "";
 }
@@ -107,6 +125,53 @@ function launchRemoteReplay(launcher: ReplayLauncher, launch: RemoteReplayLaunch
   try {
     launcher.launchRemote(launch);
     return { kind: "routed", world: { deploymentAlias: launch.deploymentAlias }, branch: launch.branch };
+  } catch (error) {
+    return launcherErrorToOutcome(error);
+  }
+}
+
+/**
+ * 回放 agent 解析（desktop open_recorded_session 同构）：按行 agent_id 查 ai_agents
+ * （agent_by_id 语义——不筛 enabled），命中不到回落主 agent（ai_agent_id → 首个启用）；
+ * 全无可用配置 = 明确报错（桌面同款文案语义）。
+ */
+function replayAgentOf(conn: Conn, agentId: string): AgentConfig {
+  const byId = loadAgents(conn).find((a) => a.id === agentId);
+  const agent = byId ?? primaryAgent(conn);
+  if (agent === null) {
+    throw paramError("会话所属 agent 已删除且无可用 agent 配置，无法回放");
+  }
+  return agent;
+}
+
+/** ssh 别名回放载荷（RemoteReplayLaunch 形状——target 即别名，port/key 来自快照） */
+function aliasPayload(
+  row: { agentId: string; workdir: string; remotePort: number; remoteKey: string },
+  target: string,
+  branch: ReplayBranch,
+  handles: { sessionId: string | null; tmuxSession: string | null },
+  agent: AgentConfig,
+): RemoteReplayLaunch {
+  return {
+    branch,
+    target,
+    deploymentAlias: target,
+    agentId: row.agentId,
+    agentCommand: agent.command,
+    historyArgs: agent.historyArgs,
+    sessionId: handles.sessionId,
+    tmuxSession: handles.tmuxSession,
+    workdir: row.workdir,
+    port: row.remotePort,
+    keyPath: row.remoteKey,
+  };
+}
+
+/** ssh 别名回放收口（异常经转发映射转 error outcome） */
+function launchAliasReplay(launcher: ReplayLauncher, launch: RemoteReplayLaunch): SessionReplayOutcome {
+  try {
+    launcher.launchAlias(launch);
+    return { kind: "routed", world: { sshTarget: launch.target }, branch: launch.branch };
   } catch (error) {
     return launcherErrorToOutcome(error);
   }
@@ -147,13 +212,15 @@ export function sessionReplay(conn: Conn, rowId: number, launcher: ReplayLaunche
   if (!sessionReplayable(row)) {
     return { kind: "not-replayable" };
   }
+  const agent = replayAgentOf(conn, row.agentId);
   const branch = replayBranchOf(row);
   const handles = replayHandles(row);
   if (row.remoteHost.trim() === "") {
     return launchLocalReplay(launcher, {
       branch,
       agentId: row.agentId,
-      agentCommand: row.command ?? "",
+      agentCommand: agent.command,
+      historyArgs: agent.historyArgs,
       sessionId: handles.sessionId,
       tmuxSession: handles.tmuxSession,
       workdir: row.workdir,
@@ -161,7 +228,15 @@ export function sessionReplay(conn: Conn, rowId: number, launcher: ReplayLaunche
   }
   const target = row.remoteHost.trim();
   const dep = launcher.resolveDeployment(target);
-  if (dep === null || !dep.ready) {
+  if (dep === null) {
+    // agent-remote 来源（快照带真实端口/密钥）→ ssh 别名直连回放（desktop 同构）；
+    // 部署路由来源（port=0 且无密钥）的部署缺失 → 维持 DEPLOYMENT_NOT_READY 契约
+    if (row.remotePort > 0 || row.remoteKey.trim() !== "") {
+      return launchAliasReplay(launcher, aliasPayload(row, target, branch, handles, agent));
+    }
+    return deploymentNotReplayable(target, null);
+  }
+  if (!dep.ready) {
     return deploymentNotReplayable(target, dep);
   }
   return launchRemoteReplay(launcher, {
@@ -169,7 +244,8 @@ export function sessionReplay(conn: Conn, rowId: number, launcher: ReplayLaunche
     target,
     deploymentAlias: dep.alias,
     agentId: row.agentId,
-    agentCommand: row.command ?? "",
+    agentCommand: agent.command,
+    historyArgs: agent.historyArgs,
     sessionId: handles.sessionId,
     tmuxSession: handles.tmuxSession,
     workdir: row.workdir,

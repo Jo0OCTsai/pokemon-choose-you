@@ -1,8 +1,8 @@
 /**
  * remote/deployments：部署实体 CRUD（dsh:deployments settings 键）——字段白名单
  * （NFR-11③ 凭据零存储机检面）、alias 唯一索引、路径不变式（拒 `~`/相对路径）、
- * 改名被路由引用的确认级联（A25）、实质编辑回落 not_ready、移除清理尽力不阻塞、
- * 路由失配查询（悬空引用明示面）。
+ * 改名被 agent 绑定引用的确认级联（A25）、实质编辑回落 not_ready、移除清理尽力
+ * 不阻塞、部署绑定失配查询（悬空引用明示面）。
  */
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import {
@@ -17,9 +17,8 @@ import {
   listDeployments,
   type DeploymentStatus,
 } from "../../src/host/remote/deployments";
-import { routeUpsert } from "../../src/host/dispatch/routes";
 import { getSetting } from "../../src/host/domain/settings";
-import { createTestDb, type TestDb } from "../helpers";
+import { createTestDb, seedAgents, type TestDb } from "../helpers";
 import { FakeSshScope } from "./fakeSshScope";
 
 let db: TestDb;
@@ -129,11 +128,13 @@ describe("部署校验（参数错口径）", () => {
   });
 });
 
-describe("改名被路由引用（A25 确认/级联）", () => {
-  it("未携带 confirmAliasRefs → 拒绝并列出受影响路由", () => {
+describe("改名被 agent 绑定引用（A25 确认/级联）", () => {
+  it("未携带 confirmAliasRefs → 拒绝并列出受影响 agent", () => {
     const id = seed({ alias: "dev-box" });
-    routeUpsert(db.conn, "PokemonApp", { agentId: "a", deployment: { ref: "dev-box", target: "u@h:1022" } });
-    routeUpsert(db.conn, "OtherProj", { agentId: "a", deployment: { ref: "dev-box", target: "u@h" } });
+    seedAgents(db.conn, [
+      { id: "ag-1", deployment: "dev-box" },
+      { id: "ag-2", deployment: "dev-box" },
+    ]);
     const err = (() => {
       try {
         deploymentUpsert(db.conn, { id, alias: "dev-box-2", nodePath: "/n", workdir: "" });
@@ -143,21 +144,24 @@ describe("改名被路由引用（A25 确认/级联）", () => {
       return null;
     })();
     expect(err?.message).toContain("confirmAliasRefs");
-    expect(err?.message).toContain("PokemonApp");
-    expect(err?.message).toContain("OtherProj");
+    expect(err?.message).toContain("ag-1");
+    expect(err?.message).toContain("ag-2");
     expect(listDeployments(db.conn)[id].alias).toBe("dev-box"); // 未改
   });
 
-  it("携带 confirmAliasRefs:true → 级联更新路由 ref（与部署键同事务）", () => {
+  it("携带 confirmAliasRefs:true → 级联更新 agent 绑定（与部署键同事务）", () => {
     const id = seed({ alias: "dev-box" });
-    routeUpsert(db.conn, "PokemonApp", { agentId: "a", deployment: { ref: "dev-box", target: "u@h:1022" } });
+    seedAgents(db.conn, [{ id: "ag-1", deployment: "dev-box" }]);
     deploymentUpsert(db.conn, { id, alias: "dev-box-2", nodePath: "/n", workdir: "", confirmAliasRefs: true });
     expect(listDeployments(db.conn)[id].alias).toBe("dev-box-2");
-    const routes = JSON.parse(getSetting(db.conn, "dsh:dispatch_routes") ?? "{}");
-    expect(routes.PokemonApp.deployment).toEqual({ ref: "dev-box-2", target: "u@h:1022" });
+    const agents = JSON.parse(getSetting(db.conn, "ai_agents") ?? "[]") as Array<{
+      id: string;
+      deployment: string | null;
+    }>;
+    expect(agents.find((a) => a.id === "ag-1")?.deployment).toBe("dev-box-2");
   });
 
-  it("改名未被引用 → 直接放行（无需确认）", () => {
+  it("改名未被绑定 → 直接放行（无需确认）", () => {
     const id = seed({ alias: "dev-box" });
     expect(() => deploymentUpsert(db.conn, { id, alias: "dev-box-2", nodePath: "/n", workdir: "" })).not.toThrow();
   });
@@ -266,19 +270,22 @@ describe("移除（清理失败与跳过路径——失败不阻塞删除）", (
   });
 });
 
-describe("路由失配明示（部署缺失 → 「将改在本机执行」确认数据面）", () => {
-  it("列出 deployment.ref 解析不到实体的路由；正常引用不列", async () => {
+describe("部署绑定失配明示（agent 绑定指向缺失部署 → 悬空清单数据面）", () => {
+  it("列出 deployment 解析不到实体的 agent 绑定；正常绑定与未绑定不列", async () => {
     seed({ alias: "dev-box" });
-    routeUpsert(db.conn, "OkRoute", { agentId: "a", deployment: { ref: "dev-box", target: "u@h" } });
-    routeUpsert(db.conn, "Dangling", { agentId: "a", deployment: { ref: "gone-box", target: "u@gone" } });
-    expect(danglingDeploymentRefs(db.conn)).toEqual([{ tag: "Dangling", ref: "gone-box", target: "u@gone" }]);
-    // 部署删除后（delete 不级联）→ 悬空引用由本面承接
+    seedAgents(db.conn, [
+      { id: "ag-1", deployment: "dev-box" },
+      { id: "ag-2", deployment: "gone-box" },
+      { id: "ag-3" },
+    ]);
+    expect(danglingDeploymentRefs(db.conn)).toEqual([{ agentId: "ag-2", agentName: "ag-2", ref: "gone-box" }]);
+    // 部署删除后（delete 不级联）→ 悬空绑定由本面承接
     const id = deploymentByAlias(db.conn, "dev-box")!.id;
     await deploymentDelete(db.conn, id);
     expect(
       danglingDeploymentRefs(db.conn)
-        .map((r) => r.tag)
+        .map((r) => r.agentId)
         .sort(),
-    ).toEqual(["Dangling", "OkRoute"]);
+    ).toEqual(["ag-1", "ag-2"]);
   });
 });

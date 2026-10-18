@@ -4,8 +4,7 @@
  * 操作面。断开语义：显式 disconnect() 幂等收口（终端逐个 terminate + 装载逆序
  * dispose fiber + onDisconnected 通知）。
  */
-import { createHash } from "node:crypto";
-import { posixQuote } from "../dispatch/cmdline";
+import { shellViaSpawn, writeFileViaSpawn } from "../remote/sshOps";
 import type { SshScope, SshSpawnOptions, SshSpawnResult, SshTerminalOptions } from "../remote/sshScope";
 import type { CordisFiber } from "./sshScope";
 import { COLLECT_MAX_BYTES, type ConsumerContext, type SubprocessTerminalHandle } from "./sshScopeFamily";
@@ -16,8 +15,6 @@ import { COLLECT_MAX_BYTES, type ConsumerContext, type SubprocessTerminalHandle 
 const SPAWN_GRACE_MS = 10_000;
 /** 终端会话收口宽限（spike mkTerm 同值） */
 const TERMINAL_GRACE_MS = 8_000;
-/** shell 包裹被信号杀死（拿不到退出码）时的替代退出码（对齐 ssh 连接失败惯例值） */
-const SHELL_SIGNAL_EXIT_CODE = 255;
 /** 终端缺省尺寸与仿真类型（AD §4.7 交互分支口径） */
 const TERMINAL_ROWS = 24;
 const TERMINAL_COLS = 120;
@@ -89,24 +86,13 @@ export class DshSshScope implements SshScope {
   }
 
   async shell(cmd: string): Promise<{ code: number; stdout: string; stderr: string }> {
-    // 组装方（remote/）保证逐参 posixQuote；本层只负责经 /bin/sh -c 原样执行
-    const result = await this.spawn(["/bin/sh", "-c", cmd]);
-    return { code: result.code ?? SHELL_SIGNAL_EXIT_CODE, stdout: result.stdout, stderr: result.stderr };
+    // 组装方（remote/）保证逐参 posixQuote；组合原语单一源（broker 传输同款——remote/sshOps）
+    return await shellViaSpawn((c, o) => this.spawn(c, o), cmd);
   }
 
   async writeFile(path: string, content: Buffer | string): Promise<{ sha256: string }> {
-    const text = stdinText(content);
-    // 上传原语（NFR-11④）：spawn `cat > <posixQuote(path)>` + stdin 管道灌内容——字节安全、零命令行拼接
-    const write = await this.spawn(["/bin/sh", "-c", `cat > ${posixQuote(path)}`], { stdin: text });
-    if (write.code !== 0) {
-      throw new Error(`远端写入失败（exit ${write.code}）：${write.stderr.slice(0, 160)}`);
-    }
-    const expected = createHash("sha256").update(text, "utf8").digest("hex");
-    const remote = await this.remoteSha256(path);
-    if (remote !== expected) {
-      throw new Error(`远端写入复核不符（远端 ${remote} ≠ 预期 ${expected}）`);
-    }
-    return { sha256: remote };
+    // 上传原语（NFR-11④）：cat 管道 + sha256 复核——组合原语单一源（remote/sshOps）
+    return await writeFileViaSpawn((c, o) => this.spawn(c, o), path, content);
   }
 
   async disconnect(): Promise<void> {
@@ -145,17 +131,5 @@ export class DshSshScope implements SshScope {
     this.terminals.delete(sessionId);
     await handle.terminate();
     return true;
-  }
-
-  private async remoteSha256(path: string): Promise<string> {
-    const result = await this.spawn(["/bin/sh", "-c", `sha256sum ${posixQuote(path)}`]);
-    if (result.code !== 0) {
-      throw new Error(`远端 sha256sum 失败（exit ${result.code}）：${result.stderr.slice(0, 160)}`);
-    }
-    const token = result.stdout.trim().split(/\s+/)[0] ?? "";
-    if (!/^[0-9a-f]{64}$/.test(token)) {
-      throw new Error("远端 sha256sum 输出无法解析（首段非 64 位 hex）");
-    }
-    return token;
   }
 }

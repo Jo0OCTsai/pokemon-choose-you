@@ -69,7 +69,7 @@ describe("部署卡列表与徽章", () => {
     expect(screen.getByText("就绪（直连）")).toBeTruthy();
     expect(screen.getByText("未就绪")).toBeTruthy();
     expect(screen.getByText("断开")).toBeTruthy();
-    expect(screen.getByText("直连模式（未经摘要校验）")).toBeTruthy();
+    expect(screen.getByText("直连模式")).toBeTruthy();
     expect(screen.getByText(/最近错误：免密连接未通过/)).toBeTruthy();
     // 断开态给「重连并检查」；就绪行不给开通钮（开通钮只属未就绪行 gpu-3）
     expect(screen.getByTestId("deploy-reconnect")).toBeTruthy();
@@ -84,14 +84,15 @@ describe("部署卡列表与徽章", () => {
     expect(guide.textContent).toContain("dsh-ssh");
     expect(guide.textContent).toContain("dsh plugin add @deepseek-ai/dsh-ssh");
     expect(screen.queryByTestId("deploy-add")).toBeNull();
-    expect(screen.getByText("复制装载指引")).toBeTruthy();
+    expect(screen.getByText("复制安装方法")).toBeTruthy();
   });
 });
 
 describe("DeployFormModal 新增/编辑", () => {
   it("新增：别名/路径行内校验（保存禁用语义 = 行内拒绝）→ 成功后自动进向导", async () => {
-    const host = await boot(mockHost());
+    const host = await boot(mockHost({ sshAliases: ["gpu-1", "gpu-9"] }));
     fireEvent.click(screen.getByTestId("deploy-add"));
+    await flush();
     fireEvent.click(screen.getByText("保存"));
     expect(screen.getByText(/别名不能为空/)).toBeTruthy();
     fireEvent.change(screen.getByLabelText(/OpenSSH 别名/), { target: { value: "gpu-9" } });
@@ -108,17 +109,39 @@ describe("DeployFormModal 新增/编辑", () => {
     expect(screen.getByTestId("deploy-wizard")).toBeTruthy();
   });
 
-  it("编辑：预填 + 保存后回落未就绪提示（§8 部署编辑回落）", async () => {
+  it("别名下拉：选项来自 sshAliasList（~/.ssh/config）；占位项在首位", async () => {
+    await boot(mockHost({ sshAliases: ["gpu-1", "pky-remote"] }));
+    fireEvent.click(screen.getByTestId("deploy-add"));
+    await flush();
+    const select = screen.getByLabelText(/OpenSSH 别名/) as HTMLSelectElement;
+    expect(Array.from(select.options).map((o) => o.value)).toEqual(["", "gpu-1", "pky-remote"]);
+    expect(select.options[0]!.textContent).toContain("选择 OpenSSH 别名");
+  });
+
+  it("别名下拉空态：config 无可用别名 → 提示项（缺席不是错误态——不报错只提示）", async () => {
+    await boot(mockHost({ sshAliases: [] }));
+    fireEvent.click(screen.getByTestId("deploy-add"));
+    await flush();
+    const empty = screen.getByLabelText(/OpenSSH 别名/) as HTMLSelectElement;
+    expect(Array.from(empty.options).map((o) => o.value)).toEqual([""]);
+    expect(empty.options[0]!.textContent).toContain("~/.ssh/config");
+  });
+
+  it("编辑：预填 + 保存后回落未就绪提示（§8 部署编辑回落；当前别名不在 config 列表时保留可选）", async () => {
     await boot(
-      mockHost({ deployments: [makeDeployment({ id: "d1", alias: "gpu-1", status: "ready", note: "训练机" })] }),
+      mockHost({
+        deployments: [makeDeployment({ id: "d1", alias: "gpu-1", status: "ready", note: "训练机" })],
+        sshAliases: [],
+      }),
     );
     fireEvent.click(screen.getByText("编辑"));
-    expect((screen.getByLabelText(/OpenSSH 别名/) as HTMLInputElement).value).toBe("gpu-1");
+    await flush();
+    expect((screen.getByLabelText(/OpenSSH 别名/) as HTMLSelectElement).value).toBe("gpu-1");
     expect((screen.getByLabelText(/备注/) as HTMLInputElement).value).toBe("训练机");
     fireEvent.change(screen.getByLabelText(/备注/), { target: { value: "训练机 2 号位" } });
     fireEvent.click(screen.getByText("保存"));
     await flush();
-    expect(screen.getByTestId("deploy-save-hint").textContent).toContain("已回落为未就绪");
+    expect(screen.getByTestId("deploy-save-hint").textContent).toContain("请重新开通");
     expect(screen.getByText("未就绪")).toBeTruthy();
   });
 
@@ -126,13 +149,105 @@ describe("DeployFormModal 新增/编辑", () => {
     await boot(
       mockHost({
         deployments: [makeDeployment({ id: "d1", alias: "gpu-1", nodePath: "/usr/bin/node" })],
+        sshAliases: ["gpu-1"],
       }),
     );
     fireEvent.click(screen.getByTestId("deploy-add"));
+    await flush();
     fireEvent.change(screen.getByLabelText(/OpenSSH 别名/), { target: { value: "gpu-1" } });
     fireEvent.change(screen.getByLabelText(/远端 Node 路径/), { target: { value: "~/bin/node" } });
     fireEvent.click(screen.getByText("保存"));
     await flush();
     expect(screen.getByTestId("deploy-form-error").textContent).toContain("~");
+  });
+});
+
+describe("断开重连反馈闭环 + 重装入口", () => {
+  // 工厂而非常量：mock 会原位改实体状态（复核恢复置 ready），常量会被用例间污染
+  const disconnected = () => [makeDeployment({ id: "d1", alias: "gpu-1", status: "disconnected" })];
+
+  it("busy 态：复核进行中按钮换「检查中…」并禁用；完成后复原", async () => {
+    const host = mockHost({ deployments: disconnected() });
+    let release: () => void = () => undefined;
+    const gate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    const original = host.deploymentRecheck.bind(host);
+    host.deploymentRecheck = async (params) => {
+      await gate;
+      return original(params);
+    };
+    await boot(host);
+    fireEvent.click(screen.getByTestId("deploy-reconnect"));
+    await flush(2);
+    const busyButton = screen.getByTestId("deploy-reconnect") as HTMLButtonElement;
+    expect(busyButton.disabled).toBe(true);
+    expect(busyButton.textContent).toBe("检查中…");
+    release();
+    await flush();
+    const restButton = screen.getByTestId("deploy-reconnect") as HTMLButtonElement;
+    expect(restButton.disabled).toBe(false);
+    expect(restButton.textContent).toBe("重连并检查");
+  });
+
+  it("复核仍断开 → 行内 status 行「复核完成：仍未连通」+ lastError 更新（零静默）", async () => {
+    await boot(mockHost({ deployments: disconnected() }));
+    fireEvent.click(screen.getByTestId("deploy-reconnect"));
+    await flush();
+    expect(screen.getByTestId("deploy-recheck-note").textContent).toContain("仍未连通");
+    expect(screen.getByText(/连接不可用/)).toBeTruthy();
+    expect(screen.getByText("断开")).toBeTruthy();
+  });
+
+  it("复核恢复 → 徽章翻「就绪」，无附加行；重连钮消失", async () => {
+    await boot(mockHost({ deployments: disconnected(), recheckRecovers: true }));
+    fireEvent.click(screen.getByTestId("deploy-reconnect"));
+    await flush();
+    expect(screen.getByText("就绪")).toBeTruthy();
+    expect(screen.queryByTestId("deploy-recheck-note")).toBeNull();
+    expect(screen.queryByTestId("deploy-reconnect")).toBeNull();
+  });
+
+  it("RPC 失败 → 行内 alert 呈现错误信封（不再静默吞掉）", async () => {
+    const host = mockHost({ deployments: disconnected() });
+    host.deploymentRecheck = async () => ({
+      ok: false as const,
+      error: { code: "HELPER_CAPABILITY_MISSING" as const, message: "远程部署平台面未装配" },
+    });
+    await boot(host);
+    fireEvent.click(screen.getByTestId("deploy-reconnect"));
+    await flush();
+    expect(screen.getByTestId("deploy-recheck-error").textContent).toContain("平台面未装配");
+    expect(screen.getByText("断开")).toBeTruthy();
+  });
+
+  it("断开行常驻「重装远端组件」链接（就绪/未就绪行无）；点击 → restart 向导重跑至就绪", async () => {
+    const host = await boot(
+      mockHost({
+        deployments: [
+          ...disconnected(),
+          makeDeployment({ id: "d2", alias: "gpu-2", status: "ready" }),
+          makeDeployment({ id: "d3", alias: "gpu-3", status: "not_ready" }),
+        ],
+      }),
+    );
+    expect(screen.getAllByTestId("deploy-reinstall").length).toBe(1); // 仅断开行
+    fireEvent.click(screen.getByTestId("deploy-reinstall"));
+    await flush(16);
+    const restartCall = host.calls.find((c) => c.command === "provisionRun");
+    expect(restartCall?.params).toMatchObject({ id: "d1", restart: true });
+    expect(screen.getByTestId("deploy-wizard")).toBeTruthy();
+    expect(screen.getByText("就绪 2 · 未就绪 1 · 断开 0")).toBeTruthy(); // d1 重装完成恢复 → 断开清零
+  });
+
+  it("只读模式：重连钮与重装链接均置灰", async () => {
+    await boot(
+      mockHost({
+        deployments: disconnected(),
+        dbStatus: { userVersion: 2, pluginWindow: { min: 1, max: 1 }, mode: "ro" },
+      }),
+    );
+    expect((screen.getByTestId("deploy-reconnect") as HTMLButtonElement).disabled).toBe(true);
+    expect((screen.getByTestId("deploy-reinstall") as HTMLButtonElement).disabled).toBe(true);
   });
 });

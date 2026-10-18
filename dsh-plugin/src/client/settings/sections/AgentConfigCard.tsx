@@ -92,13 +92,9 @@ export function AgentConfigCard({
         />
       ) : (
         <>
-          {/* 标识行：名称 + 命令摘要（SSH 位置/技能根目录）+ 启用开关 + 操作同行 */}
+          {/* 标识行：名称 + 命令摘要（SSH 位置/绑定部署/技能根目录）+ 启用开关 + 操作同行 */}
           <span className={styles.entityName}>{agent.name}</span>
-          <span className={`${styles.entitySub} ${ui.muted}`}>
-            {agent.command}
-            {agent.remote != null && agent.remote.host.trim() !== "" ? ` · SSH ${agent.remote.host}` : ""} ·{" "}
-            {t("ai.skillDir")}: {agent.skillDir ?? "-"}
-          </span>
+          <AgentSummary agent={agent} t={t} />
           <Toggle
             compact
             label={t("ai.enabled")}
@@ -162,6 +158,20 @@ export function AgentConfigCard({
         />
       )}
     </div>
+  );
+}
+
+/** 折叠态命令摘要段（命令 · SSH 位置 · 绑定部署 · 技能根目录——条件段拆件） */
+function AgentSummary({ agent, t }: { agent: AgentConfig; t: ReturnType<typeof useT> }): React.JSX.Element {
+  return (
+    <span className={`${styles.entitySub} ${ui.muted}`}>
+      {agent.command}
+      {agent.remote != null && agent.remote.host.trim() !== "" ? ` · SSH ${agent.remote.host}` : ""}
+      {agent.deployment != null && agent.deployment.trim() !== ""
+        ? ` · ${t("dsh.agents.deployment")} ${agent.deployment}`
+        : ""}{" "}
+      · {t("ai.skillDir")}: {agent.skillDir ?? "-"}
+    </span>
   );
 }
 

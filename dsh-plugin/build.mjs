@@ -109,13 +109,13 @@ const cssModulesPlugin = {
       // CSS 标识符不能以数字开头——数字首的 hash 会让整张样式表成为非法选择器被浏览器丢弃
       const scope = /^[0-9]/.test(hash) ? `_${hash}` : hash;
       const { css, exportsMap } = transformCssModule(readFileSync(args.path, "utf8"), scope);
-      const tagId = `dsh-plugin/${rel}`;
+      const tagId = `pokemon-choose-you-dsh/${rel}`;
       const contents = [
         `const css = ${JSON.stringify(css)};`,
         `const tagId = ${JSON.stringify(tagId)};`,
         'if (typeof document !== "undefined" && document.querySelector("style[data-plugin-css=" + JSON.stringify(tagId) + "]") === null) {',
         '  const tag = document.createElement("style");',
-        '  tag.dataset.plugin = "dsh-plugin";',
+        '  tag.dataset.plugin = "pokemon-choose-you-dsh";',
         "  tag.dataset.pluginCss = tagId;",
         "  tag.textContent = css;",
         "  document.head.appendChild(tag);",
@@ -141,11 +141,25 @@ await esbuild.build({
   logLevel: "info",
 });
 
+// ---- broker 子进程入口（BoringSSL 宿主的家族传输外包——系统 Node 运行） ----
+
+await esbuild.build({
+  entryPoints: [path.join(root, "src/host/broker/brokerMain.ts")],
+  outfile: path.join(root, "dist/broker.mjs"),
+  bundle: true,
+  format: "esm",
+  platform: "node",
+  target: "node20",
+  // 与 host 同口径：@deepseek-ai/* external——运行时从本包闭包解析（dist 同目录锚定）
+  external: ["@deepseek-ai/*", "node:*"],
+  logLevel: "info",
+});
+
 // ---- client 半边（module-loader IIFE-CJS 包裹） ----
 
 const CLIENT_BANNER = [
   "window.__ModuleLoader__.load({",
-  '\tid: "dsh-plugin",',
+  '\tid: "pokemon-choose-you-dsh",',
   "\tfactory: (require) => {",
   "\t\tvar module = { exports: {} };",
   "\t\tvar exports = module.exports;",

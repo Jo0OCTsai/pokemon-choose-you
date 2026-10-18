@@ -1,13 +1,15 @@
 /**
- * host 命令 · 远程部署/开通向导域（full-parity AD §4.1 部署族 7 条 + D31 降级确认 1 条）：
- * deploymentList / deploymentUpsert / deploymentDelete / deploymentRecheck /
- * provisionRun / provisionStatus / deploymentDegradeConfirm。
+ * host 命令 · 远程部署/开通向导域（full-parity AD §4.1 部署族 7 条 + D31 降级确认 1 条
+ * + 部署表单下拉数据源 sshAliasList 1 条）：deploymentList / deploymentUpsert /
+ * deploymentDelete / deploymentRecheck / provisionRun / provisionStatus /
+ * deploymentDegradeConfirm / sshAliasList。
  * 命令层薄：参数形状校验 → domain 调用（remote/ 纯逻辑）→ 信封响应；远端 SSH 编排
  * 全在 domain（事务外），事务只收口实体状态。domain 错误 tag 机器稳定，本层 1:1 映射
  * PROTOCOL §2 错误码（provisionRun 失败 tag = SSH_AUTH_REQUIRED / PROVISION_STEP_FAILED /
  * HELPER_HASH_MISMATCH）。平台面（SshScope / helper 制品）经 deps.remote 注入——未装配
  * （非 dsh 宿主）时远端编排类命令按 HELPER_CAPABILITY_MISSING 降级拒绝（NFR-12 零静默）；
- * 纯 settings 读写类（list/upsert/delete/degradeConfirm/provisionStatus）不依赖平台面。
+ * 纯 settings 读写类（list/upsert/delete/degradeConfirm/provisionStatus）与本地只读的
+ * sshAliasList（~/.ssh/config 解析）不依赖平台面。
  */
 import { notFound, PkyError } from "../storage/errors";
 import type { CommandTable, HostCommandDeps, RemoteCommandPlatform } from "./context";
@@ -22,8 +24,10 @@ import {
   degradeConfirm as degradeConfirmDomain,
   provisionRun as provisionRunDomain,
   provisionStatusOf,
+  type ProvisionStatus,
 } from "../remote/provision";
 import { recheckDeployment } from "../remote/recheck";
+import { readSshConfigAliases } from "../remote/sshConfig";
 
 /** 平台面未装配的降级拒绝（非 dsh 宿主内运行——相关命令明确报错不静默） */
 function requirePlatform(deps: HostCommandDeps): RemoteCommandPlatform {
@@ -69,6 +73,8 @@ function deploymentCommandSet(): CommandTable {
       deps.onWrites();
       return result;
     },
+    // 本机 ~/.ssh/config 可选别名（部署表单下拉数据源；本地只读，缺席 = 空列表）
+    sshAliasList: () => ({ aliases: readSshConfigAliases() }),
     // 移除 = 关连接 + 远端自清理尽力执行（平台面缺席时清理跳过，删除不阻塞）
     deploymentDelete: async (p, deps) => {
       const id = (p as { id?: unknown }).id;
@@ -86,6 +92,32 @@ function deploymentCommandSet(): CommandTable {
   };
 }
 
+/** provisionRun 命令实现（开通向导单步推进；失败 tag 1:1 映射 PROTOCOL §2；restart = 重装远端组件——仅全 ok 短路点上重置重跑，见 provision.ts） */
+async function provisionRunCommand(p: unknown, deps: HostCommandDeps): Promise<{ status: ProvisionStatus }> {
+  const args = p as { id?: unknown; restart?: unknown };
+  const id = requireDeployment(deps, args.id).id;
+  const platform = requirePlatform(deps);
+  const outcome = await provisionRunDomain(
+    deps.conn,
+    id,
+    {
+      scopeFor: platform.scopeFor,
+      readHelperArtifact: platform.readHelperArtifact,
+      pluginVersion: deps.meta.pluginVersion,
+    },
+    args.restart === true ? { restart: true } : {},
+  );
+  deps.onWrites();
+  if (!outcome.ok) {
+    throw new PkyError(
+      outcome.tag ?? "PROVISION_STEP_FAILED",
+      outcome.message ?? `开通步骤 ${String(outcome.step)} 失败`,
+      outcome.hint ?? `失败步骤：${String(outcome.step)}`,
+    );
+  }
+  return { status: outcome.status };
+}
+
 /** 开通向导段（recheck/provisionRun/provisionStatus/degradeConfirm） */
 function provisionCommandSet(): CommandTable {
   return {
@@ -100,25 +132,7 @@ function provisionCommandSet(): CommandTable {
       deps.onWrites();
       return { deployment: requireDeployment(deps, id) };
     },
-    // 开通向导单步推进（客户端步进驱动；失败 tag 1:1 映射 PROTOCOL §2）
-    provisionRun: async (p, deps) => {
-      const id = requireDeployment(deps, (p as { id?: unknown }).id).id;
-      const platform = requirePlatform(deps);
-      const outcome = await provisionRunDomain(deps.conn, id, {
-        scopeFor: platform.scopeFor,
-        readHelperArtifact: platform.readHelperArtifact,
-        pluginVersion: deps.meta.pluginVersion,
-      });
-      deps.onWrites();
-      if (!outcome.ok) {
-        throw new PkyError(
-          outcome.tag ?? "PROVISION_STEP_FAILED",
-          outcome.message ?? `开通步骤 ${String(outcome.step)} 失败`,
-          outcome.hint ?? `失败步骤：${String(outcome.step)}`,
-        );
-      }
-      return { status: outcome.status };
-    },
+    provisionRun: provisionRunCommand,
     // 向导呈现（各步骤结果 + 失败步 + 可重试标记；纯实体读）
     provisionStatus: (p, deps) => {
       const entity = requireDeployment(deps, (p as { id?: unknown }).id);
@@ -136,7 +150,7 @@ function provisionCommandSet(): CommandTable {
   };
 }
 
-/** 部署/开通向导命令表（8 条） */
+/** 部署/开通向导命令表（9 条：部署族 7 + 降级确认 1 + 表单别名数据源 1） */
 export function remoteCommands(): CommandTable {
   return { ...deploymentCommandSet(), ...provisionCommandSet() };
 }

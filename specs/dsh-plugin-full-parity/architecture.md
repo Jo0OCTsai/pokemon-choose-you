@@ -110,7 +110,7 @@ graph TD
 | `src/host/dispatch/sessions.ts` 扩展 | `sessionsPage`（分组过滤 all/radio/dispatch/other、limit 钳 1–100 默认 20、offset、id 倒序、counts 不随翻页变）+ `sessionReplay` 回放路由（按执行世界快照：`remote_host` 空 = 本机终端唤起、非空 = 对应部署唤起；快照压过当前配置） | 零（唤起经 TerminalAdapter / SshScope 注入） |
 | `src/host/pet/electronGet.ts` | Electron 运行时按需获取（`@electron/get` 严格校验模式薄封装——探测链失败 → 下载/校验/解压/原子落位，校验值 = 构建期内嵌 sha256 常量（@electron/get 5.1 校验面——原案 sha512 系笔误）、镜像回落只换 URL 不换校验源；离线指引文本返回） | 零 dsh |
 | `src/host/pet/` 扩展（sys 桥消费 + macAuth） | 桥协议新消息的 host 侧消费面（tray-action/shortcut-fired/dialog-result/input-activity/mac-auth-result）；`macAuthorizationStatus` 查询；郑重时刻判定（完成动作发生形态 → `tts-speak`） | 零 |
-| `src/host/commands/` 扩展（remoteCommands.ts 新文件 + 既有分域扩展） | §4.1 新增 16 条命令实现（+macAuthPaneOpen 联调对齐 1 条；taskCreate 已移除——用户裁决 2026-10-17） | 零 |
+| `src/host/commands/` 扩展（remoteCommands.ts 新文件 + 既有分域扩展） | §4.1 新增 16 条命令实现（+macAuthPaneOpen 联调对齐 1 条；taskCreate 已移除——用户裁决 2026-10-17；+sshAliasList 表单数据源 1 条 2026-10-18，domain 落 remote/sshConfig.ts） | 零 |
 | `helper/src/sys/`（tray / shortcuts / notify / tts / dialogs / inputCount / openPath） | 系统能力模块族（Electron 稳定 API：Tray/globalShortcut/Notification/dialog/shell/speechSynthesis + uiohook-napi dynamic import）；headless 模式 = no-op 记录器（CI fake 扩面） | Electron API（非 dsh 面） |
 | `helper/src/state/` + `renderer/` 扩展 | 桌宠行为补齐：坐栖（底边 ≤72 逻辑像素判定）、时刻台词（生日>深夜>周五晚>整点优先级）、连胜演出（双球三摇）/里程碑（互不叠加）、陪跑、生日彩蛋、打盹问候、AI 聊聊对话框（≤4 行原位框，问题经桥 `cmd.pet-chat` 回传 host → 主 agent 执行方，回答截前 2 句经 `chat-reply` 下发） | 纯 helper 内 |
 
@@ -147,15 +147,17 @@ SessionsView 扩展分页/回放入口（`sessionsPage`/`sessionReplay`）、设
 ### 4.1 host 命令契约表（新增 17 条；既有 69 条零改动）
 
 > 〔2026-10-17 回流修订：taskCreate 行已移除（用户裁决「完全不需要」，FR-C1）——本表实存 **16 条** + macAuthPaneOpen 联调对齐 1 条，命令面总量 69 → 85 + 1 = 86。〕
+> 〔2026-10-18 增补：部署表单别名下拉数据源 `sshAliasList` 1 条（UI 触发，非 §4.1 原表）——命令面总量 69 → 87。〕
 
-命令面总量 **69 → 86**（基线 = 7986072 后实数 69，含新增 petStatus；2026-10-17 taskCreate 移除后实数——原设计 87）。响应统一 `{ ok, data? }` / `{ ok: false, error: { code, message, hint? } }`
+命令面总量 **69 → 87**（基线 = 7986072 后实数 69，含新增 petStatus；2026-10-17 taskCreate 移除后实数——原设计 87；2026-10-18 增 sshAliasList）。响应统一 `{ ok, data? }` / `{ ok: false, error: { code, message, hint? } }`
 （PROTOCOL §2）；全部写命令库超窗时先撞 `DB_SCHEMA_TOO_NEW`（不逐行重复）。除注明外均同步返回。
 错误码增量见 §4.2。
 
 | 域 | 命令 | 参数 | 响应 data | 业务错误码 |
 |---|------|------|-----------|-----------|
 | 部署 | `deploymentList` | — | `{ deployments: DeploymentView[], counts: { ready, pending, broken } }`（View = 实体字段 + 就绪状态 + 最近错误 + provisioning 步骤状态） | — |
-| | `deploymentUpsert` | `{ id?, alias, nodePath, workdir, note?, confirmAliasRefs?: boolean }`（**实体以 id 为唯一键、alias 唯一索引**（§5.2/A25）；alias = OpenSSH 别名；nodePath/workdir = 远端绝对路径，**显式拒收 `~` 前缀**——实体只存展开后 POSIX 绝对路径，§4.5 路径不变式；alias 改名且被 `dsh:dispatch_routes` 引用时须携带 `confirmAliasRefs:true` 级联更新路由 ref，否则拒绝并列出受影响路由） | `{ deployment }` | 参数校验错（空别名 / 别名重复 / 路径非绝对或含 `~` 前缀 / 改名被路由引用未确认） |
+| | `sshAliasList` | — | `{ aliases: string[] }`（本机 `~/.ssh/config` Host 别名解析——部署表单下拉数据源；关键字大小写不敏感 / 行多模式 / 通配（* ?）·否定（!）·引号模式剔除 / 去重保序；Include 指令不展开（记 docs/debt.md）；文件缺席或不可读 = 空列表非错误态） | — |
+| | `deploymentUpsert` | `{ id?, alias, nodePath, workdir, note?, confirmAliasRefs?: boolean }`（**实体以 id 为唯一键、alias 唯一索引**（§5.2/A25）；alias = OpenSSH 别名；nodePath/workdir = 远端绝对路径，**显式拒收 `~` 前缀**——实体只存展开后 POSIX 绝对路径，§4.5 路径不变式；alias 改名且被 agent 绑定（`ai_agents.deployment`——§5.2 2026-10-19 修订）引用时须携带 `confirmAliasRefs:true` 级联更新绑定，否则拒绝并列出受影响 agent） | `{ deployment }` | 参数校验错（空别名 / 别名重复 / 路径非绝对或含 `~` 前缀 / 改名被 agent 绑定引用未确认） |
 | | `deploymentDelete` | `{ id }` | `{ id, cleanup: { attempted, ok, detail? } }`（关连接 + 远端 helper 托管目录自清理尽力执行，失败不阻塞） | — |
 | | `deploymentRecheck` | `{ id }` | `{ deployment }`（手动触发就绪复核：连接探测 + 摘要复核） | 复核失败不报错——结果落实体状态呈现 |
 | | `provisionRun` | `{ id }` | `{ status: ProvisionStatus }`（**单次只执行下一未完成步骤并同步返回该步结果**——步骤间客户端驱动，匹配 provisionStatus 轮询呈现与幂等续跑；单步 SSH 操作秒级~十秒级，通道超时按单步声明；已完成步骤跳过） | `SSH_AUTH_REQUIRED`（免密探测步）/ `PROVISION_STEP_FAILED`（probe-node / upload / verify 执行失败步，含 `step` 字段）/ `HELPER_HASH_MISMATCH`（摘要校验步——拒绝就绪不降级直连） |
@@ -168,7 +170,7 @@ SessionsView 扩展分页/回放入口（`sessionsPage`/`sessionReplay`）、设
 | 图鉴 | `streakInfo` | — | `{ days, todayCount, nextMilestone? }`（连胜纯函数直读） | — |
 | 任务 | `taskCreate` | `{ title, note?, categoryId?, priority?, due?, remindAt?, scheduledFor?, tagIds? }`（title 必填 trim 非空；分类缺省第一个启用分类；优先级默认 normal；状态 = 排期?scheduled:inbox；标签全量替换关联；写任务审计 + onWrites） | `{ task }` | 参数校验错（空标题 / 分类不存在 / 标签不存在） | 〔已移除 2026-10-17·用户裁决「完全不需要」，FR-C1 回流〕 |
 | 会话 | `sessionsPage` | `{ group?: all\|radio\|dispatch\|other, limit?, offset? }`（limit 钳 1–100 默认 20；未知分组按 all；id 倒序） | `{ rows: SessionRow[], counts, total }`（counts 汇总不随翻页变化） | — |
-| | `sessionReplay` | `{ rowId }` | `{ routed: { world: "local" \| { deploymentAlias }, note? } }`（按落库执行世界快照路由：本机 = dsh 终端面板唤起 agent 回放（tmux attach 优先 → `--resume` 会话 id → agent 自带选择器兜底）；远端 = 对应部署唤起；**快照压过当前配置**） | `DEPLOYMENT_NOT_READY`（快照指向的部署已删/未就绪——hint 给替代（本机回放或重新开通））/ `DISPATCH_LAUNCH_FAILED`（复用：本机回放时 dsh-terminal 缺失——hint 给降级指引）/ `SSH_AUTH_REQUIRED`（复用：远端回放免密/连接失败——择一落定为此码） |
+| | `sessionReplay` | `{ rowId }` | `{ routed: { world: "local" \| { deploymentAlias }, note?, line?, workdir?, opened? } }`（按落库执行世界快照路由；**执行世界**快照压过当前配置、**agent 命令**按 agent_id 解析 ai_agents 配置（删除回落主 agent——desktop open_recorded_session 同构，行内 command 非回放命令来源；命令行 = agent 配置命令 + 历史参数注入会话 id + 工作目录 cd 前缀）。本机双形态〔2026-10-17 实装，10-18 对齐桌面命令来源〕：终端注入面在场 → 面板唤起（tmux attach 优先 → `--resume` 会话 id → 选择器兜底）；**宿主无第三方可驱动的终端面板（dsh 0.2.x 平台事实——浏览器终端 Session 私有、ctx.terminals 为 agent 工具注册表）→ handoff：命令行（line）+ 工作目录回传客户端复制执行（§4.8「复制命令行」降级口径，opened=false 零静默）**；远端双形态〔2026-10-18 补齐〕：快照解析到就绪部署 → PTY 注入唤起；**解析不到部署但快照带真实端口/密钥（桌面 agent-remote 来源行）→ ssh 别名回放**——`ssh -tt -o ConnectTimeout=10 [-p 端口] -- <target> exec "$SHELL" -lc '<cd 目录 && agent --resume id>'`，desktop 载体弹外部终端、web 载体回传命令行（desktop history_invocation 远端分支同构；部署路由来源行 port=0 无密钥，缺失仍 DEPLOYMENT_NOT_READY） | `DEPLOYMENT_NOT_READY`（快照指向的部署已删/未就绪——hint 给替代（本机回放或重新开通））/ `DISPATCH_LAUNCH_FAILED`（复用：注入面在场但注入失败——hint 给降级指引）/ `SSH_AUTH_REQUIRED`（复用：远端回放免密/连接失败——择一落定为此码） |
 | 飞书 | `larkLoginStart` | — | `{ ok, note }`（dsh 终端会话注入 `lark-cli`（已初始化 → `auth login`；未初始化 → `config init` 接 `auth login`）；登录态查询沿用既有 `larkTest`/`larkAuth`） | `DISPATCH_LAUNCH_FAILED`（复用：终端注入失败，hint 确认 dsh 终端面板可用） |
 | 桌宠 | `macAuthorizationStatus` | `{ kind: "accessibility" }` | `{ granted: boolean, helperPath: string }`（helper 查询系统辅助功能授权状态 + 定位 helper 二进制路径——授权引导卡数据面） | `HELPER_CAPABILITY_MISSING` |
 
@@ -352,7 +354,7 @@ sequenceDiagram
     participant ISO as isolate 作用域（label=pky-dep-<id>）
     participant DB as 共享 SQLite
     participant TERM as dsh 终端面板（spawnTerminal 真 PTY）
-    CMD->>RT: 派发请求（路由含 deployment）
+    CMD->>RT: 派发请求（所选 agent 绑定 deployment——§5.2 2026-10-19 修订）
     RT->>RT: 就绪复核（即时）：连接活性 + helper 摘要（失败 → DEPLOYMENT_NOT_READY）
     RT->>SC: 取/建 SshScope（按部署 id 缓存）
     SC->>ISO: ctx.isolate("ssh",sshLabel).isolate("subprocess",subLabel)<br/>（双 label——spike 修正 A：同 label 撞注册槽）<br/>+ 动态 import dsh-ssh 家族 + ctx.plugin 装载（惰性一次；装载须 await fiber）
@@ -362,7 +364,7 @@ sequenceDiagram
         RT->>RT: 是 → D31 前提成立时降级 ShellRunner 直连 ssh（免密预检先行）<br/>交互 → 降级「复制完整命令行」（既有语义）
         RT->>ISO: worktree（远端 ShellRunner 跑 ensure_worktree 同款脚本）<br/>→ subprocess.spawn（node 前缀 + agent CLI + 定界 prompt；超时下限 600s）
         ISO-->>RT: 退出码/时长/stdout（信封解析复用 parseHeadlessEnvelope）
-        RT->>DB: 槽租约删 + 状态机收口 done/failed + agent_sessions 落账<br/>（remote_host=部署 target + workdir = 执行世界快照）
+        RT->>DB: 槽租约删 + 状态机收口 done/failed + agent_sessions 落账<br/>（remote_host=部署 alias + workdir = 执行世界快照）
     else 交互
         RT->>ISO: subprocess.spawnTerminal（真 PTY，远端起进程；模型留本机）
         ISO-->>TERM: 面板呈现远端 PTY
@@ -377,8 +379,16 @@ sequenceDiagram
   `ctx.effect` 既有模式）；dsh-ssh Config 从部署实体组装（host=alias、node=nodePath、helper=helperPath、
   helperHash、workspace=workdir、requestTimeoutMs/maxFrameBytes 按 dsh-ssh 缺省）。
 - **本地/远端统一**：`HeadlessDeps.executorFor` 路由到 local（既有）/ sshExecutor（新）；交互
-  `TerminalAdapter` 路由到本机终端（Phase B 既有 fake→真装缝）与远端 spawnTerminal 适配器——
-  DispatchExecutor/TerminalAdapter/ShellRunner 三个缝正是前序为此预留（design.md 2a）。
+  `TerminalAdapter` 路由与远端 spawnTerminal 适配器——DispatchExecutor/TerminalAdapter/ShellRunner
+  三个缝正是前序为此预留（design.md 2a）。**实装落定（2026-10-18 · debt ③）**：远端 =
+  `remoteInteractiveParts`（terminalFor 真 PTY/copy-line + 就绪复核，装配层经
+  `HostCommandDeps.remoteInteractive` 接线）；本机 = 载体分流（2026-10-18 实装）：desktop 载体（Electron 宿主，
+  `process.versions.electron` 判据）→ `externalTerminal`（探测链 Ghostty → kitty → Alacritty
+  → WezTerm → Terminal.app(osascript)，`open -na` 唤起真窗口，唤起失败回落 handoff
+  reason=spawn-failed）；web/headless CLI 载体 → `createHandoffTerminal`（命令行经响应回传
+  客户端复制执行 + handoffReason=web-carrier 驱动 Web 提示——远程浏览器看不见宿主屏幕）。
+  `DispatchView` 增 handedOff/line/note/handoffReason，session_id 如实落 NULL；dsh 原生面板
+  仍待上游开放（本机体验已由外部终端等效闭环）。
 - **就绪复核循环**：recheck.ts 周期（5 分钟，timer 注入）+ 派发前即时复核；「连接断开」态下派发命令
   前置 `DEPLOYMENT_NOT_READY`；训练家手动重连 = `deploymentRecheck`（SDD §3.3 状态图迁移）。
 
@@ -387,7 +397,7 @@ sequenceDiagram
 | 键 | 探测实现 | 失败呈现 |
 |---|---|---|
 | `dsh-ssh` | 动态 `import("@deepseek-ai/dsh-ssh")` 可解析 + 导出面（name/Config/apply）形状探测 | 远程派发入口降级指引（「需要 dsh-ssh 家族」+ 装载/重装指引文案）+ ShellRunner 直连链（D31 前提） |
-| `dsh-terminal` | 宿主 ctx 终端表面探测（spawnTerminal 可用性——spike 一并验证） | 交互派发降级「复制命令行」明示 |
+| `dsh-terminal` | 宿主 ctx 终端表面探测（spawnTerminal 可用性——spike 一并验证） | 本机回放已按此口径实装（2026-10-17）：探测面非「用户面板可驱动」——宿主无第三方终端面板（浏览器终端 Session 私有 / ctx.terminals 为 agent 工具注册表 / subprocess.spawnTerminal 为无 UI 裸 PTY），本机回放 handoff 命令行回传客户端复制执行；交互派发同口径待接（debt ③） |
 | `dsh-subagent` / `dsh-worktrees` / `dsh-timer` / `dsh-storage` / `dsh-slots` | ctx 表面探测（注入面存在性）；storage/slots 若宿主无对应服务 → 按前序设计自持（插件不自依赖该两面） | 诊断段呈现；不阻断核心待办闭环 |
 
 探测结果落 `diagnosticsSnapshot` 扩展段 `capabilities`（键 → ok/detail）；其中 §4.1 三字段之一的
@@ -412,12 +422,12 @@ erDiagram
         integer reminded "既有列：CAS 0→1 抢占（D28）"
     }
     agent_sessions {
-        text remote_host "执行世界快照（部署 target；空=本机）"
+        text remote_host "执行世界快照（部署 alias；空=本机——2026-10-19 修订后本机不记 agent.remote）"
         text workdir "快照远端路径（回放路由用）"
     }
     "部署实体（settings 键内 JSON）" {
         text id "实体唯一键（JSON 内 id→entity）"
-        text alias "OpenSSH 别名（唯一索引；被路由引用的改名需确认/级联）"
+        text alias "OpenSSH 别名（唯一索引；被 agent 绑定引用的改名需确认/级联）"
         text node_path "远端 node 绝对路径（展开后 POSIX 绝对路径，拒 ~）"
         text helper_path "远端 helper 入口（<…>/.dsh-helper/pky-<插件版本>/node_modules/…/lib/helper.js——安装目录版本段隔离，spike 修正 C）"
         text helper_hash "SHA-256（就绪判据）"
@@ -445,6 +455,17 @@ erDiagram
 ②承接）；② **路由解析失败（部署缺失/别名失配）不再静默降级本机**——派发确认处明示「该路由指向的
 部署缺失，将改在本机执行」并需训练家确认（执行世界错置是现实危害面，不再只是诊断段提示；不阻断
 其他路由）。target 冗余（实体也有 alias）维持——路由快照自包含（回放/诊断不依赖实体存在）。
+
+> **2026-10-19 修订（执行世界单源裁决）**：路由级 `deployment` 字段**移除**——执行世界单源改为
+> **agent 绑定部署**（`ai_agents` JSON 内 `AgentConfig.deployment` = 部署 alias，dsh 扩展字段，
+> 桌面 serde 未知字段容忍；桌面一键配置远程的隧道端口回写已改 Value 级手术式改写以保留未知字段）。
+> 生效引用 `ref = target = alias`（OpenSSH 别名即 ssh 连接目标，凭据归 ~/.ssh）；hostKey 归一
+> `ssh:<alias>`。① 改名级联对象从路由 ref 改为 agent 绑定（`confirmAliasRefs` 语义不变，级联改写
+> `ai_agents`）；② 悬空绑定（部署已删）由 `danglingDeploymentRefs`（扫 ai_agents）承接呈现，派发时
+> `planRemoteRoute` 硬拒 `DEPLOYMENT_NOT_READY` 不静默本机；③ 执行世界快照（A27）本机分支不再取
+> `agent.remote`（本地执行 remote_host 记空——落账诚实化；桌面来源行既有快照不受影响）。理由：路由级
+> 引用 UI 上不可达（配置不出），且 agent 的远程性应跟 agent 走（改选即跟随）。已知取舍：插件
+> `ssh:<alias>` 与桌面 `ssh:user@host` 槽键串不同——同机跨形态双槽记帐，见 docs/debt.md。
 
 ### 5.3 迁移边界与 D29 改造（无 003；行为零变化）
 
@@ -603,16 +624,16 @@ erDiagram
 
 | # | 决策 | 位置 |
 |---|------|------|
-| A25 | deployment 实体存 settings 键 `dsh:deployments`（零新表零迁移）；**同一性裁决：JSON 内 id 为唯一键（id→entity）+ alias 唯一索引**——被 `dsh:dispatch_routes` 引用的 alias 改名须确认或级联更新路由 ref；路由解析失败（部署缺失）= 派发确认处**明示改本机并需确认**（不静默降级）；理由与 003 否决论据见 §5.2 | §5.2 |
+| A25 | deployment 实体存 settings 键 `dsh:deployments`（零新表零迁移）；**同一性裁决：JSON 内 id 为唯一键（id→entity）+ alias 唯一索引**——引用面 **2026-10-19 修订**：路由级 deployment 移除，被 agent 绑定（`ai_agents.deployment`）引用的 alias 改名须确认或级联更新绑定；悬空绑定派发时硬拒 `DEPLOYMENT_NOT_READY`（不静默降级）；理由与 003 否决论据见 §5.2 | §5.2 |
 | A26 | dsh-ssh 家族装载 = 运行时动态 import + ctx.plugin 应用到 per-deployment isolate（惰性；**双 label**——spike 修正 A：同 label 撞注册槽）；cordis.patch.yml 静态装配否决（冷启动 + 版本演进） | §2/§4.7 |
-| A27 | 执行世界快照复用 agent_sessions 现有列（remote_host = 部署 target、workdir）；零新列；部署删除后回放按快照自包含 target 直连探测，解析失败 DEPLOYMENT_NOT_READY 降级提示 | §4.1/§5.1 |
+| A27 | 执行世界快照复用 agent_sessions 现有列（remote_host = 部署 **alias**（2026-10-19 修订；本机执行记空，不取 agent.remote）、workdir）；零新列；部署删除后回放按快照自包含 alias 直连探测，解析失败 DEPLOYMENT_NOT_READY 降级提示 | §4.1/§5.1 |
 | A28 | 桥协议兼容 = hello.caps 能力位协商 + **hello 门控（未收到 hello 禁发 sys 消息）** + sys-unsupported 显式拒绝上报（适用域 = 能力位与实现失配的兜底）+ **seq 两段语义 ack 超时降级**（`dialog-ack`/`mac-auth-ack` 回执级判能力在位；result 完成级不设短超时 + `dialog-cancel` 通道）（不引入协议版本号字段——能力位即版本面） | §4.3 |
 | A29 | 提醒/复盘/逾期三组送达权统一 CAS 原语族（reminded 0→1 / 当日去重键条件更新），桌面配套守卫 = §7.1 P2（NFR-10 前提） | §4.6 |
 | A30 | 郑重时刻判定在 host 完成动作编排路径内（完成动作发生形态触发），对面形态物理无 TTS 桥——仲裁不依赖跨形态信号 | §4.6 |
 | A31 | uiohook-napi 经插件包 dependencies 分发（prebuilds），helper dynamic import + ABI 失配降级不崩；不引入 postinstall/rebuild 面 | §2/§4.4 |
 | A32 | electron 按需获取 = **@electron/get 严格校验模式**（官方库内建镜像/缓存/checksum；**校验值 = 构建期内嵌 sha256 常量**（原案 sha512 系笔误——@electron/get 5.1 实际校验面）——镜像回落只换 URL 不换校验源；原子落位 + 离线指引）；不依赖 npm electron 包 postinstall（自研下载器原案否决——供应链收敛官方单源） | §2/§3.4 |
 | A33 | 迟到回传 = lateReport 连接恢复时活动痕迹探测（mtime 面）→ 只增审计/账本行不改写结论；不做远端会话内容解析 | §4.7/§5.4 |
-| A34 | 新增命令 16 条 + macAuthPaneOpen 1 条（总量 69→86；原设计 17 条中 taskCreate 已移除——用户裁决 2026-10-17）、错误码 6 枚（15→21）、events 推送面零新增（拉式数据面维持） | §4.1/§4.2 |
+| A34 | 新增命令 16 条 + macAuthPaneOpen 1 条（总量 69→86；原设计 17 条中 taskCreate 已移除——用户裁决 2026-10-17）+ sshAliasList 1 条（69→87，2026-10-18 表单下拉数据源）、错误码 6 枚（15→21）、events 推送面零新增（拉式数据面维持） | §4.1/§4.2 |
 | A35 | reminder/streak 契约场景组新增（Rust oracle = 桌面 scheduler.rs/streak_conn 纯函数抽取——只抽取不改行为，§7.1 P1/P3）；TS 侧新模块行为不进双实现契约的（deployment CRUD/provision）由插件单测锁定 | §5.2/§6 |
 | A36 | **每日备份循环（D33，主会话契约收敛新增）**：host timer 承接桌面备份循环（30min 惶 + `last_backup_date` **备份成功后条件写键**（`UPDATE … SET value=今日 WHERE value<>今日`）——写键失败不回滚、下轮读旧值自愈，失败下轮重试按此时序 + prune 滚动保留 + 空库跳过）；桌面现行落键无守卫（`backup.rs:158-162` 无条件 ON CONFLICT DO UPDATE）→ 跨形态竞态双备份定义为**良性事件**（重复文件仅多占滚动保留一档；§7.1 P4 条件更新收口）；无新命令面；U35 badge 撤销；SDD 决策表 D33 同步 | §3.2/§7.1/§8 |
 | A37 | 既有命令响应面增量：`diagnosticsSnapshot` + helperCaps/shortcutRegistered/sshFamily 三字段（签名不变、旧客户端向前兼容）；托盘 settings 动作**复用既有 `pageOpen(section:"settings")` 链，零契约变更**（`petSection.ts` 现行已支持——事实修正，原「target 枚举追加 settings」不成立） | §4.1/§8 |

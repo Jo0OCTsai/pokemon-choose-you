@@ -1,9 +1,9 @@
 /**
  * 通用分区页（⚙️）：复盘提醒（开关+星期）/备份（开关+保留份数+立即备份+列表+恢复升级【U25】）/
- * 关闭到托盘（保留「作用于主应用」badge——dsh 无主窗口关闭行为；备份/复盘 badge 已随 U29/D33
- * 移除——dsh 形态自执行）/待办库状态（dbStatus 即时查询，挂载即探测一次供只读判定）/
- * 数据导出（全量 JSON/任务 CSV/今日日报 +「导入 JSON」「打开导出目录」【U25】）/双形态小贴士
- * （§8 更新：仲裁单发 + 郑重时刻归属）/使用指南链接。语言与显示偏好在显示分区页。
+ * 待办库状态（dbStatus 即时查询，挂载即探测一次供只读判定）/
+ * 数据导出（全量 JSON/任务 CSV/今日日报 +「导入 JSON」「打开导出目录」【U25】）
+ * /使用指南链接。语言与显示偏好在显示分区页。关闭到托盘不在此呈现（dsh 无主窗口
+ * 关闭行为——纯主应用项，dsh 背包不读写该键，值随主应用自管）。
  * 备份卡/导出卡拆件 = BackupCard.tsx / ExportCard.tsx（复杂度棘轮拆分，本文件消费）。
  */
 import { useEffect, useState } from "react";
@@ -61,19 +61,6 @@ export function GeneralSection(props: SectionProps & { onChanged?: () => void })
       </div>
       <BackupCard draft={draft} onField={onField} readonly={readonly} onChanged={notifyChanged} />
       <ExportCard readonly={readonly} onChanged={notifyChanged} />
-      <div className={ui.card}>
-        <Toggle
-          label={t("general.closeToTray")}
-          tip={t("general.closeToTrayDesc")}
-          checked={draft["close_to_tray"] === "true"}
-          onChange={(v) => onField("close_to_tray", String(v))}
-          badge={t("dsh.badge.mainApp")}
-        />
-      </div>
-      <div className={ui.card}>
-        <h4 className={styles.cardTitle}>{t("dsh.settings.dualFormTitle")}</h4>
-        <p className={styles.dualFormTip}>{t("dsh.settings.dualFormTip")}</p>
-      </div>
       <div className={ui.card}>
         <h4 className={styles.cardTitle}>{t("dsh.settings.dbStatusTitle")}</h4>
         <div className={styles.filterRow}>

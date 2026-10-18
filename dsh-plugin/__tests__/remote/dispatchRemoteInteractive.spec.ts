@@ -5,7 +5,8 @@
  */
 import { describe, expect, it } from "vitest";
 import { dispatchHeadless } from "../../src/host/dispatch/headless";
-import { createFakeTerminal, dispatchInteractive, dispatchReport } from "../../src/host/dispatch/interactive";
+import { dispatchInteractive, dispatchReport } from "../../src/host/dispatch/interactive";
+import { createFakeTerminal } from "../../src/host/dispatch/terminalAdapters";
 import { planRemoteRoute, remoteHeadlessDeps, remoteInteractiveParts } from "../../src/host/remote/sshExecutor";
 import { DEPLOYMENTS_KEY, listDeployments } from "../../src/host/remote/deployments";
 import { setupDispatchRemoteFx, ALIAS, ENVELOPE, TARGET, WORKDIR } from "./dispatchRemoteFx";
@@ -38,7 +39,7 @@ describe("交互 TerminalAdapter：PTY 注入与同上下文重派", () => {
     const row = fx.lastSession(taskId);
     expect(row["kind"]).toBe("dispatch_interactive");
     expect(row["session_id"]).toBe("pty-1");
-    expect(row["remote_host"]).toBe(TARGET);
+    expect(row["remote_host"]).toBe(ALIAS);
   });
 
   it("同上下文重派 = 同 sessionId 注入（不新开会话）", async () => {

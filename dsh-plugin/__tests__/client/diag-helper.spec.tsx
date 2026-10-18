@@ -1,8 +1,8 @@
 /**
- * 诊断段扩展与 HelperBanner（U30/FR-A2/FR-RD7/FR-X9-4）：helper 六能力矩阵 × 两态 +
- * 缺失指引 + 运行时版本；快捷键注册行（失败才显示）；SSH 家族探测行；面板顶部
- * HelperBanner（helperCaps null = helper 缺席；「查看诊断」锚到背包·诊断分区；
- * 与 SchemaBanner 同族不叠抢——schema 优先在上）。
+ * 诊断段扩展与 HelperBanner（U30/FR-A2/FR-RD7/FR-X9-4）：能力矩阵（helper 六能力 +
+ * dsh-ssh 远程派发第七行 × 两态，降级指引行名气泡）+ 运行时版本（卡标题气泡）；
+ * 快捷键注册行（失败才显示）；面板顶部 HelperBanner（helperCaps null = helper 缺席；
+ * 「查看诊断」锚到背包·诊断分区；与 SchemaBanner 同族不叠抢——schema 优先在上）。
  */
 import { act, cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import { afterEach, describe, expect, it } from "vitest";
@@ -64,7 +64,7 @@ describe("诊断段三件（背包·诊断分区 · U30）", () => {
     return host;
   }
 
-  it("helper 能力矩阵：六能力 × 可用两态（全 true 时无缺失指引）+ 运行时版本", async () => {
+  it("helper 能力矩阵：六能力 × 可用两态（全 true 时无缺失指引）；运行时版本收敛为卡标题气泡", async () => {
     const host = mockHost({ helperVersion: "1.2.3-mock" });
     await bootDiag(host);
     const matrix = screen.getByTestId("helper-caps");
@@ -73,10 +73,12 @@ describe("诊断段三件（背包·诊断分区 · U30）", () => {
       expect(within(matrix).getAllByText("可用").length).toBeGreaterThanOrEqual(1);
     }
     expect(within(matrix).queryAllByText("降级")).toHaveLength(0);
-    expect(within(matrix).getByText(/helper 运行时：1\.2\.3-mock/)).toBeTruthy();
+    // 版本说明不再占常驻版面——挂卡标题 data-tip（说明文案悬浮气泡化）
+    expect(within(matrix).queryByText(/helper 运行时：/)).toBeNull();
+    expect(matrix.querySelector("h4")?.getAttribute("data-tip")).toMatch(/helper 运行时：1\.2\.3-mock/);
   });
 
-  it("能力降级行附缺失指引（部分能力位缺失）", async () => {
+  it("能力降级行附缺失指引（部分能力位缺失；指引收敛为行名悬浮气泡）", async () => {
     await bootDiag(
       mockHost({
         helperCaps: { "sys-tray": true, "sys-notify": false, "input-count": false } as Record<string, boolean>,
@@ -84,7 +86,14 @@ describe("诊断段三件（背包·诊断分区 · U30）", () => {
     );
     const matrix = screen.getByTestId("helper-caps");
     expect(within(matrix).getAllByText("降级").length).toBeGreaterThanOrEqual(2);
-    expect(within(matrix).getAllByText(/依赖 helper sidecar/).length).toBeGreaterThanOrEqual(2);
+    // 常驻版面不再出现指引文案；降级行名 data-tip 承载（≥2 行降级，文案 = 桌宠助手口径）
+    expect(within(matrix).queryAllByText(/桌宠助手/)).toHaveLength(0);
+    const tips = matrix.querySelectorAll("[data-tip]");
+    expect(
+      [...tips].filter(
+        (el) => (el as HTMLElement).dataset.tip === "此项功能由桌宠助手（helper）提供——helper 恢复运行后自动可用",
+      ).length,
+    ).toBeGreaterThanOrEqual(2);
   });
 
   it("快捷键注册行：成功不显示 / 失败才显示（⌘⇧K 降级通道提示）", async () => {
@@ -96,14 +105,25 @@ describe("诊断段三件（背包·诊断分区 · U30）", () => {
     expect(screen.getByTestId("shortcut-line").textContent).toContain("⌘⇧K");
   });
 
-  it("SSH 家族行：就绪 / 缺失 + 装载指引命令；未知（null）不显", async () => {
+  it("dsh-ssh 并入能力矩阵第七行：就绪 = 可用行；缺失 = 降级 + 行名气泡装载指引；未知（null）不显行", async () => {
     await bootDiag(mockHost());
-    expect(screen.getByTestId("ssh-family-line").textContent).toContain("就绪");
+    const row = screen.getByTestId("ssh-cap-row");
+    expect(row.textContent).toContain("远程派发（dsh-ssh）");
+    expect(row.textContent).toContain("可用");
+    // 就绪行不带指引气泡
+    expect(row.querySelector("[data-tip]")).toBeNull();
     cleanup();
     await bootDiag(mockHost({ sshFamily: { ok: false, detail: "dsh plugin add @deepseek-ai/dsh-ssh" } }));
-    const line = screen.getByTestId("ssh-family-line");
-    expect(line.textContent).toContain("未装载");
-    expect(line.textContent).toContain("dsh plugin add @deepseek-ai/dsh-ssh");
+    const degraded = screen.getByTestId("ssh-cap-row");
+    expect(degraded.textContent).toContain("降级");
+    // 装载指引不占常驻版面——挂行名 data-tip（含指引命令）
+    expect(degraded.textContent).not.toContain("未装载");
+    const tip = degraded.querySelector("[data-tip]")?.getAttribute("data-tip") ?? "";
+    expect(tip).toContain("未装载");
+    expect(tip).toContain("dsh plugin add @deepseek-ai/dsh-ssh");
+    cleanup();
+    await bootDiag(mockHost({ sshFamily: null }));
+    expect(screen.queryByTestId("ssh-cap-row")).toBeNull();
   });
 
   it("诊断日志屏 = LcdScreen 单源组件（与向导输出屏同件两落位）", async () => {

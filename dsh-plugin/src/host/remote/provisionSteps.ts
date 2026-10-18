@@ -39,7 +39,7 @@ export function failOutcome(step: ProvisionStep, tag: ProvisionErrorTag, message
   };
 }
 
-const SSH_AUTH_HINT = "先完成免密配置：ssh-copy-id <别名>（或把密钥加入 agent），完成后重试开通向导";
+const SSH_AUTH_HINT = "先在本机执行 ssh-copy-id <别名> 配好免密登录，再重试";
 const NODE_INSTALL_HINT = "远端未找到可用 Node——先在远端安装 Node.js（版本 ≥ 20）再重试";
 
 /** 解析 sha256sum 输出首 token（hex 小写；解析不出 = null） */
@@ -60,7 +60,7 @@ export async function liveScope(
     return { unavailable: `连接建立失败：${String(error).slice(0, 160)}` };
   }
   if (scope === null || !scope.connected) {
-    return { unavailable: "连接不可用（免密未配置或已断开）" };
+    return { unavailable: "连接不可用（免密登录未配置或已断开）" };
   }
   return { scope };
 }
@@ -69,7 +69,7 @@ export async function liveScope(
 export async function execProbeSsh(entity: DeploymentEntity, deps: ProvisionDeps): Promise<StepOutcome> {
   const got = await liveScope(entity, deps);
   if ("unavailable" in got) {
-    return failOutcome("probe-ssh", "SSH_AUTH_REQUIRED", `免密探测失败：${got.unavailable}`, SSH_AUTH_HINT);
+    return failOutcome("probe-ssh", "SSH_AUTH_REQUIRED", `SSH 连接失败：${got.unavailable}`, SSH_AUTH_HINT);
   }
   let code = -1;
   let stdout = "";
@@ -78,21 +78,21 @@ export async function execProbeSsh(entity: DeploymentEntity, deps: ProvisionDeps
     code = result.code;
     stdout = result.stdout;
   } catch (error) {
-    return failOutcome("probe-ssh", "SSH_AUTH_REQUIRED", `免密探测失败：${String(error).slice(0, 160)}`, SSH_AUTH_HINT);
+    return failOutcome("probe-ssh", "SSH_AUTH_REQUIRED", `SSH 连接失败：${String(error).slice(0, 160)}`, SSH_AUTH_HINT);
   }
   const homeDir = stdout.trim();
   if (code !== 0 || !homeDir.startsWith("/")) {
     return failOutcome(
       "probe-ssh",
       "SSH_AUTH_REQUIRED",
-      code !== 0 ? `免密探测失败（exit ${code}）` : "远端 $HOME 探测结果异常（非绝对路径）",
+      code !== 0 ? `SSH 连接失败（exit ${code}）` : "远端主目录探测异常",
       SSH_AUTH_HINT,
     );
   }
   const at = nowRfc3339();
   return {
     ok: true,
-    message: `免密连通，远端 HOME = ${homeDir}`,
+    message: `SSH 连接成功（远端主目录 ${homeDir}）`,
     apply(e) {
       const state = e.provision ?? initialProvisionState();
       return {
@@ -101,7 +101,7 @@ export async function execProbeSsh(entity: DeploymentEntity, deps: ProvisionDeps
         provision: {
           ...state,
           homeDir,
-          steps: { ...state.steps, "probe-ssh": { status: "ok", message: `HOME = ${homeDir}`, at } },
+          steps: { ...state.steps, "probe-ssh": { status: "ok", message: `远端主目录 ${homeDir}`, at } },
         },
       };
     },
@@ -121,13 +121,13 @@ export async function execProbeNode(entity: DeploymentEntity, deps: ProvisionDep
     code = result.code;
     stdout = result.stdout;
   } catch (error) {
-    return failOutcome("probe-node", "PROVISION_STEP_FAILED", `Node 探测执行失败：${String(error).slice(0, 160)}`);
+    return failOutcome("probe-node", "PROVISION_STEP_FAILED", `远端 Node 检查失败：${String(error).slice(0, 160)}`);
   }
   if (code !== 0) {
     return failOutcome(
       "probe-node",
       "PROVISION_STEP_FAILED",
-      `远端 Node 探测失败（exit ${code}，路径 ${entity.nodePath}）`,
+      `远端 Node 检查未通过（exit ${code}，路径 ${entity.nodePath}）`,
       NODE_INSTALL_HINT,
     );
   }

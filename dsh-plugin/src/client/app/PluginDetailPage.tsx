@@ -1,7 +1,8 @@
 /**
- * 插件自有页面（plugins.detail.section 自定义内容，U16）：SegmentNav 七段（任务四分段 +
- * 收音机 + 日志 + 背包独立分段）+ 任务详情抽屉 + SchemaBanner 只读传播 + pageOpen 推送
- * 锚点（host→客户端，双击桌宠/chip 点击经宿主导航打开并定位）+ 背包未保存离开守卫
+ * 插件主面板页（原 plugins.detail.section 自定义内容 U16 起家；该槽摘除后由主区
+ * 全局面板（sidebar main 槽）承载）：SegmentNav 七段（任务四分段 + 收音机 + 日志 +
+ * 背包独立分段）+ 任务详情抽屉 + SchemaBanner 只读传播 + pageOpen 推送锚点
+ * （host→客户端，双击桌宠/chip 点击经宿主导航打开并定位）+ 背包未保存离开守卫
  * （U21：切分段时若背包有未保存草稿先弹确认）+ 语言即时跟随（locale preview）。
  */
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -61,10 +62,10 @@ function PluginDetailPageInner({
   const [settingsSection, setSettingsSection] = useState<"focus" | "diag">("focus");
   // 语言即时跟随（U21/U8）：显示分区语言控件随选随切，落库走保存
   const [localeOverride, setLocaleOverride] = useState<Locale | null>(null);
-  // 收音机/背包段填充窗口剩余高度（段体顶缘实测 → --pcy-remaining；标题/七段选单/
-  // 背包分区选单行固定，滚动收敛到段体内部）
+  // 收音机/日志/背包段填充窗口剩余高度（段体顶缘实测 → --pcy-remaining；标题/七段选单/
+  // 背包分区选单行固定，滚动收敛到段体内部——日志段过滤行/分页器常驻、列表区占满内滚）
   const segmentBodyRef = useRef<HTMLDivElement | null>(null);
-  const fillBody = segment === "radio" || segment === "settings";
+  const fillBody = segment === "radio" || segment === "logs" || segment === "settings";
   useFillRemainingHeight(segmentBodyRef, fillBody);
   const refresh = useCallback(() => {
     onChanged?.();

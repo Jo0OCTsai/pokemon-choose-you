@@ -51,14 +51,29 @@ export function CaptureBar({ readonly, onChanged }: { readonly: boolean; onChang
           void send();
         }}
       >
-        <input
-          className={styles.captureInput}
-          value={text}
-          placeholder={t("im.capturePlaceholder")}
-          disabled={readonly || judging}
-          aria-label={t("im.capturePlaceholder")}
-          onChange={(event) => setText(event.target.value)}
-        />
+        <div className={styles.captureWrap}>
+          <input
+            className={styles.captureInput}
+            value={text}
+            placeholder={t("im.capturePlaceholder")}
+            disabled={readonly || judging}
+            aria-label={t("im.capturePlaceholder")}
+            onChange={(event) => setText(event.target.value)}
+          />
+          {/* 快捷键提示图标（原通栏 kbdHint 行收敛于此）：悬浮气泡 = dsh.radio.kbdHint。
+           * 外层绝对定位锚 + 内层 [data-tip]（data-tip 样式自带 position:relative，
+           * 分两层避免定位被覆盖）；role=img + aria-label 保 AT 可达 */}
+          <span className={styles.kbdTipAnchor}>
+            <span
+              className={styles.kbdTipGlyph}
+              data-tip={t("dsh.radio.kbdHint")}
+              role="img"
+              aria-label={t("dsh.radio.kbdHint")}
+            >
+              ⌨
+            </span>
+          </span>
+        </div>
         <button type="submit" className={ui.buttonDex} disabled={readonly || judging || text.trim() === ""}>
           {judging ? t("dsh.radio.judging") : t("im.captureSend")}
         </button>

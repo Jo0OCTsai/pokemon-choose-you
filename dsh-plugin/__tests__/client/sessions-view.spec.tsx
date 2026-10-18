@@ -1,7 +1,7 @@
 /**
  * 日志段 SessionsView（FR-C2/U27）：M9 分组胶囊四选（未知 kind 仅入「全部」）、
  * counts 汇总常显（不随翻页变化）+ 上下页 + 每页条数档、行内回放（本机/部署路由、
- * 已移除部署删除线 + 中性提示）、无回放句柄的行不渲染按钮、只读禁用（M7）。
+ * 已移除部署中性提示）、无回放句柄的行不渲染按钮、只读禁用（M7）。
  */
 import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it } from "vitest";
@@ -100,42 +100,66 @@ describe("分页与 counts 常显", () => {
 });
 
 describe("执行世界徽章与回放路由", () => {
-  it("本机行：徽章「本机」+ 回放 → 已在终端面板打开回放（本机）", async () => {
+  /** 剪贴板 stub（jsdom 无实现——writeText 记录；reject 模拟权限拒绝） */
+  function stubClipboard(mode: "ok" | "reject" | "absent"): void {
+    if (mode === "absent") {
+      Object.defineProperty(navigator, "clipboard", { value: undefined, configurable: true });
+      return;
+    }
+    Object.defineProperty(navigator, "clipboard", {
+      value: {
+        writeText: mode === "ok" ? async () => undefined : async () => Promise.reject(new Error("denied")),
+      },
+      configurable: true,
+    });
+  }
+
+  it("本机行：徽章「本机」+ 回放 → 命令行复制到剪贴板（handoff——宿主无第三方终端面板）", async () => {
+    stubClipboard("ok");
     const host = renderLogs(mockHost({ sessionRows: [makeSessionRow({ id: 1, sessionId: "s1" })] }));
     await flush();
     expect(screen.getByText("本机")).toBeTruthy();
     fireEvent.click(screen.getByTestId("session-replay"));
     await flush();
-    expect(screen.getByTestId("session-note").textContent).toContain("已在终端面板打开回放（本机）");
+    expect(screen.getByTestId("session-note").textContent).toContain("回放命令已复制");
+    expect(screen.getByTestId("session-replay-line").textContent).toContain("claude --resume s1");
     expect(host.calls.some((c) => c.command === "sessionReplay" && (c.params as { rowId: number }).rowId === 1)).toBe(
       true,
     );
   });
 
-  it("远端行：徽章别名 + 回放经就绪部署路由（快照压过当前配置）", async () => {
+  it("本机行：剪贴板不可用 → 手动复制提示 + 命令行仍可见（零静默）", async () => {
+    stubClipboard("reject");
+    renderLogs(mockHost({ sessionRows: [makeSessionRow({ id: 1, sessionId: "s1" })] }));
+    await flush();
+    fireEvent.click(screen.getByTestId("session-replay"));
+    await flush();
+    expect(screen.getByTestId("session-note").textContent).toContain("请手动复制");
+    expect(screen.getByTestId("session-replay-line").textContent).toContain("claude --resume s1");
+  });
+
+  it("远端行：徽章别名（非默认端口拼接显示）+ 回放经就绪部署路由（快照压过当前配置）", async () => {
     renderLogs(
       mockHost({
-        sessionRows: [makeSessionRow({ id: 2, sessionId: "s2", remoteHost: "gpu-1" })],
+        sessionRows: [makeSessionRow({ id: 2, sessionId: "s2", remoteHost: "gpu-1", remotePort: 2222 })],
         deployments: [makeDeployment({ id: "dep-1", alias: "gpu-1", status: "ready" })],
       }),
     );
     await flush();
-    expect(screen.getByText("gpu-1")).toBeTruthy();
+    expect(screen.getByText("gpu-1:2222")).toBeTruthy();
     fireEvent.click(screen.getByTestId("session-replay"));
     await flush();
     expect(screen.getByTestId("session-note").textContent).toContain("已在终端面板打开回放（部署 gpu-1）");
   });
 
-  it("已移除部署：徽章删除线（data-gone）+ 回放中性提示", async () => {
+  it("已移除部署：回放中性提示（部署路由来源行 port=0——缺失不走 ssh 别名）", async () => {
     renderLogs(
       mockHost({
-        sessionRows: [makeSessionRow({ id: 3, sessionId: "s3", remoteHost: "gpu-gone" })],
+        sessionRows: [makeSessionRow({ id: 3, sessionId: "s3", remoteHost: "gpu-gone", remotePort: 0 })],
         deployments: [],
       }),
     );
     await flush();
-    const badge = screen.getByText("gpu-gone");
-    expect(badge.getAttribute("data-gone")).toBe("true");
     fireEvent.click(screen.getByTestId("session-replay"));
     await flush();
     expect(screen.getByTestId("session-note").textContent).toContain("该会话的远程部署已被移除，无法回放");

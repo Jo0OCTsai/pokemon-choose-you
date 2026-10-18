@@ -12,7 +12,9 @@
   ② 覆盖率地板：按 stack.json services[] 自动发现声明面（test_cmd 的 --cov-fail-under /
      <svc>/pyproject.toml fail_under / <svc>/vite.config.ts 四阈值）——发现到的声明须彼此一致，
      且 ≥ 基线 coverage_floor（声明下调即红）；上调后 --prune 抬升地板（只抬不降）。
-     未发现任何声明且地板 > 0 = 失败（地板悬空）；两者皆无 = 提示可选接入
+     未发现任何声明且地板 > 0 = 失败（地板悬空）；两者皆无 = 提示可选接入。
+     golang/rust 有声明面优先声明型，无声明面才测量；测量走隔离 target 目录并沿用
+     test_cmd 豁免口径（不污染日常编译缓存）
   ③ 代码卫生棘轮（2026-09-28 pokemon-choose-you 消费侧实践回流，rust 目录经 stack.json 泛化）：
      git 跟踪的源码文件计数 TODO/FIXME（全仓）与 unsafe 块（rust 源码），rust 服务另计
      pub API missing_docs 告警（cargo rustc -W missing_docs，服务目录取自 stack.json；
@@ -55,9 +57,12 @@ COMPLEXITY_SCANS = {
     "node-pnpm": [
         "pnpm", "exec", "eslint", ".", "--config", "eslint.ratchet.config.js", "--format", "json",
     ],
+    "golang": [
+        "golangci-lint", "run", "--default=none", "--enable=gocyclo",
+        "--output.json.path=stdout", "./...",
+    ],
     "rust": [
-        "cargo", "clippy", "--all-targets", "--message-format=json", "--",
-        "-A", "clippy::all",
+        "cargo", "clippy", "--all-targets", "--quiet", "--message-format=json", "--",
         "-W", "clippy::cognitive_complexity",
         "-W", "clippy::too_many_lines",
     ],
@@ -66,7 +71,7 @@ COMPLEXITY_SCANS = {
 RUST_RULES = {"clippy::cognitive_complexity", "clippy::too_many_lines"}
 
 # ② 覆盖率声明发现规则（相对服务目录；文件存在才采点，全部不存在 = 该服务未声明门禁）
-RE_COV_CMD = re.compile(r"--cov-fail-under=(\d+)")
+RE_COV_CMD = re.compile(r"(?:--cov-fail-under|--fail-under-lines)=(\d+)")
 RE_RUST_FAIL_UNDER = re.compile(r"--fail-under-lines[= ](\d+)")   # cargo-llvm-cov（空格/等号两种形态）
 RE_FAIL_UNDER = re.compile(r"fail_under\s*=\s*(\d+)")
 RE_VITE_THRESHOLDS = re.compile(
@@ -171,6 +176,22 @@ def scan_complexity(stack: str, svc_dir: Path) -> tuple[dict[str, int], list[str
         for item in payload:
             key = f"{item.get('filename') or ''}:{item.get('code') or '?'}"
             counts[key] = counts.get(key, 0) + 1
+    elif stack == "golang":
+        for item in payload:
+            if item.get("FromLinter") != "gocyclo":
+                continue
+            fn = (item.get("Pos") or {}).get("Filename") or "?"
+            counts[f"{fn}:gocyclo"] = counts.get(f"{fn}:gocyclo", 0) + 1
+    elif stack == "rust":
+        for entry in payload:
+            diag = entry.get("message") if isinstance(entry.get("message"), dict) else None
+            code_obj = (diag or {}).get("code")
+            code = code_obj.get("code") if isinstance(code_obj, dict) else None
+            if code != "clippy::cognitive_complexity":
+                continue
+            spans = (diag or {}).get("spans") or []
+            fn = spans[0].get("file_name") if spans else "?"
+            counts[f"{fn}:cognitive_complexity"] = counts.get(f"{fn}:cognitive_complexity", 0) + 1
     else:
         for entry in payload:
             file_path = entry.get("filePath") or ""
@@ -257,6 +278,54 @@ def check_floor(service: str, spots: list[tuple[str, int]], floor: int) -> tuple
             f"确需下调：项目 debt/决策记录留档后手改 {BASELINE_REL}）"
         )
     return failures, notes
+
+
+RE_LLVM_COV_IGNORE = re.compile(r"--ignore-filename-regex(?:=|\s+)('[^']*'|\"[^\"]*\"|\S+)")
+RE_CARGO_TARGET_ENV = re.compile(r"\bCARGO_TARGET_DIR=(\S+)")
+
+
+def rust_llvm_cov_env_args(test_cmd: str) -> tuple[dict[str, str], list[str]]:
+    """test_cmd → (env 增量, llvm-cov 额外参数)（纯函数，供 selftest）。
+
+    隔离目录默认 target/llvm-cov（test_cmd 声明了 CARGO_TARGET_DIR 则沿用，
+    与项目自身命令共享插桩缓存）；豁免正则去引号后原样透传，保证口径一致。
+    """
+    m = RE_CARGO_TARGET_ENV.search(test_cmd)
+    env = {"CARGO_TARGET_DIR": m.group(1) if m else "target/llvm-cov"}
+    args: list[str] = []
+    m = RE_LLVM_COV_IGNORE.search(test_cmd)
+    if m:
+        args += ["--ignore-filename-regex", m.group(1).strip("'\"")]
+    return env, args
+
+
+def measure_coverage(svc: dict) -> tuple[object, str | None]:
+    """golang/rust 无声明面时的测量兜底：返回 (百分比或 None, 失败/跳过说明)。
+    测量走隔离 target 目录并沿用 test_cmd 豁免口径（不污染日常编译缓存）。"""
+    import re as _re
+    stack, svc_dir = svc["stack"], ROOT / svc["dir"]
+    if stack == "golang":
+        if shutil.which("go") is None:
+            return None, "SKIP: 缺 go 工具链，覆盖率地板暂不生效"
+        profile = svc_dir / "reports" / "cover.out"
+        profile.parent.mkdir(parents=True, exist_ok=True)
+        p1 = subprocess.run(["go", "test", "./...", "-cover", f"-coverprofile={profile}"],
+                            cwd=svc_dir, capture_output=True, text=True)
+        if p1.returncode != 0:
+            return None, f"go test 失败（exit={p1.returncode}）: {p1.stderr.strip()[:150]}"
+        p2 = subprocess.run(["go", "tool", "cover", f"-func={profile}"], cwd=svc_dir, capture_output=True, text=True)
+        m = _re.findall(r"([0-9.]+)%", p2.stdout)
+        return (float(m[-1]) if m else None), (None if m else "go tool cover 未输出百分比")
+    if stack == "rust":
+        probe = subprocess.run(["cargo", "llvm-cov", "--version"], cwd=svc_dir, capture_output=True, text=True)
+        if probe.returncode != 0:
+            return None, "SKIP: 未装 cargo-llvm-cov（rust 覆盖率地板暂不生效）"
+        cov_env, extra_args = rust_llvm_cov_env_args(svc["test_cmd"])
+        p = subprocess.run(["cargo", "llvm-cov", "--summary-only", *extra_args], cwd=svc_dir,
+                           capture_output=True, text=True, env={**os.environ, **cov_env})
+        m = _re.search(r"^TOTAL.*?([0-9.]+)%", p.stdout, _re.MULTILINE)
+        return (float(m.group(1)) if m else None), (None if m else "llvm-cov 未解析到 TOTAL")
+    return None, None
 
 
 def prune_floor(floor: int, declared: int) -> int:
@@ -353,17 +422,35 @@ def run_checks(only_service: str | None) -> tuple[list[str], list[str], dict]:
     notes: list[str] = []
     scanned: dict[str, dict[str, int]] = {}
     declared_by_service: dict[str, int] = {}
+    measured_by_service: dict[str, float] = {}
     services = services_from_stack()
     for svc in services:
         if only_service and svc["name"] != only_service:
             continue
+        # golang/rust 有声明面优先声明型（零测量、零副作用）；无声明面才测量兜底
         spots = discover_coverage_spots(svc)
-        f, n = check_floor(svc["name"], spots, baseline["coverage_floor"].get(svc["name"], 0))
-        failures += f
-        notes += n
-        vals = {v for _, v in spots}
-        if len(vals) == 1:
-            declared_by_service[svc["name"]] = vals.pop()
+        if svc["stack"] in ("golang", "rust") and not spots:
+            pct, err = measure_coverage(svc)
+            floor = baseline["coverage_floor"].get(svc["name"], 0)
+            if err:
+                notes.append(err if (err.startswith("SKIP") or floor > 0) else f"SKIP: {err}")
+            elif pct is None:
+                pass
+            elif floor <= 0:
+                notes.append(f"SKIP: {svc['name']} 未设覆盖率地板（测量 {pct}%；--prune 物化）")
+            elif pct < floor:
+                failures.append(f"② {svc['name']} 覆盖率测量 {pct}% < 地板 {floor}（下调即红）")
+            elif pct > floor:
+                notes.append(f"② {svc['name']} 覆盖率测量 {pct}% > 地板 {floor}（可 --prune 抬升）")
+            if pct is not None:
+                measured_by_service[svc["name"]] = pct
+        else:
+            f, n = check_floor(svc["name"], spots, baseline["coverage_floor"].get(svc["name"], 0))
+            failures += f
+            notes += n
+            vals = {v for _, v in spots}
+            if len(vals) == 1:
+                declared_by_service[svc["name"]] = vals.pop()
         counts, errs = scan_complexity(svc["stack"], ROOT / svc["dir"])
         if errs:
             notes += errs
@@ -386,7 +473,8 @@ def run_checks(only_service: str | None) -> tuple[list[str], list[str], dict]:
         failures += f
         notes += n
         ctx_hygiene = hygiene_counts
-    return failures, notes, {"baseline": baseline, "scanned": scanned, "declared": declared_by_service, "hygiene": ctx_hygiene}
+    return failures, notes, {"baseline": baseline, "scanned": scanned, "declared": declared_by_service,
+                             "measured": measured_by_service, "hygiene": ctx_hygiene}
 
 
 def prune(only_service: str | None) -> int:
@@ -401,6 +489,8 @@ def prune(only_service: str | None) -> int:
         baseline["complexity"][svc] = dict(sorted(counts.items()))
     for svc, declared in ctx["declared"].items():
         baseline["coverage_floor"][svc] = prune_floor(baseline["coverage_floor"].get(svc, 0), declared)
+    for svc, pct in ctx.get("measured", {}).items():
+        baseline["coverage_floor"][svc] = prune_floor(baseline["coverage_floor"].get(svc, 0), int(pct))
     if ctx["hygiene"] is not None and baseline.get("hygiene") is not None:
         for key, actual in ctx["hygiene"].items():
             baseline["hygiene"][key] = min(baseline["hygiene"].get(key, 0), actual)
@@ -440,6 +530,8 @@ def bootstrap(only_service: str | None) -> int:
         baseline["complexity"][svc] = dict(sorted(counts.items()))
     for svc, declared in ctx["declared"].items():
         baseline["coverage_floor"][svc] = prune_floor(baseline["coverage_floor"].get(svc, 0), declared)
+    for svc, pct in ctx.get("measured", {}).items():
+        baseline["coverage_floor"][svc] = prune_floor(baseline["coverage_floor"].get(svc, 0), int(pct))
     if hygiene_adopting and ctx["hygiene"] is not None:
         baseline["hygiene"] = dict(sorted(ctx["hygiene"].items()))
     (ROOT / BASELINE_REL).write_text(json.dumps(baseline, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
@@ -510,6 +602,15 @@ def run_selftest() -> int:
     case("rust test_cmd fail-under 解析（空格形态）", m == ["55"], str(m))
     m = RE_RUST_FAIL_UNDER.findall("cargo llvm-cov --fail-under-lines=60")
     case("rust test_cmd fail-under 解析（等号形态）", m == ["60"], str(m))
+
+    m = RE_LLVM_COV_IGNORE.search("--ignore-filename-regex '(input|tray)\\.rs$'")
+    case("llvm-cov 豁免解析（空格+单引号形态）", bool(m) and m.group(1) == "'(input|tray)\\.rs$'", str(m and m.group(1)))
+    m = RE_LLVM_COV_IGNORE.search("cargo llvm-cov --ignore-filename-regex=x\\.rs$")
+    case("llvm-cov 豁免解析（等号形态）", bool(m) and m.group(1) == "x\\.rs$", str(m and m.group(1)))
+    m = RE_CARGO_TARGET_ENV.search("CARGO_TARGET_DIR=target/llvm-cov cargo llvm-cov --fail-under-lines 85")
+    case("CARGO_TARGET_DIR 采点", bool(m) and m.group(1) == "target/llvm-cov", str(m and m.group(1)))
+    env, args = rust_llvm_cov_env_args("")
+    case("llvm-cov 隔离默认（空 test_cmd）", env == {"CARGO_TARGET_DIR": "target/llvm-cov"} and args == [], f"{env} | {args}")
 
     rust_stream = "\n".join([
         '{"reason":"compiler-message","message":{"code":{"code":"clippy::cognitive_complexity"},"level":"warning","spans":[{"file_name":"src/main.rs"}]}}',

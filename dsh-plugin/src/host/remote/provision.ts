@@ -153,17 +153,36 @@ function persistOutcome(
 /**
  * 开通向导单步推进（provisionRun）：执行下一未完成步骤并同步返回该步结果；
  * 已完成步骤跳过（幂等重跑从中断处继续）；全部完成 → 无操作返回当前视图。
+ * restart=true（重装远端组件）：仅在「全部完成」的短路点上生效——重置 provision
+ * 态并清空 helperHash（scopeFor 因此路由回直连，破「装 helper 需先有 helper」的
+ * 家族链死锁）后从步① 重跑；步骤未全 ok 时 restart 无操作（续跑语义不变）。
  * 远端操作在事务外；每步结果单条 BEGIN IMMEDIATE 收口。
  */
-export async function provisionRun(conn: Conn, id: string, deps: ProvisionDeps): Promise<ProvisionRunResult> {
-  const entity = deploymentById(conn, id);
+export async function provisionRun(
+  conn: Conn,
+  id: string,
+  deps: ProvisionDeps,
+  opts: { restart?: boolean } = {},
+): Promise<ProvisionRunResult> {
+  let entity = deploymentById(conn, id);
   if (entity === null) {
     throw notFound(`部署 ${id} 不存在`);
   }
   const state = entity.provision ?? initialProvisionState();
-  const nextStep = PROVISION_STEPS.find((s) => state.steps[s].status !== "ok");
+  let nextStep = PROVISION_STEPS.find((s) => state.steps[s].status !== "ok");
   if (nextStep === undefined) {
-    return { ok: true, step: null, status: provisionStatusOf(entity), deployment: entity };
+    if (opts.restart !== true) {
+      return { ok: true, step: null, status: provisionStatusOf(entity), deployment: entity };
+    }
+    entity = persistOutcome(conn, id, (e) => ({
+      ...e,
+      helperHash: null,
+      degraded: false,
+      status: "not_ready",
+      lastError: null,
+      provision: initialProvisionState(),
+    }));
+    nextStep = "probe-ssh";
   }
   const outcome = await executeStep(nextStep, entity, deps);
   const deployment = persistOutcome(conn, id, outcome.apply);

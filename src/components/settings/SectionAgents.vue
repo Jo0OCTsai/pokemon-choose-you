@@ -58,11 +58,15 @@ const isWin = /win/i.test(navigator.userAgent);
 const terminalOptions = computed(() => {
   const opts = [{ value: "default", label: t("ai.termBuiltin") }];
   if (isMac) {
-    opts.push({ value: "iterm2", label: "iTerm2" }, { value: "ghostty", label: "Ghostty" });
+    opts.push(
+      { value: "iterm2", label: "iTerm2" },
+      { value: "ghostty", label: "Ghostty" },
+      { value: "kitty", label: "kitty" },
+    );
   } else if (isWin) {
     opts.push({ value: "windows-terminal", label: "Windows Terminal" });
   } else if (isLinux) {
-    opts.push({ value: "ghostty", label: "Ghostty" });
+    opts.push({ value: "ghostty", label: "Ghostty" }, { value: "kitty", label: "kitty" });
   }
   return opts;
 });

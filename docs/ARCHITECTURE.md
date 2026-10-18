@@ -15,7 +15,7 @@ Vue 3 前端（`src/`，约定见 `src/AGENTS.md`）+ Rust 后端（`src-tauri/s
 
 ## 形态二：dsh 插件形态（第二形态）
 
-同一套待办业务以 dsh（DeepSeek Harness 0.2.0-rc.2）Cordis 插件形态落地（`dsh-plugin/`，约定见
+同一套待办业务以 dsh（DeepSeek Harness 0.2.1-rc.2）Cordis 插件形态落地（`dsh-plugin/`，约定见
 `dsh-plugin/AGENTS.md`），与主应用**长期双轨并存**：主应用正常演进，两形态面向同一份待办数据。
 用户面说明见 `docs/USER_GUIDE.md` dsh 形态章节；并发与配置决策见
 `docs/decisions/0001|0002`（ADR）。
@@ -29,7 +29,7 @@ graph TD
     DSH["dsh 插件宿主半边<br/>dsh-plugin/src/host（node:sqlite）"]
     DB[("共享 SQLite · WAL<br/>~/.choose-you/data/pokemon-choose-you.db")]
     CONTRACTS["contracts/<br/>迁移 SQL · PROTOCOL · 场景/夹具"]
-    CLIENT["客户端半边 React<br/>plugins.detail.section 页面"]
+    CLIENT["客户端半边 React<br/>sidebar main 全局面板"]
     HELPER["Electron helper（sidecar 桌宠）<br/>dsh-plugin/helper"]
 
     APP --> DB
@@ -67,7 +67,7 @@ graph TD
 | `health/` | 诊断快照、支持报告与日志查看器（共用三层脱敏管线）、运行日志环形缓冲（2000 条） |
 | `i18n/` | 字典装载与三语键集校验（主应用字典 `@app-i18n` alias 直引） |
 
-客户端半边 `src/client/`（React）：插件 detail page = SegmentNav 七段（冒险/草丛/路线/图鉴/收音机/日志/背包），
+客户端半边 `src/client/`（React）：侧边栏「图鉴机」全局面板（sidebar main 槽）= SegmentNav 七段（冒险/草丛/路线/图鉴/收音机/日志/背包；原 plugins.detail.section 槽已摘除，详情页回归纯信息页），
 背包八分区与主应用设置页同名同构（ADR-0002）。
 
 ### helper sidecar 模型

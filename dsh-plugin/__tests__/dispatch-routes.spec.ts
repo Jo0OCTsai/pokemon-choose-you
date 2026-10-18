@@ -1,7 +1,7 @@
 /**
  * dispatch/routes：项目路由 CRUD（dsh:dispatch_routes）与解析优先级
- * （override > route > meta > default）、routeOverride 不回写、deployment 引用、
- * hostKey 归一、并发/worktree 配置层级——对齐 Rust route.rs resolve_route 行为。
+ * （override > route > meta > default）、routeOverride 不回写、agent 绑定部署
+ * （执行世界单源）、hostKey 归一、并发/worktree 配置层级——对齐 Rust route.rs resolve_route 行为。
  */
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import {
@@ -49,20 +49,12 @@ describe("路由 CRUD（dsh:dispatch_routes）", () => {
     expect(listRoutes(db.conn)).toEqual({});
   });
 
-  it("校验：空 tag / deployment 缺字段 / maxConcurrent 非法 → 参数错；空 agentId 合法（回落全局默认）", () => {
+  it("校验：空 tag / maxConcurrent 非法 → 参数错；空 agentId 合法（回落全局默认）", () => {
     expect(() => routeUpsert(db.conn, "  ", { agentId: "a" })).toThrowError(/标签名/);
-    expect(() => routeUpsert(db.conn, "T", { agentId: "a", deployment: { ref: "", target: "u@h" } })).toThrowError(
-      /deployment/,
-    );
     expect(() => routeUpsert(db.conn, "T", { agentId: "a", maxConcurrent: 0 })).toThrowError(/maxConcurrent/);
     // 空 agentId = 只配目录/上下文，解析时回落 meta / 全局默认（桌面 tags.meta 双轨语义）
     routeUpsert(db.conn, "T", { agentId: "", workdir: "~/only-dir" });
     expect(listRoutes(db.conn)["T"]).toEqual({ agentId: "", workdir: "~/only-dir" });
-  });
-
-  it("deployment 引用只存 ref + target（不存连接细节——A13）", () => {
-    routeUpsert(db.conn, "Remote", { agentId: "a", deployment: { ref: "dev-box", target: "vscode@localhost:1022" } });
-    expect(listRoutes(db.conn)["Remote"]?.deployment).toEqual({ ref: "dev-box", target: "vscode@localhost:1022" });
   });
 });
 
@@ -152,17 +144,24 @@ describe("路由解析边界（缺标签 / deployment / worktree 层级）", () 
     expect(() => resolveDispatchRoute(db.conn, taskId)).toThrowError(/没有可用的 Agent/);
   });
 
-  it("deployment 路由 → hostKey 归一 ssh:user@host[:port]（domain 口径复用）", () => {
-    seedAgents(db.conn, [{ id: "ag-1", command: "claude" }]);
+  it("agent 绑定部署 → deployment = {ref=alias, target=alias} + hostKey 归一 ssh:alias；执行世界单源在 agent", () => {
+    seedAgents(db.conn, [
+      { id: "ag-1", command: "claude", deployment: "dev-box" },
+      { id: "ag-2", command: "claude" },
+    ]);
     const taskId = seedTask(db.conn, "任务");
     seedProjectTag(taskId, "Remote");
-    routeUpsert(db.conn, "Remote", {
-      agentId: "ag-1",
-      deployment: { ref: "dev-box", target: "vscode@localhost:1022" },
-    });
+    routeUpsert(db.conn, "Remote", { agentId: "ag-1" });
     const resolved = resolveDispatchRoute(db.conn, taskId);
-    expect(resolved.hostKey).toBe("ssh:vscode@localhost:1022");
-    expect(resolved.deployment?.ref).toBe("dev-box");
+    expect(resolved.deployment).toEqual({ ref: "dev-box", target: "dev-box" });
+    expect(resolved.hostKey).toBe("ssh:dev-box");
+    // 改选到未绑定 agent → 本机（执行世界跟 agent 走）
+    const picked = resolveDispatchRoute(db.conn, taskId, "ag-2");
+    expect(picked.deployment).toBeNull();
+    expect(picked.hostKey).toBe("local");
+    // 悬空绑定（部署已删）：解析不炸（派发时 planRemoteRoute 硬拒 DEPLOYMENT_NOT_READY）
+    const dangling = resolveDispatchRoute(db.conn, taskId);
+    expect(dangling.deployment?.ref).toBe("dev-box");
   });
 
   it("worktree 层级：route.worktree > 全局 dispatch_worktree > false", () => {

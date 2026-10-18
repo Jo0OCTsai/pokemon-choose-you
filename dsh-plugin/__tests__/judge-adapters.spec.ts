@@ -4,7 +4,16 @@
  * 会话账本（agent_sessions kind=classify）。
  */
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { chmodSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import {
+  chmodSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  realpathSync,
+  rmSync,
+  symlinkSync,
+  writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
@@ -15,7 +24,6 @@ import {
   landedCount,
   loadSuggestionsFor,
   logJudgeSession,
-  subagentExecutorPlaceholder,
   type JudgeExecutor,
 } from "../src/host/judge/adapters";
 import { PkyError } from "../src/host/storage/errors";
@@ -71,10 +79,6 @@ describe("执行方形态", () => {
     const out = await exec.run({ prompt: "p", messageIds: ["om_1"] });
     expect(exec.selfLanding).toBe(false);
     expect(out.suggestions[0].action).toBe("none");
-  });
-
-  it("subagent 占位：调用即明确报错（不静默半工作）", async () => {
-    await expect(subagentExecutorPlaceholder().run({ prompt: "p", messageIds: [] })).rejects.toThrow(/未装配/);
   });
 });
 
@@ -154,6 +158,106 @@ describe("cliJudgeExecutor（真实子进程 + fake agent 脚本）", () => {
       },
     });
     await expect(exec.run({ prompt: "p", messageIds: [] })).rejects.toMatchObject({ code: "JUDGE_TIMEOUT" });
+  });
+});
+
+/** 最小 agent 配置（覆盖式） */
+function judgeAgent(over: Partial<AgentConfig>): AgentConfig {
+  return {
+    id: "a1",
+    name: "A1",
+    command: "/bin/sh",
+    args: "",
+    historyArgs: "",
+    workdir: "",
+    timeoutSecs: 10,
+    enabled: true,
+    ...over,
+  };
+}
+
+/** 造 dsh 形态的裸名 agent：临时 home 的 ~/.local/bin 下放 node 软链 + #!/usr/bin/env node 脚本（信封输出） */
+function stageEnvNodeAgent(): { home: string } {
+  const home = mkdtempSync(join(tmpdir(), "pky-judge-home-"));
+  const binDir = join(home, ".local", "bin");
+  mkdirSync(binDir, { recursive: true });
+  symlinkSync(process.execPath, join(binDir, "node"));
+  const bin = join(binDir, "pky-judge-agent");
+  writeFileSync(
+    bin,
+    "#!/usr/bin/env node\n" +
+      'let sink = "";\n' +
+      'process.stdin.on("data", (c) => (sink += c));\n' +
+      'process.stdin.on("end", () => process.stdout.write(JSON.stringify({ result: "ok", session_id: "sess-gui" })));\n',
+  );
+  chmodSync(bin, 0o755);
+  return { home };
+}
+
+/** GUI 精简 PATH（Dock/Finder 启动形态）+ 指定 HOME 下执行；结束恢复进程环境 */
+async function withGuiEnv<T>(home: string, run: () => Promise<T>): Promise<T> {
+  const oldPath = process.env.PATH;
+  const oldHome = process.env.HOME;
+  process.env.PATH = "/usr/bin:/bin:/usr/sbin:/sbin";
+  process.env.HOME = home;
+  try {
+    return await run();
+  } finally {
+    process.env.PATH = oldPath;
+    process.env.HOME = oldHome;
+  }
+}
+
+describe("cliJudgeExecutor × 本地环境解析（GUI 精简 PATH——which.rs/runner.rs 基准，经 dispatch/localEnv）", () => {
+  it("裸名 + #!/usr/bin/env node 脚本（nvm/.local 形态）：补扫解析 + 子进程 PATH 前插后在精简 PATH 下可执行", async () => {
+    const { home } = stageEnvNodeAgent();
+    seedMessage(db.conn, "om_1", {});
+    applySuggestion(db.conn, { messageId: "om_1", action: "todo", title: "交周报", tags: [] }, "a1");
+    await withGuiEnv(home, async () => {
+      const exec = cliJudgeExecutor({ conn: db.conn, agent: judgeAgent({ command: "pky-judge-agent" }) });
+      const out = await exec.run({ prompt: "判定这批", messageIds: ["om_1"] });
+      expect(out.sessionId).toBe("sess-gui");
+      expect(out.suggestions[0]).toMatchObject({ messageId: "om_1", action: "todo" });
+    });
+    rmSync(home, { recursive: true, force: true });
+  });
+
+  it("workdir ~/ 前缀按 HOME 展开（agent_workdir 同构），cwd 不落字面 ~ 目录", async () => {
+    const home = mkdtempSync(join(tmpdir(), "pky-judge-home-"));
+    const wrk = join(home, "wrk");
+    mkdirSync(wrk);
+    const dir = mkdtempSync(join(tmpdir(), "pky-agent-"));
+    const bin = join(dir, "fake-agent.sh");
+    writeFileSync(bin, `#!/bin/sh\npwd > ${join(dir, "pwd.txt")}\nprintf '%s' '{"result":"ok","session_id":"s1"}'\n`);
+    chmodSync(bin, 0o755);
+    seedMessage(db.conn, "om_1", {});
+    applySuggestion(db.conn, { messageId: "om_1", action: "todo", title: "交周报", tags: [] }, "a1");
+    const oldHome = process.env.HOME;
+    process.env.HOME = home;
+    try {
+      const exec = cliJudgeExecutor({ conn: db.conn, agent: judgeAgent({ command: bin, workdir: "~/wrk" }) });
+      const out = await exec.run({ prompt: "p", messageIds: ["om_1"] });
+      expect(out.sessionId).toBe("s1");
+      expect(readFileSync(join(dir, "pwd.txt"), "utf8").trim()).toBe(realpathSync(wrk));
+    } finally {
+      process.env.HOME = oldHome;
+      rmSync(home, { recursive: true, force: true });
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+});
+
+describe("cliJudgeExecutor × 本地环境报错口径", () => {
+  it("找不到命令：ENOENT 文案附可操作指引（spawnErrorHint 同款）", async () => {
+    const exec = cliJudgeExecutor({ conn: db.conn, agent: judgeAgent({ command: "pky-no-such-agent-xyz" }) });
+    await expect(exec.run({ prompt: "p", messageIds: [] })).rejects.toThrow(
+      /执行失败.*ENOENT（找不到命令或工作目录不存在.*绝对路径/,
+    );
+  });
+
+  it("workdir 不存在：独立报错，不落到 ENOENT 与「命令找不到」混淆（runner.rs 预检同构）", async () => {
+    const exec = cliJudgeExecutor({ conn: db.conn, agent: judgeAgent({ workdir: "/no/such/pky-judge-dir" }) });
+    await expect(exec.run({ prompt: "p", messageIds: [] })).rejects.toThrow(/Agent 工作目录不存在/);
   });
 });
 

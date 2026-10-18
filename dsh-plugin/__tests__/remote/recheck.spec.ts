@@ -102,7 +102,7 @@ describe("就绪复核（ready 态）：活性失败路径", () => {
     expect(outcome.ready).toBe(false);
     const entity = listDeployments(db.conn)[id];
     expect(entity.status).toBe("not_ready");
-    expect(entity.lastError).toContain("摘要复核执行失败");
+    expect(entity.lastError).toContain("远端组件验证失败");
   });
 
   it("摘要不符 → not_ready + provision 记 HELPER_HASH_MISMATCH（拒绝就绪不降级）", async () => {
@@ -110,7 +110,7 @@ describe("就绪复核（ready 态）：活性失败路径", () => {
     scope.files.set(defaultHelperPath("/home/dev", "0.1.0"), "tampered");
     const outcome = await recheckDeployment(db.conn, id, recheckDeps(scope));
     expect(outcome.ready).toBe(false);
-    expect(outcome.reason).toContain("摘要不符");
+    expect(outcome.reason).toContain("验证未通过");
     const entity = listDeployments(db.conn)[id];
     expect(entity.status).toBe("not_ready");
     expect(entity.degraded).toBe(false);
