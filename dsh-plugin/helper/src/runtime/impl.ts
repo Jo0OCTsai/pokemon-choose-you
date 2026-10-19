@@ -60,7 +60,7 @@ export class RuntimeImpl extends RuntimeStateBase implements HelperRuntime {
       },
       now: this.now,
     };
-    this.sys = opts.sys ?? createHeadlessSys(this.sysContext, { axGranted: opts.axGranted });
+    this.sys = opts.sys ?? createHeadlessSys(this.sysContext, { axGranted: opts.axGranted, platform: opts.platform });
     this.sys.onCapsChange(() => this.sendHello());
     this.bridge.onMessage((m) => this.handleMessage(m));
     this.bridge.onHostDead((r) => this.onHostDead(r));

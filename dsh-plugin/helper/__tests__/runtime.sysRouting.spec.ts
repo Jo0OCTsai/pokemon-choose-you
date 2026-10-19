@@ -9,7 +9,7 @@ import { SYS_CAPS } from "../src/bridge/sys-protocol.ts";
  * sys 下行七消息全路由消费（无 sys-unsupported）、chat-reply 直达渲染层、
  * 可见性乐观翻转、catch-scene 变体、DeferredSys 排队重放。
  */
-function makeHarness(opts: { axGranted?: boolean } = {}) {
+function makeHarness(opts: { axGranted?: boolean; platform?: NodeJS.Platform } = {}) {
   const input = new PassThrough();
   const output = new PassThrough();
   const events: UiEvent[] = [];
@@ -30,6 +30,7 @@ function makeHarness(opts: { axGranted?: boolean } = {}) {
     input,
     output,
     axGranted: opts.axGranted,
+    platform: opts.platform,
     onUiEvent: (ev) => events.push(ev),
   });
   return {
@@ -88,7 +89,7 @@ describe("sys 路由：两段语义与授权联动", () => {
   });
 
   it("mac-auth-query → ack + result（granted 随 axGranted 初值）", () => {
-    const h = makeHarness({ axGranted: true });
+    const h = makeHarness({ axGranted: true, platform: "darwin" }); // D32 darwin 门——Linux CI 上注入覆盖
     h.write({ type: "mac-auth-query", kind: "accessibility", seq: 5 });
     expect(h.upstream("mac-auth-ack")).toEqual([{ type: "mac-auth-ack", seq: 5 }]);
     expect(h.upstream("mac-auth-result")).toEqual([
@@ -98,7 +99,7 @@ describe("sys 路由：两段语义与授权联动", () => {
   });
 
   it("授权撤销 → seq 0 主动上报 + inputCount 即停", async () => {
-    const h = makeHarness({ axGranted: true });
+    const h = makeHarness({ axGranted: true, platform: "darwin" }); // D32 darwin 门——Linux CI 上注入覆盖
     h.write({ type: "sys-config", inputResponse: { enabled: true } });
     await flush();
     expect(h.sys.inputCount.running).toBe(true);

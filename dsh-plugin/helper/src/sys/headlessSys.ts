@@ -74,7 +74,10 @@ function headlessSysConfig(
   if (msg.tts) mods.tts.setEnabled(msg.tts.enabled);
 }
 
-export function createHeadlessSys(ctx: SysContext, opts: { axGranted?: boolean } = {}): HeadlessSys {
+export function createHeadlessSys(
+  ctx: SysContext,
+  opts: { axGranted?: boolean; platform?: NodeJS.Platform } = {},
+): HeadlessSys {
   const tray = new HeadlessTray(ctx);
   const shortcuts = new HeadlessShortcuts(ctx);
   const notify = new HeadlessNotify(ctx);
@@ -82,7 +85,7 @@ export function createHeadlessSys(ctx: SysContext, opts: { axGranted?: boolean }
   const dialogs = new HeadlessDialogs(ctx);
   const openPath = new HeadlessOpenPath(ctx);
   const macAuth = new HeadlessMacAuth(ctx, { granted: opts.axGranted });
-  const inputCount = new HeadlessInputCount(ctx, { granted: opts.axGranted });
+  const inputCount = new HeadlessInputCount(ctx, { granted: opts.axGranted, platform: opts.platform });
   macAuth.onAuthChange((granted) => inputCount.onAuthChange(granted));
 
   const sys: HeadlessSys = {

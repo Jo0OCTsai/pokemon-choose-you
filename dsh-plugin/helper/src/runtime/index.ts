@@ -34,6 +34,8 @@ export interface RuntimeOptions {
   sys?: SysRouter;
   /** headless AX 授权初值（HELPER_HEADLESS_AX=1——子进程集成测试可编程） */
   axGranted?: boolean;
+  /** headless 平台注入（input-count 的 D32 darwin 门在 Linux CI 上测 darwin 行为用；缺省 = 真实平台） */
+  platform?: NodeJS.Platform;
   /**
    * 郑重时刻演出输入（FR-B3 演出面）：完成动作时取里程碑/连胜判定 → catch-scene 事件。
    * 默认恒 plain——host 侧数据面接线后注入（桥协议当前无承载，见 helper/README 接线注记）。
