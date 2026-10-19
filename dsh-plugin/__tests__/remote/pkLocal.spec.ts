@@ -2,11 +2,11 @@
  * pk 本机落位（remote/pkLocal，ADR-0003 §4）：`~/.choose-you/bin/pk` 缺失时从包内
  * vendor 拷当前平台 triple（已存在复用不覆盖；vendor 缺件 → undefined 降级）。
  */
-import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { chmodSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { ensureLocalPk, localPkPath, vendorDir } from "../../src/host/remote/pkLocal";
+import { ensureLocalPk, hostTriple, localPkPath, vendorDir } from "../../src/host/remote/pkLocal";
 
 let home: string;
 
@@ -36,10 +36,14 @@ describe("ensureLocalPk", () => {
     expect(readFileSync(target, "utf8")).toBe("sentinel");
   });
 
-  it("缺失 → 从包内 vendor 落位（真实链路：build.mjs 已把当前 triple 拷入 vendor/）", () => {
-    const p = ensureLocalPk();
+  it("缺失 → 从 vendor 落位（自建 vendor 注入：拷当前 triple + 执行位；CI 无仓内 vendor 亦成立）", () => {
+    const vendor = join(home, "vendor-src");
+    mkdirSync(vendor, { recursive: true });
+    const triple = hostTriple();
+    writeFileSync(join(vendor, `pk-${triple}`), "#!/bin/sh\necho fake-pk\n");
+    const p = ensureLocalPk(vendor);
     expect(p).toBe(join(home, "bin", "pk"));
-    expect(existsSync(p!)).toBe(true);
+    expect(readFileSync(p!, "utf8")).toContain("fake-pk");
   });
 });
 
@@ -54,9 +58,11 @@ describe("vendorDir", () => {
     expect(vendorDir(home)).toBeUndefined();
   });
 
-  it("默认起点（包内）→ 包根 vendor", () => {
+  it("默认起点（包内）→ 包根 vendor（仓内构建后在位；CI 干净检出无 vendor 时跳过）", () => {
     const dir = vendorDir();
-    expect(dir).toBeDefined();
-    expect(dir!.endsWith("vendor")).toBe(true);
+    if (dir === undefined) {
+      return;
+    }
+    expect(dir.endsWith("vendor")).toBe(true);
   });
 });

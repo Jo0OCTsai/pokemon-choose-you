@@ -701,10 +701,10 @@ export async function installTauriMock(page: Page, state: Partial<MockState> = {
               source: metaAgent ? "tag" : agent ? "default" : "",
               agentId: agent ? agent.id : null,
               agentName: agent ? agent.name : null,
-              sshHost: agent?.remote?.host ?? null,
+              sshHost: agent?.deployment ?? null,
               workdir: meta?.workdir ?? "",
               context: meta?.context ?? null,
-              agents: enabled.map((a: any) => ({ id: a.id, name: a.name, sshHost: a.remote?.host ?? null })),
+              agents: enabled.map((a: any) => ({ id: a.id, name: a.name, sshHost: a.deployment ?? null })),
             };
           }
           case "dispatch_task": {

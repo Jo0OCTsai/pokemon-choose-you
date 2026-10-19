@@ -14,7 +14,8 @@ export function localPkPath(): string | undefined {
   return home === undefined ? undefined : join(home, "bin", "pk");
 }
 
-function hostTriple(): string {
+/** 宿主三元组（构建/落位两侧命名一致单源；导出供测试自建 vendor） */
+export function hostTriple(): string {
   const arch = process.arch === "arm64" ? "aarch64" : process.arch;
   const os =
     process.platform === "darwin"
