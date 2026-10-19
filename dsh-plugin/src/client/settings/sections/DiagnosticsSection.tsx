@@ -108,45 +108,67 @@ export function DiagnosticsSection(): React.JSX.Element {
   );
 }
 
+/** 能力矩阵行（可用/降级两态：行名气泡 = 降级时挂指引 tip；状态文案随 ok） */
+function CapRow({
+  ok,
+  label,
+  tip,
+  testId,
+}: {
+  ok: boolean;
+  label: string;
+  tip?: string;
+  testId?: string;
+}): React.JSX.Element {
+  const t = useT();
+  return (
+    <li className={styles.capRow} data-ok={ok} data-testid={testId}>
+      <span className={styles.capDot} data-ok={ok} aria-hidden="true" />
+      <span data-tip={ok ? undefined : tip}>{label}</span>
+      <span className={styles.capState}>{t(ok ? "dsh.diag.caps.ok" : "dsh.diag.caps.degraded")}</span>
+    </li>
+  );
+}
+
+/** 卡标题气泡：helper 在位 = 运行时版本；缺席 = 手动放置指引（降级横幅已在页顶另行提示） */
+function capsTitleTip(
+  caps: Record<string, boolean> | null,
+  helperVersion: string | null,
+  t: ReturnType<typeof useT>,
+): string | undefined {
+  if (caps === null) return t("dsh.diag.caps.absent");
+  return helperVersion != null ? t("dsh.diag.caps.version", { v: helperVersion }) : undefined;
+}
+
 /** 系统能力矩阵（helper 六能力 + dsh-ssh 远程派发第七行 × 可用/降级；helper 缺席 = 六能力全降级）。
  * 说明文案不占常驻版面：降级指引挂行名气泡、运行时版本/缺席指引挂卡标题气泡 */
 function CapabilityMatrix({ snapshot }: { snapshot: DiagnosticsSnapshotData | null }): React.JSX.Element {
   const t = useT();
   const caps = snapshot?.helperCaps ?? null;
   const sshFamily = snapshot?.sshFamily ?? null;
-  // 卡标题气泡：helper 在位 = 运行时版本；缺席 = 手动放置指引（降级横幅已在页顶另行提示）
-  const titleTip =
-    caps === null
-      ? t("dsh.diag.caps.absent")
-      : snapshot?.helperVersion != null
-        ? t("dsh.diag.caps.version", { v: snapshot.helperVersion ?? "" })
-        : undefined;
   return (
     <div className={ui.card} data-testid="helper-caps">
-      <h4 className={styles.cardTitle} data-tip={titleTip}>
+      <h4 className={styles.cardTitle} data-tip={capsTitleTip(caps, snapshot?.helperVersion ?? null, t)}>
         {t("dsh.diag.capsTitle")}
       </h4>
       <ul className={styles.capList}>
-        {HELPER_CAP_ROWS.map((row) => {
-          const ok = caps !== null && caps[row.cap] === true;
-          return (
-            <li key={row.id} className={styles.capRow} data-ok={ok}>
-              <span className={styles.capDot} data-ok={ok} aria-hidden="true" />
-              <span data-tip={!ok ? t("dsh.diag.caps.guide") : undefined}>{t(`dsh.diag.caps.${row.id}`)}</span>
-              <span className={styles.capState}>{t(ok ? "dsh.diag.caps.ok" : "dsh.diag.caps.degraded")}</span>
-            </li>
-          );
-        })}
+        {HELPER_CAP_ROWS.map((row) => (
+          <CapRow
+            key={row.id}
+            ok={caps?.[row.cap] === true}
+            label={t(`dsh.diag.caps.${row.id}`)}
+            tip={t("dsh.diag.caps.guide")}
+          />
+        ))}
         {/* dsh-ssh 家族（远程派发前置，FR-RD7）并入矩阵第七行：未装载 = 降级 + 行名气泡给装载
          * 指引；就绪 = 可用；未知（null）不显行——与六能力同款呈现 */}
         {sshFamily !== null && (
-          <li className={styles.capRow} data-ok={sshFamily.ok} data-testid="ssh-cap-row">
-            <span className={styles.capDot} data-ok={sshFamily.ok} aria-hidden="true" />
-            <span data-tip={!sshFamily.ok ? t("dsh.diag.sshMissing", { cmd: sshFamily.detail ?? "" }) : undefined}>
-              {t("dsh.diag.caps.ssh")}
-            </span>
-            <span className={styles.capState}>{t(sshFamily.ok ? "dsh.diag.caps.ok" : "dsh.diag.caps.degraded")}</span>
-          </li>
+          <CapRow
+            ok={sshFamily.ok}
+            label={t("dsh.diag.caps.ssh")}
+            tip={t("dsh.diag.sshMissing", { cmd: sshFamily.detail ?? "" })}
+            testId="ssh-cap-row"
+          />
         )}
       </ul>
     </div>

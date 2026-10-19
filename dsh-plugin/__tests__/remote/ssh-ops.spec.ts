@@ -42,6 +42,11 @@ describe("shellViaSpawn", () => {
   });
 });
 
+/** 按 cmd 前缀分派的 fake spawn：cat > 写入分支与 sha256sum 复核分支结果分别注入 */
+function catShaSpawn(cat: Partial<SshSpawnResult>, sha: Partial<SshSpawnResult>): SpawnFace {
+  return spawnOf((cmd) => (cmd[2]?.startsWith("cat >") === true ? cat : sha));
+}
+
 describe("writeFileViaSpawn", () => {
   const good = (text: string): SpawnFace =>
     spawnOf((cmd) => {
@@ -61,38 +66,22 @@ describe("writeFileViaSpawn", () => {
 
   it("cat 非零退出 → 写入失败（带 stderr 摘要）", async () => {
     await expect(
-      writeFileViaSpawn(
-        spawnOf((cmd) => (cmd[2]?.startsWith("cat >") === true ? { code: 1, stderr: "EACCES" } : { code: 0 })),
-        "/tmp/f",
-        "x",
-      ),
+      writeFileViaSpawn(catShaSpawn({ code: 1, stderr: "EACCES" }, { code: 0 }), "/tmp/f", "x"),
     ).rejects.toThrow(/远端写入失败（exit 1）：EACCES/);
   });
 
   it("sha256sum 非零退出 / 输出非 64 位 hex → 解析拒绝", async () => {
     await expect(
-      writeFileViaSpawn(
-        spawnOf((cmd) => (cmd[2]?.startsWith("sha256sum") === true ? { code: 2, stderr: "no file" } : { code: 0 })),
-        "/tmp/f",
-        "x",
-      ),
+      writeFileViaSpawn(catShaSpawn({ code: 0 }, { code: 2, stderr: "no file" }), "/tmp/f", "x"),
     ).rejects.toThrow(/sha256sum 失败（exit 2）/);
-    await expect(
-      writeFileViaSpawn(
-        spawnOf((cmd) => (cmd[2]?.startsWith("sha256sum") === true ? { stdout: "zzz" } : { code: 0 })),
-        "/tmp/f",
-        "x",
-      ),
-    ).rejects.toThrow(/无法解析/);
+    await expect(writeFileViaSpawn(catShaSpawn({ code: 0 }, { stdout: "zzz" }), "/tmp/f", "x")).rejects.toThrow(
+      /无法解析/,
+    );
   });
 
   it("远端摘要与内容不符 → 复核不符拒绝（写入完整性内建保障）", async () => {
     await expect(
-      writeFileViaSpawn(
-        spawnOf((cmd) => (cmd[2]?.startsWith("sha256sum") === true ? { stdout: `${"0".repeat(64)}  p` } : { code: 0 })),
-        "/tmp/f",
-        "x",
-      ),
+      writeFileViaSpawn(catShaSpawn({ code: 0 }, { stdout: `${"0".repeat(64)}  p` }), "/tmp/f", "x"),
     ).rejects.toThrow(/复核不符/);
   });
 });

@@ -10,51 +10,37 @@
  * 客户端 web 提示）。macOS 优先（仓库载体 macos）；其余平台 → null。
  */
 import { describe, expect, it } from "vitest";
-import {
-  createExternalTerminalAdapter,
-  detectExternalTerminal,
-  externalTerminalLine,
-  resolveExternalTerminal,
-  type ExternalTerminalEnv,
-} from "../src/host/dsh/externalTerminal";
+import { detectExternalTerminal } from "../src/host/dsh/externalTerminal";
+import { createExternalTerminalAdapter, externalTerminalLine } from "../src/host/dsh/externalTerminalAdapter";
+import { fakeEnv, TEST_AGENT } from "./dshExternalTerminalFakes";
 
-/** 测试环境注入件：全部可控（探测存在性 / spawn 与 socket 操作记录） */
-function fakeEnv(over: Partial<ExternalTerminalEnv> = {}): {
-  env: ExternalTerminalEnv;
-  spawned: string[][];
-  unlinked: string[];
-} {
-  const spawned: string[][] = [];
-  const unlinked: string[] = [];
-  const env: ExternalTerminalEnv = {
-    platform: "darwin",
-    electron: true,
-    appExists: () => false,
-    spawn: async (argv) => {
-      spawned.push(argv);
-    },
-    socketExists: () => false,
-    unlinkSocket: (path) => {
-      unlinked.push(path);
-    },
-    kittenPath: "/Applications/kitty.app/Contents/MacOS/kitten",
-    shell: "/bin/zsh",
-    ...over,
-  };
-  return { env, spawned, unlinked };
-}
+/** kitten @ launch 复用 argv 公共前缀（--to socket + tab 形态 + 登录 shell 执行） */
+const KITTEN_TAB_ARGV = [
+  "/Applications/kitty.app/Contents/MacOS/kitten",
+  "@",
+  "--to",
+  "unix:/tmp/kitty.sock",
+  "launch",
+  "--type=tab",
+  "/bin/zsh",
+  "-i",
+  "-l",
+  "-c",
+] as const;
 
-/** 适配器注入用 agent 配置（形状满足 AgentConfig） */
-const TEST_AGENT = {
-  id: "a",
-  name: "A",
-  command: "claude",
-  args: "",
-  historyArgs: "",
-  workdir: "",
-  timeoutSecs: 60,
-  enabled: true,
-};
+/** open -na kitty 自举 argv 公共前缀（listen-on/override 旗标 + 登录 shell 执行） */
+const OPEN_BOOT_ARGV = [
+  "open",
+  "-na",
+  "kitty",
+  "--args",
+  "--listen-on=unix:/tmp/kitty.sock",
+  "--override=allow_remote_control=socket-only",
+  "/bin/zsh",
+  "-i",
+  "-l",
+  "-c",
+] as const;
 
 describe("载体与探测链", () => {
   it("web/headless CLI 载体（非 Electron 宿主）→ null（回落 handoff + web 提示）", () => {
@@ -127,19 +113,7 @@ describe("kitty · tab 复用与自举", () => {
     const { env, spawned } = fakeEnv({ appExists: (name) => name === "kitty", socketExists: () => true });
     const ext = detectExternalTerminal(env);
     await ext?.spawn("claude --resume s1", "/ws/project");
-    expect(spawned[0]).toEqual([
-      "/Applications/kitty.app/Contents/MacOS/kitten",
-      "@",
-      "--to",
-      "unix:/tmp/kitty.sock",
-      "launch",
-      "--type=tab",
-      "/bin/zsh",
-      "-i",
-      "-l",
-      "-c",
-      "cd /ws/project && claude --resume s1",
-    ]);
+    expect(spawned[0]).toEqual([...KITTEN_TAB_ARGV, "cd /ws/project && claude --resume s1"]);
     // workdir 空 = 不织入 cd
     await ext?.spawn("claude --resume s1", null);
     expect(spawned[1]?.[10]).toBe("claude --resume s1");
@@ -150,22 +124,12 @@ describe("kitty · tab 复用与自举", () => {
     const ext = detectExternalTerminal(env);
     const form = await ext?.spawn("claude --resume s1", null);
     expect(form).toBe("window");
-    expect(spawned[0]).toEqual([
-      "open",
-      "-na",
-      "kitty",
-      "--args",
-      "--listen-on=unix:/tmp/kitty.sock",
-      "--override=allow_remote_control=socket-only",
-      "/bin/zsh",
-      "-i",
-      "-l",
-      "-c",
-      "claude --resume s1",
-    ]);
+    expect(spawned[0]).toEqual([...OPEN_BOOT_ARGV, "claude --resume s1"]);
     expect(unlinked).toEqual([]);
   });
+});
 
+describe("kitty · 回落与失败", () => {
   it("tab 失败（陈旧 socket）→ 清残档回落自举；自举也失败 → 上抛（适配器折 spawn-failed handoff）", async () => {
     const { env, spawned, unlinked } = fakeEnv({
       appExists: (name) => name === "kitty",
@@ -207,46 +171,6 @@ describe("探测链 · iTerm2（AppleScript 家族）", () => {
     expect(script).toContain("write text");
     expect(script).toContain("claude --resume s1");
     expect(script).toContain("cd /ws && claude --resume s1"); // workdir 织入写进首行命令（主应用 cd 前缀同构）
-  });
-});
-
-describe("终端偏好解析 · 命中优先", () => {
-  it("偏好 iterm2 且已安装 → iTerm2（压过探测链首位 Ghostty）", () => {
-    const { env } = fakeEnv({ appExists: (name) => name === "Ghostty" || name === "iTerm2" });
-    expect(resolveExternalTerminal("iterm2", env)?.label).toBe("iTerm2");
-  });
-
-  it("偏好 ghostty → Ghostty（即使探测链更靠前的 kitty 也在场仍命中偏好）", () => {
-    const { env } = fakeEnv({ appExists: (name) => name === "kitty" || name === "Ghostty" });
-    expect(resolveExternalTerminal("ghostty", env)?.label).toBe("Ghostty");
-  });
-
-  it("偏好 kitty（dsh 增设值）→ kitty", () => {
-    const { env } = fakeEnv({ appExists: (name) => name === "Ghostty" || name === "kitty" });
-    expect(resolveExternalTerminal("kitty", env)?.label).toBe("kitty");
-  });
-});
-
-describe("终端偏好解析 · 回落与闸门", () => {
-  it("偏好的终端未安装 → 探测链回落（零中断）", () => {
-    const { env } = fakeEnv({ appExists: (name) => name === "Ghostty" });
-    expect(resolveExternalTerminal("iterm2", env)?.label).toBe("Ghostty");
-  });
-
-  it("default / 未设 / 未知值 / 平台不适值（windows-terminal@darwin）→ 探测链", () => {
-    const { env } = fakeEnv({ appExists: (name) => name === "kitty" || name === "iTerm2" });
-    expect(resolveExternalTerminal("default", env)?.label).toBe("kitty");
-    expect(resolveExternalTerminal(null, env)?.label).toBe("kitty");
-    expect(resolveExternalTerminal(undefined, env)?.label).toBe("kitty");
-    expect(resolveExternalTerminal("made-up", env)?.label).toBe("kitty");
-    expect(resolveExternalTerminal("windows-terminal", env)?.label).toBe("kitty");
-  });
-});
-
-describe("终端偏好解析 · 载体闸门", () => {
-  it("载体闸门同探测链：web 载体偏好也命中不了 → null", () => {
-    const { env } = fakeEnv({ electron: false, appExists: () => true });
-    expect(resolveExternalTerminal("ghostty", env)).toBeNull();
   });
 });
 

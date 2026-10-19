@@ -23,12 +23,8 @@ import type {} from "@deepseek-ai/cordis-plugin-timer"; // 类型面：ctx.inter
 import type {} from "@deepseek-ai/dsh-client-connection"; // 类型面：Context.connection 增强
 import { createPlugin, defaultJudgeExecutor, probeNodeSqlite, unsupportedSqliteError, type Plugin } from "../index";
 import { createHandoffTerminal } from "../dispatch/terminalAdapters";
-import {
-  createExternalTerminalAdapter,
-  detectExternalTerminal,
-  externalTerminalLine,
-  isDesktopCarrier,
-} from "./externalTerminal";
+import { detectExternalTerminal, isDesktopCarrier } from "./externalTerminal";
+import { createExternalTerminalAdapter, externalTerminalLine } from "./externalTerminalAdapter";
 import { ensureElectronDist } from "../pet/electronGet";
 import { electronSpawner } from "../pet/supervisor";
 import { dbFileFrom } from "../storage/paths";

@@ -95,8 +95,17 @@ async function flush(rounds = 4): Promise<void> {
   }
 }
 
+/** 断言位第 i 条应答为 ok 并取其 result（失败即抛——把 ?.ok && 链收敛进助手） */
+function okResult(replies: BrokerReply[], i: number): unknown {
+  const r = replies[i];
+  if (r === undefined || !r.ok) {
+    throw new Error(`reply ${String(i)} 不为 ok`);
+  }
+  return r.result;
+}
+
 describe("brokerServe 服务循环", () => {
-  it("connect → 各 op 透传 → disconnect 先应答后收线", async () => {
+  it("connect → 各 op 透传（结果语义按 op 还原）", async () => {
     const scope = fakeScope();
     const { writable, handle, send } = rig(scope);
     send(CONNECT);
@@ -109,12 +118,22 @@ describe("brokerServe 服务循环", () => {
     await handle.stopped;
     const replies = writable.replies();
     expect(replies.map((r) => r.id)).toEqual([1, 2, 3, 4, 5, 6, 7]);
-    expect(replies[1]?.ok && replies[1].result).toMatchObject({ code: 0, stdout: "ran:/bin/echo hi" });
-    expect(replies[2]?.ok && replies[2].result).toEqual({ sessionId: "pky-term-1-1" });
-    expect(replies[3]?.ok && replies[3].result).toEqual({ ok: true });
-    expect(replies[4]?.ok && replies[4].result).toEqual({ ok: false }); // 未知会话 → false（非 error）
-    expect(replies[5]?.ok && replies[5].result).toEqual({ ok: true });
-    expect(replies[6]?.ok).toBe(true); // disconnect 应答在场（先应答后收线）
+    expect(okResult(replies, 1)).toMatchObject({ code: 0, stdout: "ran:/bin/echo hi" });
+    expect(okResult(replies, 2)).toEqual({ sessionId: "pky-term-1-1" });
+    expect(okResult(replies, 3)).toEqual({ ok: true });
+    expect(okResult(replies, 4)).toEqual({ ok: false }); // 未知会话 → false（非 error）
+    expect(okResult(replies, 5)).toEqual({ ok: true });
+  });
+
+  it("disconnect：先应答后收线（幂等路径计一次）", async () => {
+    const scope = fakeScope();
+    const { writable, handle, send } = rig(scope);
+    send(CONNECT);
+    send({ id: 7, op: "disconnect" });
+    await handle.stopped;
+    const replies = writable.replies();
+    expect(replies[1]?.id).toBe(7);
+    expect(replies[1]?.ok).toBe(true); // disconnect 应答在场（先应答后收线）
     expect(scope.disconnectCalls()).toBe(1); // dispatch 一次 + finish 尽力（幂等语义下计一次路径）
     expect(writable.ended).toBe(true);
   });
@@ -127,7 +146,9 @@ describe("brokerServe 服务循环", () => {
     expect(reply?.ok).toBe(false);
     expect(reply && !reply.ok && reply.error).toContain("未连接");
   });
+});
 
+describe("brokerServe 连接异常与收线", () => {
   it("重复 connect → error；connect 装配失败 → error 应答（消息透传）", async () => {
     const { writable, send } = rig(() => {
       throw new Error("helper 摘要不符");

@@ -84,7 +84,7 @@ const CONFIG_REQ = {
   workdir: "/w",
 };
 
-describe("BrokerSshScope（宿主侧客户端）", () => {
+describe("BrokerSshScope（宿主侧客户端）· 连接生命周期", () => {
   it("start：connect 握手成功 → connected；请求行为带五元组", async () => {
     const { child, scope } = rig();
     const started = scope.start();
@@ -103,23 +103,6 @@ describe("BrokerSshScope（宿主侧客户端）", () => {
     child.reply(1, { ok: false, error: "连接建立失败：helper 摘要不符" });
     await expect(started).rejects.toThrow(/helper 摘要不符.*v18/s);
     expect(scope.connected).toBe(false);
-  });
-
-  it("spawn：argv/cwd/stdin/timeoutMs 组装 + 结果透传", async () => {
-    const { child, scope } = rig();
-    await startOk({ child, scope });
-    const promise = scope.spawn(["/bin/echo", "hi"], { stdin: "text", timeoutMs: 5000 });
-    await new Promise((r) => setTimeout(r, 0));
-    expect(child.requests[1]).toEqual({
-      id: 2,
-      op: "spawn",
-      argv: ["/bin/echo", "hi"],
-      cwd: "/w",
-      timeoutMs: 5000,
-      stdin: "text",
-    });
-    child.reply(2, { ok: true, result: { code: 0, stdout: "hi", stderr: "", durationMs: 2 } });
-    await expect(promise).resolves.toMatchObject({ code: 0, stdout: "hi" });
   });
 
   it("子进程意外退出：在途请求被拒 + connected=false + onDisconnected", async () => {
@@ -147,7 +130,9 @@ describe("BrokerSshScope（宿主侧客户端）", () => {
     expect(disconnected).toEqual(["dep-1"]);
     expect(scope.connected).toBe(false);
   });
+});
 
+describe("BrokerSshScope（宿主侧客户端）· 派生失败", () => {
   it("派生失败（系统 Node 缺位）：错误带 PATH/PKY_BROKER_NODE 提示", async () => {
     const { scope } = rig({
       spawnChild: () => {
@@ -155,6 +140,25 @@ describe("BrokerSshScope（宿主侧客户端）", () => {
       },
     });
     await expect(scope.start()).rejects.toThrow(/派生失败.*PKY_BROKER_NODE/s);
+  });
+});
+
+describe("BrokerSshScope（宿主侧客户端）· 请求操作", () => {
+  it("spawn：argv/cwd/stdin/timeoutMs 组装 + 结果透传", async () => {
+    const { child, scope } = rig();
+    await startOk({ child, scope });
+    const promise = scope.spawn(["/bin/echo", "hi"], { stdin: "text", timeoutMs: 5000 });
+    await new Promise((r) => setTimeout(r, 0));
+    expect(child.requests[1]).toEqual({
+      id: 2,
+      op: "spawn",
+      argv: ["/bin/echo", "hi"],
+      cwd: "/w",
+      timeoutMs: 5000,
+      stdin: "text",
+    });
+    child.reply(2, { ok: true, result: { code: 0, stdout: "hi", stderr: "", durationMs: 2 } });
+    await expect(promise).resolves.toMatchObject({ code: 0, stdout: "hi" });
   });
 
   it("shell 组合：/bin/sh -c 包裹 + 255 兜底（与进程内同源语义）", async () => {

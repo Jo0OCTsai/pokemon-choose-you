@@ -29,12 +29,13 @@
  * socket 只能由启动旗标创建——kitty.conf 的 listen_on 解析但不生效（0.49.2 实证：旗标
  * --listen-on + 文件 allow_remote_control 均生效、文件 listen_on 不建 socket），故自举
  * 经 --args 传 --listen-on/--override 旗标，不依赖用户 kitty.conf。
+ *
+ * TerminalAdapter / terminalLine 注入件经 externalTerminalAdapter.ts 拆出（棘轮
+ * max-lines；消费面经该模块 import）。
  */
 import { spawn } from "node:child_process";
 import { existsSync, unlinkSync } from "node:fs";
 import { homedir } from "node:os";
-import type { TerminalAdapter } from "../dispatch/interactive";
-import type { TerminalLineInjector } from "../commands/context";
 import { posixQuote } from "../dispatch/cmdline";
 
 /** 唤起形态（kitty tab 复用 = tab；其余含 kitty 自举 = window——outcome 呈现区分） */
@@ -288,49 +289,4 @@ export function resolveExternalTerminal(
     return null;
   }
   return preferredMacTerminal(preference, env) ?? detectExternalTerminal(env);
-}
-
-/**
- * 交互派发 TerminalAdapter：按次解析（inject 携带 terminalPreference——业务核心读共享
- * 设置传入）唤起真终端（terminal=external-<label>，kitty tab 复用时 external-kitty@tab，
- * 无 sessionRef）；解析无产物 →
- * copy-line handoff（reason=no-terminal）；唤起失败回落 copy-line handoff
- * （reason=spawn-failed，note 携带完整命令行）——零静默链：真窗口 → 复制降级。
- */
-export function createExternalTerminalAdapter(env: ExternalTerminalEnv = {}): TerminalAdapter {
-  return {
-    async inject({ line, workdir, terminalPreference }) {
-      const ext = resolveExternalTerminal(terminalPreference, env);
-      if (ext === null) {
-        return {
-          terminal: "copy-line",
-          reason: "no-terminal",
-          note: `宿主未探测到可用的 GUI 终端（Ghostty/kitty/Alacritty/WezTerm/iTerm2/Terminal）——请复制完整命令行到终端手动执行：${line}`,
-        };
-      }
-      try {
-        const form = await ext.spawn(line, workdir);
-        return { terminal: form === "tab" ? `external-${ext.label}@tab` : `external-${ext.label}` };
-      } catch (error) {
-        return {
-          terminal: "copy-line",
-          reason: "spawn-failed",
-          note: `终端窗口唤起失败（${ext.label}：${String(error instanceof Error ? error.message : error).slice(0, 120)}）——请复制完整命令行到终端手动执行：${line}`,
-        };
-      }
-    },
-  };
-}
-
-/** 回放/lark 登录的 terminalLine 注入件（失败上抛——injectLineGuarded 折 DISPATCH_LAUNCH_FAILED） */
-export function externalTerminalLine(env: ExternalTerminalEnv = {}): TerminalLineInjector {
-  return {
-    async injectLine(line, preference) {
-      const ext = resolveExternalTerminal(preference, env);
-      if (ext === null) {
-        throw new Error("宿主未探测到可用的 GUI 终端");
-      }
-      await ext.spawn(line, null);
-    },
-  };
 }

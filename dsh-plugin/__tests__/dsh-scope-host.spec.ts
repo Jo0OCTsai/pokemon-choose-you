@@ -217,32 +217,41 @@ describe("scopeFor 路由：漂移 / 断连 / 装配失败", () => {
   });
 });
 
+/** broker 子进程 fake：stdin 写入即记 HostRequest；stdout 事件面可注回复；exit 监听可收线 */
+function brokerChildLike(capture: { requests: HostRequest[]; exitListeners: Array<(...args: never[]) => void> }): {
+  stdout: EventEmitter;
+  childLike: never;
+} {
+  const stdout = new EventEmitter();
+  const childLike = {
+    stdin: {
+      write: (chunk: string) => {
+        capture.requests.push(JSON.parse(chunk.trim()) as HostRequest);
+        return true;
+      },
+      end: () => undefined,
+    },
+    stdout: Object.assign(stdout, { setEncoding: () => undefined }) as unknown as Readable,
+    stderr: Object.assign(new EventEmitter(), { setEncoding: () => undefined }),
+    on: (event: "exit" | "error", listener: (...args: never[]) => void) =>
+      event === "exit" ? capture.exitListeners.push(listener) : undefined,
+    kill: () => true,
+  };
+  return { stdout, childLike: childLike as never };
+}
+
 describe("传输面路由：transport=broker（TLS 栈不可用宿主的过渡通道）", () => {
   it("落定部署 → broker 适配装配（内存子进程：connect 握手 + spawn 透传 + 断开通知）", async () => {
     const requests: HostRequest[] = [];
-    const stdout = new EventEmitter();
-    const disconnected: string[] = [];
     const exitListeners: Array<(...args: never[]) => void> = [];
-    const childLike = {
-      stdin: {
-        write: (chunk: string) => {
-          requests.push(JSON.parse(chunk.trim()) as HostRequest);
-          return true;
-        },
-        end: () => undefined,
-      },
-      stdout: Object.assign(stdout, { setEncoding: () => undefined }) as unknown as Readable,
-      stderr: Object.assign(new EventEmitter(), { setEncoding: () => undefined }),
-      on: (event: "exit" | "error", listener: (...args: never[]) => void) =>
-        event === "exit" ? exitListeners.push(listener) : undefined,
-      kill: () => true,
-    };
+    const disconnected: string[] = [];
+    const { stdout, childLike } = brokerChildLike({ requests, exitListeners });
     const host = createSshScopeHost(fakeCtx, {
       transport: "broker",
       broker: {
         nodeBin: "node",
         brokerJsPath: "/fake/broker.mjs",
-        spawnChild: () => childLike as never,
+        spawnChild: () => childLike,
       },
     });
     host.onScopeDisconnected((id) => disconnected.push(id));

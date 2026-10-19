@@ -15,6 +15,9 @@ import type {
   RadioHealth,
   RadioMessage,
   RestoreRunResult,
+  BackupInfo,
+  ImportSummary,
+  TagCheckupReport,
 } from "./rpcTypes";
 import type { Task } from "../host/domain/tasks";
 import { taskSwitchCommands, taskCloseCommands, releaseCommands, taskEditCommands } from "./mockTasks";
@@ -28,7 +31,6 @@ import { diagCommands, logCommands, miscCommands } from "./mockMisc";
 import { readCommands } from "./mockRead";
 import { backupCommands } from "./mockBackup";
 import { deploymentCommands, provisionCommands, sessionCommands, type MockProvisionFailKind } from "./mockRemote";
-import type { BackupInfo, ImportSummary, TagCheckupReport } from "./rpcTypes";
 import type { Tag, TagDimension } from "../host/domain/vocabulary-tags";
 import type { DeploymentEntity } from "../host/remote/deployments";
 import type { ProvisionStep } from "../host/remote/provision";
@@ -153,16 +155,8 @@ function defaultHealth(): MockHostState["health"] {
 
 /** full-parity 缺省 helper 能力位（全 true）——既有组件测试不受横幅/降级面影响；夹具按需覆盖 */
 function defaultHelperCaps(): MockHostState["helperCaps"] {
-  return {
-    "sys-tray": true,
-    "sys-shortcut": true,
-    "sys-notify": true,
-    "sys-tts": true,
-    "sys-dialog": true,
-    "sys-open": true,
-    "input-count": true,
-    "mac-auth": true,
-  };
+  const keys = "sys-tray sys-shortcut sys-notify sys-tts sys-dialog sys-open input-count mac-auth".split(" ");
+  return Object.fromEntries(keys.map((key) => [key, true]));
 }
 
 /** 默认内存态（空库 + 健康绿灯 + 读写库；快捷键已注册、SSH 家族就绪——同上缺省口径） */

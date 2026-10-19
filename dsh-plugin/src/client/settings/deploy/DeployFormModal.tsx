@@ -34,6 +34,58 @@ function formTitleKey(entity: DeploymentEntity | undefined): string {
   return entity === undefined ? "dsh.deploy.form.addTitle" : "dsh.deploy.form.editTitle";
 }
 
+/** 下拉选项组装：空态提示 / 占位 / 编辑态当前别名保留（config 漂移不吞既有值）/ config 别名 */
+function buildAliasOptions(args: {
+  aliasList: string[];
+  loaded: boolean;
+  preserveCurrent: boolean;
+  currentAlias: string;
+  alias: string;
+  emptyLabel: string;
+  placeholderLabel: string;
+}): Array<{ value: string; label: string }> {
+  const options: Array<{ value: string; label: string }> = [];
+  if (args.loaded && args.aliasList.length === 0 && !args.preserveCurrent) {
+    options.push({ value: "", label: args.emptyLabel });
+    return options;
+  }
+  if (args.alias === "") {
+    options.push({ value: "", label: args.placeholderLabel });
+  }
+  if (args.preserveCurrent) {
+    options.push({ value: args.currentAlias, label: args.currentAlias });
+  }
+  for (const name of args.aliasList) {
+    options.push({ value: name, label: name });
+  }
+  return options;
+}
+
+/** 行内校验（返回首个错误的 i18n 键尾段；null = 通过——Node 路径仅新增模式必填） */
+function validateForm(alias: string, nodePath: string, editing: boolean): "aliasRequired" | "pathRequired" | null {
+  if (alias.trim() === "") return "aliasRequired";
+  if (!editing && nodePath.trim() === "") return "pathRequired";
+  return null;
+}
+
+/** 行内错误段（空串不渲染） */
+function FieldError({
+  message,
+  className,
+  testId,
+}: {
+  message: string;
+  className?: string;
+  testId?: string;
+}): React.JSX.Element | null {
+  if (message === "") return null;
+  return (
+    <p className={className} role="alert" data-testid={testId}>
+      ❌ {message}
+    </p>
+  );
+}
+
 export function DeployFormModal({
   entity,
   readonly,
@@ -76,32 +128,25 @@ export function DeployFormModal({
   // 下拉选项：占位（未选/加载中）/ 编辑态当前别名保留（config 漂移不吞既有值）/
   // config 别名；加载完成且无任何可选项 → 空态提示（缺席不是错误态——不报错只提示）
   const aliasList = sshAliases ?? [];
-  const preserveCurrent = editing && entity !== undefined && entity.alias !== "" && !aliasList.includes(entity.alias);
-  const aliasOptions: Array<{ value: string; label: string }> = [];
-  if (sshAliases !== null && aliasList.length === 0 && !preserveCurrent) {
-    aliasOptions.push({ value: "", label: t("dsh.deploy.form.aliasEmpty") });
-  } else {
-    if (alias === "") {
-      aliasOptions.push({ value: "", label: t("dsh.deploy.form.aliasPlaceholder") });
-    }
-    if (preserveCurrent && entity !== undefined) {
-      aliasOptions.push({ value: entity.alias, label: entity.alias });
-    }
-    for (const name of aliasList) {
-      aliasOptions.push({ value: name, label: name });
-    }
-  }
+  const currentAlias = entity?.alias ?? "";
+  const preserveCurrent = editing && currentAlias !== "" && !aliasList.includes(currentAlias);
+  const aliasOptions = buildAliasOptions({
+    aliasList,
+    loaded: sshAliases !== null,
+    preserveCurrent,
+    currentAlias,
+    alias,
+    emptyLabel: t("dsh.deploy.form.aliasEmpty"),
+    placeholderLabel: t("dsh.deploy.form.aliasPlaceholder"),
+  });
 
   async function save(): Promise<void> {
     setAliasError("");
     setPathError("");
     setServerError("");
-    if (alias.trim() === "") {
-      setAliasError(t("dsh.deploy.form.aliasRequired"));
-      return;
-    }
-    if (!editing && nodePath.trim() === "") {
-      setPathError(t("dsh.deploy.form.pathRequired"));
+    const invalid = validateForm(alias, nodePath, editing);
+    if (invalid !== null) {
+      (invalid === "aliasRequired" ? setAliasError : setPathError)(t(`dsh.deploy.form.${invalid}`));
       return;
     }
     setSaving(true);
@@ -141,11 +186,7 @@ export function DeployFormModal({
             ariaLabel={t("dsh.deploy.form.alias")}
           />
         </label>
-        {aliasError !== "" && (
-          <p className={styles.formError} role="alert">
-            ❌ {aliasError}
-          </p>
-        )}
+        <FieldError message={aliasError} className={styles.formError} />
         <label className={styles.formRow}>
           <span className={styles.formLabel}>{t("dsh.deploy.form.nodePath")}</span>
           <TextInput
@@ -155,11 +196,7 @@ export function DeployFormModal({
             ariaLabel={t("dsh.deploy.form.nodePath")}
           />
         </label>
-        {pathError !== "" && (
-          <p className={styles.formError} role="alert">
-            ❌ {pathError}
-          </p>
-        )}
+        <FieldError message={pathError} className={styles.formError} />
         <label className={styles.formRow}>
           <span className={styles.formLabel}>{t("dsh.deploy.form.workdir")}</span>
           <TextInput
@@ -173,11 +210,7 @@ export function DeployFormModal({
           <span className={styles.formLabel}>{t("dsh.deploy.form.note")}</span>
           <TextInput value={note} onChange={setNote} ariaLabel={t("dsh.deploy.form.note")} />
         </label>
-        {serverError !== "" && (
-          <p role="alert" data-testid="deploy-form-error">
-            ❌ {serverError}
-          </p>
-        )}
+        <FieldError message={serverError} testId="deploy-form-error" />
       </div>
     </Modal>
   );

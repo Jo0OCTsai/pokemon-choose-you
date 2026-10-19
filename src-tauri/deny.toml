@@ -9,6 +9,17 @@ yanked = "deny"
 # workspace = 仅直接依赖失维护才报错（proc-macro-error / unic-* 系全是 tao/wry/servo
 # 的传递依赖，上游迁移前无解；传递依赖的 unmaintained 仅提示不阻断）
 unmaintained = "workspace"
+# zip 4.6.1（tauri-plugin-updater 2.12 传递依赖）extract 符号链接四连 advisory——仅修于
+# zip 9.x，而 updater 全部已发布版本（含 2.14.0/3.0.0-alpha）semver 锁 zip ^4；2.14.1
+# （首个 zip ^9 版本）发布后升级并移除本豁免（tauri-apps/plugins-workspace#3712）。
+# 降险事实：zip 在 updater 中是 cfg(target_os = "windows") target 依赖，本仓 macOS 载体
+# 产物不编译 zip，cargo deny 跨 target 扫全依赖图才报。
+ignore = [
+  { id = "RUSTSEC-2026-0369", reason = "zip 4.x 无补丁版；等 tauri-plugin-updater 2.14.1（zip ^9）；macOS 产物不编译 zip（windows target 依赖）" },
+  { id = "RUSTSEC-2026-0368", reason = "同上：zip extract 符号链接簇，仅修于 9.0.0" },
+  { id = "RUSTSEC-2026-0367", reason = "同上：zip SUID/SGID 保留，仅修于 9.0.0" },
+  { id = "GHSA-m665-v7pm-7grj", reason = "同上：zip 9.0.4 以下「Zip Cloaking」双头解析差异，仅修于 9.0.5" },
+]
 
 [licenses]
 version = 2

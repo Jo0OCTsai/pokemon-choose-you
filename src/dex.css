@@ -521,13 +521,17 @@ html.reduce-motion *::after {
 }
 
 /* ---- 说明文字悬浮气泡（data-tip）：说明一律迁出常驻版面（原 .set-desc/.set-sub/.set-foot），
-   悬浮对应 label / 卡标题时以气泡呈现；箭头 = 旋转方块，藏于气泡同色底 ---- */
+   悬浮对应 label / 卡标题时以气泡呈现；箭头 = 旋转方块，藏于气泡同色底。
+   闲置 display:none（visibility:hidden 的绝对定位盒仍计入祖先滚动溢出区——长气泡
+   max-width 320 会把窄窗下的卡片 scrollWidth 撑出横向滚动，feishu-chat-filter E2E 锁）；
+   淡入与 0.45s 延迟经 @starting-style 保留（不支持时退化为即时显示） ---- */
 [data-tip] {
   position: relative;
   cursor: help;
 }
 [data-tip]::after {
   content: attr(data-tip);
+  display: none;
   position: absolute;
   left: 0;
   bottom: calc(100% + 7px);
@@ -545,7 +549,6 @@ html.reduce-motion *::after {
   white-space: pre-line;
   box-shadow: 3px 3px 0 rgba(26, 27, 37, 0.2);
   opacity: 0;
-  visibility: hidden;
   pointer-events: none;
   transition:
     opacity 0.1s ease 0s,
@@ -553,6 +556,7 @@ html.reduce-motion *::after {
 }
 [data-tip]::before {
   content: "";
+  display: none;
   position: absolute;
   left: 14px;
   bottom: calc(100% + 4px);
@@ -571,9 +575,18 @@ html.reduce-motion *::after {
 /* 展示延迟 ≈ 原生 tooltip（0.45s），移开即隐：过渡参数取自目标态（hover 态带延迟） */
 [data-tip]:hover::after,
 [data-tip]:hover::before {
+  display: block;
   opacity: 1;
   visibility: visible;
   transition:
     opacity 0.12s ease 0.45s,
     visibility 0s linear 0.45s;
+}
+
+/* display:none→block 的首帧从全显起步——starting-style 归零以保留淡入 */
+@starting-style {
+  [data-tip]:hover::after,
+  [data-tip]:hover::before {
+    opacity: 0;
+  }
 }
