@@ -115,6 +115,11 @@ export const realAgentSpawn: AgentSpawn = (program, argv, opts) =>
       }
     });
     if (opts.stdin !== undefined) {
+      // 子进程未读 stdin 即退出（如无 {prompt} 占位的 CLI 秒退）时写入 EPIPE——失败已由
+      // 退出码路径上报，吞掉 EPIPE 勿成未处理错误炸宿主；其余写入错误维持原样上抛
+      child.stdin?.on("error", (e) => {
+        if ((e as NodeJS.ErrnoException).code !== "EPIPE") throw e;
+      });
       child.stdin?.write(opts.stdin);
       child.stdin?.end();
     }
