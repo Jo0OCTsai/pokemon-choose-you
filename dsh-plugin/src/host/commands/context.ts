@@ -106,8 +106,8 @@ export interface HostCommandDeps {
   shortcutRegistered?: () => boolean | null;
   /** dsh-ssh 家族探测投影（diagnosticsSnapshot.sshFamily；null = 未探测不显行） */
   sshFamily?: () => SshFamilyProjection | null;
-  /** task-state.caught 变体直推（完成路径郑重判定命中时——stateFeed.announceCaught） */
-  announceCaught?(variant: { milestone?: number; streakDays?: number }): void;
+  /** task-state.caught 变体直推（完成路径郑重/收工判定命中时——stateFeed.announceCaught） */
+  announceCaught?(variant: { milestone?: number; streakDays?: number; allDone?: boolean }): void;
   /** 桌宠显隐变化后的 sys-config 回推（tray.petVisible 托盘 label 同步——A3） */
   onPetLifecycle?(): void;
 }

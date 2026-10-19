@@ -6,7 +6,7 @@ import { showDialog } from "./dialog.ts";
 
 const bridge = window.petBridge;
 
-const RING_R = 52;
+const RING_R = 50; // 桌面 RING_R 同值（104px 画布包住 104 精灵）
 const RING_C = 2 * Math.PI * RING_R;
 
 /** 精灵候选链（onerror 逐级回退；耗尽 → 主宝可梦 png 兜底） */
@@ -71,16 +71,16 @@ export function updateRing(progress: { pct: number; tone: "green" | "amber" | "r
   refs.ringFg.style.strokeDasharray = `${String(RING_C * progress.pct)} ${String(RING_C)}`;
 }
 
-// ---- 微动作池（眨眼/左右看/翻面/哈欠，加权 4~9s；working 只留眨眼且减频；双通道全停） ----
+// ---- 微动作池（眨眼/左右看/翻面/哈欠；idle 加权 4~9s、working 7~13s 只留眨眼——桌面 usePetIdle 口径） ----
 const MICRO: { cls: string; ms: number; w: number; workingOk: boolean }[] = [
   { cls: "m-blink", ms: 240, w: 5, workingOk: true },
-  { cls: "m-look", ms: 900, w: 3, workingOk: false },
-  { cls: "m-flip", ms: 600, w: 2, workingOk: false },
+  { cls: "m-look", ms: 1000, w: 3, workingOk: false },
+  { cls: "m-flip", ms: 1200, w: 2, workingOk: false },
   { cls: "m-yawn", ms: 900, w: 1, workingOk: false },
 ];
 
 function scheduleMicro(): void {
-  const delay = 4_000 + Math.random() * 5_000;
+  const delay = mirror.petState.base === "working" ? 7_000 + Math.random() * 6_000 : 4_000 + Math.random() * 5_000;
   setTimeout(() => {
     playMicro();
     scheduleMicro();
@@ -94,8 +94,6 @@ function playMicro(): void {
   const pool = MICRO.filter((m) => (s.base === "working" ? m.workingOk : true));
   const pick = weightedPick(pool);
   if (!pick) return;
-  // working 态眨眼减频：半数跳过本轮（专注时不打扰）
-  if (s.base === "working" && pick.cls === "m-blink" && Math.random() < 0.5) return;
   refs.stage.classList.add(pick.cls);
   setTimeout(() => refs.stage.classList.remove(pick.cls), pick.ms);
 }

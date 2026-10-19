@@ -57,29 +57,32 @@ export interface SceneStep {
   side: -1 | 0 | 1;
 }
 
-/** 单球演出帧序列（预备 120ms → 掷球 300ms → 三摇 600ms → 星星 → 收场 1320ms） */
+/** 单球演出帧序列（预备 120ms → 掷球飞 300ms → 落地停 350ms → 三摇 600ms → 星星/收场——桌面 useCatchScene 节拍） */
 export function plainSceneSeq(): SceneStep[] {
   return [
     { at: 0, phase: "crouch", side: 0 },
     { at: 120, phase: "throw", side: 0 },
-    { at: 420, phase: "shake", side: 0 },
-    { at: 1020, phase: "settle", side: 0 },
-    { at: 1320, phase: "settle", side: 0 },
+    { at: 420, phase: "land", side: 0 },
+    { at: 770, phase: "shake", side: 0 },
+    { at: 1370, phase: "settle", side: 0 },
+    { at: 1400, phase: "settle", side: 0 },
   ];
 }
 
-/** 连胜双球变体（双球左右交替三摇 ×2 轮，≤2s） */
+/** 连胜双球变体（双球齐掷 → 交替三摇 ×2 轮；桌面节拍 ~2.2s——唯一可超 1.5s 的演出） */
 export function streakSceneSeq(): SceneStep[] {
   return [
     { at: 0, phase: "crouch", side: 0 },
     { at: 120, phase: "throw", side: -1 },
     { at: 120, phase: "throw", side: 1 },
-    { at: 420, phase: "shake", side: -1 },
-    { at: 770, phase: "shake", side: 1 },
-    { at: 1120, phase: "shake", side: -1 },
-    { at: 1470, phase: "shake", side: 1 },
-    { at: 1820, phase: "settle", side: 0 },
-    { at: 1920, phase: "settle", side: 0 },
+    { at: 420, phase: "land", side: -1 },
+    { at: 420, phase: "land", side: 1 },
+    { at: 770, phase: "shake", side: -1 },
+    { at: 1120, phase: "shake", side: 1 },
+    { at: 1470, phase: "shake", side: -1 },
+    { at: 1820, phase: "shake", side: 1 },
+    { at: 2170, phase: "settle", side: 0 },
+    { at: 2200, phase: "settle", side: 0 },
   ];
 }
 

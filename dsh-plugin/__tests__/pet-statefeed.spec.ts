@@ -118,15 +118,25 @@ describe("配置下发组装", () => {
     expect(buildSpritesMsg(db.conn).reducedMotion).toBe(true);
   });
 
-  it("pomodoro-config：档位 [15,25,45,60] 固定 + breakMin 读共享设置缺省 5 + enabled 缺省 false", () => {
+  it("pomodoro-config：档位 [15,25,45,60] 固定 + breakMin 读共享设置缺省 5 + enabled/notify/chime 缺省 false", () => {
     expect(buildPomodoroConfig(db.conn)).toEqual({
       durations: [15, 25, 45, 60],
       breakMin: 5,
       enabled: false,
+      notify: false,
+      chime: false,
       lang: "zh-Hans",
     });
     db.conn.prepare("INSERT OR REPLACE INTO settings (key, value) VALUES ('break_minutes', '10')").run();
     expect(buildPomodoroConfig(db.conn).breakMin).toBe(10);
+    db.conn
+      .prepare(
+        "INSERT OR REPLACE INTO settings (key, value) VALUES ('pomodoro_notify', 'true'), ('pomodoro_chime', 'true')",
+      )
+      .run();
+    const on = buildPomodoroConfig(db.conn);
+    expect(on.notify).toBe(true);
+    expect(on.chime).toBe(true);
   });
 
   it("pomodoro-config：enabled 读共享设置 pomodoro_enabled（主应用同键同语义）", () => {

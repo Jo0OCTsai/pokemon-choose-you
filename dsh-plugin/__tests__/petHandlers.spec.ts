@@ -34,8 +34,9 @@ function handlersWith(slots: PluginSlots, seen: { page: string[]; celebrate: str
     newExecutor: () => null,
   });
   slots.feed = {
-    announceCaught: (v: { milestone?: number; streakDays?: number }) =>
-      seen.celebrate.push(String(v.milestone ?? v.streakDays ?? "")),
+    announceCaught: (v: { milestone?: number; streakDays?: number; allDone?: boolean }) =>
+      seen.celebrate.push(String(v.milestone ?? v.streakDays ?? (v.allDone ? "allDone" : ""))),
+    pushTaskState: () => undefined,
     notifyLocalWrite: () => undefined,
   } as never;
   return h;
@@ -68,17 +69,38 @@ describe("petHandlers（桥上行处理器）", () => {
 });
 
 describe("petHandlers：完成庆祝与 sys 事件面", () => {
-  it("done 上行：milestone 前后计数喂判定；非 milestone 不打扰", () => {
+  it("done 上行：milestone 前后计数喂判定；非 milestone 且仍有 open 不打扰", () => {
     const seen = { page: [] as string[], celebrate: [] as string[] };
     const slots: PluginSlots = { feed: null, supervisor: null };
     const h = handlersWith(slots, seen);
-    // 真实任务完成：milestone 前后计数喂判定（非 milestone 不打扰——celebrate 空）
+    // 真实任务完成：milestone 前后计数喂判定；留一只 open → 非 milestone 也非收工，celebrate 空
     conn
       .prepare("INSERT INTO tasks (title, status, created_at) VALUES ('完工', 'active', '2026-01-01T00:00:00+00:00')")
       .run();
-    const taskId = Number((conn.prepare("SELECT id FROM tasks ORDER BY id DESC LIMIT 1").get() as { id: number }).id);
+    conn
+      .prepare(
+        "INSERT INTO tasks (title, status, created_at) VALUES ('待办', 'scheduled', '2026-01-01T00:00:00+00:00')",
+      )
+      .run();
+    const taskId = Number(
+      (conn.prepare("SELECT id FROM tasks WHERE status='active' LIMIT 1").get() as { id: number }).id,
+    );
     expect(() => h.onCmd?.({ op: "done", taskId } as never)).not.toThrow();
     expect(seen.celebrate).toHaveLength(0);
+  });
+
+  it("done 上行：open 清空 → allDone 变体随收官单推直走 announceCaught", () => {
+    const seen = { page: [] as string[], celebrate: [] as string[] };
+    const slots: PluginSlots = { feed: null, supervisor: null };
+    const h = handlersWith(slots, seen);
+    conn
+      .prepare(
+        "INSERT INTO tasks (title, status, created_at) VALUES ('最后一只', 'active', '2026-01-01T00:00:00+00:00')",
+      )
+      .run();
+    const taskId = Number((conn.prepare("SELECT id FROM tasks ORDER BY id DESC LIMIT 1").get() as { id: number }).id);
+    expect(() => h.onCmd?.({ op: "done", taskId } as never)).not.toThrow();
+    expect(seen.celebrate).toEqual(["allDone"]);
   });
 
   it("sys 事件面：托盘/快捷键 open → pageOpen 链；显隐走 supervisor 空转", () => {

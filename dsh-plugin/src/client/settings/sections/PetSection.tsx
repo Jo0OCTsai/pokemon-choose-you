@@ -1,10 +1,10 @@
 /**
  * 桌宠分区页（🐾，对齐主应用 SectionPets + QuotesEditorCard）：主宝可梦（全图鉴搜索选择，
  * 存 PokeAPI 裸 key；「跟随第一个分类」可清回）/ 按宝可梦分组的台词编辑器（pokemon_quotes
- * 是 JSON map——逐精灵 merge 写回，不再平面覆写共享键）/ 输入响应×2/语音/陪跑——标「作用于
- * 主应用桌宠」badge；减弱动效（默认跟随系统，U15——dsh helper 同读）；启动时自动显示
- * 桌宠（petAutoStart，dsh Config schema 即时写——pluginConfig，A2 双轨）+ 显示桌宠
- * （petShow/petHide 即时动作；hello 握手 5 秒未完成时行内警告，恢复入口 U4）。
+ * 是 JSON map——逐精灵 merge 写回，不再平面覆写共享键）/ 输入响应×2/语音/陪跑/减弱动效/
+ * 显隐与自启。作用面口径（无 badge，语义如实）：输入响应/语音/陪跑两形态生效（helper 经
+ * sys-config / pomodoro-config 下行消费）；主宝可梦与自定义台词目前仅主应用桌宠生效
+ * （helper 下行面待接线，见 host/pet/README 缺口清单）。
  * 宝可梦选择 = PokemonPicker 内联下拉（桌面 PokemonPicker 同构交互）。
  */
 import { useCallback, useEffect, useMemo, useState } from "react";

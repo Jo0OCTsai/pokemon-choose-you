@@ -5,16 +5,13 @@
  *
  * 候选池注记：桌面取图鉴已捕捉 sprites（api.dexStats）；helper 桥协议当前无图鉴统计
  * 下行面（接线注记见 helper/README）——v1 用内置六只精灵清单（sprites.ts 单源）。
- * enabled 注记：pet_mate 共享键（默认关）同样无下行面——MATE_ENABLED 常量关门待接线。
+ * enabled：sys-config.pet.mate 下行投影（pet_mate 共享键，默认关）。
  */
 import { mateSessionReset, pickMateSprite, shouldInviteMate } from "../state/mate.ts";
 import { DEFAULT_BUILTIN } from "../sprites.ts";
 import { lines } from "./lines.ts";
 import { mirror, type Snapshot } from "./mirror.ts";
 import { refs } from "./refs.ts";
-
-/** pet_mate 共享键的 helper 投影（桥协议扩展前默认关——FR-B4 默认关口径） */
-const MATE_ENABLED = false;
 
 let mate: { sprite: string; phase: "walk" | "sit" | "wave" } | null = null;
 let shownThisSession = false;
@@ -28,7 +25,7 @@ export function tickMate(snap: Snapshot): void {
   const focusSec = running && snap.pomo ? (snap.pomo.durationMs - snap.pomo.msLeft) / 1000 : 0;
   if (
     shouldInviteMate({
-      enabled: MATE_ENABLED,
+      enabled: mirror.petConfig.mate,
       working: snap.petState.base === "working",
       focusSec,
       present: mate !== null,

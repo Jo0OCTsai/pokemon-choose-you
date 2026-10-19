@@ -1,8 +1,8 @@
 /**
  * 时刻台词纯逻辑（FR-B2，语义移植主应用 composables/useTimeLines.ts）：
  * 优先级 生日 > 深夜(23:00–04:59) > 周五晚(≥18) > 整点(9:00–18:59)；
- * 普通类每天一次、整点类每小时一次（去重键 + 内存 Set 消费；桌面用 localStorage，
- * helper 会话内存——重开 helper 当日台词可重播一次，属可接受漂移）。
+ * 普通类每天一次、整点类每小时一次（去重键 + 存储注入消费——渲染层 localStorage
+ * 持久化，桌面同口径；存储不可用退会话内存）。
  * 禁播闸门（睡觉/urgent/对话/演出/拖拽/快捷屏）独立判定，由渲染层组装后传入。
  */
 
@@ -77,14 +77,25 @@ export function birthdayOf(metAtMs: number): { month: number; day: number } | nu
   return { month: d.getMonth() + 1, day: d.getDate() };
 }
 
-/** 内存去重消费器：未播过返回 true 并记账（helper 会话级，不持久化） */
+/** 去重消费器：未播过返回 true 并记账（存储注入——渲染层 localStorage 持久化，桌面同口径；不可用退内存） */
 export class LineDedup {
   private readonly seen = new Set<string>();
+  private readonly storage: { get(key: string): string | null; set(key: string, value: string): void } | null;
+
+  constructor(storage: { get(key: string): string | null; set(key: string, value: string): void } | null = null) {
+    this.storage = storage;
+  }
 
   /** 返回 true = 本次应播（并记账）；false = 本周期已播过 */
   consume(key: string): boolean {
     if (this.seen.has(key)) return false;
+    const persisted = this.storage?.get(key);
+    if (persisted === "1") {
+      this.seen.add(key);
+      return false;
+    }
     this.seen.add(key);
+    this.storage?.set(key, "1");
     return true;
   }
 }

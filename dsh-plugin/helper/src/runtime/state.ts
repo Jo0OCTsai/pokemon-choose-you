@@ -15,6 +15,7 @@ export abstract class RuntimeStateBase {
   protected petVisibleValue = true;
   protected perchedValue = false;
   protected inputResponseValue: InputResponseView = { enabled: false, hopCoupleMax: 0 };
+  protected petConfigValue: { mate: boolean; agentConfigured: boolean } = { mate: false, agentConfigured: true };
 
   get petState(): PetState {
     return this.petStateValue;
@@ -36,5 +37,8 @@ export abstract class RuntimeStateBase {
   }
   get inputResponse(): InputResponseView {
     return this.inputResponseValue;
+  }
+  get petConfig(): { mate: boolean; agentConfigured: boolean } {
+    return this.petConfigValue;
   }
 }

@@ -14,6 +14,7 @@ import type {
   ActiveTask,
   Badge,
   Lang,
+  PomodoroConfigMsg,
   QuickTask,
   SpritesMsg,
   SysConfigMsg,
@@ -107,13 +108,15 @@ export function snapshotTaskState(conn: Conn): {
         "WHERE t.status IN ('active','paused') ORDER BY CASE t.status WHEN 'active' THEN 0 ELSE 1 END, t.started_at DESC LIMIT 1",
     )
     .get() as TaskLikeRow | undefined;
-  // 今日列表（QuickDexScreen 数据源；对齐 domain/tasks today 过滤：到期日 ≤ 今天 或 进行中/暂停）
+  // open 待捕列表（QuickDexScreen 数据源；决策2 对齐桌面 listTasks("open") 语义与排序：
+  // 全部未完成，active > paused > scheduled > inbox，再按优先级与到期——前 12 只）
   const today = conn
     .prepare(
       "SELECT t.id, t.title, t.status, c.sprite FROM tasks t LEFT JOIN categories c ON c.id = t.category_id " +
         "WHERE t.status IN ('inbox','scheduled','active','paused') " +
-        "AND (date(t.due_at) <= date('now','localtime') OR t.status IN ('active','paused')) " +
-        "ORDER BY CASE t.status WHEN 'active' THEN 0 WHEN 'paused' THEN 1 ELSE 2 END LIMIT 20",
+        "ORDER BY CASE t.status WHEN 'active' THEN 0 WHEN 'paused' THEN 1 WHEN 'scheduled' THEN 2 ELSE 3 END, " +
+        "CASE t.priority WHEN 'urgent' THEN 0 WHEN 'high' THEN 1 WHEN 'normal' THEN 2 ELSE 3 END, " +
+        "t.due_at IS NULL, t.due_at LIMIT 12",
     )
     .all() as unknown as TaskLikeRow[];
   return {
@@ -155,18 +158,15 @@ export function buildSpritesMsg(conn: Conn): Omit<SpritesMsg, "type"> {
   };
 }
 
-/** pomodoro-config 下发（档位固定 [15,25,45,60]，breakMin/enabled 读共享设置；D2 本地计时） */
-export function buildPomodoroConfig(conn: Conn): {
-  durations: number[];
-  breakMin: number;
-  enabled: boolean;
-  lang: Lang;
-} {
+/** pomodoro-config 下发（档位固定 [15,25,45,60]，breakMin/enabled/notify/chime 读共享设置；D2 本地计时） */
+export function buildPomodoroConfig(conn: Conn): Omit<PomodoroConfigMsg, "type"> {
   const breakRaw = Number(getSetting(conn, "break_minutes"));
   return {
     durations: [15, 25, 45, 60],
     breakMin: Number.isInteger(breakRaw) && breakRaw > 0 ? breakRaw : 5,
     enabled: getSetting(conn, "pomodoro_enabled") === "true",
+    notify: getSetting(conn, "pomodoro_notify") === "true",
+    chime: getSetting(conn, "pomodoro_chime") === "true",
     lang: resolveLang(conn),
   };
 }

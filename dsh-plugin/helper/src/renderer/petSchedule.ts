@@ -17,7 +17,7 @@ import { mirror } from "./mirror.ts";
 import { withPokemonName } from "./pokemonName.ts";
 import { showDialog } from "./dialog.ts";
 
-const timeLineDedup = new LineDedup();
+const timeLineDedup = new LineDedup(greetStorage());
 const greeter = new PeriodGreeter(greetStorage(), () => new Date());
 
 /** 台词存储：localStorage（桌面 pet.metOn/pet.greetedOn 同族键位；不可用退内存） */

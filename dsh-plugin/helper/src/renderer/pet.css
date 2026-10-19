@@ -118,10 +118,10 @@
   animation: micro-blink 240ms var(--e-pop);
 }
 .m-look .pet-sprite {
-  animation: micro-look 900ms var(--e-sway);
+  animation: micro-look 1000ms var(--e-sway);
 }
 .m-flip .pet-sprite {
-  animation: micro-flip 600ms ease-in-out;
+  animation: micro-flip 1200ms ease-in-out;
 }
 .m-yawn .pet-sprite {
   animation: micro-yawn 900ms var(--e-sleep);
@@ -129,11 +129,12 @@
 
 /* ---- TimeRing（SVG 细环，全程被动，绿→琥珀→红） ---- */
 
+/* 桌面 pomo-ring 同构：104px 画布包住精灵、R=50 描边 5、圆头、剩余比例渐变 */
 .ring {
   position: absolute;
-  inset: 0;
-  width: 112px;
-  height: 112px;
+  inset: 4px;
+  width: 104px;
+  height: 104px;
   transform: rotate(-90deg);
   display: none;
 }
@@ -142,17 +143,18 @@
 }
 .ring-bg {
   fill: none;
-  stroke: var(--dex-navy);
-  stroke-width: 3;
-  opacity: 0.25;
+  stroke: rgba(28, 34, 68, 0.15);
+  stroke-width: 5;
 }
 .ring-fg {
   fill: none;
   stroke: var(--ok);
-  stroke-width: 3;
-  stroke-linecap: butt;
-  stroke-dasharray: 0 327;
-  transition: stroke-dasharray 1s linear;
+  stroke-width: 5;
+  stroke-linecap: round;
+  stroke-dasharray: 0 314;
+  transition:
+    stroke-dasharray var(--t-act) var(--e-snap),
+    stroke var(--t-act);
 }
 .ring[data-tone="amber"] .ring-fg {
   stroke: var(--warn);
@@ -707,22 +709,22 @@
   0%,
   100% {
     opacity: 1;
-    transform: translate(0, 0) rotate(0);
+    transform: translate(0, -46px) rotate(0);
   }
   15% {
-    transform: translate(-2px, 0) rotate(-14deg);
+    transform: translate(-2px, -46px) rotate(-14deg);
   }
   30% {
-    transform: translate(2px, 0) rotate(14deg);
+    transform: translate(2px, -46px) rotate(14deg);
   }
   45% {
-    transform: translate(-2px, 0) rotate(-14deg);
+    transform: translate(-2px, -46px) rotate(-14deg);
   }
   60% {
-    transform: translate(2px, 0) rotate(14deg);
+    transform: translate(2px, -46px) rotate(14deg);
   }
   75% {
-    transform: translate(-1px, 0) rotate(-8deg);
+    transform: translate(-1px, -46px) rotate(-8deg);
   }
 }
 

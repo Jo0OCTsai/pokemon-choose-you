@@ -75,22 +75,43 @@ function parseTaskState(v: Record<string, unknown>): DownstreamMsg | null {
   };
 }
 
-/** caught 变体（2.7 补充接线）：两键均可选，存在必须是有限数 */
+/** caught 变体（2.7 补充接线）：三键均可选，数值键须有限数、allDone 须布尔 */
 function isCaughtVariant(v: unknown): v is CaughtVariant {
   if (!isObj(v)) return false;
   if (v.milestone !== undefined && !isNum(v.milestone)) return false;
-  return v.streakDays === undefined || isNum(v.streakDays);
+  if (v.streakDays !== undefined && !isNum(v.streakDays)) return false;
+  return v.allDone === undefined || typeof v.allDone === "boolean";
 }
 
 function isTaskArray(v: unknown): v is ActiveTask[] {
   return Array.isArray(v) && v.every(isTaskLike);
 }
 
+/** 可选布尔旗标集（存在但非布尔 → null 整条作废；缺省不进结果） */
+function boolFlags(v: Record<string, unknown>, ...keys: string[]): Record<string, boolean> | null {
+  const out: Record<string, boolean> = {};
+  for (const k of keys) {
+    if (v[k] === undefined) continue;
+    if (typeof v[k] !== "boolean") return null;
+    out[k] = v[k] as boolean;
+  }
+  return out;
+}
+
 function parsePomodoroConfig(v: Record<string, unknown>): DownstreamMsg | null {
   const durations = v.durations;
   if (!Array.isArray(durations) || durations.length === 0 || !durations.every(isNum)) return null;
   if (!isNum(v.breakMin) || typeof v.enabled !== "boolean" || !isLang(v.lang)) return null;
-  return { type: "pomodoro-config", durations, breakMin: v.breakMin, enabled: v.enabled, lang: v.lang };
+  const flags = boolFlags(v, "notify", "chime");
+  if (flags === null) return null;
+  return {
+    type: "pomodoro-config",
+    durations,
+    breakMin: v.breakMin,
+    enabled: v.enabled,
+    ...flags,
+    lang: v.lang,
+  };
 }
 
 function parseSprites(v: Record<string, unknown>): DownstreamMsg | null {

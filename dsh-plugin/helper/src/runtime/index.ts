@@ -36,11 +36,6 @@ export interface RuntimeOptions {
   axGranted?: boolean;
   /** headless 平台注入（input-count 的 D32 darwin 门在 Linux CI 上测 darwin 行为用；缺省 = 真实平台） */
   platform?: NodeJS.Platform;
-  /**
-   * 郑重时刻演出输入（FR-B3 演出面）：完成动作时取里程碑/连胜判定 → catch-scene 事件。
-   * 默认恒 plain——host 侧数据面接线后注入（桥协议当前无承载，见 helper/README 接线注记）。
-   */
-  solemn?: () => { milestone: number | null; streakDays: number | null };
 }
 
 export type UiEvent =
@@ -51,14 +46,18 @@ export type UiEvent =
   | { kind: "pet-state"; state: PetState }
   | { kind: "bubble"; text: string; tone: BubbleTone; blink: boolean }
   | { kind: "quit"; reason: HostDeathReason }
-  /** 捕捉演出变体（plain/streak/milestone——庆祝态入口，渲染层据 variant 编排） */
-  | { kind: "catch-scene"; scene: SceneKind }
+  /** 捕捉演出变体（plain/streak/milestone——庆祝态入口，渲染层据 variant 编排；allDone 送客陪跑） */
+  | { kind: "catch-scene"; scene: SceneKind; allDone?: boolean }
   /** AI 聊聊回答（chat-reply 下行直达；ok=false 走失败回退气泡） */
   | { kind: "chat-reply"; text: string; ok: boolean }
   /** 全局输入活动强度（sys inputCount 上行镜像——渲染层微抖/回头/哈欠分档消费） */
   | { kind: "input-activity"; cps: number }
   /** 坐栖判定翻转（拖拽落定/拎起——渲染层姿态幅度减半与落座台词） */
-  | { kind: "perch"; perched: boolean };
+  | { kind: "perch"; perched: boolean }
+  /** 桌宠基础面投影（sys-config.pet：陪跑闸门 + ChatBox 菜单条件项） */
+  | { kind: "pet-config"; mate: boolean; agentConfigured: boolean }
+  /** 长番茄打点（≥45min 中点 1 声 / 剩 5 分钟 2 声——渲染层 Web Audio 合成） */
+  | { kind: "pomo-chime"; count: 1 | 2 };
 
 export type BubbleTone = "info" | "event" | "warn";
 
@@ -86,13 +85,15 @@ export interface HelperRuntime {
   readonly petVisible: boolean;
   /** 输入响应配置投影（渲染层 hop 耦合消费） */
   readonly inputResponse: InputResponseView;
+  /** 桌宠基础面（sys-config.pet 投影：陪跑闸门 + ChatBox 菜单条件项） */
+  readonly petConfig: { mate: boolean; agentConfigured: boolean };
   /** 坐栖态（拖拽落定判定；渲染层姿态幅度减半） */
   readonly perched: boolean;
   sendCmd(op: CmdOp, fields?: Omit<CmdMsg, "type" | "op">): boolean;
   sendFocusSettleNow(): boolean;
   /** 渲染层交互事件回流（拖动开始/结束、撸宠、点击……驱动状态机与唤醒） */
   interact(ev: PetEvent): void;
-  /** 本端完成 → done cmd + focus-settle 结账 + celebrating + catch-scene（变体经 solemn 输入） */
+  /** 本端完成（done cmd + focus-settle 结账；演出与收尾台词等 host task-state.caught 推回后统一编排） */
   completeTask(): void;
   /** 番茄本地控制（开新一轮 / 🍦 先试 5 分钟 / 短休息） */
   pomo: {

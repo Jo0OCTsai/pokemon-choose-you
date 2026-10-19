@@ -130,6 +130,7 @@ function wireDataIpc(win: BrowserWindow, runtime: HelperRuntime): void {
       perched: runtime.perched,
       petVisible: runtime.petVisible,
       inputResponse: runtime.inputResponse,
+      petConfig: runtime.petConfig,
     };
   });
 

@@ -137,6 +137,7 @@ export async function createElectronSys(
     setPetVisible(visible: boolean): void {
       mods.tray.setPetVisible(visible);
     },
+    notify: mods.notify,
     handle: electronRouterHandle(ctx, mods),
     dispose: () => {
       mods.tray.dispose();

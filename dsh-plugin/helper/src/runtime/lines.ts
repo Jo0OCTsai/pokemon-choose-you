@@ -14,6 +14,21 @@ const LINES = {
       : l === "zh-Hant"
         ? "🍅 這輪番茄收工了，休息一下？"
         : "🍅 这轮番茄收工了，休息一下？",
+  /** 🍦 试完收尾（=主应用 pet.trialDone——零挫败：不响长钟不接休息） */
+  trialDone: (l: Lang) =>
+    l === "en"
+      ? "🍦 5 minutes logged! Continue with ▶ if it feels right, or stop for today — both win"
+      : l === "zh-Hant"
+        ? "🍦 5 分鐘打卡完成！感覺對了就 ▶ 繼續，今天到此為止也完全 OK"
+        : "🍦 5 分钟打卡完成！感觉对了就 ▶ 继续，今天到此为止也完全 OK",
+  /** 番茄到期系统通知（=主应用 pet.pomoNotifTitle/Body；pomodoro_notify 共享键门控） */
+  pomoNotifTitle: (l: Lang) => (l === "en" ? "🍅 Pomodoro done!" : l === "zh-Hant" ? "🍅 番茄完成！" : "🍅 番茄完成！"),
+  pomoNotifBody: (l: Lang, t = "", p = "") =>
+    l === "en"
+      ? `How far did '${t}' get? ${p} is resting with you~`
+      : l === "zh-Hant"
+        ? `「${t}」做到哪了？${p}陪你休息一下～`
+        : `「${t}」做到哪了？${p}陪你休息一下~`,
   breakStart: (l: Lang) => (l === "en" ? "☕ taking a break" : l === "zh-Hant" ? "☕ 休息一下" : "☕ 休息一下"),
   breakOver: (l: Lang) =>
     l === "en"
@@ -28,7 +43,28 @@ const LINES = {
       : l === "zh-Hant"
         ? `✔ 捕捉成功！「${t}」記入圖鑑啦`
         : `✔ 捕捉成功！「${t}」记入图鉴啦`,
-} satisfies Record<string, (l: Lang, t?: string) => string>;
+  /** 收工清空（=主应用 pet.allDone——收尾台词最高优先级，allDone 送客陪跑） */
+  allDone: (l: Lang, p = "") =>
+    l === "en"
+      ? `🎉 Today's dex is complete! ${p} says: wrap up and rest!`
+      : l === "zh-Hant"
+        ? `🎉 今日圖鑑圓滿！${p}說：收工，好好休息！`
+        : `🎉 今日图鉴圆满！${p}说：收工，好好休息！`,
+  /** 里程碑（=主应用 pet.milestone「★ 累计 {n} 只！{p}提议开一场图鉴庆典」） */
+  milestone: (l: Lang, p = "", n = 0) =>
+    l === "en"
+      ? `★ ${String(n)} total catches! ${p} proposes a dex party`
+      : l === "zh-Hant"
+        ? `★ 累計 ${String(n)} 隻！${p}提議開一場圖鑑慶典`
+        : `★ 累计 ${String(n)} 只！${p}提议开一场图鉴庆典`,
+  /** 连胜（=主应用 pet.streakN「🐾 连胜 {n} 天！本周的草丛都被你踏平啦！」） */
+  streakN: (l: Lang, n = 0) =>
+    l === "en"
+      ? `🐾 ${String(n)}-day streak! You've trampled every patch of grass this week!`
+      : l === "zh-Hant"
+        ? `🐾 連勝 ${String(n)} 天！本週的草叢都被你踏平啦！`
+        : `🐾 连胜 ${String(n)} 天！本周的草丛都被你踏平啦！`,
+} satisfies Record<string, (l: Lang, ...args: (string | number)[]) => string>;
 
 export function formatCatching(l: Lang, p: string, t: string): string {
   return l === "en" ? `${p} is catching: ${t}` : `${p}正在捕捉：${t}`;

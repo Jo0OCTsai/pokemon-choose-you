@@ -33,7 +33,8 @@ export function playCapture(scene: SceneKind): void {
     setTimeout(() => {
       const count = sceneStarCount(scene);
       burstStars(count);
-      if (scene === "milestone") setTimeout(() => burstStars(6, 18), 150); // 双排星星第二波
+      // 连胜第二波（桌面口径：streak 14 + 150ms 后再 6；milestone 12 单波）
+      if (scene === "streak") setTimeout(() => burstStars(6), 150);
     }, starsAt),
   );
   captureTimers.push(setTimeout(() => endCapture(), endAtMs));
@@ -60,8 +61,8 @@ function stepFn(step: SeqStep): () => void {
       };
     case "land":
       return () => {
-        ball.classList.remove("shake");
-        ball.classList.add("fly", "landed");
+        ball.classList.remove("fly");
+        ball.classList.add("landed");
       };
     case "settle":
       return () => undefined; // 结算在 settle()（星星 + 收口）

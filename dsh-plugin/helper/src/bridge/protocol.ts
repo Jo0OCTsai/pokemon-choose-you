@@ -80,10 +80,12 @@ export interface TaskStateMsg {
   caught?: CaughtVariant;
 }
 
-/** 郑重时刻变体数据（solemn 判定投影：里程碑阈值 / 连胜天数——helper CatchShow 消费） */
+/** 郑重时刻变体数据（solemn 判定投影：里程碑阈值 / 连胜天数 / 收工清空——helper CatchShow 消费） */
 export interface CaughtVariant {
   milestone?: number;
   streakDays?: number;
+  /** 今日待办清空（桌面 allDone = 无进行中且 open 任务为 0——收尾台词最高优先级 + 送客陪跑） */
+  allDone?: boolean;
 }
 
 export interface PomodoroConfigMsg {
@@ -93,6 +95,10 @@ export interface PomodoroConfigMsg {
   breakMin: number;
   /** 番茄功能开关（共享设置 pomodoro_enabled；false 时 PomoPill 不显示——主应用 parity） */
   enabled: boolean;
+  /** 到期系统通知（共享设置 pomodoro_notify——helper 本地 sys-notify 面发声） */
+  notify?: boolean;
+  /** 长番茄提示音（共享设置 pomodoro_chime；仅 ≥45min：中点 1 声 / 剩 5 分钟 2 声） */
+  chime?: boolean;
   lang: Lang;
 }
 

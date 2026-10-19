@@ -1,6 +1,7 @@
 /**
  * 番茄本地计时纯逻辑（D2：各形态本地态不同步，账目由数据层经 focus-settle 合并）。
- * 绝不自动开下一轮（注意力友好原则 2）：focus 到期只置 ended 标志，由 UI 呈现出口。
+ * focus 到期只置 ended 标志；接短休息由 runtime 出口编排（决策3 对齐桌面：breakMin>0
+ * 且非 trial 自动接）；开下一轮专注永远手动（注意力友好原则 2）。
  */
 export interface PomoConfig {
   /** 专注时长档位（分钟）：[15, 25, 45, 60] */
@@ -8,12 +9,21 @@ export interface PomoConfig {
   breakMin: number;
   /** 番茄功能开关（共享设置 pomodoro_enabled；false 时渲染层不显示 PomoPill） */
   enabled: boolean;
+  /** 到期系统通知（共享设置 pomodoro_notify——桌面 parity） */
+  notify: boolean;
+  /** 长番茄提示音（共享设置 pomodoro_chime；仅 ≥45min：中点 1 声 / 剩 5 分钟 2 声） */
+  chime: boolean;
 }
+
+/** 提示音的时长下限（分钟）——桌面 usePomodoro 同口径，短番茄不打点 */
+export const CHIME_MIN_FOCUS = 45;
 
 export const DEFAULT_POMO_CONFIG: PomoConfig = {
   durations: [15, 25, 45, 60],
   breakMin: 5,
   enabled: false,
+  notify: false,
+  chime: false,
 };
 
 export type PomoPhase =
@@ -59,7 +69,7 @@ export function mmss(ms: number): string {
 }
 
 /**
- * 色环进度（0~1，已流逝占比）与档位色（绿 → 琥珀 → 红；时间盲友好，UIUX §5）。
+ * 色环进度（0~1，已流逝占比）与档位色（桌面剩余口径：剩余 >50% 绿 / >25% 琥珀 / 其余红）。
  * 无 phase 返回 null（色环隐藏）。
  */
 export function ringProgress(phase: PomoPhase, now: number): { pct: number; tone: "green" | "amber" | "red" } | null {
@@ -68,6 +78,6 @@ export function ringProgress(phase: PomoPhase, now: number): { pct: number; tone
     phase.kind === "focus" ? phase.durationMin * 60_000 : phase.kind === "break" ? null : TRIAL_MIN * 60_000;
   if (total === null) return { pct: 0, tone: "green" };
   const pct = Math.min(1, Math.max(0, 1 - (phase.endAt - now) / total));
-  const tone = pct >= 0.95 ? "red" : pct >= 0.7 ? "amber" : "green";
+  const tone = pct >= 0.75 ? "red" : pct >= 0.5 ? "amber" : "green";
   return { pct, tone };
 }

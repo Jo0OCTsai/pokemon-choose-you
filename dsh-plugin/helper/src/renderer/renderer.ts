@@ -18,10 +18,12 @@ import "./pet.css";
 import type { Lang, QuickTask } from "../bridge/protocol.ts";
 // 组件模块（import 即完成各自的 DOM 接线）
 import { playCapture } from "./capture.ts";
+import { chime } from "./chime.ts";
 import { handleChatReply, initChatBox, openChat, refreshChatStatic } from "./chatbox.ts";
 import { showDialog } from "./dialog.ts";
 import { fill, lines } from "./lines.ts";
 import { initMenu } from "./menu.ts";
+import { mateLeave } from "./mate.ts";
 import { mirror, type PetStateLite, type Snapshot, type TaskLite } from "./mirror.ts";
 import { tickMate } from "./mate.ts";
 import { feedActivity, initInputResponse } from "./inputResponse.ts";
@@ -34,7 +36,11 @@ import { wireSpriteInteractions } from "./spriteInteract.ts";
 
 const bridge = window.petBridge;
 
-initMenu({ onSwitchTarget: () => toggleQuick(true), onOpenChat: () => openChat() });
+initMenu({
+  onSwitchTarget: () => toggleQuick(true, { switching: true }),
+  onQuickToggle: () => toggleQuick(),
+  onOpenChat: () => openChat(),
+});
 initChatBox();
 initInputResponse();
 wireSpriteInteractions();
@@ -51,10 +57,20 @@ const UI_EVENT_HANDLERS: Record<string, (ev: Record<string, unknown>) => void> =
   "pet-state": handlePetState,
   "pomo-config": handlePomoConfig,
   bubble: handleBubble,
-  "catch-scene": (ev) => playCapture(ev.scene as "plain" | "streak" | "milestone"),
+  "catch-scene": (ev) => {
+    playCapture(ev.scene as "plain" | "streak" | "milestone");
+    if (Boolean(ev.allDone)) mateLeave(); // 收工清空：送客陪跑精灵（桌面 allDone 纪律）
+  },
   "chat-reply": (ev) => handleChatReply(String(ev.text ?? ""), Boolean(ev.ok)),
   "input-activity": (ev) => feedActivity(Number(ev.cps ?? 0)),
   perch: (ev) => handlePerch(Boolean(ev.perched)),
+  "pet-config": (ev) => {
+    mirror.petConfig = {
+      mate: Boolean(ev.mate),
+      agentConfigured: Boolean(ev.agentConfigured),
+    };
+  },
+  "pomo-chime": (ev) => chime(ev.count === 2 ? 2 : 1),
 };
 
 function onUiEvent(ev: Record<string, unknown>): void {
@@ -134,6 +150,7 @@ bridge.onUiEvent((ev: unknown) => onUiEvent(ev as Record<string, unknown>));
 function wireHitToggle(): void {
   let hitActive = false;
   document.addEventListener("mousemove", (e) => {
+    if (e.buttons !== 0) return; // 按住鼠标 = 可能要拖拽，不翻转（桌面 usePetClickThrough 同款守卫）
     const el = e.target as Element | null;
     const hit = !!(el && typeof el.closest === "function" && el.closest(".hit"));
     if (hit !== hitActive) {
@@ -145,15 +162,22 @@ function wireHitToggle(): void {
 
 // ============================== 每秒快照（色环/药丸/坐栖/陪跑/输入响应配置） ==============================
 
+/** 快照镜像回放（lang/动效/坐栖/状态/配置投影）→ 返回坐栖是否新落座 */
+function applySnapToMirror(snap: Snapshot): boolean {
+  mirror.lang = snap.lang ?? mirror.lang;
+  applyReducedMotion(snap.reducedMotion ?? mirror.reducedMotion);
+  const perchedChanged = snap.perched !== mirror.perched;
+  mirror.perched = snap.perched;
+  mirror.petState = snap.petState;
+  mirror.inputResponse = snap.inputResponse ?? mirror.inputResponse;
+  mirror.petConfig = snap.petConfig ?? mirror.petConfig;
+  return perchedChanged;
+}
+
 async function tickSnapshot(): Promise<void> {
   try {
     const snap = (await bridge.snapshot()) as Snapshot;
-    mirror.lang = snap.lang ?? mirror.lang;
-    applyReducedMotion(snap.reducedMotion ?? mirror.reducedMotion);
-    const perchedChanged = snap.perched !== mirror.perched;
-    mirror.perched = snap.perched;
-    mirror.petState = snap.petState;
-    mirror.inputResponse = snap.inputResponse ?? mirror.inputResponse;
+    const perchedChanged = applySnapToMirror(snap);
     applyPetState();
     if (perchedChanged && mirror.perched) handlePerch(true);
     updateRing(snap.pomo?.progress ?? null);

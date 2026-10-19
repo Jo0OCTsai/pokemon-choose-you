@@ -37,6 +37,7 @@ export interface Snapshot {
   perched: boolean;
   petVisible: boolean;
   inputResponse: { enabled: boolean; hopCoupleMax: number };
+  petConfig: { mate: boolean; agentConfigured: boolean };
 }
 
 export interface Mirror {
@@ -63,6 +64,8 @@ export interface Mirror {
   inputResponse: { enabled: boolean; hopCoupleMax: number };
   /** 最近输入活动档位（inputResponse 消费面） */
   inputBand: InputBand;
+  /** 桌宠基础面（sys-config.pet 投影：陪跑闸门 + ChatBox 菜单条件项；快照兜底同步） */
+  petConfig: { mate: boolean; agentConfigured: boolean };
 }
 
 export const mirror: Mirror = {
@@ -81,6 +84,7 @@ export const mirror: Mirror = {
   metAt: Date.now(),
   inputResponse: { enabled: false, hopCoupleMax: 0 },
   inputBand: "silent",
+  petConfig: { mate: false, agentConfigured: true },
 };
 
 /** 任意用户交互的时间戳（asleep 判定与唤醒用） */

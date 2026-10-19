@@ -17,17 +17,17 @@ Electron helper 进程监督（崩溃 10 秒内自拉起）、stdio JSON 行桥�
   接线）+ `tts-speak` 仅本形态；`electronGet.ts`：Electron 运行时按需获取（A32，校验常量内嵌 +
   镜像只换 URL + 原子落位 `~/.dsh/electron/dist/`）。
 
-## 接线缺口注记（任务 2.4/2.5 helper 侧实施发现 · 2026-10-17）
+## 接线缺口注记（任务 2.4/2.5 helper 侧实施发现 · 2026-10-17；2026-10-20 桌宠对齐批更新）
 
-helper sys/ 模块族与桌宠行为已实装；以下数据面在现行桥协议（§4.3，单源 helper/src/bridge/
-protocol.ts）中**无承载通道**，机制在 helper 侧全量在位、默认降级运转——需协议/装配侧
-（任务 2.3/2.6/2.7 owner）裁决补面：
+helper sys/ 模块族与桌宠行为已实装；下表为历史缺口与当前状态（pet-parity 批已收口 1/2/3）：
 
-| # | 缺口 | helper 侧现状 | 建议通道 |
-|---|------|--------------|----------|
-| 1 | **FR-B3 演出变体数据**（里程碑 before/after 图鉴计数、连胜快照）：`solemn.ts` 已在 host 完成判定但只发 `tts-speak`（受 pet_voice 默认关闸门，不能承载视觉变体） | `runtime` 的 `solemn()` 注入点默认恒 plain（单球演出）；里程碑/双球三摇机制与纯函数全量在位（state/catchScene.ts，TDD 全绿） | `task-state` 追加可选 `caught?: { milestone?: number, streakDays?: number }`（完成动作路径内随写后直推下发，向后兼容）或新增下行消息 |
-| 2 | **pet_mate / agentConfigured 共享键**（FR-B4 陪跑默认关、FR-A8 聊聊条件入口） | mate 触发闸门常量关门（MATE_ENABLED=false）待接线；ChatBox 菜单项缺省呈现（host 未配 agent 时经失败回退气泡优雅降级——与 Gherkin「未配置不出现」有偏差，标待确认） | `sys-config` 追加可选分节 `pet?: { mate: boolean, agentConfigured: boolean }`（validators-sys 分节守卫增量，host 侧 SECTION_CAPS 同步） |
-| 3 | **桌宠可见性回传**（托盘「显示/隐藏」label 翻转） | runtime 乐观跟踪（hide cmd / tray-toggle / shortcut 翻转）；host 侧 supervisor.show/hide 未经桥回传时 label 可能漂移 | `sys-config.tray` 追加可选 `petVisible?: boolean`，supervisor 生命周期处重发 |
+| # | 缺口 | 状态（2026-10-20） |
+|---|------|------------------|
+| 1 | **FR-B3 演出变体数据**（里程碑/连胜） | ✅ 已接线：`task-state.caught`（含 `allDone` 收工清空）随 done 收官单推下发；helper `onTaskState` 完成迁移统一消费（变体演出 + 台词优先级 allDone > milestone > streak > 收尾） |
+| 2 | **pet_mate / agentConfigured 共享键** | ✅ 已接线：`sys-config.pet` 分节下发，helper `observeSysConfig` 投影 `pet-config`（mate 闸门开门、ChatBox 菜单条件项如实增减） |
+| 3 | **桌宠可见性回传** | ✅ 已接线：`sys-config.tray.petVisible` + supervisor running 投影 |
+| 4 | **main_pokemon / pokemon_quotes 无下行面** | ⏳ 待接线（P1）：helper 空闲精灵不跟随主宝可梦、不消费每宝可梦自定义台词；建议 `sys-config.pet` 增 `mainPokemon` + quotes 按精灵惰性下发 |
+| 5 | **mate 候选池无图鉴统计下行面** | ⏳ 待接线（P1）：候选池暂用内置六只（桌面用图鉴已捕捉池） |
 
 补面原则：全部为**可选字段的向后兼容增量**（旧 helper 分节守卫丢弃未知字段不崩——
 NFR-14 既有立场），不需协议版本位。

@@ -64,7 +64,10 @@ vi.mock("../api", () => ({
 
 /** 静音环境台词与问候（新测试快进时间窗内不乱入搭话，只留被测气泡） */
 function seedChatter() {
-  localStorage.setItem("pet.greetedOn", new Date().toISOString().slice(0, 10));
+  const now = new Date();
+  const h = now.getHours();
+  const period = h >= 5 && h < 11 ? "morning" : h < 17 ? "day" : h < 22 ? "evening" : "night";
+  localStorage.setItem(`pet.greet.${period}.${now.getFullYear()}-${now.getMonth() + 1}-${now.getDate()}`, "1");
   localStorage.setItem("pet.metOn", String(Date.now() - 30 * 86_400_000)); // 生日不在今天
   localStorage.setItem(lineDedupKey("hour", new Date()), "1");
 }

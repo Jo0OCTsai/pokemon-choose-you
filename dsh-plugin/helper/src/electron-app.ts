@@ -126,8 +126,9 @@ function createWindow(initialPos?: { x: number; y: number }): BrowserWindow {
   });
   win.setAlwaysOnTop(true, "screen-saver");
   // 跨 Space 悬浮：窗口默认归属创建时所在的 Space（多全屏/多桌面切换即消失——真机反馈）。
-  // canJoinAllSpaces 跟随用户当前 Space + fullscreenAuxiliary 允许悬浮在全屏 app 之上
-  win.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
+  // canJoinAllSpaces 跟随用户当前 Space；visibleOnFullScreen 关闭 = 不悬浮在全屏 app 之上
+  // （全屏避让社区惯例：真全屏（游戏独占/全屏视频）让路——置顶看门狗也压不过系统全屏层）
+  win.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: false });
   // 默认点击穿透（forward 让渲染层仍能收到 mousemove 做命中翻转）
   win.setIgnoreMouseEvents(true, { forward: true });
   placeWindow(win, initialPos);

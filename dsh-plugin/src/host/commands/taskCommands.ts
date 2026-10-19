@@ -24,7 +24,7 @@ import {
   type TaskPatch,
 } from "../domain/tasks";
 import { validEscapeReason } from "../domain/suggest-types";
-import { celebrateSolemn, caughtVariantOf, dexDoneCount } from "../pet/solemn";
+import { celebrateSolemn, caughtVariantOf, dexDoneCount, openTaskCount } from "../pet/solemn";
 import type { CommandFn, CommandTable, DeleteUndoSnapshot } from "./context";
 
 const ORIGIN = "dsh";
@@ -108,15 +108,20 @@ const taskDeleteUndo: CommandFn<{ taskId: number }> = (p, deps) => {
 const taskComplete: CommandFn<{ taskId?: number }> = (p, deps) => {
   // 郑重时刻（A30 · 2.7 接线）：完成动作发生在本形态 → 前后图鉴计数喂 milestone 判定；
   // 判定命中 → task-state.caught 变体直推（A1——helper CatchShow 消费）；出声由
-  // celebrateSolemn 内部门控（pet_voice 默认静音 / helper 缺席不发）
+  // celebrateSolemn 内部门控（pet_voice 默认静音 / helper 缺席不发）。
+  // allDone（收工清空）随变体同行——直推先于 onWrites（后到的 plain 快照 prev 已空为 no-op）
   const before = dexDoneCount(deps.conn);
   const task = completeTask(deps.conn, p.taskId ?? getCurrentTask(deps.conn)?.id, ORIGIN);
   const solemn = celebrateSolemn(deps.conn, () => deps.petBridge?.() ?? null, {
     before,
     after: dexDoneCount(deps.conn),
   });
-  if (solemn !== null) {
-    deps.announceCaught?.(caughtVariantOf(solemn));
+  const allDone = openTaskCount(deps.conn) === 0;
+  if (solemn !== null || allDone) {
+    deps.announceCaught?.({
+      ...(solemn === null ? {} : caughtVariantOf(solemn)),
+      ...(allDone ? { allDone: true } : {}),
+    });
   }
   deps.onWrites();
   return task;

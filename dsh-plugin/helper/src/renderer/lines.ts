@@ -23,11 +23,14 @@ export interface LineSet {
   petQuotes: string[];
   /** 快捷屏空态 */
   quickEmpty: string;
-  /** 右键菜单 */
+  /** 右键菜单（对齐桌面六项口径与文案） */
   menuSwitch: string;
+  menuQuick: string;
+  quickClose: string;
+  menuPause: string;
   menuOpenPage: string;
   menuHide: string;
-  /** AI 聊聊入口（UIUX §8 helper 行；agentConfigured 才现——接线注记见 helper/README） */
+  /** AI 聊聊入口（UIUX §8 helper 行；agentConfigured 才现） */
   menuChat: string;
   /** 素材缺失单次提示（A20） */
   spriteMissing: string;
@@ -71,11 +74,14 @@ const hans: LineSet = {
   greetNight: "夜深了，{p}说：再专注也要睡觉哦",
   chatQuotes: ["嗯？有什么事吗？", "我在听呢。", "皮皮～", "要一起去草丛看看吗？"],
   petQuotes: ["嘿嘿，好舒服～", "再摸摸头也可以哦。", "呼噜呼噜……"],
-  quickEmpty: "草丛静悄悄——今天还没有待捕捉的目标",
-  menuSwitch: "⇄ 换目标",
-  menuOpenPage: "打开图鉴机页面",
+  quickEmpty: "图鉴屏空空的，去图鉴机遇见一只野生宝可梦吧",
+  menuSwitch: "切换捕捉目标…",
+  menuQuick: "快捷图鉴屏",
+  quickClose: "✕ 收起",
+  menuPause: "暂停当前任务",
+  menuOpenPage: "打开图鉴机",
   menuHide: "隐藏桌宠",
-  menuChat: "💬 对话",
+  menuChat: "💬 和精灵聊聊",
   spriteMissing: "素材缺失，先由{p}代班",
   pausedLine: "{p}在原地休息",
   escapedLine: "{t} 逃走了，下次再遇到它",
@@ -97,7 +103,7 @@ const hans: LineSet = {
   chatPh: "问它任务 / 图鉴的事…",
   chatSend: "发送",
   chatClose: "收起对话",
-  chatChips: ["连胜几天了？", "接下来做什么？", "今天辛苦了"],
+  chatChips: ["今天还剩什么？", "这周捕捉了多少？", "连胜几天了？"],
 };
 
 const hant: LineSet = {
@@ -108,11 +114,14 @@ const hant: LineSet = {
   greetNight: "夜深了，{p}說：再專注也要睡覺哦",
   chatQuotes: ["嗯？有什麼事嗎？", "我在聽呢。", "皮皮～", "要一起去草叢看看嗎？"],
   petQuotes: ["嘿嘿，好舒服～", "再摸摸頭也可以哦。", "呼嚕呼嚕……"],
-  quickEmpty: "草叢靜悄悄——今天還沒有待捕捉的目標",
-  menuSwitch: "⇄ 換目標",
-  menuOpenPage: "打開圖鑑機頁面",
+  quickEmpty: "圖鑑屏空空的，去圖鑑機遇見一隻野生寶可夢吧",
+  menuSwitch: "切換捕捉目標…",
+  menuQuick: "快捷圖鑑屏",
+  quickClose: "✕ 收起",
+  menuPause: "暫停目前任務",
+  menuOpenPage: "開啟圖鑑機",
   menuHide: "隱藏桌寵",
-  menuChat: "💬 對話",
+  menuChat: "💬 和精靈聊聊",
   spriteMissing: "素材缺失，先由{p}代班",
   pausedLine: "{p}在原地休息",
   escapedLine: "{t}逃走了，下次再遇到它",
@@ -134,7 +143,7 @@ const hant: LineSet = {
   chatPh: "問牠任務 / 圖鑑的事…",
   chatSend: "送出",
   chatClose: "收起對話",
-  chatChips: ["連勝幾天了？", "接下來做什麼？", "今天辛苦了"],
+  chatChips: ["今天還剩什麼？", "這週捕捉了多少？", "連勝幾天了？"],
 };
 
 const en: LineSet = {
@@ -145,11 +154,14 @@ const en: LineSet = {
   greetNight: "It's late—{p} says: focus, but sleep too",
   chatQuotes: ["Hm? What's up?", "I'm listening.", "Pika~", "Shall we check the tall grass?"],
   petQuotes: ["Hehe, that's nice~", "Head pats welcome.", "Purr purr…"],
-  quickEmpty: "The tall grass is quiet — nothing to catch today yet",
-  menuSwitch: "⇄ Switch target",
-  menuOpenPage: "Open Pokédex page",
+  quickEmpty: "Nothing here yet—encounter a wild Pokemon in the Pokedex",
+  menuSwitch: "Switch target…",
+  menuQuick: "Quick Dex screen",
+  quickClose: "✕ Close",
+  menuPause: "Pause current task",
+  menuOpenPage: "Open Pokédex",
   menuHide: "Hide pet",
-  menuChat: "💬 Chat",
+  menuChat: "💬 Chat with your Pokemon",
   spriteMissing: "Sprite missing — {p} is standing in",
   pausedLine: "{p} is resting",
   escapedLine: "{t} got away — you'll meet again",
@@ -171,7 +183,7 @@ const en: LineSet = {
   chatPh: "Ask about tasks / Pokedex…",
   chatSend: "Send",
   chatClose: "Close chat",
-  chatChips: ["Streak lately?", "What's next?", "Good work today"],
+  chatChips: ["What's left today?", "How many caught this week?", "Streak lately?"],
 };
 
 const LINES: Record<Lang, LineSet> = { "zh-Hans": hans, "zh-Hant": hant, en };
