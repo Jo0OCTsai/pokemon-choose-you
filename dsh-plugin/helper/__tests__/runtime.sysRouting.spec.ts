@@ -45,6 +45,9 @@ function makeHarness(opts: { axGranted?: boolean } = {}) {
   };
 }
 
+/** 流回合冲刷（PassThrough 消费与上行 data 事件经事件循环调度——CI 慢机非同步落地） */
+const flush = (): Promise<void> => new Promise((resolve) => setImmediate(resolve));
+
 describe("sys 路由（hello 能力位 + 七下行全消费）", () => {
   it("hello 含 8 系统能力位（headless 全量声明）", () => {
     const h = makeHarness();
@@ -94,12 +97,14 @@ describe("sys 路由：两段语义与授权联动", () => {
     h.runtime.dispose();
   });
 
-  it("授权撤销 → seq 0 主动上报 + inputCount 即停", () => {
+  it("授权撤销 → seq 0 主动上报 + inputCount 即停", async () => {
     const h = makeHarness({ axGranted: true });
     h.write({ type: "sys-config", inputResponse: { enabled: true } });
+    await flush();
     expect(h.sys.inputCount.running).toBe(true);
     h.sys.macAuth.revoke();
     expect(h.sys.inputCount.running).toBe(false);
+    await flush();
     expect(h.upstream("mac-auth-result")).toEqual([
       { type: "mac-auth-result", seq: 0, kind: "accessibility", granted: false },
     ]);
