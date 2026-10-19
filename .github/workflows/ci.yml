@@ -177,12 +177,12 @@ jobs:
             uiohook-napi: false
           YAML
           pnpm add "file:$GITHUB_WORKSPACE/dsh-plugin"
-          test -f node_modules/dsh-plugin/dist/host.js
-          test -f node_modules/dsh-plugin/helper/dist/main.js
+          test -f node_modules/pokemon-choose-you-dsh/dist/host.js
+          test -f node_modules/pokemon-choose-you-dsh/helper/dist/main.js
           # 插件显示元数据分发面（dsh 插件管理器 readPluginMeta 消费：locale/* 三语 title/description + icon）
-          test -f node_modules/dsh-plugin/locale/en.json
-          test -f node_modules/dsh-plugin/icon.svg
-          node -e "const {createRequire}=require('node:module'); const fs=require('node:fs'); const path=require('node:path'); const real=fs.realpathSync('node_modules/dsh-plugin/dist/host.js'); const r=createRequire(real); const u=path.join(path.dirname(r.resolve('uiohook-napi')), '..', 'prebuilds', 'linux-x64', 'uiohook-napi.node'); fs.accessSync(u); console.log('uiohook prebuild OK:', u); console.log('dsh-ssh closure OK:', r.resolve('@deepseek-ai/dsh-ssh/package.json'))"
+          test -f node_modules/pokemon-choose-you-dsh/locale/en.json
+          test -f node_modules/pokemon-choose-you-dsh/icon.svg
+          node -e "const {createRequire}=require('node:module'); const fs=require('node:fs'); const path=require('node:path'); const real=fs.realpathSync('node_modules/pokemon-choose-you-dsh/dist/host.js'); const r=createRequire(real); const u=path.join(path.dirname(r.resolve('uiohook-napi')), '..', 'prebuilds', 'linux-x64', 'uiohook-napi.node'); fs.accessSync(u); console.log('uiohook prebuild OK:', u); console.log('dsh-ssh closure OK:', r.resolve('@deepseek-ai/dsh-ssh/package.json'))"
       # schema 字节同源断言在 rust job 的 contracts_schema_single_source（include_str! × 磁盘）；
       # i18n 三语键集断言随 i18n 装配模块（并行组后续任务）挂入本 job
 
