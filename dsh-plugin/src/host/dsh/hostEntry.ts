@@ -34,7 +34,7 @@ import { electronSpawner } from "../pet/supervisor";
 import { dbFileFrom } from "../storage/paths";
 import { registerEmbeddedSchemas } from "../storage/migrate";
 import schemaRaw from "../storage/schema-raw";
-import { dshSubagentExecutorOf } from "./subagentExecutor";
+import { dshSessionExecutorOf } from "./sessionExecutor";
 import type { HelperSpawner } from "../pet/supervisor";
 import type { TimerApi as LoopTimer } from "../dispatch/autoDispatch";
 import { registerTodoTools } from "./toolRegister";
@@ -54,9 +54,9 @@ export { DSH_CAPABILITY_KEYS, probeDshCapabilities, sshFamilyOf } from "./probeD
 /** 入口 id（cordis.patch.yml 的 insert id 同名；包名 pokemon-choose-you-dsh 是安装定位面） */
 export const name = "pokemon-choose-you";
 
-/** 必需服务（timer 需 inject；agents/subagents/agentDefaultModel = 内置判定通道消费面——
+/** 必需服务（timer 需 inject；agents/sessions/agentDefaultModel = 内置判定通道消费面——
  *  dsh-base 恒在场，缺席则插件不装（fail fast）） */
-export const inject = ["tools", "timer", "agents", "subagents", "agentDefaultModel"];
+export const inject = ["tools", "timer", "agents", "sessions", "agentDefaultModel"];
 
 /**
  * 插件 Config（schemastery；A2 Config 双轨最小集）。
@@ -69,17 +69,20 @@ export const Config = z.object({
     .volatile()
     .description("随宿主启动显示桌宠（helper/electron 就绪才生效；未就绪自动降级停用）"),
   judgeExecutor: z
-    .union(["subagent", "cli"])
-    // A7 原裁恢复（2026-10-18 内置通道落型）：默认 subagent；cli = 外部 agent CLI 子进程
-    .default("subagent")
+    .union(["session", "subagent", "cli"])
+    // root 会话形态（2026-10-19 裁决）：默认 session（一批一会话，进主会话列表可回放）；
+    // subagent = 旧存量值别名（同走内置通道，仅避免宿主已存配置校验失败）；cli = 外部 agent CLI 子进程
+    .default("session")
     .volatile()
-    .description("判定执行方：subagent = dsh 内置通道（无头 subagent）；cli = 外部 agent CLI 子进程"),
+    .description(
+      "判定执行方：session = dsh 内置通道（root 会话一批一会话，可回放；旧值 subagent 等价）；cli = 外部 agent CLI 子进程",
+    ),
 });
 
 /** loader 解析后的 config 形态（volatile 字段为 { get() } 引用；兼容普通值便于测试） */
 export interface ResolvedPkyConfig {
   petAutoStart: { get(): boolean } | boolean;
-  judgeExecutor: { get(): "subagent" | "cli" } | "subagent" | "cli";
+  judgeExecutor: { get(): "session" | "subagent" | "cli" } | "session" | "subagent" | "cli";
 }
 
 /** volatile/普通值兼容读取（live 表单改值经 .get() 生效） */
@@ -123,10 +126,11 @@ function pluginDepsOf(
       set: () => undefined, // 平台持久化归 dsh 配置面（Phase B 客户端设置段写回）
     },
     // 判定执行方（volatile 活读——背包改值热应用后下一次判定即生效）：cli = 业务核心缺省
-    // （主 agent CLI 子进程）；subagent = dsh 内置通道（dsh/subagentExecutor.ts，A7 默认）。
+    // （主 agent CLI 子进程）；session/subagent（旧值别名）= dsh 内置通道
+    // （dsh/sessionExecutor.ts，root 会话一批一会话，默认）。
     // newExecutor 每次判定调用（pollLoop / 命令面），活闭包按当前配置值路由
     newExecutor: (conn) =>
-      readSetting(config.judgeExecutor) === "cli" ? defaultJudgeExecutor(conn) : dshSubagentExecutorOf(ctx),
+      readSetting(config.judgeExecutor) === "cli" ? defaultJudgeExecutor(conn) : dshSessionExecutorOf(ctx),
     // dispatchDeps/larkBin 缺省：lark-cli 走 PATH；无头派发 executorFor 缺省走 local 子进程。
     // 交互终端/terminalLine（debt ③ a desktop 载体解 + 终端偏好遵循）：dsh 桌面 app
     // （Electron 宿主）→ 适配器按次解析（共享设置 terminal_preference 命中优先，探测链

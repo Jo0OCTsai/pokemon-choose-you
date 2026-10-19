@@ -1,5 +1,5 @@
 /**
- * dsh tools 注册面（AD §3.1 tools/：dsh tools 注册，会话模型与判定 subagent 的统一
+ * dsh tools 注册面（AD §3.1 tools/：dsh tools 注册，会话模型与判定通道的统一
  * 消费面——薄壳，全部转发到 domain/judge/dispatch；FR-T2 与 pk 面等价）。
  *
  * 本模块只约定注册表形态与调用信封；真实 dsh tools API 的接线（注册/反注册/schema

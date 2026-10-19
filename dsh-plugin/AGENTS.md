@@ -9,7 +9,7 @@
 ## 不变量与红线
 
 - **业务核心零 dsh 依赖**：`domain/ radio/ judge/ anonymize/ dispatch/ storage/ reminder/` 是纯逻辑 + SQL 原语，
-  不 import 任何 dsh/Cordis 平台面；平台面（timer/subagent/worktrees/SSH/slots/terminal）只允许在
+  不 import 任何 dsh/Cordis 平台面；平台面（timer/agents+sessions 会话面/worktrees/SSH/slots/terminal）只允许在
   适配层（`dsh/`（含 sshScope 唯一 dsh-ssh 触碰点 + probeDsh 探测 + tlsStack/broker* BoringSSL
   宿主过渡传输）、`broker/`（brokerMain——dist/broker.mjs 入口，系统 Node 子进程侧零 dsh 宿主依赖）、
   `index.ts` 装配、tools 注册面、pet/dispatch 适配缝）触碰——RC 期破坏性变更被限制在薄适配层。**`remote/` 整体也零 dsh import**：
@@ -28,6 +28,7 @@
   存在性校验在命令层（domain 不反向依赖 `remote/`），alias 改名级联改写 `ai_agents`（`confirmAliasRefs`）；
   生效引用 `ref = target = alias`，hostKey 归一 `ssh:<alias>`；`agent.remote`（SSH host/端口表单）保留为
   桌面共享面，不驱动插件派发。
+- **常驻隧道与 pk 通道（ADR-0003）**：`remote/tunnelSupervisor.ts`（零 dsh import）+ `remote/tunnelLock.ts`（与桌面 `tunnel_lock.rs` 同锁协议：`<appHome>/tunnels/<部署id>` 目录锁 + PID 探活）维持任一宿主驻留期的隧道；`remote/pkLocal.ts` 纯 dsh 的 vendor → `~/.choose-you/bin/pk` 落位；`dsh/pkSetup.ts` spawn `pk remote setup`。装配在 `dsh/hostEntry.ts`（服务注入命令面 `tunnels`/`pkSetup`，部署写命令 resync）。
 - **coverage 口径**：`vite.config.ts` thresholds 四维 85 只统计 `src/host/**`（business core）；
   client 组件不入口径但**进质量棘轮**（复杂度/覆盖率地板按服务全量）。**不要把 vite.config.ts 改名为
   vitest.config.ts**（会脱离棘轮发现面）。

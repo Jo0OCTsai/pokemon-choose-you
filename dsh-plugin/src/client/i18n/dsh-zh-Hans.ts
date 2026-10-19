@@ -252,7 +252,7 @@ export default {
   config: {
     judgeExecutor: "AI 判定方式",
     judgeExecutorDesc:
-      "收到的消息由谁做 AI 判定（生成待办建议）：dsh 内置通道 = 宿主自带的无头智能体（默认，用宿主配置的模型）；不指定 = 第一个启用的 agent。改值即时生效（无需保存）",
+      "收到的消息由谁做 AI 判定（生成待办建议）：dsh 内置通道 = 宿主自带会话智能体（默认，用宿主配置的模型；每批判定一条会话，可在宿主会话列表回放）；不指定 = 第一个启用的 agent。改值即时生效（无需保存）",
     judgeSubagent: "dsh 内置通道（默认）",
     petAutoStart: "启动时自动显示桌宠",
     petAutoStartTip: "DeepSeek Harness 启动时自动唤出；关闭后可在背包 · 桌宠分区点「显示桌宠」",

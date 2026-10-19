@@ -8,23 +8,24 @@
 - `hostEntry.ts` —— 插件入口（loader 消费 `name`/`inject`/`Config`/`apply`）：
   能力探测（node:sqlite 硬拒绝）→ `createPlugin` 真实装配（ctx.interval 映射 timer、
   helper/electron 探测桌宠、judgeExecutor 配置分流——volatile 活读闭包：cli 分支复用
-  assembly 导出的 `defaultJudgeExecutor` 单源，subagent 分支走 `subagentExecutor.ts`
-  的 dsh 内置通道（A7 默认），背包改值经 Loader 热应用后下一次判定即生效，无需重启
-  宿主；inject 声明 agents/subagents/agentDefaultModel——内置通道消费面，dsh-base
-  恒在场、缺席插件不装）→ 22 工具经 defineTool 注册 →
+  assembly 导出的 `defaultJudgeExecutor` 单源，内置通道分支走 `sessionExecutor.ts`
+  （root 会话形态，默认；旧值 subagent 同路由——ADR-0004），背包改值经 Loader 热应用
+  后下一次判定即生效，无需重启宿主；inject 声明 agents/sessions/agentDefaultModel
+  ——内置通道消费面，dsh-base 恒在场、缺席插件不装）→ 22 工具经 defineTool 注册 →
   host 命令挂 `PkyRemoteService`（Typert Remote 数据面，见下）。
-- `subagentExecutor.ts` —— **dsh 内置判定通道**（A7 无头 subagent，原
-  `subagentExecutorPlaceholder` 的真实接面）：`ctx.subagents.startActivation`
-  （provider=spawn 进程内全新子级 / delivery=caller 调用方等待 / outputSchema 结构化
-  输出——child 直接返回建议数组）+ `ctx.agents.create` 常驻 root 父 agent（首次判定
-  懒建、origin=subagent 分类不进主会话列表、模型组合取 `agentDefaultModel
-  .currentSelection()`）。selfLanding=false——orchestrator 走 domain/suggest 提交期
-  校验落库（A21 修正重试同路径）；超时 120s（对齐 CLI agent 缺省）经 AbortSignal +
-  dispose 归还；stopReason 非 completed / 结构缺失判失败；会话账本 sessionId=childId
-  （捕捉路径也已接线透传）。服务面经结构化收窄（SubagentsFace/AgentsFace/
-  AgentDefaultModelFace——零 dsh 包 import，业务核心无感知）。真机闭环：pky-link
-  web 宿主快捕判定 4.5s 落库 todo。已知局限（debt）：结构化路径无 pk context
-  （判重/分类/标签/相对时间缺上下文，模型 reason 自陈）。
+- `sessionExecutor.ts` —— **dsh 内置判定通道**（root 会话形态，ADR-0004：一批一会话
+  ——每批判定 = 一条顶层会话，进宿主主会话列表、可回放）：`ctx.agents.create` root
+  agent（无 origin 分类、meta.cwd 归组项目、模型组合取 `agentDefaultModel
+  .currentSelection()`）→ `followup` 投递判定 prompt（结构化构造 UserMessage）→
+  `whenIdle` 静默 → 从 session 事件折叠末段 assistant 文本与 turn 终态 →
+  `ctx.sessions.flush` 落盘 → `dispose` 归还运行时（会话文件留档；失败/超时也先
+  flush 留部分转录）。无 outputSchema 结构化约束——prompt 要求裸 JSON 返回 + 围栏
+  容忍解析；selfLanding=false——orchestrator 走 domain/suggest 提交期校验落库（A21
+  修正重试同路径）；超时 120s（对齐 CLI agent 缺省）经 race + dispose 归还；turn
+  终态非 completed / JSON 解析失败判失败；会话账本 sessionId = 会话 id（`pky-judge-`
+  前缀）。服务面经结构化收窄（AgentsFace/SessionsFace/AgentDefaultModelFace——零
+  dsh 包 import，业务核心无感知）。已知局限（debt）：判定会话无插件工具装配
+  （判重/分类/标签/相对时间缺上下文）。
 - `toolSchema.ts` —— 22 工具参数类型表 + `toDslParameters` 映射器（我们 ParamDecl →
   dsh defineTool 的 JSON DSL 判别联合）；完整性测试锁表键集 == 注册表参数摘要。
 - `sshScope.ts` —— **唯一 dsh-ssh 家族触碰点**（任务 2.1）：per-deployment isolate
@@ -48,7 +49,7 @@
   spawnTerminal/writeFile 不支持；verify 过后 helperPath/Hash 落库自然切家族链）。
 - `probeDsh.ts` —— capability 探测实装（任务 2.2，AD §4.8）：dsh 平台面 8 键
   （`DSH_CAPABILITY_KEYS` = CAPABILITY_KEYS 的 dsh 子集）装配期真实探测——dsh-ssh =
-  家族双包动态 import + 导出面形状（class + 静态 Config/inject）；terminal/subagent/
+  家族双包动态 import + 导出面形状（class + 静态 Config/inject）；terminal/session/
   worktrees/timer = ctx 表面；storage/slots 缺失按前序自持口径标 ok。结果进
   diagnosticsSnapshot 的 `capabilities` 段（响应扩展归任务 2.9），`sshFamily` 字段 =
   `capabilities["dsh-ssh"]` 的呈现投影（`sshFamilyOf`，不另立第二条探测路径）。

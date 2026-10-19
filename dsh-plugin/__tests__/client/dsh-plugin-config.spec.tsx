@@ -73,8 +73,8 @@ describe("pluginConfig · receiver 绑定（真机解绑坑回归）", () => {
     // 裸函数解构调用——useSyncExternalStore 的实际调用形态（class 方法丢 this 即此处崩）
     const { getSnapshot } = controller;
     expect(getSnapshot().value?.judgeExecutor).toBe("cli");
-    await controller.set("judgeExecutor", "subagent");
-    expect(getSnapshot().value?.judgeExecutor).toBe("subagent");
+    await controller.set("judgeExecutor", "session");
+    expect(getSnapshot().value?.judgeExecutor).toBe("session");
   });
 });
 
@@ -109,7 +109,7 @@ describe("JudgeRunnerRow · AI 判定方式平铺选择器", () => {
     });
   });
 
-  it("选内置通道只写 judgeExecutor=subagent（ai_agent_id 不动），显示切到哨兵值", async () => {
+  it("选内置通道只写 judgeExecutor=session（ai_agent_id 不动），显示切到哨兵值", async () => {
     const scope = new FakeScope({ value: { judgeExecutor: "cli" } });
     const controller = createPluginConfig(fakeForms(scope));
     const host = mockHost();
@@ -120,10 +120,23 @@ describe("JudgeRunnerRow · AI 判定方式平铺选择器", () => {
     );
     fireEvent.change(await screen.findByRole("combobox"), { target: { value: JUDGE_BUILTIN_VALUE } });
     await waitFor(() => {
-      expect(scope.sets).toEqual([{ field: "judgeExecutor", value: "subagent" }]);
+      expect(scope.sets).toEqual([{ field: "judgeExecutor", value: "session" }]);
     });
     expect(host.calls.filter((c) => c.command === "configWrite")).toEqual([]);
     // 快照回流后受控值跟随哨兵
+    await waitFor(() => {
+      expect((screen.getByRole("combobox") as HTMLSelectElement).value).toBe(JUDGE_BUILTIN_VALUE);
+    });
+  });
+
+  it("旧存量值 subagent 与 hostEntry 路由同口径走内置通道（哨兵显示，非 cli 即内置）", async () => {
+    const scope = new FakeScope({ value: { judgeExecutor: "subagent" } });
+    const controller = createPluginConfig(fakeForms(scope));
+    renderRow(
+      <JudgeRunnerRow agentOptions={AGENT_OPTIONS} agentId="agent-1" onAgentPicked={() => undefined} />,
+      mockHost(),
+      controller,
+    );
     await waitFor(() => {
       expect((screen.getByRole("combobox") as HTMLSelectElement).value).toBe(JUDGE_BUILTIN_VALUE);
     });

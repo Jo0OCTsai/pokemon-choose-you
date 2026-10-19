@@ -260,7 +260,7 @@ export default {
   config: {
     judgeExecutor: "AI judgment mode",
     judgeExecutorDesc:
-      "Who runs AI judgment on incoming messages (todo suggestions): the built-in channel is the host's own headless agent (default, uses the host-configured model); None = the first enabled agent. Changes apply immediately (no save needed)",
+      "Who runs AI judgment on incoming messages (todo suggestions): the built-in channel runs on the host's own session agent (default, uses the host-configured model; each batch is one session, replayable in the host session list); None = the first enabled agent. Changes apply immediately (no save needed)",
     judgeSubagent: "Built-in dsh channel (default)",
     petAutoStart: "Show the pet automatically on startup",
     petAutoStartTip: "Summon the pet when DeepSeek Harness starts; turn off and show it from Backpack · Pet",

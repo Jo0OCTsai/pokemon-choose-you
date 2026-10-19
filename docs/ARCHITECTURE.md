@@ -61,7 +61,7 @@ graph TD
 | `domain/` | 纯逻辑核心：任务/派发状态机、建议分诊 CAS、审计、专注入账、背包词表、36 设置键面与提示词覆盖/修订检测 |
 | `radio/` | timer 轮询（D14 分支 A，拉取步零 LLM）、水位 CAS、退避、lark-cli 子进程封装 |
 | `anonymize/` | 假名化/还原（与 Rust 逐 fixtures 对齐，D17 群名不脱敏） |
-| `judge/` | 判定编排：批次组装、claim 协议、执行方适配（无头 subagent / 外部 CLI）、强校验 |
+| `judge/` | 判定编排：批次组装、claim 协议、执行方适配（内置 root 会话 / 外部 CLI）、强校验 |
 | `dispatch/` | 派发链路：项目路由、无头/交互编排、worktree、SSH deployment 引用、`dispatch_slots` 并发槽、回传落库 |
 | `pet/` | 桌宠 helper 生命周期监督、桥协议、任务状态事件流（≤2 秒变更侦听） |
 | `health/` | 诊断快照、支持报告与日志查看器（共用三层脱敏管线）、运行日志环形缓冲（2000 条） |

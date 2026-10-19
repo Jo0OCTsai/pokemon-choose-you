@@ -1,7 +1,7 @@
 /**
  * todo_* 工具面聚合（AD §4.1 全部 20 行 / 22 工具名——成对工具 done/undone、
  * start/pause、tag_list/create、dispatch_done/fail、pet_hide/show 各占一行表项）。
- * 会话模型与判定 subagent 的统一消费面：`createTodoTools()` 装配完整注册表，
+ * 会话模型与判定通道的统一消费面：`createTodoTools()` 装配完整注册表，
  * dsh 适配层后续把它投影到真实 dsh tools API（本任务不接真 dsh）。
  */
 import { defineTools, type ToolRegistry } from "./registry";

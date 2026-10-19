@@ -35,13 +35,13 @@ describe("兼容矩阵一致性（FR-X7 / NFR-3 ③）", () => {
     expect(matrixKeys()).toHaveLength(CAPABILITY_KEYS.length);
   });
 
-  it("矩阵键无重复；探测清单覆盖 node:sqlite/timer/subagent/worktrees/ssh/storage/slots/terminal 全集", () => {
+  it("矩阵键无重复；探测清单覆盖 node:sqlite/timer/session/worktrees/ssh/storage/slots/terminal 全集", () => {
     const keys = matrixKeys();
     expect(new Set(keys).size).toBe(keys.length);
     for (const surface of [
       "node-sqlite",
       "dsh-timer",
-      "dsh-subagent",
+      "dsh-session",
       "dsh-worktrees",
       "dsh-ssh",
       "dsh-storage",

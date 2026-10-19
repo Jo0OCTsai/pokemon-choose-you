@@ -6,7 +6,7 @@
  * assembly.ts（本文件再出口，消费面 import 路径不变）。
  *
  * 真实 dsh（Cordis）Context 的桥接留接口注释、不引 dsh 包：dsh 适配层后续把
- * tools/commands/pageOpen/chip 投影到真实平台面（timer/subagent/worktrees/ssh/
+ * tools/commands/pageOpen/chip 投影到真实平台面（timer/session/worktrees/ssh/
  * storage/slots/terminal 表面探测同在适配层落位，键已入 CAPABILITY_KEYS 锁一致性）。
  */
 import { createRequire } from "node:module";
@@ -21,7 +21,7 @@ export type HostContext = Record<string, unknown>;
 /**
  * apply 期能力探测清单全集（单源）：键与 docs/compatibility.md 矩阵「探测键」列
  * 逐字一致（NFR-3 ③——矩阵与探测项不一致即红）。node:sqlite / node 运行时在本仓
- * 可直接探测；dsh 表面（timer/subagent/worktrees/ssh/storage/slots/terminal）探测
+ * 可直接探测；dsh 表面（timer/session/worktrees/ssh/storage/slots/terminal）探测
  * 挂真实 dsh Context 的适配层（本任务不接真 dsh，键先入清单锁一致性）。
  */
 export const CAPABILITY_KEYS = [
@@ -29,7 +29,7 @@ export const CAPABILITY_KEYS = [
   "node-sqlite",
   "dsh",
   "dsh-timer",
-  "dsh-subagent",
+  "dsh-session",
   "dsh-worktrees",
   "dsh-ssh",
   "dsh-storage",

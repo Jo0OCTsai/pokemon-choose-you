@@ -12,7 +12,7 @@
  * 探测方式（AD §4.8 表 / docs/compatibility.md 矩阵同步）：
  * - dsh-ssh：动态 import 家族双包可解析 + 导出面形状（default class + 静态 Config）
  * - dsh-terminal：宿主 ctx 终端表面（subprocess.spawnTerminal / ctx.terminals）
- * - dsh-subagent / dsh-worktrees / dsh-timer：ctx 注入面存在性
+ * - dsh-session / dsh-worktrees / dsh-timer：ctx 注入面存在性
  * - dsh-storage / dsh-slots：ctx 注入面存在性；宿主无对应服务 → 按前序自持口径标 ok
  *   （插件 storage 唯一握连接 / dispatch_slots 库内实现——detail 注明自持）
  *
@@ -25,7 +25,7 @@ export const DSH_CAPABILITY_KEYS = [
   "dsh",
   "dsh-ssh",
   "dsh-terminal",
-  "dsh-subagent",
+  "dsh-session",
   "dsh-worktrees",
   "dsh-timer",
   "dsh-storage",
@@ -51,7 +51,7 @@ export interface DshHostSurface {
   interval?: unknown;
   subprocess?: { spawnTerminal?: unknown };
   terminals?: unknown;
-  subagents?: unknown;
+  sessions?: unknown;
   worktrees?: unknown;
   storage?: unknown;
   slots?: unknown;
@@ -190,7 +190,7 @@ export async function probeDshCapabilities(ctx?: DshHostSurface): Promise<DshCap
     dsh: probePlatform(ctx),
     "dsh-ssh": await probeSshFamily(),
     "dsh-terminal": probeTerminal(ctx),
-    "dsh-subagent": probeInjectSurface(ctx, "subagents", "判定执行方 subagent 桥不可用（诊断呈现，不阻断核心闭环）"),
+    "dsh-session": probeInjectSurface(ctx, "sessions", "判定会话通道不可用（诊断呈现，不阻断核心闭环）"),
     "dsh-worktrees": probeInjectSurface(ctx, "worktrees", "宿主无 worktrees 注入面（基线宿主未提供；诊断呈现）"),
     "dsh-timer": probeTimer(ctx),
     "dsh-storage": probeSelfHosted(ctx, "storage", "插件 storage 唯一握连接，不依赖宿主 storage 服务"),

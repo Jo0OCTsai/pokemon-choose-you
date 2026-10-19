@@ -16,7 +16,7 @@ function fullSurface(): DshHostSurface {
     timer: {},
     subprocess: { spawnTerminal: () => Promise.resolve({}) },
     terminals: {},
-    subagents: {},
+    sessions: {},
     worktrees: {},
     storage: {},
     slots: {},
@@ -45,7 +45,7 @@ describe("ctx 表面探测（fake 全枚举）", () => {
     }
     expect(probes.dsh.detail).toContain("isolate");
     expect(probes["dsh-terminal"].detail).toContain("spawnTerminal");
-    expect(probes["dsh-subagent"].detail).toContain("subagents");
+    expect(probes["dsh-session"].detail).toContain("sessions");
     expect(probes["dsh-storage"].detail).toContain("storage");
     expect(probes["dsh-slots"].detail).toContain("slots");
   });
@@ -55,7 +55,7 @@ describe("ctx 表面探测（fake 全枚举）", () => {
     expect(probes.dsh.ok).toBe(false);
     expect(probes["dsh-terminal"].ok).toBe(false);
     expect(probes["dsh-terminal"].detail).toContain("复制命令行");
-    expect(probes["dsh-subagent"].ok).toBe(false);
+    expect(probes["dsh-session"].ok).toBe(false);
     expect(probes["dsh-worktrees"].ok).toBe(false);
     expect(probes["dsh-timer"].ok).toBe(false);
     // 前序自持：宿主无服务不构成缺失（插件不依赖该两面）

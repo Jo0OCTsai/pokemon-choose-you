@@ -1,12 +1,12 @@
 /**
- * 判定执行方适配器（AD §4.5：无头 subagent / 外部 agent CLI）——CLI 侧行为基准 =
+ * 判定执行方适配器（AD §4.5：内置通道 / 外部 agent CLI）——CLI 侧行为基准 =
  * src-tauri/src/ai/invocation.rs（args 中 {prompt} 替换、未出现走 stdin）、
  * src-tauri/src/ai/runner.rs（超时下限 10s、{"result","session_id"} 信封解包、
  * agent 经 pk suggest batch 写回后从库回读——结果落库与进程退出是两件事）、
  * src-tauri/src/commands/radio/judge.rs 的 run_and_collect（整批遗漏判失败）。
  * 会话账本落 agent_sessions（kind=classify，sessions.rs log_session_conn 同构）。
- * 零 dsh 依赖：spawn 可注入；dsh subagent 真实桥在适配层 dsh/subagentExecutor.ts
- * （结构化输出 + 非 selfLanding 落库，本文件 fake 仍为测试替身）。
+ * 零 dsh 依赖：spawn 可注入；dsh 内置通道真实桥在适配层 dsh/sessionExecutor.ts
+ * （root 会话一批一会话 + 非 selfLanding 落库，本文件 fake 仍为测试替身）。
  */
 import { spawn } from "node:child_process";
 import { existsSync } from "node:fs";
@@ -45,7 +45,7 @@ export interface JudgeExecutor {
   run(batch: JudgeBatch): Promise<JudgeRunOutcome>;
 }
 
-// ---- 本地 fake subagent（测试替身：内存结构化结果） ----
+// ---- 本地 fake 执行方（测试替身：内存结构化结果） ----
 
 /** fake 执行方：fn 收批返回结构化建议（selfLanding=false——由编排层校验落库） */
 export function fakeSubagentExecutor(
