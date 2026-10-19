@@ -3,7 +3,7 @@
 //! 远程 agent 的技能装在**远端机器**的 agent 全局目录——技能是给 agent 读的，
 //! 必须落在 agent 实际运行的那台机器上（pk 本体经 shim 回本机执行，不受影响）。
 
-use crate::ai::{self, AgentConfig, AgentRemote};
+use crate::ai::{self, AgentConfig, RemoteTarget};
 use crate::db::Db;
 use crate::error::{AppError, AppResult};
 use crate::skills::{self, REMOTE_INSTALL_SENTINEL};
@@ -51,9 +51,10 @@ fn load_agent(db: &Db, agent_id: &str) -> AppResult<AgentConfig> {
         .ok_or_else(|| AppError::Invalid(format!("Agent {agent_id} 不存在，请先保存配置")))
 }
 
-/// agent 的有效 SSH 目标（host 为空视为本机）
-fn effective_remote(agent: &AgentConfig) -> Option<&AgentRemote> {
-    agent.remote.as_ref().filter(|r| !r.host.trim().is_empty())
+/// agent 的有效 SSH 目标（部署绑定解析：悬空绑定按可操作报错；未绑定 = 本机）
+fn effective_remote(db: &Db, agent: &AgentConfig) -> AppResult<Option<RemoteTarget>> {
+    let conn = db.0.lock().unwrap();
+    crate::commands::resolve_remote_target(&conn, agent).map_err(|e| AppError::Invalid(e.message))
 }
 
 /// agent 的技能根目录覆盖（trim 后非空才算），本地与远程同源
@@ -84,31 +85,19 @@ fn skill_kind(agent: &AgentConfig) -> AppResult<String> {
 /// ssh 到远端执行一行命令（BatchMode 免密前提与无头分类一致）；
 /// stdin 有内容则写入（安装脚本走这里，不经远端 shell 重解析）
 pub(crate) async fn ssh_run(
-    remote: &AgentRemote,
+    alias: &str,
     remote_line: &str,
     stdin: Option<&str>,
 ) -> AppResult<String> {
+    // alias 模式（ADR-0003）：凭据与端口由 ~/.ssh/config 承载
     let mut argv = vec![
         "-o".to_string(),
         "BatchMode=yes".to_string(),
         "-o".to_string(),
         "ConnectTimeout=10".to_string(),
     ];
-    if let Some(key) = remote
-        .key_path
-        .as_deref()
-        .map(str::trim)
-        .filter(|k| !k.is_empty())
-    {
-        argv.push("-i".to_string());
-        argv.push(key.to_string());
-    }
-    if remote.port != 0 && remote.port != 22 {
-        argv.push("-p".to_string());
-        argv.push(remote.port.to_string());
-    }
-    argv.push(remote.host.trim().to_string());
     argv.push("--".to_string());
+    argv.push(alias.trim().to_string());
     argv.push(remote_line.to_string());
     let mut cmd = tokio::process::Command::new(ai::ssh_bin());
     cmd.args(&argv)
@@ -135,12 +124,7 @@ pub(crate) async fn ssh_run(
     }
     let waited = tokio::time::timeout(Duration::from_secs(60), child.wait_with_output()).await;
     let out = match waited {
-        Err(_) => {
-            return Err(AppError::External(format!(
-                "SSH 远程执行（{}）超时",
-                remote.host
-            )))
-        }
+        Err(_) => return Err(AppError::External(format!("SSH 远程执行（{}）超时", alias))),
         Ok(r) => r.map_err(|e| AppError::External(format!("ssh 执行失败: {e}")))?,
     };
     if out.status.success() {
@@ -149,7 +133,7 @@ pub(crate) async fn ssh_run(
         let stderr = String::from_utf8_lossy(&out.stderr);
         Err(AppError::External(format!(
             "SSH 远程执行（{}）失败: {}",
-            remote.host,
+            alias,
             stderr.trim()
         )))
     }
@@ -165,7 +149,7 @@ pub async fn agent_skill_status(
     let kind = skill_kind(&agent)?;
     let bundled = skills::SKILL_VERSION.to_string();
     let dir_override = skill_dir_override(&agent);
-    match effective_remote(&agent) {
+    match effective_remote(&db, &agent)? {
         None => {
             let dir = skills::skill_dir_for(&kind, dir_override).map_err(AppError::Invalid)?;
             let (installed, installed_version) = skills::local_status(&dir);
@@ -184,7 +168,7 @@ pub async fn agent_skill_status(
             let line =
                 skills::remote_status_line(&kind, dir_override).map_err(AppError::Invalid)?;
             let wrapped = format!("exec \"$SHELL\" -lc {}", ai::posix_quote(&line));
-            let out = ssh_run(remote, &wrapped, None).await?;
+            let out = ssh_run(&remote.alias, &wrapped, None).await?;
             let installed_version = skills::frontmatter_version(out.trim());
             let installed = installed_version.is_some() || out.trim_start().starts_with("---");
             // 自定义根目录展示实际落点（<根>/pokemon-choose-you，远端机器上的路径）；
@@ -200,7 +184,7 @@ pub async fn agent_skill_status(
                 agent_id,
                 kind,
                 dir,
-                remote_host: Some(remote.host.clone()),
+                remote_host: Some(remote.alias.clone()),
                 installed,
                 installed_version: installed_version.clone(),
                 up_to_date: installed && installed_version.as_deref() == Some(&bundled),
@@ -221,7 +205,7 @@ pub async fn agent_skill_install(
     let kind = skill_kind(&agent)?;
     let version = skills::SKILL_VERSION.to_string();
     let dir_override = skill_dir_override(&agent);
-    match effective_remote(&agent) {
+    match effective_remote(&db, &agent)? {
         None => {
             let dir = skills::skill_dir_for(&kind, dir_override).map_err(AppError::Invalid)?;
             let (previous, path) = skills::local_install(&dir).map_err(AppError::External)?;
@@ -241,7 +225,7 @@ pub async fn agent_skill_install(
             let status_line =
                 skills::remote_status_line(&kind, dir_override).map_err(AppError::Invalid)?;
             let out = ssh_run(
-                remote,
+                &remote.alias,
                 &format!("exec \"$SHELL\" -lc {}", ai::posix_quote(&status_line)),
                 None,
             )
@@ -249,7 +233,8 @@ pub async fn agent_skill_install(
             let previous = skills::frontmatter_version(out.trim());
             let script =
                 skills::remote_install_script(&kind, dir_override).map_err(AppError::Invalid)?;
-            let result = ssh_run(remote, "exec \"$SHELL\" -lc 'sh -s'", Some(&script)).await?;
+            let result =
+                ssh_run(&remote.alias, "exec \"$SHELL\" -lc 'sh -s'", Some(&script)).await?;
             // 哨兵校验：远端脚本全部落盘成功才会回显（profile 输出可能混入，按整行匹配）
             let expected = format!("{REMOTE_INSTALL_SENTINEL} {version}");
             if !result.lines().any(|l| l.trim() == expected) {
@@ -270,7 +255,7 @@ pub async fn agent_skill_install(
                 agent_id,
                 kind,
                 dir,
-                remote_host: Some(remote.host.clone()),
+                remote_host: Some(remote.alias.clone()),
                 updated,
                 previous_version: previous,
                 version,
@@ -309,10 +294,7 @@ mod tests {
             id: id.into(),
             name: id.into(),
             command: command.into(),
-            remote: host.map(|h| AgentRemote {
-                host: h.into(),
-                ..Default::default()
-            }),
+            deployment: host.map(|h| h.to_string()),
             skill_dir: skill_dir.map(str::to_string),
             ..Default::default()
         };
@@ -502,6 +484,12 @@ mod tests {
             let db = app.state::<Db>();
             let conn = db.0.lock().unwrap();
             seed_agent(&conn, "r1", "claude", Some("dev@box"));
+            // 绑定的部署须在注册表（resolve_remote_target 悬空即拒）
+            conn.execute(
+                "INSERT OR REPLACE INTO settings (key, value) VALUES ('dsh:deployments', ?1)",
+                rusqlite::params![r#"{"dep-1":{"id":"dep-1","alias":"dev@box","nodePath":"/usr/bin/node","helperPath":"","helperHash":null,"workdir":"","note":"","status":"draft","lastError":null,"provision":null,"degraded":false,"pkTunnel":null}}"#],
+            )
+            .unwrap();
         }
         let tmp = std::env::temp_dir().join(format!("pk-skill-ssh-{}", std::process::id()));
         std::fs::create_dir_all(&tmp).unwrap();
@@ -572,6 +560,12 @@ mod tests {
                 Some("dev@box"),
                 Some("~/my skills"),
             );
+            // 绑定的部署须在注册表（resolve_remote_target 悬空即拒）
+            conn.execute(
+                "INSERT OR REPLACE INTO settings (key, value) VALUES ('dsh:deployments', ?1)",
+                rusqlite::params![r#"{"dep-1":{"id":"dep-1","alias":"dev@box","nodePath":"/usr/bin/node","helperPath":"","helperHash":null,"workdir":"","note":"","status":"draft","lastError":null,"provision":null,"degraded":false,"pkTunnel":null}}"#],
+            )
+            .unwrap();
         }
         let tmp = std::env::temp_dir().join(format!("pk-skill-sshc-{}", std::process::id()));
         std::fs::create_dir_all(&tmp).unwrap();

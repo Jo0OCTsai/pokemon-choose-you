@@ -3,8 +3,12 @@
  * alias 唯一索引约束在写入时校验），整读-改-整写（A24 模式，同 dsh:dispatch_routes）。
  * 零新表零迁移；随库备份/导出。
  *
- * 实体字段白名单（NFR-11③ 凭据零存储的机检面）：键集 = ER §5.1 全集，超出即测试断言红。
- * 路径不变式（§4.5）：nodePath/workdir 只存展开后 POSIX 绝对路径——显式拒 `~` 前缀与相对路径。
+ * 实体字段白名单（NFR-11③ 凭据零存储的机检面）：键集 = ER §5.1 全集 + pkTunnel
+ * （ADR-0003），超出即测试断言红。路径不变式（§4.5）：nodePath/workdir 只存展开后
+ * POSIX 绝对路径——显式拒 `~` 前缀与相对路径。
+ *
+ * 落库规范序（PROTOCOL §8，与 Rust oracle 字节一致的单源）：map 按 id 字典序、实体键
+ * 按白名单序、未知键排尾按字典序——storeDeployments 统一 canonicalize。
  *
  * 写面拆件（棘轮 max-lines，等量迁移）：upsert = deploymentUpsert.ts、移除 + 自清理 =
  * deploymentDelete.ts；本文件为统一再出口（消费面不变）。
@@ -19,10 +23,16 @@ export const DEPLOYMENTS_KEY = "dsh:deployments";
 /** 部署状态机取值（SDD §3.3） */
 export type DeploymentStatus = "draft" | "probing" | "not_ready" | "installing" | "ready" | "disconnected";
 
+/** pk 通道机器级隧道配置（ADR-0003 §2；PROTOCOL §8 pkTunnel） */
+export interface PkTunnelConfig {
+  /** 远端侧隧道端口（1..=65535；0 拒绝） */
+  port: number;
+  /** 常驻开关（任一宿主驻留期维持） */
+  persistent: boolean;
+}
+
 /**
- * 部署实体（ER §5.1 字段白名单精确到键集；camelCase 与仓内 TS 实体惯例一致——
- * id / alias / nodePath / helperPath / helperHash / workdir / note / status /
- * lastError / provision / degraded，共 11 键，凭据零存储）。
+ * 部署实体（PROTOCOL §8 字段表；键集 = 白名单精确到键，凭据零存储）。
  */
 export interface DeploymentEntity {
   /** 实体唯一键（upsert 无 id 时生成；路由引用用 alias 不用 id） */
@@ -47,9 +57,11 @@ export interface DeploymentEntity {
   provision: ProvisionState | null;
   /** 直连降级标记（D31：仅显式确认留痕后可达 true） */
   degraded: boolean;
+  /** pk 通道隧道配置（null = 未配置；alias 改名时一并清空——PROTOCOL §8） */
+  pkTunnel: PkTunnelConfig | null;
 }
 
-/** 实体 JSON 键集白名单（测试断言单源；超出即 NFR-11③ 断言红） */
+/** 实体 JSON 键集白名单（测试断言单源；超出即 NFR-11③ 断言红）。序 = 落库规范序 */
 export const DEPLOYMENT_FIELD_WHITELIST = [
   "id",
   "alias",
@@ -62,7 +74,46 @@ export const DEPLOYMENT_FIELD_WHITELIST = [
   "lastError",
   "provision",
   "degraded",
+  "pkTunnel",
 ] as const;
+
+/** 实体键集判定（canonicalize 的已知键面 = 白名单） */
+const KNOWN_KEYS: ReadonlySet<string> = new Set(DEPLOYMENT_FIELD_WHITELIST);
+
+/** 缺省填充（与 Rust DeploymentEntity::default 对齐——canonicalize 补齐缺失键） */
+const FIELD_DEFAULTS: Record<string, unknown> = {
+  id: "",
+  alias: "",
+  nodePath: "",
+  helperPath: "",
+  helperHash: null,
+  workdir: "",
+  note: "",
+  status: "",
+  lastError: null,
+  provision: null,
+  degraded: false,
+  pkTunnel: null,
+};
+
+/**
+ * 实体 canonicalize：白名单键按规范序（缺失键按缺省补齐）+ 未知键排尾字典序。
+ * 双端落库字节一致性的 TS 半边（Rust 半边 = 结构体声明序 + flatten extra）。
+ */
+function canonicalizeEntity(entity: DeploymentEntity): Record<string, unknown> {
+  const source = entity as unknown as Record<string, unknown>;
+  const out: Record<string, unknown> = {};
+  for (const key of DEPLOYMENT_FIELD_WHITELIST) {
+    const v = source[key];
+    out[key] = v === undefined ? FIELD_DEFAULTS[key] : v;
+  }
+  for (const key of Object.keys(source).sort()) {
+    if (!KNOWN_KEYS.has(key) && !(key in out)) {
+      out[key] = source[key];
+    }
+  }
+  return out;
+}
 
 // ---- 整读-改-整写（A24） ----
 
@@ -81,11 +132,15 @@ export function listDeployments(conn: Conn): Record<string, DeploymentEntity> {
   }
 }
 
-/** 部署列表整写（upsert / delete / 断连收口共用落库单点） */
+/** 部署列表整写（upsert / delete / 断连收口共用落库单点；规范序 = PROTOCOL §8） */
 export function storeDeployments(conn: Conn, deployments: Record<string, DeploymentEntity>): void {
+  const canonical: Record<string, unknown> = {};
+  for (const id of Object.keys(deployments).sort()) {
+    canonical[id] = canonicalizeEntity(deployments[id]);
+  }
   conn
     .prepare("INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)")
-    .run(DEPLOYMENTS_KEY, JSON.stringify(deployments));
+    .run(DEPLOYMENTS_KEY, JSON.stringify(canonical));
 }
 
 /** 按 id 取实体（不存在 = null） */

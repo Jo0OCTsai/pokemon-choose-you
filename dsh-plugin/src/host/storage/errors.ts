@@ -38,6 +38,9 @@ export const ERROR_CODES = [
   "DEPLOYMENT_NOT_READY",
   "PROVISION_STEP_FAILED",
   "HELPER_HASH_MISMATCH",
+  // ---- ADR-0003：部署实体双端一等读写（PROTOCOL §2 23 枚） ----
+  "DEPLOYMENT_ALIAS_TAKEN",
+  "DEPLOYMENT_INPUT_INVALID",
 ] as const;
 
 export type ErrorCode = (typeof ERROR_CODES)[number];

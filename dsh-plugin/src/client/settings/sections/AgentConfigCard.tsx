@@ -166,7 +166,7 @@ function AgentSummary({ agent, t }: { agent: AgentConfig; t: ReturnType<typeof u
   return (
     <span className={`${styles.entitySub} ${ui.muted}`}>
       {agent.command}
-      {agent.remote != null && agent.remote.host.trim() !== "" ? ` · SSH ${agent.remote.host}` : ""}
+      {agent.deployment != null && agent.deployment.trim() !== "" ? ` · ${agent.deployment.trim()}` : ""}
       {agent.deployment != null && agent.deployment.trim() !== ""
         ? ` · ${t("dsh.agents.deployment")} ${agent.deployment}`
         : ""}{" "}

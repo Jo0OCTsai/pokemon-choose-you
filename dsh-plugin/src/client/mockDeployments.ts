@@ -67,6 +67,7 @@ function upsertCreate(
     lastError: null,
     provision: null,
     degraded: false,
+    pkTunnel: null,
   };
   ctx.state.deployments.push(entity);
   return ctx.ok({ deployment: entity });

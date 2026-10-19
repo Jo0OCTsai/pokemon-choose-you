@@ -34,12 +34,12 @@ function probeStdout(stdout: string, extra: Partial<ExecOutcome> = {}): void {
 }
 
 /** 直插一个 agent 配置（ai_agents 设置键，loadAgents 口径；remote 可选 = 远端 SSH 执行） */
-function seedAgent(id: string, command: string, remote?: Record<string, unknown>): void {
+function seedAgent(id: string, command: string, deployment?: string): void {
   f.conn
     .prepare("INSERT OR REPLACE INTO settings (key, value) VALUES ('ai_agents', ?)")
     .run(
       JSON.stringify([
-        { id, name: id, command, args: "", historyArgs: "", workdir: "", timeoutSecs: 30, enabled: true, remote },
+        { id, name: id, command, args: "", historyArgs: "", workdir: "", timeoutSecs: 30, enabled: true, deployment },
       ]),
     );
 }
@@ -85,8 +85,7 @@ describe("agentTest 连接探针（ai::test 同构）", () => {
 
 describe("agentTest 远端 SSH agent（无 provider 不本机回落）", () => {
   it("无 provider 装配 → connected false + 远端提示（不拿本机同名 CLI 冒充探测）；有 provider 照常探测", async () => {
-    const remote = { host: "vscode@localhost", port: 1022, keyPath: "", tunnel: 20022, persistent: true };
-    seedAgent("ag-remote", "dsh", remote);
+    seedAgent("ag-remote", "dsh", "gpu-1");
     f.deps.dispatchDeps.executorFor = () => null;
     const out = (await f.call("agentTest", { agentId: "ag-remote" })) as {
       ok: boolean;
@@ -95,7 +94,7 @@ describe("agentTest 远端 SSH agent（无 provider 不本机回落）", () => {
     expect(out.ok).toBe(true);
     expect(out.data.connected).toBe(false);
     expect(out.data.message).toContain("远端");
-    expect(out.data.message).toContain("vscode@localhost");
+    expect(out.data.message).toContain("gpu-1");
     // 平台注入了执行器（真实 SSH provider）：远端 agent 照常经其探测
     probeStdout('{"openTasks":1}');
     const viaProvider = (await f.call("agentTest", { agentId: "ag-remote" })) as {
@@ -104,14 +103,8 @@ describe("agentTest 远端 SSH agent（无 provider 不本机回落）", () => {
     expect(viaProvider.data.connected).toBe(true);
   });
 
-  it("host 空白的 remote 视同本地（invocation.rs remote filter 同语义）：无 provider 走本机执行器", async () => {
-    seedAgent("ag-blank-remote", process.execPath, {
-      host: "   ",
-      port: 1022,
-      keyPath: "",
-      tunnel: 20022,
-      persistent: true,
-    });
+  it("部署绑定空白视同本地（resolve_remote_target 同语义）：无 provider 走本机执行器", async () => {
+    seedAgent("ag-blank-remote", process.execPath, "   ");
     f.deps.dispatchDeps.executorFor = () => null;
     const local = (await f.call("agentTest", { agentId: "ag-blank-remote" })) as {
       data: { connected: boolean; message: string };

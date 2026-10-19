@@ -60,16 +60,19 @@ pub(crate) fn terminal_pref(conn: &rusqlite::Connection) -> TerminalPref {
 /// 测试一个 agent（不指定 id 时用收音机分类所用的主 agent）
 #[tauri::command]
 pub async fn test_ai_config(db: State<'_, Db>, agent_id: Option<String>) -> AppResult<String> {
-    let agent = {
+    let (agent, remote) = {
         let conn = db.0.lock().unwrap();
         let get = settings_getter(&conn);
-        match agent_id.as_deref() {
+        let agent = match agent_id.as_deref() {
             Some(id) if !id.is_empty() => ai::agent_by_id(&get, id),
             _ => ai::primary_agent(&get),
         }
-        .ok_or_else(|| AppError::Invalid("请先在设置中配置 AI Agent CLI".into()))?
+        .ok_or_else(|| AppError::Invalid("请先在设置中配置 AI Agent CLI".into()))?;
+        let remote = crate::commands::resolve_remote_target(&conn, &agent)
+            .map_err(|e| AppError::Invalid(e.message))?;
+        (agent, remote)
     };
-    ai::test(&agent).await
+    ai::test(&agent, remote.as_ref()).await
 }
 
 /// 在系统终端里打开 agent 的历史记录界面（claude --resume / opencode 等）。
@@ -84,14 +87,23 @@ pub async fn open_agent_history(
     session_id: Option<String>,
     workdir: Option<String>,
 ) -> AppResult<String> {
-    let (agent, pref) = {
+    let (agent, remote, pref) = {
         let conn = db.0.lock().unwrap();
         let get = settings_getter(&conn);
         let agent = ai::agent_by_id(&get, &agent_id)
             .ok_or_else(|| AppError::Invalid(format!("Agent {agent_id} 不存在，请先保存配置")))?;
-        (agent, terminal_pref(&conn))
+        let remote = crate::commands::resolve_remote_target(&conn, &agent)
+            .map_err(|e| AppError::Invalid(e.message))?;
+        (agent, remote, terminal_pref(&conn))
     };
-    open_agent_in_terminal(&agent, pref, session_id.as_deref(), workdir.as_deref()).await
+    open_agent_in_terminal(
+        &agent,
+        pref,
+        session_id.as_deref(),
+        workdir.as_deref(),
+        remote.as_ref(),
+    )
+    .await
 }
 
 /// 落库会话的回放路由（按记录里的快照决策，纯函数可测）
@@ -120,17 +132,11 @@ fn resume_route(row: &crate::models::AgentSession) -> ResumeRoute {
     }
 }
 
-/// 把会话记录里的执行时远端快照压进 agent 配置：会话文件在哪台机器，回放就在哪台
+/// 会话记录的执行时远端快照 → 回放用远程目标：会话文件在哪台机器，回放就在哪台
 /// 机器——不随 agent 配置后续变更漂移（本地迁移到远程后，旧本地会话仍在本地回放）。
-/// 隧道/常驻开关不带（快照未记）：纯回放只读转录，不依赖 pk shim 回连
-fn apply_session_remote(agent: AgentConfig, row: &crate::models::AgentSession) -> AgentConfig {
-    let mut a = agent;
-    a.remote = crate::commands::sessions::remote_from_snapshot(
-        &row.remote_host,
-        row.remote_port,
-        &row.remote_key,
-    );
-    a
+/// 隧道不带（快照未记）：纯回放只读转录，不依赖 pk shim 回连
+fn session_remote_target(row: &crate::models::AgentSession) -> Option<ai::RemoteTarget> {
+    crate::commands::sessions::remote_target_from_snapshot(&row.remote_host)
 }
 
 /// 回放一条落库会话（全局会话历史 / 任务抽屉的「打开转录」入口）：
@@ -150,18 +156,16 @@ pub async fn open_recorded_session(db: State<'_, Db>, id: i64) -> AppResult<Stri
             })?;
         (row, agent, terminal_pref(&conn))
     };
-    let agent = apply_session_remote(agent, &row);
+    let remote = session_remote_target(&row);
     let workdir = row.workdir.trim().to_string();
     let workdir_arg = (!workdir.is_empty()).then_some(workdir.as_str());
     match resume_route(&row) {
         ResumeRoute::Tmux => {
-            let remote = agent
-                .remote
+            let target = remote
                 .as_ref()
-                .filter(|r| !r.host.trim().is_empty())
                 .ok_or_else(|| AppError::Invalid("tmux 会话记录缺少远端端点，无法重连".into()))?;
             let name = row.tmux_session.trim();
-            let argv = crate::commands::dispatch::tmux_attach_argv(remote, name, &row.workdir);
+            let argv = crate::commands::dispatch::tmux_attach_argv(target, name, &row.workdir);
             spawn_in_terminal(pref, &ai::ssh_bin(), &argv)
                 .await
                 .map(|term| format!("已在 {term} 中重连 tmux 会话「{name}」"))
@@ -176,7 +180,8 @@ pub async fn open_recorded_session(db: State<'_, Db>, id: i64) -> AppResult<Stri
                         .to_string()
                 })
                 .filter(|s| !s.is_empty());
-            open_agent_in_terminal(&agent, pref, sess.as_deref(), workdir_arg).await
+            open_agent_in_terminal(&agent, pref, sess.as_deref(), workdir_arg, remote.as_ref())
+                .await
         }
     }
 }
@@ -186,19 +191,17 @@ async fn open_agent_in_terminal(
     pref: TerminalPref,
     resume_session: Option<&str>,
     workdir: Option<&str>,
+    remote: Option<&ai::RemoteTarget>,
 ) -> AppResult<String> {
     // 会话 id 的注入（--resume <id> / --resume-id <id>）在 history_invocation 内按
     // agent 级历史参数适配，本地远程同一套规则（回归：旧实现看 ssh argv 首参，
     // 远程分支永远是 -o，id 从未被注入）；目录覆盖同函数内进本地/远程 cd
-    let (program, args) = crate::ai::history_invocation(agent, resume_session, workdir);
+    let (program, args) = crate::ai::history_invocation(agent, resume_session, workdir, remote);
     // 本地 agent 总是先 cd 到工作目录再启动：显式覆盖（标签 meta）优先，否则与无头调用
     // 同一套解析（留空 = ~/.choose-you，自动创建），交互会话不能落在终端默认目录；
     // SSH 远程的 cd 由 history_invocation 前缀在远端命令行里（留空 = 远端登录目录）；
     // 目录解析失败（无主目录）退回不 cd 直启
-    let local = agent
-        .remote
-        .as_ref()
-        .is_none_or(|r| r.host.trim().is_empty());
+    let local = remote.is_none();
     let line = local
         .then(|| history_local_dir(agent, workdir))
         .flatten()
@@ -1299,40 +1302,22 @@ mod tests {
         assert_eq!(resume_route(&sess_row("", None)), ResumeRoute::Picker);
     }
 
-    /// 快照压过当前 agent 配置：本地记录强制 local（agent 后来迁到远程也回本机）、
-    /// 远程记录还原当时的端点（host/port/key）
+    /// 快照路由：本地记录强制 local（agent 后来绑部署也回本机）、远程记录还原
+    /// 当时别名（alias 模式；端口/密钥由 ~/.ssh/config 承载）
     #[test]
-    fn apply_session_remote_routes_by_snapshot() {
-        // agent 现在是远程，但会话记录是本地的 → 回放走本地
-        let now_remote = AgentConfig {
-            command: "claude".into(),
-            remote: Some(crate::ai::AgentRemote {
-                host: "box".into(),
-                port: 2222,
-                ..Default::default()
-            }),
-            ..Default::default()
-        };
+    fn session_remote_target_routes_by_snapshot() {
+        // 会话记录是本地的 → 回放走本地（与 agent 当前绑定无关）
         let local_row = sess_row("", Some("s"));
-        assert!(apply_session_remote(now_remote.clone(), &local_row)
-            .remote
-            .is_none());
+        assert!(session_remote_target(&local_row).is_none());
 
-        // 会话记录是远程的（当时的端口/密钥），agent 现在是本地 → 回放走当时的远端
+        // 会话记录是远程的 → 回放用当时的别名
         let mut remote_row = sess_row("", Some("s"));
         remote_row.remote_host = "vscode@localhost".into();
         remote_row.remote_port = 1022;
         remote_row.remote_key = "/keys/pk".into();
-        let local_agent = AgentConfig {
-            command: "claude".into(),
-            ..Default::default()
-        };
-        let routed = apply_session_remote(local_agent, &remote_row);
-        let r = routed.remote.as_ref().expect("快照远端还原");
-        assert_eq!(
-            (r.host.as_str(), r.port, r.key_path.as_deref()),
-            ("vscode@localhost", 1022, Some("/keys/pk"))
-        );
+        let target = session_remote_target(&remote_row).expect("快照远端还原");
+        assert_eq!(target.alias, "vscode@localhost");
+        assert_eq!(target.tunnel_port, None, "回放不带隧道（不依赖 shim 回连）");
     }
 
     #[test]

@@ -130,7 +130,7 @@ export function DispatchBody(props: {
           onChange={(v) => onChannel(v === "headless" ? "headless" : "interactive")}
         />
         {agents.length > 1 && <AgentSelect agents={agents} route={route} agentId={agentId} onAgent={onAgent} />}
-        {chosen !== undefined && <AgentBadge name={chosen.name} host={chosen.remote?.host ?? null} />}
+        {chosen !== undefined && <AgentBadge name={chosen.name} host={chosen.deployment?.trim() || null} />}
         <span className={styles.dspDir} title={t("dispatch.dir")}>
           📂 {workdirText(route, t)}
         </span>
@@ -164,7 +164,10 @@ function AgentSelect({
       ariaLabel={t("tags.metaAgentOff")}
       value={value}
       className={styles.dspAgent}
-      options={agents.map((a) => ({ value: a.id, label: a.remote?.host ? `${a.name} · SSH` : a.name }))}
+      options={agents.map((a) => ({
+        value: a.id,
+        label: a.deployment?.trim() ? `${a.name} · ${a.deployment.trim()}` : a.name,
+      }))}
       onChange={onAgent}
     />
   );

@@ -1,0 +1,20 @@
+{
+  "kind": "deployment_registry",
+  "name": "create-rejects-alias-taken",
+  "now": "2026-10-19T09:00:00+08:00",
+  "setup": {
+    "settings": {
+      "dsh:deployments": "{\"dep-1\":{\"id\":\"dep-1\",\"alias\":\"gpu-1\",\"nodePath\":\"/usr/bin/node\",\"helperPath\":\"\",\"helperHash\":null,\"workdir\":\"/home/u/work\",\"note\":\"\",\"status\":\"draft\",\"lastError\":null,\"provision\":null,\"degraded\":false,\"pkTunnel\":null}}"
+    }
+  },
+  "steps": [
+    {
+      "op": "deployment_upsert",
+      "args": {
+        "alias": "gpu-1",
+        "nodePath": "/usr/bin/node"
+      }
+    }
+  ],
+  "expect": "exact"
+}

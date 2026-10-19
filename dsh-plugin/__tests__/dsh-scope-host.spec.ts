@@ -62,6 +62,7 @@ function entity(
     lastError: null,
     provision: overrides.provision ?? null,
     degraded: false,
+    pkTunnel: null,
   };
 }
 

@@ -45,6 +45,12 @@ export interface TerminalLineInjector {
 }
 
 /** host 命令实现依赖（createPlugin 装配；测试逐项注入替身） */
+/** 常驻隧道服务面（deploymentList 状态行 + 部署写命令 resync 触发；ADR-0003 双宿主） */
+export interface TunnelService {
+  resync(): void;
+  statusOf(deploymentId: string): { state: string; detail: string };
+}
+
 export interface HostCommandDeps {
   conn: Conn;
   health: HealthState;
@@ -66,6 +72,15 @@ export interface HostCommandDeps {
   pet: { show(): Promise<unknown>; hide(): void; readonly running: boolean };
   /** domain 写后直推（stateFeed.notifyLocalWrite——写命令收尾调用） */
   onWrites(): void;
+  /** 常驻隧道服务（ADR-0003：双宿主让位 supervisor——非 dsh 宿主未装配时缺席，
+   * 部署写命令仍可用、隧道不维持）；pk 通道开通用的本机 pk 定位（纯 dsh 场景落位） */
+  tunnels?: TunnelService;
+  /** pk 通道开通执行器（`pk remote setup` spawn + 本机 pk 落位；缺席 = 纯 settings 宿主） */
+  pkSetup?: (args: { alias: string; tunnelPort: number }) => Promise<{
+    ok: boolean;
+    steps: Array<{ name: string; status: string; detail: string }>;
+    version: string | null;
+  }>;
   /** pageOpen host→客户端推送出口（dsh 客户端导航通道由适配层接线） */
   openPage(section?: "panel" | "settings"): void;
   /** lark-cli 可执行存在性（diagnosticsSnapshot 的 feishuConfigured 位） */

@@ -7,6 +7,7 @@ import { api, errorMessage } from "../api";
 import { EVENTS } from "../events";
 import { SETTING_KEYS, useSettingsStore } from "../stores/settings";
 import { useAgentsStore } from "../stores/agents";
+import { useDeploymentsStore } from "../stores/deployments";
 import { useTagsStore } from "../stores/tags";
 import type { BackupInfo, FeishuOauthStatus } from "../types";
 import { ACTION_TOAST, SKILL_TOAST, useActionToast } from "../composables/useActionToast";
@@ -27,6 +28,7 @@ const { t } = useI18n();
 const settings = useSettingsStore();
 const tagsStore = useTagsStore();
 const agentsStore = useAgentsStore();
+const deploymentsStore = useDeploymentsStore();
 
 // ---- 底部状态条 + 动作外壳（useActionToast）：主忙位 testing 与技能忙位分开、共用同一条状态条 ----
 // 经 provide 传给分区子组件（AgentConfigCard 等），inject 同一实例——不各自实例化导致状态条分裂
@@ -219,7 +221,7 @@ watch(settingsTab, (tab) => {
   }
   // 项目派发卡片随 TagDispatchCard 移入 Agent 分区：agents store 只在这里拉
   if (tab === "agents" && !agentsStore.list.length) agentsStore.load();
-  if (tab === "agents") agentsStore.loadTunnelStatuses();
+  if (tab === "agents") deploymentsStore.load();
 });
 
 // 诊断分区引用：链路健康变化事件到达时若停在诊断页，经分区壳转发刷新健康面板

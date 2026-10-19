@@ -1,4 +1,4 @@
-//! 远程 pk 一键配置：agent 在远程、数据在本机的场景下，
+//! pk 通道开通（部署驱动，ADR-0003）：agent 在远程、数据在本机的场景下，
 //! 自动完成反向隧道所需的全部准备（用户只需先开启本机 sshd）。
 //!
 //! 应用已有「本机 → 远程」的免密 ssh（跑 agent 用），所有步骤都借它完成：
@@ -10,7 +10,6 @@
 use crate::ai;
 use crate::db::Db;
 use crate::error::{AppError, AppResult};
-use rusqlite::params;
 use std::io::Write;
 use std::path::PathBuf;
 use std::time::{Duration, Instant};
@@ -19,8 +18,9 @@ use tauri::State;
 /// 默认反向隧道端口（远程侧 127.0.0.1:10022 ⇄ 本机 sshd）
 pub const DEFAULT_TUNNEL_PORT: u16 = 10022;
 
-/// 一键配置的执行上下文（程序路径与目录可注入，供测试）
-pub(crate) struct RemotePkSetup {
+/// 一键配置的执行上下文（程序路径与目录可注入，供测试与 `pk remote setup` 复用）
+#[derive(Clone)]
+pub struct RemotePkSetup {
     /// ssh 客户端（跑远程命令；agent 调用同一套 PK_SSH_BIN 覆盖）
     pub ssh_program: String,
     /// ssh-keyscan（本机 sshd 预检 + 取主机指纹）
@@ -237,8 +237,9 @@ fn key_files(key_dir: &std::path::Path) -> (PathBuf, PathBuf) {
     (stem.with_extension(""), stem.with_extension("pub"))
 }
 
-/// 执行一键配置序列（任一步失败即停，报告到失败步为止；不返回 Err——失败都在报告里）
-pub(crate) fn run_setup(ctx: &RemotePkSetup) -> SetupReport {
+/// 执行一键配置序列（任一步失败即停，报告到失败步为止；不返回 Err——失败都在报告里）。
+/// `pk remote setup` 子命令与桌面部署薄壳共用（ADR-0003 §3：Rust 单源）。
+pub fn run_setup(ctx: &RemotePkSetup) -> SetupReport {
     let mut steps: Vec<SetupStep> = vec![];
     fn fail(steps: &mut Vec<SetupStep>, name: &str, detail: String) {
         steps.push(SetupStep {
@@ -672,40 +673,34 @@ fn host_triple() -> String {
     format!("{}-{os}", std::env::consts::ARCH)
 }
 
-/// 一键配置远程 pk：前置只需本机开启 sshd，其余（密钥/公钥/私钥/指纹/shim/PATH/验证）
-/// 全部自动完成并逐步报告。成功后把隧道端口写回该 agent 的 SSH 配置。
+/// 部署驱动的 pk 通道开通（ADR-0003 §3：setup 挂部署、开通结果落 pkTunnel）：
+/// 按部署别名组装 alias 模式 ssh（凭据与端口由 ~/.ssh/config 承载，不传 -p/-i），
+/// 执行 run_setup 序列；成功后把隧道端口写回部署实体 pkTunnel（persistent 保持现值，
+/// 失败不动实体便于改端口重试）。dsh 宿主经 `pk remote setup` 子命令走同一序列。
 #[tauri::command]
-pub async fn setup_remote_pk<R: tauri::Runtime>(
+pub async fn setup_deployment_pk<R: tauri::Runtime>(
     _app: tauri::AppHandle<R>,
     db: State<'_, Db>,
-    agent_id: String,
+    deployment_id: String,
     port: Option<u16>,
 ) -> AppResult<SetupReport> {
-    let (agent, key_dir) = {
+    let (alias, persistent, key_dir, tunnel_port) = {
         let conn = db.0.lock().unwrap();
-        let get = |k: &str| -> Option<String> {
-            conn.query_row("SELECT value FROM settings WHERE key=?1", params![k], |r| {
-                r.get::<_, String>(0)
-            })
-            .ok()
-        };
-        let agent = ai::agent_by_id(&get, &agent_id)
-            .ok_or_else(|| AppError::Invalid(format!("Agent {agent_id} 不存在，请先保存配置")))?;
+        let entity = crate::commands::deployment_by_id(&conn, &deployment_id)
+            .ok_or_else(|| AppError::Invalid(format!("部署 {deployment_id} 不存在")))?;
+        let tunnel_port = port
+            .or(entity.pk_tunnel.as_ref().map(|t| t.port))
+            .filter(|p| *p != 0)
+            .unwrap_or(DEFAULT_TUNNEL_PORT);
+        let persistent = entity
+            .pk_tunnel
+            .as_ref()
+            .map(|t| t.persistent)
+            .unwrap_or(false);
         let dir = crate::db::data_dir()
             .ok_or_else(|| AppError::External("定位应用数据目录失败".into()))?;
-        (agent, dir)
+        (entity.alias, persistent, dir, tunnel_port)
     };
-    let remote = agent
-        .remote
-        .as_ref()
-        .filter(|r| !r.host.trim().is_empty())
-        .ok_or_else(|| {
-            AppError::Invalid("该 agent 未配置 SSH 远程执行（先填主机并保存）".into())
-        })?;
-    let tunnel_port = port
-        .or(remote.tunnel)
-        .filter(|p| *p != 0)
-        .unwrap_or(DEFAULT_TUNNEL_PORT);
     let local_user =
         std::env::var(if cfg!(windows) { "USERNAME" } else { "USER" }).unwrap_or_default();
     let pk_path = locate_pk().ok_or_else(|| {
@@ -714,9 +709,10 @@ pub async fn setup_remote_pk<R: tauri::Runtime>(
     let ctx = RemotePkSetup {
         ssh_program: ai::ssh_bin(),
         keyscan_program: "ssh-keyscan".into(),
-        host: remote.host.clone(),
-        ssh_port: remote.port,
-        agent_key: remote.key_path.clone(),
+        host: alias.clone(),
+        // alias 模式：连接参数全部交给 ~/.ssh/config
+        ssh_port: 0,
+        agent_key: None,
         tunnel_port,
         local_user,
         pk_path: pk_path.to_string_lossy().into_owned(),
@@ -728,97 +724,28 @@ pub async fn setup_remote_pk<R: tauri::Runtime>(
         .await
         .map_err(|e| AppError::External(format!("配置任务执行失败: {e}")))?;
 
-    // 成功才写回隧道端口（失败不动配置，便于改端口重试）
     if report.ok {
         let conn = db.0.lock().unwrap();
-        write_back_tunnel_port(&conn, &agent_id, tunnel_port)?;
+        crate::commands::deployment_upsert(
+            &conn,
+            &crate::commands::DeploymentUpsertInput {
+                id: Some(deployment_id),
+                alias,
+                pk_tunnel: Some(Some(crate::commands::PkTunnelConfig {
+                    port: tunnel_port,
+                    persistent,
+                })),
+                ..Default::default()
+            },
+        )
+        .map_err(|e| AppError::Invalid(e.message))?;
     }
     Ok(report)
-}
-
-/// 把隧道端口写回该 agent 的 SSH 配置（setup 成功后调用）。Value 级手术式改写：
-/// 只动目标 agent 的 remote.tunnel，其余键原样保留——dsh 插件在 ai_agents 内扩展
-/// 了未知字段（deployment 部署绑定），类型化往返会静默丢字段。
-fn write_back_tunnel_port(
-    conn: &rusqlite::Connection,
-    agent_id: &str,
-    tunnel_port: u16,
-) -> AppResult<()> {
-    let raw: Option<String> = conn
-        .query_row(
-            "SELECT value FROM settings WHERE key='ai_agents'",
-            [],
-            |r| r.get(0),
-        )
-        .ok();
-    let mut agents: serde_json::Value = serde_json::from_str(&raw.unwrap_or_default())
-        .unwrap_or_else(|_| serde_json::Value::Array(Vec::new()));
-    let Some(list) = agents.as_array_mut() else {
-        return Ok(()); // 非数组坏数据：找不到目标，不写（原空表语义）
-    };
-    for agent in list.iter_mut() {
-        if agent.get("id").and_then(|v| v.as_str()) != Some(agent_id) {
-            continue;
-        }
-        let mut remote = match agent.get("remote") {
-            Some(v) if v.is_object() => v.clone(),
-            _ => serde_json::to_value(crate::ai::AgentRemote::default()).unwrap_or_default(),
-        };
-        if let Some(obj) = remote.as_object_mut() {
-            obj.insert("tunnel".into(), serde_json::json!(tunnel_port));
-        }
-        if let Some(obj) = agent.as_object_mut() {
-            obj.insert("remote".into(), remote);
-        }
-        let encoded = serde_json::to_string(&agents)
-            .map_err(|e| AppError::External(format!("序列化 agent 配置失败: {e}")))?;
-        conn.execute(
-            "INSERT OR REPLACE INTO settings (key, value) VALUES ('ai_agents', ?1)",
-            params![encoded],
-        )?;
-        break;
-    }
-    Ok(())
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use rusqlite::Connection;
-
-    #[test]
-    fn tunnel_write_back_preserves_unknown_fields() {
-        let conn = Connection::open_in_memory().unwrap();
-        conn.execute(
-            "CREATE TABLE settings (key TEXT PRIMARY KEY, value TEXT NOT NULL)",
-            [],
-        )
-        .unwrap();
-        // dsh 插件扩展字段 deployment + 既有 remote 并存
-        let raw = r#"[{"id":"a1","name":"A","command":"claude","args":"","historyArgs":"","workdir":"","timeoutSecs":60,"enabled":true,"deployment":"gpu-1","remote":{"host":"u@h","port":22,"keyPath":null,"tunnel":null,"persistent":false}}]"#;
-        conn.execute(
-            "INSERT INTO settings (key, value) VALUES ('ai_agents', ?1)",
-            params![raw],
-        )
-        .unwrap();
-        write_back_tunnel_port(&conn, "a1", 10022).unwrap();
-        let after: String = conn
-            .query_row(
-                "SELECT value FROM settings WHERE key='ai_agents'",
-                [],
-                |r| r.get(0),
-            )
-            .unwrap();
-        assert!(
-            after.contains(r#""deployment":"gpu-1""#),
-            "未知字段保留: {after}"
-        );
-        assert!(after.contains(r#""tunnel":10022"#), "隧道端口写回: {after}");
-        assert!(
-            after.contains(r#""host":"u@h""#),
-            "既有 remote 字段保留: {after}"
-        );
-    }
 
     #[test]
     fn shim_script_embeds_tunnel_and_absolute_pk() {
@@ -921,11 +848,14 @@ mod tests {
              case \"$last\" in\n\
                *'command -v pk'*) echo /home/u/.local/bin/pk; exit 0;;\n\
                *'pk --version'*) if echo \"$*\" | grep -q ' -R '; then echo 1.0.0; exit 0; else echo no-tunnel; exit 1; fi;;\n\
-               *'cat >'*) cat > /dev/null; exit 0;;\n\
-               *known_hosts*) cat > /dev/null; exit 0;;\n\
+               *'.ssh/pk_shim'*) cat > {keypush}; exit 0;;\n\
+               *'known_hosts'*) cat > /dev/null; exit 0;;\n\
+               *'.local/bin/pk'*) cat > {shimout}; exit 0;;\n\
              esac\n\
              exit 0\n",
             log = log.to_string_lossy(),
+            keypush = dir.join("key-push.txt").to_string_lossy(),
+            shimout = dir.join("last-shim.sh").to_string_lossy(),
         );
         std::fs::write(&ssh, script).unwrap();
         std::fs::set_permissions(&ssh, std::fs::Permissions::from_mode(0o755)).unwrap();
@@ -1047,6 +977,61 @@ mod tests {
         ] {
             assert!(calls.contains(frag), "ssh 调用缺「{frag}」: {calls}");
         }
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// ADR-0003 §3 双宿主收敛：同一 key_dir 两个发起方（不同 pk 路径）先后开通——
+    /// 密钥不重复、authorized_keys 恒单条目、shim last-writer-wins（嵌最近发起方路径）
+    #[test]
+    fn shim_last_writer_wins_and_single_authorized_entry() {
+        let dir = std::env::temp_dir().join(format!("pk-setup-lww-{}", std::process::id()));
+        let home = dir.join("home");
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&home).unwrap();
+        let (ssh, keyscan) = fake_bins(&dir);
+        for name in ["pk-a", "pk-b"] {
+            std::fs::write(dir.join(name), "#!/bin/sh\n").unwrap();
+        }
+        let base = RemotePkSetup {
+            ssh_program: ssh,
+            keyscan_program: keyscan,
+            host: "user@box".into(),
+            ssh_port: 0,
+            agent_key: None,
+            tunnel_port: 10022,
+            local_user: "joeca".into(),
+            pk_path: String::new(),
+            key_dir: dir.join("keys"),
+            local_home: home.clone(),
+            step_timeout: Duration::from_secs(60),
+        };
+        let first = run_setup(&RemotePkSetup {
+            pk_path: dir.join("pk-a").to_string_lossy().into_owned(),
+            ..base.clone()
+        });
+        assert!(first.ok, "首开报告: {first:?}");
+        let shim1 = std::fs::read_to_string(dir.join("last-shim.sh")).unwrap();
+        assert!(shim1.contains("pk-a"), "shim 嵌发起方 A 路径: {shim1}");
+
+        let second = run_setup(&RemotePkSetup {
+            pk_path: dir.join("pk-b").to_string_lossy().into_owned(),
+            ..base
+        });
+        assert!(second.ok, "B 侧再开报告: {second:?}");
+        let shim2 = std::fs::read_to_string(dir.join("last-shim.sh")).unwrap();
+        assert!(
+            shim2.contains("pk-b") && !shim2.contains("pk-a"),
+            "shim 覆盖为最近发起方: {shim2}"
+        );
+
+        // 密钥单源：仍只有一对密钥文件；authorized_keys 恰一条受限条目
+        let keys: Vec<_> = std::fs::read_dir(dir.join("keys"))
+            .unwrap()
+            .filter_map(|e| e.ok().map(|e| e.file_name().to_string_lossy().into_owned()))
+            .collect();
+        assert_eq!(keys.len(), 2, "单一密钥对: {keys:?}");
+        let ak = std::fs::read_to_string(home.join(".ssh/authorized_keys")).unwrap();
+        assert_eq!(ak.matches("restrict,command=").count(), 1, "恒单条目: {ak}");
         let _ = std::fs::remove_dir_all(&dir);
     }
 

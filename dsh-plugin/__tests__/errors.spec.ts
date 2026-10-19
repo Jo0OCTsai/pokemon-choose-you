@@ -1,14 +1,14 @@
-/** storage/errors：错误码单源（PROTOCOL.md §2 · 21 枚）、PkyError、ok/fail 响应包装 */
+/** storage/errors：错误码单源（PROTOCOL.md §2 · 23 枚）、PkyError、ok/fail 响应包装 */
 import { describe, expect, it } from "vitest";
 import { ERROR_CODES, fail, notFound, ok, paramError, PkyError, toResult } from "../src/host/storage/errors";
 
-describe("错误码（PROTOCOL.md §2 单源 · 21 枚 = 15 既有 + full-parity AD §4.2 增量 6 枚）", () => {
-  it("恰好 21 个且无重复", () => {
-    expect(ERROR_CODES.length).toBe(21);
-    expect(new Set(ERROR_CODES).size).toBe(21);
+describe("错误码（PROTOCOL.md §2 单源 · 23 枚 = 15 既有 + full-parity 6 + ADR-0003 部署实体 2）", () => {
+  it("恰好 23 个且无重复", () => {
+    expect(ERROR_CODES.length).toBe(23);
+    expect(new Set(ERROR_CODES).size).toBe(23);
   });
 
-  it("枚举内容与协议表格逐字一致（+ 导入/恢复 2 + helper 能力 1 + 远程部署 3）", () => {
+  it("枚举内容与协议表格逐字一致（+ 导入/恢复 2 + helper 能力 1 + 远程部署 3 + 部署实体 2）", () => {
     expect([...ERROR_CODES]).toEqual([
       "JUDGE_TIMEOUT",
       "JUDGE_INVALID_RESULT",
@@ -31,6 +31,8 @@ describe("错误码（PROTOCOL.md §2 单源 · 21 枚 = 15 既有 + full-parity
       "DEPLOYMENT_NOT_READY",
       "PROVISION_STEP_FAILED",
       "HELPER_HASH_MISMATCH",
+      "DEPLOYMENT_ALIAS_TAKEN",
+      "DEPLOYMENT_INPUT_INVALID",
     ]);
   });
 });

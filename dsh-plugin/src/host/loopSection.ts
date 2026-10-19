@@ -104,6 +104,24 @@ export function assembleLoopsFull(args: {
 }
 
 /** full-parity 2.7/2.9 的 HostCommandDeps 可选面（缺省按能力缺失降级——零静默） */
+/** 可选平台件条件展开（helper/家族/隧道服务/pk 开通——缺席不注入；ADR-0003 增量） */
+function optionalPlatformParts(deps: PluginDeps): Partial<HostCommandDeps> {
+  const parts: Partial<HostCommandDeps> = {};
+  if (deps.helperPath !== undefined) {
+    parts.helperPath = deps.helperPath;
+  }
+  if (deps.sshFamily !== undefined) {
+    parts.sshFamily = deps.sshFamily;
+  }
+  if (deps.tunnels !== undefined) {
+    parts.tunnels = deps.tunnels;
+  }
+  if (deps.pkSetup !== undefined) {
+    parts.pkSetup = deps.pkSetup;
+  }
+  return parts;
+}
+
 export function parityCommandDeps(args: {
   conn: Conn;
   deps: PluginDeps;
@@ -119,6 +137,8 @@ export function parityCommandDeps(args: {
   | "sshFamily"
   | "announceCaught"
   | "onPetLifecycle"
+  | "tunnels"
+  | "pkSetup"
 > & { dispatchDeps: HostCommandDeps["dispatchDeps"] } {
   const { conn, deps, supervisor, stateFeed } = args;
   const remote: RemoteCommandPlatform | undefined = deps.remote;
@@ -133,8 +153,7 @@ export function parityCommandDeps(args: {
     // 本机分支不经过本件：dsh 宿主侧 deps.terminal = createHandoffTerminal 诚实化）
     ...(remote === undefined ? {} : { remoteInteractive: remoteInteractiveParts(conn, remote) }),
     ...(supervisor === null ? {} : { petBridge: () => supervisor.currentBridge() }),
-    ...(deps.helperPath === undefined ? {} : { helperPath: deps.helperPath }),
-    ...(deps.sshFamily === undefined ? {} : { sshFamily: deps.sshFamily }),
+    ...optionalPlatformParts(deps),
     announceCaught: (variant) => stateFeed.announceCaught(variant),
     onPetLifecycle: () => stateFeed.pushSysConfig(),
   };

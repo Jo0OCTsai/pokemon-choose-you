@@ -138,9 +138,9 @@ describe("rpc 命令契约", () => {
     expect(events).toEqual([{ section: "settings" }]);
   });
 
-  it("21 错误码枚举与 host/storage/errors 单源逐字一致（15 既有 + full-parity AD §4.2 增量 6）", () => {
+  it("23 错误码枚举与 host/storage/errors 单源逐字一致（15 既有 + full-parity 6 + ADR-0003 部署实体 2）", () => {
     expect([...ERROR_CODES]).toEqual([...HOST_ERROR_CODES]);
-    expect(ERROR_CODES.length).toBe(21);
+    expect(ERROR_CODES.length).toBe(23);
   });
 });
 

@@ -60,9 +60,9 @@ function probeMessage(stdout: string): { connected: boolean; message: string } {
   };
 }
 
-/** 远端 SSH 目标（host 非空才算远端，invocation.rs remote filter 同语义；空串 = 本地） */
+/** 远端执行世界标识（部署绑定别名；空串 = 本地——resolve_remote_target 同语义） */
 function remoteTarget(agent: AgentConfig): string {
-  return (agent.remote?.host ?? "").trim();
+  return (agent.deployment ?? "").trim();
 }
 
 /** 探针用派发路由（缺省路由形态：本机 / 单槽 / 无 deployment） */

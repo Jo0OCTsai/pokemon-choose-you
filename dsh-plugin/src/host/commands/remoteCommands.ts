@@ -14,11 +14,12 @@
 import { notFound, PkyError } from "../storage/errors";
 import type { CommandTable, HostCommandDeps, RemoteCommandPlatform } from "./context";
 import {
+  deploymentByAlias,
   deploymentDelete,
   deploymentUpsert,
+  type DeploymentUpsertInput,
   listDeployments,
   type DeploymentEntity,
-  type DeploymentUpsertInput,
 } from "../remote/deployments";
 import {
   degradeConfirm as degradeConfirmDomain,
@@ -61,7 +62,13 @@ function deploymentCommandSet(): CommandTable {
       const deployments = Object.values(listDeployments(deps.conn));
       const ready = deployments.filter((d) => d.status === "ready").length;
       const broken = deployments.filter((d) => d.status === "disconnected").length;
-      return { deployments, counts: { ready, pending: deployments.length - ready - broken, broken } };
+      // 隧道状态随行（让位待命 yielded 可区分于重连——ADR-0003 双宿主呈现）
+      const tunnels = deps.tunnels;
+      const withTunnel = deployments.map((d) => ({
+        ...d,
+        tunnel: tunnels === undefined ? null : tunnels.statusOf(d.id),
+      }));
+      return { deployments: withTunnel, counts: { ready, pending: deployments.length - ready - broken, broken } };
     },
     // 新建/编辑（alias 唯一、路径不变式、改名级联确认全在 domain 校验）
     deploymentUpsert: (p, deps) => {
@@ -71,8 +78,10 @@ function deploymentCommandSet(): CommandTable {
       }
       const result = deploymentUpsert(deps.conn, input);
       deps.onWrites();
+      deps.tunnels?.resync();
       return result;
     },
+    deploymentSetupPk: (p, deps) => deploymentSetupPkCommand(p, deps),
     // 本机 ~/.ssh/config 可选别名（部署表单下拉数据源；本地只读，缺席 = 空列表）
     sshAliasList: () => ({ aliases: readSshConfigAliases() }),
     // 移除 = 关连接 + 远端自清理尽力执行（平台面缺席时清理跳过，删除不阻塞）
@@ -87,6 +96,7 @@ function deploymentCommandSet(): CommandTable {
         ...(remote === undefined ? {} : { scopeFor: (entity) => remote.scopeFor(entity) }),
       });
       deps.onWrites();
+      deps.tunnels?.resync();
       return result;
     },
   };
@@ -145,6 +155,7 @@ function provisionCommandSet(): CommandTable {
         acknowledgedRisk: args.acknowledgedRisk === true,
       });
       deps.onWrites();
+      deps.tunnels?.resync();
       return result;
     },
   };
@@ -153,4 +164,36 @@ function provisionCommandSet(): CommandTable {
 /** 部署/开通向导命令表（9 条：部署族 7 + 降级确认 1 + 表单别名数据源 1） */
 export function remoteCommands(): CommandTable {
   return { ...deploymentCommandSet(), ...provisionCommandSet() };
+}
+
+/** 开通成功收口：端口写回部署 pkTunnel（persistent 保持现值）+ 写通知 + 隧道 resync */
+function persistPkTunnel(deps: HostCommandDeps, entity: DeploymentEntity, tunnelPort: number): void {
+  deploymentUpsert(deps.conn, {
+    id: entity.id,
+    alias: entity.alias,
+    pkTunnel: { port: tunnelPort, persistent: entity.pkTunnel?.persistent ?? false },
+  });
+  deps.onWrites();
+  deps.tunnels?.resync();
+}
+
+/** pk 通道开通命令（ADR-0003 §3）：spawn 本机 `pk remote setup`（纯 dsh 场景先落位），
+ *  成功把端口写回部署实体 pkTunnel（persistent 保持现值）并 resync 隧道 */
+async function deploymentSetupPkCommand(
+  p: unknown,
+  deps: HostCommandDeps,
+): Promise<{ report: unknown; deployment: DeploymentEntity | null }> {
+  const args = p as { id?: unknown; port?: unknown };
+  const entity = requireDeployment(deps, args.id);
+  if (deps.pkSetup === undefined) {
+    throw new PkyError("HELPER_CAPABILITY_MISSING", "pk 通道开通未装配（不在 dsh 宿主内运行，或本机 pk 不可用）");
+  }
+  const portArg = args.port;
+  const tunnelPort =
+    typeof portArg === "number" && portArg >= 1 && portArg <= 65535 ? portArg : (entity.pkTunnel?.port ?? 10022);
+  const report = await deps.pkSetup({ alias: entity.alias, tunnelPort });
+  if (report.ok) {
+    persistPkTunnel(deps, entity, tunnelPort);
+  }
+  return { report, deployment: deploymentByAlias(deps.conn, entity.alias) ?? null };
 }

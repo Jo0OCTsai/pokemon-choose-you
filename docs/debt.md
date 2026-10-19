@@ -57,3 +57,8 @@
 - [x] 2026-09-28 **本地 lint-gate 的 clippy 口径已对齐 CI**（来源：PR #111 CI 失败复盘，当日收口）：stack.json `src-tauri.lint_check` 补上 `--all-targets`（tests 模块进本地门禁范围，此前 `tmp_root` 死代码与 5 元组 `type_complexity` 均因此漏检）；拦截条件（会话过滤测试 5 元组 cases）已在 PR #111 以 `FilterCase` 类型别名收敛，本地 `--all-targets` 全绿。注：`feat/feishu-chat-filter-refine` 分支上另有未合并的 4 元组收账提交（09607ca），与别名方案语义等价，合流时取其一即可。
 - [x] 2026-09-26 后端四大文件结构重构（ai.rs 2364→ai/ 五模块、radio.rs 3201→radio/ 六域+testsupport、dispatch.rs 2394→dispatch/ 九域、pk.rs 3162→bin/pk/ 十一子模块），行为保持不变、350 单测全绿；顺带解掉 ai↔radio 循环依赖（判定管线 classify/capture 与库回读归位消息域 radio/judge）。
 - [x] 2026-09-26 前端三大文件结构重构（RadioTab 1498→637、SettingsTab 2331→408、PetApp 1963→1789），行为保持不变，221 单测全绿——详见 `specs/archive/frontend-component-split/reports/refactor-summary.md`。
+
+- [ADR-0003 后续] pk 二进制 npm 平台包分发（esbuild 式 optionalDependencies）：当前 v1 走插件包内 vendor（本地路径/file 包分发语义），npm 发布裁决落地后平滑切换。
+- [ADR-0003 后续] Windows 让位锁探活近似：Rust 侧无 kill-0，`tunnel_lock.rs` 非 unix 分支恒判死（双 Windows 宿主会互抢隧道——ssh 同端口后到者重连，功能不坏但无让位）；引入 windows 进程探测 crate 时补齐。
+- [ADR-0003 后续] `dsh:deployments` 双端并发整读整写的丢更新窗口：现状同 `ai_agents` 模式（BEGIN IMMEDIATE 短事务），可选强化为版本 CAS（design.md 风险表预留）。
+- [前次会话遗留] 质量棘轮基线漂移：`.devcontainer/scripts/quality-ratchet-baseline.json` 存在未提交改动，使 8 个对 HEAD 零差异的文件报「新增复杂度违规」（dsh-broker-serve/external-terminal/mockHost/DeployFormModal/DiagnosticsSection 等）——需该批未提交工作收尾时统一 `--prune` 或还原基线，非本变更引入。

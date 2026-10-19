@@ -22,7 +22,8 @@
     "helper/README.md",
     "cordis.patch.yml",
     "locale",
-    "icon.svg"
+    "icon.svg",
+    "vendor"
   ],
   "icon": "./icon.svg",
   "dsh": {

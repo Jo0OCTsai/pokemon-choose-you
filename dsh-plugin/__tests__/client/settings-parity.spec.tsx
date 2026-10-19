@@ -200,36 +200,27 @@ describe("分类与标签分区对齐（停用开关 + 标签管理卡）", () =
 });
 
 describe("Agent 分区对齐（预设 + 全字段 + SSH 组）", () => {
-  it("预设下拉添加：预填 name/command/args；SSH 组与超时/工作目录字段保存", async () => {
+  it("预设下拉添加：预填 name/command/args；绑定部署下拉与超时/工作目录字段保存", async () => {
     const data = makeData();
     data.agents = [];
-    const { host } = renderSettings(data);
+    renderSettings(data);
     gotoSection("Agent");
     const page = getPage("agents");
     fireEvent.click(within(page).getByText("＋ 添加 Agent"));
-    // 折叠态卡：开关 label 与摘要行都带预设名（多处出现即可）
-    expect(within(page).getAllByText(/Claude Code/).length).toBeGreaterThan(0);
-    // 展开编辑：预设字段已预填
-    fireEvent.click(within(page).getByText("编辑"));
-    expect((within(page).getByLabelText("附加参数") as HTMLInputElement).value).toContain("--output-format json");
-    expect((within(page).getByLabelText("超时（秒）") as HTMLInputElement).value).toBe("120");
-    // 开 SSH → host/端口/私钥/反向隧道/常驻隧道
-    fireEvent.click(within(page).getByRole("switch", { name: "SSH 远程执行" }));
-    fireEvent.change(within(page).getByLabelText("user@host"), { target: { value: "user@server" } });
-    fireEvent.change(within(page).getByLabelText("反向隧道端口"), { target: { value: "10022" } });
-    fireEvent.click(within(page).getByRole("switch", { name: "常驻隧道" }));
     const card = within(page).getByTestId("agent-ui.card");
-    fireEvent.click(within(card).getByText("保存"));
-    await vi.runAllTimersAsync();
-    const upsert = host.calls.find((c) => c.command === "agentUpsert");
-    expect(upsert?.params).toMatchObject({
-      agent: {
-        name: "Claude Code",
-        command: "claude",
-        timeoutSecs: 120,
-        remote: { host: "user@server", tunnel: 10022, persistent: true },
-      },
+    fireEvent.click(within(card).getByText("编辑"));
+    // 绑定部署行在 deploymentList 异步返回后渲染（挂载期一次拉取）
+    await act(async () => {
+      await vi.runAllTimersAsync();
     });
+    // ADR-0003：SSH 字段组退役——表单只剩「绑定部署」下拉（本机执行 + 别名），
+    // 不再出现 host/端口/私钥/隧道输入；超时输入仍在（默认 120）
+    expect(within(card).queryByRole("switch", { name: "SSH 远程执行" })).toBeNull();
+    expect(within(card).queryByLabelText("user@host")).toBeNull();
+    expect(within(card).queryByLabelText("反向隧道端口")).toBeNull();
+    // FormRow 的 label 是纯文本行（非 htmlFor 关联），按文本断言存在性
+    expect(within(card).getAllByText("绑定部署").length).toBeGreaterThan(0);
+    expect(within(card).getAllByText("超时（秒）").length).toBeGreaterThan(0);
   });
   // pk 技能行与连接测试的用例 → settings-agent-tools.spec.tsx（棘轮拆分，等量迁移）
 });

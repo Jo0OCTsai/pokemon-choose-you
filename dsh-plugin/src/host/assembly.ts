@@ -82,6 +82,10 @@ export interface PluginDeps {
   backupTimer?: TimerApi;
   /** 远程部署平台面（deployment、provision 族命令与远程派发路由；缺省 = 远端能力降级不装配） */
   remote?: RemoteCommandPlatform;
+  /** 常驻隧道服务（ADR-0003 双宿主让位 supervisor；dsh 适配层注入，缺省隧道不维持） */
+  tunnels?: HostCommandDeps["tunnels"];
+  /** pk 通道开通执行器（`pk remote setup` spawn + 本机 pk 落位；缺省命令降级拒绝） */
+  pkSetup?: HostCommandDeps["pkSetup"];
   /** dsh-ssh 家族探测投影（diagnosticsSnapshot.sshFamily 数据源；缺省 null 不显行） */
   sshFamily?: () => SshFamilyProjection | null;
   /** helper 入口路径（macAuthorizationStatus 回显；缺省空串） */

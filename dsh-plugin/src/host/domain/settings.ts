@@ -135,15 +135,6 @@ export function writeSettings(conn: Conn, keyValues: Record<string, string>): vo
 
 // ---- agent 列表（ai_agents JSON 数组键：整读-改-整写，A24 ①） ----
 
-/** SSH 远程执行配置（与 ai/config.rs AgentRemote 字段一一对应，camelCase） */
-export interface AgentRemote {
-  host: string;
-  port: number;
-  keyPath?: string | null;
-  tunnel?: number | null;
-  persistent: boolean;
-}
-
 /** 一个 AI agent CLI 的调用配置（与 ai/config.rs AgentConfig 字段一一对应） */
 export interface AgentConfig {
   id: string;
@@ -155,7 +146,6 @@ export interface AgentConfig {
   skillDir?: string | null;
   timeoutSecs: number;
   enabled: boolean;
-  remote?: AgentRemote | null;
   /**
    * 绑定的远程部署 alias（dsh 扩展字段，Rust 侧未知字段容忍）：非空 = 该 agent 派发到
    * 对应部署执行（执行世界单源；桌面 serde 与前端展开式回写均保留未知字段）。
@@ -179,9 +169,18 @@ export function loadAgents(conn: Conn): AgentConfig[] {
   return list.filter((a) => (a.command ?? "").trim() !== "");
 }
 
-/** agents 整写（remote/ 级联消费：部署改名级联更新 agent 绑定——执行世界单源） */
+/**
+ * agents 整写（remote/ 级联消费：部署改名级联更新 agent 绑定——执行世界单源）。
+ * 落库前剥离退役的 remote 键（ADR-0003 AgentRemote 退役）：与 Rust 类型化往返
+ * （无该字段即不序列化）字节对齐，契约 fixtures 依赖此口径。
+ */
 export function storeAgents(conn: Conn, agents: AgentConfig[]): void {
-  setSetting(conn, "ai_agents", JSON.stringify(agents));
+  const stripped = agents.map((a) => {
+    const rest: AgentConfig = { ...(a as AgentConfig & { remote?: unknown }) };
+    delete (rest as { remote?: unknown }).remote;
+    return rest as AgentConfig;
+  });
+  setSetting(conn, "ai_agents", JSON.stringify(stripped));
 }
 
 function agentIdsSignature(agents: AgentConfig[]): string {

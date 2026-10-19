@@ -140,10 +140,12 @@ fn resolve_target_conn(conn: &Connection, task_id: i64) -> AppResult<TaskDispatc
 }
 
 fn ssh_host_of(a: &AgentConfig) -> Option<String> {
-    a.remote
-        .as_ref()
-        .filter(|r| !r.host.trim().is_empty())
-        .map(|r| r.host.trim().to_string())
+    // 展示面：绑定别名即机器标识（存在性校验在 prepare_dispatch 的解析步）
+    a.deployment
+        .as_deref()
+        .map(str::trim)
+        .filter(|d| !d.is_empty())
+        .map(String::from)
 }
 
 /// 派发前的统一取数（两条通道共用）：任务 + project 校验 + 路由 + 最新跟进 + 上一轮会话 id
@@ -151,6 +153,8 @@ pub(crate) struct DispatchPrep {
     pub(crate) task: Task,
     pub(crate) notes: Vec<String>,
     pub(crate) agent: AgentConfig,
+    /// 部署绑定解析出的远程目标（None = 本机执行；悬空绑定在 prepare 即拒——ADR-0003）
+    pub(crate) remote: Option<crate::ai::RemoteTarget>,
     pub(crate) workdir: String,
     pub(crate) context: Option<String>,
     /// tasks.dispatched_session（claude 续接用）
@@ -173,6 +177,8 @@ pub(crate) fn prepare_dispatch(
     let agent = route.agent.clone().ok_or_else(|| {
         AppError::Invalid("没有可用的 Agent：请先在 设置 → 集成 添加并启用".into())
     })?;
+    let remote = crate::commands::resolve_remote_target(&conn, &agent)
+        .map_err(|e| AppError::Invalid(e.message))?;
     let mut stmt =
         conn.prepare("SELECT content FROM task_notes WHERE task_id=?1 ORDER BY id DESC LIMIT 3")?;
     let mut notes: Vec<String> = stmt
@@ -200,6 +206,7 @@ pub(crate) fn prepare_dispatch(
         },
         notes,
         agent,
+        remote,
         workdir: route.workdir,
         context,
     })

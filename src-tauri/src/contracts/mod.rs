@@ -50,6 +50,7 @@ const KINDS: &[&str] = &[
     "cold_start",
     "reminder",
     "streak",
+    "deployment_registry",
 ];
 
 /// final 全量行集导出的表（行内键经 BTreeMap 字典序；行序 = rowid）
@@ -1418,6 +1419,56 @@ impl Harness {
                 }
                 Ok(json!({"written": kvs.len()}))
             }
+
+            // ---- 部署注册表面（PROTOCOL §8 · ADR-0003；conn 级原语直驱）----
+            "deployment_upsert" => self.with_conn(idx, |conn| {
+                let pk_tunnel = match args.get("pkTunnel") {
+                    None => None,
+                    Some(serde_json::Value::Null) => Some(None),
+                    Some(v) => {
+                        // u64 手解而非 serde u16 直解：越界端口要落进域校验的
+                        // DEPLOYMENT_INPUT_INVALID，而非 serde 形态错 tag
+                        let port = v
+                            .get("port")
+                            .and_then(|p| p.as_u64())
+                            .ok_or("port-missing")?;
+                        let persistent = v
+                            .get("persistent")
+                            .and_then(|p| p.as_bool())
+                            .unwrap_or(false);
+                        if !(1..=65535).contains(&port) {
+                            return Err("DEPLOYMENT_INPUT_INVALID".into());
+                        }
+                        Some(Some(commands::PkTunnelConfig {
+                            port: port as u16,
+                            persistent,
+                        }))
+                    }
+                };
+                let input = commands::DeploymentUpsertInput {
+                    id: args.get("id").and_then(|v| v.as_str()).map(String::from),
+                    alias: args.get("alias").and_then(|v| v.as_str()).unwrap_or("").to_string(),
+                    node_path: args.get("nodePath").and_then(|v| v.as_str()).map(String::from),
+                    workdir: args.get("workdir").and_then(|v| v.as_str()).map(String::from),
+                    note: args.get("note").and_then(|v| v.as_str()).map(String::from),
+                    pk_tunnel,
+                    confirm_alias_refs: args.get("confirmAliasRefs").and_then(|v| v.as_bool()).unwrap_or(false),
+                };
+                let entity = commands::deployment_upsert(conn, &input)
+                    .map_err(|e| e.tag)?;
+                Ok(json!({"deployment": entity.to_value()}))
+            }),
+            "deployment_delete" => self.with_conn(idx, |conn| {
+                let id = args
+                    .get("id")
+                    .and_then(|v| v.as_str())
+                    .ok_or("id-missing")?;
+                let deleted = commands::deployment_delete(conn, id).map_err(|e| e.tag)?;
+                if !deleted {
+                    return Err("NOT_FOUND".into());
+                }
+                Ok(json!({"deleted": true}))
+            }),
 
             // ---- 背包词表面（真实 tauri 命令）----
             "category_upsert" => {

@@ -1,4 +1,7 @@
 import type {
+  DeploymentView,
+  DanglingRef,
+  MigrationReport,
   AgentSession,
   AgentSkillInstallResult,
   AgentSkillStatus,
@@ -198,13 +201,33 @@ export const api = {
       sessionId: sessionId ?? null,
       workdir: workdir ?? null,
     }),
-  /** 一键配置远程 pk：密钥/公钥/指纹/shim/PATH 全自动，成功写回隧道端口 */
-  setupRemotePk: (agentId: string, port?: number) =>
-    call<RemotePkReport>("setup_remote_pk", { agentId, port: port ?? null }),
-  /** agent 的常驻反向隧道状态（off / connecting / healthy / retrying，附详情） */
-  tunnelStatus: (agentId: string) => call<TunnelStatus>("tunnel_status", { agentId }),
-  /** 按已保存的 agent 配置对齐常驻隧道集合（保存/一键配置后调用） */
+  /** 部署驱动的 pk 通道开通（ADR-0003）：密钥/公钥/指纹/shim/PATH 全自动，成功写回 pkTunnel */
+  setupDeploymentPk: (deploymentId: string, port?: number) =>
+    call<RemotePkReport>("setup_deployment_pk", { deploymentId, port: port ?? null }),
+  /** 部署的常驻反向隧道状态（off / connecting / healthy / retrying，附详情） */
+  tunnelStatus: (deploymentId: string) => call<TunnelStatus>("tunnel_status", { deploymentId }),
+  /** 按部署注册表对齐常驻隧道集合（部署保存 / pk 通道开通后调用） */
   syncTunnels: () => call<void>("sync_tunnels"),
+  /** 部署列表（alias 字典序） */
+  deploymentList: () => call<DeploymentView[]>("deployment_list"),
+  /** 部署新建/编辑（编辑省略字段保持现值；confirmAliasRefs 用于改名级联确认） */
+  deploymentUpsert: (input: {
+    id?: string;
+    alias: string;
+    nodePath?: string;
+    workdir?: string;
+    note?: string;
+    pkTunnel?: { port: number; persistent: boolean } | null;
+    confirmAliasRefs?: boolean;
+  }) => call<DeploymentView>("deployment_upsert_cmd", { input }),
+  /** 部署移除（不级联删 agent 绑定——悬空由绑定校验呈现） */
+  deploymentDelete: (id: string) => call<void>("deployment_delete_cmd", { id }),
+  /** ~/.ssh/config 的 Host 条目（部署别名下拉数据源） */
+  sshAliasOptions: () => call<string[]>("ssh_alias_options"),
+  /** 悬空绑定查询（agent 绑定的别名不在注册表） */
+  danglingDeploymentRefs: () => call<DanglingRef[]>("dangling_deployment_refs"),
+  /** 存量迁移（AgentRemote → 部署绑定）：幂等可重跑，config 先备份再写 managed 块 */
+  migrateAgentRemote: () => call<MigrationReport>("migrate_agent_remote"),
   /** 检查 agent 的 pk 技能安装状态（本地直读；远程经 ssh 读远端目录） */
   agentSkillStatus: (agentId: string) => call<AgentSkillStatus>("agent_skill_status", { agentId }),
   /** 安装/同步 agent 的 pk 技能到应用内置版本（幂等，跨版本即升级） */

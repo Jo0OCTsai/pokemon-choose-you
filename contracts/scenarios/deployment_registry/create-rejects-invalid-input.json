@@ -1,0 +1,61 @@
+{
+  "kind": "deployment_registry",
+  "name": "create-rejects-invalid-input",
+  "now": "2026-10-19T09:00:00+08:00",
+  "setup": {
+    "settings": {}
+  },
+  "steps": [
+    {
+      "op": "deployment_upsert",
+      "args": {
+        "alias": "  "
+      }
+    },
+    {
+      "op": "deployment_upsert",
+      "args": {
+        "alias": "gpu 1",
+        "nodePath": "/usr/bin/node"
+      }
+    },
+    {
+      "op": "deployment_upsert",
+      "args": {
+        "alias": "gpu-2",
+        "nodePath": "~/node"
+      }
+    },
+    {
+      "op": "deployment_upsert",
+      "args": {
+        "alias": "gpu-2",
+        "nodePath": "/usr/bin/node",
+        "workdir": "rel/x"
+      }
+    },
+    {
+      "op": "deployment_upsert",
+      "args": {
+        "alias": "gpu-2",
+        "nodePath": "/usr/bin/node",
+        "pkTunnel": {
+          "port": 0,
+          "persistent": false
+        }
+      }
+    },
+    {
+      "op": "deployment_upsert",
+      "args": {
+        "alias": "gpu-2",
+        "nodePath": "/usr/bin/node",
+        "pkTunnel": {
+          "port": 70000,
+          "persistent": false
+        }
+      }
+    }
+  ],
+  "expect": "exact"
+}

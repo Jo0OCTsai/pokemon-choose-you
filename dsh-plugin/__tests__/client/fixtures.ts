@@ -155,6 +155,7 @@ export function makeDeployment(overrides: Partial<DeploymentEntity> & { id: stri
     lastError: null,
     provision: null,
     degraded: false,
+    pkTunnel: null,
     ...overrides,
   };
 }

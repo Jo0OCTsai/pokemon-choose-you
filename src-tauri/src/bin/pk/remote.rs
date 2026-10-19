@@ -156,9 +156,12 @@ pub(crate) fn run_remote(rest: &[String]) -> Result<serde_json::Value, CliError>
     let sub = rest
         .first()
         .map(String::as_str)
-        .ok_or_else(|| usage_err("缺少 remote 子命令（目前支持 shim）"))?;
+        .ok_or_else(|| usage_err("缺少 remote 子命令（目前支持 shim / setup）"))?;
+    if sub == "setup" {
+        return run_remote_setup(&rest[1..]);
+    }
     if sub != "shim" {
-        return Err(usage_err("remote 子命令目前只支持 shim"));
+        return Err(usage_err("remote 子命令目前只支持 shim / setup"));
     }
     let p = parse_args(&rest[1..]);
     let host = p
@@ -237,4 +240,72 @@ fn sh_quote(s: &str) -> String {
     } else {
         format!("'{}'", s.replace('\'', r"'\''"))
     }
+}
+
+/// `pk remote setup`：开通 pk 通道（ADR-0003 §3）——参数化执行主应用 run_setup 序列
+/// （定位 pk → 本机 sshd → 专用密钥 → 公钥装配 → 推私钥 → 指纹 → 装 shim → PATH →
+/// 端到端验证），JSON 报告输出（桌面薄壳与 dsh 宿主共用的 Rust 单源执行器）。
+/// 不碰库（main 在 open_db 前分发 remote）。alias 模式：连接参数由 ~/.ssh/config 承载。
+fn run_remote_setup(rest: &[String]) -> Result<serde_json::Value, CliError> {
+    let p = parse_args(rest);
+    let host = p
+        .flag("host")
+        .filter(|h| !h.is_empty())
+        .ok_or_else(|| {
+            usage_err("remote setup 需要 --host <OpenSSH 别名>（凭据与端口由 ~/.ssh/config 承载）")
+        })?
+        .to_string();
+    let tunnel_port = match p.flag("tunnel-port").filter(|v| !v.is_empty()) {
+        Some(v) => v
+            .parse::<u16>()
+            .map_err(|_| usage_err("--tunnel-port 必须是端口号数字"))?,
+        None => pokemon_choose_you_lib::commands::DEFAULT_TUNNEL_PORT,
+    };
+    let key_dir = match p.flag("key-dir").filter(|v| !v.is_empty()) {
+        Some(v) => std::path::PathBuf::from(v),
+        // 密钥单源：<appHome>/data 下同一对密钥文件（双宿主开通幂等收敛——ADR-0003 §3）
+        None => pokemon_choose_you_lib::db::data_dir().ok_or_else(|| {
+            usage_err("无法定位应用数据目录（~/.choose-you/data），请用 --key-dir 显式指定")
+        })?,
+    };
+    let pk_path = p
+        .flag("pk-path")
+        .filter(|v| !v.is_empty())
+        .map(std::path::PathBuf::from)
+        .or_else(|| std::env::current_exe().ok())
+        .map(|pb| pb.to_string_lossy().into_owned())
+        .ok_or_else(|| usage_err("无法定位本 pk 路径，请用 --pk-path 显式指定"))?;
+    let local_user = p
+        .flag("local-user")
+        .filter(|v| !v.is_empty())
+        .map(String::from)
+        .unwrap_or_else(|| {
+            std::env::var(if cfg!(windows) { "USERNAME" } else { "USER" }).unwrap_or_default()
+        });
+    let step_timeout = match p.flag("timeout-secs").filter(|v| !v.is_empty()) {
+        Some(v) => v
+            .parse::<u64>()
+            .map_err(|_| usage_err("--timeout-secs 必须是秒数数字"))?,
+        None => 60,
+    };
+    let ctx = pokemon_choose_you_lib::commands::RemotePkSetup {
+        ssh_program: pokemon_choose_you_lib::ai::ssh_bin(),
+        keyscan_program: p
+            .flag("keyscan-bin")
+            .filter(|v| !v.is_empty())
+            .unwrap_or("ssh-keyscan")
+            .to_string(),
+        host,
+        // alias 模式：不传 -p/-i，连接参数归 ~/.ssh/config
+        ssh_port: 0,
+        agent_key: None,
+        tunnel_port,
+        local_user,
+        pk_path,
+        key_dir,
+        local_home: dirs::home_dir().unwrap_or_default(),
+        step_timeout: std::time::Duration::from_secs(step_timeout),
+    };
+    let report = pokemon_choose_you_lib::commands::run_setup(&ctx);
+    serde_json::to_value(&report).map_err(|e| CliError(format!("序列化报告失败: {e}"), 1))
 }

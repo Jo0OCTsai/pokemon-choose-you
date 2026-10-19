@@ -77,13 +77,13 @@ describe("full-parity 命令面 · 部署 CRUD", () => {
     expect(list.data.counts).toEqual({ ready: 0, pending: 1, broken: 0 });
   });
 
-  it("deploymentUpsert：空别名/`~` 前缀路径参数错；正常新建返回实体", async () => {
+  it("deploymentUpsert：空别名/`~` 前缀路径输入不变式错（ADR-0003 域码）；正常新建返回实体", async () => {
     const empty = (await f.call("deploymentUpsert", { alias: "  " })) as { error: { code: string } };
-    expect(empty.error.code).toBe("INVALID_ARGUMENT");
+    expect(empty.error.code).toBe("DEPLOYMENT_INPUT_INVALID");
     const tilde = (await f.call("deploymentUpsert", { alias: "x", nodePath: "~/.nvm/node" })) as {
       error: { code: string };
     };
-    expect(tilde.error.code).toBe("INVALID_ARGUMENT");
+    expect(tilde.error.code).toBe("DEPLOYMENT_INPUT_INVALID");
     const ok = (await f.call("deploymentUpsert", { alias: "lab", nodePath: "/usr/bin/node", workdir: "" })) as {
       data: { deployment: { alias: string; status: string } };
     };

@@ -43,6 +43,29 @@ const ADVERSARIAL = [
   "/opt/节点/bin/node",
 ];
 
+/** 直插部署实体种子（对抗测试：敌意数据不经 upsert 校验直接落库） */
+function seedDeploymentRaw(id: string, alias: string): void {
+  db.conn.prepare("INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)").run(
+    "dsh:deployments",
+    JSON.stringify({
+      [id]: {
+        id,
+        alias,
+        nodePath: "/usr/bin/node",
+        helperPath: "",
+        helperHash: null,
+        workdir: "",
+        note: "",
+        status: "draft",
+        lastError: null,
+        provision: null,
+        degraded: false,
+        pkTunnel: null,
+      },
+    }),
+  );
+}
+
 describe("组装函数逐条引用断言（posixQuote 单点）", () => {
   it("probeNodeCommand：<nodePath> --version 逐参引用（黄金串精确匹配）", () => {
     for (const sample of ADVERSARIAL) {
@@ -162,9 +185,9 @@ describe("全流程组装面复核（fake 远端命令记录逐条断言）", ()
   it("别名永不进命令组装面（对抗别名注入样本零泄漏）", async () => {
     const evilAlias = "dev;rm -rf /box";
     const scope = new FakeSshScope();
-    const { deployment } = deploymentUpsert(db.conn, { alias: evilAlias, nodePath: "/usr/bin/node", workdir: "" });
-    await runProvisionToReady(scope, deployment.id);
-    expect(listDeployments(db.conn)[deployment.id].status).toBe("ready");
+    seedDeploymentRaw("dep-evil", evilAlias);
+    await runProvisionToReady(scope, "dep-evil");
+    expect(listDeployments(db.conn)["dep-evil"].status).toBe("ready");
     for (const cmd of scope.commands) {
       expect(cmd).not.toContain(evilAlias); // alias 经连接配置（scope 装配）承载，不进命令串
     }

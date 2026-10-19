@@ -15,13 +15,15 @@ use tauri::Manager;
 const SLOT_LEASE_MARGIN_SECS: i64 = 300;
 
 /// host_key 归一（dispatch_slots.host_key 的键口径，跨形态合计计数的机器标识）：
-/// 本机 'local'；远程 agent 'ssh:user@host[:port]'。公开供其他消费面复用同一归一
+/// 本机 'local'；远程 = 绑定部署别名 'ssh:<alias>'（与 dsh 插件 hostKey 口径一致——ADR-0003）。
+/// 公开供其他消费面复用同一归一
 pub fn host_key(agent: &AgentConfig) -> String {
     agent
-        .remote
-        .as_ref()
-        .filter(|r| !r.host.trim().is_empty())
-        .map(|r| format!("ssh:{}", r.host.trim()))
+        .deployment
+        .as_deref()
+        .map(str::trim)
+        .filter(|d| !d.is_empty())
+        .map(|alias| format!("ssh:{alias}"))
         .unwrap_or_else(|| "local".into())
 }
 
@@ -435,34 +437,21 @@ mod tests {
     /// 远程 'ssh:user@host[:port]'，空白 host 回落本机
     #[test]
     fn host_key_normalizes_local_and_ssh() {
-        use crate::ai::AgentRemote;
         let local = AgentConfig::default();
-        let blank_host = AgentConfig {
-            remote: Some(AgentRemote {
-                host: "   ".into(),
-                port: 22,
-                key_path: None,
-                tunnel: None,
-                persistent: false,
-            }),
+        let blank_binding = AgentConfig {
+            deployment: Some("   ".into()),
             ..Default::default()
         };
-        let ssh = AgentConfig {
-            remote: Some(AgentRemote {
-                host: " vscode@localhost:1022 ".into(),
-                port: 1022,
-                key_path: None,
-                tunnel: None,
-                persistent: false,
-            }),
+        let bound = AgentConfig {
+            deployment: Some(" gpu-1 ".into()),
             ..Default::default()
         };
         assert_eq!(host_key(&local), "local");
-        assert_eq!(host_key(&blank_host), "local", "空白 host 视同本机");
+        assert_eq!(host_key(&blank_binding), "local", "空白绑定视同本机");
         assert_eq!(
-            host_key(&ssh),
-            "ssh:vscode@localhost:1022",
-            "去首尾空格，user@host[:port] 原样保留"
+            host_key(&bound),
+            "ssh:gpu-1",
+            "去首尾空格，部署别名即机器键（与 dsh 插件同口径）"
         );
     }
 

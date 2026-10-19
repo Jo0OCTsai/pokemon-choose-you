@@ -133,7 +133,7 @@ pub async fn pet_chat(db: State<'_, Db>, message: String) -> AppResult<String> {
     if q.chars().count() > 200 {
         return Err(AppError::Invalid("问题太长了，精灵记不住～".into()));
     }
-    let (agent, ctx, system) = {
+    let (agent, remote, ctx, system) = {
         let conn = db.0.lock().unwrap();
         let get = |k: &str| -> Option<String> {
             conn.query_row("SELECT value FROM settings WHERE key=?1", params![k], |r| {
@@ -145,12 +145,14 @@ pub async fn pet_chat(db: State<'_, Db>, message: String) -> AppResult<String> {
             .ok_or_else(|| AppError::Invalid("还没有配置 AI agent（设置 → AI 集成）".into()))?;
         // 覆盖行与 agent 配置同一锁窗口点查（微秒级），渲染与调用在锁外
         let resolved = ai::effective_system_prompt(&get, ai::PromptFeature::PetChat);
-        (agent, build_context(&conn)?, resolved.text)
+        let remote = crate::commands::resolve_remote_target(&conn, &agent)
+            .map_err(|e| AppError::Invalid(e.message))?;
+        (agent, remote, build_context(&conn)?, resolved.text)
     };
     // 默认模板 = PET_CHAT_SYSTEM_PROMPT（prompts.rs 单源），单遍替换与迁移前
     // format! 输出逐字节相同；自定义覆盖经同一渲染路径注入 ctx/q
     let prompt = ai::render_template(&system, &[("<CONTEXT>", ctx.as_str()), ("<QUESTION>", q)]);
-    let out = ai::run_agent(&agent, &prompt).await?;
+    let out = ai::run_agent(&agent, &prompt, remote.as_ref()).await?;
     Ok(trim_sentences(&out, 2))
 }
 

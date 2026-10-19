@@ -32,7 +32,6 @@ describe("Agent 分区 · pk 技能行与连接测试", () => {
         skillDir: null,
         timeoutSecs: 120,
         enabled: true,
-        remote: null,
       },
     ];
     const { host } = renderSettings(data);

@@ -1,13 +1,13 @@
 /**
  * 业务错误码表（从 rpcTypes.ts 拆出——棘轮 max-lines，等量迁移；rpcTypes.ts 为统一
- * 再出口，消费面不变）：21 枚举 · PROTOCOL §2 单源镜像；与 host/storage/errors
+ * 再出口，消费面不变）：23 枚举 · PROTOCOL §2 单源镜像；与 host/storage/errors
  * ERROR_CODES 的类型级双向断言在本文件收口。
  */
 import type { ErrorCode } from "../host/storage/errors";
 
-// ---- 错误码（21 枚举 · PROTOCOL §2 单源；与 host/storage/errors ERROR_CODES 逐字一致——类型级双向断言） ----
+// ---- 错误码（23 枚举 · PROTOCOL §2 单源；与 host/storage/errors ERROR_CODES 逐字一致——类型级双向断言） ----
 
-/** 业务错误码（uiux 契约需求面交互状态表单源；full-parity 2.9 收口 15→21） */
+/** 业务错误码（uiux 契约需求面交互状态表单源；full-parity 2.9 收口 15→21；ADR-0003 21→23） */
 export const ERROR_CODES = [
   "JUDGE_TIMEOUT",
   "JUDGE_INVALID_RESULT",
@@ -30,6 +30,8 @@ export const ERROR_CODES = [
   "DEPLOYMENT_NOT_READY",
   "PROVISION_STEP_FAILED",
   "HELPER_HASH_MISMATCH",
+  "DEPLOYMENT_ALIAS_TAKEN",
+  "DEPLOYMENT_INPUT_INVALID",
 ] as const satisfies readonly ErrorCode[];
 
 /** 双向集合相等断言：本表 ⊇ host 表 且 host 表 ⊆ 本表（漂移即编译红） */

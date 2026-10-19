@@ -9,6 +9,7 @@ import { dispatchOps } from "./opsDispatch";
 import { configOps } from "./opsConfig";
 import { vocabOps } from "./opsVocab";
 import { reminderOps } from "./opsReminder";
+import { deploymentOps } from "./opsDeployments";
 
 /** 确定写 task_logs 的成功 op 集（auditRows >= writeOps 守恒断言的期望侧） */
 export const AUDIT_WRITING_OPS = new Set([
@@ -31,5 +32,13 @@ export const AUDIT_WRITING_OPS = new Set([
 
 /** 全量 op 表（PROTOCOL §5 op 枚举的 TS 执行面） */
 export function opTable(): Record<string, OpFn> {
-  return { ...taskOps(), ...judgeOps(), ...dispatchOps(), ...configOps(), ...vocabOps(), ...reminderOps() };
+  return {
+    ...taskOps(),
+    ...judgeOps(),
+    ...dispatchOps(),
+    ...configOps(),
+    ...vocabOps(),
+    ...reminderOps(),
+    ...deploymentOps(),
+  };
 }

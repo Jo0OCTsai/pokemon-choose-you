@@ -15,7 +15,6 @@ import { FormRow, Select, TextInput } from "../../ui/controls";
 import ui from "../../ui/ui.module.css";
 import styles from "../settings.module.css";
 import { AgentSkillRow } from "./AgentSkillRow";
-import { AgentSshGroup } from "./AgentSshGroup";
 
 /** 编辑态表单（form 状态由父卡自持；保存/取消动作经回调上抛；冲突时出「仍要覆盖」
  *  force 重发钮——A24 确认覆盖出口，不再是只提示无出口的死胡同） */
@@ -119,7 +118,6 @@ export function AgentEditForm({
           onChange={(v) => setForm({ ...form, timeoutSecs: Number(v) || 0 })}
         />
       </FormRow>
-      <AgentSshGroup form={form} setForm={setForm} />
       <AgentDeploymentRow form={form} setForm={setForm} />
       {commandInvalid && <span className={styles.saveFailHint}>{t("dsh.agents.commandRequired")}</span>}
       {error !== null && <span className={styles.saveFailHint}>{error}</span>}

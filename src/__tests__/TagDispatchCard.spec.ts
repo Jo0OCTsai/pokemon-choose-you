@@ -28,17 +28,16 @@ const AGENTS: AgentConfig[] = [
     historyArgs: "",
     timeoutSecs: 120,
     enabled: true,
-    remote: null,
   },
   {
     id: "ag-remote",
     name: "Claude Code 2",
+    deployment: "gpu-1",
     command: "claude",
     args: "-p {prompt}",
     historyArgs: "",
     timeoutSecs: 120,
     enabled: true,
-    remote: { host: "me@server", port: 22, keyPath: "" },
   },
   {
     id: "ag-off",
@@ -48,7 +47,6 @@ const AGENTS: AgentConfig[] = [
     historyArgs: "",
     timeoutSecs: 120,
     enabled: false,
-    remote: null,
   },
 ];
 
@@ -98,7 +96,7 @@ describe("TagDispatchCard 项目派发卡片", () => {
     expect(blocks[1].get(".db-state:not(.on)").text()).toContain("未配置");
   });
 
-  it("meta 预填草稿，agent 下拉显示已选 agent（含 SSH 徽标）", async () => {
+  it("meta 预填草稿，agent 下拉显示已选 agent（含部署徽标）", async () => {
     const w = await mountCard([tag({ id: 1, meta: { workdir: "~/repo", agentId: "ag-remote", context: "Rust" } })]);
     expect((w.get("input").element as HTMLInputElement).value).toBe("~/repo");
     await w.get(".ds-btn").trigger("click");
@@ -107,7 +105,7 @@ describe("TagDispatchCard 项目派发卡片", () => {
     expect(items.map((i) => i.text())).toEqual([
       expect.stringContaining("不指定"),
       expect.stringContaining("Claude Code"),
-      expect.stringContaining("Claude Code 2 · SSH"),
+      expect.stringContaining("Claude Code 2 · gpu-1"),
     ]);
   });
 

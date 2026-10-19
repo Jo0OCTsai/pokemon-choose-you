@@ -11,7 +11,7 @@
 - schema 版本：`PRAGMA user_version`；迁移 SQL 单源 = `contracts/schema/`（编号顺序执行，guarded 协议见 AD §5.3；**迁移封顶 = 插件打包的最新契约版（D29）**：独立分发后插件是唯一迁移执行方，冷启动与旧库一律迁满打包窗口——双形态并存时插件推到打包上限、主应用可推更高、任一方窗口外只读保护；contracts 追加迁移时插件侧窗口常量与内嵌 SQL 必须同版发版，`dsh-plugin/__tests__/migrate.spec.ts` 同版断言是发布检查单机器面）。
 - 写路径：全部单条 `BEGIN IMMEDIATE` 短事务；跨行不变式用 compare-and-swap（WHERE 守卫）+ affected rows 判定；禁止事务内子进程调用。
 
-## 2. 错误码（21 枚举 · 单源）
+## 2. 错误码（23 枚举 · 单源）
 
 响应统一 `{ ok: true, data? }` / `{ ok: false, error: { code, message, hint? } }`（message 三语由 UI 层本地化，code 机器稳定）。
 
@@ -38,6 +38,8 @@
 | DEPLOYMENT_NOT_READY | 部署非就绪态（未开通/断开/摘要不符）的派发/回放/连接操作前置拒绝 | 远程派发前、sessionReplay 路由 |
 | PROVISION_STEP_FAILED | 开通向导单步执行失败（probe-ssh 免密步复用 SSH_AUTH_REQUIRED；error.hint 附失败步骤 probe-node/upload/verify） | provisionRun |
 | HELPER_HASH_MISMATCH | 远端 helper SHA-256 摘要不符——拒绝就绪、不降级直连（转直连须 deploymentDegradeConfirm 显式确认留痕） | provisionRun 校验步、就绪复核 |
+| DEPLOYMENT_ALIAS_TAKEN | 部署别名已被其他部署占用（alias 唯一索引；ADR-0003 §1） | deploymentUpsert（双端） |
+| DEPLOYMENT_INPUT_INVALID | 部署实体输入不变式失败：alias 空/含空白、路径 `~` 前缀或非绝对、pkTunnel 端口越界（§8） | deploymentUpsert（双端） |
 
 ## 3. 判定协议（AiSuggestion）
 
@@ -147,3 +149,31 @@ contracts/fixtures/<group>/<name>.json    期望输出（Rust oracle 生成，ch
 
 - 番茄为各形态本地状态；任务离开「进行中」时已专注部分按整分钟（向下取整）入账 `tasks.focus_seconds`；短休息取消。
 - 幂等账本 = settings 键 `dsh:focus_settled`（JSON 数组滚动保留最近 100 个 localSessionId，含则跳过入账——A20）。
+
+## 8. 部署实体（ADR-0003 · 双端一等读写）
+
+settings 键 `dsh:deployments`：JSON `Record<id, 实体>`，双端（Rust 主应用 / TS dsh 插件）整读-改-整写（`BEGIN IMMEDIATE` 内）。字段序 = 规范序（双端落库字节一致性的单源；map 按 id 字典序、实体键按下表序、未知键排尾按字典序）：
+
+| 键 | 类型 | 语义 |
+|---|---|---|
+| id | string | 实体唯一键（新建生成 UUID v4；引用用 alias 不用 id） |
+| alias | string | OpenSSH 别名（唯一；trim 后非空且不含空白；凭据零存储） |
+| nodePath | string | 远端 node 绝对路径（拒 `~` 前缀与相对路径） |
+| helperPath | string | helper 入口（provision 落定；空 = 未安装） |
+| helperHash | string \| null | helper SHA-256（就绪判据） |
+| workdir | string | 远端工作目录（空 = 登录目录；同路径不变式） |
+| note | string | 备注 |
+| status | string | draft/probing/not_ready/installing/ready/disconnected |
+| lastError | string \| null | 最近错误诊断 |
+| provision | object \| null | 开通向导状态机（TS 权威面，Rust 透传） |
+| degraded | boolean | 直连降级确认标记 |
+| pkTunnel | { port: 1..65535, persistent: boolean } \| null | pk 通道机器级隧道配置（ADR-0003 §2；null = 未配置） |
+
+不变式（双端一致，错误码见 §2）：
+- upsert 编辑分支省略字段保持现值；`pkTunnel: null` 显式清除、对象显式设置；
+- 实质变更（alias/nodePath/workdir 任一）→ 状态回落 not_ready、清空开通产物（helperPath/helperHash/provision/degraded）；
+- **alias 变更额外清空 pkTunnel**（alias 即机器身份）；nodePath/workdir 变更保留 pkTunnel；
+- alias 改名被 agent 绑定引用：未带 `confirmAliasRefs:true` 拒绝（INVALID_ARGUMENT）；确认后同事务级联改写 `ai_agents[].deployment`（Rust AgentConfig 与 TS AgentConfig 字段一一对应——级联经类型化往返不丢字段，字段集由 config_align fixtures 锁定）；
+- delete 不级联删 agent 绑定（悬空绑定由派发解析拒绝 + 失配查询呈现）。
+
+op 补记（`deployment_registry` 组 · ADR-0003 新增）：`deployment_upsert`（入参 = upsert 输入对象，出参 `{deployment: 实体}`；错误 tag = §2 码 / INVALID_ARGUMENT（未确认改名）/ NOT_FOUND（编辑未知 id））；`deployment_delete`（入参 `{id}`，出参 `{deleted: true}`；语义 = 移除实体不含远端自清理编排——那是宿主适配层职责，契约面只锁实体状态变迁）。场景确定性：create 成功路径（UUID 随机）不入场景集，create 覆盖失败路径、编辑/级联/删除覆盖种子实体（规范序种子）。

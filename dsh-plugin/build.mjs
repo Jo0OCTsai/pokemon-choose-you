@@ -16,7 +16,7 @@
 import * as esbuild from "esbuild";
 import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
-import { readFileSync } from "node:fs";
+import { chmodSync, copyFileSync, mkdirSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -182,3 +182,28 @@ await esbuild.build({
   footer: { js: CLIENT_FOOTER },
   logLevel: "info",
 });
+
+// ---- vendor pk（ADR-0003 §4：纯 dsh 的 pk 分发；源缺件跳过不炸构建） ----
+function hostTriple() {
+  const arch = process.arch === "arm64" ? "aarch64" : process.arch;
+  const os =
+    process.platform === "darwin"
+      ? "apple-darwin"
+      : process.platform === "win32"
+        ? "pc-windows-msvc"
+        : "unknown-linux-gnu";
+  return `${arch}-${os}`;
+}
+{
+  const src = path.join(root, "..", "src-tauri", "binaries", `pk-${hostTriple()}`);
+  const destDir = path.join(root, "vendor");
+  const dest = path.join(destDir, `pk-${hostTriple()}`);
+  try {
+    mkdirSync(destDir, { recursive: true });
+    copyFileSync(src, dest);
+    chmodSync(dest, 0o755);
+    console.log(`vendor: pk-${hostTriple()} 已拷入 vendor/`);
+  } catch {
+    console.warn(`vendor: 未找到 ${src}（本机 triple 未构建）——vendor/ 缺件，宿主按降级指引处理`);
+  }
+}

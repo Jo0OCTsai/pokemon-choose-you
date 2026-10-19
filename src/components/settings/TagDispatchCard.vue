@@ -67,7 +67,7 @@ function agentOptions(draft: Draft): { value: string; label: string }[] {
     if (!a.enabled && a.id !== draft.agentId) continue;
     opts.push({
       value: a.id,
-      label: `${a.name || a.command}${a.remote?.host?.trim() ? " · SSH" : ""}${a.enabled ? "" : ` · ${t("tags.metaAgentOff")}`}`,
+      label: `${a.name || a.command}${a.deployment?.trim() ? ` · ${a.deployment.trim()}` : ""}${a.enabled ? "" : ` · ${t("tags.metaAgentOff")}`}`,
     });
   }
   return opts;

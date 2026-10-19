@@ -1,8 +1,9 @@
 //! 无头/历史调用的命令行组装：本地 spawn argv、SSH 远程包装、跨平台 shell 引用
 //! 规则与工作目录处理。runner 消费 build_invocation 的产物驱动进程执行。
+//! 远程目标由调用方经部署绑定解析（resolve_remote_target）传入——本模块纯组装。
 use std::path::PathBuf;
 
-use super::config::AgentConfig;
+use super::config::{AgentConfig, RemoteTarget};
 
 /// ssh 客户端程序名：PK_SSH_BIN 可覆盖（测试注入/Windows 指向 plink 的 wrapper 等）
 pub fn ssh_bin() -> String {
@@ -24,7 +25,8 @@ pub(crate) struct Invocation {
 /// - 本地：args 中的 {prompt} 替换为提示词；未出现时提示词走标准输入；
 ///   裸命令名先经 which::resolve 补扫 GUI 进程缺失的 PATH（macOS Dock/Finder 启动
 ///   看不到 Homebrew/nvm 里的 claude 等），显式路径原样透传；envs 经 cmd.env 注入子进程
-/// - 远程：`ssh -o BatchMode=yes -o ConnectTimeout=10 [-i key] [-p port] host -- command args...`；
+/// - 远程（部署绑定解析出的 RemoteTarget）：`ssh -o BatchMode=yes -o ConnectTimeout=10
+///   [-R 隧道] -- <alias> -- command args...`——凭据与端口由 ~/.ssh/config 承载（ADR-0003）；
 ///   提示词一律走标准输入——ssh 会把 argv 拼接后交远端 shell 重解析，长提示词里的引号/换行必被打碎，
 ///   stdin 转发没有这个问题。args 中带 {prompt} 的元素剔除（如 `claude -p {prompt}` → `claude -p`，
 ///   -p 本身支持读 stdin），保证语义等价；envs 以 `VAR='值'` 前缀进远端命令行
@@ -33,9 +35,9 @@ pub(crate) fn build_invocation(
     agent: &AgentConfig,
     prompt: &str,
     envs: &[(String, String)],
+    remote: Option<&RemoteTarget>,
 ) -> Invocation {
     let args: Vec<String> = agent.args.split_whitespace().map(String::from).collect();
-    let remote = agent.remote.as_ref().filter(|r| !r.host.trim().is_empty());
     match remote {
         None => {
             let via_stdin = !args.iter().any(|a| a.contains("{prompt}"));
@@ -48,27 +50,14 @@ pub(crate) fn build_invocation(
                 cwd: agent_workdir(agent),
             }
         }
-        Some(r) => {
+        Some(target) => {
             let mut argv = vec![
                 "-o".to_string(),
                 "BatchMode=yes".to_string(), // 免交互：密钥不通直接失败，不挂起等密码
                 "-o".to_string(),
                 "ConnectTimeout=10".to_string(),
             ];
-            if let Some(key) = r
-                .key_path
-                .as_ref()
-                .map(|k| k.trim())
-                .filter(|k| !k.is_empty())
-            {
-                argv.push("-i".to_string());
-                argv.push(key.to_string());
-            }
-            if r.port != 0 && r.port != 22 {
-                argv.push("-p".to_string());
-                argv.push(r.port.to_string());
-            }
-            if let Some(tp) = r.tunnel.filter(|t| *t != 0) {
+            if let Some(tp) = target.tunnel_port.filter(|t| *t != 0) {
                 // 反向隧道：远程侧 127.0.0.1:<tp> ⇄ 本机 sshd，供远程 pk shim 回连（仅本连接存活）。
                 // 常驻隧道开启时这里仍照带——常驻连接已占住远程端口时 ssh 仅告警不失败，
                 // 而常驻隧道断线的空窗期这条按需隧道正好兜底，shim 不断流
@@ -77,7 +66,7 @@ pub(crate) fn build_invocation(
             }
             // -- 在 host 之前：以 - 开头的 host 不被当成 ssh 选项；其后整行是远端命令
             argv.push("--".to_string());
-            argv.push(r.host.trim().to_string());
+            argv.push(target.alias.clone());
             // 远端经登录 shell 执行：ssh 非交互会话只加载 .zshenv/.bashrc 之外的初始化，
             // brew/nvm 的 PATH 常在 .zprofile/.bash_profile（登录时）里，包一层 $SHELL -lc 才找得到命令
             argv.push("exec".to_string());
@@ -111,7 +100,7 @@ pub(crate) fn build_invocation(
                 program: ssh_bin(),
                 argv,
                 stdin: Some(prompt.to_string()),
-                remote_host: Some(r.host.clone()),
+                remote_host: Some(target.alias.clone()),
                 cwd: None,
             }
         }
@@ -268,10 +257,12 @@ fn adapt_history_args(args: &mut Vec<String>, session: &str, kind: Option<&str>)
 /// resume_session 存在时注入到历史参数里（见 adapt_history_args），直接回放该会话转录。
 /// workdir 为显式目录覆盖（项目派发的标签 meta 工作目录）：非空时压过 agent 自身配置，
 /// 使历史会话落在与派发一致的目录；为空/空白时回退 agent 自身解析。
+/// remote 由部署绑定解析传入（ADR-0003：alias 模式）。
 pub fn history_invocation(
     agent: &AgentConfig,
     resume_session: Option<&str>,
     workdir: Option<&str>,
+    remote: Option<&RemoteTarget>,
 ) -> (String, Vec<String>) {
     let mut args: Vec<String> = agent
         .history_args
@@ -282,9 +273,9 @@ pub fn history_invocation(
         let kind = crate::skills::kind_for_command(&agent.command);
         adapt_history_args(&mut args, sess.trim(), kind);
     }
-    match agent.remote.as_ref().filter(|r| !r.host.trim().is_empty()) {
+    match remote {
         None => (agent.command.clone(), args),
-        Some(r) => {
+        Some(target) => {
             // 交互式历史会话：不设 BatchMode（密钥未就绪时允许在终端里输密码，
             // 而不是无提示地瞬间失败）；-tt 强制分配远端伪终端，agent 的 TUI 才能交互
             let mut argv = vec![
@@ -292,22 +283,9 @@ pub fn history_invocation(
                 "-o".to_string(),
                 "ConnectTimeout=10".to_string(),
             ];
-            if let Some(key) = r
-                .key_path
-                .as_ref()
-                .map(|k| k.trim())
-                .filter(|k| !k.is_empty())
-            {
-                argv.push("-i".to_string());
-                argv.push(key.to_string());
-            }
-            if r.port != 0 && r.port != 22 {
-                argv.push("-p".to_string());
-                argv.push(r.port.to_string());
-            }
             // -- 在 host 之前：以 - 开头的 host 不被当成 ssh 选项；其后整行是远端命令
             argv.push("--".to_string());
-            argv.push(r.host.trim().to_string());
+            argv.push(target.alias.clone());
             argv.push("exec".to_string());
             argv.push("\"$SHELL\"".to_string());
             argv.push("-lc".to_string());
@@ -335,13 +313,13 @@ pub fn history_invocation(
 /// 会话记录的工作目录快照：与 build_invocation 的实际落点同构——
 /// 远程保留配置串原样（`~` 只有远端能展开；空 = 远端登录目录）；
 /// 本地解析成绝对路径（覆盖目录展开 `~`，缺省回落 agent_workdir 语义）
-pub fn session_workdir_snapshot(agent: &AgentConfig, effective: &str) -> String {
+pub fn session_workdir_snapshot(
+    agent: &AgentConfig,
+    effective: &str,
+    remote: Option<&RemoteTarget>,
+) -> String {
     let e = effective.trim();
-    if agent
-        .remote
-        .as_ref()
-        .is_some_and(|r| !r.host.trim().is_empty())
-    {
+    if remote.is_some() {
         return e.to_string();
     }
     let resolved = if e.is_empty() {
@@ -360,30 +338,32 @@ pub fn session_workdir_snapshot(agent: &AgentConfig, effective: &str) -> String 
 mod tests {
     use super::*;
 
-    use crate::ai::AgentRemote;
+    fn rt(alias: &str, tunnel_port: Option<u16>) -> RemoteTarget {
+        RemoteTarget {
+            alias: alias.into(),
+            tunnel_port,
+        }
+    }
 
     /// 工作目录快照与 build_invocation 落点同构：远程原样保留（~ 留给远端展开、
     /// 空串 = 登录目录）；本地展开 ~/ 与缺省 workspace
     #[test]
     fn session_workdir_snapshot_matches_invocation_cwd() {
         let home = dirs::home_dir().unwrap();
+        let target = rt("gpu-1", None);
         // 远程：配置串原样
         let remote = AgentConfig {
             command: "claude".into(),
             workdir: "~/.choose-you/workspace".into(),
-            remote: Some(AgentRemote {
-                host: "vscode@localhost".into(),
-                ..Default::default()
-            }),
             ..Default::default()
         };
         assert_eq!(
-            session_workdir_snapshot(&remote, &remote.workdir),
+            session_workdir_snapshot(&remote, &remote.workdir, Some(&target)),
             "~/.choose-you/workspace",
             "远程保留原串（~ 由远端展开）"
         );
         assert_eq!(
-            session_workdir_snapshot(&remote, ""),
+            session_workdir_snapshot(&remote, "", Some(&target)),
             "",
             "远程空 = 登录目录"
         );
@@ -394,7 +374,7 @@ mod tests {
             ..Default::default()
         };
         assert_eq!(
-            session_workdir_snapshot(&local, "~/proj"),
+            session_workdir_snapshot(&local, "~/proj", None),
             home.join("proj").to_string_lossy(),
             "本地 ~ 展开"
         );
@@ -404,7 +384,7 @@ mod tests {
             ..Default::default()
         };
         assert_eq!(
-            session_workdir_snapshot(&bare, ""),
+            session_workdir_snapshot(&bare, "", None),
             agent_workdir(&bare).unwrap().to_string_lossy(),
             "本地空 = 默认 workspace"
         );
@@ -445,14 +425,9 @@ mod tests {
         let a = AgentConfig {
             command: "claude".into(),
             args: "-p".into(),
-            remote: Some(AgentRemote {
-                host: "box".into(),
-                tunnel: Some(10022),
-                ..Default::default()
-            }),
             ..Default::default()
         };
-        let inv = build_invocation(&a, "x", &[]);
+        let inv = build_invocation(&a, "x", &[], Some(&rt("gpu-1", Some(10022))));
         let i = inv
             .argv
             .iter()
@@ -460,17 +435,8 @@ mod tests {
             .expect("带隧道端口时应加 -R");
         assert_eq!(inv.argv[i + 1], "127.0.0.1:10022:127.0.0.1:22");
 
-        // 未配隧道（旧配置缺省）不加 -R
-        let b = AgentConfig {
-            command: "claude".into(),
-            args: "-p".into(),
-            remote: Some(AgentRemote {
-                host: "box".into(),
-                ..Default::default()
-            }),
-            ..Default::default()
-        };
-        assert!(!build_invocation(&b, "x", &[])
+        // 无隧道端口（部署未配 pkTunnel）不加 -R
+        assert!(!build_invocation(&a, "x", &[], Some(&rt("gpu-1", None)))
             .argv
             .contains(&"-R".to_string()));
     }
@@ -483,10 +449,6 @@ mod tests {
             command: "claude".into(),
             args: "-p".into(),
             workdir: "~/lab".into(),
-            remote: Some(AgentRemote {
-                host: "box".into(),
-                ..Default::default()
-            }),
             ..Default::default()
         };
         let envs = vec![
@@ -497,7 +459,7 @@ mod tests {
             ),
             ("BAD-KEY".to_string(), "应被丢弃".to_string()),
         ];
-        let inv = build_invocation(&a, "x", &envs);
+        let inv = build_invocation(&a, "x", &envs, Some(&rt("gpu-1", None)));
         let line = inv.argv.last().unwrap();
         // 整行被再引用过：还原内层单引号后断言
         let normalized = line.replace("'\\''", "'");
@@ -520,14 +482,15 @@ mod tests {
 
         // 无 envs：远端命令行仅目录前缀 + agent 命令（回归）
         assert_eq!(
-            build_invocation(&a, "x", &[]).argv.last().unwrap(),
+            build_invocation(&a, "x", &[], Some(&rt("gpu-1", None)))
+                .argv
+                .last()
+                .unwrap(),
             "'mkdir -p ~/lab && cd ~/lab && claude -p'"
         );
 
         // 本地分支不吃命令行前缀（由 spawn_and_wait 的 cmd.env 注入）
-        let mut local = a.clone();
-        local.remote = None;
-        let li = build_invocation(&local, "x", &envs);
+        let li = build_invocation(&a, "x", &envs, None);
         assert!(li.argv.iter().all(|x| !x.contains("PK_DISPATCH_TASK")));
     }
 
@@ -538,7 +501,7 @@ mod tests {
             args: "-p {prompt}".into(),
             ..Default::default()
         };
-        let inv = build_invocation(&a, "你好", &[]);
+        let inv = build_invocation(&a, "你好", &[], None);
         assert_eq!(inv.program, "");
         assert_eq!(inv.argv, vec!["-p".to_string(), "你好".to_string()]);
         assert!(inv.stdin.is_none(), "占位符模式不走 stdin");
@@ -546,14 +509,9 @@ mod tests {
 
         // 无占位符 → 提示词走 stdin
         a.args = "-p".into();
-        let inv = build_invocation(&a, "你好", &[]);
+        let inv = build_invocation(&a, "你好", &[], None);
         assert_eq!(inv.argv, vec!["-p".to_string()]);
         assert_eq!(inv.stdin.as_deref(), Some("你好"));
-
-        // remote 配了但 host 为空 → 仍走本地
-        a.remote = Some(crate::ai::AgentRemote::default());
-        let inv = build_invocation(&a, "你好", &[]);
-        assert!(inv.remote_host.is_none(), "空 host 视为未配置");
     }
 
     /// 回归：GUI 进程不继承终端 PATH，本地分支的裸命令名要解析成绝对路径；
@@ -566,7 +524,7 @@ mod tests {
             args: "-p".into(),
             ..Default::default()
         };
-        let inv = build_invocation(&a, "x", &[]);
+        let inv = build_invocation(&a, "x", &[], None);
         assert!(
             std::path::Path::new(&inv.program).is_absolute(),
             "PATH 中的裸命令应解析为绝对路径，got {}",
@@ -576,13 +534,9 @@ mod tests {
         let r = AgentConfig {
             command: "claude".into(),
             args: "-p".into(),
-            remote: Some(crate::ai::AgentRemote {
-                host: "box".into(),
-                ..Default::default()
-            }),
             ..Default::default()
         };
-        let inv = build_invocation(&r, "x", &[]);
+        let inv = build_invocation(&r, "x", &[], Some(&rt("gpu-1", None)));
         assert!(!inv.program.contains("claude"), "远程分支的程序是 ssh");
         assert!(
             inv.argv.iter().any(|x| x.contains("claude")),
@@ -591,20 +545,13 @@ mod tests {
     }
 
     #[test]
-    fn invocation_remote_wraps_ssh() {
+    fn invocation_remote_wraps_ssh_alias() {
         let a = AgentConfig {
             command: "claude".into(),
             args: "-p {prompt}".into(),
-            remote: Some(AgentRemote {
-                host: "dev@buildbox".into(),
-                port: 2222,
-                key_path: Some("~/.ssh/id_ed25519".into()),
-                tunnel: None,
-                persistent: false,
-            }),
             ..Default::default()
         };
-        let inv = build_invocation(&a, "明天 5pm 交周报", &[]);
+        let inv = build_invocation(&a, "明天 5pm 交周报", &[], Some(&rt("buildbox", None)));
         assert_eq!(inv.program, "ssh");
         assert_eq!(
             inv.argv,
@@ -613,12 +560,8 @@ mod tests {
                 "BatchMode=yes",
                 "-o",
                 "ConnectTimeout=10",
-                "-i",
-                "~/.ssh/id_ed25519",
-                "-p",
-                "2222",
                 "--",
-                "dev@buildbox",
+                "buildbox",
                 "exec",
                 "\"$SHELL\"",
                 "-lc",
@@ -628,38 +571,15 @@ mod tests {
         // {prompt} 元素被剔除（-p 保留，读 stdin），提示词永远走 stdin
         assert!(!inv.argv.iter().any(|x| x.contains("交周报")));
         assert_eq!(inv.stdin.as_deref(), Some("明天 5pm 交周报"));
-        assert_eq!(inv.remote_host.as_deref(), Some("dev@buildbox"));
+        assert_eq!(inv.remote_host.as_deref(), Some("buildbox"));
+        // alias 模式：不组装 -i/-p（凭据与端口由 ~/.ssh/config 承载——ADR-0003）
+        assert!(!inv.argv.contains(&"-i".to_string()));
+        assert!(!inv.argv.contains(&"-p".to_string()));
 
-        // 默认端口 22 不加 -p；无密钥不加 -i
-        let b = AgentConfig {
-            command: "opencode".into(),
-            args: "run {prompt}".into(),
-            remote: Some(AgentRemote {
-                host: "box".into(),
-                ..Default::default()
-            }),
-            ..Default::default()
-        };
-        let inv = build_invocation(&b, "x", &[]);
-        assert_eq!(
-            inv.argv,
-            vec![
-                "-o",
-                "BatchMode=yes",
-                "-o",
-                "ConnectTimeout=10",
-                "--",
-                "box",
-                "exec",
-                "\"$SHELL\"",
-                "-lc",
-                "'opencode run'",
-            ]
-        );
         // 历史入口也走 ssh
-        let (prog, argv) = history_invocation(&b, None, None);
+        let (prog, argv) = history_invocation(&a, None, None, Some(&rt("buildbox", None)));
         assert_eq!(prog, "ssh");
-        assert!(argv.contains(&"--".to_string()) && argv.contains(&"box".to_string()));
+        assert!(argv.contains(&"--".to_string()) && argv.contains(&"buildbox".to_string()));
         // 交互式历史不设 BatchMode（允许终端里输密码），但保留连接超时
         assert!(!argv.contains(&"BatchMode=yes".to_string()));
         assert!(argv.contains(&"ConnectTimeout=10".to_string()));
@@ -679,7 +599,7 @@ mod tests {
             ..Default::default()
         };
         assert_eq!(
-            build_invocation(&a, "x", &[]).cwd.as_deref(),
+            build_invocation(&a, "x", &[], None).cwd.as_deref(),
             Some(std::path::Path::new("/tmp/lab"))
         );
 
@@ -688,11 +608,14 @@ mod tests {
             workdir: "~/proj".into(),
             ..Default::default()
         };
-        assert_eq!(build_invocation(&a, "x", &[]).cwd, Some(home.join("proj")));
+        assert_eq!(
+            build_invocation(&a, "x", &[], None).cwd,
+            Some(home.join("proj"))
+        );
 
         // 未配置 → ~/.choose-you/workspace（应用专属工作区），不继承 GUI 进程的 cwd
         assert_eq!(
-            build_invocation(&AgentConfig::default(), "x", &[]).cwd,
+            build_invocation(&AgentConfig::default(), "x", &[], None).cwd,
             Some(home.join(".choose-you/workspace"))
         );
     }
@@ -703,13 +626,10 @@ mod tests {
             command: "claude".into(),
             args: "-p {prompt}".into(),
             workdir: "~/lab".into(),
-            remote: Some(AgentRemote {
-                host: "box".into(),
-                ..Default::default()
-            }),
             ..Default::default()
         };
-        let inv = build_invocation(&a, "x", &[]);
+        let target = rt("gpu-1", None);
+        let inv = build_invocation(&a, "x", &[], Some(&target));
         let line = inv.argv.last().unwrap();
         assert!(
             line.contains("cd ~/lab && claude -p"),
@@ -718,7 +638,7 @@ mod tests {
         assert!(inv.cwd.is_none(), "远程分支不设本地 cwd");
 
         // 历史入口同样带 cd 前缀
-        let (_, argv) = history_invocation(&a, None, None);
+        let (_, argv) = history_invocation(&a, None, None, Some(&target));
         assert!(
             argv.last().unwrap().contains("cd ~/lab && claude"),
             "历史会话也在配置目录里打开"
@@ -735,18 +655,14 @@ mod tests {
     /// 一闪而过、无头派发表现为空输出。远端命令行必须先 mkdir -p 再 cd
     #[test]
     fn remote_workdir_is_created_before_cd() {
-        let remote = AgentRemote {
-            host: "box".into(),
-            ..Default::default()
-        };
         let a = AgentConfig {
             command: "claude".into(),
             args: "-p {prompt}".into(),
             workdir: "~/.choose-you/workspace".into(),
-            remote: Some(remote.clone()),
             ..Default::default()
         };
-        let inv = build_invocation(&a, "x", &[]);
+        let target = rt("gpu-1", None);
+        let inv = build_invocation(&a, "x", &[], Some(&target));
         assert!(
             inv.argv.last().unwrap().contains(
                 "mkdir -p ~/.choose-you/workspace && cd ~/.choose-you/workspace && claude"
@@ -760,10 +676,9 @@ mod tests {
             command: "claude".into(),
             history_args: "--resume".into(),
             workdir: "~/.choose-you/workspace".into(),
-            remote: Some(remote),
             ..Default::default()
         };
-        let (_, argv) = history_invocation(&b, None, None);
+        let (_, argv) = history_invocation(&b, None, None, Some(&target));
         assert!(
             argv.last().unwrap().contains(
                 "mkdir -p ~/.choose-you/workspace && cd ~/.choose-you/workspace && claude --resume"
@@ -782,7 +697,7 @@ mod tests {
             history_args: "--resume".into(),
             ..Default::default()
         };
-        let (_, args) = history_invocation(&claude, Some("sess-9"), None);
+        let (_, args) = history_invocation(&claude, Some("sess-9"), None, None);
         assert_eq!(args, vec!["--resume".to_string(), "sess-9".to_string()]);
 
         // 无恢复参数（opencode 等空历史）：不注入
@@ -791,7 +706,7 @@ mod tests {
             history_args: String::new(),
             ..Default::default()
         };
-        let (_, args) = history_invocation(&plain, Some("sess-9"), None);
+        let (_, args) = history_invocation(&plain, Some("sess-9"), None, None);
         assert!(args.is_empty());
 
         // pi：-r 是会话选择器（不带 id），按 id 恢复须换成 --session <id>
@@ -800,7 +715,7 @@ mod tests {
             history_args: "-r".into(),
             ..Default::default()
         };
-        let (_, args) = history_invocation(&pi, Some("sess-9"), None);
+        let (_, args) = history_invocation(&pi, Some("sess-9"), None, None);
         assert_eq!(args, vec!["--session".to_string(), "sess-9".to_string()]);
         // pi 已配 --session（自带 id 位）：id 原位插到其后，不重复换旗标
         let pi2 = AgentConfig {
@@ -808,7 +723,7 @@ mod tests {
             history_args: "--session".into(),
             ..Default::default()
         };
-        let (_, args) = history_invocation(&pi2, Some("sess-9"), None);
+        let (_, args) = history_invocation(&pi2, Some("sess-9"), None, None);
         assert_eq!(args, vec!["--session".to_string(), "sess-9".to_string()]);
 
         // 远程：id 进远端命令行而不是 ssh 的选项区（回归：旧实现误判 ssh argv 首参）
@@ -816,13 +731,9 @@ mod tests {
             command: "claude".into(),
             history_args: "--resume".into(),
             workdir: "~/lab".into(),
-            remote: Some(AgentRemote {
-                host: "box".into(),
-                ..Default::default()
-            }),
             ..Default::default()
         };
-        let (_, argv) = history_invocation(&remote, Some("sess-9"), None);
+        let (_, argv) = history_invocation(&remote, Some("sess-9"), None, Some(&rt("gpu-1", None)));
         let line = argv.last().unwrap();
         assert!(
             line.contains("claude --resume sess-9"),
@@ -853,13 +764,11 @@ mod tests {
             command: "claude".into(),
             history_args: "--resume".into(),
             workdir: "~/lab".into(),
-            remote: Some(AgentRemote {
-                host: "box".into(),
-                ..Default::default()
-            }),
             ..Default::default()
         };
-        let (_, argv) = history_invocation(&remote, None, Some("~/projects/my-repo"));
+        let target = rt("gpu-1", None);
+        let (_, argv) =
+            history_invocation(&remote, None, Some("~/projects/my-repo"), Some(&target));
         let line = argv.last().unwrap();
         assert!(
             line.contains("cd ~/projects/my-repo && claude"),
@@ -868,7 +777,7 @@ mod tests {
         assert!(!line.contains("~/lab"), "agent 自身目录被压过: {line}");
 
         // 覆盖为空白 → 回退 agent 自身配置（与后端 effective_workdir 的「留空即缺省」同口径）
-        let (_, argv) = history_invocation(&remote, None, Some("   "));
+        let (_, argv) = history_invocation(&remote, None, Some("   "), Some(&target));
         assert!(
             argv.last().unwrap().contains("cd ~/lab"),
             "空白覆盖回退 agent 目录: {:?}",
@@ -879,13 +788,9 @@ mod tests {
         let bare = AgentConfig {
             command: "claude".into(),
             workdir: "".into(),
-            remote: Some(AgentRemote {
-                host: "box".into(),
-                ..Default::default()
-            }),
             ..Default::default()
         };
-        let (_, argv) = history_invocation(&bare, None, None);
+        let (_, argv) = history_invocation(&bare, None, None, Some(&rt("gpu-1", None)));
         assert!(
             !argv.last().unwrap().contains("cd "),
             "无目录时远端落登录目录: {:?}",

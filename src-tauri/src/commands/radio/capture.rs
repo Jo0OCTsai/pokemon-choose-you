@@ -246,7 +246,12 @@ pub async fn capture_todo<R: tauri::Runtime>(
     // 会话回链与健康记录与飞书轮询同口径：时长 / session_id / 成败（预生成 id 失败也落库）
     let started = std::time::Instant::now();
     let pregen = pregen_session_id(&agent);
-    let workdir_snapshot = ai::session_workdir_snapshot(&agent, &agent.workdir);
+    let remote = {
+        let conn = db.0.lock().unwrap();
+        crate::commands::resolve_remote_target(&conn, &agent)
+            .map_err(|e| AppError::Invalid(e.message))?
+    };
+    let workdir_snapshot = ai::session_workdir_snapshot(&agent, &agent.workdir, remote.as_ref());
     let judged = capture_with_session(
         &agent,
         &AiMessage {
@@ -272,6 +277,7 @@ pub async fn capture_todo<R: tauri::Runtime>(
                 let mut rec = crate::commands::sessions::NewAgentSession::for_run(
                     "capture",
                     &agent,
+                    remote.as_ref(),
                     &workdir_snapshot,
                 );
                 rec.session_id = pregen.clone();
@@ -295,6 +301,7 @@ pub async fn capture_todo<R: tauri::Runtime>(
         let mut rec = crate::commands::sessions::NewAgentSession::for_run(
             "capture",
             &agent,
+            remote.as_ref(),
             &workdir_snapshot,
         );
         rec.session_id = session_id.or(pregen.clone());

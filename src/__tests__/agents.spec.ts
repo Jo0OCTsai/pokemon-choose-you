@@ -3,13 +3,12 @@ import { createPinia, setActivePinia } from "pinia";
 import { api } from "../api";
 import { useSettingsStore } from "../stores/settings";
 import { AGENT_PRESETS, useAgentsStore } from "../stores/agents";
-import type { AgentConfig, TunnelStatus } from "../types";
+import type { AgentConfig } from "../types";
 
 vi.mock("../api", () => ({
   api: {
     setSetting: vi.fn(async () => {}),
     syncTunnels: vi.fn(async () => {}),
-    tunnelStatus: vi.fn(),
   },
   errorMessage: vi.fn((e: unknown) => String(e)),
 }));
@@ -23,14 +22,12 @@ function agent(partial: Partial<AgentConfig> & Pick<AgentConfig, "id">): AgentCo
     timeoutSecs: 120,
     enabled: true,
     workdir: "",
-    remote: null,
     ...partial,
   };
 }
 
 beforeEach(() => {
   vi.clearAllMocks();
-  vi.mocked(api.tunnelStatus).mockResolvedValue({ state: "off", detail: "" });
   setActivePinia(createPinia());
 });
 
@@ -56,10 +53,10 @@ describe("agents store：与设置键 ai_agents 双向同步", () => {
     expect(store.list).toEqual([]);
   });
 
-  it("save 序列化写回 values.ai_agents 并落库：隧道端口空值归一 null、persistent 归一 false、remote 缺省 null、技能目录空白归一 null", async () => {
+  it("save 序列化写回 values.ai_agents 并落库：deployment 空白归一 null（本机执行）、技能目录空白归一 null", async () => {
     const store = useAgentsStore();
     store.list = [
-      agent({ id: "a1", remote: { host: "dev@box", port: 22, keyPath: "", tunnel: 0, persistent: undefined } }),
+      agent({ id: "a1", deployment: "  gpu-1  " }),
       agent({ id: "a2" }),
       agent({ id: "a3", skillDir: "  " }),
       agent({ id: "a4", skillDir: "~/my-skills" }),
@@ -67,30 +64,24 @@ describe("agents store：与设置键 ai_agents 双向同步", () => {
     await store.save();
     const settings = useSettingsStore();
     const saved = JSON.parse(settings.values.ai_agents);
-    expect(saved[0].remote).toMatchObject({ host: "dev@box", tunnel: null, persistent: false });
-    expect(saved[1].remote).toBeNull();
+    expect(saved[0].deployment).toBe("gpu-1");
+    expect(saved[1].deployment).toBeNull();
     expect(saved[2].skillDir).toBeNull();
     expect(saved[3].skillDir).toBe("~/my-skills");
     expect(api.setSetting).toHaveBeenCalledWith("ai_agents", settings.values.ai_agents);
     expect(api.setSetting).toHaveBeenCalledWith("ai_agent_id", "");
-    expect(api.syncTunnels).toHaveBeenCalled();
   });
 
-  it("save → load 往返：字段不丢、端口归一结果稳定", async () => {
+  it("save → load 往返：字段不丢、绑定归一结果稳定", async () => {
     const store = useAgentsStore();
-    store.list = [
-      agent({
-        id: "a1",
-        remote: { host: "dev@box", port: 2222, keyPath: "~/.ssh/k", tunnel: 10022, persistent: true },
-      }),
-    ];
+    store.list = [agent({ id: "a1", deployment: " gpu-1 " })];
     await store.save();
     store.load();
     expect(store.list[0]).toMatchObject({
       id: "a1",
       command: "claude",
       workdir: "",
-      remote: { host: "dev@box", port: 2222, tunnel: 10022, persistent: true },
+      deployment: "gpu-1",
     });
   });
 });
@@ -155,33 +146,5 @@ describe("agents store：CRUD 与去重", () => {
     settings.values.ai_agent_id = "a2";
     store.remove("a1"); // 已不存在，无副作用
     expect(settings.values.ai_agent_id).toBe("a2");
-  });
-});
-
-describe("agents store：常驻隧道状态", () => {
-  it("save/loadTunnelStatuses 只刷新开了常驻隧道的 agent，成功写入状态", async () => {
-    vi.mocked(api.tunnelStatus).mockResolvedValue({ state: "healthy", detail: "" } satisfies TunnelStatus);
-    const store = useAgentsStore();
-    store.list = [
-      agent({ id: "a1", remote: { host: "b1", port: 22, keyPath: "", persistent: true } }),
-      agent({ id: "a2", remote: { host: "b2", port: 22, keyPath: "", persistent: false } }),
-      agent({ id: "a3" }),
-    ];
-    await store.save();
-    await new Promise((r) => setTimeout(r));
-    expect(api.tunnelStatus).toHaveBeenCalledTimes(1);
-    expect(api.tunnelStatus).toHaveBeenCalledWith("a1");
-    expect(store.tunnelStates["a1"]).toEqual({ state: "healthy", detail: "" });
-    expect(store.tunnelStates["a2"]).toBeUndefined();
-  });
-
-  it("refreshTunnel 失败清掉旧状态（回退「未知」）", async () => {
-    vi.mocked(api.tunnelStatus).mockRejectedValue(new Error("down"));
-    const store = useAgentsStore();
-    store.tunnelStates["a1"] = { state: "healthy", detail: "" };
-    store.refreshTunnel("a1");
-    await new Promise((r) => setTimeout(r));
-    expect(store.tunnelStates["a1"]).toBeUndefined();
-    expect(store.tunnelStates).toEqual({});
   });
 });

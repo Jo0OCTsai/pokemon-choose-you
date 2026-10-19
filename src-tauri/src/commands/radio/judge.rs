@@ -145,7 +145,13 @@ async fn run_and_collect(
     claim_ts: Option<&str>,
 ) -> AppResult<(Vec<AiSuggestion>, Option<String>, Vec<String>)> {
     let a = inject_pregen_args(agent, pregen);
-    let out = ai::run_agent(&a, prompt).await?;
+    // 部署绑定解析（悬空绑定 = 判定失败并给可操作报错——ADR-0003）
+    let remote = {
+        let conn = db.0.lock().unwrap();
+        crate::commands::resolve_remote_target(&conn, agent)
+            .map_err(|e| AppError::Invalid(e.message))?
+    };
+    let out = ai::run_agent(&a, prompt, remote.as_ref()).await?;
     log::debug!("ai: agent 原始输出: {}", ai::trunc(&out, 800));
     let (_, session_id) = ai::extract_payload(&out);
     // agent 进程已结束才拿锁，回读期间不跨 await 持锁
@@ -431,7 +437,12 @@ pub(crate) async fn classify_and_apply<R: tauri::Runtime>(
     // 预生成会话 id + 执行时快照：失败路径也保住回链（id 落库可回看现场），
     // 历史回放按当时的目录/端点路由，不随 agent 配置后续变更漂移
     let pregen = pregen_session_id(agent);
-    let workdir_snapshot = ai::session_workdir_snapshot(agent, &agent.workdir);
+    let remote = {
+        let conn = db.0.lock().unwrap();
+        crate::commands::resolve_remote_target(&conn, agent)
+            .map_err(|e| AppError::Invalid(e.message))?
+    };
+    let workdir_snapshot = ai::session_workdir_snapshot(agent, &agent.workdir, remote.as_ref());
     let classified =
         classify_with_session(agent, &batch, db, pregen.as_deref(), Some(&claim_ts)).await;
     let duration_ms = started.elapsed().as_millis() as i64;
@@ -441,6 +452,7 @@ pub(crate) async fn classify_and_apply<R: tauri::Runtime>(
             let mut rec = crate::commands::sessions::NewAgentSession::for_run(
                 "classify",
                 agent,
+                remote.as_ref(),
                 &workdir_snapshot,
             );
             rec.session_id = session_id.or(pregen.clone());
@@ -460,6 +472,7 @@ pub(crate) async fn classify_and_apply<R: tauri::Runtime>(
                 let mut rec = crate::commands::sessions::NewAgentSession::for_run(
                     "classify",
                     agent,
+                    remote.as_ref(),
                     &workdir_snapshot,
                 );
                 rec.session_id = pregen.clone();

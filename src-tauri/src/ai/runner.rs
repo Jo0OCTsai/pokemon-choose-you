@@ -13,9 +13,14 @@ use super::invocation::windows_cmd_quote;
 /// 单次 agent 调用的超时下限（秒）：agent CLI 启动 + 推理普遍慢于直连 API
 const MIN_TIMEOUT_SECS: u64 = 10;
 
-/// 无头调用 agent：本地执行或 SSH 远程执行（见 build_invocation 的组装规则）
-pub async fn run_agent(agent: &AgentConfig, prompt: &str) -> AppResult<String> {
-    run_agent_env(agent, prompt, &[]).await
+/// 无头调用 agent：本地执行或 SSH 远程执行（见 build_invocation 的组装规则）。
+/// remote 由调用方经部署绑定解析（resolve_remote_target）传入——悬空绑定在命令层报错
+pub async fn run_agent(
+    agent: &AgentConfig,
+    prompt: &str,
+    remote: Option<&super::RemoteTarget>,
+) -> AppResult<String> {
+    run_agent_env(agent, prompt, &[], remote).await
 }
 
 /// run_agent 的带环境变量版：额外键值注入子进程。本地经 cmd.env；远程 ssh 会话
@@ -25,6 +30,7 @@ pub async fn run_agent_env(
     agent: &AgentConfig,
     prompt: &str,
     envs: &[(&str, &str)],
+    remote: Option<&super::RemoteTarget>,
 ) -> AppResult<String> {
     // 远端命令行要带的变量：显式 envs（如派发的 PK_DISPATCH_TASK）+ 共享日志文件
     // （PK_LOG_FILE；本地路径由 spawn_and_wait 的 cmd.env 注入，远程走命令行前缀）
@@ -38,7 +44,7 @@ pub async fn run_agent_env(
             log_file.to_string_lossy().into_owned(),
         ));
     }
-    let inv = build_invocation(agent, prompt, &line_envs);
+    let inv = build_invocation(agent, prompt, &line_envs, remote);
     let timeout = Duration::from_secs(agent.timeout_secs.max(MIN_TIMEOUT_SECS));
     // 本地调用把随应用分发的 pk 所在目录前插进子进程 PATH：GUI 进程不继承登录 shell 的
     // PATH，agent 的 Bash 工具里裸名 pk 找不到（开发态在 target/debug，安装态在应用目录）；
@@ -274,10 +280,11 @@ pub(crate) fn trunc(s: &str, n: usize) -> String {
 
 /// 连接测试：工具探针——让 agent 执行 pk context 并原样返回输出，
 /// 一次验证命令可用 + shell 白名单 + PATH + 数据库可达
-pub async fn test(agent: &AgentConfig) -> AppResult<String> {
+pub async fn test(agent: &AgentConfig, remote: Option<&super::RemoteTarget>) -> AppResult<String> {
     let out = run_agent(
         agent,
         "执行命令 pk context，并把它的标准输出原样返回，不要添加任何解释。",
+        remote,
     )
     .await?;
     let (content, _) = extract_payload(&out);
@@ -296,7 +303,7 @@ pub async fn test(agent: &AgentConfig) -> AppResult<String> {
 mod tests {
     use super::*;
 
-    use crate::ai::AgentRemote;
+    use crate::ai::RemoteTarget;
 
     #[test]
     fn spawn_respects_and_validates_workdir() {
@@ -447,7 +454,7 @@ mod tests {
                 agent,
                 &[AiMessage::simple("m1", "张三", "明天上午10点开周会")],
             );
-            let _ = tauri::async_runtime::block_on(run_agent(agent, &prompt));
+            let _ = tauri::async_runtime::block_on(run_agent(agent, &prompt, None));
         }
 
         /// SSH 远程执行：经假 ssh 程序（PK_SSH_BIN 注入）组装 BatchMode/--、提示词走 stdin、
@@ -485,12 +492,15 @@ mod tests {
                 enabled: true,
                 workdir: String::new(),
                 skill_dir: None,
-                remote: Some(AgentRemote {
-                    host: "dev@box".into(),
-                    ..Default::default()
-                }),
+                deployment: Some("gpu-1".into()),
             };
-            let out = tauri::async_runtime::block_on(run_agent(&agent, "明天交周报")).unwrap();
+            let target = RemoteTarget {
+                alias: "dev@box".into(),
+                tunnel_port: None,
+            };
+            let out =
+                tauri::async_runtime::block_on(run_agent(&agent, "明天交周报", Some(&target)))
+                    .unwrap();
             std::env::remove_var("PK_SSH_BIN");
 
             let argv = std::fs::read_to_string(&marker).unwrap();
@@ -546,7 +556,7 @@ mod tests {
         #[test]
         fn run_agent_maps_nonzero_exit_to_external_error() {
             let agent = fake_agent("boom", "echo 'model exploded' >&2; exit 3", "{}");
-            let err = tauri::async_runtime::block_on(run_agent(&agent, "hi")).unwrap_err();
+            let err = tauri::async_runtime::block_on(run_agent(&agent, "hi", None)).unwrap_err();
             assert!(
                 matches!(err, AppError::External(_)),
                 "非零退出码归 external: {err}"
@@ -568,7 +578,7 @@ mod tests {
                 "printf 'Not logged in · Please run /login'; exit 1",
                 "unused",
             );
-            let err = tauri::async_runtime::block_on(run_agent(&agent, "hi")).unwrap_err();
+            let err = tauri::async_runtime::block_on(run_agent(&agent, "hi", None)).unwrap_err();
             assert!(
                 err.to_string().contains("Not logged in"),
                 "stderr 无诊断信息时 stdout 片段带进错误信息: {err}"
@@ -583,7 +593,7 @@ mod tests {
                 "echo 'model exploded' >&2; echo 'noise on stdout'; exit 3",
                 "unused",
             );
-            let err = tauri::async_runtime::block_on(run_agent(&agent, "hi")).unwrap_err();
+            let err = tauri::async_runtime::block_on(run_agent(&agent, "hi", None)).unwrap_err();
             assert!(
                 err.to_string().contains("model exploded"),
                 "stderr 诊断信息保留: {err}"
@@ -654,7 +664,7 @@ mod tests {
                 command: "definitely-not-on-path-xyz".into(),
                 ..Default::default()
             };
-            let err = tauri::async_runtime::block_on(run_agent(&agent, "hi")).unwrap_err();
+            let err = tauri::async_runtime::block_on(run_agent(&agent, "hi", None)).unwrap_err();
             assert!(
                 matches!(err, AppError::Invalid(_)),
                 "找不到命令归为输入错误并给安装提示: {err}"
@@ -667,11 +677,11 @@ mod tests {
         #[test]
         fn test_probe_verifies_pk_toolchain() {
             let ok = fake_agent("test_ok", "", r#"{"openTasks":[]}"#);
-            let msg = tauri::async_runtime::block_on(test(&ok)).unwrap();
+            let msg = tauri::async_runtime::block_on(test(&ok, None)).unwrap();
             assert!(msg.contains("pk 工具链已连通"), "{msg}");
 
             let blind = fake_agent("test_blind", "", "我不方便执行命令");
-            let err = tauri::async_runtime::block_on(test(&blind)).unwrap_err();
+            let err = tauri::async_runtime::block_on(test(&blind, None)).unwrap_err();
             assert!(
                 err.to_string().contains("pk context"),
                 "错误指向 agent 权限/工具链: {err}"
@@ -722,6 +732,7 @@ mod tests {
                 &agent,
                 "hi",
                 &[("PK_DISPATCH_TASK", "42")],
+                None,
             ))
             .unwrap();
             assert_eq!(out.trim(), "42", "环境变量注入子进程: {out}");

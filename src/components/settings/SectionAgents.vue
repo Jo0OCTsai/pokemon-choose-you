@@ -9,6 +9,7 @@ import DexSelect from "../DexSelect.vue";
 import DexToggle from "../DexToggle.vue";
 import SettingRow from "../SettingRow.vue";
 import AgentConfigCard from "./AgentConfigCard.vue";
+import DeploymentCard from "./DeploymentCard.vue";
 import PromptsCard from "./PromptsCard.vue";
 import TagDispatchCard from "./TagDispatchCard.vue";
 
@@ -42,7 +43,7 @@ const primaryAgentOptions = computed(() => [
     .filter((a) => a.enabled)
     .map((a) => ({
       value: a.id,
-      label: `${a.name || a.command}${a.remote?.host?.trim() ? " · SSH" : ""}`,
+      label: `${a.name || a.command}${a.deployment?.trim() ? ` · ${a.deployment.trim()}` : ""}`,
     })),
 ]);
 
@@ -94,6 +95,7 @@ function onDispatchFeedback(msg: string) {
       <DexSelect v-model="settings.values.terminal_preference" :options="terminalOptions" />
     </SettingRow>
     <!-- 单 agent 编辑卡：字段/SSH/隧道状态/测试历史/技能/远程一键配置都在卡内（agents store 取数） -->
+    <DeploymentCard />
     <AgentConfigCard v-for="ag in agentsStore.list" :key="ag.id" :agent-id="ag.id" />
     <div class="btn-row add-agent">
       <DexSelect v-model="agentPreset" :options="presetOptions" />

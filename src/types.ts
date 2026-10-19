@@ -265,20 +265,6 @@ export interface FeishuChatFilterOverview {
   snapshotAt: string | null;
 }
 
-/** SSH 远程执行：agent CLI 装在远程机器上，本地经 `ssh host -- command` 无头调用 */
-export interface AgentRemote {
-  /** ssh 目标（user@host） */
-  host: string;
-  /** ssh 端口（默认 22） */
-  port: number;
-  /** 私钥路径（空走 ssh 默认） */
-  keyPath?: string | null;
-  /** 反向隧道端口：随 ssh 连接把远程侧 127.0.0.1:<port> 转回本机 sshd，供远程 pk shim 回连 */
-  tunnel?: number | null;
-  /** 常驻反向隧道：应用驻留期间保持 -R 长连（keepalive + 退避重连），远程随时可调 pk */
-  persistent?: boolean | null;
-}
-
 /** AI agent CLI 配置（如 Claude Code / OpenCode / pi），可配置多个 */
 export interface AgentConfig {
   id: string;
@@ -296,11 +282,41 @@ export interface AgentConfig {
   /** 单次调用超时（秒） */
   timeoutSecs: number;
   enabled: boolean;
-  /** SSH 远程执行（null/缺省 = 本地执行） */
-  remote?: AgentRemote | null;
+  /** 绑定的远程部署 alias（执行世界单源，ADR-0003；null/空 = 本机执行） */
+  deployment?: string | null;
 }
 
-/** 一键配置远程 pk 的逐步报告（后端 setup_remote_pk） */
+/** 部署视图（后端 deployment_list：设置页部署管理卡的行形态） */
+export interface DeploymentView {
+  id: string;
+  alias: string;
+  nodePath: string;
+  workdir: string;
+  note: string;
+  status: string;
+  lastError: string | null;
+  degraded: boolean;
+  pkTunnel: { port: number; persistent: boolean } | null;
+  helperInstalled: boolean;
+}
+
+/** 存量迁移报告（AgentRemote → 部署绑定，ADR-0003；幂等重跑全 skip） */
+export interface MigrationReport {
+  created: Array<{ alias: string; host: string; port: number; keyPath: string | null; tunnelPort: number | null }>;
+  rebound: number;
+  skipped: number;
+  configBackup: string | null;
+  configEntries: number;
+}
+
+/** 悬空绑定（agent 绑定的别名不在部署注册表） */
+export interface DanglingRef {
+  agentId: string;
+  agentName: string;
+  alias: string;
+}
+
+/** pk 通道开通的逐步报告（后端 setup_deployment_pk / pk remote setup 同构） */
 export interface RemotePkStep {
   name: string;
   /** ok / skip（幂等复用）/ fail */
