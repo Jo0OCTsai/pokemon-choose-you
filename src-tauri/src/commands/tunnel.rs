@@ -29,8 +29,11 @@ use tauri::{Manager, State};
 /// 隧道身份：一部署一隧道（pkTunnel 是机器级单例配置——ADR-0003 §2）
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct TunnelKey {
+    /// 实体唯一键（新建生成；引用用 alias 不用 id）
     pub deployment_id: String,
+    /// OpenSSH 别名（凭据与主机身份由它承载）
     pub alias: String,
+    /// 远端侧隧道端口（⇄ 本机 sshd 22）
     pub tunnel_port: u16,
 }
 
@@ -54,7 +57,9 @@ impl TunnelKey {
 #[derive(Debug, Clone, Default, serde::Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct TunnelStatus {
+    /// off / connecting / healthy / retrying / yielded
     pub state: String,
+    /// 状态详情（含 ssh 报错尾行/让位持有者）
     pub detail: String,
 }
 

@@ -105,7 +105,7 @@ export function assembleLoopsFull(args: {
 
 /** full-parity 2.7/2.9 的 HostCommandDeps 可选面（缺省按能力缺失降级——零静默） */
 /** 可选平台件条件展开（helper/家族/隧道服务/pk 开通——缺席不注入；ADR-0003 增量） */
-function optionalPlatformParts(deps: PluginDeps): Partial<HostCommandDeps> {
+export function optionalPlatformParts(deps: PluginDeps): Partial<HostCommandDeps> {
   const parts: Partial<HostCommandDeps> = {};
   if (deps.helperPath !== undefined) {
     parts.helperPath = deps.helperPath;

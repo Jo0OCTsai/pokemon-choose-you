@@ -18,7 +18,9 @@ pub struct RemoteTarget {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", default)]
 pub struct AgentConfig {
+    /// 实体唯一键（新建生成；引用用 alias 不用 id）
     pub id: String,
+    /// 显示名（设置页与派发选择器呈现）
     pub name: String,
     /// 可执行文件名或绝对路径，如 claude / opencode / pi / dsh
     pub command: String,
@@ -37,6 +39,7 @@ pub struct AgentConfig {
     pub skill_dir: Option<String>,
     /// 单次调用超时（秒）
     pub timeout_secs: u64,
+    /// 启用（停用项不参与派发与收音机判定）
     pub enabled: bool,
     /// 绑定的远程部署 alias（执行世界单源——ADR-0003 §1；与 TS
     /// AgentConfig.deployment 一一对应，级联改写经类型化往返不丢字段）
@@ -81,6 +84,7 @@ pub fn primary_agent(get: &dyn Fn(&str) -> Option<String>) -> Option<AgentConfig
         .or_else(|| agents.iter().find(|a| a.enabled).cloned())
 }
 
+/// 实体唯一键（新建生成；引用用 alias 不用 id）
 pub fn agent_by_id(get: &dyn Fn(&str) -> Option<String>, id: &str) -> Option<AgentConfig> {
     load_agents(get).into_iter().find(|a| a.id == id)
 }

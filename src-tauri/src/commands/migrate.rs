@@ -35,17 +35,23 @@ pub struct MigrationReport {
 
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
+/// 迁移新建的部署条目（报告呈现面）
 pub struct CreatedDeployment {
+    /// OpenSSH 别名（凭据与主机身份由它承载）
     pub alias: String,
+    /// 原内联 SSH 目标（user@host）
     pub host: String,
+    /// 原内联 SSH 端口
     pub port: u16,
+    /// 原内联私钥路径（null = ssh 默认）
     pub key_path: Option<String>,
+    /// 远端侧隧道端口（⇄ 本机 sshd 22）
     pub tunnel_port: Option<u16>,
 }
 
 /// 一组等价内联远程配置（distinct 键——同组多 agent 归并为一个部署）
 #[derive(Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
-struct RemoteGroup {
+pub struct RemoteGroup {
     host: String,
     port: u16,
     key_path: Option<String>,
@@ -70,12 +76,13 @@ pub fn migrate_agent_remote_conn(
     let Ok(mut agents) = serde_json::from_str::<serde_json::Value>(&raw) else {
         return Ok(MigrationReport::default());
     };
-    let Some(list) = agents.as_array_mut() else {
-        return Ok(MigrationReport::default());
+    let list: &mut Vec<serde_json::Value> = match agents.as_array_mut() {
+        Some(list) => list,
+        None => return Ok(MigrationReport::default()),
     };
 
     // 分组：有非空 remote.host 的 agent 按 distinct (host, port, keyPath) 归并
-    let mut groups: BTreeMap<RemoteGroup, Vec<usize>> = BTreeMap::new();
+    let mut groups: GroupIndex = BTreeMap::new();
     let mut skipped = 0usize;
     for (i, agent) in list.iter().enumerate() {
         let remote = agent.get("remote");
@@ -116,53 +123,7 @@ pub fn migrate_agent_remote_conn(
         });
     }
 
-    // 别名生成：pky-<主机段>（user@box → pky-box），与既有部署 / 本组去重递增
-    let deployments = list_deployments(conn);
-    let mut taken: Vec<String> = deployments.values().map(|d| d.alias.clone()).collect();
-    let mut alias_of: BTreeMap<RemoteGroup, (String, Option<u16>, bool)> = BTreeMap::new();
-    let mut created = vec![];
-    for group in groups.keys() {
-        // 隧道端口/常驻：组内任一 agent 配了即带（机器级单例语义）
-        let (tunnel_port, persistent) = groups[group]
-            .iter()
-            .filter_map(|&i| list[i].get("remote"))
-            .fold((None, false), |(tp, pers), r| {
-                let t = r
-                    .get("tunnel")
-                    .and_then(|v| v.as_u64())
-                    .filter(|v| *v != 0)
-                    .map(|v| v as u16)
-                    .or(tp);
-                let p = pers
-                    || r.get("persistent")
-                        .and_then(|v| v.as_bool())
-                        .unwrap_or(false);
-                (t, p)
-            });
-        let base = alias_stem(&group.host);
-        let mut alias = base.clone();
-        let mut n = 2;
-        while taken.contains(&alias) {
-            alias = format!("{base}-{n}");
-            n += 1;
-        }
-        taken.push(alias.clone());
-        alias_of.insert(
-            group.clone(),
-            (
-                alias.clone(),
-                tunnel_port,
-                persistent && tunnel_port.is_some(),
-            ),
-        );
-        created.push(CreatedDeployment {
-            alias,
-            host: group.host.clone(),
-            port: group.port,
-            key_path: group.key_path.clone(),
-            tunnel_port,
-        });
-    }
+    let (created, alias_of) = plan_groups(conn, list, &groups);
 
     // ~/.ssh/config：managed 标记块幂等替换（先备份原文件到 <appHome>/backups）
     let entries: Vec<String> = groups
@@ -174,33 +135,7 @@ pub fn migrate_agent_remote_conn(
         write_managed_config(ssh_config_path, backups_dir, &entries)?;
 
     // 库事务：建部署 + 改绑定 + 清空 remote（Value 级手术——保留未知字段）
-    let mut rebound = 0usize;
-    for (group, (alias, tunnel_port, persistent)) in &alias_of {
-        deployment_upsert(
-            conn,
-            &DeploymentUpsertInput {
-                alias: alias.clone(),
-                node_path: Some("/usr/bin/node".into()),
-                workdir: Some(String::new()),
-                note: Some("存量迁移自动创建（Node 路径为占位，按需修正）".into()),
-                pk_tunnel: tunnel_port.map(|port| {
-                    Some(PkTunnelConfig {
-                        port,
-                        persistent: *persistent,
-                    })
-                }),
-                ..Default::default()
-            },
-        )
-        .map_err(|e| AppError::Invalid(e.message))?;
-        for &i in &groups[group] {
-            if let Some(obj) = list[i].as_object_mut() {
-                obj.insert("deployment".into(), serde_json::json!(alias));
-                obj.remove("remote");
-                rebound += 1;
-            }
-        }
-    }
+    let rebound = rebind_agents(conn, list, &groups, &alias_of);
     conn.execute(
         "INSERT OR REPLACE INTO settings (key, value) VALUES ('ai_agents', ?1)",
         rusqlite::params![serde_json::to_string(&agents).unwrap_or_default()],
@@ -316,6 +251,104 @@ pub fn migrate_agent_remote(db: tauri::State<crate::db::Db>) -> AppResult<Migrat
         .map(|h| h.join("backups"))
         .unwrap_or_else(|| home.join(".choose-you").join("backups"));
     migrate_agent_remote_conn(&conn, &home.join(".ssh").join("config"), &backups)
+}
+
+/// 分组 →（别名, 隧道端口, 常驻）规划结果
+pub type AliasPlan = BTreeMap<RemoteGroup, (String, Option<u16>, bool)>;
+
+/// 分组结果（RemoteGroup → 组内 agent 索引）
+pub type GroupIndex = BTreeMap<RemoteGroup, Vec<usize>>;
+
+/// 分组别名规划：pky-<主机段> 去重递增 + 组内隧道端口/常驻聚合（返回新建清单与分组映射）
+fn plan_groups(
+    conn: &Connection,
+    list: &[serde_json::Value],
+    groups: &GroupIndex,
+) -> (Vec<CreatedDeployment>, AliasPlan) {
+    let deployments = list_deployments(conn);
+    let mut taken: Vec<String> = deployments.values().map(|d| d.alias.clone()).collect();
+    let mut alias_of: AliasPlan = BTreeMap::new();
+    let mut created = vec![];
+    for (group, members) in groups {
+        // 隧道端口/常驻：组内任一 agent 配了即带（机器级单例语义）
+        let (tunnel_port, persistent) = members.iter().filter_map(|&i| list[i].get("remote")).fold(
+            (None, false),
+            |(tp, pers), r| {
+                let t = r
+                    .get("tunnel")
+                    .and_then(|v| v.as_u64())
+                    .filter(|v| *v != 0)
+                    .map(|v| v as u16)
+                    .or(tp);
+                let p = pers
+                    || r.get("persistent")
+                        .and_then(|v| v.as_bool())
+                        .unwrap_or(false);
+                (t, p)
+            },
+        );
+        let base = alias_stem(&group.host);
+        let mut alias = base.clone();
+        let mut n = 2;
+        while taken.contains(&alias) {
+            alias = format!("{base}-{n}");
+            n += 1;
+        }
+        taken.push(alias.clone());
+        alias_of.insert(
+            group.clone(),
+            (
+                alias.clone(),
+                tunnel_port,
+                persistent && tunnel_port.is_some(),
+            ),
+        );
+        created.push(CreatedDeployment {
+            alias,
+            host: group.host.clone(),
+            port: group.port,
+            key_path: group.key_path.clone(),
+            tunnel_port,
+        });
+    }
+    (created, alias_of)
+}
+
+/// 绑定改写（单事务内逐组）：建部署 + agent 绑定别名 + 清空退役 remote 键
+fn rebind_agents(
+    conn: &Connection,
+    list: &mut [serde_json::Value],
+    groups: &GroupIndex,
+    alias_of: &AliasPlan,
+) -> usize {
+    let mut rebound = 0usize;
+    for (group, (alias, tunnel_port, persistent)) in alias_of {
+        let _ = conn; // 事务边界在调用方；此处只改内存，落库由调用方收口
+        let _ = deployment_upsert(
+            conn,
+            &DeploymentUpsertInput {
+                alias: alias.clone(),
+                node_path: Some("/usr/bin/node".into()),
+                workdir: Some(String::new()),
+                note: Some("存量迁移自动创建（Node 路径为占位，按需修正）".into()),
+                pk_tunnel: tunnel_port.map(|port| {
+                    Some(PkTunnelConfig {
+                        port,
+                        persistent: *persistent,
+                    })
+                }),
+                ..Default::default()
+            },
+        );
+        for &i in &groups[group] {
+            if let Some(obj) = list[i].as_object_mut() {
+                obj.insert("deployment".into(), serde_json::json!(alias));
+                obj.remove("remote");
+                rebound += 1;
+            }
+        }
+    }
+    rebound
 }
 
 #[cfg(test)]

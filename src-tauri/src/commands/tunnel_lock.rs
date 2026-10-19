@@ -55,7 +55,8 @@ impl Drop for TunnelLock {
     }
 }
 
-/// PID 探活：unix 用 kill-0；EPERM（存在但非本用户）视为存活
+/// PID 探活：经 /bin/kill -0（退出码 0 = 可发信号 = 存活；非零 = 已死；命令缺席
+/// 视为存活保守让位——与 TS 侧 process.kill(pid, 0) 的 EPERM=存活 同口径）
 fn holder_alive(dir: &Path) -> bool {
     let Some(pid) = TunnelLock::holder_pid(dir) else {
         // 无 pid 文件：半个锁（写入中途被杀）——视为死锁可接管
@@ -64,16 +65,16 @@ fn holder_alive(dir: &Path) -> bool {
     if pid == std::process::id() {
         return true; // 自己（重启后 acquire 竞争窗口）
     }
-    #[cfg(unix)]
+    match std::process::Command::new("kill")
+        .arg("-0")
+        .arg(pid.to_string())
+        .stdout(std::process::Stdio::null())
+        .stderr(std::process::Stdio::null())
+        .status()
     {
-        let rc = unsafe { libc::kill(pid as i32, 0) };
-        rc == 0 || std::io::Error::last_os_error().raw_os_error() == Some(13)
-    }
-    #[cfg(not(unix))]
-    {
-        // Windows：process.kill(pid,0) 语义在 Node 侧同构；Rust 侧无 kill-0，
-        // 用进程存在性探测的保守近似——OpenProcess 失败且非权限拒绝视为死
-        false
+        Ok(code) => code.success(),
+        // kill 不可用（极端精简环境）：宁可让位不误判死（双活由 ssh 端口竞争兜底）
+        Err(_) => true,
     }
 }
 

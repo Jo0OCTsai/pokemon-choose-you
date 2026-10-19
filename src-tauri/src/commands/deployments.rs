@@ -30,28 +30,39 @@ pub struct PkTunnelConfig {
 #[serde(rename_all = "camelCase", default)]
 #[derive(Default)]
 pub struct DeploymentEntity {
+    /// 实体唯一键（新建生成；引用用 alias 不用 id）
     pub id: String,
     /// OpenSSH 别名（唯一；trim 后非空且不含空白）
     pub alias: String,
+    /// 远端 node 绝对路径（拒 `~` 前缀与相对路径）
     pub node_path: String,
+    /// 远端 helper 入口（provision 落定；空 = 未安装）
     pub helper_path: String,
+    /// helper SHA-256（就绪判据；未就绪 = null）
     pub helper_hash: Option<String>,
+    /// 远端工作目录（空 = 登录目录；同路径不变式）
     pub workdir: String,
+    /// 备注
     pub note: String,
     /// draft/probing/not_ready/installing/ready/disconnected
     pub status: String,
+    /// 最近错误（诊断呈现；无 = null）
     pub last_error: Option<String>,
+    /// 开通向导状态机（TS 权威面，Rust 透传；未发起 = null）
     pub provision: Option<serde_json::Value>,
+    /// 直连降级确认标记（仅显式确认留痕后可达 true）
     pub degraded: bool,
     /// null = 未配置（隧道不建、通道状态归零）
     pub pk_tunnel: Option<PkTunnelConfig>,
     #[serde(skip_serializing)]
+    /// 未知键（双端往返保留——未来扩展字段）
     pub extra: BTreeMap<String, serde_json::Value>,
 }
 
 /// 实体序列化：声明字段按规范序 + 未知键排尾（flatten 语义手动实现——
 /// `#[serde(flatten)]` 与 `skip_serializing` 组合会让 extra 丢失，改为合并出口）
 impl DeploymentEntity {
+    /// 实体 → JSON Value（声明字段规范序 + 未知键排尾）
     pub fn to_value(&self) -> serde_json::Value {
         let mut obj = serde_json::to_value({
             // 借道临时结构体：跳过 extra 本体，只出声明字段
@@ -75,7 +86,9 @@ impl DeploymentEntity {
 #[derive(Debug, thiserror::Error)]
 #[error("{tag}: {message}")]
 pub struct DeploymentError {
+    /// 机器稳定错误 tag（TS PkyError code 逐字单源）
     pub tag: String,
+    /// 人读错误信息
     pub message: String,
 }
 
@@ -89,12 +102,19 @@ fn input_invalid(message: impl Into<String>) -> DeploymentError {
 /// upsert 输入（编辑分支省略字段保持现值；pkTunnel 三态：None=保持 / Some(None)=清除 / Some(Some)=设置）
 #[derive(Debug, Default, Clone)]
 pub struct DeploymentUpsertInput {
+    /// 实体唯一键（新建生成；引用用 alias 不用 id）
     pub id: Option<String>,
+    /// OpenSSH 别名（凭据与主机身份由它承载）
     pub alias: String,
+    /// 远端 node 绝对路径（拒 `~` 前缀与相对路径）
     pub node_path: Option<String>,
+    /// 远端工作目录（空 = 登录目录；同路径不变式）
     pub workdir: Option<String>,
+    /// 备注
     pub note: Option<String>,
+    /// pkTunnel 三态（None=保持 / Some(None)=清除 / Some(Some)=设置）
     pub pk_tunnel: Option<Option<PkTunnelConfig>>,
+    /// OpenSSH 别名（凭据与主机身份由它承载）
     pub confirm_alias_refs: bool,
 }
 
@@ -188,10 +208,12 @@ fn serialize_entity(entity: &DeploymentEntity) -> String {
     s
 }
 
+/// 实体唯一键（新建生成；引用用 alias 不用 id）
 pub fn deployment_by_id(conn: &Connection, id: &str) -> Option<DeploymentEntity> {
     list_deployments(conn).into_values().find(|d| d.id == id)
 }
 
+/// OpenSSH 别名（凭据与主机身份由它承载）
 pub fn deployment_by_alias(conn: &Connection, alias: &str) -> Option<DeploymentEntity> {
     list_deployments(conn)
         .into_values()
@@ -300,6 +322,99 @@ fn apply_alias_rename(
     Ok(())
 }
 
+/// 新建分支实体构造（UUID v4 + draft + 诊断字段归零；pkTunnel 可随建设置）
+fn new_entity_from_input(
+    input: &DeploymentUpsertInput,
+    alias: String,
+) -> Result<DeploymentEntity, DeploymentError> {
+    let node_path =
+        validate_remote_path("Node 路径", input.node_path.as_deref().unwrap_or(""), false)?;
+    let workdir = validate_remote_path("工作目录", input.workdir.as_deref().unwrap_or(""), true)?;
+    let pk_tunnel = match &input.pk_tunnel {
+        None | Some(None) => None,
+        Some(Some(cfg)) => {
+            validate_pk_tunnel(cfg)?;
+            Some(cfg.clone())
+        }
+    };
+    Ok(DeploymentEntity {
+        id: uuid::Uuid::new_v4().to_string(),
+        alias,
+        node_path,
+        helper_path: String::new(),
+        helper_hash: None,
+        workdir,
+        note: input.note.as_deref().unwrap_or("").trim().to_string(),
+        status: "draft".into(),
+        last_error: None,
+        provision: None,
+        degraded: false,
+        pk_tunnel,
+        extra: BTreeMap::new(),
+    })
+}
+
+/// 编辑分支实体构造：实质变更回落 not_ready 并清空开通产物，alias 变更额外清空 pkTunnel
+fn edited_entity_from_input(
+    current: &DeploymentEntity,
+    input: &DeploymentUpsertInput,
+    alias: String,
+) -> Result<DeploymentEntity, DeploymentError> {
+    let next_node_path = match &input.node_path {
+        Some(v) => validate_remote_path("Node 路径", v, false)?,
+        None => current.node_path.clone(),
+    };
+    let next_workdir = match &input.workdir {
+        Some(v) => validate_remote_path("工作目录", v, true)?,
+        None => current.workdir.clone(),
+    };
+    let next_pk_tunnel = match &input.pk_tunnel {
+        None => current.pk_tunnel.clone(),
+        Some(None) => None,
+        Some(Some(cfg)) => {
+            validate_pk_tunnel(cfg)?;
+            Some(cfg.clone())
+        }
+    };
+    // alias 变更 = 机器身份变化（绑定级联改写在调用方事务内完成）
+    let alias_changed = current.alias != alias;
+    let material_changed =
+        alias_changed || current.node_path != next_node_path || current.workdir != next_workdir;
+    if material_changed {
+        return Ok(DeploymentEntity {
+            id: current.id.clone(),
+            alias,
+            node_path: next_node_path,
+            helper_path: String::new(),
+            helper_hash: None,
+            workdir: next_workdir,
+            note: input
+                .note
+                .as_deref()
+                .unwrap_or(&current.note)
+                .trim()
+                .to_string(),
+            status: "not_ready".into(),
+            last_error: Some("部署配置已变更，需重跑开通向导".into()),
+            provision: None,
+            degraded: false,
+            // alias 变更 = 机器身份变化 → pkTunnel 一并清空（PROTOCOL §8）
+            pk_tunnel: if alias_changed { None } else { next_pk_tunnel },
+            extra: current.extra.clone(),
+        });
+    }
+    Ok(DeploymentEntity {
+        note: input
+            .note
+            .as_deref()
+            .unwrap_or(&current.note)
+            .trim()
+            .to_string(),
+        pk_tunnel: next_pk_tunnel,
+        ..current.clone()
+    })
+}
+
 /// 部署 upsert：新建（UUID v4 + draft + 诊断字段归零）/ 编辑（实质变更回落 not_ready
 /// 并清空开通产物；alias 变更额外清空 pkTunnel）；alias 唯一；路径与 pkTunnel 不变式。
 pub fn deployment_upsert(
@@ -319,36 +434,8 @@ pub fn deployment_upsert(
             });
         }
     }
-
     let entity = match &input.id {
-        None => {
-            let node_path =
-                validate_remote_path("Node 路径", input.node_path.as_deref().unwrap_or(""), false)?;
-            let workdir =
-                validate_remote_path("工作目录", input.workdir.as_deref().unwrap_or(""), true)?;
-            let pk_tunnel = match &input.pk_tunnel {
-                None | Some(None) => None,
-                Some(Some(cfg)) => {
-                    validate_pk_tunnel(cfg)?;
-                    Some(cfg.clone())
-                }
-            };
-            DeploymentEntity {
-                id: uuid::Uuid::new_v4().to_string(),
-                alias,
-                node_path,
-                helper_path: String::new(),
-                helper_hash: None,
-                workdir,
-                note: input.note.as_deref().unwrap_or("").trim().to_string(),
-                status: "draft".into(),
-                last_error: None,
-                provision: None,
-                degraded: false,
-                pk_tunnel,
-                extra: BTreeMap::new(),
-            }
-        }
+        None => new_entity_from_input(input, alias)?,
         Some(id) => {
             let Some(current) = deployments.get(id) else {
                 return Err(DeploymentError {
@@ -356,63 +443,10 @@ pub fn deployment_upsert(
                     message: format!("部署 {id} 不存在（编辑需携带正确 id）"),
                 });
             };
-            let next_node_path = match &input.node_path {
-                Some(v) => validate_remote_path("Node 路径", v, false)?,
-                None => current.node_path.clone(),
-            };
-            let next_workdir = match &input.workdir {
-                Some(v) => validate_remote_path("工作目录", v, true)?,
-                None => current.workdir.clone(),
-            };
-            let next_pk_tunnel = match &input.pk_tunnel {
-                None => current.pk_tunnel.clone(),
-                Some(None) => None,
-                Some(Some(cfg)) => {
-                    validate_pk_tunnel(cfg)?;
-                    Some(cfg.clone())
-                }
-            };
-            let alias_changed = current.alias != alias;
-            let material_changed = alias_changed
-                || current.node_path != next_node_path
-                || current.workdir != next_workdir;
-            if alias_changed {
+            if current.alias != alias {
                 apply_alias_rename(conn, &current.alias, &alias, input.confirm_alias_refs)?;
             }
-            if material_changed {
-                DeploymentEntity {
-                    id: current.id.clone(),
-                    alias,
-                    node_path: next_node_path,
-                    helper_path: String::new(),
-                    helper_hash: None,
-                    workdir: next_workdir,
-                    note: input
-                        .note
-                        .as_deref()
-                        .unwrap_or(&current.note)
-                        .trim()
-                        .to_string(),
-                    status: "not_ready".into(),
-                    last_error: Some("部署配置已变更，需重跑开通向导".into()),
-                    provision: None,
-                    degraded: false,
-                    // alias 变更 = 机器身份变化 → pkTunnel 一并清空（PROTOCOL §8）
-                    pk_tunnel: if alias_changed { None } else { next_pk_tunnel },
-                    extra: current.extra.clone(),
-                }
-            } else {
-                DeploymentEntity {
-                    note: input
-                        .note
-                        .as_deref()
-                        .unwrap_or(&current.note)
-                        .trim()
-                        .to_string(),
-                    pk_tunnel: next_pk_tunnel,
-                    ..current.clone()
-                }
-            }
+            edited_entity_from_input(current, input, alias)?
         }
     };
     deployments.insert(entity.id.clone(), entity.clone());
@@ -475,14 +509,23 @@ pub fn resolve_remote_target(
 #[derive(Debug, Clone, serde::Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct DeploymentView {
+    /// 实体唯一键（新建生成；引用用 alias 不用 id）
     pub id: String,
+    /// OpenSSH 别名（凭据与主机身份由它承载）
     pub alias: String,
+    /// 远端 node 绝对路径（拒 `~` 前缀与相对路径）
     pub node_path: String,
+    /// 远端工作目录（空 = 登录目录；同路径不变式）
     pub workdir: String,
+    /// 备注
     pub note: String,
+    /// 生命周期状态（SDD §3.3 六态）
     pub status: String,
+    /// 最近错误（诊断呈现；无 = null）
     pub last_error: Option<String>,
+    /// 直连降级确认标记（仅显式确认留痕后可达 true）
     pub degraded: bool,
+    /// pkTunnel 三态（None=保持 / Some(None)=清除 / Some(Some)=设置）
     pub pk_tunnel: Option<PkTunnelConfig>,
     /// helperPath 非空的简化呈现（开通向导状态归 dsh 面板）
     pub helper_installed: bool,
@@ -504,6 +547,7 @@ fn view_of(e: &DeploymentEntity) -> DeploymentView {
 }
 
 #[tauri::command]
+/// 部署列表命令（UI 呈现序 = alias 字典序）
 pub fn deployment_list(db: tauri::State<crate::db::Db>) -> AppResult<Vec<DeploymentView>> {
     let conn = db.0.lock().unwrap();
     let mut views: Vec<DeploymentView> = list_deployments(&conn).values().map(view_of).collect();
@@ -512,6 +556,7 @@ pub fn deployment_list(db: tauri::State<crate::db::Db>) -> AppResult<Vec<Deploym
 }
 
 #[tauri::command]
+/// 部署新建/编辑命令（conn 级原语之上的薄壳）
 pub fn deployment_upsert_cmd(
     db: tauri::State<crate::db::Db>,
     input: DeploymentUpsertInputJson,
@@ -523,6 +568,7 @@ pub fn deployment_upsert_cmd(
 }
 
 #[tauri::command]
+/// 部署移除命令（未知 id → NotFound）
 pub fn deployment_delete_cmd(db: tauri::State<crate::db::Db>, id: String) -> AppResult<()> {
     let conn = db.0.lock().unwrap();
     if !deployment_delete(&conn, &id).map_err(|e| crate::error::AppError::Invalid(e.message))? {
@@ -537,12 +583,19 @@ pub fn deployment_delete_cmd(db: tauri::State<crate::db::Db>, id: String) -> App
 #[derive(Debug, Default, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct DeploymentUpsertInputJson {
+    /// 实体唯一键（新建生成；引用用 alias 不用 id）
     pub id: Option<String>,
+    /// OpenSSH 别名（凭据与主机身份由它承载）
     pub alias: String,
+    /// 远端 node 绝对路径（拒 `~` 前缀与相对路径）
     pub node_path: Option<String>,
+    /// 远端工作目录（空 = 登录目录；同路径不变式）
     pub workdir: Option<String>,
+    /// 备注
     pub note: Option<String>,
+    /// pkTunnel 三态（None=保持 / Some(None)=清除 / Some(Some)=设置）
     pub pk_tunnel: Option<Option<PkTunnelConfig>>,
+    /// OpenSSH 别名（凭据与主机身份由它承载）
     pub confirm_alias_refs: bool,
 }
 
@@ -619,9 +672,13 @@ pub fn dangling_deployment_refs(db: tauri::State<crate::db::Db>) -> Vec<Dangling
 
 #[derive(Debug, Clone, serde::Serialize)]
 #[serde(rename_all = "camelCase")]
+/// 悬空绑定（agent 绑定的别名不在注册表——设置页呈现面）
 pub struct DanglingRef {
+    /// 实体唯一键（新建生成；引用用 alias 不用 id）
     pub agent_id: String,
+    /// agent 显示名
     pub agent_name: String,
+    /// OpenSSH 别名（凭据与主机身份由它承载）
     pub alias: String,
 }
 

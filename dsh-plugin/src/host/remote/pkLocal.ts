@@ -25,9 +25,10 @@ function hostTriple(): string {
   return `${arch}-${os}`;
 }
 
-/** 从本模块位置向上找插件包根（dist → 包根；src/host/remote → 仓内包根）的 vendor 目录 */
-function vendorDir(): string | undefined {
-  let dir = dirname(__filename);
+/** 从起点目录向上找插件包根（dist → 包根；src/host/remote → 仓内包根）的 vendor 目录；
+ * startAt 缺省 = 本模块位置（测试注入临时起点走「无 vendor」分支） */
+export function vendorDir(startAt?: string): string | undefined {
+  let dir = startAt ?? dirname(__filename);
   for (let i = 0; i < 6; i += 1) {
     const candidate = join(dir, "vendor");
     if (existsSync(candidate)) {
@@ -45,8 +46,9 @@ function vendorDir(): string | undefined {
 /**
  * 确保本机 pk 可用：`~/.choose-you/bin/pk` 存在 → 直接用；缺失 → vendor 落位
  * （chmod 0o755）。vendor 也缺席（如包分发缺件）→ undefined（pkSetup 命令降级拒绝）。
+ * vendorOverride 仅供测试注入非默认 vendor 目录。
  */
-export function ensureLocalPk(): string | undefined {
+export function ensureLocalPk(vendorOverride?: string): string | undefined {
   const target = localPkPath();
   if (target === undefined) {
     return undefined;
@@ -54,7 +56,7 @@ export function ensureLocalPk(): string | undefined {
   if (existsSync(target)) {
     return target;
   }
-  const vendor = vendorDir();
+  const vendor = vendorOverride ?? vendorDir();
   const source = vendor === undefined ? undefined : join(vendor, `pk-${hostTriple()}`);
   if (source === undefined || !existsSync(source)) {
     return undefined;
