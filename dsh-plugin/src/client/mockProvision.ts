@@ -162,10 +162,47 @@ function mockDegradeConfirm(ctx: MockContext, params: { id: string; acknowledged
   return ctx.ok({ deployment: entity });
 }
 
-/** 开通向导单步状态机 + 状态呈现 + D31 显式降级确认 */
+/** pk 通道开通（ADR-0003 §3）：成功 = 端口写回 pkTunnel（persistent 保持）+ 分步报告；
+ *  pkSetupFail 编排失败步（报告形态呈现分步指引，不炸信封——host deploymentSetupPkCommand 同构） */
+function mockDeploymentSetupPk(ctx: MockContext, params: { id: string; port?: number }) {
+  const blocked = writeBlocked(ctx);
+  if (blocked !== null) {
+    return blocked;
+  }
+  const entity = findDeployment(ctx, params.id);
+  if (entity === undefined) {
+    return notFound(`部署 ${params.id} 不存在`);
+  }
+  const fail = ctx.state.pkSetupFail;
+  if (fail !== null) {
+    return ctx.ok({
+      report: {
+        ok: false,
+        version: null,
+        steps: [{ name: "执行 pk remote setup", status: "fail", detail: fail.detail }],
+      },
+      deployment: entity,
+    });
+  }
+  const port = params.port ?? entity.pkTunnel?.port ?? 10022;
+  entity.pkTunnel = { port, persistent: entity.pkTunnel?.persistent ?? false };
+  return ctx.ok({
+    report: {
+      ok: true,
+      version: "0.1.0 (mock)",
+      steps: [
+        { name: "定位本机 pk", status: "ok", detail: "~/.choose-you/bin/pk" },
+        { name: "执行 pk remote setup", status: "ok", detail: `${entity.alias} · 端口 ${port}` },
+      ],
+    },
+    deployment: entity,
+  });
+}
+
+/** 开通向导单步状态机 + 状态呈现 + D31 显式降级确认 + pk 通道开通 */
 export function provisionCommands(
   ctx: MockContext,
-): Pick<HostClient, "provisionRun" | "provisionStatus" | "deploymentDegradeConfirm"> {
+): Pick<HostClient, "provisionRun" | "provisionStatus" | "deploymentDegradeConfirm" | "deploymentSetupPk"> {
   return {
     async provisionRun(params) {
       ctx.record("provisionRun", params);
@@ -176,6 +213,10 @@ export function provisionCommands(
     },
     async deploymentDegradeConfirm(params) {
       return await mockDegradeConfirm(ctx, params);
+    },
+    async deploymentSetupPk(params) {
+      ctx.record("deploymentSetupPk", params);
+      return await mockDeploymentSetupPk(ctx, params);
     },
   };
 }

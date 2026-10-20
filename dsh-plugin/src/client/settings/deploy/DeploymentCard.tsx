@@ -22,6 +22,7 @@ import { DeployFormModal } from "./DeployFormModal";
 import { DeploymentWizard } from "./DeploymentWizard";
 import { useWizardRunner } from "./deploymentWizardRun";
 import { DeploymentRowItem, type RecheckFeedback } from "./deploymentRow";
+import { PkReportModal, runPkSetup, type PkReportState } from "./PkReportModal";
 import styles from "./deploy.module.css";
 import type { WizardState } from "./deploymentWizardRun";
 
@@ -60,6 +61,23 @@ function wizardModalOpen(wizard: WizardState | null, entity: DeploymentEntity | 
   return wizard !== null && wizard.open && entity !== undefined;
 }
 
+/** 计数行（列表已加载才呈现；从主组件拆出——棘轮 complexity） */
+function DeployCounts({ list }: { list: DeploymentListResult | null }): React.JSX.Element | null {
+  const t = useT();
+  if (!hasLoaded(list)) {
+    return null;
+  }
+  return (
+    <p className={styles.counts}>
+      {t("dsh.deploy.counts", {
+        ready: list.counts.ready,
+        pending: list.counts.pending,
+        broken: list.counts.broken,
+      })}
+    </p>
+  );
+}
+
 export function DeploymentCard({ onChanged }: { onChanged: () => void }): React.JSX.Element {
   const t = useT();
   const client = useClient();
@@ -71,6 +89,8 @@ export function DeploymentCard({ onChanged }: { onChanged: () => void }): React.
   const [removeBusy, setRemoveBusy] = useState(false);
   const [saveHint, setSaveHint] = useState("");
   const [recheck, setRecheck] = useState<({ id: string } & RecheckFeedback) | null>(null);
+  const [pkSetup, setPkSetup] = useState<string | null>(null);
+  const [pkReport, setPkReport] = useState<PkReportState | null>(null);
 
   const reload = useCallback(() => {
     void client.deploymentList().then((result) => {
@@ -103,15 +123,7 @@ export function DeploymentCard({ onChanged }: { onChanged: () => void }): React.
       <h4 className={cardStyles.cardTitle} data-testid="deploy-card-title">
         {t("dsh.deploy.title")}
       </h4>
-      {hasLoaded(list) && (
-        <p className={styles.counts}>
-          {t("dsh.deploy.counts", {
-            ready: list.counts.ready,
-            pending: list.counts.pending,
-            broken: list.counts.broken,
-          })}
-        </p>
-      )}
+      <DeployCounts list={list} />
       {isSshMissing(sshFamily) ? (
         // SSH 家族缺失：整卡指引态（添加入口并入指引态——无死入口）
         <div className={styles.sshGuide} data-testid="deploy-ssh-guide">
@@ -149,6 +161,7 @@ export function DeploymentCard({ onChanged }: { onChanged: () => void }): React.
                 wizardRunning={wizard !== null && wizard.id === entity.id && wizard.running}
                 readonly={readonly}
                 recheck={recheck !== null && recheck.id === entity.id ? recheck : null}
+                pkSetupBusy={pkSetup === entity.id}
                 onReconnect={() => {
                   // 复核反馈闭环（零静默）：busy → 结局行内呈现（恢复看徽章翻就绪；仍断开
                   // status 行；RPC 失败 alert 行——结果从返回实体同步判，避免 reload 竞态）
@@ -170,6 +183,9 @@ export function DeploymentCard({ onChanged }: { onChanged: () => void }): React.
                 }}
                 onReinstall={() => void runWizard(entity.id, { restart: true })}
                 onProvision={() => void runWizard(entity.id)}
+                onSetupPk={() =>
+                  runPkSetup({ client, entity, onBusy: setPkSetup, onReport: setPkReport, onReload: reload, onChanged })
+                }
                 onEdit={() => setForm({ entity })}
                 onRemove={() => setRemoveTarget(entity)}
               />
@@ -238,6 +254,7 @@ export function DeploymentCard({ onChanged }: { onChanged: () => void }): React.
           {t("dsh.deploy.removeBody", { alias: removeTarget.alias })}
         </Modal>
       )}
+      {pkReport !== null && <PkReportModal pkReport={pkReport} onClose={() => setPkReport(null)} />}
       {wizardModalOpen(wizard, wizardEntity) && wizardEntity !== undefined && (
         <DeploymentWizard
           entity={wizardEntity}

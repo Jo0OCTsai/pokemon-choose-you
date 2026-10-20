@@ -8,7 +8,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { createCommandsFixture, type CommandsFixture } from "./commandsSetup";
-import { createHostCommands, HOST_COMMAND_NAMES } from "../src/host/commands";
+import { createHostCommands, hostCommandTable, HOST_COMMAND_NAMES } from "../src/host/commands";
 import { FakeSshScope, fakeProvisionDeps } from "./remote/fakeSshScope";
 import { deploymentUpsert } from "../src/host/remote/deployments";
 import type { BridgeClient } from "../src/host/pet/bridge";
@@ -52,9 +52,20 @@ function fakeBridge(sysOk: boolean): BridgeClient {
 }
 
 describe("full-parity 命令面 · 全集断言", () => {
-  it("HOST_COMMAND_NAMES = 87（69 + §4.1 新增 16 + macAuthPaneOpen 联调对齐 1 + sshAliasList 表单数据源 1；taskCreate 已移除）", () => {
-    expect(HOST_COMMAND_NAMES).toHaveLength(87);
-    expect(new Set(HOST_COMMAND_NAMES).size).toBe(87);
+  it("HOST_COMMAND_NAMES = 88（69 + §4.1 新增 16 + macAuthPaneOpen 联调对齐 1 + sshAliasList 表单数据源 1 + deploymentSetupPk pk 通道开通 1；taskCreate 已移除）", () => {
+    expect(HOST_COMMAND_NAMES).toHaveLength(88);
+    expect(new Set(HOST_COMMAND_NAMES).size).toBe(88);
+  });
+
+  it("实现表与白名单互为覆盖（防「已注册却未登记」的未知命令坑——deploymentSetupPk 曾漏）", () => {
+    const table = hostCommandTable();
+    const known = new Set<string>(HOST_COMMAND_NAMES);
+    for (const key of Object.keys(table)) {
+      expect(known.has(key), `实现表命令 ${key} 未登记 HOST_COMMAND_NAMES`).toBe(true);
+    }
+    for (const name of known) {
+      expect(table[name], `白名单命令 ${name} 无实现`).toBeDefined();
+    }
   });
 
   it("sshAliasList：信封 ok + 字符串数组（本机 ~/.ssh/config 解析；解析细节见 remote/ssh-config.spec）", async () => {
@@ -108,6 +119,26 @@ describe("full-parity 命令面 · 部署 CRUD", () => {
       data: { deployment: { status: string; degraded: boolean } };
     };
     expect(out.data.deployment).toMatchObject({ status: "ready", degraded: true });
+  });
+});
+
+describe("full-parity 命令面 · pk 通道开通（ADR-0003 §3）", () => {
+  it("deploymentSetupPk：未装配 pkSetup → HELPER_CAPABILITY_MISSING；成功报告透传 + 端口写回 pkTunnel", async () => {
+    const id = seedDeployment("pk-lab");
+    const bare = (await f.call("deploymentSetupPk", { id })) as { error: { code: string } };
+    expect(bare.error.code).toBe("HELPER_CAPABILITY_MISSING");
+    f.deps.pkSetup = async ({ alias, tunnelPort }) => ({
+      ok: true,
+      version: "0.1.0",
+      steps: [{ name: "执行 pk remote setup", status: "ok", detail: `${alias}:${tunnelPort}` }],
+    });
+    const out = (await f.call("deploymentSetupPk", { id, port: 12345 })) as {
+      data: { report: { ok: boolean; steps: unknown[] }; deployment: { pkTunnel: { port: number } | null } };
+    };
+    expect(out.data.report.ok).toBe(true);
+    expect(out.data.report.steps).toHaveLength(1);
+    // persistent 恒置 true（开通 = 通道常驻；非常驻则验证期一过隧道端口即无监听）
+    expect(out.data.deployment.pkTunnel).toMatchObject({ port: 12345, persistent: true });
   });
 });
 

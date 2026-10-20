@@ -106,7 +106,7 @@ export const HOST_COMMAND_NAMES = [
   "backupRun",
   "backupList",
   "exportRun",
-  // ---- full-parity 增量（AD §4.1 · 69→85 + macAuthPaneOpen 联调对齐 1 + sshAliasList 表单数据源 1 = 87；taskCreate 已移除） ----
+  // ---- full-parity 增量（AD §4.1 · 69→85 + macAuthPaneOpen 联调对齐 1 + sshAliasList 表单数据源 1 + deploymentSetupPk pk 通道开通 1 = 88；taskCreate 已移除） ----
   // 会话（FR-C2 分页 + 回放）
   "sessionsPage",
   "sessionReplay",
@@ -119,6 +119,8 @@ export const HOST_COMMAND_NAMES = [
   "provisionStatus",
   "deploymentDegradeConfirm",
   "sshAliasList",
+  // pk 通道开通（ADR-0003 §3：spawn 本机 pk remote setup，成功端口写回 pkTunnel）
+  "deploymentSetupPk",
   // 导入/恢复/导出目录（FR-A5/A6 · D25 前置备份）
   "importValidate",
   "importRun",

@@ -25,6 +25,7 @@ export function parityFacade(
   | "provisionRun"
   | "provisionStatus"
   | "deploymentDegradeConfirm"
+  | "deploymentSetupPk"
   | "importValidate"
   | "importRun"
   | "restoreRun"
@@ -45,6 +46,7 @@ export function parityFacade(
     provisionRun: (p) => call("provisionRun", p),
     provisionStatus: (p) => call("provisionStatus", p),
     deploymentDegradeConfirm: (p) => call("deploymentDegradeConfirm", p),
+    deploymentSetupPk: (p) => call("deploymentSetupPk", p),
     importValidate: (p) => call("importValidate", p),
     importRun: (p) => call("importRun", p),
     restoreRun: (p) => call("restoreRun", p),

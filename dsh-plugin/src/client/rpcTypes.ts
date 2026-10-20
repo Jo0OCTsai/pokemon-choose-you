@@ -45,6 +45,7 @@ import type {
   ImportSummary,
   LarkTestResult,
   LogEntry,
+  PkSetupReportView,
   RadioHealth,
   RestoreRunResult,
   SessionGroup,
@@ -221,6 +222,12 @@ export interface HostClient {
     id: string;
     acknowledgedRisk: true;
   }): Promise<PkyResult<{ deployment: DeploymentEntity }>>;
+  /** pk 通道开通（ADR-0003 §3）：spawn 本机 `pk remote setup`（纯 dsh 场景先落位本机 pk）；
+   *  成功端口写回部署 pkTunnel 并 resync 隧道；失败也走报告（steps 呈现分步指引，不炸信封） */
+  deploymentSetupPk(params: {
+    id: string;
+    port?: number;
+  }): Promise<PkyResult<{ report: PkSetupReportView; deployment: DeploymentEntity | null }>>;
   // 导入/恢复（FR-A5/A6 · D25 前置自动备份）
   /** 结构校验只读预检（整体拒绝 0 行变更；reasons 供弹层列表） */
   importValidate(params: { path: string }): Promise<PkyResult<{ summary: ImportSummary }>>;

@@ -4,7 +4,8 @@
  * 就绪（直连）● 琥珀点 / 未就绪 ● / 断开 ●；文字恒墨色仅状态点着色）+ 最近错误行
  * + 「直连模式」角标（D31 留痕）+ 操作（开通 · 编辑 · 移除；断开态给「重连并检查」
  * ——busy 态文字换「检查中…」+ 复核结局行内呈现（仍断开 status / RPC 失败 alert）
- * + 常驻「重装远端组件」恢复链接（restart 重跑向导，helper 卸载死锁出口））。
+ * + 常驻「重装远端组件」恢复链接（restart 重跑向导，helper 卸载死锁出口）
+ * + 就绪态「开通 pk 通道」（ADR-0003：远端 agent CLI 判定的写回通道，busy 文字换态））。
  */
 import type { DeploymentEntity } from "../../rpc";
 import { useT } from "../../i18n";
@@ -29,21 +30,25 @@ function badgeOf(entity: DeploymentEntity): { tone: BadgeTone; key: string } {
   return { tone: "notReady", key: "dsh.deploy.status.notReady" };
 }
 
-/** 状态相关主操作（断开 → 重连并检查（busy 文字换态）；未就绪 → 开通；就绪 → 无） */
+/** 状态相关主操作（断开 → 重连并检查（busy 文字换态）；未就绪 → 开通向导；就绪 → 开通 pk 通道（ADR-0003，busy 文字换态）） */
 function RowPrimaryAction({
   entity,
   recheck,
   readonly,
   wizardRunning,
+  pkSetupBusy,
   onReconnect,
   onProvision,
+  onSetupPk,
 }: {
   entity: DeploymentEntity;
   recheck: RecheckFeedback | null;
   readonly: boolean;
   wizardRunning: boolean;
+  pkSetupBusy: boolean;
   onReconnect: () => void;
   onProvision: () => void;
+  onSetupPk: () => void;
 }): React.JSX.Element | null {
   const t = useT();
   if (entity.status === "disconnected") {
@@ -73,7 +78,17 @@ function RowPrimaryAction({
       </button>
     );
   }
-  return null;
+  return (
+    <button
+      type="button"
+      className={ui.button}
+      data-testid="deploy-setup-pk"
+      disabled={readonly || pkSetupBusy || wizardRunning}
+      onClick={onSetupPk}
+    >
+      {pkSetupBusy ? t("dsh.deploy.settingUpPk") : t("dsh.deploy.setupPk")}
+    </button>
+  );
 }
 
 /** 断开态反馈区：复核结局行（仍断开 status / RPC 失败 alert）+ 常驻「重装远端组件」恢复链接 */
@@ -119,9 +134,11 @@ export function DeploymentRowItem({
   wizardRunning,
   readonly,
   recheck,
+  pkSetupBusy,
   onReconnect,
   onReinstall,
   onProvision,
+  onSetupPk,
   onEdit,
   onRemove,
 }: {
@@ -129,9 +146,11 @@ export function DeploymentRowItem({
   wizardRunning: boolean;
   readonly: boolean;
   recheck: RecheckFeedback | null;
+  pkSetupBusy: boolean;
   onReconnect: () => void;
   onReinstall: () => void;
   onProvision: () => void;
+  onSetupPk: () => void;
   onEdit: () => void;
   onRemove: () => void;
 }): React.JSX.Element {
@@ -181,8 +200,10 @@ export function DeploymentRowItem({
           recheck={recheck}
           readonly={readonly}
           wizardRunning={wizardRunning}
+          pkSetupBusy={pkSetupBusy}
           onReconnect={onReconnect}
           onProvision={onProvision}
+          onSetupPk={onSetupPk}
         />
         <button type="button" className={ui.button} disabled={readonly} onClick={onEdit}>
           {t("dsh.deploy.edit")}

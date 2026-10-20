@@ -159,6 +159,13 @@ export interface DeploymentListResult {
   counts: { ready: number; pending: number; broken: number };
 }
 
+/** pk 通道开通报告（host dsh/pkSetup PkSetupReport 同构形态；失败也走报告呈现分步指引） */
+export interface PkSetupReportView {
+  ok: boolean;
+  version: string | null;
+  steps: Array<{ name: string; status: string; detail: string }>;
+}
+
 /** 会话分组四选（M9 归组：classify/capture→radio、dispatch_*→dispatch、pk→other、未知仅入 all） */
 export type SessionGroup = "all" | "radio" | "dispatch" | "other";
 

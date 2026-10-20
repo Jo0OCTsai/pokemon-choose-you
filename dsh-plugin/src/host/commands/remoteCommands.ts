@@ -166,12 +166,15 @@ export function remoteCommands(): CommandTable {
   return { ...deploymentCommandSet(), ...provisionCommandSet() };
 }
 
-/** 开通成功收口：端口写回部署 pkTunnel（persistent 保持现值）+ 写通知 + 隧道 resync */
+/** 开通成功收口：端口写回部署 pkTunnel + 写通知 + 隧道 resync。
+ *  persistent 恒置 true——开通的意图就是通道常驻可用（远端 shim 固定回连隧道端口，
+ *  非常驻则验证期一过端口即无监听）；表单无 pkTunnel 编辑面，"保持现值" 会把存量
+ *  false 固化成死局（曾致开通成功后 agentTest 回连 Connection refused） */
 function persistPkTunnel(deps: HostCommandDeps, entity: DeploymentEntity, tunnelPort: number): void {
   deploymentUpsert(deps.conn, {
     id: entity.id,
     alias: entity.alias,
-    pkTunnel: { port: tunnelPort, persistent: entity.pkTunnel?.persistent ?? false },
+    pkTunnel: { port: tunnelPort, persistent: true },
   });
   deps.onWrites();
   deps.tunnels?.resync();

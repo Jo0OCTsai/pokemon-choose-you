@@ -1,8 +1,8 @@
 /**
  * mockHost 内存实现 · 状态与组装（供组件测试；真实语义子集）。命令实现按域拆分：
  * 任务/快捕/分诊 → mockTasks.ts；派发 → mockDispatch.ts；设置/背包 → mockPanels.ts；
- * 复盘向导标签体检 → mockTagHealth.ts；诊断/桌宠/通用 → mockMisc.ts；实体读 → mockRead.ts。
- * rpc.ts 统一再出口，消费面不变。
+ * 复盘向导标签体检 → mockTagHealth.ts；诊断/桌宠/通用 → mockMisc.ts；实体读 → mockRead.ts；
+ * 默认态工厂 → mockState.ts。rpc.ts 统一再出口，消费面不变。
  */
 import { fail, PkyError, type PkyResult } from "../host/storage/errors";
 import type { HostClient, PageOpenEvent } from "./rpc";
@@ -31,6 +31,7 @@ import { diagCommands, logCommands, miscCommands } from "./mockMisc";
 import { readCommands } from "./mockRead";
 import { backupCommands } from "./mockBackup";
 import { deploymentCommands, provisionCommands, sessionCommands, type MockProvisionFailKind } from "./mockRemote";
+import { defaultState } from "./mockState";
 import type { Tag, TagDimension } from "../host/domain/vocabulary-tags";
 import type { DeploymentEntity } from "../host/remote/deployments";
 import type { ProvisionStep } from "../host/remote/provision";
@@ -77,6 +78,8 @@ export interface MockHostState {
   sshAliases: string[];
   /** 开通向导单步失败编排（provisionRun 消费；null = 全步骤成功；测试中途可改写模拟重试成功） */
   provisionFail: { step: ProvisionStep; kind: MockProvisionFailKind; message?: string } | null;
+  /** pk 通道开通失败编排（deploymentSetupPk 消费；null = 成功——报告含失败分步指引） */
+  pkSetupFail: { detail: string } | null;
   /** 重连复核结局（deploymentRecheck 消费——断开态部署恢复 ready 还是保持断开；对齐真实宿主两分支） */
   recheckRecovers: boolean;
   /** 会话账本行（sessionsPage/sessionReplay 消费——与既有 sessions 分立） */
@@ -140,69 +143,6 @@ export interface MockContext {
 
 function delay<T>(value: T): Promise<T> {
   return Promise.resolve(value);
-}
-
-/** 缺省健康态（绿灯） */
-function defaultHealth(): MockHostState["health"] {
-  return {
-    level: "ok",
-    lastSuccessAt: "2026-10-11T08:00:00+08:00",
-    nextPollAt: "2026-10-11T08:02:00+08:00",
-    consecutiveFailures: 0,
-    pendingCount: 0,
-  };
-}
-
-/** full-parity 缺省 helper 能力位（全 true）——既有组件测试不受横幅/降级面影响；夹具按需覆盖 */
-function defaultHelperCaps(): MockHostState["helperCaps"] {
-  const keys = "sys-tray sys-shortcut sys-notify sys-tts sys-dialog sys-open input-count mac-auth".split(" ");
-  return Object.fromEntries(keys.map((key) => [key, true]));
-}
-
-/** 默认内存态（空库 + 健康绿灯 + 读写库；快捷键已注册、SSH 家族就绪——同上缺省口径） */
-function defaultState(): MockHostState {
-  return {
-    tasks: [],
-    categories: [],
-    messages: [],
-    settings: {},
-    agents: [],
-    health: defaultHealth(),
-    dbStatus: { userVersion: 1, pluginWindow: { min: 1, max: 1 }, mode: "rw" },
-    larkAuthorized: true,
-    filters: [],
-    logEntries: [],
-    diagnostics: [],
-    promptSpecs: [],
-    deleted: [],
-    sessions: [],
-    followups: {},
-    taskLogs: {},
-    backups: [],
-    tags: [],
-    dimensions: [],
-    tagCheckup: { merges: [], zombies: [], newDimensions: [], judged: false },
-    pkSkill: { installedVersion: null, checked: false },
-    petRunning: true,
-    deployments: [],
-    sshAliases: [],
-    provisionFail: null,
-    recheckRecovers: false,
-    sessionRows: [],
-    dispatchHandoff: {},
-    importFiles: [],
-    importResult: { backupId: "pokemon-choose-you-20261017-090000.db", applied: 12 },
-    restoreOutcome: null,
-    exportDir: { path: "/mock/.choose-you/data/exports" },
-    macAuth: {
-      granted: false,
-      helperPath: "/mock/.dsh/electron/dist/pky-helper.app/Contents/MacOS/pky-helper",
-    },
-    helperCaps: defaultHelperCaps(),
-    shortcutRegistered: true,
-    sshFamily: { ok: true },
-    helperVersion: null,
-  };
 }
 
 function createContext(initial: Partial<MockHostState>): MockContext {
