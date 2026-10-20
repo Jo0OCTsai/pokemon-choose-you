@@ -10,10 +10,10 @@
  */
 import { spawn } from "node:child_process";
 import { existsSync } from "node:fs";
-import { childEnvFor, expandHome, resolveCommand, spawnErrorHint } from "../dispatch/localEnv";
+import { childEnvFor, expandHome, resolveCommand, spawnErrorHint, type AgentEnvProvider } from "../dispatch/localEnv";
 import { nowRfc3339, type Conn } from "../storage/db";
 import { PkyError } from "../storage/errors";
-import type { AgentConfig } from "../domain/settings";
+import { primaryAgent, type AgentConfig } from "../domain/settings";
 import { parseProposedTagsJson } from "../domain/suggest-resolve";
 import type { AiSuggestion } from "../domain/suggest-types";
 
@@ -68,7 +68,7 @@ export interface AgentSpawn {
   (
     program: string,
     argv: string[],
-    opts: { stdin?: string; cwd?: string; timeoutMs: number },
+    opts: { stdin?: string; cwd?: string; timeoutMs: number; env?: Record<string, string> },
   ): Promise<{
     stdout: string;
     stderr: string;
@@ -88,7 +88,7 @@ export const realAgentSpawn: AgentSpawn = (program, argv, opts) =>
       reject(new Error(`Agent 工作目录不存在: ${cwd}（请在设置中改正）`));
       return;
     }
-    const child = spawn(bin, argv, { cwd, env: childEnvFor(bin, undefined), stdio: ["pipe", "pipe", "pipe"] });
+    const child = spawn(bin, argv, { cwd, env: childEnvFor(bin, opts.env), stdio: ["pipe", "pipe", "pipe"] });
     const out: Buffer[] = [];
     const err: Buffer[] = [];
     const timer = setTimeout(() => {
@@ -216,7 +216,13 @@ export function logJudgeSession(
 }
 
 /** CLI 执行方（selfLanding=true：agent 经 pk suggest batch 写回，适配器从库回读） */
-export function cliJudgeExecutor(args: { conn: Conn; agent: AgentConfig; spawnFn?: AgentSpawn }): JudgeExecutor {
+export function cliJudgeExecutor(args: {
+  conn: Conn;
+  agent: AgentConfig;
+  spawnFn?: AgentSpawn;
+  /** agent 子进程凭据环境（dsh 形态 DEEPSEEK_API_KEY 注入；缺省不注入） */
+  agentEnv?: AgentEnvProvider;
+}): JudgeExecutor {
   const { conn, agent } = args;
   const spawnFn = args.spawnFn ?? realAgentSpawn;
   const timeoutMs = Math.max(agent.timeoutSecs, MIN_AGENT_TIMEOUT_SECS) * 1000;
@@ -231,10 +237,12 @@ export function cliJudgeExecutor(args: { conn: Conn; agent: AgentConfig; spawnFn
           ? `${batch.prompt}\n\n上次提交校验失败，请修正后重试：${batch.feedback}`
           : batch.prompt,
       );
+      const extraEnv = args.agentEnv === undefined ? undefined : await args.agentEnv(inv.program);
       const out = await spawnFn(inv.program, inv.argv, {
         stdin: inv.stdin,
         cwd: agent.workdir === "" ? undefined : agent.workdir,
         timeoutMs,
+        ...(extraEnv === undefined ? {} : { env: extraEnv }),
       });
       const { sessionId } = extractPayload(out.stdout);
       const suggestions = loadSuggestionsFor(conn, batch.messageIds);
@@ -246,4 +254,11 @@ export function cliJudgeExecutor(args: { conn: Conn; agent: AgentConfig; spawnFn
       return { suggestions, sessionId };
     },
   };
+}
+
+/** 判定执行方工厂缺省实现：主 agent（收音机分类指定/首个启用）CLI 形态
+ * （导出面 = dsh 适配层 volatile 活读的 cli 分支单源，hostEntry 消费） */
+export function defaultJudgeExecutor(conn: Conn, agentEnv?: AgentEnvProvider): JudgeExecutor | null {
+  const agent = primaryAgent(conn);
+  return agent === null ? null : cliJudgeExecutor({ conn, agent, ...(agentEnv === undefined ? {} : { agentEnv }) });
 }

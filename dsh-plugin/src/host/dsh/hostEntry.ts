@@ -1,10 +1,6 @@
 /**
  * dsh（DeepSeek Harness）宿主插件入口（平台胶水层，Phase A host 半边真实适配）。  形态（dsh 0.2.1-rc.2 插件清单）：本包经 `dsh plugin --profile <name> add file:…` 作为自注册 bundle 安装（包内 cordis.patch.yml insert 本 entry），loader 读 package.json main（dist/host.js）加载本模块，消费具名导出 name/inject/Config/apply。  职责边界：本层只做平台接线——能力探测、createPlugin 依赖注入（timer/pet spawner/ 判定执行方）、22 工具 → ctx.tools（defineTool JSON DSL 投影）、69 host 命令 → connection 共享 /api 通道 `
  */
-import { existsSync, statSync } from "node:fs";
-import { homedir } from "node:os";
-import { dirname, join } from "node:path";
-import { fileURLToPath } from "node:url";
 import z from "@deepseek-ai/schemastery";
 import type { Context } from "@deepseek-ai/cordis";
 import type {} from "@deepseek-ai/cordis-plugin-timer"; // 类型面：ctx.interval/ctx.timeout 增强
@@ -14,11 +10,12 @@ import { createHandoffTerminal } from "../dispatch/terminalAdapters";
 import { detectExternalTerminal, isDesktopCarrier } from "./externalTerminal";
 import { createExternalTerminalAdapter, externalTerminalLine } from "./externalTerminalAdapter";
 import { ensureElectronDist } from "../pet/electronGet";
-import { electronSpawner } from "../pet/supervisor";
+import { detectPetSpawner, locateHelperMain } from "./petLocate";
 import { dbFileFrom } from "../storage/paths";
 import { registerEmbeddedSchemas } from "../storage/migrate";
 import schemaRaw from "../storage/schema-raw";
 import { dshSessionExecutorOf } from "./sessionExecutor";
+import { dshCredentialEnvOf } from "./credentialEnv";
 import type { HelperSpawner } from "../pet/supervisor";
 import type { TimerApi as LoopTimer } from "../dispatch/autoDispatch";
 import { registerTodoTools } from "./toolRegister";
@@ -42,8 +39,9 @@ export { DSH_CAPABILITY_KEYS, probeDshCapabilities, sshFamilyOf } from "./probeD
 export const name = "pokemon-choose-you";
 
 /** 必需服务（timer 需 inject；agents/sessions/agentDefaultModel = 内置判定通道消费面——
- *  dsh-base 恒在场，缺席则插件不装（fail fast）） */
-export const inject = ["tools", "timer", "agents", "sessions", "agentDefaultModel"];
+ *  dsh-base 恒在场，缺席则插件不装（fail fast）；credentials = dsh 形态子进程凭据注入
+ *  消费面——dsh-base 组合自带 dsh-credentials-local，见 dsh/credentialEnv.ts） */
+export const inject = ["tools", "timer", "agents", "sessions", "agentDefaultModel", "credentials"];
 
 /**
  * 插件 Config（schemastery；A2 Config 双轨最小集）。
@@ -97,6 +95,7 @@ function pluginDepsOf(
   tunnels: NonNullable<Parameters<typeof createPlugin>[0]>["tunnels"],
   pkSetup: NonNullable<Parameters<typeof createPlugin>[0]>["pkSetup"],
 ): Parameters<typeof createPlugin>[0] {
+  const agentEnv = dshCredentialEnvOf(ctx); // dsh 形态子进程凭据注入（见 dsh/credentialEnv.ts）
   return {
     dbPath,
     pollTimer: (cb, ms) => ctx.interval(cb, ms),
@@ -118,11 +117,12 @@ function pluginDepsOf(
       set: () => undefined, // 平台持久化归 dsh 配置面（Phase B 客户端设置段写回）
     },
     // 判定执行方（volatile 活读——背包改值热应用后下一次判定即生效）：cli = 业务核心缺省
-    // （主 agent CLI 子进程）；session/subagent（旧值别名）= dsh 内置通道
-    // （dsh/sessionExecutor.ts，root 会话一批一会话，默认）。
+    // （主 agent CLI 子进程，凭据环境经 agentEnv 注入）；session/subagent（旧值别名）=
+    // dsh 内置通道（dsh/sessionExecutor.ts，root 会话一批一会话，默认）。
     // newExecutor 每次判定调用（pollLoop / 命令面），活闭包按当前配置值路由
     newExecutor: (conn) =>
-      readSetting(config.judgeExecutor) === "cli" ? defaultJudgeExecutor(conn) : dshSessionExecutorOf(ctx),
+      readSetting(config.judgeExecutor) === "cli" ? defaultJudgeExecutor(conn, agentEnv) : dshSessionExecutorOf(ctx),
+    agentEnv,
     // dispatchDeps/larkBin 缺省：lark-cli 走 PATH；无头派发 executorFor 缺省走 local 子进程。
     // 交互终端/terminalLine（debt ③ a desktop 载体解 + 终端偏好遵循）：dsh 桌面 app
     // （Electron 宿主）→ 适配器按次解析（共享设置 terminal_preference 命中优先，探测链
@@ -225,72 +225,6 @@ function loopTimerOf(ctx: Context): LoopTimer {
     every: (ms, fn) => ctx.interval(fn, ms),
     cancel: (handle) => (handle as () => void)(),
   };
-}
-
-// ---- 桌宠 helper 拉起面（spawner 定位 + electron 探测；找不到 = 降级停用不报错 A20） ----
-
-/**
- * 定位桌宠 spawner：helper 主产物（helper/dist/main.js）+ electron **真实二进制**。 探测链（注释即探测顺序单源）： helper 主产物：从本模块目录逐级向上（仓内 dev：src/host/dsh → 包根；构建产物：dist → 包根； profile 安装：node_modules/dsh-plugin/dist → 包根——file: 安装带 helper/ 才有） electron：node_modules/electron/dist/ 下的平台二进制（helper 子包 devDep → 插件包根 → 仓库根，跟随 symlink 可达 pnpm store 真实位） → ~/.dsh/electron/（dsh-pet 先例的运行时下载位：electron / bin/electron / dist/Electron.app/C
- */
-function detectPetSpawner(): HelperSpawner | undefined {
-  const helperMain = locateHelperMain();
-  if (helperMain === undefined) {
-    return undefined;
-  }
-  const helperDir = dirname(helperMain);
-  const electronBin = locateElectronBinary(helperDir);
-  if (electronBin === undefined) {
-    return undefined;
-  }
-  return electronSpawner(electronBin, helperMain);
-}
-
-/** 向上探测 helper/dist/main.js（上限 5 级；命中即返回绝对路径） */
-function locateHelperMain(): string | undefined {
-  let dir = dirname(fileURLToPath(import.meta.url));
-  for (let i = 0; i < 5; i++) {
-    const candidate = join(dir, "helper", "dist", "main.js");
-    if (existsSync(candidate)) {
-      return candidate;
-    }
-    const parent = dirname(dir);
-    if (parent === dir) {
-      break;
-    }
-    dir = parent;
-  }
-  return undefined;
-}
-
-/** electron 平台二进制相对 dist 位：darwin = Electron.app 包内执行档；win32 = electron.exe；
- * 其余 = 平铺 electron（electronGet 落位产物同名——落位即被探测，full-parity AD §3.4） */
-function electronDistBin(): string {
-  if (process.platform === "darwin") return join("Electron.app", "Contents", "MacOS", "Electron");
-  return process.platform === "win32" ? "electron.exe" : "electron";
-}
-
-/** electron 二进制候选定位（真实二进制，顺序见 detectPetSpawner 注释；全部 miss = undefined） */
-function locateElectronBinary(helperDir: string): string | undefined {
-  const pluginRoot = dirname(helperDir);
-  const home = homedir();
-  const distBin = electronDistBin();
-  const candidates = [
-    join(helperDir, "node_modules", "electron", "dist", distBin),
-    join(pluginRoot, "node_modules", "electron", "dist", distBin),
-    join(pluginRoot, "..", "node_modules", "electron", "dist", distBin),
-    join(home, ".dsh", "electron", "electron"),
-    join(home, ".dsh", "electron", "bin", "electron"),
-    join(home, ".dsh", "electron", "dist", distBin),
-  ];
-  return candidates.find((candidate) => isRegularFile(candidate));
-}
-
-function isRegularFile(path: string): boolean {
-  try {
-    return statSync(path).isFile();
-  } catch {
-    return false;
-  }
 }
 
 /** 降级告警双出口：统一日志面（环 + 落盘共享文件，ADR-0005）+ stderr（宿主启动期可见） */

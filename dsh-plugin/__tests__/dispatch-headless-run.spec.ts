@@ -118,6 +118,33 @@ describe("执行异常封闭（claim 后不泄漏槽/running）", () => {
   });
 });
 
+describe("dsh 形态子进程凭据环境（agentEnv → job.env）", () => {
+  it("未注入 → 仅派发既有 env（PK_DISPATCH_TASK）；命中 → 合并且既有键保留", async () => {
+    seedAgent("ag-1");
+    const bare = seedProjectTask("任务");
+    await dispatchHeadless(db.conn, { executorFor: () => fake }, bare);
+    expect(fake.jobs[0]?.env).toEqual({ PK_DISPATCH_TASK: String(bare) });
+
+    const fakeWithCreds = createFakeExecutor();
+    const withCreds = seedProjectTask("任务2");
+    await dispatchHeadless(
+      db.conn,
+      {
+        executorFor: () => fakeWithCreds,
+        agentEnv: async () => ({ DEEPSEEK_API_KEY: "sk-test" }),
+      },
+      withCreds,
+    );
+    expect(fakeWithCreds.jobs[0]?.env).toEqual({ PK_DISPATCH_TASK: String(withCreds), DEEPSEEK_API_KEY: "sk-test" });
+
+    // provider 未命中（undefined）→ 不改写 env
+    const fakeMiss = createFakeExecutor();
+    const miss = seedProjectTask("任务3");
+    await dispatchHeadless(db.conn, { executorFor: () => fakeMiss, agentEnv: async () => undefined }, miss);
+    expect(fakeMiss.jobs[0]?.env).toEqual({ PK_DISPATCH_TASK: String(miss) });
+  });
+});
+
 describe("localShellRunner（真实 sh 子进程）", () => {
   it("成功/失败两态", async () => {
     const ok = await localShellRunner("echo pk-wt-ok");

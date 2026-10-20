@@ -10,6 +10,7 @@ import { AnonRules } from "../domain/anonymize";
 import { DATA_BEGIN, DATA_END } from "../domain/injection";
 import { streakFromDb } from "../domain/streak";
 import { createLocalExecutor } from "../dispatch/executor";
+import { resolveAgentEnv, type AgentEnvProvider } from "../dispatch/localEnv";
 import type { AgentConfig } from "../domain/settings";
 import type { BridgeClient } from "./bridge";
 
@@ -26,6 +27,8 @@ export interface PetChatDeps {
   agent: AgentConfig;
   /** 回送通道（当前桥；缺席 = 丢弃） */
   bridge(): BridgeClient | null;
+  /** agent 子进程凭据环境（dsh 形态 DEEPSEEK_API_KEY 注入；缺省不注入） */
+  agentEnv?: AgentEnvProvider;
 }
 
 /** 任务快照（桌面 pet.rs pet_chat 同构：进行中 + 开放前 10 + 图鉴累计 + 连胜） */
@@ -107,6 +110,7 @@ export async function runPetChat(deps: PetChatDeps, question: string): Promise<v
       prompt: petChatPrompt(petChatSnapshot(deps.conn), question),
       workdir: deps.agent.workdir,
       timeoutSecs: deps.agent.timeoutSecs,
+      env: await resolveAgentEnv(deps.agentEnv, deps.agent.command),
     });
     if (outcome.exitCode === 0) {
       answer = trimSentences(outcome.stdout, ANSWER_SENTENCES);

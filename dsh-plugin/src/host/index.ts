@@ -11,7 +11,8 @@
  */
 import { createRequire } from "node:module";
 
-export { createPlugin, defaultJudgeExecutor, type Plugin, type PluginDeps } from "./assembly";
+export { createPlugin, type Plugin, type PluginDeps } from "./assembly";
+export { defaultJudgeExecutor } from "./judge/adapters";
 
 /** 宿主上下文（骨架占位：真实 Cordis Context 随插件装配任务落型） */
 export type HostContext = Record<string, unknown>;

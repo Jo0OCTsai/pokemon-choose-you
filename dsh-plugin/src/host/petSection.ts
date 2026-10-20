@@ -16,6 +16,7 @@ import { celebrateSolemn, caughtVariantOf, dexDoneCount } from "./pet/solemn";
 import { runPetChat } from "./pet/petChat";
 import { makeSysEventHandlers } from "./pet/sysEvents";
 import type { BridgeClient } from "./pet/bridge";
+import type { AgentEnvProvider } from "./dispatch/localEnv";
 import type { PluginDeps } from "./assembly";
 
 /** 交叉引用槽（supervisor 处理器 ↔ stateFeed/supervisor 互引的装配期载体） */
@@ -32,6 +33,8 @@ interface PetHandlerArgs {
   slots: PluginSlots;
   openPage: (section?: "panel" | "settings", focus?: "capture") => void;
   newExecutor: (c: Conn) => JudgeExecutor | null;
+  /** agent 子进程凭据环境（聊聊执行链——PluginDeps.agentEnv 透传） */
+  agentEnv?: AgentEnvProvider;
 }
 
 /** cmd 上行的 domain 依赖组装（捕捉/显隐/写后直推/聊聊——onCmd 消费） */
@@ -58,7 +61,7 @@ function petCmdDepsOf(args: PetHandlerArgs, petBridge: () => BridgeClient | null
         petBridge()?.sys.sendChatReply("（还没配置 AI agent，先到设置里配一个吧）", false);
         return;
       }
-      void runPetChat({ conn: args.conn, agent, bridge: petBridge }, text);
+      void runPetChat({ conn: args.conn, agent, bridge: petBridge, agentEnv: args.agentEnv }, text);
     },
   };
 }
@@ -123,7 +126,7 @@ export function assemblePet(args: {
           spawner: deps.petSpawner,
           getPos: () => getPetPos(conn),
           onBridgeReady: () => slots.feed?.republishAll(),
-          handlers: petHandlers({ conn, health, log, slots, openPage, newExecutor }),
+          handlers: petHandlers({ conn, health, log, slots, openPage, newExecutor, agentEnv: deps.agentEnv }),
         });
   slots.supervisor = supervisor;
   const stateFeed = new StateFeed(conn, {

@@ -44,6 +44,26 @@ function seedAgent(id: string, command: string, deployment?: string): void {
     );
 }
 
+describe("agentTest × 凭据环境注入（dispatchDeps.agentEnv——判定/派发同链路）", () => {
+  it("命中 → 探针 job 带凭据环境", async () => {
+    seedAgent("ag-dsh", "dsh");
+    const jobs: Array<{ command: string; env: Record<string, string> | undefined }> = [];
+    f.deps.dispatchDeps.executorFor = () => ({
+      launch: async (job): Promise<ExecOutcome> => {
+        jobs.push({ command: job.command, env: job.env });
+        return { exitCode: 0, durationMs: 5, stdout: '{"openTasks":1}', timedOut: false };
+      },
+      kill: () => undefined,
+    });
+    f.deps.dispatchDeps.agentEnv = async () => ({ DEEPSEEK_API_KEY: "sk-probe" });
+    const out = (await f.call("agentTest", { agentId: "ag-dsh" })) as {
+      data: { connected: boolean };
+    };
+    expect(out.data.connected).toBe(true);
+    expect(jobs[0]?.env).toEqual({ DEEPSEEK_API_KEY: "sk-probe" });
+  });
+});
+
 describe("agentTest 连接探针（ai::test 同构）", () => {
   it("stdout 含 openTasks → connected true + 成功文案", async () => {
     seedAgent("ag-probe", "claude");

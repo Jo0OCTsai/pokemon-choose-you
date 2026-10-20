@@ -135,6 +135,23 @@ export function pathEnvKey(env: NodeJS.ProcessEnv = process.env): string {
 }
 
 /**
+ * agent 子进程凭据环境提供者（dsh 形态凭据注入——适配层注入，业务核心只消费）：
+ * dsh-headless 出厂禁用 credentials 服务（bundle patch「一次性任务用启动时凭据」），
+ * GUI 宿主进程环境又没有 DEEPSEEK_API_KEY——适配层经宿主 credentials 服务解析后
+ * 经本提供者注入派发/判定子进程。契约：不抛错（未命中或内部异常一律返回 undefined
+ * = 不注入，子进程按原环境跑、由 dsh 自身报错）；凭据不落盘、不进命令行、不打日志。
+ */
+export type AgentEnvProvider = (program: string) => Promise<Record<string, string> | undefined>;
+
+/** 提供者缺席/未命中归一为 undefined（调用点直填 job.env / spawn opts.env，省各自分支） */
+export async function resolveAgentEnv(
+  provider: AgentEnvProvider | undefined,
+  program: string,
+): Promise<Record<string, string> | undefined> {
+  return provider === undefined ? undefined : await provider(program);
+}
+
+/**
  * 子进程环境（runner.rs run_agent 同构）：宿主环境 + 命令与 node 所在目录前插 PATH
  * （`#!/usr/bin/env node` 脚本在 GUI 精简 PATH 下找得到 node）+ extra 注入最后覆盖。
  */

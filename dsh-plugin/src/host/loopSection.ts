@@ -22,6 +22,11 @@ import type { JudgeExecutor } from "./judge/adapters";
 /** 备份循环间隔（AD §3.2/A36：30min 惶——跨天判定在 domain） */
 export const BACKUP_LOOP_INTERVAL_MS = 30 * 60_000;
 
+/** dispatchDeps 归一：PluginDeps.agentEnv 并入（显式 dispatchDeps.agentEnv 优先——近消费方胜） */
+function dispatchDepsOf(deps: PluginDeps): NonNullable<PluginDeps["dispatchDeps"]> {
+  return { agentEnv: deps.agentEnv, ...(deps.dispatchDeps ?? {}) };
+}
+
 /** 收音机轮询/自动派发循环段装配（timer 全注入；启动即跑一轮轮询） */
 export function assemblePollLoops(args: {
   conn: Conn;
@@ -41,7 +46,7 @@ export function assemblePollLoops(args: {
     log: (level, message) => args.log(level, "radio", message),
     onEvent: (event) => args.log("warn", "radio", `event: ${event}`),
   });
-  const auto = startAutoDispatchLoop(conn, deps.dispatchDeps ?? {}, {
+  const auto = startAutoDispatchLoop(conn, dispatchDepsOf(deps), {
     timer: deps.autoTimer ?? systemTimer,
     onError: (error) => args.log("warn", "dispatch-auto", String(error)),
   });
@@ -144,10 +149,9 @@ export function parityCommandDeps(args: {
   const remote: RemoteCommandPlatform | undefined = deps.remote;
   return {
     // 远程平台面在位时：无头派发路由 local/ssh/直连 + worktreeFor + 派发前就绪复核全量接线
+    // （凭据环境经 dispatchDepsOf 并入——remoteHeadlessDeps 不覆盖 agentEnv 键）
     dispatchDeps:
-      remote === undefined
-        ? (deps.dispatchDeps ?? {})
-        : { ...(deps.dispatchDeps ?? {}), ...remoteHeadlessDeps(conn, remote) },
+      remote === undefined ? dispatchDepsOf(deps) : { ...dispatchDepsOf(deps), ...remoteHeadlessDeps(conn, remote) },
     ...(remote === undefined ? {} : { remote }),
     // 交互派发远端件（terminalFor 真 PTY/copy-line + 就绪复核——debt ③ 接线；
     // 本机分支不经过本件：dsh 宿主侧 deps.terminal = createHandoffTerminal 诚实化）

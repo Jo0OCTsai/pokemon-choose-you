@@ -11,8 +11,13 @@
   assembly 导出的 `defaultJudgeExecutor` 单源，内置通道分支走 `sessionExecutor.ts`
   （root 会话形态，默认；旧值 subagent 同路由——ADR-0004），背包改值经 Loader 热应用
   后下一次判定即生效，无需重启宿主；inject 声明 agents/sessions/agentDefaultModel
-  ——内置通道消费面，dsh-base 恒在场、缺席插件不装）→ 22 工具经 defineTool 注册 →
+  ——内置通道消费面，dsh-base 恒在场、缺席插件不装；credentials——dsh 形态子进程
+  凭据注入消费面（`credentialEnv.ts`：宿主凭据库解析 DEEPSEEK_API_KEY 注入判定/
+  派发/聊聊/探针 spawn 链，dsh-headless 出厂禁凭据服务的缺口补面））→ 22 工具经 defineTool 注册 →
   host 命令挂 `PkyRemoteService`（Typert Remote 数据面，见下）。
+- `credentialEnv.ts` —— dsh 形态子进程凭据环境提供者（宿主 `ctx.credentials.resolve`
+  → `AgentEnvProvider`：basename 门控仅 dsh 命令、未命中/异常降级不注入、逐次解析
+  轮换即时生效；`petLocate.ts` —— 桌宠 helper/electron 探测件（自 hostEntry 拆出）
 - `sessionExecutor.ts` —— **dsh 内置判定通道**（root 会话形态，ADR-0004：一批一会话
   ——每批判定 = 一条顶层会话，进宿主主会话列表、可回放）：`ctx.agents.create` root
   agent（无 origin 分类、meta.cwd 归组项目、模型组合取 `agentDefaultModel

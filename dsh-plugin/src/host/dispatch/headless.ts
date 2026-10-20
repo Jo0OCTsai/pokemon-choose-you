@@ -21,6 +21,7 @@ import { prepareDispatchPrompt, type DispatchPromptPrep } from "./prompt";
 import type { DispatchExecutor } from "./executor";
 import type { SshCheckOutcome } from "./sshCheck";
 import type { WorktreeStrategy } from "./worktree";
+import type { AgentEnvProvider } from "./localEnv";
 import { executeAndSettle } from "./headlessRun";
 
 // ---- 无头编排 ----
@@ -41,6 +42,9 @@ export interface HeadlessDeps {
    * 命令层 2.9 映射 PROTOCOL §2 错误码）。注入本钩子后 sshCheck 不再重复执行。
    */
   deploymentPrecheck?(route: ResolvedDispatchRoute): Promise<void>;
+  /** agent 子进程凭据环境（dsh 形态 DEEPSEEK_API_KEY 注入——job.env 合并后直达
+   *  local childEnvFor 与远端 script env 段；缺省不注入）。契约见 localEnv.AgentEnvProvider */
+  agentEnv?: AgentEnvProvider;
 }
 
 /** 无头执行结果（失败不抛错：状态 + 原因 + 会话行，调用方按 state 呈现——HeadlessOutcome 同构） */

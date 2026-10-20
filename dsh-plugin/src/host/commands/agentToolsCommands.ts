@@ -15,6 +15,7 @@ import {
   skillDirFor,
 } from "../domain/skills";
 import { createLocalExecutor } from "../dispatch/executor";
+import { resolveAgentEnv } from "../dispatch/localEnv";
 import type { ResolvedDispatchRoute } from "../dispatch/routes";
 import { paramError } from "../storage/errors";
 
@@ -107,7 +108,8 @@ async function probeAgent(
     prompt: AGENT_TEST_PROBE,
     workdir: agent.workdir ?? "",
     timeoutSecs: agent.timeoutSecs,
-    env: {},
+    // dsh 形态凭据环境（与判定/派发同一注入链）：探针不通时才能排除凭据因素
+    env: await resolveAgentEnv(deps.dispatchDeps.agentEnv, agent.command),
   });
   if (outcome.error !== undefined) {
     return { connected: false, message: `Agent 启动失败：${outcome.error}` };

@@ -26,8 +26,8 @@ import type { HeadlessDeps } from "./dispatch/headless";
 import { createFakeTerminal } from "./dispatch/terminalAdapters";
 import type { TerminalAdapter } from "./dispatch/interactive";
 import type { TerminalLineInjector } from "./commands/context";
-import { cliJudgeExecutor, type JudgeExecutor } from "./judge/adapters";
-import { primaryAgent } from "./domain/settings";
+import { defaultJudgeExecutor, type JudgeExecutor } from "./judge/adapters";
+import type { AgentEnvProvider } from "./dispatch/localEnv";
 import { StateFeed, type FeedTimerApi } from "./pet/stateFeed";
 import { PetSupervisor, memoryPetAutoStartStore, type HelperSpawner } from "./pet/supervisor";
 import type { PageOpenPayload } from "./pet/cmdHandler";
@@ -38,13 +38,6 @@ import type { SshFamilyProjection } from "./dsh/probeDsh";
 import type { ReminderLoop } from "./reminder/loop";
 import { ReminderDelivery } from "./reminder/deliver";
 import type { DailyBackupOutcome } from "./domain/backup-loop";
-
-/** 判定执行方工厂缺省实现：主 agent（收音机分类指定/首个启用）CLI 形态
- * （导出面 = dsh 适配层 volatile 活读的 cli 分支单源，hostEntry 消费） */
-export function defaultJudgeExecutor(conn: Conn): JudgeExecutor | null {
-  const agent = primaryAgent(conn);
-  return agent === null ? null : cliJudgeExecutor({ conn, agent });
-}
 
 /** 插件装配依赖（全部可注入：伪 ctx 集成测试逐项替身；缺省 = 真实实现） */
 export interface PluginDeps {
@@ -66,6 +59,8 @@ export interface PluginDeps {
   newExecutor?: (conn: Conn) => JudgeExecutor | null;
   /** 无头派发依赖（执行器/worktree/ssh 预检——dsh 适配层注入） */
   dispatchDeps?: HeadlessDeps;
+  /** agent 子进程凭据环境（dsh 形态 DEEPSEEK_API_KEY 注入；缺省不注入——localEnv.AgentEnvProvider） */
+  agentEnv?: AgentEnvProvider;
   /** 交互派发终端适配器（dsh terminal 表面；缺省 = fake 终端占位——真实宿主注入外部终端/handoff） */
   terminal?: TerminalAdapter;
   /** 终端行注入面（回放本机分支/lark 登录；dsh 适配层注入外部终端行注入件） */
@@ -208,7 +203,7 @@ export function createPlugin(deps: PluginDeps = {}): Plugin {
   const health = new HealthState();
   const log = pluginLogger(logs, createLogSink(deps.logDir));
   const lark: LarkCli = createLark(deps.larkBin ?? "lark-cli");
-  const newExecutor = deps.newExecutor ?? defaultJudgeExecutor;
+  const newExecutor = deps.newExecutor ?? ((conn: Conn) => defaultJudgeExecutor(conn, deps.agentEnv));
   const slots: PluginSlots = { feed: null, supervisor: null };
   const openPageListeners = new Set<(event: PageOpenPayload) => void>();
   const openPage = pageOpener(openPageListeners);

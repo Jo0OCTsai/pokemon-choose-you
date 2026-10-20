@@ -180,7 +180,8 @@ export async function executeAndSettle(
       prompt: prep.prompt,
       workdir: plan.effectiveDir,
       timeoutSecs: prep.agent.timeoutSecs,
-      env: { PK_DISPATCH_TASK: String(prep.task.id) },
+      // 凭据注入在 job 构造点单源生效：local（childEnvFor extra）与远端（script env 段）同吃
+      env: { PK_DISPATCH_TASK: String(prep.task.id), ...((await deps.agentEnv?.(prep.agent.command)) ?? {}) },
     });
     return await settleHeadlessRun(conn, prep, plan, outcome, hostKey);
   } catch (error) {
