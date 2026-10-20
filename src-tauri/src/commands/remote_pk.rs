@@ -393,102 +393,12 @@ pub fn run_setup(ctx: &RemotePkSetup) -> SetupReport {
         }
     };
 
-    // 4. 公钥装配本机 authorized_keys（幂等；旧版裸公钥行原位升级为受限条目）。
+    // 4. 公钥装配本机 authorized_keys（幂等；四形态收口见 assemble_authorized_keys）。
     //    restrict,command= 把该密钥锁死为只能执行本机 pk（提案 §8 安全加固）：
     //    远程私钥（~/.ssh/pk_shim）失陷时拿不到 shell——forced command 进 pk 的
     //    __ssh_entry 入口做语法级校验（只认「[env] PK_* <本 pk> 参数…」形态）
-    let ssh_dir = ctx.local_home.join(".ssh");
-    let ak = ssh_dir.join("authorized_keys");
-    let entry = authorized_entry(&ctx.pk_path, &pub_line);
-    let existing = std::fs::read_to_string(&ak).unwrap_or_default();
-    if existing.lines().any(|l| l.trim() == entry) {
-        steps.push(SetupStep {
-            name: "本机公钥装配".into(),
-            status: "skip".into(),
-            detail: "authorized_keys 已含该公钥（restrict,command= 受限条目）".into(),
-        });
-    } else if existing.lines().any(|l| l.trim() == pub_line) {
-        // 旧版本写入的裸公钥行：原位替换为我们自己的受限条目（其余行不动）
-        let upgraded = existing
-            .lines()
-            .map(|l| {
-                if l.trim() == pub_line {
-                    entry.as_str()
-                } else {
-                    l
-                }
-            })
-            .collect::<Vec<_>>()
-            .join("\n");
-        if std::fs::write(&ak, format!("{upgraded}\n")).is_err() {
-            fail(
-                &mut steps,
-                "本机公钥装配",
-                format!("升级 {} 中的旧条目失败", ak.display()),
-            );
-            return report_of(steps, None);
-        }
-        steps.push(SetupStep {
-            name: "本机公钥装配".into(),
-            status: "ok".into(),
-            detail: format!(
-                "旧裸公钥已升级为受限条目（restrict,command=，仅可执行本机 pk）：{}",
-                ak.display()
-            ),
-        });
-    } else if existing.lines().any(|l| l.contains(&pub_line)) {
-        // 用户手工加过带自定义限制的同款公钥：尊重现状不动
-        steps.push(SetupStep {
-            name: "本机公钥装配".into(),
-            status: "skip".into(),
-            detail: "authorized_keys 已含该公钥（自定义限制条目，保持不动）".into(),
-        });
-    } else {
-        let _ = std::fs::create_dir_all(&ssh_dir);
-        let mut file = match std::fs::OpenOptions::new()
-            .create(true)
-            .append(true)
-            .open(&ak)
-        {
-            Ok(f) => f,
-            Err(e) => {
-                fail(
-                    &mut steps,
-                    "本机公钥装配",
-                    format!("写 {} 失败：{e}", ak.display()),
-                );
-                return report_of(steps, None);
-            }
-        };
-        if writeln!(file, "{entry}").is_err() {
-            fail(
-                &mut steps,
-                "本机公钥装配",
-                format!("写 {} 失败", ak.display()),
-            );
-            return report_of(steps, None);
-        }
-        #[cfg(unix)]
-        {
-            use std::os::unix::fs::PermissionsExt;
-            let _ = std::fs::set_permissions(&ssh_dir, std::fs::Permissions::from_mode(0o700));
-            let _ = std::fs::set_permissions(&ak, std::fs::Permissions::from_mode(0o600));
-        }
-        // Windows OpenSSH 对 authorized_keys 的 ACL 极严（仅当前用户可读），尽力修复
-        #[cfg(windows)]
-        {
-            let user = ctx.local_user.clone();
-            let _ = std::process::Command::new("icacls")
-                .arg(&ak)
-                .args(["/inheritance:r", "/grant"])
-                .arg(format!("{user}:(F)"))
-                .output();
-        }
-        steps.push(SetupStep {
-            name: "本机公钥装配".into(),
-            status: "ok".into(),
-            detail: format!("已追加到 {}", ak.display()),
-        });
+    if !assemble_authorized_keys(ctx, &pub_line, &mut steps) {
+        return report_of(steps, None);
     }
 
     // 5. 私钥推到远程（经应用既有的免密 ssh；载荷走 stdin 不经远端 shell 重解析）
@@ -610,6 +520,144 @@ pub fn run_setup(ctx: &RemotePkSetup) -> SetupReport {
         detail: format!("远程 pk --version 未返回版本：{out}（{hint}）"),
     });
     report_of(steps, None)
+}
+
+/// authorized_keys 装配（run_setup 步骤 4，从主函数拆出——clippy too_many_lines）：
+/// 四形态——整条一致 skip / 旧版裸公钥行原位升级为受限条目 / 自家受限条目旧路径
+/// 原位搬移（pk 换位后 __ssh_entry 程序等价校验必然拒绝回连）/ 陌生自定义形态保持
+/// 不动；都不在则追加新受限条目。返回 false = 写失败（fail 步已入 steps，调用方收口）。
+fn assemble_authorized_keys(
+    ctx: &RemotePkSetup,
+    pub_line: &str,
+    steps: &mut Vec<SetupStep>,
+) -> bool {
+    let fail_here = |steps: &mut Vec<SetupStep>, detail: String| {
+        steps.push(SetupStep {
+            name: "本机公钥装配".into(),
+            status: "fail".into(),
+            detail,
+        });
+    };
+    let push = |steps: &mut Vec<SetupStep>, status: &str, detail: String| {
+        steps.push(SetupStep {
+            name: "本机公钥装配".into(),
+            status: status.into(),
+            detail,
+        });
+    };
+    let ssh_dir = ctx.local_home.join(".ssh");
+    let ak = ssh_dir.join("authorized_keys");
+    let entry = authorized_entry(&ctx.pk_path, pub_line);
+    let existing = std::fs::read_to_string(&ak).unwrap_or_default();
+    if existing.lines().any(|l| l.trim() == entry) {
+        push(
+            steps,
+            "skip",
+            "authorized_keys 已含该公钥（restrict,command= 受限条目）".into(),
+        );
+    } else if existing.lines().any(|l| l.trim() == pub_line) {
+        // 旧版本写入的裸公钥行：原位替换为我们自己的受限条目（其余行不动）
+        let upgraded = existing
+            .lines()
+            .map(|l| {
+                if l.trim() == pub_line {
+                    entry.as_str()
+                } else {
+                    l
+                }
+            })
+            .collect::<Vec<_>>()
+            .join("\n");
+        if std::fs::write(&ak, format!("{upgraded}\n")).is_err() {
+            fail_here(steps, format!("升级 {} 中的旧条目失败", ak.display()));
+            return false;
+        }
+        push(
+            steps,
+            "ok",
+            format!(
+                "旧裸公钥已升级为受限条目（restrict,command=，仅可执行本机 pk）：{}",
+                ak.display()
+            ),
+        );
+    } else if existing.lines().any(|l| l.contains(pub_line)) {
+        // 同款公钥在场的其余形态：
+        // - 自家受限条目但 command 指向别的 pk 路径（旧版 setup 落的——pk 换位后
+        //   __ssh_entry 的程序等价校验必然拒绝回连）：原位搬移 command 到本次 pk_path；
+        // - 陌生的自定义限制形态：尊重现状不动（不覆盖用户手工配置）。
+        //   自家格式识别 = restrict,command= 前缀 + 尾部同款公钥 + __ssh_entry 入口。
+        let is_ours_stale = |l: &str| {
+            let t = l.trim();
+            t.starts_with("restrict,command=\"")
+                && t.ends_with(&format!(" {pub_line}"))
+                && t.contains("__ssh_entry")
+        };
+        if existing.lines().any(&is_ours_stale) {
+            let migrated = existing
+                .lines()
+                .map(|l| if is_ours_stale(l) { entry.as_str() } else { l })
+                .collect::<Vec<_>>()
+                .join("\n");
+            if std::fs::write(&ak, format!("{migrated}\n")).is_err() {
+                fail_here(steps, format!("更新 {} 中的旧路径条目失败", ak.display()));
+                return false;
+            }
+            push(
+                steps,
+                "ok",
+                format!(
+                    "受限条目 command 已随本次 pk 路径更新（旧路径会让回连被 __ssh_entry 拒绝）：{}",
+                    ak.display()
+                ),
+            );
+        } else {
+            push(
+                steps,
+                "skip",
+                "authorized_keys 已含该公钥（自定义限制条目，保持不动）".into(),
+            );
+        }
+    } else {
+        if let Err(detail) = append_authorized_entry(ctx, &ssh_dir, &ak, &entry) {
+            fail_here(steps, detail);
+            return false;
+        }
+        push(steps, "ok", format!("已追加到 {}", ak.display()));
+    }
+    true
+}
+
+/// 追加新受限条目并落权限（装配兜底分支；Windows ACL 尽力修复）。Err = 失败文案。
+fn append_authorized_entry(
+    _ctx: &RemotePkSetup,
+    ssh_dir: &std::path::Path,
+    ak: &std::path::Path,
+    entry: &str,
+) -> Result<(), String> {
+    let _ = std::fs::create_dir_all(ssh_dir);
+    let mut file = std::fs::OpenOptions::new()
+        .create(true)
+        .append(true)
+        .open(ak)
+        .map_err(|e| format!("写 {} 失败：{e}", ak.display()))?;
+    writeln!(file, "{entry}").map_err(|_| format!("写 {} 失败", ak.display()))?;
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        let _ = std::fs::set_permissions(ssh_dir, std::fs::Permissions::from_mode(0o700));
+        let _ = std::fs::set_permissions(ak, std::fs::Permissions::from_mode(0o600));
+    }
+    // Windows OpenSSH 对 authorized_keys 的 ACL 极严（仅当前用户可读），尽力修复
+    #[cfg(windows)]
+    {
+        let user = ctx.local_user.clone();
+        let _ = std::process::Command::new("icacls")
+            .arg(ak)
+            .args(["/inheritance:r", "/grant"])
+            .arg(format!("{user}:(F)"))
+            .output();
+    }
+    Ok(())
 }
 
 fn report_of(steps: Vec<SetupStep>, version: Option<String>) -> SetupReport {
@@ -940,6 +988,38 @@ mod tests {
             ak_text.contains("restrict,command=") && ak_text.contains("__ssh_entry"),
             "受限条目（§8 加固）: {ak_text}"
         );
+        // 裸公钥行升级 / 幂等 / 旧路径搬移矩阵 → run_setup_authorized_keys_forms（同 fixture）
+        // ssh 调用覆盖关键远程动作（推私钥/指纹/shim/PATH 检查/带 -R 的验证）
+        let calls = std::fs::read_to_string(dir.join("ssh-calls.log")).unwrap();
+        for frag in [
+            ".ssh/pk_shim",
+            "known_hosts",
+            ".local/bin/pk",
+            "command -v pk",
+            "-R 127.0.0.1:10022:127.0.0.1:22",
+            "pk --version",
+        ] {
+            assert!(calls.contains(frag), "ssh 调用缺「{frag}」: {calls}");
+        }
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// authorized_keys 在场形态矩阵（从 e2e 拆出——clippy too_many_lines）：
+    /// 旧版裸公钥行原位升级 / 幂等不重复追加 / 自家受限条目旧路径原位搬移
+    /// （pk 换位——曾致端到端验证被 __ssh_entry 拒绝「命令程序不是本 pk」）/
+    /// 陌生自定义形态保持不动、无关行保留。
+    #[test]
+    fn run_setup_authorized_keys_forms() {
+        let dir = std::env::temp_dir().join(format!("pk-setup-ak-forms-{}", std::process::id()));
+        let home = dir.join("home");
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&home).unwrap();
+        let (ssh, keyscan) = fake_bins(&dir);
+        let ctx = ctx_with(&dir, &home, &ssh, &keyscan);
+        assert!(run_setup(&ctx).ok, "首跑装配");
+        let ak = home.join(".ssh/authorized_keys");
+        let pub_text =
+            std::fs::read_to_string(dir.join("keys/remote_pk_shim_ed25519.pub")).unwrap();
         // 旧版本裸公钥行：重跑后原位升级为受限条目（其余行不动、不重复追加）
         let bare = format!("# 用户自己的其他条目\n{}\n", pub_text.trim());
         std::fs::write(&ak, &bare).unwrap();
@@ -965,18 +1045,49 @@ mod tests {
         );
         let ak_text2 = std::fs::read_to_string(&ak).unwrap();
         assert_eq!(ak_text2.matches(&pub_text.trim()).count(), 1, "不重复追加");
-        // ssh 调用覆盖关键远程动作（推私钥/指纹/shim/PATH 检查/带 -R 的验证）
-        let calls = std::fs::read_to_string(dir.join("ssh-calls.log")).unwrap();
-        for frag in [
-            ".ssh/pk_shim",
-            "known_hosts",
-            ".local/bin/pk",
-            "command -v pk",
-            "-R 127.0.0.1:10022:127.0.0.1:22",
-            "pk --version",
-        ] {
-            assert!(calls.contains(frag), "ssh 调用缺「{frag}」: {calls}");
-        }
+        // 自家受限条目但 command 指向旧 pk 路径：原位搬移 command；陌生自定义形态保持不动
+        let expected_entry = authorized_entry(&ctx.pk_path, pub_text.trim());
+        let old_path_entry = authorized_entry("/old/debug/target/pk", pub_text.trim());
+        let foreign_custom = format!(
+            "no-pty,command=\"/guard/wrapped {} x\" {}",
+            "v",
+            pub_text.trim()
+        );
+        std::fs::write(
+            &ak,
+            format!("# 用户自己的其他条目\n{old_path_entry}\n{foreign_custom}\n"),
+        )
+        .unwrap();
+        let report4 = run_setup(&ctx);
+        assert!(report4.ok, "搬移跑报告: {report4:?}");
+        let migrate_step = report4
+            .steps
+            .iter()
+            .find(|s| s.name == "本机公钥装配")
+            .unwrap();
+        assert_eq!(migrate_step.status, "ok");
+        assert!(
+            migrate_step.detail.contains("已随本次 pk 路径更新"),
+            "{}",
+            migrate_step.detail
+        );
+        let ak_text4 = std::fs::read_to_string(&ak).unwrap();
+        assert!(
+            ak_text4.lines().any(|l| l.trim() == expected_entry),
+            "command 搬到本次 pk 路径: {ak_text4}"
+        );
+        assert!(
+            !ak_text4.contains("/old/debug/target/pk"),
+            "旧路径条目被替换: {ak_text4}"
+        );
+        assert!(
+            ak_text4.lines().any(|l| l.trim() == foreign_custom),
+            "陌生自定义形态保持不动: {ak_text4}"
+        );
+        assert!(
+            ak_text4.contains("# 用户自己的其他条目"),
+            "无关行保留: {ak_text4}"
+        );
         let _ = std::fs::remove_dir_all(&dir);
     }
 
