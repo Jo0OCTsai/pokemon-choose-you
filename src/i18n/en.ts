@@ -863,6 +863,7 @@ export default {
     chatFail: "(tilts head) That one got stuck—try asking again in a moment",
     chatQ1: "What's left today?",
     chatQ2: "How many caught this week?",
+    chatQ3: "Streak lately?",
     quotes: [
       "Pika pika! Stay focused!",
       "I choose you!",
