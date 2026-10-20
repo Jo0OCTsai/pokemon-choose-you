@@ -1,8 +1,8 @@
 /**
- * pk 本机落位（remote/pkLocal，ADR-0003 §4）：`~/.choose-you/bin/pk` 缺失时从包内
- * vendor 拷当前平台 triple（已存在复用不覆盖；vendor 缺件 → undefined 降级）。
+ * pk 本机落位（remote/pkLocal，ADR-0003 §4）：`~/.choose-you/bin/pk` 与包内 vendor/
+ * 保持同源（缺失落位 / 漂移覆盖；vendor 缺件时已存在复用；全缺 → undefined 降级）。
  */
-import { chmodSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { chmodSync, mkdirSync, mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
@@ -27,12 +27,12 @@ describe("localPkPath", () => {
 });
 
 describe("ensureLocalPk", () => {
-  it("已存在 → 复用不覆盖", () => {
+  it("已存在 + vendor 缺件 → 复用不覆盖（包分发缺件时已落位仍可用）", () => {
     const target = join(home, "bin", "pk");
     mkdirSync(join(home, "bin"), { recursive: true });
     writeFileSync(target, "sentinel");
     chmodSync(target, 0o755);
-    expect(ensureLocalPk()).toBe(target);
+    expect(ensureLocalPk(join(home, "no-vendor"))).toBe(target);
     expect(readFileSync(target, "utf8")).toBe("sentinel");
   });
 
@@ -44,6 +44,31 @@ describe("ensureLocalPk", () => {
     const p = ensureLocalPk(vendor);
     expect(p).toBe(join(home, "bin", "pk"));
     expect(readFileSync(p!, "utf8")).toContain("fake-pk");
+  });
+
+  it("落位与 vendor 漂移 → 覆盖更新（新鲜度——重建 pk 后无需手动清落位）", () => {
+    const vendor = join(home, "vendor-src");
+    mkdirSync(vendor, { recursive: true });
+    const triple = hostTriple();
+    const src = join(vendor, `pk-${triple}`);
+    writeFileSync(src, "#!/bin/sh\necho pk-v2\n");
+    const target = join(home, "bin", "pk");
+    mkdirSync(join(home, "bin"), { recursive: true });
+    writeFileSync(target, "#!/bin/sh\necho pk-v1-stale\n");
+    chmodSync(target, 0o755);
+    expect(ensureLocalPk(vendor)).toBe(target);
+    expect(readFileSync(target, "utf8")).toContain("pk-v2");
+  });
+
+  it("落位与 vendor 一致 → 幂等不重拷（返回即落位）", () => {
+    const vendor = join(home, "vendor-src");
+    mkdirSync(vendor, { recursive: true });
+    const triple = hostTriple();
+    writeFileSync(join(vendor, `pk-${triple}`), "#!/bin/sh\necho same\n");
+    const p1 = ensureLocalPk(vendor);
+    const before = statSync(p1!).mtimeMs;
+    expect(ensureLocalPk(vendor)).toBe(p1);
+    expect(statSync(p1!).mtimeMs).toBe(before);
   });
 });
 

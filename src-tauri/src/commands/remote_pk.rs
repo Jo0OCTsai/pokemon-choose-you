@@ -468,7 +468,11 @@ pub fn run_setup(ctx: &RemotePkSetup) -> SetupReport {
         steps.push(SetupStep {
             name: "远程 PATH".into(),
             status: "ok".into(),
-            detail: "登录 shell 已能找到 pk".into(),
+            // 口径注明：本步验证登录 shell；agent 实际跑在非登录 shell（helper spawn 链），
+            // 其 PATH 由派发 script 前插 ~/.local/bin 兜底保证——两径独立
+            detail:
+                "登录 shell 已能找到 pk（agent 非登录执行链另由派发兜底段保证 ~/.local/bin 可达）"
+                    .into(),
         });
     } else {
         let ensure = "for f in .profile .zprofile .bash_profile; do grep -qs '.local/bin' \"$HOME/$f\" 2>/dev/null || printf '\\nexport PATH=\"$HOME/.local/bin:$PATH\"\\n' >> \"$HOME/$f\"; done; exec \"$SHELL\" -lc 'command -v pk'";
@@ -614,7 +618,7 @@ fn assemble_authorized_keys(
             push(
                 steps,
                 "skip",
-                "authorized_keys 已含该公钥（自定义限制条目，保持不动）".into(),
+                "authorized_keys 已含该公钥（自定义限制条目，保持不动；若端到端验证失败，请检查该条目的 command 是否指向本机 pk 的 __ssh_entry）".into(),
             );
         }
     } else {
@@ -1083,6 +1087,21 @@ mod tests {
         assert!(
             ak_text4.lines().any(|l| l.trim() == foreign_custom),
             "陌生自定义形态保持不动: {ak_text4}"
+        );
+        // 仅有陌生自定义形态（无自家条目在场）→ skip 保持不动 + 预警指引
+        std::fs::write(&ak, format!("{foreign_custom}\n")).unwrap();
+        let report5 = run_setup(&ctx);
+        assert!(report5.ok, "陌生形态跑报告: {report5:?}");
+        let skip_step = report5
+            .steps
+            .iter()
+            .find(|s| s.name == "本机公钥装配")
+            .unwrap();
+        assert_eq!(skip_step.status, "skip");
+        assert!(
+            skip_step.detail.contains("若端到端验证失败"),
+            "skip detail 带预警: {}",
+            skip_step.detail
         );
         assert!(
             ak_text4.contains("# 用户自己的其他条目"),

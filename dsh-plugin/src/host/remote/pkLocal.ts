@@ -1,10 +1,11 @@
 /**
- * 纯 dsh 场景的本机 pk 落位（ADR-0003 §4）：`~/.choose-you/bin/pk` 缺失时从插件包
- * vendor/ 拷当前平台 triple（构建时由 build.mjs 落位），已存在复用不覆盖。
+ * 纯 dsh 场景的本机 pk 落位（ADR-0003 §4）：`~/.choose-you/bin/pk` 与插件包 vendor/
+ * 保持同源（缺失落位 / 与 vendor 漂移皆重拷当前平台 triple——构建时由 build.mjs 落位）。
  * pk 通道开通（`pk remote setup`）经同一二进制——桌面 app 已装机器上两端并存，
  * shim last-writer-wins 收敛（specs pk-channel）。
  */
-import { chmodSync, copyFileSync, existsSync, mkdirSync } from "node:fs";
+import { chmodSync, copyFileSync, existsSync, mkdirSync, readFileSync, statSync } from "node:fs";
+import { createHash } from "node:crypto";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { appHome } from "../storage/paths";
@@ -47,23 +48,37 @@ export function vendorDir(startAt?: string): string | undefined {
   return undefined;
 }
 
+/** 两文件字节等价（大小不同速判；同大小比 sha256——重建 pk 后落位跟随 vendor 更新） */
+function sameBytes(a: string, b: string): boolean {
+  try {
+    const sa = statSync(a);
+    const sb = statSync(b);
+    if (!sa.isFile() || !sb.isFile() || sa.size !== sb.size) {
+      return false;
+    }
+    const hash = (p: string): string => createHash("sha256").update(readFileSync(p)).digest("hex");
+    return hash(a) === hash(b);
+  } catch {
+    return false;
+  }
+}
+
 /**
- * 确保本机 pk 可用：`~/.choose-you/bin/pk` 存在 → 直接用；缺失 → vendor 落位
- * （chmod 0o755）。vendor 也缺席（如包分发缺件）→ undefined（pkSetup 命令降级拒绝）。
- * vendorOverride 仅供测试注入非默认 vendor 目录。
+ * 确保本机 pk 可用：vendor 在场时落位与其保持同源（不一致即覆盖——重建 pk 后无需
+ * 手动清落位；「已存在直接用」仅在 vendor 缺件时成立）。vendorOverride 仅供测试注入。
  */
 export function ensureLocalPk(vendorOverride?: string): string | undefined {
   const target = localPkPath();
   if (target === undefined) {
     return undefined;
   }
-  if (existsSync(target)) {
-    return target;
-  }
   const vendor = vendorOverride ?? vendorDir();
   const source = vendor === undefined ? undefined : join(vendor, `pk-${hostTriple()}`);
   if (source === undefined || !existsSync(source)) {
-    return undefined;
+    return existsSync(target) ? target : undefined;
+  }
+  if (existsSync(target) && sameBytes(target, source)) {
+    return target;
   }
   mkdirSync(dirname(target), { recursive: true });
   copyFileSync(source, target);
