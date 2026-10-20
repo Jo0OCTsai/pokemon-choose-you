@@ -14,8 +14,8 @@ export function assistantEvent(text: string): ScriptEvent {
   return { type: "assistant/message", data: { message: { content: [{ type: "text", text }] } } };
 }
 
-/** turn/end 事件（终态 reason） */
-export function turnEnd(reason: string): ScriptEvent {
+/** turn/end 事件（终态 reason：dsh 0.2.1-rc.2 起为 {kind} 对象，更早宿主为字符串——两态都要覆盖） */
+export function turnEnd(reason: string | { kind: string }): ScriptEvent {
   return { type: "turn/end", data: { reason } };
 }
 

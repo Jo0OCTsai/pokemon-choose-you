@@ -101,6 +101,16 @@ function assistantTextOf(event: SessionEventFace): string {
   );
 }
 
+/** turn 终态归一（dsh 0.2.1-rc.2 起 reason 为 {kind} 对象，更早宿主为字符串——收敛为 kind 字符串） */
+function turnReasonOf(event: SessionEventFace): string | undefined {
+  const raw = (event.data as { reason?: unknown } | undefined)?.reason;
+  if (typeof raw === "string") {
+    return raw;
+  }
+  const kind = (raw as { kind?: unknown } | null | undefined)?.kind;
+  return typeof kind === "string" ? kind : undefined;
+}
+
 /** 会话事件折叠（同 dsh-headless summarize）：末段非空 assistant 文本 + turn 终态 reason */
 function summarize(session: AgentFace["session"], firstSeq: number): { text: string; reason: string | undefined } {
   let text = "";
@@ -111,7 +121,7 @@ function summarize(session: AgentFace["session"], firstSeq: number): { text: str
       const joined = assistantTextOf(event);
       if (joined !== "") text = joined;
     } else if (event?.type === "turn/end") {
-      reason = (event.data as { reason?: unknown } | undefined)?.reason as string | undefined;
+      reason = turnReasonOf(event);
     }
   }
   return { text, reason };

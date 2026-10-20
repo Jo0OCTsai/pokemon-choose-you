@@ -76,6 +76,17 @@ describe("dshSessionExecutor · 成功路径", () => {
     expect(fake.created).toHaveLength(2);
     expect(fake.created[0].sessionId).not.toBe(fake.created[1].sessionId);
   });
+
+  it("turn/end reason 为 {kind} 对象形态（dsh 0.2.1-rc.2 起）→ completed 判成功（回归：对象恒不等字符串，内置判定曾必败）", async () => {
+    const fake = fakePlatform();
+    fake.script([assistantEvent('{"suggestions":[]}'), turnEnd({ kind: "completed" })]);
+    const exec = dshSessionExecutor({ agents: fake.agents, sessions: fake.sessions, agentDefaultModel: defaultModel });
+    await expect(exec.run({ prompt: "p", messageIds: ["om_1"] })).resolves.toMatchObject({
+      suggestions: [],
+      sessionId: expect.any(String),
+    });
+    expect(fake.flushed).toHaveLength(1);
+  });
 });
 
 describe("dshSessionExecutor · 失败路径", () => {
@@ -85,6 +96,14 @@ describe("dshSessionExecutor · 失败路径", () => {
     const exec = dshSessionExecutor({ agents: fake.agents, sessions: fake.sessions });
     await expect(exec.run({ prompt: "p", messageIds: ["om_1"] })).rejects.toThrow(/reason=max-tokens/);
     expect(fake.flushed).toHaveLength(1);
+    expect(fake.disposed).toHaveLength(1);
+  });
+
+  it("turn/end reason 对象形态非 completed → 失败且错误信息带 kind（不输出 [object Object]）", async () => {
+    const fake = fakePlatform();
+    fake.script([assistantEvent('{"suggestions":[]}'), turnEnd({ kind: "error" })]);
+    const exec = dshSessionExecutor({ agents: fake.agents, sessions: fake.sessions });
+    await expect(exec.run({ prompt: "p", messageIds: ["om_1"] })).rejects.toThrow(/reason=error/);
     expect(fake.disposed).toHaveLength(1);
   });
 
