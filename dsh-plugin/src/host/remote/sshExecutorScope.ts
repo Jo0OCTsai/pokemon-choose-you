@@ -7,7 +7,7 @@
  * DispatchExecutor 契约）。可执行解析缓存按实例。
  */
 import { DISPATCH_MIN_TIMEOUT_SECS } from "../domain/dispatch-slots";
-import { posixQuote } from "../dispatch/cmdline";
+import { cdSegment, posixQuote } from "../dispatch/cmdline";
 import type { DispatchExecutor, DispatchJob, ExecOutcome } from "../dispatch/executor";
 import { buildLocalArgv, effectiveTimeoutSecs } from "../dispatch/executor";
 import type { SshScope } from "./sshScope";
@@ -67,11 +67,15 @@ export function remoteDispatchScript(
 ): { script: string; stdin: string | null } {
   const { argv, stdin } = buildLocalArgv(job);
   const parts: string[] = [];
+  // agent Bash 工具环境的 PATH 兜底：pk shim 固定落远端 ~/.local/bin（run_setup PATH 步
+  // 同源），而 helper spawn 链的非登录 shell PATH 可能缺它——agent 曾因 pk 找不到
+  // （command not found 127）致探针/判定失败（白名单只放行 pk，agent 无法自救查路径）
+  parts.push('export PATH="$HOME/.local/bin:${PATH:-/usr/local/bin:/usr/bin:/bin}"');
   for (const [key, value] of Object.entries(job.env ?? {})) {
     parts.push(`export ${key}=${posixQuote(value)}`);
   }
   if (job.workdir !== null && job.workdir !== undefined && job.workdir.trim() !== "") {
-    parts.push(`cd ${posixQuote(job.workdir.trim())} || exit 1`);
+    parts.push(`${cdSegment(job.workdir)} || exit 1`);
   }
   parts.push(`exec ${[nodePath, cliPath, ...argv].map(posixQuote).join(" ")}`);
   return { script: parts.join("; "), stdin };
