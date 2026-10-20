@@ -8,7 +8,7 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { dispatchInteractive, dispatchReport, dispatchReset, localDispatchDir } from "../src/host/dispatch/interactive";
 import { createFakeTerminal } from "../src/host/dispatch/terminalAdapters";
-import { agentLine, interactiveArgs, summarizeLine } from "../src/host/dispatch/cmdline";
+import { agentLine, cdSegment, interactiveArgs, summarizeLine } from "../src/host/dispatch/cmdline";
 import { createTestDb, seedAgents, seedTask, type TestDb } from "./helpers";
 
 let db: TestDb;
@@ -69,6 +69,15 @@ describe("命令行组装（cmdline.rs 同构）", () => {
     expect(localDispatchDir("/abs/path")).toBe("/abs/path");
     const home = process.env["HOME"] ?? "";
     expect(localDispatchDir("~/x")).toBe(home === "" ? "~/x" : `${home}/x`);
+  });
+
+  it("cdSegment：~ 前缀波浪号裸拼（引号会阻断远端 $HOME 展开），余部与普通路径整体引用", () => {
+    expect(cdSegment("~/.choose-you/workspace")).toBe("cd ~/.choose-you/workspace");
+    expect(cdSegment("~/my dir/app")).toBe("cd ~'/my dir/app'");
+    expect(cdSegment("~")).toBe("cd ~");
+    expect(cdSegment("/srv/app")).toBe("cd /srv/app");
+    expect(cdSegment("workspaces/foo")).toBe("cd workspaces/foo");
+    expect(cdSegment("my app")).toBe("cd 'my app'");
   });
 });
 

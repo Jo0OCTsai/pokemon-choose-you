@@ -8,6 +8,7 @@
  */
 import type { Conn } from "../storage/db";
 import type { TerminalAdapter } from "../dispatch/interactive";
+import { cdSegment } from "../dispatch/cmdline";
 import type { DeploymentEntity } from "./deployments";
 import type { SshTerminalScope } from "./sshExecutor";
 
@@ -23,18 +24,23 @@ async function writeIntoTerminal(scope: SshTerminalScope, sessionId: string, dat
   }
 }
 
-/** 新开远端 PTY 并写入首行（cwd 空串不传；写入失败即抛——不留半开会话给上层） */
+/** 新开远端 PTY 并写入首行（写入失败即抛——不留半开会话给上层）。
+ * dsh-ssh 协议层 cwd 只收绝对 POSIX 路径（remotePath schema）：绝对 workdir 走
+ * cwd；~/相对路径不上协议，改把 cd 段拼进注入行首（远端 shell 展开，无头脚本
+ * 同构）；空 workdir 不传（部署缺省承载）。 */
 async function spawnTerminalWithLine(
   scope: SshTerminalScope,
   payload: string,
   workdir: string | null | undefined,
   alias: string,
 ): Promise<string> {
+  const dir = workdir?.trim() ?? "";
+  const cdLine = dir !== "" && !dir.startsWith("/") ? `${cdSegment(dir)} || exit 1\n` : "";
   const term = await scope.spawnTerminal({
     command: REMOTE_TERMINAL_SHELL,
-    ...(workdir !== null && workdir !== undefined && workdir.trim() !== "" ? { cwd: workdir.trim() } : {}),
+    ...(dir.startsWith("/") ? { cwd: dir } : {}),
   });
-  if (!(await writeIntoTerminal(scope, term.sessionId, payload))) {
+  if (!(await writeIntoTerminal(scope, term.sessionId, `${cdLine}${payload}`))) {
     throw new Error(`远端 PTY 会话写入失败（${term.sessionId}，部署 ${alias}）`);
   }
   return term.sessionId;

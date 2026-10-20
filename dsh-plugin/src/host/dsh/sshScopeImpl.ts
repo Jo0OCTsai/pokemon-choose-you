@@ -33,6 +33,12 @@ function stdinText(input: Buffer | string): string {
   return typeof input === "string" ? input : input.toString("utf8");
 }
 
+/** 协议层 cwd/workspace 只收绝对 POSIX 路径（dsh-ssh remotePath schema）——"." 会被拒；
+ * workdir 缺省回落根目录（登录目录语义受协议限制，目录导航由脚本/注入行 cd 段承载） */
+function wireCwd(workdir: string): string {
+  return workdir !== "" ? workdir : "/";
+}
+
 export class DshSshScope implements SshScope {
   private connectedState = true;
   private disconnectStarted = false;
@@ -49,7 +55,7 @@ export class DshSshScope implements SshScope {
     const startedAt = Date.now();
     const handle = this.init.services.subprocess.spawn({
       argv: cmd,
-      cwd: this.init.workdir !== "" ? this.init.workdir : ".",
+      cwd: wireCwd(this.init.workdir),
       stdio: {
         stdin: opts?.stdin === undefined ? "ignore" : { data: stdinText(opts.stdin) },
         stdout: { maxBytes: COLLECT_MAX_BYTES },
@@ -70,7 +76,7 @@ export class DshSshScope implements SshScope {
   async spawnTerminal(opts: SshTerminalOptions): Promise<{ sessionId: string }> {
     const handle = await this.init.services.subprocess.spawnTerminal({
       argv: [opts.command, ...(opts.args ?? [])],
-      cwd: opts.cwd ?? (this.init.workdir !== "" ? this.init.workdir : "."),
+      cwd: opts.cwd !== undefined && opts.cwd !== "" ? opts.cwd : wireCwd(this.init.workdir),
       rows: TERMINAL_ROWS,
       cols: TERMINAL_COLS,
       terminalType: TERMINAL_TYPE,

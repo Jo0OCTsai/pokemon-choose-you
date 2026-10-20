@@ -55,6 +55,28 @@ describe("交互 TerminalAdapter：PTY 注入与同上下文重派", () => {
   });
 });
 
+describe("交互 TerminalAdapter：非绝对 workdir 走 cd 段（dsh-ssh cwd 只收绝对路径）", () => {
+  it("~ 前缀：cwd 不上协议、cd 段拼进注入行首（远端 shell 展开 $HOME）", async () => {
+    fx.seedReadyDeployment();
+    const taskId = fx.seedDeploymentTask("交互波浪号目录", { workdir: "~/.choose-you/workspace" });
+    const outcome = await dispatchInteractive(fx.db.conn, interactiveDeps(), taskId);
+    expect(outcome.state).toBe("running");
+    expect(fx.scope.spawnTerminalCalls[0]?.cwd).toBeUndefined();
+    const write = fx.scope.terminalWrites[0]?.data ?? "";
+    expect(write.startsWith("cd ~/.choose-you/workspace || exit 1\n")).toBe(true);
+    expect(write).toContain("claude");
+    expect(fx.lastSession(taskId)["session_id"]).toBe("pty-1");
+  });
+
+  it("相对路径（含空格整体引用）", async () => {
+    fx.seedReadyDeployment();
+    const taskId = fx.seedDeploymentTask("交互相对目录", { workdir: "my work dir" });
+    await dispatchInteractive(fx.db.conn, interactiveDeps(), taskId);
+    expect(fx.scope.spawnTerminalCalls[0]?.cwd).toBeUndefined();
+    expect(fx.scope.terminalWrites[0]?.data?.startsWith("cd 'my work dir' || exit 1\n")).toBe(true);
+  });
+});
+
 describe("交互 TerminalAdapter：关闭兜底与降级", () => {
   it("原会话已关闭 → 兜底新开 + note 明示", async () => {
     fx.seedReadyDeployment();

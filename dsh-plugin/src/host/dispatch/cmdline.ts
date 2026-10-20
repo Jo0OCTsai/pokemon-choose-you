@@ -11,6 +11,22 @@ export function posixQuote(s: string): string {
 }
 
 /**
+ * cd 段组装（远端注入行/无头脚本共用）：~ 前缀保持波浪号裸拼——引号会阻断
+ * shell 的 tilde 展开（cd '~/x' 是字面目录名），余部整体 posixQuote；~ 由远端
+ * shell 展开为远端 $HOME。失败收口（|| exit 1）由调用方拼接。
+ */
+export function cdSegment(dir: string): string {
+  const t = dir.trim();
+  if (t === "~") {
+    return "cd ~";
+  }
+  if (t.startsWith("~/")) {
+    return `cd ~${posixQuote(t.slice(1))}`;
+  }
+  return `cd ${posixQuote(t)}`;
+}
+
+/**
  * 交互启动参数：历史参数去掉会话恢复类开关——派发开新会话，不是回放历史
  * （cmdline.rs interactive_args 逐字对齐：--resume-id/--session/--session-id 的值一并剔除）。
  */
