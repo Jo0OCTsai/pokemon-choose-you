@@ -8,6 +8,7 @@ import { type Conn } from "./storage/db";
 import { dbFileFrom } from "./storage/paths";
 import { openAndInit } from "./storage/init";
 import { LogRing } from "./health/logRing";
+import { createLogSink, pluginLogger } from "./health/fileLogSink";
 import { HealthState } from "./health/snapshot";
 import { type PollLoop, type TimerApi } from "./radio/pollLoop";
 import { createLark, type LarkCli } from "./radio/lark";
@@ -90,6 +91,8 @@ export interface PluginDeps {
   sshFamily?: () => SshFamilyProjection | null;
   /** helper 入口路径（macAuthorizationStatus 回显；缺省空串） */
   helperPath?: () => string;
+  /** 日志落盘目录（缺省 = <appHome>/logs 定位；null = 关闭落盘仅内存环——测试注入） */
+  logDir?: string | null;
 }
 
 /** 装配完成的插件实例（dsh 适配层与测试的消费面） */
@@ -101,6 +104,8 @@ export interface Plugin {
   readonly chip: ChipDataSource;
   readonly health: HealthState;
   readonly logs: LogRing;
+  /** 统一日志面（内存环 + FileLogSink 落盘——ADR-0005；落盘失败回环 warn） */
+  readonly log: HostCommandDeps["log"];
   readonly poll: PollLoop;
   readonly stateFeed: StateFeed;
   readonly supervisor: PetSupervisor | null;
@@ -183,13 +188,6 @@ function startExtras(plugin: Plugin, deps: PluginDeps, log: HostCommandDeps["log
   }
 }
 
-/** LogRing 落日志回调（时间戳 = nowRfc3339 同形态 +00:00） */
-function ringLogger(logs: LogRing): HostCommandDeps["log"] {
-  return (level, target, message) => {
-    logs.log(level, target, message, new Date().toISOString().replace("Z", "+00:00"));
-  };
-}
-
 /** openPage 广播器（section/focus 事件 → 已注册监听器集合逐一转发） */
 function pageOpener(
   listeners: Set<(event: PageOpenPayload) => void>,
@@ -208,7 +206,7 @@ export function createPlugin(deps: PluginDeps = {}): Plugin {
   const { conn, migration } = openAndInit(dbPath);
   const logs = new LogRing();
   const health = new HealthState();
-  const log = ringLogger(logs);
+  const log = pluginLogger(logs, createLogSink(deps.logDir));
   const lark: LarkCli = createLark(deps.larkBin ?? "lark-cli");
   const newExecutor = deps.newExecutor ?? defaultJudgeExecutor;
   const slots: PluginSlots = { feed: null, supervisor: null };
@@ -237,6 +235,7 @@ export function createPlugin(deps: PluginDeps = {}): Plugin {
     commandDeps,
     health,
     logs,
+    log,
     poll,
     stateFeed,
     supervisor,
@@ -257,6 +256,7 @@ function buildPluginObject(args: {
   commandDeps: HostCommandDeps;
   health: HealthState;
   logs: LogRing;
+  log: HostCommandDeps["log"];
   poll: PollLoop;
   stateFeed: StateFeed;
   supervisor: PetSupervisor | null;
@@ -274,6 +274,7 @@ function buildPluginObject(args: {
     chip: createChipDataSource({ conn: args.conn }),
     health: args.health,
     logs: args.logs,
+    log: args.log,
     poll: args.poll,
     stateFeed: args.stateFeed,
     supervisor: args.supervisor,

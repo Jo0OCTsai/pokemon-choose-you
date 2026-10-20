@@ -2,7 +2,7 @@
  * pk 通道开通执行器（dsh/pkSetup）：spawn `pk remote setup` 的报告解析三分支
  * （JSON 成功 / 非 JSON 输出 / 进程错误无 stdout）与落位缺件降级（mock pkLocal）。
  */
-import { mkdtempSync, rmSync, writeFileSync, chmodSync } from "node:fs";
+import { chmodSync, existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -12,10 +12,10 @@ vi.mock("../src/host/remote/pkLocal", () => ({
 }));
 vi.mock("../src/host/storage/paths", async (importOriginal) => {
   const real = await importOriginal<typeof import("../src/host/storage/paths")>();
-  return { ...real, dataDirFrom: vi.fn(() => undefined) };
+  return { ...real, dataDirFrom: vi.fn(() => undefined), logFilePathFrom: vi.fn(() => undefined) };
 });
 
-import { dataDirFrom } from "../src/host/storage/paths";
+import { dataDirFrom, logFilePathFrom } from "../src/host/storage/paths";
 import { ensureLocalPk } from "../src/host/remote/pkLocal";
 import { pkSetupOf } from "../src/host/dsh/pkSetup";
 
@@ -66,5 +66,24 @@ describe("pkSetupOf", () => {
     const report = await pkSetupOf()({ alias: "gpu-1", tunnelPort: 10022 });
     expect(report.ok).toBe(false);
     expect(report.steps[0]?.name).toBe("执行 pk remote setup");
+  });
+
+  it("spawn 注入 PK_LOG_FILE 指向共享日志文件（logshare.rs 同单源；目录先建）", async () => {
+    vi.mocked(dataDirFrom).mockReturnValue(join(dir, "data"));
+    const logFile = join(dir, "logs", "pokemon-choose-you.log");
+    vi.mocked(logFilePathFrom).mockReturnValue(logFile);
+    // 假 pk：把继承到的 env 落到捕获文件，再输出 JSON 报告
+    const capture = join(dir, "env.txt");
+    const p = join(dir, "pk-env");
+    writeFileSync(
+      p,
+      `#!/bin/sh\nenv > ${JSON.stringify(capture)}\nprintf '%s' '{"ok":true,"version":"1","steps":[]}'\n`,
+    );
+    chmodSync(p, 0o755);
+    vi.mocked(ensureLocalPk).mockReturnValue(p);
+    const report = await pkSetupOf()({ alias: "gpu-1", tunnelPort: 10022 });
+    expect(report.ok).toBe(true);
+    expect(readFileSync(capture, "utf8")).toContain(`PK_LOG_FILE=${logFile}`);
+    expect(existsSync(join(dir, "logs"))).toBe(true);
   });
 });

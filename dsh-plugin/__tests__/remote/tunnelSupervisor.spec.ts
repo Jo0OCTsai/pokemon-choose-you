@@ -157,6 +157,46 @@ describe("TunnelSupervisor", () => {
   });
 });
 
+describe("TunnelSupervisor 状态迁移日志", () => {
+  it("healthy 记 info 一行、connecting 不记", async () => {
+    const lines: Array<[string, string]> = [];
+    const sup = new TunnelSupervisor({
+      sshBin: fakeSsh("live"),
+      lockBase: join(dir, "b6"),
+      log: (l, m) => lines.push([l, m]),
+    });
+    try {
+      sup.sync([entity({ id: "d1", pkTunnel: ON })]);
+      await waitUntil(sup, "d1", (x) => x.state === "healthy", 8000);
+      expect(lines).toHaveLength(1);
+      expect(lines[0][0]).toBe("info");
+      expect(lines[0][1]).toContain("gpu-1");
+      expect(lines[0][1]).toContain("10022");
+    } finally {
+      sup.stopAll();
+    }
+  });
+
+  it("退避往复按 episode 去重：retrying 只记首行（warn），循环不再刷屏", async () => {
+    const lines: Array<[string, string]> = [];
+    const sup = new TunnelSupervisor({
+      sshBin: fakeSsh("die"),
+      lockBase: join(dir, "b7"),
+      log: (l, m) => lines.push([l, m]),
+    });
+    try {
+      sup.sync([entity({ id: "d1", pkTunnel: ON })]);
+      await waitUntil(sup, "d1", (x) => x.state === "retrying");
+      await new Promise((r) => setTimeout(r, 600)); // 退避 1s 内再进一两轮 connecting↔retrying
+      expect(lines).toHaveLength(1);
+      expect(lines[0][0]).toBe("warn");
+      expect(lines[0][1]).toContain("port forward failed");
+    } finally {
+      sup.stopAll();
+    }
+  });
+});
+
 describe("TunnelSupervisor 错误路径", () => {
   it("sshBin 不存在 → spawn error 分支进 retrying（无法启动 ssh）", async () => {
     const sup = new TunnelSupervisor({ sshBin: join(dir, "no-such-ssh"), lockBase: join(dir, "b4") });

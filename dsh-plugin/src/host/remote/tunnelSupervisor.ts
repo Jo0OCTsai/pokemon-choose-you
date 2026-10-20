@@ -66,13 +66,16 @@ const BACKOFF_MAX_MS = 30_000;
 const HEALTHY_AFTER_MS = 3_000;
 const HEALTHY_HOLD_MS = 60_000;
 
+/** 状态迁移日志回调（hostEntry 接统一日志面；本目录零依赖保持平台中立） */
+export type TunnelLogFn = (level: "info" | "warn", message: string) => void;
+
 /**
  * 多部署隧道 supervisor：sync 与部署注册表对齐（停掉不再开启的、补起缺失的），
  * statusOf 供面板呈现。ssh 程序与锁根目录可注入（测试用假 ssh + 临时目录）。
  */
 export class TunnelSupervisor {
   private readonly entries = new Map<string, Entry>();
-  constructor(private readonly opts: { sshBin?: string; lockBase?: string } = {}) {}
+  constructor(private readonly opts: { sshBin?: string; lockBase?: string; log?: TunnelLogFn } = {}) {}
 
   private get base(): string {
     return this.opts.lockBase ?? defaultLockBase();
@@ -94,7 +97,7 @@ export class TunnelSupervisor {
     }
     for (const [id, key] of desired) {
       if (!this.entries.has(id)) {
-        this.entries.set(id, spawnSupervisor(key, this.opts.sshBin ?? "ssh", this.base));
+        this.entries.set(id, spawnSupervisor(key, this.opts.sshBin ?? "ssh", this.base, this.opts.log));
       }
     }
   }
@@ -118,12 +121,14 @@ class SingleTunnelRunner {
   private stableSince = 0;
   private lastErrTail = "";
   private statusValue: TunnelStatus = { state: "connecting", detail: "建立 ssh -R 连接" };
+  private loggedState: TunnelState | null = null;
   private timer: NodeJS.Timeout | undefined;
 
   constructor(
     private readonly key: TunnelKey,
     private readonly sshBin: string,
     private readonly base: string,
+    private readonly log: TunnelLogFn | undefined,
   ) {
     this.attempt();
   }
@@ -145,6 +150,17 @@ class SingleTunnelRunner {
 
   private setStatus(s: TunnelStatus): void {
     this.statusValue = s;
+    // 日志按 episode 去重：退避循环 connecting↔retrying 高频往复、yielded 每 10s 重查，
+    // 状态不变不重复记、connecting 不单独记（healthy/retrying 行已覆盖语义）——面板
+    // statusOf 不受影响仍实时；否则断连日会刷爆共享日志的 512KB 轮转窗口
+    if (this.log === undefined || s.state === "connecting" || s.state === this.loggedState) {
+      return;
+    }
+    this.loggedState = s.state;
+    this.log(
+      s.state === "retrying" ? "warn" : "info",
+      `隧道 ${this.key.alias}（127.0.0.1:${this.key.tunnelPort}）${s.detail}`,
+    );
   }
 
   private schedule(ms: number, fn: () => void): void {
@@ -228,7 +244,7 @@ class SingleTunnelRunner {
   }
 }
 
-function spawnSupervisor(key: TunnelKey, sshBin: string, base: string): Entry {
-  const runner = new SingleTunnelRunner(key, sshBin, base);
+function spawnSupervisor(key: TunnelKey, sshBin: string, base: string, log: TunnelLogFn | undefined): Entry {
+  const runner = new SingleTunnelRunner(key, sshBin, base, log);
   return { stop: () => runner.stop(), status: () => runner.status() };
 }

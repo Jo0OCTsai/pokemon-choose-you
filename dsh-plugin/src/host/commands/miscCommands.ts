@@ -60,8 +60,8 @@ function diagCommandSet(): CommandTable {
         dshVersion: deps.meta.dshVersion,
       }),
     }),
-    // 磁盘侧合并主应用共享日志目录（桌面写 <appHome>/logs/*.log——单读内存环恒近空）
-    logQuery: (p, deps) => logQuery(deps.conn, deps.logs, p as LogQueryParams, logDirFrom()),
+    // logQuery 磁盘单源（ADR-0005）：插件自身日志经 FileLogSink 落同一共享文件，桌面 list_log_entries 同构口径
+    logQuery: (p, deps) => logQuery(deps.conn, p as LogQueryParams, logDirFrom()),
     dbStatus: (_p, deps) => dbStatus(deps.conn),
   };
 }

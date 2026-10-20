@@ -1,11 +1,11 @@
 /**
- * 插件运行日志：内存环形缓冲 + logQuery 查询面（A24）——host 半边自身日志的
- * 唯一数据源（不落盘，随宿主进程存亡；跨重启排障走支持报告与宿主进程日志）。
- * 行为基准 = src-tauri/src/commands/diagnostics.rs 的 list_log_entries tail 口径
- * （默认 500、上限 2000）与 LogEntry 字段集（time/level/target/message）；
+ * 插件运行日志：内存环形缓冲（支持报告数据源，随宿主进程存亡）+ logQuery 查询面
+ * （A24 起；ADR-0005 起插件自身日志另经 fileLogSink 落盘共享日志文件，查询面随之
+ * 改磁盘单源）。行为基准 = src-tauri/src/commands/diagnostics.rs 的 list_log_entries
+ * tail 口径（默认 500、上限 2000）与 LogEntry 字段集（time/level/target/message）；
  * message 出 host 边界前经三层脱敏管线（与支持报告同源，NFR-2 ⑥）。
- * 查询面合并主应用共享日志目录的最新 .log 文件（<appHome>/logs，桌面 Tauri 写、
- * parse_log_lines 同格式）——插件环只收自身少量日志，单读环恒近空（桌面口径实际有日志）。
+ * 查询面读共享日志目录最新 .log 文件（<appHome>/logs，桌面 Tauri / pk CLI / 插件
+ * fileLogSink 三方同写——桌面 app 不在时插件与 pk 轨迹仍持续可见）。
  */
 import { readFileSync, readdirSync, statSync } from "node:fs";
 import { join } from "node:path";
@@ -101,12 +101,6 @@ export class LogRing {
   }
 }
 
-/** 时间串 → epoch 毫秒（不可解析按 0 沉底——环 RFC3339 / 磁盘「YYYY-MM-DD HH:MM:SS」皆可解析） */
-function timeKey(time: string): number {
-  const parsed = Date.parse(time);
-  return Number.isNaN(parsed) ? 0 : parsed;
-}
-
 /** 单行 → LogEntry（diagnostics.rs parse_log_line 同构：[date][time][target][LEVEL] msg） */
 function parseDiskLogLine(line: string): LogEntry | null {
   let rest = line;
@@ -129,10 +123,15 @@ function parseDiskLogLine(line: string): LogEntry | null {
   return { time: `${groups[0]} ${groups[1]}`, level, target: groups[2], message: rest.trimStart() };
 }
 
-/** 多行解析（续行并入上一条 message——diagnostics.rs parse_log_lines 同构） */
+/** 多行解析（续行并入上一条 message——diagnostics.rs parse_log_lines 同构；
+ *  split 的尾空段先丢弃，对齐 Rust lines() 不产尾空行的语义） */
 export function parseDiskLogLines(content: string): LogEntry[] {
   const entries: LogEntry[] = [];
-  for (const line of content.split("\n")) {
+  const lines = content.split("\n");
+  if (lines.length > 0 && lines[lines.length - 1] === "") {
+    lines.pop();
+  }
+  for (const line of lines) {
     const entry = parseDiskLogLine(line);
     if (entry !== null) {
       entries.push(entry);
@@ -177,30 +176,30 @@ export function readDiskEntries(dir: string): LogEntry[] {
 }
 
 /**
- * host 命令 logQuery：环 + 磁盘日志（logDir 给定时读主应用共享日志最新文件）合并后
- * 级别/来源过滤，按时间最新在上（桌面 LogViewer 的来源包含匹配同口径：target 或
- * message 子串命中），message 出边界前经三层脱敏（名词表查一次库做快照，整批复用）。
+ * host 命令 logQuery：磁盘单源（ADR-0005）——读共享日志目录最新文件，级别/来源过滤后
+ * 从最新端分页（文件序即时间序，桌面 list_log_entries 同口径不排序；插件增量 = 来源
+ * 子串匹配 + offset 分页）。message 出边界前经三层脱敏（名词表查一次库做快照，整批复用）。
  */
 export function logQuery(
   conn: Conn,
-  ring: LogRing,
   params: LogQueryParams = {},
   logDir?: string,
 ): { entries: LogEntry[]; total: number } {
   const names = collectSensitiveNames(conn);
   const minRank = levelRank(params.minLevel ?? "");
   const needle = (params.target ?? "").trim().toLowerCase();
-  const merged = [...ring.all(), ...(logDir === undefined ? [] : readDiskEntries(logDir))].filter((e) => {
+  const filtered = (logDir === undefined ? [] : readDiskEntries(logDir)).filter((e) => {
     if (minRank > 0 && levelRank(e.level) < minRank) {
       return false;
     }
     return needle === "" || e.target.toLowerCase().includes(needle) || e.message.toLowerCase().includes(needle);
   });
-  merged.sort((a, b) => timeKey(b.time) - timeKey(a.time));
   const offset = Math.max(0, params.offset ?? 0);
   const limit = Math.min(LOG_TAIL_MAX, Math.max(0, params.limit ?? LOG_TAIL_DEFAULT));
+  const start = Math.max(0, filtered.length - offset - limit);
+  const page = filtered.slice(start, filtered.length - offset).reverse();
   return {
-    entries: merged.slice(offset, offset + limit).map((e) => ({ ...e, message: redactWithNames(names, e.message) })),
-    total: merged.length,
+    entries: page.map((e) => ({ ...e, message: redactWithNames(names, e.message) })),
+    total: filtered.length,
   };
 }

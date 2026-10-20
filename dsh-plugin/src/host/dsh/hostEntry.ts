@@ -26,7 +26,7 @@ import { PkyRemoteService } from "./remoteService";
 import { remotePlatformOf, wireRemoteGuard, type RemoteAssembly } from "./remoteAssembly";
 import { listDeployments } from "../remote/deployments";
 import { pkSetupOf } from "./pkSetup";
-import { TunnelSupervisor } from "../remote/tunnelSupervisor";
+import { TunnelSupervisor, type TunnelLogFn } from "../remote/tunnelSupervisor";
 
 // 契约 SQL 编译期内嵌注册（migrate 双 loader 的内嵌侧）：安装形态磁盘相对路径不可达，
 // dist 产物经 build.mjs 的 ?raw loader 内嵌——模块加载期注册一次（fs 回落留给仓内 dev 直跑）
@@ -181,15 +181,16 @@ export function apply(ctx: Context, config: ResolvedPkyConfig): void {
   const petSpawner = detectPetSpawner();
   // 远程部署平台面（full-parity 2.9）：scope 宿主 + 家族探测投影 + 闭包 helper 制品
   const remote = remotePlatformOf(ctx);
-  // 常驻隧道（ADR-0003 §2）：任一宿主驻留期维持——让位锁与桌面 app 协调（同锁协议）。
-  // 服务先以惰性闭包注入命令面（resync 目标连接在插件就绪后绑定），再按注册表同步
-  const tunnels = new TunnelSupervisor();
+  // 常驻隧道（ADR-0003 §2）：任一宿主驻留期维持（让位锁与桌面协调）；服务面与日志面均惰性绑定（插件就绪后重绑）
+  let tunnelLog: TunnelLogFn = () => undefined;
+  const tunnels = new TunnelSupervisor({ log: (level, message) => tunnelLog(level, message) });
   let resyncFromRegistry: () => void = () => undefined;
   const tunnelsService = {
     resync: () => resyncFromRegistry(),
     statusOf: (id: string) => tunnels.statusOf(id),
   };
   const plugin = createPlugin(pluginDepsOf(ctx, config, dbPath, petSpawner, remote, tunnelsService, pkSetupOf()));
+  tunnelLog = (level, message) => plugin.log(level, "tunnel", message);
   try {
     wireRemoteGuard(ctx, plugin, remote);
     resyncFromRegistry = () => tunnels.sync(Object.values(listDeployments(plugin.conn)));
@@ -292,8 +293,8 @@ function isRegularFile(path: string): boolean {
   }
 }
 
-/** 降级告警双出口：插件内日志环（logQuery 可查）+ stderr（宿主启动期可见） */
+/** 降级告警双出口：统一日志面（环 + 落盘共享文件，ADR-0005）+ stderr（宿主启动期可见） */
 function warnDegrade(plugin: Plugin, message: string): void {
-  plugin.logs.log("warn", "dsh", message, new Date().toISOString().replace("Z", "+00:00"));
+  plugin.log("warn", "dsh", message);
   process.stderr.write(`[pokemon-choose-you] ${message}\n`);
 }

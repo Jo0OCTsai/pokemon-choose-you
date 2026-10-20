@@ -52,6 +52,7 @@ function assemble(opts: { pet?: boolean } = {}): Plugin {
   const larkBin = join(dir, "lark-cli");
   plugin = createPlugin({
     dbPath: join(dir, "data", "pokemon-choose-you.db"),
+    logDir: join(dir, "logs"), // 落盘 sink 隔离到临时目录（缺省会写真实 ~/.choose-you/logs）
     pollTimer: () => () => undefined, // fake：不自动触发轮询
     feedTimer: { every: () => 0, cancel: () => undefined },
     autoTimer: { every: (_ms, fn) => (autoTicks.push(fn), 1), cancel: () => undefined },
@@ -171,6 +172,13 @@ describe("createPlugin 分层替身集成（伪 ctx + 真实临时 SQLite）", (
       return taskState !== undefined;
     });
     expect(taskState?.activeTask?.title).toBe("集成出发任务");
+  });
+
+  it("⑥ 统一日志面落盘：命令日志经 FileLogSink 写共享文件（dsh/ 前缀、桌面行格式）", async () => {
+    const p = assemble({ pet: false });
+    await p.commands("pomoTryFive");
+    const content = readFileSync(join(dir, "logs", "pokemon-choose-you.log"), "utf8");
+    expect(content).toMatch(/^\[\d{4}-\d{2}-\d{2}\]\[\d{2}:\d{2}:\d{2}\]\[dsh\/pet: pomoTryFive\]\[INFO\] /);
   });
 });
 

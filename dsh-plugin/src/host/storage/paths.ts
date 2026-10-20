@@ -18,6 +18,9 @@ export const DATA_SUBDIR = "data";
 /** 共享日志子目录（主应用 Tauri 与 pk CLI 写 <appHome>/logs/*.log；db.rs LOG_SUBDIR 同名同规则） */
 export const LOG_SUBDIR = "logs";
 
+/** 共享日志文件名主干（db.rs LOG_FILE_STEM 同名同规则；FileLogSink 落盘与 pk 轨迹同文件） */
+export const LOG_FILE_STEM = "pokemon-choose-you";
+
 /** 数据库文件名（应用数据目录内） */
 export const DB_FILE = "pokemon-choose-you.db";
 
@@ -53,4 +56,10 @@ export function dbFileFrom(env?: string, home?: string): string | undefined {
 export function logDirFrom(env?: string, home?: string): string | undefined {
   const root = appHome(env, home);
   return root === undefined ? undefined : join(root, LOG_SUBDIR);
+}
+
+/** 共享日志文件路径：<appHome>/logs/pokemon-choose-you.log（logshare.rs init 同拼法——PK_LOG_FILE 注入单源） */
+export function logFilePathFrom(env?: string, home?: string): string | undefined {
+  const dir = logDirFrom(env, home);
+  return dir === undefined ? undefined : join(dir, `${LOG_FILE_STEM}.log`);
 }
