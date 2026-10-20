@@ -156,7 +156,7 @@ SessionsView 扩展分页/回放入口（`sessionsPage`/`sessionReplay`）、设
 | 域 | 命令 | 参数 | 响应 data | 业务错误码 |
 |---|------|------|-----------|-----------|
 | 部署 | `deploymentList` | — | `{ deployments: DeploymentView[], counts: { ready, pending, broken } }`（View = 实体字段 + 就绪状态 + 最近错误 + provisioning 步骤状态） | — |
-| | `sshAliasList` | — | `{ aliases: string[] }`（本机 `~/.ssh/config` Host 别名解析——部署表单下拉数据源；关键字大小写不敏感 / 行多模式 / 通配（* ?）·否定（!）·引号模式剔除 / 去重保序；Include 指令不展开（记 docs/debt.md）；文件缺席或不可读 = 空列表非错误态） | — |
+| | `sshAliasList` | — | `{ aliases: string[] }`（本机 `~/.ssh/config` Host 别名解析——部署表单下拉数据源；关键字大小写不敏感 / 行多模式 / 通配（* ?）·否定（!）·引号模式剔除 / 去重保序；Include 原位递归展开（glob 词典序 / `~/` / 相对 `~/.ssh`，嵌套上限 16 + 不重入）；文件缺席或不可读 = 空列表非错误态） | — |
 | | `deploymentUpsert` | `{ id?, alias, nodePath, workdir, note?, confirmAliasRefs?: boolean }`（**实体以 id 为唯一键、alias 唯一索引**（§5.2/A25）；alias = OpenSSH 别名；nodePath/workdir = 远端绝对路径，**显式拒收 `~` 前缀**——实体只存展开后 POSIX 绝对路径，§4.5 路径不变式；alias 改名且被 agent 绑定（`ai_agents.deployment`——§5.2 2026-10-19 修订）引用时须携带 `confirmAliasRefs:true` 级联更新绑定，否则拒绝并列出受影响 agent） | `{ deployment }` | 参数校验错（空别名 / 别名重复 / 路径非绝对或含 `~` 前缀 / 改名被 agent 绑定引用未确认） |
 | | `deploymentDelete` | `{ id }` | `{ id, cleanup: { attempted, ok, detail? } }`（关连接 + 远端 helper 托管目录自清理尽力执行，失败不阻塞） | — |
 | | `deploymentRecheck` | `{ id }` | `{ deployment }`（手动触发就绪复核：连接探测 + 摘要复核） | 复核失败不报错——结果落实体状态呈现 |
