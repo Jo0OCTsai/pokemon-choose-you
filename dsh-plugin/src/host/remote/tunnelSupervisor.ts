@@ -17,8 +17,9 @@ export interface TunnelKey {
 }
 
 export function tunnelKeyOf(entity: DeploymentEntity): TunnelKey | null {
+  // 存量实体可能缺 pkTunnel 键（ADR-0003 之前落库，读值 undefined）——按未配置处理
   const t = entity.pkTunnel;
-  if (t === null || !t.persistent || t.port === 0 || entity.alias.trim() === "") {
+  if (t === null || t === undefined || !t.persistent || t.port === 0 || entity.alias.trim() === "") {
     return null;
   }
   return { deploymentId: entity.id, alias: entity.alias.trim(), tunnelPort: t.port };

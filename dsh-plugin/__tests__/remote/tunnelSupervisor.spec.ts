@@ -53,6 +53,16 @@ describe("tunnelKeyOf", () => {
   it("完整配置 → 身份就位（别名去空白）", () => {
     expect(tunnelKeyOf(entity({ alias: " gpu-1 ", pkTunnel: ON }))).toEqual(KEY);
   });
+
+  it("存量实体缺 pkTunnel 键（ADR-0003 之前落库）→ 按未配置处理不炸（回归：启动期 resync 抛 TypeError 崩宿主）", () => {
+    const legacy = entity({ id: "d1" });
+    delete (legacy as { pkTunnel?: DeploymentEntity["pkTunnel"] }).pkTunnel;
+    expect("pkTunnel" in legacy).toBe(false);
+    expect(tunnelKeyOf(legacy)).toBeNull();
+    const sup = new TunnelSupervisor({ lockBase: dir });
+    sup.sync([legacy]);
+    expect(sup.statusOf("d1").state).toBe("off");
+  });
 });
 
 describe("tunnelArgv", () => {

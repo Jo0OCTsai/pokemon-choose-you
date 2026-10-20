@@ -190,11 +190,18 @@ export function apply(ctx: Context, config: ResolvedPkyConfig): void {
     statusOf: (id: string) => tunnels.statusOf(id),
   };
   const plugin = createPlugin(pluginDepsOf(ctx, config, dbPath, petSpawner, remote, tunnelsService, pkSetupOf()));
-  wireRemoteGuard(ctx, plugin, remote);
-  resyncFromRegistry = () => tunnels.sync(Object.values(listDeployments(plugin.conn)));
-  ctx.effect(() => () => tunnels.stopAll());
-  resyncFromRegistry();
-  degradePetRuntime(plugin, petSpawner);
+  try {
+    wireRemoteGuard(ctx, plugin, remote);
+    resyncFromRegistry = () => tunnels.sync(Object.values(listDeployments(plugin.conn)));
+    ctx.effect(() => () => tunnels.stopAll());
+    resyncFromRegistry();
+    degradePetRuntime(plugin, petSpawner);
+  } catch (error) {
+    // createPlugin 已启动轮询等常驻件而 plugin.dispose 尚未挂 effect——装配失败须先收口
+    // 再上抛；否则在途循环会在已销毁 fiber 上重注册 timer，INACTIVE_EFFECT 掩盖真实错误并崩宿主
+    plugin.dispose();
+    throw error;
+  }
   // 装配逆序注册：dispose 最先进 effect → 卸载时最后执行（先注销工具/RPC，再收口循环与连接）
   ctx.effect((): (() => void) => plugin.dispose);
   try {
