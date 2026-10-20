@@ -155,6 +155,18 @@ await esbuild.build({
   logLevel: "info",
 });
 
+// ---- ESM 产物防线：CJS 全局不在场 ----
+// host/broker 按 ESM 加载：__filename/__dirname 在宿主运行时未定义（曾致开通命令
+// ReferenceError——vitest 的 SSR shim 掩盖了这一点）。源码定位一律 import.meta.url。
+for (const artifact of ["dist/host.js", "dist/broker.mjs"]) {
+  const text = readFileSync(path.join(root, artifact), "utf8");
+  for (const name of ["__filename", "__dirname"]) {
+    if (text.includes(name)) {
+      throw new Error(`${artifact} 引用 CJS 全局 ${name}——ESM 运行时未定义；源码改用 import.meta.url 定位`);
+    }
+  }
+}
+
 // ---- client 半边（module-loader IIFE-CJS 包裹） ----
 
 const CLIENT_BANNER = [

@@ -6,6 +6,7 @@
  */
 import { chmodSync, copyFileSync, existsSync, mkdirSync } from "node:fs";
 import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
 import { appHome } from "../storage/paths";
 
 /** 本机 pk 落点（<appHome>/bin/pk——shim 内嵌路径与桌面侧定位的统一约定） */
@@ -27,9 +28,11 @@ export function hostTriple(): string {
 }
 
 /** 从起点目录向上找插件包根（dist → 包根；src/host/remote → 仓内包根）的 vendor 目录；
- * startAt 缺省 = 本模块位置（测试注入临时起点走「无 vendor」分支） */
+ * startAt 缺省 = 本模块位置（测试注入临时起点走「无 vendor」分支）。
+ * ESM 铁律：定位用 import.meta.url——宿主按 ESM 加载 bundle，CJS 全局 __filename 不在场
+ * （曾致开通命令报 ReferenceError: __filename is not defined） */
 export function vendorDir(startAt?: string): string | undefined {
-  let dir = startAt ?? dirname(__filename);
+  let dir = startAt ?? dirname(fileURLToPath(import.meta.url));
   for (let i = 0; i < 6; i += 1) {
     const candidate = join(dir, "vendor");
     if (existsSync(candidate)) {
