@@ -103,6 +103,24 @@ describe("agentTest 连接探针（ai::test 同构）", () => {
   });
 });
 
+describe("agentTest × claude --output-format json 信封（extractPayload 解包后再判定/截断）", () => {
+  it("回复片段取 result 正文（不停在元数据头部）；result 含 openTasks 判连通", async () => {
+    seedAgent("ag-json", "claude");
+    const meta = `"duration_api_ms":${"1".repeat(150)},"num_turns":3,"type":"result","is_error":true,"session_id":"s-1",`;
+    probeStdout(`{${meta}"result":"bash: pk: command not found (exit 127)"}`);
+    const failed = (await f.call("agentTest", { agentId: "ag-json" })) as {
+      data: { connected: boolean; message: string };
+    };
+    expect(failed.data.connected).toBe(false);
+    expect(failed.data.message).toContain("bash: pk: command not found (exit 127)");
+    expect(failed.data.message).not.toContain("duration_api_ms");
+
+    probeStdout(`{${meta}"result":"{\\"openTasks\\":[],\\"now\\":\\"2026-10-20T10:00\\"}"}`);
+    const ok = (await f.call("agentTest", { agentId: "ag-json" })) as { data: { connected: boolean } };
+    expect(ok.data.connected).toBe(true);
+  });
+});
+
 describe("agentTest 远端 SSH agent（无 provider 不本机回落）", () => {
   it("无 provider 装配 → connected false + 远端提示（不拿本机同名 CLI 冒充探测）；有 provider 照常探测", async () => {
     seedAgent("ag-remote", "dsh", "gpu-1");

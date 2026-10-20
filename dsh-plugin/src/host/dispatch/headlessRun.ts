@@ -16,6 +16,7 @@ import {
   type ExecOutcome,
 } from "./executor";
 import { dispatchArgs, summarizeLine } from "./cmdline";
+import { dshJsonFlag, parseDshSessionId } from "./dshSession";
 import { executionWorld, kindForCommand, logAgentSession, sessionFlags } from "./sessions";
 import { noOpWorktree } from "./worktree";
 import type { AgentConfig } from "../domain/settings";
@@ -54,12 +55,13 @@ async function ensureWorktreeDir(
   return strategy.ensure({ workdir: prep.route.workdir, taskId: prep.task.id });
 }
 
-/** worktree 策略 + 续接旗标 + 预生成会话落库（进程被杀也留续接线索） */
+/** worktree 策略 + 续接旗标 + 预生成会话落库（进程被杀也留续接线索）；dsh kind 补 `--json`（会话 id 捕获通道） */
 async function planHeadlessRun(conn: Conn, deps: HeadlessDeps, prep: DispatchPromptPrep): Promise<HeadlessPlan> {
   const { agent, route } = prep;
   const wt = await ensureWorktreeDir(deps, prep);
-  const { flags, preSession } = sessionFlags(kindForCommand(agent.command), prep.prevSession);
-  const args = [dispatchArgs(agent.args), flags].filter((s) => s !== "").join(" ");
+  const kind = kindForCommand(agent.command);
+  const { flags, preSession } = sessionFlags(kind, prep.prevSession);
+  const args = [dispatchArgs(agent.args), flags, dshJsonFlag(kind, agent.args)].filter((s) => s !== "").join(" ");
   if (preSession !== null) {
     conn.prepare("UPDATE tasks SET dispatched_session=? WHERE id=?").run(preSession, prep.task.id);
   }
@@ -77,7 +79,7 @@ async function planHeadlessRun(conn: Conn, deps: HeadlessDeps, prep: DispatchPro
   };
 }
 
-/** 生效会话 id 落库（信封回填 > 预生成 > 上一轮；null 不动共享列） */
+/** 生效会话 id 落库（信封回填 > dsh 事件流捕获 > 预生成 > 上一轮；null 不动共享列） */
 function rememberSession(conn: Conn, prep: DispatchPromptPrep, sessionId: string | null): string | null {
   if (sessionId !== null) {
     conn.prepare("UPDATE tasks SET dispatched_session=? WHERE id=?").run(sessionId, prep.task.id);
@@ -105,7 +107,11 @@ async function settleHeadlessRun(
 ): Promise<HeadlessOutcome> {
   const { agent } = prep;
   const envelope = parseHeadlessEnvelope(outcome.stdout);
-  const sessionId = rememberSession(conn, prep, envelope.sessionId ?? plan.preSession ?? prep.prevSession);
+  const sessionId = rememberSession(
+    conn,
+    prep,
+    envelope.sessionId ?? parseDshSessionId(outcome.stdout) ?? plan.preSession ?? prep.prevSession,
+  );
   const failed = runFailed(outcome, envelope);
   const state = failed ? DS_FAILED : DS_DONE;
   const sessionRowId = logAgentSession(conn, {

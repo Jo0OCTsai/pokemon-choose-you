@@ -17,7 +17,8 @@ import { posixQuote } from "../dispatch/cmdline";
 /**
  * 历史参数注入会话 id（desktop adapt_history_args 同构）：已有 --session-id/--resume/
  * resume 旗标时紧跟其后插入（用户自配参数在后不被挤丢）；无旗标按 kind 追加
- * （claude-code → --resume、pi → --session-id）；其余 kind 无续接语义不强插
+ * （claude-code → --resume、pi → --session-id、dsh → --session-id（headless adopt 既有
+ * 会话——「带既有 session 重开任务」，cwd 需与原会话一致））；其余 kind 无续接语义不强插
  * （等价 agent 自带选择器兜底）。
  */
 function injectSessionArg(args: string[], sessionId: string, kind: string | null): void {
@@ -28,7 +29,7 @@ function injectSessionArg(args: string[], sessionId: string, kind: string | null
   }
   if (kind === "claude-code") {
     args.push("--resume", sessionId);
-  } else if (kind === "pi") {
+  } else if (kind === "pi" || kind === "dsh") {
     args.push("--session-id", sessionId);
   }
 }

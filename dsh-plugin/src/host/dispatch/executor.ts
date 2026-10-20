@@ -74,8 +74,8 @@ export function parseHeadlessEnvelope(stdout: string): HeadlessEnvelope {
   };
 }
 
-/** JSON 解析为对象形态（数字/数组/坏 JSON → null） */
-function tryParseObject(stdout: string): Record<string, unknown> | null {
+/** JSON 解析为对象形态（数字/数组/坏 JSON → null；dshSession 按行解析共用） */
+export function tryParseObject(stdout: string): Record<string, unknown> | null {
   try {
     const v = JSON.parse(stdout.trim()) as unknown;
     return typeof v === "object" && v !== null && !Array.isArray(v) ? (v as Record<string, unknown>) : null;

@@ -123,6 +123,9 @@ export function kindForCommand(command: string): string | null {
  * 会话续接参数（A14 / headless.rs session_flags 同构）：claude 上一轮有会话 id →
  * `--resume`；否则预生成 `--session-id <uuid v4>`（调用方落 dispatched_session）。
  * pi 的 `--session-id` 不存在则按该 id 创建，预生成续接与 claude 同型。
+ * dsh headless 的 `--session-id` 是 adopt 语义（未知 id 报错、且要求 cwd 与原会话一致）
+ * ——不能预生成：首轮无旗标，会话 id 由调用方从 `--json` 事件流捕获落库（dshSession.ts），
+ * 次轮起 `--session-id <prev>` 续接。
  * 其他 agent 无可靠续接，每轮新会话。
  */
 export function sessionFlags(
@@ -130,10 +133,14 @@ export function sessionFlags(
   prevSession: string | null,
 ): { flags: string; preSession: string | null } {
   const prev = prevSession?.trim();
+  const hasPrev = prev !== undefined && prev !== "";
+  if (kind === "dsh") {
+    return { flags: hasPrev ? `--session-id ${prev}` : "", preSession: null };
+  }
   if (kind !== "claude-code" && kind !== "pi") {
     return { flags: "", preSession: null };
   }
-  if (prev !== undefined && prev !== "") {
+  if (hasPrev) {
     return { flags: `${kind === "pi" ? "--session-id" : "--resume"} ${prev}`, preSession: null };
   }
   const id = randomUUID();

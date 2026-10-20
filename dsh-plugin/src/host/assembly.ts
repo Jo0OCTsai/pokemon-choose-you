@@ -208,7 +208,7 @@ export function createPlugin(deps: PluginDeps = {}): Plugin {
   const openPageListeners = new Set<(event: PageOpenPayload) => void>();
   const openPage = pageOpener(openPageListeners);
   const { supervisor, stateFeed } = assemblePet({ conn, deps, log, slots, openPage, health, newExecutor });
-  const { poll, auto } = assemblePollLoops({ conn, deps, lark, health, log, newExecutor });
+  const { poll, auto } = assemblePollLoops({ conn, deps, lark, health, log, newExecutor, feed: stateFeed });
   const { reminder, reminderDelivery, backupLoop } = assembleLoopsFull({ conn, deps, supervisor, log, stateFeed });
   stateFeed.start();
   const commandDeps = buildCommandDeps({

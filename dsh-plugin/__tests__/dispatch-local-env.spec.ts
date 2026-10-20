@@ -131,18 +131,59 @@ describe("augmentedPath（augmented_path 同构：补齐目录前插、原条目
   });
 });
 
-describe("childEnvFor / spawnErrorHint（runner.rs run_agent / NotFound 指引同构）", () => {
-  it("子进程 PATH：程序目录排最前、宿主 PATH 条目保留、extra 最后覆盖；沿用宿主 PATH 键名", () => {
+/** 临时 appHome（CHOOSE_YOU_HOME 定向）：本机真实 ~/.choose-you/bin/pk 不得污染 childEnvFor 断言 */
+function tempAppHome(): { dir: string; restore(): void } {
+  const dir = mkdtempSync(join(tmpdir(), "pky-env-apphome-"));
+  const saved = process.env.CHOOSE_YOU_HOME;
+  process.env.CHOOSE_YOU_HOME = dir;
+  return {
+    dir,
+    restore() {
+      if (saved === undefined) {
+        delete process.env.CHOOSE_YOU_HOME;
+      } else {
+        process.env.CHOOSE_YOU_HOME = saved;
+      }
+      rmSync(dir, { recursive: true, force: true });
+    },
+  };
+}
+
+function childPathParts(): string[] {
+  return (childEnvFor("/opt/agent/bin/claude", undefined)[pathEnvKey()] ?? "").split(delimiter);
+}
+
+describe("childEnvFor / spawnErrorHint（runner.rs run_agent / spawn_and_wait / NotFound 指引同构）", () => {
+  let home: ReturnType<typeof tempAppHome>;
+  beforeEach(() => {
+    home = tempAppHome();
+  });
+  afterEach(() => {
+    home.restore();
+  });
+
+  it("子进程 PATH：程序目录排最前、宿主 PATH 条目保留、extra 最后覆盖；沿用宿主 PATH 键名（pk 未落位不注入）", () => {
     const key = pathEnvKey();
     const env = childEnvFor("/opt/agent/bin/claude", { PK_DISPATCH_TASK: "7" });
     const parts = (env[key] ?? "").split(delimiter);
     expect(parts[0]).toBe("/opt/agent/bin");
+    expect(parts).not.toContain(join(home.dir, "bin"));
     for (const d of (process.env[key] ?? "").split(delimiter).filter((x) => x !== "")) {
       expect(parts).toContain(d);
     }
     expect(env.PK_DISPATCH_TASK).toBe("7");
     expect(pathEnvKey({ Path: "x" })).toBe("Path");
     expect(pathEnvKey({})).toBe("PATH");
+  });
+
+  it("本机 pk 已落位 → 其目录排 PATH 首位、程序目录其次（local_agent_sees_injected_pk_dir_on_path 同构）；pk.exe 命名同样命中", () => {
+    const binDir = join(home.dir, "bin");
+    mkdirSync(binDir, { recursive: true });
+    writeFileSync(join(binDir, "pk"), "#!/bin/sh\n");
+    expect(childPathParts().slice(0, 2)).toEqual([binDir, "/opt/agent/bin"]);
+    rmSync(join(binDir, "pk"));
+    writeFileSync(join(binDir, "pk.exe"), "");
+    expect(childPathParts()[0]).toBe(binDir);
   });
 
   it("ENOENT 附安装 / 工作目录 / 绝对路径指引；其他错误不加提示", () => {

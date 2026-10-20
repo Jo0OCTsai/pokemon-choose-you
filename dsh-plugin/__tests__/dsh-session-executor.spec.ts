@@ -6,8 +6,10 @@
  *   标记 + 裸 JSON 返回指令（围栏容忍解析）、未知 messageId 过滤、sessionId = 会话 id
  *   （pky-judge- 前缀）、selfLanding=false、flush 先于 dispose
  * - 一批一会话：两次 run 两次 agents.create（不复用常驻 agent）
- * - 失败路径：turn/end reason 非 completed 判失败、JSON 解析失败、agents.create 拒绝、
- *   120s 超时（dispose 归还）、dispose 失败不遮蔽主错误
+ * - 判定上下文：buildContext 在场注入 pk context 同构 JSON 块（头行后、prompt 前）、
+ *   缺省退回纯消息形态、取上下文抛错先于建会话失败
+ * - 失败路径：turn/end reason 非 completed 判失败（错误携带会话 id）、JSON 解析失败、
+ *   agents.create 拒绝、120s 超时（dispose 归还）、dispose 失败不遮蔽主错误
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { dshSessionExecutor } from "../src/host/dsh/sessionExecutor";
@@ -89,12 +91,60 @@ describe("dshSessionExecutor · 成功路径", () => {
   });
 });
 
+describe("dshSessionExecutor · 判定上下文注入（pk context 同构 JSON）", () => {
+  const contextJson = JSON.stringify({
+    now: "2026-10-20T10:00",
+    openTasks: [{ id: 1, title: "回周报" }],
+    categories: [],
+    tags: [],
+  });
+
+  it("buildContext 在场：上下文块落在头行之后、判定 prompt 之前，禁工具行注明上下文已给出", async () => {
+    const fake = fakePlatform();
+    fake.script(okScript('{"suggestions":[]}'));
+    const exec = dshSessionExecutor(
+      { agents: fake.agents, sessions: fake.sessions, agentDefaultModel: defaultModel },
+      () => contextJson,
+    );
+    await exec.run({ prompt: "系统提示词+消息", messageIds: ["om_1"] });
+    const text = fake.prompts[0];
+    expect(text.startsWith("【pk 待办判定】\n判定上下文（等价 `pk context` 输出")).toBe(true);
+    expect(text).toContain(contextJson);
+    expect(text.indexOf(contextJson)).toBeLessThan(text.indexOf("系统提示词+消息"));
+    expect(text).toContain("判定上下文已在上方给出");
+    // 注入的上下文段仍是可解析 JSON（agent 读到的与 pk context 输出同形）
+    const start = text.indexOf("{");
+    expect(JSON.parse(text.slice(start, text.indexOf("\n", start)))).toMatchObject({ openTasks: [{ id: 1 }] });
+  });
+
+  it("buildContext 缺省：prompt 退回纯消息形态（无上下文块、禁工具行不提上下文）", async () => {
+    const fake = fakePlatform();
+    fake.script(okScript('{"suggestions":[]}'));
+    const exec = dshSessionExecutor({ agents: fake.agents, sessions: fake.sessions, agentDefaultModel: defaultModel });
+    await exec.run({ prompt: "p", messageIds: ["om_1"] });
+    expect(fake.prompts[0]).not.toContain("判定上下文");
+    expect(fake.prompts[0]).toContain("本次判定不使用任何工具（包括 pk 命令行）：");
+  });
+
+  it("buildContext 抛错：先于建会话失败（不留空转会话）", async () => {
+    const fake = fakePlatform();
+    const exec = dshSessionExecutor({ agents: fake.agents, sessions: fake.sessions }, () => {
+      throw new Error("db closed");
+    });
+    await expect(exec.run({ prompt: "p", messageIds: ["om_1"] })).rejects.toThrow(/db closed/);
+    expect(fake.created).toHaveLength(0);
+  });
+});
+
 describe("dshSessionExecutor · 失败路径", () => {
-  it("turn/end reason 非 completed 判失败（部分转录仍 flush 留档）", async () => {
+  it("turn/end reason 非 completed 判失败（部分转录仍 flush 留档；错误携带会话 id 供账本回链）", async () => {
     const fake = fakePlatform();
     fake.script([assistantEvent('{"suggestions":[]}'), turnEnd("max-tokens")]);
     const exec = dshSessionExecutor({ agents: fake.agents, sessions: fake.sessions });
-    await expect(exec.run({ prompt: "p", messageIds: ["om_1"] })).rejects.toThrow(/reason=max-tokens/);
+    const failure = await exec.run({ prompt: "p", messageIds: ["om_1"] }).catch((e: unknown) => e);
+    expect(failure).toBeInstanceOf(Error);
+    expect((failure as Error).message).toMatch(/reason=max-tokens/);
+    expect((failure as { sessionId?: string }).sessionId).toBe(fake.created[0].sessionId);
     expect(fake.flushed).toHaveLength(1);
     expect(fake.disposed).toHaveLength(1);
   });

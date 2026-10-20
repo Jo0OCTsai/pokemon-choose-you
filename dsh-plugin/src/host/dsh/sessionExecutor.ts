@@ -7,11 +7,13 @@
  * 结构化约束：prompt 要求裸 JSON 返回 + 围栏容忍解析；本执行器 selfLanding=false，
  * 由 orchestrator 走 domain/suggest 提交期强校验 + 落库（A21 校验失败修正重试同路径）。
  * 行为对齐 CLI 侧基准（adapters.ts 顶注）：超时下限 10s（判定用 120s，经 dispose
- * 取消整个 agent）、turn 终态非 completed 判失败、会话账本 sessionId = 会话 id。
+ * 取消整个 agent）、turn 终态非 completed 判失败、会话账本 sessionId = 会话 id（失败
+ * 路径经 withSessionId 回链）。判定上下文（pk context 同构 JSON）由接线层以 conn 现取
+ * 注入 prompt——root 会话无插件工具装配，这是 agent 唯一的判重/词表输入。
  * 零 dsh 依赖铁律：本文件是 dsh 适配层，服务面经结构化收窄（AgentsFace/SessionsFace
  * ——不 import dsh 包，业务核心无感知）。
  */
-import type { JudgeBatch, JudgeExecutor } from "../judge/adapters";
+import { withSessionId, type JudgeBatch, type JudgeExecutor } from "../judge/adapters";
 import type { AiSuggestion } from "../domain/suggest-types";
 
 /** 判定超时（对齐 CLI 侧 agent 缺省 timeoutSecs=120；MIN_AGENT_TIMEOUT_SECS 10s 为下限远未触及） */
@@ -73,16 +75,27 @@ function parseSuggestions(text: string, messageIds: string[]): AiSuggestion[] {
   return rows.map((row) => row as AiSuggestion).filter((row) => known.has(row.messageId));
 }
 
-/** prompt 组装（头行标记供会话列表辨识 + 禁工具 + 裸 JSON 返回指令） */
-function sessionPrompt(batch: JudgeBatch): string {
-  const lines = [
-    "【pk 待办判定】",
+/**
+ * prompt 组装（头行标记供会话列表辨识 + 判定上下文 + 禁工具 + 裸 JSON 返回指令）。
+ * 上下文 = 执行器预取的 pk context 同构 JSON（root 会话无插件工具装配，agent 自己跑不了
+ * `pk context`——判重/分类/标签/相对时间全靠这一段，与 CLI 侧 agent 自取的输入对齐）。
+ */
+function sessionPrompt(batch: JudgeBatch, context: string | undefined): string {
+  const lines = ["【pk 待办判定】"];
+  if (context !== undefined) {
+    lines.push(
+      "判定上下文（等价 `pk context` 输出：判重对照 openTasks、分类取 categories、标签取 tags/dimensions、相对时间以 now 为基准）：",
+      context,
+      "",
+    );
+  }
+  lines.push(
     batch.prompt,
     "",
-    "本次判定不使用任何工具（包括 pk 命令行）：阅读上述消息后，直接返回 JSON 判定结果（裸 JSON，不要代码围栏、不要解释文本）。",
+    `本次判定不使用任何工具（包括 pk 命令行${context === undefined ? "" : "——判定上下文已在上方给出"}）：阅读上述消息后，直接返回 JSON 判定结果（裸 JSON，不要代码围栏、不要解释文本）。`,
     '顶层形如 {"suggestions":[…]}，每项含 messageId（原样使用消息 ID）、action（todo/update/followUp/none）',
     "与可选的 title/note/category/due/priority/tags/reason/confidence；不蕴含待办的消息 action=none，逐条都给。",
-  ];
+  );
   if (batch.feedback !== undefined) {
     lines.push("", `上次提交校验失败，请修正后重试：${batch.feedback}`);
   }
@@ -145,28 +158,60 @@ function judgeSessionId(): string {
   return `pky-judge-${uuid}`;
 }
 
-/** hostEntry 接线面：dsh ctx → 内置通道执行器（收窄 cast 收在本文件，hostEntry 免类型面） */
-export function dshSessionExecutorOf(ctx: unknown): JudgeExecutor {
+/** hostEntry 接线面：dsh ctx → 内置通道执行器（收窄 cast 收在本文件，hostEntry 免类型面）。
+ * buildContext 独立参数而非 deps 字段：deps 实为 ctx 代理，读非服务属性会触发 cordis
+ * 「without inject」拦截（真机踩坑）。 */
+export function dshSessionExecutorOf(ctx: unknown, buildContext?: () => string): JudgeExecutor {
   return dshSessionExecutor(
     ctx as unknown as {
       agents: AgentsFace;
       sessions: SessionsFace;
       agentDefaultModel?: AgentDefaultModelFace;
     },
+    buildContext,
   );
 }
 
-/** dsh 内置判定执行器（faces 缺席时调用即报错不静默——接线层保证 inject 在场） */
-export function dshSessionExecutor(deps: {
-  agents: AgentsFace;
-  sessions: SessionsFace;
-  agentDefaultModel?: AgentDefaultModelFace;
-}): JudgeExecutor {
+/** 等 turn 静默（120s 超时）并折叠末段文本；turn 终态非 completed 判失败 */
+async function awaitTurn(agent: AgentFace, firstSeq: number): Promise<string> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  try {
+    await Promise.race([
+      agent.whenIdle(),
+      new Promise<never>((_, reject) => {
+        timer = setTimeout(
+          () => reject(new Error(`dsh 内置通道判定超时（${JUDGE_TIMEOUT_MS / 1000}s）`)),
+          JUDGE_TIMEOUT_MS,
+        );
+      }),
+    ]);
+  } finally {
+    if (timer !== undefined) clearTimeout(timer);
+  }
+  const outcome = summarize(agent.session, firstSeq);
+  if (outcome.reason !== "completed") {
+    throw new Error(`dsh 内置通道未完成判定（reason=${outcome.reason ?? "无 turn 终态"}）`);
+  }
+  return outcome.text;
+}
+
+/** dsh 内置判定执行器（faces 缺席时调用即报错不静默——接线层保证 inject 在场）；
+ * buildContext = 每批现取的判定上下文 JSON（缺省不注入，prompt 退回纯消息形态） */
+export function dshSessionExecutor(
+  deps: {
+    agents: AgentsFace;
+    sessions: SessionsFace;
+    agentDefaultModel?: AgentDefaultModelFace;
+  },
+  buildContext?: () => string,
+): JudgeExecutor {
   return {
     id: "session",
     name: "dsh 内置通道",
     selfLanding: false,
     async run(batch) {
+      // 上下文先于建会话取：库读失败即失败，不留空转会话
+      const context = buildContext?.();
       // 一批一会话：root agent（无 origin 分类进主会话列表；cwd 归组项目；模型组合
       // 必须显式给——无 agentOptions 时 prompt 装配报 {{model}} 无值）
       const sessionId = judgeSessionId();
@@ -177,25 +222,14 @@ export function dshSessionExecutor(deps: {
       });
       const agent = handle.agent;
       const firstSeq = agent.session.seq;
-      let timer: ReturnType<typeof setTimeout> | undefined;
       try {
-        agent.followup(userMessage(sessionPrompt(batch)));
-        await Promise.race([
-          agent.whenIdle(),
-          new Promise<never>((_, reject) => {
-            timer = setTimeout(
-              () => reject(new Error(`dsh 内置通道判定超时（${JUDGE_TIMEOUT_MS / 1000}s）`)),
-              JUDGE_TIMEOUT_MS,
-            );
-          }),
-        ]);
-        const outcome = summarize(agent.session, firstSeq);
-        if (outcome.reason !== "completed") {
-          throw new Error(`dsh 内置通道未完成判定（reason=${outcome.reason ?? "无 turn 终态"}）`);
-        }
-        return { suggestions: parseSuggestions(outcome.text, batch.messageIds), sessionId };
+        agent.followup(userMessage(sessionPrompt(batch, context)));
+        const text = await awaitTurn(agent, firstSeq);
+        return { suggestions: parseSuggestions(text, batch.messageIds), sessionId };
+      } catch (error) {
+        // 会话已建且 finally 会 flush 留档——失败账本行也要回链到可回放的会话 id
+        throw withSessionId(error, sessionId);
       } finally {
-        if (timer !== undefined) clearTimeout(timer);
         // 失败/超时也先 flush（部分转录留档可回放），flush/dispose 失败不遮蔽主错误
         await deps.sessions.flush(agent.session).catch(() => undefined);
         await handle.dispose().catch(() => undefined);

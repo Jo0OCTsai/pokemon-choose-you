@@ -108,6 +108,7 @@ describe("assemblePollLoops / assembleLoopsFull（循环段装配）", () => {
       health: new HealthState(),
       log: rec.log,
       newExecutor: () => null,
+      feed: { notifyLocalWrite: () => undefined },
     });
     expect(poll).toBeDefined();
     expect(auto).toBeDefined();

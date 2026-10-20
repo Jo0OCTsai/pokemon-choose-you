@@ -39,6 +39,8 @@ export interface PollLoopDeps {
   log?: (level: "info" | "warn", message: string) => void;
   /** 未授权单次事件（host→客户端提示的装配层挂点） */
   onEvent?: (event: PollEvent) => void;
+  /** 判定写后通知（迟到回看翻正时刷新 UI——orchestrator onWrites 透传） */
+  onWrites?: () => void;
   now?: () => number;
 }
 
@@ -83,7 +85,7 @@ async function runSuccessPath(state: LoopState): Promise<PollRoundResult> {
   const pull = await pullOnce(deps.conn, deps.lark, { nowMs: state.now() });
   const executor = deps.newExecutor();
   if (executor !== null && pull.pendingIds.length > 0) {
-    await judgePending({ conn: deps.conn, executor, health: deps.health });
+    await judgePending({ conn: deps.conn, executor, health: deps.health, onWrites: deps.onWrites });
   }
   deps.health.recordSuccess(FEISHU, rfc3339(state.now()));
   if (state.paused) {

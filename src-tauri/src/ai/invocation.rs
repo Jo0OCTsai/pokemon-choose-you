@@ -229,6 +229,9 @@ pub(crate) fn windows_ps_quote(s: &str) -> String {
 /// - `--resume` / `resume`（claude 语法）：id 插到该参数后 —— `claude --resume <id>`
 /// - pi：`-r`/`--resume` 是会话选择器（不带 id 形态），换成 `--session <id>`；
 ///   已配 `--session`/`--session-id` 时 id 直接插到其后
+/// - dsh：`--session-id <id>` 是 headless adopt 既有会话（dsh 无终端 TUI，续接 = 「带既有
+///   session 重开任务」；adopt 要求 cwd 与原会话一致）；已配 `--session-id` 时插到其后，
+///   否则追加——与插件侧 replayRig injectSessionArg 同构
 /// - 无可识别的恢复参数：不注入（如 opencode 历史参数为空，直接启动）
 fn adapt_history_args(args: &mut Vec<String>, session: &str, kind: Option<&str>) {
     if kind == Some("pi") {
@@ -243,6 +246,16 @@ fn adapt_history_args(args: &mut Vec<String>, session: &str, kind: Option<&str>)
             // 紧跟其后插入而非追加到末尾：用户在历史参数后还配了别的开关时，
             // id 混进末尾会被当成无名参数丢掉
             args.insert(i + 1, session.to_string());
+        }
+        return;
+    }
+    if kind == Some("dsh") {
+        match args.iter().position(|a| a == "--session-id") {
+            Some(i) => args.insert(i + 1, session.to_string()),
+            None => {
+                args.push("--session-id".into());
+                args.push(session.to_string());
+            }
         }
         return;
     }
@@ -754,6 +767,40 @@ mod tests {
                 .map(String::from)
                 .collect::<Vec<_>>()
         );
+    }
+
+    /// dsh：headless adopt 既有会话——无旗标追加 `--session-id <id>`；已配 `--session-id`
+    /// 原位插值（其后开关不被挤丢）；与插件侧 replayRig injectSessionArg 同构
+    #[test]
+    fn history_invocation_dsh_adopts_session_id() {
+        let strs = |v: Vec<&str>| v.into_iter().map(String::from).collect::<Vec<_>>();
+        let dsh = AgentConfig {
+            command: "dsh".into(),
+            history_args: "--profile headless".into(),
+            ..Default::default()
+        };
+        let (_, args) = history_invocation(&dsh, Some("session-9"), None, None);
+        assert_eq!(
+            args,
+            strs(vec!["--profile", "headless", "--session-id", "session-9"])
+        );
+
+        let mut mixed = strs(vec!["--profile", "headless", "--session-id", "--json"]);
+        adapt_history_args(&mut mixed, "session-9", Some("dsh"));
+        assert_eq!(
+            mixed,
+            strs(vec![
+                "--profile",
+                "headless",
+                "--session-id",
+                "session-9",
+                "--json"
+            ])
+        );
+
+        // 无会话 id 时不动参数（picker 语义：headless 直接启动）
+        let (_, plain) = history_invocation(&dsh, None, None, None);
+        assert_eq!(plain, strs(vec!["--profile", "headless"]));
     }
 
     #[test]

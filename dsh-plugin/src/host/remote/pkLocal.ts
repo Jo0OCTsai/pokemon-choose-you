@@ -16,6 +16,16 @@ export function localPkPath(): string | undefined {
   return home === undefined ? undefined : join(home, "bin", "pk");
 }
 
+/** 本机 pk 所在目录（agent 子进程 PATH 注入面——runner.rs `locate_pk().parent()` 同构）；
+ * 落位缺席（pk / pk.exe 均不在）→ undefined 不注入 */
+export function localPkDir(): string | undefined {
+  const target = localPkPath();
+  if (target === undefined || !(existsSync(target) || existsSync(`${target}.exe`))) {
+    return undefined;
+  }
+  return dirname(target);
+}
+
 /** 宿主三元组（构建/落位两侧命名一致单源；导出供测试自建 vendor） */
 export function hostTriple(): string {
   const arch = process.arch === "arm64" ? "aarch64" : process.arch;

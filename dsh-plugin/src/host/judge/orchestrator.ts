@@ -5,7 +5,7 @@
  * 待判定批 → claim（pending 子集）→ prompt 组装 → 执行方适配器调用 →
  * 结构化结果经 domain/suggest 提交期校验+落库（claim 守卫 + 假名还原）→
  * 未提及消息兜底 none → 失败留档 error（可重判）→ 校验失败回执行方修正重试
- * 自限 ≤2（A21，超限整批落 error）。
+ * 自限 ≤2（A21，超限整批落 error）→ 失败挽救后 30s 迟到回看（lateRecheck.ts）。
  */
 import { nowRfc3339, type Conn } from "../storage/db";
 import { PkyError } from "../storage/errors";
@@ -13,7 +13,14 @@ import { claimJudging, markAiError } from "../domain/claim";
 import { dedupBatchTodos, suggestBatch, type AiSuggestion } from "../domain/suggest";
 import { applySuggestion } from "../domain/suggest-apply";
 import { buildAiMessages, buildJudgePrompt } from "./prompt";
-import { loadSuggestionsFor, logJudgeSession, type JudgeExecutor, type JudgeRunOutcome } from "./adapters";
+import {
+  loadSuggestionsFor,
+  logJudgeSession,
+  sessionIdOfError,
+  type JudgeExecutor,
+  type JudgeRunOutcome,
+} from "./adapters";
+import { scheduleLateRecheck, type LateRecheckDeps } from "./lateRecheck";
 import { AI, type HealthState } from "../health/snapshot";
 
 /** 校验失败回执行方修正的重试上限（A21：执行方会话内 ≤2 次——初跑 + 2 重试） */
@@ -34,8 +41,8 @@ export interface OrchestrateResult {
   dropped: string[];
 }
 
-export interface OrchestrateDeps {
-  conn: Conn;
+/** 编排依赖（onWrites / scheduleLateRecheck 归迟到回看面，见 lateRecheck.ts） */
+export interface OrchestrateDeps extends LateRecheckDeps {
   executor: JudgeExecutor;
   health?: HealthState;
   now?: () => string;
@@ -132,14 +139,19 @@ function fallbackNone(conn: Conn, claimTs: string, agentId: string, now: string)
   }
 }
 
-/** 失败挽救（salvage_claimed_batch_conn 同构，selfLanding 路径）：已落库且令牌匹配的收下，未落库标 error，失配不采纳 */
-function salvageClaimed(deps: OrchestrateDeps, claimed: string[], claimTs: string): OrchestrateResult {
+/** 失败挽救（salvage_claimed_batch_conn 同构，selfLanding 路径）：已落库且令牌匹配的收下，未落库标 error，失配不采纳；
+ * missed = 本次标 error 的行（迟到回看对象） */
+function salvageClaimed(
+  deps: OrchestrateDeps,
+  claimed: string[],
+  claimTs: string,
+): { result: OrchestrateResult; missed: string[] } {
   const { conn } = deps;
   const { kept, dropped } = filterByClaim(conn, loadSuggestionsFor(conn, claimed), claimTs);
   const landed = kept.filter((s) => s.action !== "pending");
   const missed = kept.filter((s) => s.action === "pending").map((s) => s.messageId);
   const markedError = markAiError(conn, missed, claimTs);
-  return { claimed: claimed.length, ...countActions(landed), markedError, dropped };
+  return { result: { claimed: claimed.length, ...countActions(landed), markedError, dropped }, missed };
 }
 
 function handleFailure(
@@ -153,13 +165,16 @@ function handleFailure(
   logJudgeSession(deps.conn, {
     agentId: deps.executor.id,
     agentName: deps.executor.name,
-    sessionId: null,
+    // 执行方挂在错误上的会话 id（预生成 / 内置通道会话 / dsh 捕获）——失败会话同样可回放
+    sessionId: sessionIdOfError(error),
     durationMs: Date.now() - started,
     status: "error",
   });
   deps.health?.recordFailure(AI, message);
   if (deps.executor.selfLanding) {
-    return salvageClaimed(deps, claimed, claimTs);
+    const { result, missed } = salvageClaimed(deps, claimed, claimTs);
+    scheduleLateRecheck(deps, missed);
+    return result;
   }
   const markedError = markAiError(deps.conn, claimed, claimTs);
   return { claimed: claimed.length, todo: 0, update: 0, followUp: 0, none: 0, markedError, dropped: [] };

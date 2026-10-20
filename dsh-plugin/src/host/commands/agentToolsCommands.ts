@@ -17,6 +17,7 @@ import {
 import { createLocalExecutor } from "../dispatch/executor";
 import { resolveAgentEnv } from "../dispatch/localEnv";
 import type { ResolvedDispatchRoute } from "../dispatch/routes";
+import { extractPayload } from "../judge/adapters";
 import { paramError } from "../storage/errors";
 
 /** agent 连接测试探针提示词（ai::test 同字）：一次验证命令可用 + PATH + 数据库可达 */
@@ -46,18 +47,21 @@ function kindOrThrow(command: string): string {
   return kind;
 }
 
-/** 探针执行结果 → 数据面（成功 / 白名单指引 / 启动失败 / 超时四路文案） */
+/** 探针执行结果 → 数据面（成功 / 白名单指引 / 启动失败 / 超时四路文案）。
+ * 先经 extractPayload 解 claude `--output-format json` 信封：真实回复包在后段 `result`
+ * 字段里，直接截 stdout 前 200 字符永远停在 `{"duration_api_ms":…` 头部看不到真因。 */
 function probeMessage(stdout: string): { connected: boolean; message: string } {
-  if (stdout.includes("openTasks")) {
+  const { content } = extractPayload(stdout);
+  if (content.includes("openTasks")) {
     return { connected: true, message: "Agent 调用成功，pk 工具链已连通（context 正常返回）" };
   }
-  const brief = stdout.trim().slice(0, 200);
+  const brief = content.slice(0, 200);
   return {
     connected: false,
     message:
       "Agent 调用成功但未返回 pk context 输出——请确认 agent 无头模式允许执行 pk 命令" +
       "（工具白名单，如 claude 附加参数 --allowedTools Bash(pk:*)，注意参数按空白切分、不要加引号；" +
-      `本机 pk 不在 agent 的 PATH 时先确认 pk 已安装）。agent 回复片段：${brief}`,
+      `本机 pk 目录已自动注入 agent 的 PATH，仍报找不到 pk 时先确认 pk 已落位）。agent 回复片段：${brief}`,
   };
 }
 

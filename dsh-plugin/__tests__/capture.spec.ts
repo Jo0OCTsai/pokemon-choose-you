@@ -4,7 +4,7 @@
  */
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { captureTodo, undoCapture, MAX_CAPTURE_CHARS, type CaptureDeps } from "../src/host/judge/capture";
-import { fakeSubagentExecutor } from "../src/host/judge/adapters";
+import { fakeSubagentExecutor, withSessionId } from "../src/host/judge/adapters";
 import { HealthState, AI } from "../src/host/health/snapshot";
 import { createTestDb, scalar, seedAgents, seedTask, type TestDb } from "./helpers";
 import type { AiSuggestion } from "../src/host/domain/suggest";
@@ -125,7 +125,7 @@ describe("判重命中现有待办（生成更新卡不重复建）", () => {
 });
 
 describe("失败路径", () => {
-  it("执行方失败 → 消息标 error 留档（可强制捕捉/逃走）+ 健康记失败 + 会话账本 error", async () => {
+  it("执行方失败 → 消息标 error 留档（可强制捕捉/逃走）+ 健康记失败 + 会话账本 error（session_id 回链错误携带的会话）", async () => {
     seedAgents(db.conn, [{ id: "a1" }]);
     const health = new HealthState();
     const deps: CaptureDeps = {
@@ -136,7 +136,7 @@ describe("失败路径", () => {
         name: "boom",
         selfLanding: false,
         run: async () => {
-          throw new Error("agent exploded");
+          throw withSessionId(new Error("agent exploded"), "pky-judge-boom");
         },
       },
     };
@@ -146,6 +146,9 @@ describe("失败路径", () => {
     expect(statusOf(mid)).toBe("error");
     expect(health.snapshot(AI).consecutiveFailures).toBe(1);
     expect(scalar(db.conn, "SELECT COUNT(*) FROM agent_sessions WHERE kind='capture' AND status='error'")).toBe(1);
+    expect(scalar(db.conn, "SELECT session_id FROM agent_sessions WHERE kind='capture' AND status='error'")).toBe(
+      "pky-judge-boom",
+    );
   });
 
   it("执行方未返回判定 → 失败留档 error", async () => {

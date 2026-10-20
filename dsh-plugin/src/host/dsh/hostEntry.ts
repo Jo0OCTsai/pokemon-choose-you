@@ -15,6 +15,9 @@ import { dbFileFrom } from "../storage/paths";
 import { registerEmbeddedSchemas } from "../storage/migrate";
 import schemaRaw from "../storage/schema-raw";
 import { dshSessionExecutorOf } from "./sessionExecutor";
+import { buildToolContextData } from "../tools/contextData";
+import type { Conn } from "../storage/db";
+import type { JudgeExecutor } from "../judge/adapters";
 import { dshCredentialEnvOf } from "./credentialEnv";
 import type { HelperSpawner } from "../pet/supervisor";
 import type { TimerApi as LoopTimer } from "../dispatch/autoDispatch";
@@ -85,6 +88,22 @@ function externalTerminal装配() {
   return createHandoffTerminal("dsh web 载体：终端窗口会开在宿主机器的屏幕上", "web-carrier");
 }
 
+/**
+ * 判定执行方路由（活闭包按当前配置值）：cli = 业务核心缺省（主 agent CLI 子进程，凭据环境
+ * 经 agentEnv 注入）；session/subagent（旧值别名）= dsh 内置通道（dsh/sessionExecutor.ts，
+ * root 会话一批一会话，默认）——判定上下文以当前 conn 现取（pk context 同构 JSON），每批新鲜。
+ */
+function judgeExecutorOf(
+  ctx: Context,
+  config: ResolvedPkyConfig,
+  agentEnv: ReturnType<typeof dshCredentialEnvOf>,
+  conn: Conn,
+): JudgeExecutor | null {
+  return readSetting(config.judgeExecutor) === "cli"
+    ? defaultJudgeExecutor(conn, agentEnv)
+    : dshSessionExecutorOf(ctx, () => JSON.stringify(buildToolContextData(conn)));
+}
+
 /** createPlugin 依赖注入面（timer/桌宠 spawner/判定执行方/远程平台——接线单源） */
 function pluginDepsOf(
   ctx: Context,
@@ -116,12 +135,8 @@ function pluginDepsOf(
       get: () => readSetting(config.petAutoStart) !== false,
       set: () => undefined, // 平台持久化归 dsh 配置面（Phase B 客户端设置段写回）
     },
-    // 判定执行方（volatile 活读——背包改值热应用后下一次判定即生效）：cli = 业务核心缺省
-    // （主 agent CLI 子进程，凭据环境经 agentEnv 注入）；session/subagent（旧值别名）=
-    // dsh 内置通道（dsh/sessionExecutor.ts，root 会话一批一会话，默认）。
-    // newExecutor 每次判定调用（pollLoop / 命令面），活闭包按当前配置值路由
-    newExecutor: (conn) =>
-      readSetting(config.judgeExecutor) === "cli" ? defaultJudgeExecutor(conn, agentEnv) : dshSessionExecutorOf(ctx),
+    // 判定执行方（volatile 活读——背包改值热应用后下一次判定即生效；newExecutor 每次判定调用）
+    newExecutor: (conn) => judgeExecutorOf(ctx, config, agentEnv, conn),
     agentEnv,
     // dispatchDeps/larkBin 缺省：lark-cli 走 PATH；无头派发 executorFor 缺省走 local 子进程。
     // 交互终端/terminalLine（debt ③ a desktop 载体解 + 终端偏好遵循）：dsh 桌面 app

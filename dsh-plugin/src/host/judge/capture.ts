@@ -16,7 +16,7 @@ import { getMessage } from "../domain/review";
 import { createTaskFromMessage, recordFeedback } from "../domain/suggest-resolve";
 import { suggestBatch, type AiSuggestion } from "../domain/suggest";
 import { buildCapturePrompt } from "./prompt";
-import { logJudgeSession, type JudgeExecutor } from "./adapters";
+import { logJudgeSession, sessionIdOfError, type JudgeExecutor } from "./adapters";
 import { MAX_VALIDATE_RETRIES } from "./orchestrator";
 import { AI, type HealthState } from "../health/snapshot";
 
@@ -132,7 +132,8 @@ export async function captureTodo(deps: CaptureDeps, input: string): Promise<Cap
       : { messageId, outcome: "suggestion", taskId: null };
   } catch (error) {
     markAiError(deps.conn, [messageId]);
-    logCaptureSession(deps, started, "error", null);
+    // 执行方挂在错误上的会话 id（预生成 / 内置通道会话）——失败捕捉会话同样可回放
+    logCaptureSession(deps, started, "error", sessionIdOfError(error));
     deps.health?.recordFailure(AI, error instanceof Error ? error.message : String(error));
     throw error;
   }

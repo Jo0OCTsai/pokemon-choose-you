@@ -9,6 +9,7 @@
 import { readdirSync, statSync } from "node:fs";
 import { homedir } from "node:os";
 import { delimiter, dirname, join } from "node:path";
+import { localPkDir } from "../remote/pkLocal";
 
 /** `~` / `~/x` 展开为 home 下绝对路径（仅 ~/ 前缀，agent_workdir 同语义）；其余原样；空白 → undefined（继承宿主 cwd） */
 export function expandHome(dir: string | null | undefined, home: string = homedir()): string | undefined {
@@ -152,11 +153,14 @@ export async function resolveAgentEnv(
 }
 
 /**
- * 子进程环境（runner.rs run_agent 同构）：宿主环境 + 命令与 node 所在目录前插 PATH
- * （`#!/usr/bin/env node` 脚本在 GUI 精简 PATH 下找得到 node）+ extra 注入最后覆盖。
+ * 子进程环境（runner.rs run_agent / spawn_and_wait 同构）：宿主环境 + [本机 pk 目录] +
+ * 命令与 node 所在目录前插 PATH（agent 内 `pk context` / `pk suggest` 裸名可达——落位缺席
+ * 不注入；`#!/usr/bin/env node` 脚本在 GUI 精简 PATH 下找得到 node）+ extra 注入最后覆盖。
  */
 export function childEnvFor(program: string, extra: Record<string, string> | undefined): NodeJS.ProcessEnv {
-  const path = augmentedPath(scriptHostDirs(program, resolveCommand("node")));
+  const pkDir = localPkDir();
+  const dirs = [...(pkDir === undefined ? [] : [pkDir]), ...scriptHostDirs(program, resolveCommand("node"))];
+  const path = augmentedPath(dirs);
   return { ...process.env, ...(path === undefined ? {} : { [pathEnvKey()]: path }), ...extra };
 }
 

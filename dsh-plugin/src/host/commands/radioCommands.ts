@@ -103,7 +103,10 @@ function failureCommandSet(): CommandTable {
     retryJudge: async (p, deps) => {
       const executor = executorOf(deps);
       const ids = retryIds(deps.conn, (p as { messageIds: string[] | "all" }).messageIds);
-      const result = await retryJudge({ conn: deps.conn, executor, health: deps.health }, ids);
+      const result = await retryJudge(
+        { conn: deps.conn, executor, health: deps.health, onWrites: () => deps.onWrites() },
+        ids,
+      );
       deps.onWrites();
       return { accepted: result.claimed };
     },

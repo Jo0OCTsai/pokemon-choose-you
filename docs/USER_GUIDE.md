@@ -279,12 +279,15 @@ AI 判定时会带上**同会话 30 分钟内的近期上下文**与消息来源
 | Claude Code | `claude` | `-p {prompt} --allowedTools Bash(pk:*) --output-format json`（JSON 信封带回 session_id / 成本，会话回链自动落库） | `--resume` |
 | OpenCode | `opencode` | `run {prompt}` | （TUI 自带会话列表） |
 | pi | `pi` | `-p {prompt}`（bash 等工具默认可用，无权限弹窗） | `-r`（选择器；按会话 id 恢复时应用自动换成 `--session <id>`） |
-| DeepSeek Harness | `dsh` | `--profile headless`（无 `{prompt}` 占位符，提示词经标准输入传入——本地与 SSH 远程同构） | （desktop / web profile 自带会话列表，直接启动） |
+| DeepSeek Harness | `dsh` | `--profile headless`（无 `{prompt}` 占位符，提示词经标准输入传入——本地与 SSH 远程同构） | `--profile headless`（按会话 id 回放时应用自动追加 `--session-id <id>`，以 headless 形态 adopt 既有会话续跑；desktop / web profile 不可从命令行直启） |
 | 其他 | 任意 | 自定义 | 自定义 |
 
 > 会话历史说明：claude 的无头（`-p`）会话**不出现在交互选择器里**，只能按会话 id 恢复——
 > 应用已自动记录每次无头调用的 session_id，任务详情抽屉「Agent 执行」区的回放入口
 > （`claude --resume <id>`）即走此路径。pi 无头派发按 `--session-id <id>` 续接（该 id 不存在时按 id 新建，首轮由应用预生成）。
+> dsh 的 `--session-id` 是 adopt 语义（未知 id 报错，不能预生成）：**dsh 插件形态**的无头派发/判定自动追加 `--json`，
+> 从事件流首行捕获会话 id 落库，次轮起 `--session-id <id>` 续接；adopt 要求工作目录与原会话一致（改了 workdir /
+> 走 worktree 隔离后旧会话会明确报错，不静默）。桌面形态派发 dsh 暂不捕获会话 id（每轮新会话，回放走 headless 直启）。
 
 **SSH 远程执行**：agent CLI 不在本机时，在 agent 配置里勾选「SSH 远程执行」并填目标（`user@host`，可指定端口与私钥路径）。实际执行的命令是 `ssh -o BatchMode=yes -o ConnectTimeout=10 [-i 密钥] [-p 端口] user@host -- <command> <args...>`：
 

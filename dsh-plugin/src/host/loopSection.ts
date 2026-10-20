@@ -35,6 +35,8 @@ export function assemblePollLoops(args: {
   health: HealthState;
   log: HostCommandDeps["log"];
   newExecutor: (c: Conn) => JudgeExecutor | null;
+  /** 判定写后通知出口（迟到回看翻正 → stateFeed 刷新） */
+  feed: Pick<StateFeed, "notifyLocalWrite">;
 }): { poll: PollLoop; auto: AutoDispatchLoop } {
   const { conn, deps } = args;
   const poll = createPollLoop({
@@ -45,6 +47,7 @@ export function assemblePollLoops(args: {
     timer: deps.pollTimer ?? realTimer,
     log: (level, message) => args.log(level, "radio", message),
     onEvent: (event) => args.log("warn", "radio", `event: ${event}`),
+    onWrites: () => args.feed.notifyLocalWrite(),
   });
   const auto = startAutoDispatchLoop(conn, dispatchDepsOf(deps), {
     timer: deps.autoTimer ?? systemTimer,

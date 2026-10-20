@@ -4,13 +4,17 @@
  * src-tauri/src/ai/runner.rs（超时下限 10s、{"result","session_id"} 信封解包、
  * agent 经 pk suggest batch 写回后从库回读——结果落库与进程退出是两件事）、
  * src-tauri/src/commands/radio/judge.rs 的 run_and_collect（整批遗漏判失败）。
- * 会话账本落 agent_sessions（kind=classify，sessions.rs log_session_conn 同构）。
+ * 会话账本落 agent_sessions（kind=classify，sessions.rs log_session_conn 同构）；会话 id
+ * 三源与失败回链见 sessionId.ts（claude/pi 预生成、dsh 事件流捕获、信封回填优先）。
  * 零 dsh 依赖：spawn 可注入；dsh 内置通道真实桥在适配层 dsh/sessionExecutor.ts
  * （root 会话一批一会话 + 非 selfLanding 落库，本文件 fake 仍为测试替身）。
  */
 import { spawn } from "node:child_process";
 import { existsSync } from "node:fs";
 import { childEnvFor, expandHome, resolveCommand, spawnErrorHint, type AgentEnvProvider } from "../dispatch/localEnv";
+import { parseDshSessionId } from "../dispatch/dshSession";
+import { kindForCommand } from "../dispatch/sessions";
+import { pregenSessionId, sessionArgv, withSessionId } from "./sessionId";
 import { nowRfc3339, type Conn } from "../storage/db";
 import { PkyError } from "../storage/errors";
 import { primaryAgent, type AgentConfig } from "../domain/settings";
@@ -31,6 +35,9 @@ export interface JudgeRunOutcome {
   suggestions: AiSuggestion[];
   sessionId: string | null;
 }
+
+// 失败回链原语（执行方挂 id / 编排层回读）——实现在 sessionId.ts，消费方 import 路径不变
+export { sessionIdOfError, withSessionId } from "./sessionId";
 
 /**
  * 执行方接口：selfLanding = 执行方自行经唯一出口（todo_suggest_batch / pk suggest
@@ -226,6 +233,7 @@ export function cliJudgeExecutor(args: {
   const { conn, agent } = args;
   const spawnFn = args.spawnFn ?? realAgentSpawn;
   const timeoutMs = Math.max(agent.timeoutSecs, MIN_AGENT_TIMEOUT_SECS) * 1000;
+  const kind = kindForCommand(agent.command);
   return {
     id: agent.id,
     name: agent.name,
@@ -237,21 +245,28 @@ export function cliJudgeExecutor(args: {
           ? `${batch.prompt}\n\n上次提交校验失败，请修正后重试：${batch.feedback}`
           : batch.prompt,
       );
+      const pregen = pregenSessionId(kind);
       const extraEnv = args.agentEnv === undefined ? undefined : await args.agentEnv(inv.program);
-      const out = await spawnFn(inv.program, inv.argv, {
-        stdin: inv.stdin,
-        cwd: agent.workdir === "" ? undefined : agent.workdir,
-        timeoutMs,
-        ...(extraEnv === undefined ? {} : { env: extraEnv }),
-      });
-      const { sessionId } = extractPayload(out.stdout);
-      const suggestions = loadSuggestionsFor(conn, batch.messageIds);
-      if (landedCount(suggestions) === 0 && batch.messageIds.length > 0) {
-        throw new Error(
-          `agent「${agent.name}」执行完成但没有任何判定落库（${batch.messageIds.length} 条全部遗漏）——请确认其无头模式允许执行 pk 命令（工具白名单）`,
-        );
+      // 会话 id 三源（信封回填 > dsh 事件流捕获 > 预生成）；失败也经 withSessionId 回链到账本
+      let sessionId = pregen;
+      try {
+        const out = await spawnFn(inv.program, sessionArgv(inv.argv, kind, pregen, agent.args), {
+          stdin: inv.stdin,
+          cwd: agent.workdir === "" ? undefined : agent.workdir,
+          timeoutMs,
+          ...(extraEnv === undefined ? {} : { env: extraEnv }),
+        });
+        sessionId = extractPayload(out.stdout).sessionId ?? parseDshSessionId(out.stdout) ?? pregen;
+        const suggestions = loadSuggestionsFor(conn, batch.messageIds);
+        if (landedCount(suggestions) === 0 && batch.messageIds.length > 0) {
+          throw new Error(
+            `agent「${agent.name}」执行完成但没有任何判定落库（${batch.messageIds.length} 条全部遗漏）——请确认其无头模式允许执行 pk 命令（工具白名单）`,
+          );
+        }
+        return { suggestions, sessionId };
+      } catch (error) {
+        throw withSessionId(error, sessionId);
       }
-      return { suggestions, sessionId };
     },
   };
 }
