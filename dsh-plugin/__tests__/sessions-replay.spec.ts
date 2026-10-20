@@ -5,7 +5,10 @@
  */
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import {
+  isPtySessionRef,
   logAgentSession,
+  ptyHandleOf,
+  ptySessionRef,
   replayBranchOf,
   sessionReplay,
   sessionReplayable,
@@ -292,5 +295,40 @@ describe("sessionReplay：部署契约（部署路由来源行——port=0 无�
     const { launcher } = makeLauncher({ deployment: () => ({ alias: "gpu-1", ready: false }) });
     const out = sessionReplay(db.conn, rowId, launcher);
     expect(out).toMatchObject({ kind: "error", tag: "DEPLOYMENT_NOT_READY" });
+  });
+});
+
+describe("sessionReplay：远端 PTY 句柄行（pty: 标记——句柄非 agent 会话 id）", () => {
+  it("标记辅助：封装/判别/剥离，未标记句柄原样返回（存量兼容）", () => {
+    expect(ptySessionRef("abc")).toBe("pty:abc");
+    expect(isPtySessionRef("pty:abc")).toBe(true);
+    expect(isPtySessionRef("abc")).toBe(false);
+    expect(isPtySessionRef(null)).toBe(false);
+    expect(ptyHandleOf("pty:abc")).toBe("abc");
+    expect(ptyHandleOf("abc")).toBe("abc");
+  });
+
+  it("PTY 句柄行可回放但走 picker 分支（不组 --resume <句柄>），sessionId 收敛 null", () => {
+    expect(replayBranchOf({ tmuxSession: "", sessionId: "pty:pty-7" })).toBe("picker");
+    expect(sessionReplayable({ tmuxSession: "", sessionId: "pty:pty-7" })).toBe(true);
+    const rowId = seedRow("dispatch_interactive", {
+      sessionId: "pty:pty-7",
+      command: "claude",
+      workdir: "/remote/ws",
+      remoteHost: "gpu-1",
+    });
+    const { launcher, rec } = makeLauncher({ deployment: () => ({ alias: "gpu-1", ready: true }) });
+    const out = sessionReplay(db.conn, rowId, launcher);
+    expect(out).toEqual({ kind: "routed", world: { deploymentAlias: "gpu-1" }, branch: "picker" });
+    expect(rec.remote[0]).toMatchObject({
+      branch: "picker",
+      sessionId: null,
+      tmuxSession: null,
+      workdir: "/remote/ws",
+    });
+  });
+
+  it("tmux 会话名仍优先于 PTY 句柄", () => {
+    expect(replayBranchOf({ tmuxSession: "pky-1", sessionId: "pty:pty-7" })).toBe("tmux");
   });
 });

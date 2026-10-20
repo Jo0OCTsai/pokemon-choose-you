@@ -38,7 +38,8 @@ describe("交互 TerminalAdapter：PTY 注入与同上下文重派", () => {
     expect(fx.scope.terminalWrites[0]?.data.endsWith("\n")).toBe(true);
     const row = fx.lastSession(taskId);
     expect(row["kind"]).toBe("dispatch_interactive");
-    expect(row["session_id"]).toBe("pty-1");
+    // PTY 句柄带 pty: 标记落账（非 agent 会话 id——回放不组 --resume <句柄>）
+    expect(row["session_id"]).toBe("pty:pty-1");
     expect(row["remote_host"]).toBe(ALIAS);
   });
 
@@ -52,6 +53,19 @@ describe("交互 TerminalAdapter：PTY 注入与同上下文重派", () => {
     expect(fx.scope.spawnTerminalCalls).toHaveLength(1); // 未新开
     expect(fx.scope.terminalWrites).toHaveLength(2);
     expect(fx.scope.terminalWrites[1]?.sessionId).toBe("pty-1");
+    expect(fx.lastSession(taskId)["session_id"]).toBe("pty:pty-1");
+  });
+
+  it("存量未标记句柄行（pty: 标记之前落账）重派仍复用同 PTY，新账本行补上标记", async () => {
+    fx.seedReadyDeployment();
+    const taskId = fx.seedDeploymentTask("交互存量句柄");
+    await dispatchInteractive(fx.db.conn, interactiveDeps(), taskId);
+    fx.db.conn.prepare("UPDATE agent_sessions SET session_id='pty-1' WHERE task_id=?").run(taskId);
+    dispatchReport(fx.db.conn, taskId, "failed", null);
+    const second = await dispatchInteractive(fx.db.conn, interactiveDeps(), taskId);
+    expect(second.terminal).toBe("pty-1");
+    expect(fx.scope.spawnTerminalCalls).toHaveLength(1);
+    expect(fx.lastSession(taskId)["session_id"]).toBe("pty:pty-1");
   });
 });
 
@@ -65,7 +79,7 @@ describe("交互 TerminalAdapter：非绝对 workdir 走 cd 段（dsh-ssh cwd �
     const write = fx.scope.terminalWrites[0]?.data ?? "";
     expect(write.startsWith("cd ~/.choose-you/workspace || exit 1\n")).toBe(true);
     expect(write).toContain("claude");
-    expect(fx.lastSession(taskId)["session_id"]).toBe("pty-1");
+    expect(fx.lastSession(taskId)["session_id"]).toBe("pty:pty-1");
   });
 
   it("相对路径（含空格整体引用）", async () => {

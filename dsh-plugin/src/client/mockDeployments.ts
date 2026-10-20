@@ -107,7 +107,8 @@ function mockDeploymentList(ctx: MockContext) {
     pending: ds.filter((d) => d.status !== "ready" && d.status !== "disconnected").length,
     broken: ds.filter((d) => d.status === "disconnected").length,
   };
-  return ctx.ok({ deployments: ds, counts });
+  const deployments = ds.map((d) => ({ ...d, tunnel: ctx.state.tunnelStates[d.id] ?? null }));
+  return ctx.ok({ deployments, counts });
 }
 
 /** 本机 ssh config 别名（部署表单下拉数据源——真实侧解析见 host remote/sshConfig） */

@@ -5,7 +5,7 @@
  * 信封字段 = `type`；基础下行（插件 → helper）五种：task-state / pomodoro-config / lang /
  * sprites / heartbeat + 系统能力扩展下行八种（sys-config / sys-notify / tts-speak /
  * dialog-request / dialog-cancel / open-path / mac-auth-query / chat-reply，见
- * `sys-protocol.ts`）；基础上行（helper → 插件）四种：cmd / focus-settle / hello /
+ * `sys-protocol.ts`）；基础上行（helper → 插件）五种：cmd / focus-settle / pomo-state / hello /
  * crash-diag + 系统能力扩展上行九种（tray-action / shortcut-fired / notify-clicked /
  * dialog-ack / dialog-result / mac-auth-ack / mac-auth-result / input-activity /
  * sys-unsupported）。`hello.caps` 8 系统能力位 + hello 发送门控 + seq 两段语义 +
@@ -187,6 +187,26 @@ export interface FocusSettleMsg {
   elapsedMin: number;
 }
 
+/** 番茄相位快照（D2 本地计时态的唯一出口——chip 精确倒计时/短休息态数据源） */
+export interface PomoPhaseSnapshot {
+  kind: "focus" | "break" | "trial";
+  /** 相位到期时刻（helper 时钟 epoch ms） */
+  endAt: number;
+  /** focus 档位分钟（break/trial 无） */
+  durationMin?: number;
+}
+
+/**
+ * 番茄相位上行：相位迁移（开始专注/先试/休息、到期置空）与每次 hello 后发送，
+ * 宿主只保留最新一帧（不落库）；taskId = 发送时 activeTask（相位归属——chip 跨任务不串台）。
+ */
+export interface PomoStateMsg {
+  type: "pomo-state";
+  phase: PomoPhaseSnapshot | null;
+  taskId: number | string | null;
+  ts: number;
+}
+
 /** 握手：版本 + 能力位 */
 export interface HelloMsg {
   type: "hello";
@@ -203,6 +223,7 @@ export interface CrashDiagMsg {
 export type UpstreamMsg =
   | CmdMsg
   | FocusSettleMsg
+  | PomoStateMsg
   | HelloMsg
   | CrashDiagMsg
   | TrayActionMsg
@@ -218,6 +239,7 @@ export type UpstreamMsg =
 export const UPSTREAM_TYPES = [
   "cmd",
   "focus-settle",
+  "pomo-state",
   "hello",
   "crash-diag",
   "tray-action",

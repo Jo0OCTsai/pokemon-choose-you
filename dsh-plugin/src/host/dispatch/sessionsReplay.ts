@@ -16,6 +16,26 @@ import { SESSION_COLS, rowToSession, type SessionSqlRow } from "./sessionsPage";
 export type ReplayBranch = "tmux" | "resume" | "picker";
 
 /**
+ * 远端 PTY 句柄落账本的标记前缀：agent_sessions.session_id 列复用承载 dsh-ssh 终端
+ * 会话句柄（同任务重派写回同一 PTY——sshExecutorTerminal），它不是 agent 会话 id——
+ * 回放不得组 `--resume <句柄>`（claude 报未知会话）。桌面无此形态（Rust 账本无 pty 行）。
+ */
+export const PTY_SESSION_REF_PREFIX = "pty:";
+
+export function ptySessionRef(handle: string): string {
+  return `${PTY_SESSION_REF_PREFIX}${handle}`;
+}
+
+export function isPtySessionRef(sessionId: string | null): boolean {
+  return sessionId !== null && sessionId.startsWith(PTY_SESSION_REF_PREFIX);
+}
+
+/** 标记句柄 → 裸 PTY 句柄（无标记原样返回——存量未标记行兼容） */
+export function ptyHandleOf(sessionRef: string): string {
+  return isPtySessionRef(sessionRef) ? sessionRef.slice(PTY_SESSION_REF_PREFIX.length) : sessionRef;
+}
+
+/**
  * 执行世界：本机 / 某部署（快照 target 解析出的部署别名）/ **ssh 别名**（快照三元组
  * 自包含——桌面 agent-remote 来源的行，解析不到部署实体时按快照 host/port/key 直连
  * 回放，desktop open_agent_in_terminal 远端分支同构）。
@@ -83,12 +103,12 @@ export type SessionReplayOutcome =
   | { kind: "routed"; world: ReplayWorld; branch: ReplayBranch }
   | { kind: "error"; tag: ReplayErrorTag; message: string; hint?: string };
 
-/** 路由三分支判定（桌面 integrations.rs resume_route 同构） */
+/** 路由三分支判定（桌面 integrations.rs resume_route 同构；PTY 句柄非会话 id → picker） */
 export function replayBranchOf(row: { tmuxSession: string; sessionId: string | null }): ReplayBranch {
   if (row.tmuxSession.trim() !== "") {
     return "tmux";
   }
-  if (row.sessionId !== null && row.sessionId.trim() !== "") {
+  if (row.sessionId !== null && row.sessionId.trim() !== "" && !isPtySessionRef(row.sessionId)) {
     return "resume";
   }
   return "picker";
@@ -177,12 +197,13 @@ function launchAliasReplay(launcher: ReplayLauncher, launch: RemoteReplayLaunch)
   }
 }
 
-/** 行 → 回放句柄（sessionId/tmuxSession 空串收敛为 null） */
+/** 行 → 回放句柄（sessionId/tmuxSession 空串收敛为 null；PTY 句柄不是会话 id，收敛为 null） */
 function replayHandles(row: { sessionId: string | null; tmuxSession: string }): {
   sessionId: string | null;
   tmuxSession: string | null;
 } {
-  const sessionId = (row.sessionId ?? "").trim() !== "" ? (row.sessionId as string).trim() : null;
+  const raw = (row.sessionId ?? "").trim();
+  const sessionId = raw !== "" && !isPtySessionRef(raw) ? raw : null;
   const tmuxSession = row.tmuxSession.trim() !== "" ? row.tmuxSession.trim() : null;
   return { sessionId, tmuxSession };
 }

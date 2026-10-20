@@ -29,6 +29,9 @@
   生效引用 `ref = target = alias`，hostKey 归一 `ssh:<alias>`；`agent.remote`（SSH host/端口表单）保留为
   桌面共享面，不驱动插件派发。
 - **常驻隧道与 pk 通道（ADR-0003）**：`remote/tunnelSupervisor.ts`（零 dsh import）+ `remote/tunnelLock.ts`（与桌面 `tunnel_lock.rs` 同锁协议：`<appHome>/tunnels/<部署id>` 目录锁 + PID 探活）维持任一宿主驻留期的隧道；`remote/pkLocal.ts` 纯 dsh 的 vendor → `~/.choose-you/bin/pk` 落位；`dsh/pkSetup.ts` spawn `pk remote setup`。装配在 `dsh/hostEntry.ts`（服务注入命令面 `tunnels`/`pkSetup`，部署写命令 resync）。
+- **`agent_sessions.session_id` 的 `pty:` 标记**：远端交互派发把 dsh-ssh PTY 句柄落该列（同任务重派写回同一 PTY），
+  必须经 `dispatch/sessionsReplay.ts` 的 `ptySessionRef()` 加前缀——它不是 agent 会话 id，回放路由见前缀走
+  picker 分支（不组 `--resume <句柄>`），重派经 `ptyHandleOf()` 剥前缀；桌面 Rust 账本无此形态。
 - **coverage 口径**：`vite.config.ts` thresholds 四维 85 只统计 `src/host/**`（business core）；
   client 组件不入口径但**进质量棘轮**（复杂度/覆盖率地板按服务全量）。**不要把 vite.config.ts 改名为
   vitest.config.ts**（会脱离棘轮发现面）。

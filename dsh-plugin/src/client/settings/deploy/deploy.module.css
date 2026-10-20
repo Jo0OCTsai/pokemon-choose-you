@@ -132,6 +132,20 @@
 .badgeDot[data-tone="disconnected"] {
   background: var(--pcy-deploy-disconnected, #b3590f);
 }
+/* 常驻隧道五态色点（healthy 绿 / connecting·retrying 琥珀 / yielded 让位待命中性 / off 空心） */
+.badgeDot[data-tone="tunnel-healthy"] {
+  background: var(--pcy-deploy-ready, #2f7d3c);
+}
+.badgeDot[data-tone="tunnel-connecting"],
+.badgeDot[data-tone="tunnel-retrying"] {
+  background: var(--pcy-deploy-notready, #b58900);
+}
+.badgeDot[data-tone="tunnel-yielded"] {
+  background: var(--dsw-alias-border-l3, #c7cdd4);
+}
+.badgeDot[data-tone="tunnel-off"] {
+  background: transparent;
+}
 /* 向导执行中 = 中性虚线徽章（无色点——非状态语义，静态换态） */
 .badge[data-tone="running"] {
   border-style: dashed;

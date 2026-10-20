@@ -31,9 +31,10 @@ Nintendo / Creatures Inc. / GAME FREAK inc.；PokeAPI 素材库依其仓库声�
 
 - 下行（插件 → helper）基础五种：`task-state`（可选 `caught?: { milestone?, streakDays? }` 捕获演出
   变体——完成路径郑重判定命中时随行下发，缺省 = plain 变体）/ `pomodoro-config` / `lang` / `sprites` / `heartbeat`；
-- 上行（helper → 插件）基础四种：`cmd`（10 op 枚举，含 `pet-chat`）/ `focus-settle`（D16 整分钟
-  入账，宿主按 localSessionId 幂等——PROTOCOL §7）/ `hello`（版本+能力位）/ `crash-diag`
-  （环形缓冲诊断）；
+- 上行（helper → 插件）基础五种：`cmd`（10 op 枚举，含 `pet-chat`）/ `focus-settle`（D16 整分钟
+  入账，宿主按 localSessionId 幂等——PROTOCOL §7）/ `pomo-state`（番茄相位快照：相位迁移与每次
+  hello 后发送，宿主只留最新帧经 `petStatus.pomodoro` 给 conversation chip 倒计时/短休息态——D2
+  本地计时态的唯一出口，不落库）/ `hello`（版本+能力位）/ `crash-diag`（环形缓冲诊断）；
 - 容错：未知 type/op、缺字段、坏 JSON → 丢弃 + 计错 + 进诊断，**不崩**；半行缓冲、超长行护栏；
 - 宿主存亡：stdin 管道守卫 + 心跳静默 >15s（可配）判死 + `--host-pid` 轮询双保险 → 10s 内退出。
 

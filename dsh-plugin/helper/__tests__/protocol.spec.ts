@@ -128,6 +128,25 @@ describe("validateUpstream（上行全集 + 拒绝面）", () => {
     expect(validateUpstream({ type: "focus-settle", taskId: 7, localSessionId: "ls-1", elapsedMin: -1 })).toBeNull();
   });
 
+  it("pomo-state：null 相位 / 三种相位通过；未知 kind、endAt 非数、taskId 形状错、缺 ts → 拒绝", () => {
+    expect(validateUpstream({ type: "pomo-state", phase: null, taskId: null, ts: 1 })).toMatchObject({ phase: null });
+    expect(
+      validateUpstream({ type: "pomo-state", phase: { kind: "focus", endAt: 99, durationMin: 25 }, taskId: 7, ts: 1 }),
+    ).toMatchObject({ phase: { kind: "focus", endAt: 99, durationMin: 25 }, taskId: 7 });
+    expect(
+      validateUpstream({ type: "pomo-state", phase: { kind: "break", endAt: 99 }, taskId: "t-1", ts: 1 }),
+    ).not.toBeNull();
+    expect(
+      validateUpstream({ type: "pomo-state", phase: { kind: "trial", endAt: 99 }, taskId: null, ts: 1 }),
+    ).not.toBeNull();
+    expect(validateUpstream({ type: "pomo-state", phase: { kind: "nap", endAt: 99 }, taskId: null, ts: 1 })).toBeNull();
+    expect(
+      validateUpstream({ type: "pomo-state", phase: { kind: "focus", endAt: "99" }, taskId: null, ts: 1 }),
+    ).toBeNull();
+    expect(validateUpstream({ type: "pomo-state", phase: null, taskId: {}, ts: 1 })).toBeNull();
+    expect(validateUpstream({ type: "pomo-state", phase: null, taskId: null })).toBeNull();
+  });
+
   it("hello / crash-diag 通过；能力位非字符串数组 / 诊断条目缺字段 → 拒绝", () => {
     expect(validateUpstream({ type: "hello", version: "0.1.0", caps: ["a"] })).not.toBeNull();
     expect(

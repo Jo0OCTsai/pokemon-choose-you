@@ -153,9 +153,24 @@ export interface BackupInfo {
 
 // ---- full-parity 客户端视图模型（AD §4.1 增量契约的呈现面） ----
 
-/** 部署列表响应（deploymentList）：实体 + 三档计数 */
+/** petStatus 响应：显隐 + 番茄相位最新帧（null = helper 未运行 / 无相位 / 已到期） */
+export interface PetStatusView {
+  running: boolean;
+  pomodoro: import("./rpcTypes").PomoPhaseView | null;
+}
+
+/** 常驻隧道状态（host remote/tunnelSupervisor TunnelStatus 同构；yielded = 让位待命，ADR-0003 双宿主） */
+export interface TunnelStatusView {
+  state: "off" | "connecting" | "healthy" | "retrying" | "yielded";
+  detail: string;
+}
+
+/** 部署列表行 = 实体 + 隧道状态随行（null = 宿主未装配隧道面） */
+export type DeploymentListRow = import("./rpcTypes").DeploymentEntity & { tunnel: TunnelStatusView | null };
+
+/** 部署列表响应（deploymentList）：实体（带隧道状态）+ 三档计数 */
 export interface DeploymentListResult {
-  deployments: import("./rpcTypes").DeploymentEntity[];
+  deployments: DeploymentListRow[];
   counts: { ready: number; pending: number; broken: number };
 }
 

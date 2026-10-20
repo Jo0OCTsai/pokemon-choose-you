@@ -12,12 +12,14 @@ import type {
   DiagnosticsLink,
   FollowupNote,
   LogEntry,
+  PomoPhaseView,
   RadioHealth,
   RadioMessage,
   RestoreRunResult,
   BackupInfo,
   ImportSummary,
   TagCheckupReport,
+  TunnelStatusView,
 } from "./rpcTypes";
 import type { Task } from "../host/domain/tasks";
 import { taskSwitchCommands, taskCloseCommands, releaseCommands, taskEditCommands } from "./mockTasks";
@@ -71,9 +73,13 @@ export interface MockHostState {
   pkSkill?: import("./mockAgentTools").MockPkSkillState;
   /** 桌宠显隐（petStatus 消费；缺省 true——随宿主启动语义） */
   petRunning: boolean;
+  /** 番茄相位最新帧（petStatus 随行；缺省 null = 无相位——chip 回落已专注时长快照） */
+  pomodoro: PomoPhaseView | null;
   // ---- full-parity 增量态（specs/dsh-plugin-full-parity） ----
   /** 部署实体（deploymentList/Upsert/Delete/Recheck/provision* 消费） */
   deployments: DeploymentEntity[];
+  /** 常驻隧道状态按部署 id（deploymentList 随行；缺项 = 隧道面未装配 null） */
+  tunnelStates: Record<string, TunnelStatusView>;
   /** 本机 ~/.ssh/config 可选别名（sshAliasList 消费——部署表单下拉数据源） */
   sshAliases: string[];
   /** 开通向导单步失败编排（provisionRun 消费；null = 全步骤成功；测试中途可改写模拟重试成功） */

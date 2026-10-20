@@ -17,6 +17,7 @@ import type { DeploymentEntity } from "../remote/deployments";
 import { RemoteDispatchRejection, type SshTerminalScope } from "../remote/sshExecutor";
 import type { SshFamilyProjection } from "../dsh/probeDsh";
 import type { BridgeClient } from "../pet/bridge";
+import type { PomoPhaseView } from "../pet/pomoState";
 
 /**
  * 远程部署平台面（full-parity 2.9 装配缝）：remote/ 域命令（deployment、provision 族）与
@@ -68,8 +69,13 @@ export interface HostCommandDeps {
   dispatchDeps: HeadlessDeps;
   /** 交互派发终端适配器 */
   terminal: TerminalAdapter;
-  /** 桌宠生命周期（petShow/petHide/pomoTryFive） */
-  pet: { show(): Promise<unknown>; hide(): void; readonly running: boolean };
+  /** 桌宠生命周期（petShow/petHide/pomoTryFive）+ 番茄相位最新帧（petStatus 随行；helper 未运行 = null） */
+  pet: {
+    show(): Promise<unknown>;
+    hide(): void;
+    readonly running: boolean;
+    pomodoro(): PomoPhaseView | null;
+  };
   /** domain 写后直推（stateFeed.notifyLocalWrite——写命令收尾调用） */
   onWrites(): void;
   /** 常驻隧道服务（ADR-0003：双宿主让位 supervisor——非 dsh 宿主未装配时缺席，

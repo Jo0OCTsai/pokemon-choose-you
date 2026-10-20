@@ -18,10 +18,12 @@ export type { PanelSnapshot, TaskDetail } from "../host/commands/readCommands";
 import type { DeploymentDeleteResult, DeploymentEntity, DeploymentUpsertInput } from "../host/remote/deployments";
 import type { ProvisionErrorTag, ProvisionStatus, ProvisionStep } from "../host/remote/provision";
 import type { SessionPageResult, SessionRow } from "../host/dispatch/sessions";
+import type { PomoPhaseView } from "../host/pet/pomoState";
 export type {
   DeploymentDeleteResult,
   DeploymentEntity,
   DeploymentUpsertInput,
+  PomoPhaseView,
   ProvisionErrorTag,
   ProvisionStatus,
   ProvisionStep,
@@ -45,6 +47,7 @@ import type {
   ImportSummary,
   LarkTestResult,
   LogEntry,
+  PetStatusView,
   PkSetupReportView,
   RadioHealth,
   RestoreRunResult,
@@ -185,8 +188,9 @@ export interface HostClient {
   // 桌宠
   petShow(): Promise<PkyResult<{ ok: boolean }>>;
   petHide(): Promise<PkyResult<{ ok: boolean }>>;
-  /** 显隐状态（running = helper 子进程存活；背包桌宠分区状态行回显源） */
-  petStatus(): Promise<PkyResult<{ running: boolean }>>;
+  /** 显隐状态（running = helper 子进程存活；背包桌宠分区状态行回显源）+ 番茄相位最新帧
+   *  （chip 精确倒计时/短休息态数据源；helper 未运行或相位到期 = null） */
+  petStatus(): Promise<PkyResult<PetStatusView>>;
   petMove(params: { pos: { x: number; y: number } }): Promise<PkyResult<{ ok: boolean }>>;
   // 通用
   dbStatus(): Promise<PkyResult<DbStatus>>;

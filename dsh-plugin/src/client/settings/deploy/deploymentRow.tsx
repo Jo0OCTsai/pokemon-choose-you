@@ -5,9 +5,11 @@
  * + 「直连模式」角标（D31 留痕）+ 操作（开通 · 编辑 · 移除；断开态给「重连并检查」
  * ——busy 态文字换「检查中…」+ 复核结局行内呈现（仍断开 status / RPC 失败 alert）
  * + 常驻「重装远端组件」恢复链接（restart 重跑向导，helper 卸载死锁出口）
- * + 就绪态「开通 pk 通道」（ADR-0003：远端 agent CLI 判定的写回通道，busy 文字换态））。
+ * + 就绪态「开通 pk 通道」（ADR-0003：远端 agent CLI 判定的写回通道，busy 文字换态））
+ * + 常驻隧道状态徽章（pkTunnel.persistent 才显；五态文案 + title 详情，对齐桌面 DeploymentCard.vue
+ *   tunnelText；非常驻配置显「未运行」弱化字）。
  */
-import type { DeploymentEntity } from "../../rpc";
+import type { DeploymentListRow, TunnelStatusView } from "../../rpc";
 import { useT } from "../../i18n";
 import ui from "../../ui/ui.module.css";
 import styles from "./deploy.module.css";
@@ -18,7 +20,7 @@ type BadgeTone = "ready" | "readyDirect" | "notReady" | "disconnected";
 /** 重连复核行内反馈（父级按行 id 匹配下发；done 仅在仍断开时呈现） */
 export type RecheckFeedback = { phase: "busy" } | { phase: "down" } | { phase: "error"; text: string };
 
-function badgeOf(entity: DeploymentEntity): { tone: BadgeTone; key: string } {
+function badgeOf(entity: DeploymentListRow): { tone: BadgeTone; key: string } {
   if (entity.status === "ready") {
     return entity.degraded
       ? { tone: "readyDirect", key: "dsh.deploy.status.readyDirect" }
@@ -28,6 +30,34 @@ function badgeOf(entity: DeploymentEntity): { tone: BadgeTone; key: string } {
     return { tone: "disconnected", key: "dsh.deploy.status.disconnected" };
   }
   return { tone: "notReady", key: "dsh.deploy.status.notReady" };
+}
+
+/** 常驻隧道状态徽章：persistent 才显五态（隧道面未装配 null 按 off）；非常驻配置显「未运行」弱化字 */
+function TunnelBadge({ entity }: { entity: DeploymentListRow }): React.JSX.Element | null {
+  const t = useT();
+  const configured = entity.pkTunnel;
+  if (configured === null || configured === undefined) {
+    return null;
+  }
+  if (!configured.persistent) {
+    return (
+      <span className={ui.muted} data-testid="deploy-tunnel-off">
+        {t("dsh.deploy.tunnel.off")}
+      </span>
+    );
+  }
+  const status: TunnelStatusView = entity.tunnel ?? { state: "off", detail: "" };
+  return (
+    <span
+      className={styles.badge}
+      data-tone={`tunnel-${status.state}`}
+      data-testid="deploy-tunnel"
+      title={status.detail !== "" ? status.detail : undefined}
+    >
+      <span className={styles.badgeDot} data-tone={`tunnel-${status.state}`} aria-hidden="true" />
+      {t(`dsh.deploy.tunnel.${status.state}`)}
+    </span>
+  );
 }
 
 /** 状态相关主操作（断开 → 重连并检查（busy 文字换态）；未就绪 → 开通向导；就绪 → 开通 pk 通道（ADR-0003，busy 文字换态）） */
@@ -41,7 +71,7 @@ function RowPrimaryAction({
   onProvision,
   onSetupPk,
 }: {
-  entity: DeploymentEntity;
+  entity: DeploymentListRow;
   recheck: RecheckFeedback | null;
   readonly: boolean;
   wizardRunning: boolean;
@@ -142,7 +172,7 @@ export function DeploymentRowItem({
   onEdit,
   onRemove,
 }: {
-  entity: DeploymentEntity;
+  entity: DeploymentListRow;
   wizardRunning: boolean;
   readonly: boolean;
   recheck: RecheckFeedback | null;
@@ -173,6 +203,7 @@ export function DeploymentRowItem({
             </span>
           )}
           {entity.degraded && <span className={styles.directTag}>{t("dsh.deploy.directTag")}</span>}
+          <TunnelBadge entity={entity} />
         </div>
         <div
           className={styles.triple}

@@ -11,6 +11,7 @@ import { openAndInit } from "../src/host/storage/init";
 import type { Conn } from "../src/host/storage/db";
 import { assembleLoopsFull, assemblePollLoops, parityCommandDeps } from "../src/host/loopSection";
 import { assemblePet, type PluginSlots } from "../src/host/petSection";
+import { PomoStateStore } from "../src/host/pet/pomoState";
 import type { PluginDeps } from "../src/host/assembly";
 import { HealthState } from "../src/host/health/snapshot";
 import { createLark } from "../src/host/radio/lark";
@@ -49,7 +50,7 @@ function recorder(): { logs: Array<[string, string]>; log: HostLog } {
 
 describe("assemblePet（桌宠段装配）", () => {
   it("petSpawner 缺省 → supervisor null + stateFeed 仍在位（槽位回填）", () => {
-    const slots: PluginSlots = { feed: null, supervisor: null };
+    const slots: PluginSlots = { feed: null, supervisor: null, pomo: new PomoStateStore() };
     const rec = recorder();
     const { supervisor, stateFeed } = assemblePet({
       conn,
@@ -68,7 +69,7 @@ describe("assemblePet（桌宠段装配）", () => {
   });
 
   it("petSpawner 在位 → supervisor 装配 + 槽位回填（petVisible 投影 false）", () => {
-    const slots: PluginSlots = { feed: null, supervisor: null };
+    const slots: PluginSlots = { feed: null, supervisor: null, pomo: new PomoStateStore() };
     const rec = recorder();
     const { supervisor, stateFeed } = assemblePet({
       conn,

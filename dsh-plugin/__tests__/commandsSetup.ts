@@ -60,7 +60,7 @@ function fullDeps(conn: Conn, onWrites: () => void, openPage: (section?: string)
       }),
     },
     terminal: createFakeTerminal(),
-    pet: { show: async () => null, hide: () => undefined, running: false },
+    pet: { show: async () => null, hide: () => undefined, running: false, pomodoro: () => null },
     onWrites,
     openPage,
     feishuConfigured: true,

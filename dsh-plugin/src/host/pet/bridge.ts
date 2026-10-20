@@ -22,6 +22,7 @@ import {
   type MacAuthResultMsg,
   type NotifyClickedMsg,
   type PomodoroConfigMsg,
+  type PomoStateMsg,
   type ShortcutFiredMsg,
   type SpritesMsg,
   type SysUnsupportedMsg,
@@ -58,10 +59,12 @@ export interface BridgeClientStats {
   messagesOut: number;
 }
 
-/** 上行处理分发（基础四种 + 系统能力扩展六种；seq 四消息由 sys 通道内部消化） */
+/** 上行处理分发（基础五种 + 系统能力扩展六种；seq 四消息由 sys 通道内部消化） */
 export interface BridgeClientHandlers {
   onCmd(msg: CmdMsg): void;
   onFocusSettle(msg: FocusSettleMsg): void;
+  /** 番茄相位快照（相位迁移 / hello 后补发；宿主只留最新帧——chip 倒计时数据源） */
+  onPomoState?(msg: PomoStateMsg): void;
   onHello?(msg: HelloMsg): void;
   onCrashDiag?(msg: CrashDiagMsg): void;
   /** 托盘菜单动作（quit = 复用 supervisor 停 helper；settings 经 pageOpen 链——A37） */
@@ -232,7 +235,7 @@ export class BridgeClient {
     this.dispatchUpstream(msg);
   }
 
-  /** 上行分发（基础四种直派；seq 四消息进 sys 通道；sys 事件六种派可选处理器） */
+  /** 上行分发（基础五种直派；seq 四消息进 sys 通道；sys 事件六种派可选处理器） */
   private dispatchUpstream(msg: UpstreamMsg): void {
     if (msg.type === "cmd") {
       this.handlers.onCmd(msg);
@@ -240,6 +243,10 @@ export class BridgeClient {
     }
     if (msg.type === "focus-settle") {
       this.handlers.onFocusSettle(msg);
+      return;
+    }
+    if (msg.type === "pomo-state") {
+      this.handlers.onPomoState?.(msg);
       return;
     }
     if (msg.type === "hello") {

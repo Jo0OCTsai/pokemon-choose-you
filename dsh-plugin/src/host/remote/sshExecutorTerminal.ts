@@ -4,11 +4,13 @@
  *
  * spawnTerminal 开真 PTY（模型留本机）+ 任务命令行注入；同任务重派 = 同 sessionId
  * writeTerminal 注入（同一执行上下文，不新开会话）；原会话已关闭 → 新开 + note 明示。
- * 会话标识经 sessionRef 落 agent_sessions。
+ * 会话标识经 sessionRef 落 agent_sessions——带 `pty:` 标记（PTY 句柄非 agent 会话 id，
+ * 回放路由据此走 picker 分支不组 `--resume <句柄>`）。
  */
 import type { Conn } from "../storage/db";
 import type { TerminalAdapter } from "../dispatch/interactive";
 import { cdSegment } from "../dispatch/cmdline";
+import { ptyHandleOf, ptySessionRef } from "../dispatch/sessionsReplay";
 import type { DeploymentEntity } from "./deployments";
 import type { SshTerminalScope } from "./sshExecutor";
 
@@ -72,14 +74,14 @@ export function createRemoteTerminalAdapter(input: {
             "ORDER BY id DESC LIMIT 1",
         )
         .get(taskId, target) as { session_id: string } | undefined;
-      if (prev !== undefined && (await writeIntoTerminal(scope, prev.session_id, payload))) {
-        return { terminal: prev.session_id, sessionRef: prev.session_id };
+      const prevHandle = prev === undefined ? null : ptyHandleOf(prev.session_id);
+      if (prevHandle !== null && (await writeIntoTerminal(scope, prevHandle, payload))) {
+        return { terminal: prevHandle, sessionRef: ptySessionRef(prevHandle) };
       }
       const note = prev !== undefined ? "原会话已关闭，已开新会话注入" : undefined;
       const sessionId = await spawnTerminalWithLine(scope, payload, workdir, entity.alias);
-      return note === undefined
-        ? { terminal: sessionId, sessionRef: sessionId }
-        : { terminal: sessionId, sessionRef: sessionId, note };
+      const sessionRef = ptySessionRef(sessionId);
+      return note === undefined ? { terminal: sessionId, sessionRef } : { terminal: sessionId, sessionRef, note };
     },
   };
 }

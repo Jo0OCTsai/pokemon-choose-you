@@ -15,8 +15,8 @@ export type ChipMode = "running" | "paused" | "resting";
 export function ConversationChip({
   task,
   mode,
-  /** 计时秒数（dsh 形态 = 已专注时长快照：自 startedAt 起算、取最近一次刷新时的值
-   *  ——番茄倒计时态在 helper 侧（D2），客户端无周期动作 invariant（NFR-6）下的诚实替代） */
+  /** 计时秒数（dsh 形态 = 最近一次刷新时的快照值：helper 番茄相位在场取到期倒计时，
+   *  否则自 startedAt 起算的已专注时长——面板不驱动计时，客户端无周期动作 invariant（NFR-6）） */
   secondsLeft,
   /** 进行中任务分类的宝可梦名（运行态前缀） */
   pokemonName,

@@ -28,7 +28,7 @@ import { useCallback, useEffect, useState, type ReactNode } from "react";
 import { ConversationChip, type ChipMode } from "../chip/ConversationChip";
 import { ClientProvider } from "../clientContext";
 import { I18nProvider, type Locale } from "../i18n";
-import { createHostClient, type HostClient, type PageSection } from "../rpc";
+import { createHostClient, type HostClient, type PageSection, type PomoPhaseView } from "../rpc";
 import type { Task } from "../../host/domain/tasks";
 import { loadLocale, pokemonNameOf } from "./panelData";
 import { createPluginConfig, type ConfigFormsFace } from "./pluginConfig";
@@ -85,10 +85,12 @@ export const inject = ["slots", "locale", "connection", "configForms", "layout"]
 
 /**
  * chip 数据源（v1 事件驱动面，NFR-6 客户端无周期性自动动作——不设轮询定时器）：
- * panelSnapshot.currentTask + 分类精灵名 + dbStatus 只读位；挂载 / 就近控制动作后
- * （onMutate）/ 会话窗口重新可见（visibilitychange·focus）时拉取。计时秒 = 最近一次
- * 刷新时自 startedAt 起算的已专注时长（快照值——番茄倒计时态在 helper 侧（D2 决策），
- * 无下行通道前的诚实替代）；resting（短休息）同因不可达，仅 running/paused 两态。
+ * panelSnapshot.currentTask + 分类精灵名 + dbStatus 只读位 + petStatus.pomodoro（helper
+ * 番茄相位最新帧——D2 本地计时态经 pomo-state 上行落宿主）；挂载 / 就近控制动作后
+ * （onMutate）/ 会话窗口重新可见（visibilitychange·focus）时拉取。
+ * 计时秒 = 相位归属当前任务时取**到期倒计时**（focus/trial → running·paused，break →
+ * resting）；无相位（helper 未运行 / 未开番茄）回落自 startedAt 起算的已专注时长——两者
+ * 都是最近一次刷新时的快照值（面板不驱动计时）。
  */
 function useChipTask(
   host: HostClient,
@@ -101,13 +103,14 @@ function useChipTask(
   readonly: boolean;
   refresh: () => void;
 } {
-  const [state, setState] = useState<{ task: Task | null; pokemon: string; readonly: boolean }>({
-    task: null,
-    pokemon: "",
-    readonly: false,
-  });
+  const [state, setState] = useState<{
+    task: Task | null;
+    pokemon: string;
+    readonly: boolean;
+    pomodoro: PomoPhaseView | null;
+  }>({ task: null, pokemon: "", readonly: false, pomodoro: null });
   const refresh = useCallback((): void => {
-    void Promise.all([host.panelSnapshot(), host.dbStatus()]).then(([snap, db]) => {
+    void Promise.all([host.panelSnapshot(), host.dbStatus(), host.petStatus()]).then(([snap, db, pet]) => {
       if (!snap.ok) {
         return; // 读失败保持上一帧（下一次事件驱动刷新重试）
       }
@@ -117,6 +120,7 @@ function useChipTask(
         task,
         pokemon: category?.pokemon ?? "",
         readonly: db.ok && db.data.mode === "ro",
+        pomodoro: pet.ok ? pet.data.pomodoro : null,
       });
     });
   }, [host]);
@@ -135,16 +139,37 @@ function useChipTask(
     };
   }, [refresh]);
   const task = state.task;
-  const mode: ChipMode = task !== null && task.status === "paused" ? "paused" : "running";
-  const startedMs = task?.startedAt === null || task?.startedAt === undefined ? NaN : Date.parse(task.startedAt);
-  const secondsLeft = Number.isFinite(startedMs) ? Math.max(0, Math.floor((Date.now() - startedMs) / 1000)) : 0;
+  const timing = task === null ? null : chipTiming(task, state.pomodoro, Date.now());
   return {
     task,
-    mode,
-    secondsLeft,
+    mode: timing?.mode ?? "running",
+    secondsLeft: timing?.secondsLeft ?? 0,
     pokemonName: pokemonNameOf(state.pokemon, locale),
     readonly: state.readonly,
     refresh,
+  };
+}
+
+/**
+ * chip 计时三态判定：相位归属当前任务且未到期 → 倒计时（break = resting；focus/trial 随
+ * 任务 paused/running）；否则已专注时长快照（paused/running 两态）。
+ */
+export function chipTiming(
+  task: Task,
+  pomodoro: PomoPhaseView | null,
+  now: number,
+): { mode: ChipMode; secondsLeft: number } {
+  const base: ChipMode = task.status === "paused" ? "paused" : "running";
+  if (pomodoro !== null && (pomodoro.taskId === null || String(pomodoro.taskId) === String(task.id))) {
+    const endMs = Date.parse(pomodoro.endAt);
+    if (Number.isFinite(endMs) && endMs > now) {
+      return { mode: pomodoro.kind === "break" ? "resting" : base, secondsLeft: Math.ceil((endMs - now) / 1000) };
+    }
+  }
+  const startedMs = task.startedAt === null || task.startedAt === undefined ? NaN : Date.parse(task.startedAt);
+  return {
+    mode: base,
+    secondsLeft: Number.isFinite(startedMs) ? Math.max(0, Math.floor((now - startedMs) / 1000)) : 0,
   };
 }
 

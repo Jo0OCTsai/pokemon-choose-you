@@ -88,6 +88,26 @@ describe("createHelperRuntime 装配", () => {
     expect(typeof settle!.localSessionId).toBe("string");
     h.runtime.dispose();
   });
+
+  it("pomo-state 上行：hello 后首发 null 相位；专注/休息迁移即发（带 activeTask 归属）；到期置空再发", async () => {
+    const h = makeHarness();
+    const states = () => h.parsed().filter((m) => m.type === "pomo-state");
+    expect(states()).toHaveLength(1);
+    expect(states()[0]).toMatchObject({ phase: null, taskId: null, ts: 1_000_000 });
+    h.write(taskState(activeTask(9)));
+    h.runtime.pomo.beginFocus(25);
+    expect(states().at(-1)).toMatchObject({
+      taskId: 9,
+      phase: { kind: "focus", durationMin: 25, endAt: 1_000_000 + 25 * 60_000 },
+    });
+    h.runtime.pomo.beginBreak();
+    expect(states().at(-1)!.phase).toMatchObject({ kind: "break", endAt: 1_000_000 + 5 * 60_000 });
+    // 到期由 ticker 真 1s tick 判定（虚拟时钟越过 endAt 后等一拍）
+    h.advance(10 * 60_000);
+    await new Promise((r) => setTimeout(r, 1_100));
+    expect(states().at(-1)).toMatchObject({ phase: null, taskId: 9 });
+    h.runtime.dispose();
+  });
 });
 
 describe("createHelperRuntime · 上行与存亡", () => {

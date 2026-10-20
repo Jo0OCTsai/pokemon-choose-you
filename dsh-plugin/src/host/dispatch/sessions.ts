@@ -151,6 +151,10 @@ export function sessionFlags(
 
 export { sessionsPage, type SessionCounts, type SessionPageResult, type SessionRow } from "./sessionsPage";
 export {
+  isPtySessionRef,
+  ptyHandleOf,
+  ptySessionRef,
+  PTY_SESSION_REF_PREFIX,
   replayBranchOf,
   sessionReplay,
   sessionReplayable,

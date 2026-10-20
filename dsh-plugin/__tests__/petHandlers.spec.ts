@@ -9,6 +9,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { openAndInit } from "../src/host/storage/init";
 import type { Conn } from "../src/host/storage/db";
 import { petHandlers, type PluginSlots } from "../src/host/petSection";
+import { PomoStateStore } from "../src/host/pet/pomoState";
 import { HealthState } from "../src/host/health/snapshot";
 
 let dir: string;
@@ -52,7 +53,7 @@ function recorder(): { logs: Array<[string, string]>; log: HostLog } {
 describe("petHandlers（桥上行处理器）", () => {
   it("focus-settle 上行 → 写后直推（feed.notifyLocalWrite）", () => {
     const seen = { page: [] as string[], celebrate: [] as string[] };
-    const slots: PluginSlots = { feed: null, supervisor: null };
+    const slots: PluginSlots = { feed: null, supervisor: null, pomo: new PomoStateStore() };
     const h = handlersWith(slots, seen);
     const r = conn
       .prepare("INSERT INTO tasks (title, status, created_at) VALUES ('专注', 'active', '2026-01-01T00:00:00+00:00')")
@@ -70,7 +71,7 @@ describe("petHandlers（桥上行处理器）", () => {
 describe("petHandlers：完成庆祝与 sys 事件面", () => {
   it("done 上行：milestone 前后计数喂判定；非 milestone 不打扰", () => {
     const seen = { page: [] as string[], celebrate: [] as string[] };
-    const slots: PluginSlots = { feed: null, supervisor: null };
+    const slots: PluginSlots = { feed: null, supervisor: null, pomo: new PomoStateStore() };
     const h = handlersWith(slots, seen);
     // 真实任务完成：milestone 前后计数喂判定（非 milestone 不打扰——celebrate 空）
     conn
@@ -83,7 +84,7 @@ describe("petHandlers：完成庆祝与 sys 事件面", () => {
 
   it("sys 事件面：托盘/快捷键 open → pageOpen 链；显隐走 supervisor 空转", () => {
     const seen = { page: [] as string[], celebrate: [] as string[] };
-    const slots: PluginSlots = { feed: null, supervisor: null };
+    const slots: PluginSlots = { feed: null, supervisor: null, pomo: new PomoStateStore() };
     const h = handlersWith(slots, seen);
     h.onTrayAction?.({ action: "open" } as never);
     h.onTrayAction?.({ action: "settings" } as never);
@@ -99,7 +100,7 @@ describe("petHandlers：桌宠显隐与聊聊/庆祝链", () => {
   it("tray pet-toggle / shortcut togglePet → supervisor 显隐；petShow 走 show 异步面", () => {
     const seen = { page: [] as string[], celebrate: [] as string[] };
     const calls: string[] = [];
-    const slots: PluginSlots = { feed: null, supervisor: null };
+    const slots: PluginSlots = { feed: null, supervisor: null, pomo: new PomoStateStore() };
     const rec = recorder();
     const h = petHandlers({
       conn,
@@ -136,7 +137,7 @@ function seedDexToMilestone(): void {
 describe("petHandlers：聊聊降级与 milestone 庆祝", () => {
   it("pet-chat 上行：未配置 AI agent → 降级回复经桥 sendChatReply", () => {
     const replies: Array<[string, boolean]> = [];
-    const slots: PluginSlots = { feed: null, supervisor: null };
+    const slots: PluginSlots = { feed: null, supervisor: null, pomo: new PomoStateStore() };
     const rec = recorder();
     const h = petHandlers({
       conn,
@@ -157,7 +158,7 @@ describe("petHandlers：聊聊降级与 milestone 庆祝", () => {
 
   it("done 上行跨 milestone（第 10 只）→ announceCaught 触发（CatchShow 变体直推）", () => {
     const seen = { page: [] as string[], celebrate: [] as string[] };
-    const slots: PluginSlots = { feed: null, supervisor: null };
+    const slots: PluginSlots = { feed: null, supervisor: null, pomo: new PomoStateStore() };
     const rec = recorder();
     const h = petHandlers({
       conn,
@@ -183,7 +184,7 @@ describe("petHandlers：聊聊降级与 milestone 庆祝", () => {
 describe("petHandlers：捕捉与授权恢复分支", () => {
   it("capture 上行：未配置执行器 → warn 丢弃（不建任务）；mac-auth 恢复 → info 留痕", () => {
     const rec = recorder();
-    const slots: PluginSlots = { feed: null, supervisor: null };
+    const slots: PluginSlots = { feed: null, supervisor: null, pomo: new PomoStateStore() };
     const h = petHandlers({
       conn,
       health: new HealthState(),

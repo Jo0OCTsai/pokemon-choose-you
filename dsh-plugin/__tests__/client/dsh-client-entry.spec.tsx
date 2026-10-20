@@ -12,7 +12,7 @@
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import type { ComponentType } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { apply, type DshClientContext } from "../../src/client/dsh/clientEntry";
+import { apply, chipTiming, type DshClientContext } from "../../src/client/dsh/clientEntry";
 import { type ConfigFormsFace } from "../../src/client/dsh/pluginConfig";
 import {
   createPanelLabel,
@@ -179,6 +179,61 @@ describe("clientEntry · 会话头 chip（零占位）", () => {
     await waitFor(() => {
       expect(host.calls).toContainEqual({ command: "taskPause", params: { taskId: 3 } });
     });
+  });
+
+  it("helper 番茄相位（petStatus.pomodoro）归属当前任务 → chip 显到期倒计时；break → ☕ resting", async () => {
+    const endAt = new Date(Date.now() + 10 * 60_000).toISOString();
+    const host = mockHost({
+      tasks: [makeTask({ id: 3, status: "active", startedAt: "2026-10-11T08:30:00+08:00" })],
+      categories: [makeCategory({ id: 1, name: "工作", pokemon: "pikachu" })],
+      pomodoro: { kind: "focus", endAt, durationMin: 25, taskId: 3 },
+    });
+    const { registrations } = applyWith(host);
+    const Chip = registrations.find((r) => r.id === "pokemon-choose-you-dsh#chip")?.component as SlotC;
+    render(<Chip sessionId="s1" />);
+    const chipEl = await screen.findByTestId("conversation-chip");
+    expect(chipEl.getAttribute("data-mode")).toBe("running");
+    // 倒计时而非已专注时长（startedAt 在数天前——快照值会是巨大的分钟数）
+    expect(chipEl.textContent).toMatch(/\b(09:5\d|10:00)\b/);
+    expect(host.calls.some((c) => c.command === "petStatus")).toBe(true);
+    cleanup();
+    host.state.pomodoro = { kind: "break", endAt, durationMin: null, taskId: 3 };
+    render(<Chip sessionId="s1" />);
+    const resting = await screen.findByTestId("conversation-chip");
+    await waitFor(() => expect(resting.getAttribute("data-mode")).toBe("resting"));
+    expect(resting.textContent).toContain("☕");
+  });
+});
+
+describe("chipTiming · 相位归属与回落", () => {
+  const now = Date.parse("2026-10-20T10:00:00Z");
+  const task = makeTask({ id: 3, status: "active", startedAt: "2026-10-20T09:58:30Z" });
+  const later = new Date(now + 90_000).toISOString();
+
+  it("相位归属当前任务（或无归属）且未到期 → 倒计时秒；break → resting", () => {
+    expect(chipTiming(task, { kind: "focus", endAt: later, durationMin: 25, taskId: 3 }, now)).toEqual({
+      mode: "running",
+      secondsLeft: 90,
+    });
+    expect(chipTiming(task, { kind: "trial", endAt: later, durationMin: null, taskId: null }, now)).toEqual({
+      mode: "running",
+      secondsLeft: 90,
+    });
+    expect(chipTiming(task, { kind: "break", endAt: later, durationMin: null, taskId: "3" }, now).mode).toBe("resting");
+    expect(
+      chipTiming({ ...task, status: "paused" }, { kind: "focus", endAt: later, durationMin: 25, taskId: 3 }, now).mode,
+    ).toBe("paused");
+  });
+
+  it("相位归属别的任务 / 已到期 / 无相位 → 回落已专注时长快照（paused 随任务态）", () => {
+    const elapsed = { mode: "running", secondsLeft: 90 };
+    expect(chipTiming(task, { kind: "focus", endAt: later, durationMin: 25, taskId: 4 }, now)).toEqual(elapsed);
+    expect(
+      chipTiming(task, { kind: "focus", endAt: new Date(now - 1).toISOString(), durationMin: 25, taskId: 3 }, now),
+    ).toEqual(elapsed);
+    expect(chipTiming(task, null, now)).toEqual(elapsed);
+    expect(chipTiming({ ...task, status: "paused" }, null, now).mode).toBe("paused");
+    expect(chipTiming({ ...task, startedAt: null }, null, now).secondsLeft).toBe(0);
   });
 });
 

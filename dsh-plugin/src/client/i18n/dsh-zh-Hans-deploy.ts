@@ -32,6 +32,13 @@ export default {
       notReady: "未就绪",
       disconnected: "断开",
     },
+    tunnel: {
+      off: "隧道未运行",
+      connecting: "隧道建立中…",
+      healthy: "隧道已连通",
+      retrying: "隧道断线，重连中",
+      yielded: "隧道让位待命",
+    },
     form: {
       addTitle: "添加部署",
       editTitle: "编辑部署",

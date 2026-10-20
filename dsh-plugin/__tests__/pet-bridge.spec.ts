@@ -48,6 +48,27 @@ describe("上行解码与分发", () => {
     expect(settles[0]?.localSessionId).toBe("s-1");
   });
 
+  it("pomo-state 上行分发到可选处理器（相位快照 + null 相位）；处理器缺席不计错", () => {
+    const seen: unknown[] = [];
+    const helperToHost = new PassThrough();
+    const client = new BridgeClient({
+      handlers: { onCmd: () => undefined, onFocusSettle: () => undefined, onPomoState: (m) => seen.push(m) },
+    });
+    client.attach(helperToHost, new PassThrough());
+    helperToHost.write(
+      '{"type":"pomo-state","phase":{"kind":"focus","endAt":1500,"durationMin":25},"taskId":9,"ts":1}\n',
+    );
+    helperToHost.write('{"type":"pomo-state","phase":null,"taskId":null,"ts":2}\n');
+    expect(seen).toEqual([
+      { type: "pomo-state", phase: { kind: "focus", endAt: 1500, durationMin: 25 }, taskId: 9, ts: 1 },
+      { type: "pomo-state", phase: null, taskId: null, ts: 2 },
+    ]);
+    const { client: bare, helperToHost: bareIn } = makeBridge();
+    bareIn.write('{"type":"pomo-state","phase":null,"taskId":null,"ts":2}\n');
+    expect(bare.stats.messagesIn).toBe(1);
+    expect(bare.stats.invalidMessages).toBe(0);
+  });
+
   it("坏行 / 未知 type / 缺字段 → 计错不崩（丢弃立场与 helper 侧一致）", () => {
     const { client, helperToHost } = makeBridge();
     helperToHost.write('not json\n\n{"type":"unknown-x"}\n{"type":"cmd"}\n');

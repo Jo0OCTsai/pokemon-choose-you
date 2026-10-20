@@ -15,6 +15,7 @@ import {
   type CmdOp,
   type DownstreamMsg,
   type Lang,
+  type PomoPhaseSnapshot,
   type UpstreamMsg,
 } from "./protocol.ts";
 import { SYS_DOWNSTREAM_PARSERS, SYS_UPSTREAM_PARSERS } from "./validators-sys.ts";
@@ -148,6 +149,25 @@ function parseHello(v: Record<string, unknown>): UpstreamMsg | null {
   return { type: "hello", version: v.version, caps: v.caps };
 }
 
+const POMO_KINDS: readonly string[] = ["focus", "break", "trial"];
+
+function isPomoPhase(v: unknown): v is PomoPhaseSnapshot {
+  if (!isObj(v) || !isStr(v.kind) || !POMO_KINDS.includes(v.kind) || !isNum(v.endAt)) return false;
+  return v.durationMin === undefined || isNum(v.durationMin);
+}
+
+function parsePomoState(v: Record<string, unknown>): UpstreamMsg | null {
+  if (!isNum(v.ts)) return null;
+  if (v.phase !== null && !isPomoPhase(v.phase)) return null;
+  if (v.taskId !== null && !isTaskId(v.taskId)) return null;
+  return {
+    type: "pomo-state",
+    phase: v.phase as PomoPhaseSnapshot | null,
+    taskId: v.taskId as number | string | null,
+    ts: v.ts,
+  };
+}
+
 function parseCrashDiag(v: Record<string, unknown>): UpstreamMsg | null {
   if (!Array.isArray(v.entries) || !v.entries.every(isDiagEntry)) return null;
   return { type: "crash-diag", entries: v.entries };
@@ -175,6 +195,7 @@ const DOWNSTREAM_PARSERS: Record<string, (v: Record<string, unknown>) => Downstr
 const UPSTREAM_PARSERS: Record<string, (v: Record<string, unknown>) => UpstreamMsg | null> = {
   cmd: parseCmd,
   "focus-settle": parseFocusSettle,
+  "pomo-state": parsePomoState,
   hello: parseHello,
   "crash-diag": parseCrashDiag,
   ...SYS_UPSTREAM_PARSERS,

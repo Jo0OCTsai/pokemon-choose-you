@@ -32,6 +32,13 @@ export default {
       notReady: "Not ready",
       disconnected: "Disconnected",
     },
+    tunnel: {
+      off: "Tunnel not running",
+      connecting: "Tunnel connecting…",
+      healthy: "Tunnel connected",
+      retrying: "Tunnel down, reconnecting…",
+      yielded: "Tunnel yielded to another host",
+    },
     form: {
       addTitle: "Add deployment",
       editTitle: "Edit deployment",

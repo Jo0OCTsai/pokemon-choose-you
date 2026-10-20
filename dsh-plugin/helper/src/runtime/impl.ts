@@ -124,12 +124,17 @@ export class RuntimeImpl extends RuntimeStateBase implements HelperRuntime {
     beginFocus: (durationMin?: number) => {
       this.pomoTicker.beginFocus(durationMin);
       this.setPetState({ kind: "break-end" });
+      this.emitPomoState();
     },
-    beginTrial: () => this.pomoTicker.beginTrial(),
+    beginTrial: () => {
+      this.pomoTicker.beginTrial();
+      this.emitPomoState();
+    },
     beginBreak: () => {
       this.pomoTicker.beginBreak();
       this.setPetState({ kind: "break-start" });
       this.bubble(LINES.breakStart(this.langValue), "info");
+      this.emitPomoState();
     },
   };
 
@@ -209,6 +214,18 @@ export class RuntimeImpl extends RuntimeStateBase implements HelperRuntime {
       version: HELPER_VERSION,
       caps: [...HELPER_CAPS, ...this.sys.caps],
     });
+    // hello 后补发相位快照：宿主重启/重连后收敛到 helper 真值（首发 = null 相位）
+    this.emitPomoState();
+  }
+
+  /** 番茄相位上行（相位迁移与 hello 后；宿主只留最新一帧——chip 倒计时/短休息态数据源） */
+  private emitPomoState(): void {
+    this.bridge.send({
+      type: "pomo-state",
+      phase: this.pomoTicker.phase,
+      taskId: this.activeTaskValue?.id ?? null,
+      ts: this.now(),
+    });
   }
 
   private onTaskState(msg: TaskStateMsg): void {
@@ -267,6 +284,7 @@ export class RuntimeImpl extends RuntimeStateBase implements HelperRuntime {
 
   // ---- 番茄到期出口（气泡/宠物状态；绝不自动续轮） ----
   private onPomoEnded(wasBreak: boolean): void {
+    this.emitPomoState();
     if (!wasBreak) {
       this.bubble(LINES.pomoDone(this.langValue), "event", true);
       return;

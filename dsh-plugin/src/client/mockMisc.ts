@@ -108,7 +108,7 @@ export function miscCommands(
     },
     async petStatus() {
       ctx.record("petStatus");
-      return { ok: true, data: { running: ctx.state.petRunning } };
+      return { ok: true, data: { running: ctx.state.petRunning, pomodoro: ctx.state.pomodoro } };
     },
     async petMove(params) {
       ctx.record("petMove", params);

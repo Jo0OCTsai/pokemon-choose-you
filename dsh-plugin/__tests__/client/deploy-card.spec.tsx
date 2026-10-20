@@ -88,6 +88,47 @@ describe("部署卡列表与徽章", () => {
   });
 });
 
+describe("常驻隧道状态徽章（ADR-0003 双宿主呈现，对齐桌面 tunnelText）", () => {
+  it("persistent 部署显状态文案 + title 详情；非常驻显「隧道未运行」；未配置不显", async () => {
+    await boot(
+      mockHost({
+        deployments: [
+          makeDeployment({ id: "d1", alias: "gpu-1", status: "ready", pkTunnel: { port: 10022, persistent: true } }),
+          makeDeployment({ id: "d2", alias: "gpu-2", status: "ready", pkTunnel: { port: 10023, persistent: true } }),
+          makeDeployment({ id: "d3", alias: "gpu-3", status: "ready", pkTunnel: { port: 10024, persistent: false } }),
+          makeDeployment({ id: "d4", alias: "gpu-4", status: "ready" }),
+        ],
+        tunnelStates: {
+          d1: { state: "healthy", detail: "gpu-1 ⇄ 127.0.0.1:10022 已连通（keepalive 自愈中）" },
+          d2: { state: "yielded", detail: "另一宿主（PID 42）正在维持本部署隧道，让位待命中" },
+        },
+      }),
+    );
+    const badges = screen.getAllByTestId("deploy-tunnel");
+    expect(badges.map((b) => b.textContent)).toEqual(["隧道已连通", "隧道让位待命"]);
+    expect(badges[0]!.title).toContain("10022");
+    expect(badges[1]!.dataset["tone"]).toBe("tunnel-yielded");
+    expect(screen.getByTestId("deploy-tunnel-off").textContent).toBe("隧道未运行");
+    const rows = screen.getAllByTestId("deploy-row");
+    expect(within(rows[3]!).queryByTestId("deploy-tunnel")).toBeNull();
+    expect(within(rows[3]!).queryByTestId("deploy-tunnel-off")).toBeNull();
+  });
+
+  it("隧道面未装配（tunnel=null）→ persistent 部署按未运行呈现，无 title", async () => {
+    await boot(
+      mockHost({
+        deployments: [
+          makeDeployment({ id: "d1", alias: "gpu-1", status: "ready", pkTunnel: { port: 10022, persistent: true } }),
+        ],
+      }),
+    );
+    const badge = screen.getByTestId("deploy-tunnel");
+    expect(badge.textContent).toBe("隧道未运行");
+    expect(badge.dataset["tone"]).toBe("tunnel-off");
+    expect(badge.title).toBe("");
+  });
+});
+
 describe("DeployFormModal 新增/编辑", () => {
   it("新增：别名/路径行内校验（保存禁用语义 = 行内拒绝）→ 成功后自动进向导", async () => {
     const host = await boot(mockHost({ sshAliases: ["gpu-1", "gpu-9"] }));

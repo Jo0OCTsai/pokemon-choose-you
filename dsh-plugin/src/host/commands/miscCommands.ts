@@ -82,7 +82,8 @@ function petCommandSet(): CommandTable {
       return { ok: true };
     },
     // 桌宠显隐状态（背包桌宠分区状态行回显源：running = helper 子进程存活——hide 即停进程）
-    petStatus: (_p, deps) => ({ running: deps.pet.running }),
+    // + 番茄相位最新帧（chip 精确倒计时/短休息态数据源；helper 未运行或相位到期 = null）
+    petStatus: (_p, deps) => ({ running: deps.pet.running, pomodoro: deps.pet.pomodoro() }),
     petMove: (p, deps) => {
       setPetPos(deps.conn, (p as { pos: { x: number; y: number } }).pos);
       deps.onWrites();

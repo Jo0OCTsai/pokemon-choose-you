@@ -16,6 +16,7 @@ import { celebrateSolemn, caughtVariantOf, dexDoneCount } from "./pet/solemn";
 import { runPetChat } from "./pet/petChat";
 import { makeSysEventHandlers } from "./pet/sysEvents";
 import type { BridgeClient } from "./pet/bridge";
+import type { PomoStateStore } from "./pet/pomoState";
 import type { AgentEnvProvider } from "./dispatch/localEnv";
 import type { PluginDeps } from "./assembly";
 
@@ -23,6 +24,8 @@ import type { PluginDeps } from "./assembly";
 export interface PluginSlots {
   feed: StateFeed | null;
   supervisor: PetSupervisor | null;
+  /** 番茄相位最新帧（pomo-state 上行承载；petStatus 随行给 chip） */
+  pomo: PomoStateStore;
 }
 
 /** petHandlers 装配参数面（模块级类型——拆小函数共用） */
@@ -104,6 +107,7 @@ export function petHandlers(args: PetHandlerArgs): PetSupervisorOptions["handler
       handleFocusSettle(args.conn, msg);
       args.slots.feed?.notifyLocalWrite();
     },
+    onPomoState: (msg) => args.slots.pomo.set(msg),
     ...sysEventHandlersOf(args),
   };
 }

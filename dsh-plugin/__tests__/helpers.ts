@@ -184,7 +184,7 @@ export function commandDeps(conn: Conn, opts: { onWrites?: () => void } = {}): H
     newExecutor: () => null,
     dispatchDeps: { executorFor: () => undefined as never },
     terminal: createFakeTerminal(),
-    pet: { show: async () => undefined, hide: () => undefined, running: false },
+    pet: { show: async () => undefined, hide: () => undefined, running: false, pomodoro: () => null },
     onWrites: opts.onWrites ?? (() => undefined),
     openPage: () => undefined,
     feishuConfigured: true,

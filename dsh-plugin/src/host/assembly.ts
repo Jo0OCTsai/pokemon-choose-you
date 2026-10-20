@@ -32,6 +32,7 @@ import { StateFeed, type FeedTimerApi } from "./pet/stateFeed";
 import { PetSupervisor, memoryPetAutoStartStore, type HelperSpawner } from "./pet/supervisor";
 import type { PageOpenPayload } from "./pet/cmdHandler";
 import { assemblePet, type PluginSlots } from "./petSection";
+import { PomoStateStore } from "./pet/pomoState";
 import { assembleLoopsFull, assemblePollLoops, parityCommandDeps } from "./loopSection";
 import type { RemoteCommandPlatform } from "./commands";
 import type { SshFamilyProjection } from "./dsh/probeDsh";
@@ -129,6 +130,7 @@ function buildCommandDeps(args: {
   newExecutor: (c: Conn) => JudgeExecutor | null;
   supervisor: PetSupervisor | null;
   stateFeed: StateFeed;
+  pomo: PomoStateStore;
   openPage: (section?: "panel" | "settings") => void;
 }): HostCommandDeps {
   const { conn, deps } = args;
@@ -143,7 +145,7 @@ function buildCommandDeps(args: {
     newExecutor: () => args.newExecutor(conn),
     terminal: deps.terminal ?? createFakeTerminal(),
     ...(deps.terminalLine === undefined ? {} : { terminalLine: deps.terminalLine }),
-    pet: petFaceOf(args.supervisor),
+    pet: petFaceOf(args.supervisor, args.pomo),
     onWrites: () => args.stateFeed.notifyLocalWrite(),
     openPage: args.openPage,
     feishuConfigured: deps.feishuConfigured ?? true,
@@ -153,8 +155,8 @@ function buildCommandDeps(args: {
   };
 }
 
-/** 桌宠生命周期面（未装配 = show 报错不静默；hide/running 空转） */
-function petFaceOf(supervisor: PetSupervisor | null): HostCommandDeps["pet"] {
+/** 桌宠生命周期面（未装配 = show 报错不静默；hide/running 空转；相位只在 helper 运行中有效） */
+function petFaceOf(supervisor: PetSupervisor | null, pomo: PomoStateStore): HostCommandDeps["pet"] {
   return {
     show: async () => {
       if (supervisor === null) {
@@ -166,6 +168,7 @@ function petFaceOf(supervisor: PetSupervisor | null): HostCommandDeps["pet"] {
     get running() {
       return supervisor?.running ?? false;
     },
+    pomodoro: () => (supervisor?.running === true ? pomo.view() : null),
   };
 }
 
@@ -204,7 +207,7 @@ export function createPlugin(deps: PluginDeps = {}): Plugin {
   const log = pluginLogger(logs, createLogSink(deps.logDir));
   const lark: LarkCli = createLark(deps.larkBin ?? "lark-cli");
   const newExecutor = deps.newExecutor ?? ((conn: Conn) => defaultJudgeExecutor(conn, deps.agentEnv));
-  const slots: PluginSlots = { feed: null, supervisor: null };
+  const slots: PluginSlots = { feed: null, supervisor: null, pomo: new PomoStateStore() };
   const openPageListeners = new Set<(event: PageOpenPayload) => void>();
   const openPage = pageOpener(openPageListeners);
   const { supervisor, stateFeed } = assemblePet({ conn, deps, log, slots, openPage, health, newExecutor });
@@ -222,6 +225,7 @@ export function createPlugin(deps: PluginDeps = {}): Plugin {
     newExecutor,
     supervisor,
     stateFeed,
+    pomo: slots.pomo,
     openPage,
   });
   const plugin = buildPluginObject({

@@ -12,7 +12,7 @@
  * 只读模式：增删改与开通/中止/降级确认置灰（列表浏览与表单打开允许——§4.2 M7）。
  */
 import { useCallback, useEffect, useState } from "react";
-import type { DeploymentEntity, DeploymentListResult, SshFamilyView } from "../../rpc";
+import type { DeploymentEntity, DeploymentListResult, DeploymentListRow, SshFamilyView } from "../../rpc";
 import { useClient } from "../../clientContext";
 import { useT } from "../../i18n";
 import { Modal } from "../../ui/Modal";
@@ -51,8 +51,8 @@ function isEmptyList(list: DeploymentListResult | null): boolean {
   return list !== null && list.deployments.length === 0;
 }
 
-/** 列表行源（null 安全——未加载 = 空行） */
-function deploymentsOf(list: DeploymentListResult | null): DeploymentEntity[] {
+/** 列表行源（null 安全——未加载 = 空行；行带隧道状态随行） */
+function deploymentsOf(list: DeploymentListResult | null): DeploymentListRow[] {
   return list?.deployments ?? [];
 }
 

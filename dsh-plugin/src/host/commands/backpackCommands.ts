@@ -3,14 +3,15 @@
  * categoryDelete / tagUpsert / tagDelete / dimensionUpdate / filterList /
  * filterUpsert / agentUpsert / agentDelete / promptList / promptGet /
  * promptOverride / promptReset——薄转发 domain 词表与配置原语；另含复盘向导
- * 「标签体检」3 条（tagCheckup 本地预筛报告只读 + tagMerge/tagMoveDimension 治理写）。
+ * 「标签体检」3 条（tagCheckup 本地预筛 + 主 agent LLM 复核只读 + tagMerge/tagMoveDimension 治理写）。
  * agent 工具面 3 条（agentTest 连接探针 / pkSkillCheck / pkSkillInstall 本机分发）
  * 拆 commands/agentToolsCommands.ts。
  */
 import type { CommandTable } from "./context";
 import { categoryDelete, categoryUpsert } from "../domain/vocabulary";
 import { dimensionUpdate, tagDelete, tagUpsert } from "../domain/vocabulary-tags";
-import { mergeTag, moveTagsToDimension, tagCheckup } from "../domain/tag-health";
+import { mergeTag, moveTagsToDimension } from "../domain/tag-health";
+import { tagCheckupReviewed } from "../judge/tagHealthReview";
 import { filterList, filterUpsert, type FilterState } from "../domain/vocabulary-filters";
 import { agentDelete, agentUpsert, type AgentConfig } from "../domain/settings";
 import { deploymentByAlias } from "../remote/deployments";
@@ -59,10 +60,10 @@ function vocabularyCommands(): CommandTable {
   };
 }
 
-/** 复盘向导「标签体检」段（3 条）：本地预筛报告只读；合并/迁维度为治理写。LLM 复核为桌面专属，judged 恒 false */
+/** 复盘向导「标签体检」段（3 条）：预筛 + 主 agent LLM 复核（tag_checkup 同构，失败回落本地预筛 judged=false）；合并/迁维度为治理写 */
 function tagHealthCommands(): CommandTable {
   return {
-    tagCheckup: (_p, deps) => tagCheckup(deps.conn),
+    tagCheckup: (_p, deps) => tagCheckupReviewed({ conn: deps.conn, dispatchDeps: deps.dispatchDeps, log: deps.log }),
     tagMerge: (p, deps) => {
       const args = p as { fromId: number; intoId: number };
       mergeTag(deps.conn, args.fromId, args.intoId);
