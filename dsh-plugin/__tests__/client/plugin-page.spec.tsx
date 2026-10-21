@@ -79,7 +79,7 @@ describe("PluginDetailPage · 分段导航", () => {
 describe("PluginDetailPage · 只读传播（DB_SCHEMA_TOO_NEW）", () => {
   it("mode=ro 时顶部持久横幅 + 任务卡操作与发报禁用", async () => {
     const data = makeData({ tasks: [makeTask({ id: 1, status: "scheduled", dueAt: "2026-10-11T18:00:00+08:00" })] });
-    data.dbStatus = { userVersion: 9, pluginWindow: { min: 1, max: 2 }, mode: "ro" };
+    data.dbStatus = { userVersion: 9, pluginWindow: { min: 1, max: 2 }, mode: "readonly" };
     const { host } = renderPage(data);
     expect(screen.getByTestId("schema-banner").textContent).toContain("待办库版本较新");
     expect(screen.getByText("只读模式")).toBeTruthy();

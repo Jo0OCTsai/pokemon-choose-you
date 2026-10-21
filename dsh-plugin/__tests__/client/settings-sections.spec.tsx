@@ -165,7 +165,7 @@ describe("分区内容对齐主应用（U20）", () => {
     host.state.diagnostics = [
       {
         provider: "feishu",
-        level: "ok",
+        status: "ok",
         lastSuccessAt: "2026-10-11T08:00:00+08:00",
         nextPollAt: null,
         consecutiveFailures: 0,
@@ -176,7 +176,7 @@ describe("分区内容对齐主应用（U20）", () => {
       },
       {
         provider: "ai",
-        level: "degraded",
+        status: "degraded",
         lastSuccessAt: null,
         nextPollAt: null,
         consecutiveFailures: 1,

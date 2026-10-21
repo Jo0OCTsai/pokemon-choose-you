@@ -199,7 +199,7 @@ describe("移除与只读", () => {
   it("只读模式：添加/开通/编辑/移除全置灰（列表浏览允许）", async () => {
     await boot(
       mockHost({
-        dbStatus: { userVersion: 2, pluginWindow: { min: 1, max: 1 }, mode: "ro" },
+        dbStatus: { userVersion: 2, pluginWindow: { min: 1, max: 1 }, mode: "readonly" },
         deployments: [makeDeployment({ id: "d1", alias: "gpu-1" })],
       }),
     );

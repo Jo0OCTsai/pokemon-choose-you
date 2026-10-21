@@ -43,7 +43,7 @@ describe("HelperBanner（面板顶部 · U30）", () => {
   });
 
   it("与 SchemaBanner 同族不叠抢：只读态两者同时呈现、schema 在上", async () => {
-    const data = makeData({ dbStatus: { userVersion: 2, pluginWindow: { min: 1, max: 1 }, mode: "ro" } });
+    const data = makeData({ dbStatus: { userVersion: 2, pluginWindow: { min: 1, max: 1 }, mode: "readonly" } });
     render(<PluginDetailPage client={mockHost({ helperCaps: null })} data={data} onChanged={() => undefined} />);
     await flush();
     expect(screen.getByTestId("schema-banner")).toBeTruthy();

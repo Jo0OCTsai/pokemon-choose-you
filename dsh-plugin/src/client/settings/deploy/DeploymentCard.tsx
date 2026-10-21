@@ -106,7 +106,7 @@ export function DeploymentCard({ onChanged }: { onChanged: () => void }): React.
     reload();
     void client.dbStatus().then((result) => {
       if (result.ok) {
-        setReadonly(result.data.mode === "ro");
+        setReadonly(result.data.mode === "readonly");
       }
     });
     void client.diagnosticsSnapshot().then((result) => {

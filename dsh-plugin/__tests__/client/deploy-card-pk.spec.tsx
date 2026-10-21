@@ -85,7 +85,7 @@ describe("pk 通道开通（ADR-0003）", () => {
     await boot(
       mockHost({
         deployments: readyRow(),
-        dbStatus: { userVersion: 2, pluginWindow: { min: 1, max: 1 }, mode: "ro" },
+        dbStatus: { userVersion: 2, pluginWindow: { min: 1, max: 1 }, mode: "readonly" },
       }),
     );
     expect((screen.getByTestId("deploy-setup-pk") as HTMLButtonElement).disabled).toBe(true);

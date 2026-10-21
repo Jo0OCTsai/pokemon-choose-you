@@ -16,19 +16,24 @@ import { LcdScreen } from "../../ui/LcdScreen";
 import ui from "../../ui/ui.module.css";
 import styles from "../settings.module.css";
 
-/** 六态 level → 面板三档聚合（A23：诊断状态档位以主应用 health::level 六态为准，「三档」为面板呈现聚合） */
-function aggregateLevel(level: DiagnosticsLink["level"]): "ok" | "warn" | "fail" {
-  if (level === "ok" || level === "idle") {
+/** 六态 status → 面板三档聚合（A23：诊断状态档位以主应用 health::level 六态为准，「三档」为面板呈现聚合） */
+function aggregateLevel(status: DiagnosticsLink["status"]): "ok" | "warn" | "fail" {
+  if (status === "ok" || status === "idle") {
     return "ok";
   }
-  if (level === "degraded" || level === "paused") {
+  if (status === "degraded" || status === "paused") {
     return "warn";
   }
   return "fail";
 }
 
-function levelTextKey(level: DiagnosticsLink["level"]): string {
-  return `diag.status.${level}`;
+function statusTextKey(status: DiagnosticsLink["status"]): string {
+  return `diag.status.${status}`;
+}
+
+/** 下次轮询（host epoch 毫秒 → RFC3339 串，与 lastSuccessAt 同形直出；桌面 HealthCard fmtEpoch 同口径） */
+function nextPollText(nextPollAt: number): string {
+  return new Date(nextPollAt).toISOString();
 }
 
 /** 快捷键注册失败（null = 未知不显；false = 失败显示） */
@@ -62,14 +67,14 @@ export function DiagnosticsSection(): React.JSX.Element {
         {links.map((link) => (
           <div key={link.provider} className={styles.healthItem} data-testid="diag-link">
             <div className={styles.healthRow}>
-              <span className={styles.healthDot} data-level={aggregateLevel(link.level)} aria-hidden="true" />
+              <span className={styles.healthDot} data-level={aggregateLevel(link.status)} aria-hidden="true" />
               <span className={styles.healthName}>{t(`diag.provider.${link.provider}`)}</span>
-              <span className={styles.healthState} data-level={aggregateLevel(link.level)}>
-                {t(levelTextKey(link.level))}
+              <span className={styles.healthState} data-level={aggregateLevel(link.status)}>
+                {t(statusTextKey(link.status))}
               </span>
               <span className={styles.healthMeta}>
                 {link.lastSuccessAt !== null ? t("diag.lastSuccess", { v: link.lastSuccessAt }) : t("diag.never")}
-                {link.nextPollAt !== null && <> · {t("diag.nextPoll", { v: link.nextPollAt })}</>}
+                {link.nextPollAt !== null && <> · {t("diag.nextPoll", { v: nextPollText(link.nextPollAt) })}</>}
                 {link.provider === "feishu" && <> · {t("diag.pending", { n: link.pendingCount })}</>}
                 {link.primaryAgent !== null && <> · {t("diag.primaryAgent", { name: link.primaryAgent })}</>}
                 {" · "}

@@ -7,10 +7,8 @@
  * 的 value 即 host 侧业务信封（PROTOCOL §2 ok/fail——Remote 方法不抛错，业务错误码
  * 不进传输层错误路径），传输失败信封按 dsh 通用形态逆向还原（hint → details.hint）。
  *
- * 视图模型归一（平台胶水的漂移吸收位）：diagnosticsSnapshot 的 host 字段 status →
- * 客户端契约 DiagnosticsLink.level（Phase A 上线面冻结不改，client 消费面按契约取 level）。
- * pageOpen 推送：host 侧推送通道尚未接 dsh 事件面——本层先提供本地监听注册面
- * （emitPageOpen 供桥接/测试注入），真实 host→client 推送接面后续落型。
+ * pageOpen 推送：本层只持本地监听注册面（on/emitPageOpen），事件源 = pageOpenStream.ts 经
+ * ctx.remote 订阅 host 流端点 `pky/pageOpenEvents` 后调 emitPageOpen 注入（测试亦经此注入）。
  */
 import { ERROR_CODES, type HostTransport, type PageOpenEvent, type PkyErrorShape, type PkyResult } from "../rpc";
 
@@ -49,21 +47,6 @@ function restoreError(error: DshConnectionFailure): PkyErrorShape {
   return { code, message };
 }
 
-/** diagnosticsSnapshot 视图模型归一：host 字段 status → 客户端契约 level（level 已在则不动；status 键剔除——契约面外字段不透传） */
-function normalizeDiagnostics(value: unknown): unknown {
-  if (value === null || typeof value !== "object" || !Array.isArray((value as { links?: unknown }).links)) {
-    return value;
-  }
-  const links = (value as { links: unknown[] }).links.map((link) => {
-    if (link === null || typeof link !== "object" || typeof (link as { level?: unknown }).level === "string") {
-      return link;
-    }
-    const { status, ...rest } = link as { status?: unknown } & Record<string, unknown>;
-    return { ...rest, level: typeof status === "string" ? status : "off" };
-  });
-  return { ...(value as Record<string, unknown>), links };
-}
-
 /**
  * Remote 端点线面（单源 = host 侧 src/host/dsh/remoteService.ts 的服务名/方法名与
  * SRC 参数名；此处内联避免把 host 模块卷进 client bundle——同 settings 键字面量的
@@ -90,8 +73,7 @@ export function createDshRpcTransport(rpc: DshConnectionRpc): DshRpcTransport {
       if (!envelope.ok) {
         return { ok: false, error: envelope.error };
       }
-      const data = command === "diagnosticsSnapshot" ? normalizeDiagnostics(envelope.data) : envelope.data;
-      return { ok: true, data: data as T };
+      return { ok: true, data: envelope.data as T };
     },
     on(event: "pageOpen", listener: (event: PageOpenEvent) => void): () => void {
       if (event !== "pageOpen") {

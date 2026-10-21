@@ -13,7 +13,7 @@ import type { RemoteCommandPlatform } from "../commands/context";
 import { listDeployments } from "../remote/deployments";
 import { createRemoteDispatchGuard, type SshTerminalScope } from "../remote/sshExecutor";
 import { createSshScopeHost } from "./sshScope";
-import { probeDshCapabilities, sshFamilyOf, type SshFamilyProjection } from "./probeDsh";
+import { probeDshCapabilities, sshFamilyOf, type DshCapabilityProbes, type SshFamilyProjection } from "./probeDsh";
 
 /** 远程装配产物（platform + 断开事件挂接面 + 探测投影读取） */
 export interface RemoteAssembly {
@@ -22,6 +22,8 @@ export interface RemoteAssembly {
   onScopeDisconnected(listener: (deploymentId: string) => void): void;
   /** 家族探测投影（异步探测就绪后缓存；未就绪 = null 不显行） */
   familyProjection(): SshFamilyProjection | null;
+  /** 全量平台探测结果（diagnosticsSnapshot.capabilities 数据源；异步就绪后缓存，未就绪 = null） */
+  capabilities(): DshCapabilityProbes | null;
 }
 
 /** 闭包内 @deepseek-ai/dsh-ssh 包版本 + lib/helper.js 入口 sha256（provision/recheck 单源） */
@@ -43,9 +45,11 @@ function readClosureHelperArtifact(): { version: string; sha256: string } {
 export function remotePlatformOf(ctx: Context): RemoteAssembly {
   const scopeHost = createSshScopeHost(ctx);
   let projection: SshFamilyProjection | null = null;
+  let probes: DshCapabilityProbes | null = null;
   void probeDshCapabilities(ctx)
-    .then((probes) => {
-      projection = sshFamilyOf(probes);
+    .then((result) => {
+      probes = result;
+      projection = sshFamilyOf(result);
     })
     .catch((error: unknown) => {
       process.stderr.write(`[pokemon-choose-you] dsh-ssh 家族探测失败：${String(error)}\n`);
@@ -62,6 +66,7 @@ export function remotePlatformOf(ctx: Context): RemoteAssembly {
     },
     onScopeDisconnected: (listener) => scopeHost.onScopeDisconnected(listener),
     familyProjection: () => projection,
+    capabilities: () => probes,
   };
 }
 

@@ -134,7 +134,7 @@ describe("agent CAS：删除错误分流", () => {
     renderSettings(data, host);
     gotoSection("Agent");
     // 只读库守卫 → DB_SCHEMA_TOO_NEW（非冲突类错误）
-    host.state.dbStatus.mode = "ro";
+    host.state.dbStatus.mode = "readonly";
     const page = getPage("agents");
     fireEvent.click(within(page).getByText("删除"));
     const dialog = screen.getByRole("dialog");

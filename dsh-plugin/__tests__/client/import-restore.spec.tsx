@@ -209,7 +209,7 @@ describe("RestoreConfirmModal（备份卡恢复升级）", () => {
 });
 
 describe("只读禁用清单（M7）", () => {
-  const ro = { userVersion: 2, pluginWindow: { min: 1, max: 1 }, mode: "ro" as const };
+  const ro = { userVersion: 2, pluginWindow: { min: 1, max: 1 }, mode: "readonly" as const };
 
   it("「导入 JSON」「从文件恢复…」禁用；托管备份「恢复」放行（解除只读的既有通道）；导出不受限", async () => {
     await bootGeneral(mockHost({ backups: BACKUPS, dbStatus: ro }));

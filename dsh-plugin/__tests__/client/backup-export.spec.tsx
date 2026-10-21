@@ -87,7 +87,7 @@ describe("数据导出卡（三种导出按钮）", () => {
 describe("只读模式（dbStatus ro）", () => {
   it("备份与导出按钮统一禁用且不发起调用", async () => {
     const host = renderSection(
-      mockHost({ dbStatus: { userVersion: 9, pluginWindow: { min: 1, max: 2 }, mode: "ro" } }),
+      mockHost({ dbStatus: { userVersion: 9, pluginWindow: { min: 1, max: 2 }, mode: "readonly" } }),
     );
     await waitFor(() => {
       expect(screen.getByTestId("backup-now").hasAttribute("disabled")).toBe(true);

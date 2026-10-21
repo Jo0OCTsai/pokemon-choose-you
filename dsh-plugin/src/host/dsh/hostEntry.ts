@@ -126,6 +126,7 @@ function pluginDepsOf(
     helperPath: () => locateHelperMain() ?? "",
     remote: remote.platform,
     sshFamily: () => remote.familyProjection(),
+    capabilities: () => remote.capabilities(),
     // 常驻隧道服务面（deploymentList 状态行 + 部署写 resync）与 pk 通道开通执行器
     tunnels,
     pkSetup,
@@ -224,7 +225,7 @@ export function apply(ctx: Context, config: ResolvedPkyConfig): void {
   ctx.effect((): (() => void) => plugin.dispose);
   try {
     registerTodoTools(ctx, plugin);
-    new PkyRemoteService(ctx, plugin.commands);
+    new PkyRemoteService(ctx, plugin.commands, (listener) => plugin.onPageOpen(listener));
   } catch (error) {
     process.stderr.write(
       `[pokemon-choose-you] 工具/RPC 注册失败：${String(error)}\n${error instanceof Error ? error.stack : ""}\n`,

@@ -1,10 +1,39 @@
 import { resolve } from "node:path";
+import { transform as esbuildTransform } from "esbuild";
+import type { Plugin } from "vite";
 import { defineConfig } from "vitest/config";
+
+/**
+ * 标准装饰器降级（remoteService.ts 的 `@Remote`）：vite 8 的 oxc 转换不降级 TC39 标准装饰器
+ * （target es2022 亦原样放行，实测），Node 加载即 SyntaxError——含装饰器的 .ts 先经 esbuild
+ * 降级（与生产 build.mjs 同一 esbuild、同一 target 口径），oxc 再接手已是普通 JS。
+ * 只命中行首 `@标识符` 的文件（JSDoc 的 ` * @tag` 不命中），其余文件零开销。
+ */
+function standardDecorators(): Plugin {
+  return {
+    name: "pky-standard-decorators",
+    enforce: "pre",
+    async transform(code, id) {
+      if (!id.endsWith(".ts") || !/^\s*@[A-Za-z_$]/m.test(code)) {
+        return null;
+      }
+      const result = await esbuildTransform(code, {
+        loader: "ts",
+        target: "es2022",
+        format: "esm",
+        sourcemap: true,
+        sourcefile: id,
+      });
+      return { code: result.code, map: result.map };
+    },
+  };
+}
 
 // vitest 配置以 vite.config.ts 为载体（vitest 原生读取该文件名）：质量棘轮 ② 覆盖率地板的发现口径
 // 只扫 <svc>/vite.config.ts 的 thresholds 四维声明（quality_ratchet_check.py RE_VITE_THRESHOLDS），
 // 与根服务同构、单一声明源——不要改名为 vitest.config.ts（会脱离棘轮发现面）。
 export default defineConfig({
+  plugins: [standardDecorators()],
   resolve: {
     alias: {
       // 主应用字典源直引（A16）：client 半边零拷贝复用主应用三语字典 TS 源

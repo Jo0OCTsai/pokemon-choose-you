@@ -20,7 +20,9 @@
  *
  * chip 点击主体的 pageOpen 语义（打开插件页面）：经 ctx.layout.selectPanel 客户端
  * 闭环接真（见 sidebarPanel.createPanelOpener）；⏸/✔ 就近控制走 rpc 真实可用；
- * 桌宠双击的 host:pageOpen 推送仍待宿主事件面（transport 本地监听面已预留）。
+ * 桌宠双击/托盘/快捷键的 host:pageOpen 推送（2026-10-21 接真）：ctx.remote 订阅 host 流端点
+ * `pky/pageOpenEvents`（pageOpenStream.ts）→ transport.emitPageOpen → host.onPageOpen 两消费方
+ * ——本入口的导航监听（selectPanel 直达本面板）+ 面板内 usePageOpenAnchor（分段锚点）。
  * slots.inject 自带 ctx.effect 纤维回收（返回幂等 disposer），apply 内直接调用即得
  * 卸载清理（dsh cordis-client-runner 样例同形）。
  */
@@ -31,6 +33,7 @@ import { I18nProvider, type Locale } from "../i18n";
 import { createHostClient, type HostClient, type PageSection, type PomoPhaseView } from "../rpc";
 import type { Task } from "../../host/domain/tasks";
 import { loadLocale, pokemonNameOf } from "./panelData";
+import { hasPageOpenStreamFace, subscribePageOpen, type DshClientRemote } from "./pageOpenStream";
 import { createPluginConfig, type ConfigFormsFace } from "./pluginConfig";
 import { createDshRpcTransport, type DshConnectionRpc } from "./transport";
 import {
@@ -78,10 +81,14 @@ export interface DshClientContext {
   configForms: ConfigFormsFace;
   /** 布局面（chip 点击直达的面板选中；web 组合由 ui-layout 供给） */
   layout?: PanelLayoutFace;
+  /** Remote 面（api-gateway client）：pageOpen 推送流订阅——结构化收窄 + 特征检测，形态不符即不订阅 */
+  remote?: DshClientRemote;
+  /** fiber 效果注册（订阅流随本入口 fiber 卸载 dispose） */
+  effect(callback: () => () => void): () => void;
 }
 
-/** 必需服务（client 侧 ctx 属性名；web 组合齐备——configForms 随 ui-settings 装配） */
-export const inject = ["slots", "locale", "connection", "configForms", "layout"];
+/** 必需服务（client 侧 ctx 属性名；web 组合齐备——configForms 随 ui-settings 装配、remote 随 api-gateway client） */
+export const inject = ["slots", "locale", "connection", "configForms", "layout", "remote"];
 
 /**
  * chip 数据源（v1 事件驱动面，NFR-6 客户端无周期性自动动作——不设轮询定时器）：
@@ -119,7 +126,7 @@ function useChipTask(
       setState({
         task,
         pokemon: category?.pokemon ?? "",
-        readonly: db.ok && db.data.mode === "ro",
+        readonly: db.ok && db.data.mode === "readonly",
         pomodoro: pet.ok ? pet.data.pomodoro : null,
       });
     });
@@ -202,15 +209,20 @@ function createChipEntry(host: HostClient, openPage: (section?: PageSection) => 
   };
 }
 
-/** 客户端 apply：transport → HostClient → 三 slot 注册（fiber 卸载经 slots.inject 自带回收） */
+/** 客户端 apply：transport → HostClient → pageOpen 推送订阅 → 三 slot 注册（fiber 卸载经 slots.inject / effect 回收） */
 export function apply(ctx: DshClientContext): void {
-  const host = createHostClient(createDshRpcTransport(ctx.connection.rpc));
+  const transport = createDshRpcTransport(ctx.connection.rpc);
+  const host = createHostClient(transport);
   const pluginConfig = createPluginConfig(ctx.configForms);
+  const openPanel = createPanelOpener(ctx.layout);
+  // host:pageOpen（桌宠双击/托盘/快捷键）→ 导航直达本面板；分段锚点由面板内 usePageOpenAnchor 同源消费
+  host.onPageOpen((event) => openPanel(event.section));
+  const remote = ctx.remote;
+  if (hasPageOpenStreamFace(remote)) {
+    ctx.effect(() => subscribePageOpen(remote, (event) => transport.emitPageOpen(event)));
+  }
   ctx.slots.inject(CHIP_SLOT, () =>
-    ctx.slots.register(
-      { name: CHIP_SLOT, id: `${PKG_NAME}#chip` },
-      createChipEntry(host, createPanelOpener(ctx.layout)),
-    ),
+    ctx.slots.register({ name: CHIP_SLOT, id: `${PKG_NAME}#chip` }, createChipEntry(host, openPanel)),
   );
   ctx.slots.inject(PANEL_LIST_SLOT, () =>
     ctx.slots.register(

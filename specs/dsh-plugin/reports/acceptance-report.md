@@ -42,16 +42,29 @@
 
 `integration.spec.ts` 链路 ⑤：dsh 侧 `configWrite` 写共享库 → 同库读回值一致；主应用侧反向由 Playwright 回归（同库读写）+ 变更侦听（条目 7：外部写入 ≤2s 触发 events 广播→前端既有监听链刷新）承载——FR-T5「≤10 秒可见」上界 = 侦听间隔 2s ≪ 10s。
 
-## 4. A10 真实宿主手动验收清单（交付后执行；本环境无 dsh 宿主）
+## 4. A10 真实宿主手动验收清单（2026-10-21 执行）
 
-1. dsh 0.2.0-rc.2 本地路径安装本插件 → Plugins 页 detail page 七段面板渲染；Config schema live 表单出现。
-2. 会话说「记个待办：明天下午 5 点交周报」→ 模型经 `todo_context`+`todo_task_create` 建任务（路线段可见）；5 秒「撤销刚才那条」删除。
-3. 主应用与 dsh 同时开：任一形态完成任务，另一形态 ≤10s 刷新（变更侦听链）。
-4. 双桌宠并存：各自隐藏恢复、双击 dsh 桌宠开插件页面（pageOpen 经宿主导航）。
-5. 收音机：真实 lark-cli 授权 → 轮询拉取 → 判定建议卡 → 分诊建任务；双形态轮询同开不重复（claim 协议）。
-6. 无头派发真实 agent（worktree 开/关两态）+ 交互派发注入终端面板 + `todo_dispatch_done` 回传。
-7. 库版本窗口：手工把 user_version 推到 3 → 插件只读横幅（DB_SCHEMA_TOO_NEW）+ 主应用 FutureVersion 拒启（预期行为）。
-8. dsh 宿主 Node 运行时 `node:sqlite` 实测（A1 宿主侧——Electron 内嵌 Node 版本确认；不可用走 better-sqlite3 回落链，见 compatibility.md）。
+> 执行环境：本机 dsh 0.2.1-rc.2 web 宿主（`dsh --profile pky-test --no-open --port 14330`，隔离
+> `CHOOSE_YOU_HOME=/tmp/pky-e2e-20261021`，插件 0.1.2 构建产物新包名 `pokemon-choose-you-dsh` 重装）+
+> 真实 Electron 运行时（`~/.dsh/electron/dist`，`ELECTRON_RUN_AS_NODE` 探针——A3 实测的
+> desktop 宿主子进程同一运行体）。宿主侧命令经 web 面板同款 `/api/pky/call` 传输面驱动（浏览器
+> 页内 fetch，认证随会话 cookie）。证据截图 `screenshots/e2e-20261021-readonly-banner.png`。
+> 首轮真机冒烟（2026-10-17，full-parity 批次）另见 `specs/dsh-plugin-full-parity/reports/acceptance-report.md`。
+
+| # | 条目 | 结果 | 证据 |
+|---|---|---|---|
+| 1 | 本地路径安装 → 面板渲染 | ✅（本轮复验） | 冷启动零报错（`[pokemon-choose-you] 待办库：…`）；侧边栏 Pokédex 入口 → 主面板七分段渲染（DOM 断言 segment-nav + 冒险/路线/草丛/图鉴/收音机/日志/背包）；首轮 2026-10-17 §1.1 |
+| 2 | 会话工具建任务（LLM 驱动） | ⏸ 人工 | 需真实 LLM 会话消耗账号额度，无人值守未跑；工具注册面经 `registerTodoTools` 装配零错（宿主启动日志）+ 22 工具投影单测承载 |
+| 3 | 双形态同库互见 ≤10s | ⏸ 人工 | 需主应用与 dsh 同开同窗操作（GUI）；域面 = integration.spec 链路 ⑤ + stateFeed 2s 变更侦测 |
+| 4 | 双桌宠并存 + 双击开插件页 | ◐ 推送链已验、双击触发人工 | helper 真机拉起 ✅（petStatus.running=true、hello 八能力位、0.1.0）；**pageOpen host→client 推送链真机闭环（2026-10-21 新接）**：host `@Remote({mode:"stream"})` 流端点 `pky/pageOpenEvents` 经 gateway SRC 解析 → `/api/remote.mux` WebSocket mux 下行 ready 帧到浏览器（页内手工开流探针实测）；client 消费面（$stream 订阅 → emitPageOpen → selectPanel 导航 + 分段锚点）由单测锁定；「双击桌宠」触发本身是 GUI 手动项 |
+| 5 | 真实 lark-cli 授权链 | ⏸ 人工 | 授权属本机隐私交互（首轮 1.3 同口径）；轮询/判定/分诊域面由契约夹具锁定 |
+| 6 | 无头派发真实 agent + 交互注入终端 | ✅（此前批次） | 外部终端真窗口链 2026-10-18/21 真机已验（debt ③ 主体收口记录）；无头派发 + `todo_dispatch_done` 域面单测 |
+| 7 | user_version 推到 3 → 只读横幅 | ✅（本轮全链） | 隔离库 `PRAGMA user_version=3` → dbStatus `mode:"readonly"` → 面板只读横幅真机渲染（「待办库版本较新，需升级插件后才能写入…只读模式」）；**顺带暴露并修复 dbStatus mode 值漂移**（host `ok/readonly` vs client 契约 `rw/ro`——只读态在 dsh 形态原永不点亮，本轮收编对齐） |
+| 8 | dsh 宿主 Node `node:sqlite` 实测 | ✅（本轮） | **web 宿主**（系统 Node v24.21.0）：库创建/迁移/WAL 运行即证；**Electron 内嵌 Node**（44.7.0 内嵌 Node 24.21.0、SQLite 3.53.4、无实验告警）：契约 schema 17 表建齐、`chat_messages.judge_claimed_at` 在位、user_version 事务写读通过——A1 回落链（better-sqlite3）无需启用，见 compatibility.md A4 |
+
+**附带产出（本轮执行驱动）**：① diagnosticsSnapshot 增 `capabilities` 段（dsh 平台表面八键真机探测出口——compatibility.md 矩阵「探测键」列数据面，此前文档声称而代码未供）；② 真机八键实测结论与矩阵行更新（见 compatibility.md A4）；③ pky-test profile 完成新包名重装（debt「包正名后本机 profile 重装」该 profile 已销账）。
+
+**遗留人工项**：条目 2/3/4 双击触发/5 —— 均为 GUI 交互或账号消耗性质，域面已有自动化证据承载（见各行），不再开新 debt。
 
 ## 5. 已知遗留（详见 docs/debt.md）
 

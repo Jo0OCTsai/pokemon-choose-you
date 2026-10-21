@@ -15,7 +15,7 @@ import type { HeadlessDeps } from "../dispatch/headless";
 import type { InteractiveDeps, TerminalAdapter } from "../dispatch/interactive";
 import type { DeploymentEntity } from "../remote/deployments";
 import { RemoteDispatchRejection, type SshTerminalScope } from "../remote/sshExecutor";
-import type { SshFamilyProjection } from "../dsh/probeDsh";
+import type { SshFamilyProjection, DshCapabilityProbes } from "../dsh/probeDsh";
 import type { BridgeClient } from "../pet/bridge";
 import type { PomoPhaseView } from "../pet/pomoState";
 
@@ -112,6 +112,8 @@ export interface HostCommandDeps {
   shortcutRegistered?: () => boolean | null;
   /** dsh-ssh 家族探测投影（diagnosticsSnapshot.sshFamily；null = 未探测不显行） */
   sshFamily?: () => SshFamilyProjection | null;
+  /** dsh 平台表面全量探测（diagnosticsSnapshot.capabilities——timer/session/worktrees/ssh/storage/slots/terminal + dsh；null = 未探测） */
+  capabilities?: () => DshCapabilityProbes | null;
   /** task-state.caught 变体直推（完成路径郑重判定命中时——stateFeed.announceCaught） */
   announceCaught?(variant: { milestone?: number; streakDays?: number }): void;
   /** 桌宠显隐变化后的 sys-config 回推（tray.petVisible 托盘 label 同步——A3） */

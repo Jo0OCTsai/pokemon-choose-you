@@ -84,7 +84,7 @@ function PluginDetailPageInner({
   const requestSegment = useLeaveGuard(segment, settingsDirtyRef, setPendingLeave, setSegment);
   usePageOpenAnchor(client, requestSegment);
 
-  const readonly = data.dbStatus?.mode === "ro";
+  const readonly = data.dbStatus?.mode === "readonly";
   const pendingCount = countActionablePending(data.messages);
   const openTask = findTask(data.tasks, openTaskId);
 

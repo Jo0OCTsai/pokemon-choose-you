@@ -94,19 +94,21 @@ export interface DispatchRoute {
   context: string;
 }
 
-/** 待办库状态（dbStatus；mode=ro 时面板进只读） */
+/** 待办库状态（dbStatus；host MigrateResult 同形——mode=readonly 时面板进只读，2026-10-21 收编原 ro/rw 漂移） */
 export interface DbStatus {
   userVersion: number;
   pluginWindow: { min: number; max: number };
-  mode: "rw" | "ro";
+  mode: "ok" | "readonly";
 }
 
-/** 诊断链路面板行（diagnosticsSnapshot；六态 health::level 原样，呈现层聚合） */
+/** 诊断链路面板行（diagnosticsSnapshot；= host IntegrationHealthInfo 同形——六态 `status` 原样 +
+ *  `nextPollAt` epoch 毫秒，与桌面 Rust/Vue 契约一致（2026-10-21 收编原 client 侧 level/RFC3339 漂移）；呈现层聚合三档） */
 export interface DiagnosticsLink {
   provider: "feishu" | "ai";
-  level: "off" | "paused" | "idle" | "ok" | "degraded" | "down";
+  status: "off" | "paused" | "idle" | "ok" | "degraded" | "down";
   lastSuccessAt: string | null;
-  nextPollAt: string | null;
+  /** 下次预计轮询（epoch 毫秒；仅 feishu） */
+  nextPollAt: number | null;
   consecutiveFailures: number;
   lastError: string | null;
   lastErrorAt: string | null;
@@ -242,6 +244,8 @@ export interface DiagnosticsSnapshotData {
   sshFamily: SshFamilyView | null;
   /** helper 运行时版本（可选——矩阵「运行时来源与版本」行；null 不显） */
   helperVersion?: string | null;
+  /** dsh 平台表面全量探测（键 = compatibility.md 矩阵探测键；可选——旧 host 缺省；null = 未探测） */
+  capabilities?: Record<string, { ok: boolean; detail: string }> | null;
 }
 
 /** helper 能力矩阵六行呈现位 → hello.caps 能力位键（纪要④：8 位归并六行呈现） */

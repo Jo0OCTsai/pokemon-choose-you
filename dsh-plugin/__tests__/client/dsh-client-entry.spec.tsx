@@ -13,6 +13,7 @@ import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/re
 import type { ComponentType } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { apply, chipTiming, type DshClientContext } from "../../src/client/dsh/clientEntry";
+import type { DshClientRemote } from "../../src/client/dsh/pageOpenStream";
 import { type ConfigFormsFace } from "../../src/client/dsh/pluginConfig";
 import {
   createPanelLabel,
@@ -89,15 +90,16 @@ function fakeSlots() {
   return { slots, registrations };
 }
 
-/** apply 替身装配：可选注入宿主 locale 快照替身与 layout 替身（缺省不给——健壮性口径；
+/** apply 替身装配：可选注入宿主 locale 快照替身、layout 替身与 remote 替身（缺省不给——健壮性口径；
  * configForms 缺省给 unavailable 态替身——注册面断言不渲染配置区，行为面归
- * dsh-config-section.spec.tsx） */
+ * dsh-config-section.spec.tsx）；effect 记录注册的 disposer（pageOpen 流订阅的回收位） */
 function applyWith(
   host = mockHost(),
-  faces: { locale?: unknown; layout?: PanelLayoutFace; configForms?: ConfigFormsFace } = {},
+  faces: { locale?: unknown; layout?: PanelLayoutFace; configForms?: ConfigFormsFace; remote?: unknown } = {},
 ) {
   const slots = fakeSlots();
   const injectDisposers: Array<() => void> = [];
+  const effectDisposers: Array<() => void> = [];
   const realInject = slots.slots.inject.bind(slots.slots);
   slots.slots.inject = (key, contribute) => {
     const dispose = realInject(key, contribute);
@@ -118,8 +120,46 @@ function applyWith(
         }),
       } as ConfigFormsFace),
     layout: faces.layout,
+    remote: faces.remote as DshClientRemote | undefined,
+    effect(callback) {
+      const dispose = callback();
+      effectDisposers.push(dispose);
+      return dispose;
+    },
   });
-  return { ...slots, injectDisposers };
+  return { ...slots, injectDisposers, effectDisposers };
+}
+
+/** ctx.remote 替身：$stream 直通 open；openRemoteStream 回放帧序列（形态同 host pky/pageOpenEvents） */
+function fakeRemote(frames: unknown[]) {
+  let disposed = 0;
+  const remote: DshClientRemote = {
+    openRemoteStream: () =>
+      (async function* () {
+        for (const frame of frames) {
+          yield frame;
+        }
+      })(),
+    $stream(options) {
+      const source = options.open(new AbortController().signal);
+      return {
+        async *[Symbol.asyncIterator]() {
+          for await (const value of source) {
+            yield { value, accept: () => undefined };
+          }
+        },
+        dispose: async () => {
+          disposed += 1;
+        },
+      };
+    },
+  };
+  return {
+    remote,
+    get disposed() {
+      return disposed;
+    },
+  };
 }
 
 /** 宿主 locale 服务替身（快照携带生效 locale id） */
@@ -304,5 +344,29 @@ describe("clientEntry · chip 点击导航（客户端闭环）", () => {
 
   it("createPanelLabel 直连：宿主 locale 服务形态不符（无 getSnapshot）回落 en 标题", () => {
     expect(createPanelLabel({})()).toBe("Pokédex");
+  });
+});
+
+describe("clientEntry · host:pageOpen 推送 → 导航直达本面板", () => {
+  it("remote 在场：订阅 pky/pageOpenEvents 流，pageOpen 帧 → layout.selectPanel(PANEL_ID)；订阅挂 effect 回收", async () => {
+    const selectPanel = vi.fn();
+    const fake = fakeRemote([{ type: "ready" }, { type: "pageOpen", section: "settings" }, { type: "pageOpen" }]);
+    const { effectDisposers } = applyWith(mockHost(), { layout: { selectPanel }, remote: fake.remote });
+    await waitFor(() => expect(selectPanel).toHaveBeenCalledTimes(2));
+    expect(selectPanel).toHaveBeenCalledWith(PANEL_ID);
+    expect(effectDisposers).toHaveLength(1);
+    effectDisposers[0]?.();
+    await waitFor(() => expect(fake.disposed).toBe(1));
+  });
+
+  it("remote 缺席 / 形态不符（无 openRemoteStream）：不订阅、不注册 effect、apply 不抛", () => {
+    expect(applyWith(mockHost(), { remote: undefined }).effectDisposers).toEqual([]);
+    expect(applyWith(mockHost(), { remote: { $stream: () => undefined } }).effectDisposers).toEqual([]);
+  });
+
+  it("layout 缺席时推送仍被消费（opener noop 不抛）", async () => {
+    const fake = fakeRemote([{ type: "ready" }, { type: "pageOpen", section: "panel" }]);
+    expect(() => applyWith(mockHost(), { remote: fake.remote })).not.toThrow();
+    await new Promise((r) => setTimeout(r, 0));
   });
 });

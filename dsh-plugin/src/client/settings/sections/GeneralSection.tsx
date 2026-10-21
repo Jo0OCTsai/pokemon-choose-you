@@ -30,7 +30,7 @@ export function GeneralSection(props: SectionProps & { onChanged?: () => void })
   const client = useClient();
   const [dbStatus, setDbStatus] = useState<DbStatus | null>(null);
   // 只读模式（库版本较新）：写动作按钮统一禁用（桌面无此态，dsh 按 §4.2 禁用清单口径）
-  const readonly = dbStatus?.mode === "ro";
+  const readonly = dbStatus?.mode === "readonly";
 
   // 挂载即探测库状态（只读判定）
   useEffect(() => {
@@ -80,7 +80,7 @@ export function GeneralSection(props: SectionProps & { onChanged?: () => void })
             <span className={ui.muted}>
               {t("dsh.settings.dbUserVersion", {
                 v: dbStatus.userVersion,
-                mode: dbStatus.mode === "ro" ? t("dsh.settings.dbModeRo") : t("dsh.settings.dbModeRw"),
+                mode: dbStatus.mode === "readonly" ? t("dsh.settings.dbModeRo") : t("dsh.settings.dbModeRw"),
               })}
             </span>
           )}

@@ -49,6 +49,20 @@ describe("host 命令装配面 · 实体读域", () => {
   });
 });
 
+describe("host 命令装配面 · 诊断 capabilities 段", () => {
+  it("缺省 null（未装配）；注入后全量探测段随行投影", async () => {
+    const plain = (await f.call("diagnosticsSnapshot")) as { data: { capabilities: unknown } };
+    expect(plain.data.capabilities).toBeNull();
+    f.deps.capabilities = () =>
+      ({ "dsh-timer": { ok: true, detail: "ctx.interval" }, "dsh-ssh": { ok: false, detail: "missing" } }) as never;
+    const rich = (await f.call("diagnosticsSnapshot")) as {
+      data: { capabilities: Record<string, { ok: boolean; detail: string }> };
+    };
+    expect(rich.data.capabilities["dsh-timer"]).toEqual({ ok: true, detail: "ctx.interval" });
+    expect(rich.data.capabilities["dsh-ssh"]).toEqual({ ok: false, detail: "missing" });
+  });
+});
+
 describe("host 命令装配面 · 备份/导出域", () => {
   it("backupRun/backupList/exportRun 三种 kind 信封 ok（产物落盘细节见 backup-export.spec）", async () => {
     // 数据目录经 CHOOSE_YOU_HOME 注入临时根（默认会落用户真实 home——测试须显式指向）

@@ -121,6 +121,9 @@ export function optionalPlatformParts(deps: PluginDeps): Partial<HostCommandDeps
   if (deps.sshFamily !== undefined) {
     parts.sshFamily = deps.sshFamily;
   }
+  if (deps.capabilities !== undefined) {
+    parts.capabilities = deps.capabilities;
+  }
   if (deps.tunnels !== undefined) {
     parts.tunnels = deps.tunnels;
   }
@@ -143,6 +146,7 @@ export function parityCommandDeps(args: {
   | "petBridge"
   | "helperPath"
   | "sshFamily"
+  | "capabilities"
   | "announceCaught"
   | "onPetLifecycle"
   | "tunnels"

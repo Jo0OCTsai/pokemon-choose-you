@@ -120,7 +120,7 @@ export function makeData(overrides: Partial<PanelData> = {}): PanelData {
       dispatch_worktree: "true",
       feishu_enabled: "false",
     },
-    dbStatus: { userVersion: 1, pluginWindow: { min: 1, max: 1 }, mode: "rw" },
+    dbStatus: { userVersion: 1, pluginWindow: { min: 1, max: 1 }, mode: "ok" },
     ...overrides,
   };
 }

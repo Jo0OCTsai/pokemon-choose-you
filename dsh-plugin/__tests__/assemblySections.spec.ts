@@ -198,7 +198,7 @@ describe("parityCommandDeps：dispatchDeps 合并分支", () => {
     expect(b.dispatchDeps?.executorFor).toBeDefined();
   });
 
-  it("remote/监督器/helperPath/sshFamily 在位 → 对应键全量接线", () => {
+  it("remote/监督器/helperPath/sshFamily/capabilities 在位 → 对应键全量接线", () => {
     const remote = fakeRemotePlatform();
     const supervisor = { currentBridge: () => null, running: false } as never;
     const out = parityCommandDeps({
@@ -207,6 +207,7 @@ describe("parityCommandDeps：dispatchDeps 合并分支", () => {
         remote,
         helperPath: () => "/h/main.js",
         sshFamily: () => ({ ok: true, detail: "", missing: false }),
+        capabilities: () => null,
       }),
       supervisor,
       stateFeed: feedStub,
@@ -217,5 +218,6 @@ describe("parityCommandDeps：dispatchDeps 合并分支", () => {
     expect(out.petBridge).toBeDefined();
     expect(out.helperPath).toBeDefined();
     expect(out.sshFamily).toBeDefined();
+    expect(out.capabilities).toBeDefined();
   });
 });

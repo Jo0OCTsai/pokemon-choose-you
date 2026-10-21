@@ -35,7 +35,7 @@ import { assemblePet, type PluginSlots } from "./petSection";
 import { PomoStateStore } from "./pet/pomoState";
 import { assembleLoopsFull, assemblePollLoops, parityCommandDeps } from "./loopSection";
 import type { RemoteCommandPlatform } from "./commands";
-import type { SshFamilyProjection } from "./dsh/probeDsh";
+import type { DshCapabilityProbes, SshFamilyProjection } from "./dsh/probeDsh";
 import type { ReminderLoop } from "./reminder/loop";
 import { ReminderDelivery } from "./reminder/deliver";
 import type { DailyBackupOutcome } from "./domain/backup-loop";
@@ -84,8 +84,9 @@ export interface PluginDeps {
   tunnels?: HostCommandDeps["tunnels"];
   /** pk 通道开通执行器（`pk remote setup` spawn + 本机 pk 落位；缺省命令降级拒绝） */
   pkSetup?: HostCommandDeps["pkSetup"];
-  /** dsh-ssh 家族探测投影（diagnosticsSnapshot.sshFamily 数据源；缺省 null 不显行） */
+  /** 诊断探测面数据源（sshFamily 家族投影 / capabilities 全量平台表面——diagnosticsSnapshot；缺省 null = 不显行/未探测） */
   sshFamily?: () => SshFamilyProjection | null;
+  capabilities?: () => DshCapabilityProbes | null;
   /** helper 入口路径（macAuthorizationStatus 回显；缺省空串） */
   helperPath?: () => string;
   /** 日志落盘目录（缺省 = <appHome>/logs 定位；null = 关闭落盘仅内存环——测试注入） */
@@ -181,9 +182,7 @@ function startExtras(plugin: Plugin, deps: PluginDeps, log: HostCommandDeps["log
   }
   const autoStart = deps.petAutoStart ?? memoryPetAutoStartStore();
   if (plugin.supervisor !== null && autoStart.get()) {
-    void plugin.supervisor.show().catch((error: unknown) => {
-      log("warn", "pet", `helper 拉起失败：${String(error)}`);
-    });
+    void plugin.supervisor.show().catch((error: unknown) => log("warn", "pet", `helper 拉起失败：${String(error)}`));
   }
 }
 

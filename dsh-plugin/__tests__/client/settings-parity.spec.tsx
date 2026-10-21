@@ -137,7 +137,7 @@ describe("分类与标签分区对齐（停用开关 + 标签管理卡）", () =
 
   it("分类停用失败（只读库）：行内错误不弹窗", async () => {
     const host = mockHost();
-    host.state.dbStatus.mode = "ro";
+    host.state.dbStatus.mode = "readonly";
     renderSettings(makeData(), host);
     gotoSection("分类与标签");
     const page = getPage("taxonomy");

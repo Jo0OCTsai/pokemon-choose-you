@@ -2,7 +2,7 @@
  * DshRpcTransport 信封还原（Phase B 适配层，Typert Remote 迁移后形态）：命令 → /api
  * 通道 Remote 端点 pky/call（args 按源码参数名键控）→ 传输层 ConnectionRpcResult 的
  * value = 业务信封原样透传（双信封剥层）；传输失败信封还原（details.hint→hint /
- * 未知码折叠）、diagnosticsSnapshot 视图模型归一（status→level）、pageOpen 本地监听面。
+ * 未知码折叠）、载荷一律原样透传（diagnosticsSnapshot 的 status/epoch 契约已与 host 同形）、pageOpen 本地监听面。
  */
 import { describe, expect, it, vi } from "vitest";
 import { createDshRpcTransport, type DshConnectionResult } from "../../src/client/dsh/transport";
@@ -85,42 +85,21 @@ describe("DshRpcTransport · 信封还原", () => {
   });
 });
 
-describe("DshRpcTransport · diagnosticsSnapshot 归一", () => {
-  it("host 字段 status → 客户端契约 level（level 已在则不动）", async () => {
-    const rpc = fakeRpc([
-      {
-        ok: true,
-        value: {
-          ok: true,
-          data: {
-            links: [
-              { provider: "feishu", status: "degraded" },
-              { provider: "ai", level: "ok" },
-            ],
-          },
-        },
-      },
-    ]);
-    const result = await createDshRpcTransport(rpc).send("diagnosticsSnapshot");
-    expect(result).toEqual({
-      ok: true,
-      data: {
-        links: [
-          { provider: "feishu", level: "degraded" },
-          { provider: "ai", level: "ok" },
-        ],
-      },
-    });
-  });
-
-  it("非 diagnostics 命令与其他形态载荷原样透传", async () => {
+describe("DshRpcTransport · 载荷透传", () => {
+  it("diagnosticsSnapshot 与其他命令一律原样透传（host IntegrationHealthInfo 同形契约——status/epoch 不再归一）", async () => {
     const rpc = fakeRpc([
       { ok: true, value: { ok: true, data: { ok: true } } },
-      { ok: true, value: { ok: true, data: { links: null } } },
+      {
+        ok: true,
+        value: { ok: true, data: { links: [{ provider: "feishu", status: "degraded", nextPollAt: 1760145600000 }] } },
+      },
     ]);
     const transport = createDshRpcTransport(rpc);
     expect(await transport.send("petShow")).toEqual({ ok: true, data: { ok: true } });
-    expect(await transport.send("diagnosticsSnapshot")).toEqual({ ok: true, data: { links: null } });
+    expect(await transport.send("diagnosticsSnapshot")).toEqual({
+      ok: true,
+      data: { links: [{ provider: "feishu", status: "degraded", nextPollAt: 1760145600000 }] },
+    });
   });
 });
 

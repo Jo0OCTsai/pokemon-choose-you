@@ -60,10 +60,18 @@
   `capabilities["dsh-ssh"]` 的呈现投影（`sshFamilyOf`，不另立第二条探测路径）。
 - `remoteService.ts` —— host→客户端数据面（Typert Remote，2026-10-13 迁移）：
   `PkyRemoteService extends TypertRemoteService`（`super(ctx, "pky")`——服务名即 wire
-  命名空间），单方法 `@Remote("call")` 转发 `plugin.commands`（69 命令不拆分），业务
+  命名空间），`@Remote("call")` 转发 `plugin.commands`（69 命令不拆分），业务
   信封（PROTOCOL §2）作 Remote 返回值原样透传——api-gateway 在共享 `/api` 通道按端点
   `pky/call` 经 SRC 模式解析（源码参数名 = wire 字段；**本包构建不 minify 是 SRC 解析
   的硬依赖**），gateway 经 `ctx.get("pky")` 直取服务——无消费方 inject、无晚供问题。
+  **推送面（2026-10-21）**：`@Remote({ mode: "stream", name: "pageOpenEvents" })` 流方法
+  （端点 `pky/pageOpenEvents`，末参 `signal` = SRC 取消注入位，零业务参数 wire `{args:{}}`）
+  ——业务体 `pageOpenStream.ts`（零 dsh import：首帧 ready 供客户端 $stream accept 重置
+  重连计数 + 逐条 `plugin.onPageOpen` 事件 + signal/return() 退订）；gateway 对 SRC 流
+  端点经逻辑流载体分发（浏览器 /api/remote.mux WebSocket mux），unary 路径拒绝流方法。
+  SRC 标记契约（端点名/mode）由 `__tests__/dsh-remote-service.spec.ts` 真实 cordis Context
+  + typert `remoteMethods` 锁定（vitest 加载装饰器文件需 vite.config.ts 的 esbuild 降级
+  插件——vite 8 oxc 不降级标准装饰器）。
   原自定义通道（connection.rpc.handle "/pky"）在 rc.2 对第三方不可用（影子 ctx 读
   owner.webServer 撞严格制——证据链见 debt.md 历史条目），rpcDispatch.ts/rpcChannel.ts
   已删除。

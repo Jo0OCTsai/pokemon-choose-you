@@ -167,7 +167,7 @@ function createContext(initial: Partial<MockHostState>): MockContext {
       return state.messages.find((m) => m.messageId === messageId);
     },
     guardWritable() {
-      return state.dbStatus.mode === "ro"
+      return state.dbStatus.mode === "readonly"
         ? new PkyError("DB_SCHEMA_TOO_NEW", "待办库版本较新，需升级插件后才能写入")
         : null;
     },

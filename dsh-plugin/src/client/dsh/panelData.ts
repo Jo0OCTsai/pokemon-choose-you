@@ -105,17 +105,16 @@ function healthLevel(status: string | undefined): RadioHealth["level"] {
   return status === "paused" || status === "degraded" ? "warn" : "ok";
 }
 
-/** feishu 链路 → 收音机健康四元组（nextPollAt 宿主承载为 epoch 毫秒、client 契约为 RFC3339 串——本层归一；链路缺勤 = 健康绿灯空态） */
+/** feishu 链路 → 收音机健康四元组（RadioHealth 视图：六态聚合三档 + epoch 毫秒投影 RFC3339 串——与 host panelRadioHealth 同一投影；链路缺勤 = 健康绿灯空态） */
 function healthFromLinks(links: readonly DiagnosticsLink[]): RadioHealth {
   const feishu = links.find((l) => l.provider === "feishu");
   if (feishu === undefined) {
     return { level: "ok", lastSuccessAt: null, nextPollAt: null, consecutiveFailures: 0, pendingCount: 0 };
   }
-  const nextPollAt = feishu.nextPollAt === null ? null : new Date(feishu.nextPollAt as string | number).toISOString();
   return {
-    level: healthLevel(feishu.level),
+    level: healthLevel(feishu.status),
     lastSuccessAt: feishu.lastSuccessAt,
-    nextPollAt,
+    nextPollAt: feishu.nextPollAt === null ? null : new Date(feishu.nextPollAt).toISOString(),
     consecutiveFailures: feishu.consecutiveFailures,
     pendingCount: feishu.pendingCount,
   };
@@ -124,7 +123,7 @@ function healthFromLinks(links: readonly DiagnosticsLink[]): RadioHealth {
 /** feishu 链路 → 授权态（off = lark-cli 未配置 → 未授权横幅；失效信号未有承载位，v1 恒 false） */
 function authFromLinks(links: readonly DiagnosticsLink[]): { authorized: boolean; expired: boolean } {
   const feishu = links.find((l) => l.provider === "feishu");
-  return { authorized: feishu?.level !== "off", expired: false };
+  return { authorized: feishu?.status !== "off", expired: false };
 }
 
 /** 名录行命中：简/繁名按原文包含、英文与 key 小写包含、编号精确等值 */

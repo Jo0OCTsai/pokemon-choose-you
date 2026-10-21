@@ -31,7 +31,7 @@ export function defaultState(): MockHostState {
     settings: {},
     agents: [],
     health: defaultHealth(),
-    dbStatus: { userVersion: 1, pluginWindow: { min: 1, max: 1 }, mode: "rw" },
+    dbStatus: { userVersion: 1, pluginWindow: { min: 1, max: 1 }, mode: "ok" },
     larkAuthorized: true,
     filters: [],
     logEntries: [],

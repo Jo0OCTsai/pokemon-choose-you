@@ -200,12 +200,12 @@ describe("mockHost 语义子集", () => {
   it("只读模式（DB_SCHEMA_TOO_NEW）：写命令统一拒绝、浏览不受影响", async () => {
     const host = mockHost({
       tasks: [makeTask({ id: 1 })],
-      dbStatus: { userVersion: 9, pluginWindow: { min: 1, max: 2 }, mode: "ro" },
+      dbStatus: { userVersion: 9, pluginWindow: { min: 1, max: 2 }, mode: "readonly" },
     });
     const blocked = await host.taskStart({ taskId: 1 });
     expect(!blocked.ok && blocked.error.code).toBe("DB_SCHEMA_TOO_NEW");
     const read = await host.dbStatus();
-    expect(read.ok && read.data.mode).toBe("ro");
+    expect(read.ok && read.data.mode).toBe("readonly");
   });
 
   it("放生撤销窗口：taskDelete 落墓碑、taskDeleteUndo 恢复", async () => {

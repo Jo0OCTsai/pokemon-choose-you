@@ -38,7 +38,7 @@ export function TaskDetailDrawer({
   onChanged: () => void;
 }): React.JSX.Element {
   const client = useClient();
-  const readonly = data.dbStatus?.mode === "ro";
+  const readonly = data.dbStatus?.mode === "readonly";
   const ref = useFocusTrapTarget(onClose);
   const category = categories.find((c) => c.id === task.categoryId);
   const [detail, reloadDetail] = useTaskDetail(client, task.id);

@@ -43,16 +43,23 @@ function requireBridge(deps: HostCommandDeps) {
   return bridge;
 }
 
+/** dsh 平台表面全量探测快照（未装配 = null——同 helperCaps 的取值形态） */
+function capabilitiesOf(deps: HostCommandDeps) {
+  return deps.capabilities?.() ?? null;
+}
+
 /** 诊断/通用段（diagnosticsSnapshot 三字段投影 + 支持报告 + 日志 + 库状态） */
 function diagCommandSet(): CommandTable {
   return {
     diagnosticsSnapshot: (_p, deps) => ({
       links: diagnosticsSnapshot(deps.conn, deps.health, { feishuConfigured: deps.feishuConfigured }),
-      // full-parity 三字段（AD §4.1 / A37——签名不变，旧客户端忽略未知字段）
+      // full-parity 字段（AD §4.1 / A37——签名不变，旧客户端忽略未知字段）
       helperCaps: helperCapsOf(deps),
       shortcutRegistered: deps.shortcutRegistered?.() ?? null,
       sshFamily: deps.sshFamily?.() ?? null,
       helperVersion: deps.petBridge?.()?.hello?.version ?? null,
+      // dsh 平台表面全量探测（compatibility.md 矩阵「探测键」列单源——真机实测出口；null = 未探测）
+      capabilities: capabilitiesOf(deps),
     }),
     supportReport: (_p, deps) => ({
       text: buildSupportReport(deps.conn, deps.health, deps.logs, {

@@ -175,7 +175,7 @@ describe("full-parity 命令面 · AX 授权与诊断", () => {
     expect(badKind.error.code).toBe("INVALID_ARGUMENT");
   });
 
-  it("diagnosticsSnapshot：三字段缺省 null（未装配）+ 装配后投影", async () => {
+  it("diagnosticsSnapshot：三字段缺省 null（未装配）+ 装配后投影（capabilities 全量探测段断言见 commands-misc.spec）", async () => {
     const plain = (await f.call("diagnosticsSnapshot")) as {
       data: { helperCaps: unknown; shortcutRegistered: unknown; sshFamily: unknown; links: unknown[] };
     };

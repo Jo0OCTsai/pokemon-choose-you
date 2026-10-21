@@ -17,10 +17,10 @@ const noSnapshot = async (): Promise<{ ok: false; error: PkyErrorShape }> => ({
   error: { code: "INVALID_ARGUMENT", message: "未知 host 命令 panelSnapshot" },
 });
 
-function feishuLink(level: DiagnosticsLink["level"], over: Partial<DiagnosticsLink> = {}): DiagnosticsLink {
+function feishuLink(status: DiagnosticsLink["status"], over: Partial<DiagnosticsLink> = {}): DiagnosticsLink {
   return {
     provider: "feishu",
-    level,
+    status,
     lastSuccessAt: "2026-10-11T08:00:00+08:00",
     lastError: null,
     lastErrorAt: null,
@@ -67,18 +67,18 @@ describe("fetchPanelData", () => {
     expect(data.locale).toBe("zh-Hant");
     expect(data.today).toMatch(/^\d{4}-\d{2}-\d{2}$/);
     expect(data.config.language).toBe("zh-Hant");
-    expect(data.dbStatus).toEqual({ userVersion: 1, pluginWindow: { min: 1, max: 1 }, mode: "rw" });
+    expect(data.dbStatus).toEqual({ userVersion: 1, pluginWindow: { min: 1, max: 1 }, mode: "ok" });
     expect(data.filters).toHaveLength(1);
     expect(data.promptSpecs).toHaveLength(1);
   });
 
-  it("健康/授权派生：feishu 链路 level/nextPollAt(epoch)/pendingCount；off → 未授权", async () => {
-    // nextPollAt 用宿主承载形态（epoch 毫秒）——client 契约声明为串，适配层归一。
+  it("健康/授权派生：feishu 链路 status/nextPollAt(epoch)/pendingCount；off → 未授权", async () => {
+    // nextPollAt 契约即宿主承载形态（epoch 毫秒，host IntegrationHealthInfo 同形）；RadioHealth 视图投影 RFC3339。
     // 快照缺勤（旧 host）→ 健康回落 diagnostics 派生路径。
     const host = mockHost({
       diagnostics: [
         feishuLink("degraded", {
-          nextPollAt: 1760145600000 as unknown as string,
+          nextPollAt: 1760145600000,
           pendingCount: 5,
           consecutiveFailures: 2,
         }),

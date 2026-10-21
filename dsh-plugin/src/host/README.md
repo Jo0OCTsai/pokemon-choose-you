@@ -5,7 +5,10 @@ package-by-feature 模块挂点：每个子目录 README 记一句话职责（�
 ## 挂点清单（specs/dsh-plugin/plan.md 并行组 1）
 
 - ~~apply 期能力探测全集~~：已落 `index.ts`（`CAPABILITY_KEYS` 单源 + `probeNodeRuntime` /
-  `probeNodeSqlite`；dsh 表面键已入清单锁一致性，真实 dsh Context 适配层落位时逐项补探测实现）。
+  `probeNodeSqlite`；dsh 表面键的探测实现 = `dsh/probeDsh.ts`，**真机八键实测 2026-10-21 已收口**
+  （compatibility.md A4）——探测结果经 `remoteAssembly.capabilities()` → PluginDeps →
+  diagnosticsSnapshot `capabilities` 段对外可观测；timer/session/ssh 探测 ok 且装配已消费，
+  worktrees/storage/slots/terminal 真机确认宿主无注入面/自持口径/外部终端承接）。
   探测清单与 `docs/compatibility.md` 矩阵「探测键」列的一致性由 `__tests__/compat.spec.ts` 断言。
 - ~~`tools/` 注册面~~：已落（`registry.ts` defineTools + `todoTools.ts` 装配 22 工具名 /
   AD §4.1 表 20 行；`todoTaskTools` / `todoOpsTools` / `contextData` 分文件）——dsh 真实

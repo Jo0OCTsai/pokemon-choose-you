@@ -285,7 +285,7 @@ describe("断开重连反馈闭环 + 重装入口", () => {
     await boot(
       mockHost({
         deployments: disconnected(),
-        dbStatus: { userVersion: 2, pluginWindow: { min: 1, max: 1 }, mode: "ro" },
+        dbStatus: { userVersion: 2, pluginWindow: { min: 1, max: 1 }, mode: "readonly" },
       }),
     );
     expect((screen.getByTestId("deploy-reconnect") as HTMLButtonElement).disabled).toBe(true);
