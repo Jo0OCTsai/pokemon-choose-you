@@ -104,13 +104,13 @@ export function logAgentSession(conn: Conn, rec: AgentSessionRecord, now = nowRf
   return Number(result.lastInsertRowid);
 }
 
-/** agent 技能目标判定（skills.rs kind_for_command 同构：续接旗标按 kind 选） */
+/** agent 技能目标判定（skills.rs kind_for_command 同构：续接旗标按 kind 选；dst/dsh-tui = dsh 的 TUI 启动器同归 dsh） */
 export function kindForCommand(command: string): string | null {
   const base = (command.split(/[\\/]/).pop() ?? command).toLowerCase();
   if (base === "pi" || base.includes("pi-coding-agent")) {
     return "pi";
   }
-  if (base === "dsh" || base.includes("deepseek")) {
+  if (base === "dsh" || base === "dst" || base === "dsh-tui" || base.includes("deepseek")) {
     return "dsh";
   }
   if (base.includes("claude")) {

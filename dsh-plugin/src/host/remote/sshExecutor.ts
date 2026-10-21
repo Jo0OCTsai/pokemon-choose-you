@@ -89,11 +89,12 @@ export type RemoteRoutePlan =
 /**
  * 远端路由判定（AD §4.7 + D31）：本机路由 = local；部署路由按实体与家族 capability
  * 三分支——非降级部署走 sshExecutor（家族链）；degraded 标记（D31 显式确认留痕）走
- * ShellRunner 直连 ssh；家族缺失且未降级 → 拒绝给装载指引。
+ * ShellRunner 直连 ssh；家族缺失且未降级 → 拒绝给装载指引。只消费 route.deployment
+ * （判定链路以 agent 绑定合成的最小路由同样可判）。
  */
 export function planRemoteRoute(
   conn: Conn,
-  route: ResolvedDispatchRoute,
+  route: Pick<ResolvedDispatchRoute, "deployment">,
   platform: RemoteDispatchPlatform,
 ): RemoteRoutePlan {
   if (route.deployment === null) {
@@ -132,6 +133,7 @@ export {
   createDeploymentPrecheck,
   remoteHeadlessDeps,
   remoteInteractiveParts,
+  remoteJudgeExecutorFor,
   type RemoteInteractiveParts,
 } from "./sshExecutorDeps";
 export {

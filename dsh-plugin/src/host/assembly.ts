@@ -66,6 +66,7 @@ export interface PluginDeps {
   terminal?: TerminalAdapter;
   /** 终端行注入面（回放本机分支/lark 登录；dsh 适配层注入外部终端行注入件） */
   terminalLine?: TerminalLineInjector;
+  remoteSshWindow?: TerminalAdapter; // 部署路由交互的本机 ssh 弹窗终端（探测到 GUI 终端时注入；缺省远端 PTY/copy-line 链）
   /** 支持报告元信息 */
   meta?: { pluginVersion?: string; dshVersion?: string | null };
   /** lark-cli 可执行存在性（diagnosticsSnapshot 的 feishuConfigured 位；缺省 true） */

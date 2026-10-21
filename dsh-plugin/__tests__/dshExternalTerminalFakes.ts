@@ -16,7 +16,6 @@ export function fakeEnv(over: Partial<ExternalTerminalEnv> = {}): {
   const unlinked: string[] = [];
   const env: ExternalTerminalEnv = {
     platform: "darwin",
-    electron: true,
     appExists: () => false,
     spawn: async (argv) => {
       spawned.push(argv);

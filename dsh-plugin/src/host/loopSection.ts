@@ -156,9 +156,17 @@ export function parityCommandDeps(args: {
     dispatchDeps:
       remote === undefined ? dispatchDepsOf(deps) : { ...dispatchDepsOf(deps), ...remoteHeadlessDeps(conn, remote) },
     ...(remote === undefined ? {} : { remote }),
-    // 交互派发远端件（terminalFor 真 PTY/copy-line + 就绪复核——debt ③ 接线；
-    // 本机分支不经过本件：dsh 宿主侧 deps.terminal = createHandoffTerminal 诚实化）
-    ...(remote === undefined ? {} : { remoteInteractive: remoteInteractiveParts(conn, remote) }),
+    // 交互派发远端件（就绪复核 + terminalFor：本机 GUI 终端在场 → ssh 别名弹窗；缺席 →
+    // 真 PTY/copy-line——debt ③ 接线；本机分支不经过本件：deps.terminal 承载）
+    ...(remote === undefined
+      ? {}
+      : {
+          remoteInteractive: remoteInteractiveParts(
+            conn,
+            remote,
+            deps.remoteSshWindow === undefined ? {} : { localSshWindow: deps.remoteSshWindow },
+          ),
+        }),
     ...(supervisor === null ? {} : { petBridge: () => supervisor.currentBridge() }),
     ...optionalPlatformParts(deps),
     announceCaught: (variant) => stateFeed.announceCaught(variant),

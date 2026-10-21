@@ -6,23 +6,35 @@
  * src-tauri/src/commands/radio/judge.rs 的 run_and_collect（整批遗漏判失败）。
  * 会话账本落 agent_sessions（kind=classify，sessions.rs log_session_conn 同构）；会话 id
  * 三源与失败回链见 sessionId.ts（claude/pi 预生成、dsh 事件流捕获、信封回填优先）。
+ * 执行世界 = agent 绑定部署（judge.rs resolve_remote_target 同构）：绑定部署的 agent 经注入
+ * 的远端 DispatchExecutor 在部署上执行（pk 隧道写回），账本如实记 remote_host；未注入
+ * 远端执行器时明确报错，不静默回落本机（判定世界与账本必须一致）。
  * 零 dsh 依赖：spawn 可注入；dsh 内置通道真实桥在适配层 dsh/sessionExecutor.ts
  * （root 会话一批一会话 + 非 selfLanding 落库，本文件 fake 仍为测试替身）。
+ * CLI 执行面（realAgentSpawn / buildAgentInvocation / 本机与远端两条执行路径）拆在 cliRun.ts，
+ * 本文件统一再出口（消费面不变）。
  */
-import { spawn } from "node:child_process";
-import { existsSync } from "node:fs";
-import { childEnvFor, expandHome, resolveCommand, spawnErrorHint, type AgentEnvProvider } from "../dispatch/localEnv";
+import type { AgentEnvProvider } from "../dispatch/localEnv";
 import { parseDshSessionId } from "../dispatch/dshSession";
+import type { DispatchExecutor } from "../dispatch/executor";
 import { kindForCommand } from "../dispatch/sessions";
-import { pregenSessionId, sessionArgv, withSessionId } from "./sessionId";
+import { pregenSessionId, withSessionId } from "./sessionId";
+import {
+  MIN_AGENT_TIMEOUT_SECS,
+  realAgentSpawn,
+  resolveRemoteExecutor,
+  spawnLocalJudge,
+  spawnRemoteJudge,
+  type AgentSpawn,
+  type JudgeInvocation,
+} from "./cliRun";
 import { nowRfc3339, type Conn } from "../storage/db";
-import { PkyError } from "../storage/errors";
 import { primaryAgent, type AgentConfig } from "../domain/settings";
 import { parseProposedTagsJson } from "../domain/suggest-resolve";
 import type { AiSuggestion } from "../domain/suggest-types";
 
-/** 单次 agent 调用的超时下限（秒，runner.rs MIN_TIMEOUT_SECS） */
-export const MIN_AGENT_TIMEOUT_SECS = 10;
+// CLI 执行面再出口（拆件前的导出面——消费方 import 路径不变）
+export { MIN_AGENT_TIMEOUT_SECS, buildAgentInvocation, realAgentSpawn, type AgentSpawn } from "./cliRun";
 
 /** 判定批（prompt + 目标消息；feedback 为校验失败回执行方的修正提示，A21） */
 export interface JudgeBatch {
@@ -49,6 +61,8 @@ export interface JudgeExecutor {
   /** 展示名（会话账本 agent_name） */
   readonly name: string;
   readonly selfLanding: boolean;
+  /** 执行世界（会话账本 remote_host）：部署 alias；本机 / 内置通道缺省 */
+  readonly remoteHost?: string | null;
   run(batch: JudgeBatch): Promise<JudgeRunOutcome>;
 }
 
@@ -69,79 +83,7 @@ export function fakeSubagentExecutor(
   };
 }
 
-// ---- 子进程执行面（可注入） ----
-
-export interface AgentSpawn {
-  (
-    program: string,
-    argv: string[],
-    opts: { stdin?: string; cwd?: string; timeoutMs: number; env?: Record<string, string> },
-  ): Promise<{
-    stdout: string;
-    stderr: string;
-  }>;
-}
-
-/**
- * 真实子进程执行面：GUI 进程精简 PATH 适配同构 dispatch/localEnv（which.rs/runner.rs 基准）——
- * 裸名补扫解析绝对路径、workdir `~/` 展开 + 存在性预检（目录缺失独立报错，不与命令
- * 找不到的 ENOENT 混淆）、子进程 PATH 前插 node 宿主目录（`#!/usr/bin/env node` 脚本）。
- */
-export const realAgentSpawn: AgentSpawn = (program, argv, opts) =>
-  new Promise((resolve, reject) => {
-    const bin = resolveCommand(program);
-    const cwd = expandHome(opts.cwd);
-    if (cwd !== undefined && !existsSync(cwd)) {
-      reject(new Error(`Agent 工作目录不存在: ${cwd}（请在设置中改正）`));
-      return;
-    }
-    const child = spawn(bin, argv, { cwd, env: childEnvFor(bin, opts.env), stdio: ["pipe", "pipe", "pipe"] });
-    const out: Buffer[] = [];
-    const err: Buffer[] = [];
-    const timer = setTimeout(() => {
-      child.kill("SIGKILL");
-      reject(
-        new PkyError("JUDGE_TIMEOUT", `Agent「${program}」执行超时（${opts.timeoutMs / 1000} 秒），可在设置中调大超时`),
-      );
-    }, opts.timeoutMs);
-    child.stdout?.on("data", (c: Buffer) => out.push(c));
-    child.stderr?.on("data", (c: Buffer) => err.push(c));
-    child.on("error", (e) => {
-      clearTimeout(timer);
-      reject(new Error(`Agent「${program}」执行失败: ${e.message}${spawnErrorHint(e.message)}`));
-    });
-    child.on("close", (code) => {
-      clearTimeout(timer);
-      if (code === 0) {
-        resolve({ stdout: Buffer.concat(out).toString("utf8"), stderr: Buffer.concat(err).toString("utf8") });
-      } else {
-        const detail =
-          Buffer.concat(err).toString("utf8").trim().slice(0, 300) ||
-          Buffer.concat(out).toString("utf8").trim().slice(0, 300);
-        reject(new Error(`Agent「${program}」退出码 ${code ?? -1}：${detail}`));
-      }
-    });
-    if (opts.stdin !== undefined) {
-      // 子进程未读 stdin 即退出（如无 {prompt} 占位的 CLI 秒退）时写入 EPIPE——失败已由
-      // 退出码路径上报，吞掉 EPIPE 勿成未处理错误炸宿主；其余写入错误维持原样上抛
-      child.stdin?.on("error", (e) => {
-        if ((e as NodeJS.ErrnoException).code !== "EPIPE") throw e;
-      });
-      child.stdin?.write(opts.stdin);
-      child.stdin?.end();
-    }
-  });
-
-/** 命令行组装（build_invocation 本地分支同构）：args 按空白切分、{prompt} 替换；未出现走 stdin */
-export function buildAgentInvocation(
-  agent: Pick<AgentConfig, "command" | "args">,
-  prompt: string,
-): { program: string; argv: string[]; stdin?: string } {
-  const args = agent.args.split(/\s+/).filter((a) => a !== "");
-  const hasPromptSlot = args.some((a) => a.includes("{prompt}"));
-  const argv = args.map((a) => a.replaceAll("{prompt}", prompt));
-  return { program: agent.command, argv, stdin: hasPromptSlot ? undefined : prompt };
-}
+// ---- 输出信封解包 ----
 
 /** agent 输出信封解包（extract_payload 同构）：claude JSON 把回答包在 {"result"} 里 */
 export function extractPayload(content: string): { content: string; sessionId: string | null } {
@@ -201,7 +143,8 @@ export function landedCount(suggestions: AiSuggestion[]): number {
   return suggestions.filter((s) => s.action !== "pending").length;
 }
 
-/** 会话账本（agent_sessions；log_session_conn 同构的判定字段集）——kind：classify 收音机分类 / capture 快速捕捉 */
+/** 会话账本（agent_sessions；log_session_conn 同构的判定字段集）——kind：classify 收音机分类 / capture 快速捕捉；
+ *  remoteHost = 执行世界快照（部署 alias；本机空——与派发行 executionWorld 同口径） */
 export function logJudgeSession(
   conn: Conn,
   rec: {
@@ -211,15 +154,25 @@ export function logJudgeSession(
     durationMs: number | null;
     status: "ok" | "error";
     kind?: "classify" | "capture";
+    remoteHost?: string | null;
   },
   now = nowRfc3339(),
 ): void {
   conn
     .prepare(
-      "INSERT INTO agent_sessions (agent_id, agent_name, session_id, status, duration_ms, kind, created_at) " +
-        "VALUES (?, ?, ?, ?, ?, ?, ?)",
+      "INSERT INTO agent_sessions (agent_id, agent_name, session_id, status, duration_ms, kind, remote_host, created_at) " +
+        "VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
     )
-    .run(rec.agentId, rec.agentName, rec.sessionId, rec.status, rec.durationMs, rec.kind ?? "classify", now);
+    .run(
+      rec.agentId,
+      rec.agentName,
+      rec.sessionId,
+      rec.status,
+      rec.durationMs,
+      rec.kind ?? "classify",
+      (rec.remoteHost ?? "").trim(),
+      now,
+    );
 }
 
 /** CLI 执行方（selfLanding=true：agent 经 pk suggest batch 写回，适配器从库回读） */
@@ -229,34 +182,37 @@ export function cliJudgeExecutor(args: {
   spawnFn?: AgentSpawn;
   /** agent 子进程凭据环境（dsh 形态 DEEPSEEK_API_KEY 注入；缺省不注入） */
   agentEnv?: AgentEnvProvider;
+  /**
+   * 远端执行器工厂（agent 绑定部署时消费；装配层按 planRemoteRoute 选型——部署缺失/家族
+   * 缺失由工厂抛 PkyError 前置拒绝）。绑定部署而工厂缺席 = 远程平台面未装配 → 明确报错，
+   * 不回落本机。
+   */
+  remoteExecutorFor?: (agent: AgentConfig) => DispatchExecutor | null;
 }): JudgeExecutor {
   const { conn, agent } = args;
   const spawnFn = args.spawnFn ?? realAgentSpawn;
   const timeoutMs = Math.max(agent.timeoutSecs, MIN_AGENT_TIMEOUT_SECS) * 1000;
   const kind = kindForCommand(agent.command);
+  const remoteHost = agent.deployment?.trim() ?? "";
   return {
     id: agent.id,
     name: agent.name,
     selfLanding: true,
+    remoteHost: remoteHost === "" ? null : remoteHost,
     async run(batch) {
-      const inv = buildAgentInvocation(
-        agent,
+      const prompt =
         batch.feedback !== undefined
           ? `${batch.prompt}\n\n上次提交校验失败，请修正后重试：${batch.feedback}`
-          : batch.prompt,
-      );
+          : batch.prompt;
       const pregen = pregenSessionId(kind);
-      const extraEnv = args.agentEnv === undefined ? undefined : await args.agentEnv(inv.program);
+      const env = args.agentEnv === undefined ? undefined : await args.agentEnv(agent.command);
+      const remote = remoteHost === "" ? null : resolveRemoteExecutor(args.remoteExecutorFor, agent);
+      const inv: JudgeInvocation = { agent, prompt, kind, pregen, timeoutMs, env };
       // 会话 id 三源（信封回填 > dsh 事件流捕获 > 预生成）；失败也经 withSessionId 回链到账本
       let sessionId = pregen;
       try {
-        const out = await spawnFn(inv.program, sessionArgv(inv.argv, kind, pregen, agent.args), {
-          stdin: inv.stdin,
-          cwd: agent.workdir === "" ? undefined : agent.workdir,
-          timeoutMs,
-          ...(extraEnv === undefined ? {} : { env: extraEnv }),
-        });
-        sessionId = extractPayload(out.stdout).sessionId ?? parseDshSessionId(out.stdout) ?? pregen;
+        const stdout = remote === null ? await spawnLocalJudge(spawnFn, inv) : await spawnRemoteJudge(remote, inv);
+        sessionId = extractPayload(stdout).sessionId ?? parseDshSessionId(stdout) ?? pregen;
         const suggestions = loadSuggestionsFor(conn, batch.messageIds);
         if (landedCount(suggestions) === 0 && batch.messageIds.length > 0) {
           throw new Error(
@@ -272,8 +228,20 @@ export function cliJudgeExecutor(args: {
 }
 
 /** 判定执行方工厂缺省实现：主 agent（收音机分类指定/首个启用）CLI 形态
- * （导出面 = dsh 适配层 volatile 活读的 cli 分支单源，hostEntry 消费） */
-export function defaultJudgeExecutor(conn: Conn, agentEnv?: AgentEnvProvider): JudgeExecutor | null {
+ * （导出面 = dsh 适配层 volatile 活读的 cli 分支单源，hostEntry 消费；remoteExecutorFor
+ * 由装配层按远程平台面注入——绑定部署的主 agent 在部署上判定） */
+export function defaultJudgeExecutor(
+  conn: Conn,
+  agentEnv?: AgentEnvProvider,
+  remoteExecutorFor?: (agent: AgentConfig) => DispatchExecutor | null,
+): JudgeExecutor | null {
   const agent = primaryAgent(conn);
-  return agent === null ? null : cliJudgeExecutor({ conn, agent, ...(agentEnv === undefined ? {} : { agentEnv }) });
+  return agent === null
+    ? null
+    : cliJudgeExecutor({
+        conn,
+        agent,
+        ...(agentEnv === undefined ? {} : { agentEnv }),
+        ...(remoteExecutorFor === undefined ? {} : { remoteExecutorFor }),
+      });
 }

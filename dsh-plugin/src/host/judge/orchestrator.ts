@@ -169,6 +169,7 @@ function handleFailure(
     sessionId: sessionIdOfError(error),
     durationMs: Date.now() - started,
     status: "error",
+    remoteHost: deps.executor.remoteHost,
   });
   deps.health?.recordFailure(AI, message);
   if (deps.executor.selfLanding) {
@@ -204,6 +205,7 @@ export async function orchestrateBatch(deps: OrchestrateDeps, messageIds: string
       sessionId: outcome.sessionId,
       durationMs: Date.now() - started,
       status: "ok",
+      remoteHost: deps.executor.remoteHost,
     });
     deps.health?.recordSuccess(AI, now);
     let counts: Pick<OrchestrateResult, "todo" | "update" | "followUp" | "none">;

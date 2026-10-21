@@ -2,7 +2,7 @@
  * dsh/externalTerminal · 终端偏好解析（从 dsh-external-terminal.spec.ts 拆出——棘轮
  * max-lines，等量迁移）：共享设置 terminal_preference（值域对齐主应用 + dsh 增设
  * kitty）命中且已安装时优先于探测链；未装/未知值/default → 链回落（零中断）；
- * 载体闸门同探测链（web 载体偏好也命中不了）。
+ * 载体闸门同探测链（非 darwin 平台偏好也命中不了）。
  */
 import { describe, expect, it } from "vitest";
 import { resolveExternalTerminal } from "../src/host/dsh/externalTerminal";
@@ -42,8 +42,8 @@ describe("终端偏好解析 · 回落与闸门", () => {
 });
 
 describe("终端偏好解析 · 载体闸门", () => {
-  it("载体闸门同探测链：web 载体偏好也命中不了 → null", () => {
-    const { env } = fakeEnv({ electron: false, appExists: () => true });
+  it("载体闸门同探测链：非 darwin 平台偏好也命中不了 → null", () => {
+    const { env } = fakeEnv({ platform: "linux", appExists: () => true });
     expect(resolveExternalTerminal("ghostty", env)).toBeNull();
   });
 });

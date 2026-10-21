@@ -55,11 +55,45 @@ export function agentLine(command: string, args: string[], prompt: string): stri
   return [command, ...args].map(posixQuote).join(" ") + " " + posixQuote(prompt);
 }
 
-/** 落库/提示用命令行摘要：prompt 替换为截断版（按字符截，中文安全；48 字符 + 省略号） */
-export function summarizeLine(command: string, args: string[], prompt: string): string {
+/**
+ * 远端载荷行（ssh 包装内层）：工作目录非空时 cd 段前缀（~ 由远端 shell 展开——cdSegment
+ * 口径；本机外部终端的 cd 织入不适用于远端目录）。
+ */
+export function remotePayloadLine(line: string, workdir: string | null | undefined): string {
+  const dir = workdir?.trim() ?? "";
+  return dir === "" ? line : `${cdSegment(dir)} && ${line}`;
+}
+
+/**
+ * ssh 别名包装行（desktop direct_ssh_argv / history_invocation 远端分支同构——本机 GUI
+ * 终端弹窗执行）：`ssh -tt -o ConnectTimeout=10 [-i key] [-p port] -- <target> exec "$SHELL"
+ * -l -c '<payload>'`——不设 BatchMode（密钥未就绪时可在终端输密码）。载荷必须**自携单引号**
+ * 到达远端：ssh 重组命令只做空格拼接（不保留引号），而本行先过本机 shell（剥一层引号）
+ * ——故对已含引号的载荷再做一层 posixQuote，远端外层 shell 再剥一层，内层 -c 拿到完整
+ * 命令串（desktop 直连 spawn 无此层，引号天然保留）。
+ */
+export function sshAliasLine(target: string, payload: string, opts: { keyPath?: string; port?: number } = {}): string {
+  const argv = ["ssh", "-tt", "-o", "ConnectTimeout=10"];
+  const key = opts.keyPath?.trim() ?? "";
+  if (key !== "") {
+    argv.push("-i", key);
+  }
+  if (opts.port !== undefined && opts.port !== 0 && opts.port !== 22) {
+    argv.push("-p", String(opts.port));
+  }
+  argv.push("--", target, "exec", `"$SHELL"`, "-l", "-c");
+  return [...argv.map(posixQuote), posixQuote(`'${payload}'`)].join(" ");
+}
+
+/** 落库/提示用 prompt 截断版（按字符截，中文安全；48 字符 + 省略号） */
+export function promptSummary(prompt: string): string {
   const chars = Array.from(prompt);
-  const head = chars.slice(0, 48).join("");
-  return agentLine(command, args, head + (chars.length > 48 ? "…" : ""));
+  return chars.slice(0, 48).join("") + (chars.length > 48 ? "…" : "");
+}
+
+/** 落库/提示用命令行摘要：prompt 替换为截断版 */
+export function summarizeLine(command: string, args: string[], prompt: string): string {
+  return agentLine(command, args, promptSummary(prompt));
 }
 
 /**

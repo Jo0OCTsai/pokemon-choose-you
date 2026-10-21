@@ -1,9 +1,9 @@
 /**
- * 外部终端唤起（debt ③ a 的 desktop 载体解 + 终端偏好遵循）：dsh 桌面 app 的插件宿主
- * 跑在 Electron 主进程（helper 拉起即证），可在用户面前唤起本机 GUI 终端真窗口执行
- * 派发/回放命令行。载体判据 = process.versions.electron 在场（desktop）；dsh web/
- * headless CLI 宿主为普通 Node → null（调用方回落 handoff 复制 + 客户端 web 提示——
- * 远程浏览器场景窗口会开在宿主机器屏幕上，用户不可见）。
+ * 外部终端唤起（debt ③ a 的本机载体解 + 终端偏好遵循）：插件宿主跑在用户这台 Mac 上
+ * （dsh 桌面 app 的 Electron 主进程 / dsh web 的 Node 宿主 / dsh-tui 等），可在用户面前唤起
+ * 本机 GUI 终端真窗口执行派发/回放命令行。载体判据 = darwin（不再要求 Electron 在场——
+ * 浏览器与宿主同机为既定口径；浏览器在他机时窗口开在宿主屏幕，登记见 docs/debt.md）；
+ * 探测不到已安装的终端 app → null（调用方回落 handoff 复制）。
  *
  * 终端选择（双层）：共享设置 terminal_preference（default/iterm2/ghostty/kitty/
  * windows-terminal；kitty 为 dsh 侧增设——主应用 TerminalPref 暂不识别该值、回落内置，
@@ -51,8 +51,6 @@ export interface ExternalTerminal {
 /** 探测环境（测试可注入；缺省真实环境） */
 export interface ExternalTerminalEnv {
   platform?: NodeJS.Platform;
-  /** Electron 宿主在场 = desktop 载体（缺省读 process.versions.electron） */
-  electron?: boolean;
   /** app 存在性探测（缺省 /Applications 与 ~/Applications 的 <name>.app） */
   appExists?: (name: string) => boolean;
   /** 子进程执行面（缺省 node:child_process spawn） */
@@ -170,11 +168,6 @@ function shellScript(line: string, workdir: string | null): string {
   return dir === "" ? line : `cd ${quoteCdTarget(dir)} && ${line}`;
 }
 
-/** desktop 载体判定（Electron 宿主在场 = 桌面 app） */
-export function isDesktopCarrier(): boolean {
-  return process.versions.electron !== undefined;
-}
-
 /** 候选 → ExternalTerminal（kitty 走双形态特例；其余单窗口形态，spawn 织入 cd） */
 function toExternal(spec: MacTerminalSpec, env: ExternalTerminalEnv): ExternalTerminal {
   if (spec.name === "kitty") {
@@ -233,7 +226,7 @@ function kittyExternal(env: ExternalTerminalEnv): ExternalTerminal {
   };
 }
 
-/** 探测外部终端（desktop + darwin 才有产物；探测结果进程内记忆化） */
+/** 探测外部终端（darwin 且装有候选终端 app 才有产物；探测结果进程内记忆化） */
 let memoized: ExternalTerminal | null | undefined;
 export function detectExternalTerminal(env: ExternalTerminalEnv = {}): ExternalTerminal | null {
   // 全字段缺省 = 真实环境调用（进程内记忆化）；任一字段注入 = 测试探测（每次重探）
@@ -244,15 +237,13 @@ export function detectExternalTerminal(env: ExternalTerminalEnv = {}): ExternalT
   return detectOnce(env);
 }
 
-/** desktop + darwin 载体闸门（探测链与偏好解析共用） */
-function isMacDesktop(env: ExternalTerminalEnv): boolean {
-  const platform = env.platform ?? process.platform;
-  const electron = env.electron ?? process.versions.electron !== undefined;
-  return platform === "darwin" && electron;
+/** darwin 宿主闸门（探测链与偏好解析共用；其余平台未实装） */
+function isMacHost(env: ExternalTerminalEnv): boolean {
+  return (env.platform ?? process.platform) === "darwin";
 }
 
 function detectOnce(env: ExternalTerminalEnv): ExternalTerminal | null {
-  if (!isMacDesktop(env)) {
+  if (!isMacHost(env)) {
     return null;
   }
   const appExists = env.appExists ?? macAppExists;
@@ -278,14 +269,14 @@ function preferredMacTerminal(
 
 /**
  * 偏好感知解析：terminal_preference 命中且已安装 → 偏好终端；default/未设/未知值/
- * 偏好终端未安装 → 探测链；非 darwin / 非 Electron → null（与探测链同闸门）。
+ * 偏好终端未安装 → 探测链；非 darwin → null（与探测链同闸门）。
  * 每次调用重新探测偏好终端的在场（existsSync 两次，廉价——设置可运行期改动）。
  */
 export function resolveExternalTerminal(
   preference: string | null | undefined,
   env: ExternalTerminalEnv = {},
 ): ExternalTerminal | null {
-  if (!isMacDesktop(env)) {
+  if (!isMacHost(env)) {
     return null;
   }
   return preferredMacTerminal(preference, env) ?? detectExternalTerminal(env);

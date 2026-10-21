@@ -1,8 +1,9 @@
 /**
  * 回放唤起装配 rig（从 dispatchSettingsCommands.ts 拆出——棘轮 max-lines，等量迁移；
  * sessions.ts ReplayLauncher 的命令装配层注入件）：本机双形态（终端注入面在场 →
- * 真实注入；缺席 = 真实 dsh 宿主形态 → handoff 命令行回传客户端复制执行——AD §4.8
- * 「复制命令行」降级口径，零静默）+ 远端部署 PTY 注入（SSH_AUTH_REQUIRED 折算）。
+ * 真实注入；缺席 → handoff 命令行回传客户端复制执行——AD §4.8「复制命令行」降级口径，
+ * 零静默）+ 远端部署双形态（终端注入面在场 → 本机 GUI 终端弹 ssh 别名窗口，desktop
+ * 远端回放同构；缺席 → 部署 PTY 注入，SSH_AUTH_REQUIRED 折算）。
  */
 import { PkyError } from "../storage/errors";
 import type { HostCommandDeps } from "./context";
@@ -10,16 +11,16 @@ import { injectLineGuarded } from "./context";
 import { kindForCommand, type LocalReplayLaunch, type ReplayLauncher } from "../dispatch/sessions";
 import { createRemoteTerminalAdapter } from "../remote/sshExecutor";
 import { deploymentByAlias } from "../remote/deployments";
-import { posixQuote } from "../dispatch/cmdline";
+import { posixQuote, sshAliasLine } from "../dispatch/cmdline";
+import { dstReplayLine, isDshKind } from "../dispatch/dstLaunch";
 
 // ---- 回放唤起装配（sessions.ts ReplayLauncher 注入件——本文件属命令装配层） ----
 
 /**
  * 历史参数注入会话 id（desktop adapt_history_args 同构）：已有 --session-id/--resume/
  * resume 旗标时紧跟其后插入（用户自配参数在后不被挤丢）；无旗标按 kind 追加
- * （claude-code → --resume、pi → --session-id、dsh → --session-id（headless adopt 既有
- * 会话——「带既有 session 重开任务」，cwd 需与原会话一致））；其余 kind 无续接语义不强插
- * （等价 agent 自带选择器兜底）。
+ * （claude-code → --resume、pi → --session-id）；dsh 类不经本函数（回放整行换 dst，见
+ * dstLaunch.ts）；其余 kind 无续接语义不强插（等价 agent 自带选择器兜底）。
  */
 function injectSessionArg(args: string[], sessionId: string, kind: string | null): void {
   const flagIdx = args.findIndex((a) => a === "--session-id" || a === "--resume" || a === "resume");
@@ -29,26 +30,33 @@ function injectSessionArg(args: string[], sessionId: string, kind: string | null
   }
   if (kind === "claude-code") {
     args.push("--resume", sessionId);
-  } else if (kind === "pi" || kind === "dsh") {
+  } else if (kind === "pi") {
     args.push("--session-id", sessionId);
   }
 }
 
+/** 非 dsh 类 agent 的回放行：agent 配置命令 + 历史参数（resume 分支注入会话 id——`claude --resume <id>` 直接回放转录） */
+function agentReplayLine(l: LocalReplayLaunch): string {
+  const args = l.historyArgs.split(/\s+/).filter((t) => t !== "");
+  if (l.branch === "resume" && l.sessionId !== null) {
+    injectSessionArg(args, l.sessionId, kindForCommand(l.agentCommand));
+  }
+  return [posixQuote(l.agentCommand), ...args.map(posixQuote)].join(" ");
+}
+
 /**
- * 回放命令行组装（desktop history_invocation 同构基准）：tmux attach 优先；其余 =
- * agent 配置命令 + 历史参数（resume 分支注入会话 id——`claude --resume <id>` 直接
- * 回放转录）；工作目录非空时 cd 前缀（desktop local_history_line 同款——历史会话
- * 与派发同目录）。
+ * 回放命令行组装（desktop history_invocation 同构基准）：tmux attach 优先；dsh 类 agent
+ * 整行换 dst（resume → `dst --resume <id>`；picker → 裸 dst 会话管理器）；其余 = agent 配置
+ * 命令 + 历史参数；工作目录非空时 cd 前缀（desktop local_history_line 同款——历史会话与
+ * 派发同目录）。
  */
 export function replayCommandLine(l: LocalReplayLaunch): string {
   if (l.branch === "tmux" && l.tmuxSession !== null) {
     return `tmux attach-session -t ${posixQuote(l.tmuxSession)}`;
   }
-  const args = l.historyArgs.split(/\s+/).filter((t) => t !== "");
-  if (l.branch === "resume" && l.sessionId !== null) {
-    injectSessionArg(args, l.sessionId, kindForCommand(l.agentCommand));
-  }
-  const line = [posixQuote(l.agentCommand), ...args.map(posixQuote)].join(" ");
+  const line = isDshKind(l.agentCommand)
+    ? dstReplayLine(l.branch === "resume" ? l.sessionId : null)
+    : agentReplayLine(l);
   const dir = l.workdir.trim();
   return dir === "" ? line : `cd ${posixQuote(dir)} && ${line}`;
 }
@@ -90,7 +98,12 @@ export function replayLauncherOf(deps: HostCommandDeps): {
         inflight = injectLineGuarded(deps, replayCommandLine(l));
       },
       launchRemote(l) {
-        inflight = launchRemoteReplay(deps, l);
+        // 本机 GUI 终端在场 → 弹 ssh 别名窗口（desktop 远端回放同构，用户面前可见）；
+        // 缺席 → 既有部署 PTY 注入链（dsh-ssh 裸 PTY，无 UI 面）
+        inflight =
+          deps.terminalLine === undefined
+            ? launchRemoteReplay(deps, l)
+            : injectLineGuarded(deps, sshAliasLine(l.target, replayCommandLine(replayLaunchOf(l))));
       },
       launchAlias(l) {
         const line = sshAliasReplayLine(l);
@@ -107,27 +120,12 @@ export function replayLauncherOf(deps: HostCommandDeps): {
 }
 
 /**
- * ssh 别名回放命令行（desktop history_invocation 远端分支同构）：`ssh -tt -o
- * ConnectTimeout=10 [-i key] [-p port] -- <target> exec "$SHELL" -lc '<cd dir && agent
- * --resume id>'`——不设 BatchMode（密钥未就绪时可在终端输密码）；远端行整体引用防
- * -lc 只吞首词。desktop 载体经外部终端弹真窗口、web 载体回传复制。
+ * ssh 别名回放命令行（desktop history_invocation 远端分支同构）：sshAliasLine 包装
+ * `<cd dir && agent --resume id>` 载荷（快照三元组 port/key 随行）。本机 GUI 终端弹真窗口、
+ * 无终端回传复制。
  */
 export function sshAliasReplayLine(l: Parameters<ReplayLauncher["launchAlias"]>[0]): string {
-  const argv = ["ssh", "-tt", "-o", "ConnectTimeout=10"];
-  const key = l.keyPath.trim();
-  if (key !== "") {
-    argv.push("-i", key);
-  }
-  if (l.port !== 0 && l.port !== 22) {
-    argv.push("-p", String(l.port));
-  }
-  argv.push("--", l.target, "exec", `"$SHELL"`, "-l", "-c");
-  // 载荷必须**自携单引号**到达远端：ssh 重组命令只做空格拼接（不保留引号），而本行
-  // 先过本地 sh -c（剥一层引号）——故对「已含引号的载荷」再做一层 posixQuote，
-  // 使 ssh argv 中的载荷形如 'cd … && claude --resume …'（远端外层 shell 再剥一层，
-  // 内层 zsh -c 拿到完整命令串——desktop 直连 spawn 无此层，引号天然保留）
-  const remoteLine = `'${replayCommandLine(replayLaunchOf(l))}'`;
-  return [...argv.map(posixQuote), posixQuote(remoteLine)].join(" ");
+  return sshAliasLine(l.target, replayCommandLine(replayLaunchOf(l)), { keyPath: l.keyPath, port: l.port });
 }
 
 /** 远端回放唤起（部署 PTY 写入；失败折算 SSH_AUTH_REQUIRED——免密/连接失败口径） */

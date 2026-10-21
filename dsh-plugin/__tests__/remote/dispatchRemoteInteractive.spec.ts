@@ -127,6 +127,57 @@ describe("交互 TerminalAdapter：关闭兜底与降级", () => {
   });
 });
 
+describe("交互 TerminalAdapter：本机 GUI 终端在场 → 部署路由弹 ssh 别名窗口（desktop exec.rs 远端分支同构）", () => {
+  function windowDeps(local: ReturnType<typeof createFakeTerminal>) {
+    const parts = remoteInteractiveParts(fx.db.conn, fx.platform, { localSshWindow: local });
+    return {
+      terminal: createFakeTerminal(),
+      terminalFor: parts.terminalFor,
+      deploymentPrecheck: parts.deploymentPrecheck,
+    };
+  }
+
+  it("ssh -tt <别名> 包装 `cd 远端目录 && agent 行` 交本机终端；本机侧 workdir=null；不开 PTY；账本 remote_host=alias、无会话句柄", async () => {
+    fx.seedReadyDeployment();
+    const local = createFakeTerminal();
+    const taskId = fx.seedDeploymentTask("交互弹窗", { workdir: "~/proj" });
+    const outcome = await dispatchInteractive(fx.db.conn, windowDeps(local), taskId);
+    expect(outcome.state).toBe("running");
+    expect(outcome.terminal).toBe("fake-terminal");
+    expect(fx.scope.spawnTerminalCalls).toHaveLength(0);
+    expect(local.injections).toHaveLength(1);
+    const injected = local.injections[0];
+    expect(injected?.workdir).toBeNull();
+    expect(injected?.taskId).toBe(taskId);
+    expect(injected?.line.startsWith("ssh -tt -o ConnectTimeout=10 -- dev-box exec ")).toBe(true);
+    expect(injected?.line).toContain("cd ~/proj && claude");
+    const row = fx.lastSession(taskId);
+    expect(row["remote_host"]).toBe(ALIAS);
+    expect(row["session_id"]).toBeNull();
+  });
+
+  it("dsh 类 agent：ssh 载荷换 dst 前端（`dst -- <提示词>`，不带 dsh 历史参数）", async () => {
+    fx.seedReadyDeployment();
+    fx.seedAgent("claude", "headless {prompt}", { command: "dsh" });
+    const local = createFakeTerminal();
+    const taskId = fx.seedDeploymentTask("交互 dst", { workdir: WORKDIR });
+    await dispatchInteractive(fx.db.conn, windowDeps(local), taskId);
+    expect(local.injections[0]?.line).toContain(`cd ${WORKDIR} && dst -- `);
+    expect(local.injections[0]?.line).not.toContain("headless");
+    expect(String(fx.lastSession(taskId)["command"])).toMatch(/^dst -- /);
+  });
+
+  it("家族缺失也不拒绝（系统 ssh 不依赖 dsh-ssh，交互前置复核放行）", async () => {
+    fx.familyAvailable = false;
+    fx.seedReadyDeployment();
+    const local = createFakeTerminal();
+    const taskId = fx.seedDeploymentTask("交互无家族");
+    const outcome = await dispatchInteractive(fx.db.conn, windowDeps(local), taskId);
+    expect(outcome.state).toBe("running");
+    expect(local.injections[0]?.line).toContain("ssh -tt");
+  });
+});
+
 describe("远端 worktree：脚本远端执行与幂等复用", () => {
   it("脚本在远端执行（scope.shell）+ 生效目录进执行 argv", async () => {
     fx.seedReadyDeployment();

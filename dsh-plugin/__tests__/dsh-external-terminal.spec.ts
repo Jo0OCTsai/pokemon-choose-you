@@ -1,13 +1,13 @@
 /**
- * dsh/externalTerminal · 外部终端唤起（debt ③ a 的 desktop 载体解 + 终端偏好遵循）：
- * dsh 桌面 app（Electron 主进程承载插件宿主——process.versions.electron 载体判据）在
- * 本机探测 GUI 终端（kitty → Ghostty → Alacritty → WezTerm → iTerm2 → Terminal.app
- * 兜底）唤起真窗口执行派发/回放命令行；kitty 首位因 tab 复用（socket 在场 →
- * kitten @ launch --type=tab 复用最近活跃窗口；缺席/失败 → open -na 自举带 socket 的
- * 新实例——listen socket 只认启动旗标，kitty.conf 的 listen_on 不生效）。共享设置
- * terminal_preference（值域对齐主应用 + dsh 增设 kitty）命中且已安装时优先于探测链
- * （未装/未知值/default → 链回落）；web/headless CLI 载体 → null（回落 handoff 复制 +
- * 客户端 web 提示）。macOS 优先（仓库载体 macos）；其余平台 → null。
+ * dsh/externalTerminal · 外部终端唤起（debt ③ a 的本机载体解 + 终端偏好遵循）：
+ * 插件宿主跑在用户这台 Mac 上（dsh 桌面 app / dsh web / dsh-tui——载体判据 = darwin，
+ * 不再要求 Electron 在场）在本机探测 GUI 终端（kitty → Ghostty → Alacritty → WezTerm →
+ * iTerm2 → Terminal.app 兜底）唤起真窗口执行派发/回放命令行；kitty 首位因 tab 复用
+ * （socket 在场 → kitten @ launch --type=tab 复用最近活跃窗口；缺席/失败 → open -na 自举
+ * 带 socket 的新实例——listen socket 只认启动旗标，kitty.conf 的 listen_on 不生效）。共享
+ * 设置 terminal_preference（值域对齐主应用 + dsh 增设 kitty）命中且已安装时优先于探测链
+ * （未装/未知值/default → 链回落）；未装任何候选终端 → null（回落 handoff 复制）。
+ * macOS 优先（仓库载体 macos）；其余平台 → null。
  */
 import { describe, expect, it } from "vitest";
 import { detectExternalTerminal } from "../src/host/dsh/externalTerminal";
@@ -43,11 +43,12 @@ const OPEN_BOOT_ARGV = [
 ] as const;
 
 describe("载体与探测链", () => {
-  it("web/headless CLI 载体（非 Electron 宿主）→ null（回落 handoff + web 提示）", () => {
-    expect(detectExternalTerminal(fakeEnv({ electron: false, appExists: () => true }).env)).toBeNull();
-  });
-
-  it("非 macOS 平台 → null（探测链仅 darwin 实装——仓库载体 macos）", () => {
+  it("闸门只看平台：非 Electron 的 darwin 宿主（vitest 进程无 electron）有产物；未装候选终端 → null；非 macOS → null", () => {
+    expect(process.versions.electron).toBeUndefined();
+    expect(detectExternalTerminal({ platform: "darwin", appExists: (name) => name === "Ghostty" })?.label).toBe(
+      "Ghostty",
+    );
+    expect(detectExternalTerminal(fakeEnv({ appExists: () => false }).env)).toBeNull();
     expect(detectExternalTerminal(fakeEnv({ platform: "linux", appExists: () => true }).env)).toBeNull();
   });
 

@@ -22,7 +22,8 @@ import {
 } from "../domain/dispatch";
 import { getSetting, type AgentConfig } from "../domain/settings";
 import { getTask } from "../domain/tasks";
-import { agentLine, interactiveArgs, summarizeLine } from "./cmdline";
+import { agentLine, interactiveArgs, promptSummary } from "./cmdline";
+import { dstLaunchLine, isDshKind } from "./dstLaunch";
 import { prepareDispatchPrompt, type DispatchPromptPrep } from "./prompt";
 import type { ResolvedDispatchRoute } from "./routes";
 import { logAgentSession, executionWorld } from "./sessions";
@@ -115,6 +116,16 @@ async function assertInteractiveRoute(connDeps: InteractiveDeps, route: Resolved
   }
 }
 
+/**
+ * 交互首行（终端注入 / 账本摘要共用）：dsh 类 agent 换 dst 前端（dstLaunch.ts——dsh 本体无
+ * 交互旗标）；其余 = agent 命令 + 交互参数（清洗会话恢复开关）+ prompt 首条输入整体引用。
+ */
+function launchLine(agent: AgentConfig, prompt: string): string {
+  return isDshKind(agent.command)
+    ? dstLaunchLine(prompt)
+    : agentLine(agent.command, interactiveArgs(agent.historyArgs), prompt);
+}
+
 /** 注入成功：落 agent_sessions（kind=dispatch_interactive，session_id=终端会话标识） */
 function logInteractiveSession(
   conn: Conn,
@@ -130,7 +141,7 @@ function logInteractiveSession(
       kind: "dispatch_interactive",
       // claude 会话 id 启动时不可知：session_id 落 dsh 终端的会话/执行标识（回放路由用）
       sessionId: launched.sessionRef ?? null,
-      command: summarizeLine(agent.command, interactiveArgs(agent.historyArgs), prep.prompt),
+      command: launchLine(agent, promptSummary(prep.prompt)),
       status: "ok",
       workdir: route.workdir,
       ...executionWorld(agent, route),
@@ -171,7 +182,7 @@ export async function dispatchInteractive(
       "该待办已在派发执行中（running）；等 agent 回传结束，或在抽屉里重置状态后重派",
     );
   }
-  const line = agentLine(agent.command, interactiveArgs(agent.historyArgs), prep.prompt);
+  const line = launchLine(agent, prep.prompt);
   try {
     const terminal = deps.terminalFor?.(route) ?? deps.terminal;
     const launched = await terminal.inject({

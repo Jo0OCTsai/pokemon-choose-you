@@ -91,7 +91,7 @@ function assertCaptureInput(text: string): void {
   }
 }
 
-/** 捕捉会话账本（kind=capture，成败两态共用；sessionId = 执行方会话（内置通道会话 id / CLI 信封）） */
+/** 捕捉会话账本（kind=capture，成败两态共用；sessionId = 执行方会话（内置通道会话 id / CLI 信封）；remoteHost = 执行方执行世界） */
 function logCaptureSession(deps: CaptureDeps, started: number, status: "ok" | "error", sessionId: string | null): void {
   logJudgeSession(deps.conn, {
     agentId: deps.executor.id,
@@ -100,6 +100,7 @@ function logCaptureSession(deps: CaptureDeps, started: number, status: "ok" | "e
     durationMs: Date.now() - started,
     status,
     kind: "capture",
+    remoteHost: deps.executor.remoteHost,
   });
 }
 

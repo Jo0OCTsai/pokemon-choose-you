@@ -5,12 +5,14 @@
  */
 import type { Conn } from "../storage/db";
 import { PkyError } from "../storage/errors";
-import { createLocalExecutor } from "../dispatch/executor";
+import { createLocalExecutor, type DispatchExecutor } from "../dispatch/executor";
+import { remotePayloadLine, sshAliasLine } from "../dispatch/cmdline";
 import type { HeadlessDeps } from "../dispatch/headless";
 import type { TerminalAdapter } from "../dispatch/interactive";
 import type { ResolvedDispatchRoute } from "../dispatch/routes";
 import { sshCheck } from "../dispatch/sshCheck";
 import { gitWorktree } from "../dispatch/worktree";
+import type { AgentConfig } from "../domain/settings";
 import type { DeploymentEntity } from "./deployments";
 import { recheckDeployment } from "./recheck";
 import {
@@ -18,6 +20,7 @@ import {
   planRemoteRoute,
   type RemoteDispatchOptions,
   type RemoteDispatchPlatform,
+  type RemoteRoutePlan,
 } from "./sshExecutor";
 import { createDirectSshExecutor, directSshRunner, scopeShellRunner } from "./sshExecutorDirect";
 import { createSshDispatchExecutor } from "./sshExecutorScope";
@@ -94,6 +97,37 @@ async function precheckFamilyChain(
 
 // ---- 装配缝（2.9 消费面：HeadlessDeps / InteractiveDeps 注入件） ----
 
+/** 路由计划 → 执行器（local = 本机子进程；family/direct 远端两链；reject = null 交调用方收口） */
+function executorForPlan(
+  plan: RemoteRoutePlan,
+  target: string,
+  platform: RemoteDispatchPlatform,
+  opts: RemoteDispatchOptions,
+): DispatchExecutor | null {
+  if (plan.kind === "local") {
+    return createLocalExecutor(opts.minTimeoutSecs);
+  }
+  if (plan.kind === "reject") {
+    return null;
+  }
+  if (plan.kind === "direct") {
+    return createDirectSshExecutor({
+      target,
+      nodePath: plan.entity.nodePath,
+      label: plan.entity.alias,
+      ...(opts.minTimeoutSecs === undefined ? {} : { minTimeoutSecs: opts.minTimeoutSecs }),
+      ...(opts.sshBin === undefined ? {} : { sshBin: opts.sshBin }),
+      ...(opts.connectTimeoutSecs === undefined ? {} : { connectTimeoutSecs: opts.connectTimeoutSecs }),
+    });
+  }
+  return createSshDispatchExecutor({
+    scopeFor: () => platform.scopeFor(plan.entity),
+    nodePath: plan.entity.nodePath,
+    label: plan.entity.alias,
+    ...(opts.minTimeoutSecs === undefined ? {} : { minTimeoutSecs: opts.minTimeoutSecs }),
+  });
+}
+
 /** 无头派发远端装配（executorFor 路由 local/ssh/直连 + worktreeFor + 就绪复核前置） */
 export function remoteHeadlessDeps(
   conn: Conn,
@@ -106,25 +140,10 @@ export function remoteHeadlessDeps(
       if (plan.kind === "local") {
         return createLocalExecutor();
       }
-      if (plan.kind === "reject" || route.deployment === null) {
+      if (route.deployment === null) {
         return null; // 前置复核应已拒绝；兜底走 providerMissing 收口（failed + 指引）
       }
-      if (plan.kind === "direct") {
-        return createDirectSshExecutor({
-          target: route.deployment.target,
-          nodePath: plan.entity.nodePath,
-          label: plan.entity.alias,
-          ...(opts.minTimeoutSecs === undefined ? {} : { minTimeoutSecs: opts.minTimeoutSecs }),
-          ...(opts.sshBin === undefined ? {} : { sshBin: opts.sshBin }),
-          ...(opts.connectTimeoutSecs === undefined ? {} : { connectTimeoutSecs: opts.connectTimeoutSecs }),
-        });
-      }
-      return createSshDispatchExecutor({
-        scopeFor: () => platform.scopeFor(plan.entity),
-        nodePath: plan.entity.nodePath,
-        label: plan.entity.alias,
-        ...(opts.minTimeoutSecs === undefined ? {} : { minTimeoutSecs: opts.minTimeoutSecs }),
-      });
+      return executorForPlan(plan, route.deployment.target, platform, opts);
     },
     worktreeFor: (route) => {
       const plan = planRemoteRoute(conn, route, platform);
@@ -145,6 +164,33 @@ export function remoteHeadlessDeps(
   };
 }
 
+/**
+ * 判定远端执行器工厂（cliJudgeExecutor.remoteExecutorFor 注入件；desktop judge.rs
+ * resolve_remote_target 同构）：agent 绑定部署 → 以绑定合成最小路由（ref = target = alias）
+ * 经 planRemoteRoute 选型 family/direct；reject 分支抛 PkyError（PROTOCOL §2 映射与
+ * envelope 同款：SSH_FAMILY_MISSING → HELPER_CAPABILITY_MISSING，其余 DEPLOYMENT_NOT_READY）
+ * ——判定不回落本机（执行世界与账本必须一致）。未绑定部署 → null（调用方本机路径）。
+ * minTimeoutSecs 由调用方按判定口径传入（派发缺省 600 对判定过长）。
+ */
+export function remoteJudgeExecutorFor(
+  conn: Conn,
+  platform: RemoteDispatchPlatform,
+  opts: RemoteDispatchOptions = {},
+): (agent: AgentConfig) => DispatchExecutor | null {
+  return (agent) => {
+    const alias = agent.deployment?.trim() ?? "";
+    if (alias === "") {
+      return null;
+    }
+    const plan = planRemoteRoute(conn, { deployment: { ref: alias, target: alias } }, platform);
+    if (plan.kind === "reject") {
+      const code = plan.tag === "SSH_FAMILY_MISSING" ? "HELPER_CAPABILITY_MISSING" : "DEPLOYMENT_NOT_READY";
+      throw new PkyError(code, `判定无法在部署上执行：${plan.message}`, plan.hint);
+    }
+    return executorForPlan(plan, alias, platform, opts);
+  };
+}
+
 /** 交互派发远端装配件（terminalFor 远端分支 + 就绪复核前置） */
 export interface RemoteInteractiveParts {
   /** InteractiveDeps.terminalFor 注入件（undefined = 回落本机 terminal） */
@@ -153,12 +199,49 @@ export interface RemoteInteractiveParts {
   deploymentPrecheck(route: ResolvedDispatchRoute): Promise<void>;
 }
 
-/** 交互远端装配：家族链 = 真 PTY 适配器；直连降级/家族缺失 = 复制完整命令行兜底 */
-export function remoteInteractiveParts(conn: Conn, platform: RemoteDispatchPlatform): RemoteInteractiveParts {
+/**
+ * 部署路由 → 本机 GUI 终端弹 ssh 别名窗口（desktop exec.rs 远端分支同构：ssh -tt <别名>
+ * 在用户面前的终端执行）：载荷自携 cd 段（远端目录），本机侧 workdir 传 null；无 sessionRef
+ * ——每次新远端 shell，重派不复用会话（tmux 续接形态见 docs/debt.md）。弹窗失败/无终端由
+ * 本机适配器自行回落 copy-line（note 携带完整 ssh 行）。
+ */
+function createSshWindowTerminal(local: TerminalAdapter, target: string): TerminalAdapter {
+  return {
+    async inject({ line, agent, taskId, workdir, terminalPreference }) {
+      const launched = await local.inject({
+        line: sshAliasLine(target, remotePayloadLine(line, workdir)),
+        agent,
+        taskId,
+        workdir: null,
+        terminalPreference,
+      });
+      // 本机终端的句柄不是远端 agent 会话 id——不落 session_id（回放按无句柄处理）
+      return {
+        terminal: launched.terminal,
+        ...(launched.note === undefined ? {} : { note: launched.note }),
+        ...(launched.reason === undefined ? {} : { reason: launched.reason }),
+      };
+    },
+  };
+}
+
+/**
+ * 交互远端装配：本机 GUI 终端在场（localSshWindow 注入）→ 部署路由一律弹 ssh 别名窗口
+ * （不经 dsh-ssh PTY——无 UI 面用户看不见）；缺席 → 家族链 = 真 PTY 适配器；直连降级/
+ * 家族缺失 = 复制完整命令行兜底
+ */
+export function remoteInteractiveParts(
+  conn: Conn,
+  platform: RemoteDispatchPlatform,
+  opts: { localSshWindow?: TerminalAdapter } = {},
+): RemoteInteractiveParts {
   return {
     terminalFor: (route) => {
       if (route.deployment === null) {
         return undefined; // 本机路由回落 InteractiveDeps.terminal
+      }
+      if (opts.localSshWindow !== undefined) {
+        return createSshWindowTerminal(opts.localSshWindow, route.deployment.target);
       }
       const plan = planRemoteRoute(conn, route, platform);
       if (plan.kind === "family") {

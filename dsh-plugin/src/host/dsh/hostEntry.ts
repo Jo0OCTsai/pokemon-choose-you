@@ -6,8 +6,7 @@ import type { Context } from "@deepseek-ai/cordis";
 import type {} from "@deepseek-ai/cordis-plugin-timer"; // 类型面：ctx.interval/ctx.timeout 增强
 import type {} from "@deepseek-ai/dsh-client-connection"; // 类型面：Context.connection 增强
 import { createPlugin, defaultJudgeExecutor, probeNodeSqlite, unsupportedSqliteError, type Plugin } from "../index";
-import { createHandoffTerminal } from "../dispatch/terminalAdapters";
-import { detectExternalTerminal, isDesktopCarrier } from "./externalTerminal";
+import { detectExternalTerminal } from "./externalTerminal";
 import { createExternalTerminalAdapter, externalTerminalLine } from "./externalTerminalAdapter";
 import { ensureElectronDist } from "../pet/electronGet";
 import { detectPetSpawner, locateHelperMain } from "./petLocate";
@@ -17,7 +16,8 @@ import schemaRaw from "../storage/schema-raw";
 import { dshSessionExecutorOf } from "./sessionExecutor";
 import { buildToolContextData } from "../tools/contextData";
 import type { Conn } from "../storage/db";
-import type { JudgeExecutor } from "../judge/adapters";
+import { MIN_AGENT_TIMEOUT_SECS, type JudgeExecutor } from "../judge/adapters";
+import { remoteJudgeExecutorFor } from "../remote/sshExecutor";
 import { dshCredentialEnvOf } from "./credentialEnv";
 import type { HelperSpawner } from "../pet/supervisor";
 import type { TimerApi as LoopTimer } from "../dispatch/autoDispatch";
@@ -80,27 +80,26 @@ function readSetting<T>(field: { get(): T } | T): T {
     : (field as T);
 }
 
-/** 交互终端装配：desktop 载体 → 外部终端适配器（按次解析偏好→探测链；唤起失败/无终端内部回落 handoff）；web 载体 → handoff + web-carrier 原因码 */
-function externalTerminal装配() {
-  if (isDesktopCarrier()) {
-    return createExternalTerminalAdapter();
-  }
-  return createHandoffTerminal("dsh web 载体：终端窗口会开在宿主机器的屏幕上", "web-carrier");
-}
-
 /**
  * 判定执行方路由（活闭包按当前配置值）：cli = 业务核心缺省（主 agent CLI 子进程，凭据环境
- * 经 agentEnv 注入）；session/subagent（旧值别名）= dsh 内置通道（dsh/sessionExecutor.ts，
- * root 会话一批一会话，默认）——判定上下文以当前 conn 现取（pk context 同构 JSON），每批新鲜。
+ * 经 agentEnv 注入；绑定部署的主 agent 经远端执行器在部署上判定——desktop judge.rs
+ * resolve_remote_target 同构，超时下限按判定口径而非派发 600s）；session/subagent（旧值
+ * 别名）= dsh 内置通道（dsh/sessionExecutor.ts，root 会话一批一会话，默认）——判定上下文以
+ * 当前 conn 现取（pk context 同构 JSON），每批新鲜。
  */
 function judgeExecutorOf(
   ctx: Context,
   config: ResolvedPkyConfig,
   agentEnv: ReturnType<typeof dshCredentialEnvOf>,
   conn: Conn,
+  remote: RemoteAssembly,
 ): JudgeExecutor | null {
   return readSetting(config.judgeExecutor) === "cli"
-    ? defaultJudgeExecutor(conn, agentEnv)
+    ? defaultJudgeExecutor(
+        conn,
+        agentEnv,
+        remoteJudgeExecutorFor(conn, remote.platform, { minTimeoutSecs: MIN_AGENT_TIMEOUT_SECS }),
+      )
     : dshSessionExecutorOf(ctx, () => JSON.stringify(buildToolContextData(conn)));
 }
 
@@ -115,6 +114,7 @@ function pluginDepsOf(
   pkSetup: NonNullable<Parameters<typeof createPlugin>[0]>["pkSetup"],
 ): Parameters<typeof createPlugin>[0] {
   const agentEnv = dshCredentialEnvOf(ctx); // dsh 形态子进程凭据注入（见 dsh/credentialEnv.ts）
+  const externalTerminal = createExternalTerminalAdapter();
   return {
     dbPath,
     pollTimer: (cb, ms) => ctx.interval(cb, ms),
@@ -136,19 +136,21 @@ function pluginDepsOf(
       set: () => undefined, // 平台持久化归 dsh 配置面（Phase B 客户端设置段写回）
     },
     // 判定执行方（volatile 活读——背包改值热应用后下一次判定即生效；newExecutor 每次判定调用）
-    newExecutor: (conn) => judgeExecutorOf(ctx, config, agentEnv, conn),
+    newExecutor: (conn) => judgeExecutorOf(ctx, config, agentEnv, conn, remote),
     agentEnv,
     // dispatchDeps/larkBin 缺省：lark-cli 走 PATH；无头派发 executorFor 缺省走 local 子进程。
-    // 交互终端/terminalLine（debt ③ a desktop 载体解 + 终端偏好遵循）：dsh 桌面 app
-    // （Electron 宿主）→ 适配器按次解析（共享设置 terminal_preference 命中优先，探测链
-    // Ghostty → kitty → … → iTerm2 → Terminal.app 回落；唤起失败自动回落 copy-line
-    // handoff）；web/headless CLI 载体 → 无窗口可弹（远程浏览器看不见宿主屏幕），handoff
-    // 命令行回传 + 客户端 web 提示。远端交互不经本件（remoteInteractiveParts 真 PTY/
-    // copy-line，装配层接线）。
-    terminal: externalTerminal装配(),
-    // 回放/lark 登录的终端行注入（desktop 载体 → 外部终端真窗口，injectLineGuarded 统一
-    // 读偏好随行注入；web 载体缺省——回放自动走 handoff 命令行回传，lark 登录 note 携带命令行）
-    ...(isDesktopCarrier() && detectExternalTerminal() !== null ? { terminalLine: externalTerminalLine() } : {}),
+    // 交互终端/terminalLine（debt ③ a 本机载体解 + 终端偏好遵循）：darwin 宿主（dsh 桌面
+    // app / dsh web / dsh-tui——浏览器与宿主同机口径）→ 适配器按次解析（共享设置
+    // terminal_preference 命中优先，探测链 kitty → Ghostty → … → iTerm2 → Terminal.app 回落；
+    // 探测无产物 / 唤起失败自动回落 copy-line handoff，命令行回传 + 客户端复制面）。远端
+    // 部署路由经 remoteInteractiveParts：探测到 GUI 终端 → 同一外部终端弹 ssh 别名窗口
+    // （remoteSshWindow）；否则 PTY / copy-line 既有链。
+    terminal: externalTerminal,
+    // 回放/lark 登录的终端行注入（探测到 GUI 终端 → 真窗口，injectLineGuarded 统一读偏好
+    // 随行注入；无终端缺省——回放自动走 handoff 命令行回传，lark 登录 note 携带命令行）
+    ...(detectExternalTerminal() !== null
+      ? { terminalLine: externalTerminalLine(), remoteSshWindow: externalTerminal }
+      : {}),
   };
 }
 
