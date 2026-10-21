@@ -47,7 +47,9 @@ describe("上行解码与分发", () => {
     expect(settles).toHaveLength(1);
     expect(settles[0]?.localSessionId).toBe("s-1");
   });
+});
 
+describe("上行解码与分发（pomo-state / 坏行）", () => {
   it("pomo-state 上行分发到可选处理器（相位快照 + null 相位）；处理器缺席不计错", () => {
     const seen: unknown[] = [];
     const helperToHost = new PassThrough();

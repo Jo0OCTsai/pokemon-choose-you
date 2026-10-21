@@ -32,6 +32,7 @@ import { StateFeed, type FeedTimerApi } from "./pet/stateFeed";
 import { PetSupervisor, memoryPetAutoStartStore, type HelperSpawner } from "./pet/supervisor";
 import type { PageOpenPayload } from "./pet/cmdHandler";
 import { assemblePet, type PluginSlots } from "./petSection";
+import { pageOpener } from "./dsh/pageOpenStream";
 import { PomoStateStore } from "./pet/pomoState";
 import { assembleLoopsFull, assemblePollLoops, parityCommandDeps } from "./loopSection";
 import type { RemoteCommandPlatform } from "./commands";
@@ -186,22 +187,18 @@ function startExtras(plugin: Plugin, deps: PluginDeps, log: HostCommandDeps["log
   }
 }
 
-/** openPage 广播器（section/focus 事件 → 已注册监听器集合逐一转发） */
-function pageOpener(
-  listeners: Set<(event: PageOpenPayload) => void>,
-): (section?: "panel" | "settings", focus?: "capture") => void {
-  return (section, focus) => {
-    listeners.forEach((l) => l({ section, ...(focus !== undefined ? { focus } : {}) }));
-  };
+/** 库定位与开库初始化（CHOOSE_YOU_HOME → home 兜底；定位不到 fail fast，AD §5.1） */
+function openConn(dbPath: string | undefined): { conn: Conn; migration: Plugin["migration"] } {
+  const resolved = dbPath ?? dbFileFrom();
+  if (resolved === undefined) {
+    throw new Error("[dsh-plugin] 无法定位待办库：CHOOSE_YOU_HOME 与 home 均不可用（AD §5.1 库定位）");
+  }
+  return openAndInit(resolved);
 }
 
 /** 装配插件（storage → health/log → pet/feed → loops → tools/commands → 启动收尾） */
 export function createPlugin(deps: PluginDeps = {}): Plugin {
-  const dbPath = deps.dbPath ?? dbFileFrom();
-  if (dbPath === undefined) {
-    throw new Error("[dsh-plugin] 无法定位待办库：CHOOSE_YOU_HOME 与 home 均不可用（AD §5.1 库定位）");
-  }
-  const { conn, migration } = openAndInit(dbPath);
+  const { conn, migration } = openConn(deps.dbPath);
   const logs = new LogRing();
   const health = new HealthState();
   const log = pluginLogger(logs, createLogSink(deps.logDir));

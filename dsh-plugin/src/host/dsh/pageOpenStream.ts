@@ -15,6 +15,15 @@ export type PageOpenStreamItem = { type: "ready" } | ({ type: "pageOpen" } & Pag
 /** 订阅面（= Plugin.onPageOpen 形态） */
 export type PageOpenSubscribe = (listener: (event: PageOpenPayload) => void) => () => void;
 
+/** openPage 广播器（section/focus 事件 → 已注册监听器集合逐一转发；host 装配侧持有集合） */
+export function pageOpener(
+  listeners: Set<(event: PageOpenPayload) => void>,
+): (section?: "panel" | "settings", focus?: "capture") => void {
+  return (section, focus) => {
+    listeners.forEach((l) => l({ section, ...(focus !== undefined ? { focus } : {}) }));
+  };
+}
+
 export async function* pageOpenEventStream(
   subscribe: PageOpenSubscribe,
   signal: AbortSignal,

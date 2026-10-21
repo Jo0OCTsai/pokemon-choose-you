@@ -20,6 +20,8 @@
     --pcy-paper: #2a2b35;
     --pcy-paper-ink: #dfe3ea;
     --pcy-paper-dim: #23242c;
+    /* 逃逸卡墨（对 paper-dim ≥4.5:1 的配对值；亮色 fallback 在消费点） */
+    --pcy-escape-ink: #a9adb6;
     --pcy-hover: #3f3a1c;
     --pcy-lcd: #2b3327;
     --pcy-lcd-text: #cddcb4;

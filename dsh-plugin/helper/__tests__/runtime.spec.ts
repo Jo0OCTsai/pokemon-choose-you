@@ -88,7 +88,9 @@ describe("createHelperRuntime 装配", () => {
     expect(typeof settle!.localSessionId).toBe("string");
     h.runtime.dispose();
   });
+});
 
+describe("createHelperRuntime · 番茄上行", () => {
   it("pomo-state 上行：hello 后首发 null 相位；专注/休息迁移即发（带 activeTask 归属）；到期置空再发", async () => {
     const h = makeHarness();
     const states = () => h.parsed().filter((m) => m.type === "pomo-state");

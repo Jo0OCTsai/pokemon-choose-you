@@ -27,7 +27,7 @@ import type { BubbleTone, HelperRuntime, RuntimeOptions } from "./index.ts";
 import { RuntimeStateBase } from "./state.ts";
 import LINES from "./lines.ts";
 import { PomoTicker } from "./pomoTicker.ts";
-import { defaultUuid, emitTaskBubbles, HELPER_CAPS, HELPER_VERSION } from "./implSupport.ts";
+import { defaultUuid, emitTaskBubbles, helloMsg, pomoEndedLines, projectInputResponse } from "./implSupport.ts";
 
 export { HELPER_VERSION, HELPER_CAPS } from "./implSupport.ts";
 
@@ -186,12 +186,7 @@ export class RuntimeImpl extends RuntimeStateBase implements HelperRuntime {
 
   /** sys-config 的渲染层投影（inputResponse 启停 + hop 耦合上限）——sys 路由之外的旁路观察 */
   private observeSysConfig(msg: Extract<DownstreamMsg, { type: "sys-config" }>): void {
-    if (!msg.inputResponse) return;
-    const max = msg.inputResponse.focusHopCoupleMax;
-    this.inputResponseValue = {
-      enabled: msg.inputResponse.enabled,
-      hopCoupleMax: typeof max === "number" && max > 0 ? Math.min(max, 0.1) : 0,
-    };
+    if (msg.inputResponse) this.inputResponseValue = projectInputResponse(msg.inputResponse);
   }
 
   /** sys 模块上行观察：可见性乐观翻转 + input-activity 渲染层镜像 */
@@ -209,11 +204,7 @@ export class RuntimeImpl extends RuntimeStateBase implements HelperRuntime {
   }
 
   private sendHello(): void {
-    this.bridge.send({
-      type: "hello",
-      version: HELPER_VERSION,
-      caps: [...HELPER_CAPS, ...this.sys.caps],
-    });
+    this.bridge.send(helloMsg(this.sys.caps));
     // hello 后补发相位快照：宿主重启/重连后收敛到 helper 真值（首发 = null 相位）
     this.emitPomoState();
   }
@@ -282,15 +273,12 @@ export class RuntimeImpl extends RuntimeStateBase implements HelperRuntime {
     this.opts.onUiEvent?.({ kind: "quit", reason });
   }
 
-  // ---- 番茄到期出口（气泡/宠物状态；绝不自动续轮） ----
+  // ---- 番茄到期出口（台词见 implSupport.pomoEndedLines；绝不自动续轮） ----
   private onPomoEnded(wasBreak: boolean): void {
     this.emitPomoState();
-    if (!wasBreak) {
-      this.bubble(LINES.pomoDone(this.langValue), "event", true);
-      return;
-    }
-    this.setPetState({ kind: "break-end" });
-    this.bubble(LINES.breakOver(this.langValue), "event");
+    const line = pomoEndedLines(wasBreak, this.langValue);
+    if (line.breakEnd) this.setPetState({ kind: "break-end" });
+    this.bubble(line.text, line.tone, line.blink);
   }
 
   // ---- 小工具 ----

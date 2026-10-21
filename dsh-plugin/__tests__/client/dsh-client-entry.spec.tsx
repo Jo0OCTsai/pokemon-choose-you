@@ -7,165 +7,15 @@
  * 行为面见 dsh-plugin-config.spec.tsx）。plugins.detail.section 与 plugins.bundle.config
  * 两槽均不注册（用户裁决：详情页回归纯信息页，插件私有配置背包为唯一编辑面）；rpc 经
  * fake connection（mockHost + dsh 信封正向转换）走真实 transport 链路；slots.inject
- * 的卸载清理形态。
+ * 的卸载清理形态。装配替身见 client-entry-harness.ts；chipTiming 纯函数见
+ * dsh-client-chip-timing.spec.ts、pageOpen 推送见 dsh-client-page-open.spec.tsx。
  */
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
-import type { ComponentType } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { apply, chipTiming, type DshClientContext } from "../../src/client/dsh/clientEntry";
-import type { DshClientRemote } from "../../src/client/dsh/pageOpenStream";
-import { type ConfigFormsFace } from "../../src/client/dsh/pluginConfig";
-import {
-  createPanelLabel,
-  createPanelOpener,
-  localeForTag,
-  PANEL_ID,
-  type PanelLayoutFace,
-} from "../../src/client/dsh/sidebarPanel";
-import type { DshConnectionResult, DshConnectionRpc } from "../../src/client/dsh/transport";
-import { mockHost, type MockHost, type PkyResult } from "../../src/client/rpc";
+import { createPanelLabel, createPanelOpener, localeForTag, PANEL_ID } from "../../src/client/dsh/sidebarPanel";
+import { mockHost } from "../../src/client/rpc";
 import { makeCategory, makeTask } from "./fixtures";
-
-/** slot 组件的 JSX 形态收窄（props 契约 = 槽 owner/标准件合成，测试只喂已知键） */
-type SlotC = ComponentType<Record<string, unknown>>;
-
-/** 记录形态：options 快照（list 槽 id / keyed 槽 key 归一到 id 便于寻址）+ 组件 */
-type Registration = {
-  name: string;
-  id: string;
-  order?: number;
-  label?: () => string;
-  component: (props: Record<string, unknown>) => unknown;
-};
-
-/** mockHost → fake dsh connection rpc（Typert Remote 迁移后 wire 形态：/api + pky/call + 双信封） */
-function mockHostRpc(host: MockHost): DshConnectionRpc {
-  return {
-    async call(channel, endpoint, payload): Promise<DshConnectionResult> {
-      const args = (payload as { args?: { command?: unknown; payload?: unknown } } | undefined)?.args;
-      if (channel !== "/api" || endpoint !== "pky/call" || typeof args?.command !== "string") {
-        return {
-          ok: false,
-          error: { code: "INVALID_ARGUMENT", message: `非 pky/call Remote 调用：${channel} ${endpoint}`, details: {} },
-        };
-      }
-      const command = args.command;
-      const fn = (host as unknown as Record<string, (p?: unknown) => Promise<PkyResult<unknown>>>)[command];
-      if (typeof fn !== "function") {
-        return { ok: false, error: { code: "INVALID_ARGUMENT", message: `未知命令 ${command}`, details: {} } };
-      }
-      // 业务信封原样透传（Remote 方法不抛错，错误走信封）
-      return { ok: true, value: await fn(args.payload) };
-    },
-  };
-}
-
-/** slots 服务替身：inject 即执行贡献（贡献形态 = 单 disposer 或 disposer 数组——配置槽
- * 双键并注返回数组），register 记录并返回注销件 */
-function fakeSlots() {
-  const registrations: Registration[] = [];
-  const slots: DshClientContext["slots"] = {
-    inject(_key, contribute) {
-      const contributed = contribute();
-      const dispose = Array.isArray(contributed)
-        ? () => {
-            for (const off of contributed) off();
-          }
-        : (contributed as () => void);
-      return () => {
-        dispose();
-      };
-    },
-    register(options, component) {
-      const id = options.id ?? options.key ?? "";
-      registrations.push({ name: options.name, id, order: options.order, label: options.label, component });
-      return () => {
-        const index = registrations.findIndex((r) => r.id === id);
-        if (index !== -1) {
-          registrations.splice(index, 1);
-        }
-      };
-    },
-  };
-  return { slots, registrations };
-}
-
-/** apply 替身装配：可选注入宿主 locale 快照替身、layout 替身与 remote 替身（缺省不给——健壮性口径；
- * configForms 缺省给 unavailable 态替身——注册面断言不渲染配置区，行为面归
- * dsh-config-section.spec.tsx）；effect 记录注册的 disposer（pageOpen 流订阅的回收位） */
-function applyWith(
-  host = mockHost(),
-  faces: { locale?: unknown; layout?: PanelLayoutFace; configForms?: ConfigFormsFace; remote?: unknown } = {},
-) {
-  const slots = fakeSlots();
-  const injectDisposers: Array<() => void> = [];
-  const effectDisposers: Array<() => void> = [];
-  const realInject = slots.slots.inject.bind(slots.slots);
-  slots.slots.inject = (key, contribute) => {
-    const dispose = realInject(key, contribute);
-    injectDisposers.push(dispose);
-    return dispose;
-  };
-  apply({
-    slots: slots.slots,
-    locale: faces.locale ?? null,
-    connection: { rpc: mockHostRpc(host) },
-    configForms:
-      faces.configForms ??
-      ({
-        get: () => ({
-          getSnapshot: () => ({ status: "unavailable", writable: false }),
-          subscribe: () => () => undefined,
-          set: () => Promise.resolve(false),
-        }),
-      } as ConfigFormsFace),
-    layout: faces.layout,
-    remote: faces.remote as DshClientRemote | undefined,
-    effect(callback) {
-      const dispose = callback();
-      effectDisposers.push(dispose);
-      return dispose;
-    },
-  });
-  return { ...slots, injectDisposers, effectDisposers };
-}
-
-/** ctx.remote 替身：$stream 直通 open；openRemoteStream 回放帧序列（形态同 host pky/pageOpenEvents） */
-function fakeRemote(frames: unknown[]) {
-  let disposed = 0;
-  const remote: DshClientRemote = {
-    openRemoteStream: () =>
-      (async function* () {
-        for (const frame of frames) {
-          yield frame;
-        }
-      })(),
-    $stream(options) {
-      const source = options.open(new AbortController().signal);
-      return {
-        async *[Symbol.asyncIterator]() {
-          for await (const value of source) {
-            yield { value, accept: () => undefined };
-          }
-        },
-        dispose: async () => {
-          disposed += 1;
-        },
-      };
-    },
-  };
-  return {
-    remote,
-    get disposed() {
-      return disposed;
-    },
-  };
-}
-
-/** 宿主 locale 服务替身（快照携带生效 locale id） */
-function fakeLocale(tag: string): unknown {
-  return { getSnapshot: () => ({ locale: tag }) };
-}
+import { applyWith, fakeLocale, type SlotC } from "./client-entry-harness";
 
 afterEach(cleanup);
 
@@ -245,38 +95,6 @@ describe("clientEntry · 会话头 chip（零占位）", () => {
   });
 });
 
-describe("chipTiming · 相位归属与回落", () => {
-  const now = Date.parse("2026-10-20T10:00:00Z");
-  const task = makeTask({ id: 3, status: "active", startedAt: "2026-10-20T09:58:30Z" });
-  const later = new Date(now + 90_000).toISOString();
-
-  it("相位归属当前任务（或无归属）且未到期 → 倒计时秒；break → resting", () => {
-    expect(chipTiming(task, { kind: "focus", endAt: later, durationMin: 25, taskId: 3 }, now)).toEqual({
-      mode: "running",
-      secondsLeft: 90,
-    });
-    expect(chipTiming(task, { kind: "trial", endAt: later, durationMin: null, taskId: null }, now)).toEqual({
-      mode: "running",
-      secondsLeft: 90,
-    });
-    expect(chipTiming(task, { kind: "break", endAt: later, durationMin: null, taskId: "3" }, now).mode).toBe("resting");
-    expect(
-      chipTiming({ ...task, status: "paused" }, { kind: "focus", endAt: later, durationMin: 25, taskId: 3 }, now).mode,
-    ).toBe("paused");
-  });
-
-  it("相位归属别的任务 / 已到期 / 无相位 → 回落已专注时长快照（paused 随任务态）", () => {
-    const elapsed = { mode: "running", secondsLeft: 90 };
-    expect(chipTiming(task, { kind: "focus", endAt: later, durationMin: 25, taskId: 4 }, now)).toEqual(elapsed);
-    expect(
-      chipTiming(task, { kind: "focus", endAt: new Date(now - 1).toISOString(), durationMin: 25, taskId: 3 }, now),
-    ).toEqual(elapsed);
-    expect(chipTiming(task, null, now)).toEqual(elapsed);
-    expect(chipTiming({ ...task, status: "paused" }, null, now).mode).toBe("paused");
-    expect(chipTiming({ ...task, startedAt: null }, null, now).secondsLeft).toBe(0);
-  });
-});
-
 describe("clientEntry · 侧边栏一级入口 + 主区全局面板", () => {
   it("panellist 注册携带 order（排内置插件 0 / 自动化任务 10 之后）与 locale-aware 标签", () => {
     const { registrations } = applyWith(mockHost(), { locale: fakeLocale("zh-Hans-CN") });
@@ -344,29 +162,5 @@ describe("clientEntry · chip 点击导航（客户端闭环）", () => {
 
   it("createPanelLabel 直连：宿主 locale 服务形态不符（无 getSnapshot）回落 en 标题", () => {
     expect(createPanelLabel({})()).toBe("Pokédex");
-  });
-});
-
-describe("clientEntry · host:pageOpen 推送 → 导航直达本面板", () => {
-  it("remote 在场：订阅 pky/pageOpenEvents 流，pageOpen 帧 → layout.selectPanel(PANEL_ID)；订阅挂 effect 回收", async () => {
-    const selectPanel = vi.fn();
-    const fake = fakeRemote([{ type: "ready" }, { type: "pageOpen", section: "settings" }, { type: "pageOpen" }]);
-    const { effectDisposers } = applyWith(mockHost(), { layout: { selectPanel }, remote: fake.remote });
-    await waitFor(() => expect(selectPanel).toHaveBeenCalledTimes(2));
-    expect(selectPanel).toHaveBeenCalledWith(PANEL_ID);
-    expect(effectDisposers).toHaveLength(1);
-    effectDisposers[0]?.();
-    await waitFor(() => expect(fake.disposed).toBe(1));
-  });
-
-  it("remote 缺席 / 形态不符（无 openRemoteStream）：不订阅、不注册 effect、apply 不抛", () => {
-    expect(applyWith(mockHost(), { remote: undefined }).effectDisposers).toEqual([]);
-    expect(applyWith(mockHost(), { remote: { $stream: () => undefined } }).effectDisposers).toEqual([]);
-  });
-
-  it("layout 缺席时推送仍被消费（opener noop 不抛）", async () => {
-    const fake = fakeRemote([{ type: "ready" }, { type: "pageOpen", section: "panel" }]);
-    expect(() => applyWith(mockHost(), { remote: fake.remote })).not.toThrow();
-    await new Promise((r) => setTimeout(r, 0));
   });
 });

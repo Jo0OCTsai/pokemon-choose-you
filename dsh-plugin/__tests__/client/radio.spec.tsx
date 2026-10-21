@@ -251,10 +251,12 @@ describe("失败组与逃走组", () => {
 });
 
 describe("CaptureBar（⚡发报）", () => {
-  it("快捷键提示收敛为输入框内 ⌨ 图标：data-tip 气泡承载原 kbdHint 文案，通栏提示行已移除", () => {
+  it("快捷键提示收敛为输入框内 ⌨ 图标：data-tip 气泡文案与实绑键位一致（U/R/T/Esc 超前承诺已收编），通栏提示行已移除", () => {
     renderRadio();
     const glyph = screen.getByRole("img", { name: /快捷键：J\/K/ });
-    expect(glyph.getAttribute("data-tip")).toContain("Esc 收起");
+    expect(glyph.getAttribute("data-tip")).toContain("C 捕捉/应用更新");
+    expect(glyph.getAttribute("data-tip")).toContain("F 强制捕捉");
+    expect(glyph.getAttribute("data-tip")).not.toContain("Esc 收起");
     expect(screen.queryByText(/^快捷键：J\/K/)).toBeNull();
   });
 

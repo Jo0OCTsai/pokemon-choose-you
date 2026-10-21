@@ -250,9 +250,7 @@ export class BridgeClient {
       return;
     }
     if (msg.type === "hello") {
-      this.helloSeen = msg;
-      this.handlers.onHello?.(msg);
-      for (const cb of this.readyListeners) cb(msg);
+      this.dispatchHello(msg);
       return;
     }
     if (isSeqUpstream(msg)) {
@@ -264,6 +262,13 @@ export class BridgeClient {
       return;
     }
     this.handlers.onCrashDiag?.(msg as CrashDiagMsg);
+  }
+
+  /** hello 到达：记录握手 + 可选回调 + 唤醒全部 ready 等待者 */
+  private dispatchHello(msg: HelloMsg): void {
+    this.helloSeen = msg;
+    this.handlers.onHello?.(msg);
+    for (const cb of this.readyListeners) cb(msg);
   }
 
   /** sys 事件派发（tray-action / shortcut-fired / notify-clicked / input-activity / sys-unsupported） */

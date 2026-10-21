@@ -157,6 +157,15 @@ function useChipTask(
   };
 }
 
+/** 相位归属当前任务（全局相位 taskId=null 也算归属）且未到期 → 结束时刻；否则 null */
+function phaseEndMs(pomodoro: PomoPhaseView, task: Task, now: number): number | null {
+  if (pomodoro.taskId !== null && String(pomodoro.taskId) !== String(task.id)) {
+    return null;
+  }
+  const endMs = Date.parse(pomodoro.endAt);
+  return Number.isFinite(endMs) && endMs > now ? endMs : null;
+}
+
 /**
  * chip 计时三态判定：相位归属当前任务且未到期 → 倒计时（break = resting；focus/trial 随
  * 任务 paused/running）；否则已专注时长快照（paused/running 两态）。
@@ -167,9 +176,9 @@ export function chipTiming(
   now: number,
 ): { mode: ChipMode; secondsLeft: number } {
   const base: ChipMode = task.status === "paused" ? "paused" : "running";
-  if (pomodoro !== null && (pomodoro.taskId === null || String(pomodoro.taskId) === String(task.id))) {
-    const endMs = Date.parse(pomodoro.endAt);
-    if (Number.isFinite(endMs) && endMs > now) {
+  if (pomodoro !== null) {
+    const endMs = phaseEndMs(pomodoro, task, now);
+    if (endMs !== null) {
       return { mode: pomodoro.kind === "break" ? "resting" : base, secondsLeft: Math.ceil((endMs - now) / 1000) };
     }
   }

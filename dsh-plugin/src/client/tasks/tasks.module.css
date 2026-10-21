@@ -89,14 +89,21 @@
   filter: grayscale(1);
   opacity: 0.55;
 }
-/* 已逃走 = 桌面逃逸态同源纸灰（specs/dsh-plugin-style §4 --pcy-paper-dim）；
- * 整卡 opacity 0.6 为既有豁免（中性呈现、不催清零，≈4.0:1 记入 docs/debt.md） */
+/* 已逃走 = 桌面逃逸态同源纸灰（specs/dsh-plugin-style §4 --pcy-paper-dim）。中性呈现
+ * 不走整卡 opacity（辅助字对纸灰底 ≈4.0:1 不达 AA，debt 2026-10-21 收口）：owned 配对墨
+ * --pcy-escape-ink 对 paper-dim 双主题 ≥4.5:1，灰度剪影精灵保留原有渐弱——「不催清零」
+ * 的中性观感由纸灰底 + 剪影承载，文字保持可读 */
 .taskCard[data-presentation="escaped"] {
   background: var(--pcy-paper-dim, #f3efe6);
-  opacity: 0.6;
+  color: var(--pcy-escape-ink, #4a4f55);
 }
 .taskCard[data-presentation="escaped"]:hover {
   background: var(--pcy-paper-dim, #f3efe6);
+}
+.taskCard[data-presentation="escaped"] .taskNo,
+.taskCard[data-presentation="escaped"] .taskMeta,
+.taskCard[data-presentation="escaped"] .catchMark {
+  color: var(--pcy-escape-ink, #4a4f55);
 }
 /* 进行中悬浮标签（卡顶骑缝 pill，原型 running-tag；暂停变体灰）。
    文字/描边用固定墨色（DESIGN_SYSTEM --dex-navy）——alias label 在暗主题翻转为浅色，
@@ -236,9 +243,11 @@
   background: var(--pcy-ok-soft, #dff3e4);
   color: var(--pcy-ok-ink, #1d6b3c);
 }
+/* done = 固定浅软底配固定墨（与 queued/running/failed 同语言；不用随宿主翻转的
+ * alias label——暗主题浅字对浅底 ≈2.1:1，debt 2026-10-21 收口） */
 .dispatchBadge[data-state="done"] {
   background: var(--pcy-conf-low-soft, #eceada);
-  color: var(--dsw-alias-label-secondary, #57606a);
+  color: var(--pcy-conf-low-ink, #57606a);
 }
 .dispatchBadge[data-state="failed"] {
   background: var(--pcy-fail-soft, #fde8e8);

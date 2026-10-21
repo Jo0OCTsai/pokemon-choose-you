@@ -106,7 +106,7 @@ describe("validateDownstream · 拒绝面", () => {
   });
 });
 
-describe("validateUpstream（上行全集 + 拒绝面）", () => {
+describe("validateUpstream（cmd / focus-settle）", () => {
   it("cmd：九个 op 全部通过（含可选字段）", () => {
     for (const op of ["start", "pause", "resume", "done", "switch", "capture", "hide", "open-page", "pet-interact"]) {
       const msg = validateUpstream({ type: "cmd", op, taskId: 3, text: "hi", pos: { x: 1, y: 2 } });
@@ -127,7 +127,9 @@ describe("validateUpstream（上行全集 + 拒绝面）", () => {
     expect(validateUpstream({ type: "focus-settle", taskId: 7, elapsedMin: 12 })).toBeNull();
     expect(validateUpstream({ type: "focus-settle", taskId: 7, localSessionId: "ls-1", elapsedMin: -1 })).toBeNull();
   });
+});
 
+describe("validateUpstream（pomo-state / hello / crash-diag）", () => {
   it("pomo-state：null 相位 / 三种相位通过；未知 kind、endAt 非数、taskId 形状错、缺 ts → 拒绝", () => {
     expect(validateUpstream({ type: "pomo-state", phase: null, taskId: null, ts: 1 })).toMatchObject({ phase: null });
     expect(

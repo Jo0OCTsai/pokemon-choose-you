@@ -57,7 +57,7 @@ export default {
     stateFail: "Unauthorized",
     failCount: "{n} consecutive failures",
     kbdHint:
-      "J/K navigate · C catch · X release · U apply update · R restore · T accept tag · Esc close (active only inside the plugin page — no global shortcuts)",
+      "J/K navigate · C catch/apply update · X release · F force capture (active only inside the plugin page — no global shortcuts)",
     acceptTag: "＋ Accept new tag",
     judging: "Judging…",
   },

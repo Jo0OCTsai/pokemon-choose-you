@@ -53,8 +53,7 @@ export default {
     stateWarn: "重試中",
     stateFail: "未授權",
     failCount: "連續失敗 {n}",
-    kbdHint:
-      "J/K 上下條 · C 捕捉 · X 逃走 · U 應用更新 · R 恢復（逃走留檔項） · T 接受新標籤提議 · Esc 收起（僅插件頁面聚焦域內生效，不註冊全域快捷鍵）",
+    kbdHint: "J/K 上下條 · C 捕捉/應用更新 · X 逃走 · F 強制捕捉（僅插件頁面聚焦域內生效，不註冊全域快捷鍵）",
     acceptTag: "＋ 接受新標籤提議",
     judging: "判定中…",
   },

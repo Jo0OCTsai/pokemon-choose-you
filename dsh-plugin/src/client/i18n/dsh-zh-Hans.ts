@@ -54,7 +54,7 @@ export default {
     stateWarn: "重试中",
     stateFail: "未授权",
     failCount: "连续失败 {n}",
-    kbdHint: "快捷键：J/K 上下条 · C 捕捉 · X 逃走 · U 应用更新 · R 恢复（逃走留档项） · T 接受新标签提议 · Esc 收起",
+    kbdHint: "快捷键：J/K 上下条 · C 捕捉/应用更新 · X 逃走 · F 强制捕捉（仅插件页面聚焦域内生效，不注册全局快捷键）",
     acceptTag: "＋ 接受新标签提议",
     judging: "判定中…",
   },

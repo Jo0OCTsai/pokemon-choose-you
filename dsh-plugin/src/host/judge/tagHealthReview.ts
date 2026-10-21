@@ -8,15 +8,10 @@
 import type { Conn } from "../storage/db";
 import { primaryAgent, type AgentConfig } from "../domain/settings";
 import { listTags } from "../domain/vocabulary-tags";
-import {
-  applyTagHealthVerdict,
-  buildTagHealthPrompt,
-  localReport,
-  parseTagHealthVerdict,
-  type TagCheckupReport,
-} from "../domain/tag-health";
+import { localReport, type TagCheckupReport } from "../domain/tag-health";
+import { applyTagHealthVerdict, buildTagHealthPrompt, parseTagHealthVerdict } from "../domain/tag-health-verdict";
 import { editableSpecByKey, resolveOverride } from "../domain/prompt-overrides";
-import { createLocalExecutor, type DispatchExecutor } from "../dispatch/executor";
+import { createLocalExecutor, type DispatchExecutor, type ExecOutcome } from "../dispatch/executor";
 import { resolveAgentEnv } from "../dispatch/localEnv";
 import type { HeadlessDeps } from "../dispatch/headless";
 import type { ResolvedDispatchRoute } from "../dispatch/routes";
@@ -54,6 +49,19 @@ function executorOf(deps: TagHealthReviewDeps, agent: AgentConfig): DispatchExec
   return (agent.deployment ?? "").trim() === "" ? createLocalExecutor() : null;
 }
 
+/** 无头结果校验：启动失败/超时/非零退出 → 抛错（判定失败统一走 catch 兜底） */
+function assertOutcomeOk(outcome: ExecOutcome, agent: AgentConfig): void {
+  if (outcome.error !== undefined) {
+    throw new Error(`agent 启动失败：${outcome.error}`);
+  }
+  if (outcome.timedOut) {
+    throw new Error(`agent 超时（${agent.timeoutSecs} 秒）未返回`);
+  }
+  if (outcome.exitCode !== 0) {
+    throw new Error(`agent 退出码 ${String(outcome.exitCode)}`);
+  }
+}
+
 /** 体检入口（命令层消费）：本地预筛 + 可选 LLM 复核 */
 export async function tagCheckupReviewed(deps: TagHealthReviewDeps): Promise<TagCheckupReport> {
   const tags = listTags(deps.conn);
@@ -84,15 +92,7 @@ export async function tagCheckupReviewed(deps: TagHealthReviewDeps): Promise<Tag
       timeoutSecs: agent.timeoutSecs,
       env: await resolveAgentEnv(deps.dispatchDeps.agentEnv, agent.command),
     });
-    if (outcome.error !== undefined) {
-      throw new Error(`agent 启动失败：${outcome.error}`);
-    }
-    if (outcome.timedOut) {
-      throw new Error(`agent 超时（${agent.timeoutSecs} 秒）未返回`);
-    }
-    if (outcome.exitCode !== 0) {
-      throw new Error(`agent 退出码 ${String(outcome.exitCode)}`);
-    }
+    assertOutcomeOk(outcome, agent);
     return applyTagHealthVerdict(report, parseTagHealthVerdict(extractPayload(outcome.stdout).content), tags);
   } catch (error) {
     deps.log(
