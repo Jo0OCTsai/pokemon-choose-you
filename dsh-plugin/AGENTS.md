@@ -26,8 +26,10 @@
 - **执行世界单源 = agent 绑定部署（2026-10-19 裁决）**：`AgentConfig.deployment`（`ai_agents` JSON 内
   dsh 扩展字段，存部署 alias；Rust serde 未知字段容忍）驱动派发本地/远端，路由级 deployment 已移除；
   存在性校验在命令层（domain 不反向依赖 `remote/`），alias 改名级联改写 `ai_agents`（`confirmAliasRefs`）；
-  生效引用 `ref = target = alias`，hostKey 归一 `ssh:<alias>`；`agent.remote`（SSH host/端口表单）保留为
-  桌面共享面，不驱动插件派发。
+  生效引用 `ref = target = alias`，hostKey 归一 `ssh:<alias>`；**工作目录随执行世界（2026-10-21 扩展）**：
+  部署绑定路由的 workdir 缺省层 = 实体登记工作区压过 `agent.workdir`（本机路径语义——`routeWorkdir`
+  层级：路由表/tag meta 恒先 → 实体 workdir → agent.workdir；判定侧同口径 `remoteJudgeExecutorFor`）；
+  `agent.remote`（SSH host/端口表单）保留为桌面共享面，不驱动插件派发。
 - **常驻隧道与 pk 通道（ADR-0003）**：`remote/tunnelSupervisor.ts`（零 dsh import）+ `remote/tunnelLock.ts`（与桌面 `tunnel_lock.rs` 同锁协议：`<appHome>/tunnels/<部署id>` 目录锁 + PID 探活）维持任一宿主驻留期的隧道；`remote/pkLocal.ts` 纯 dsh 的 vendor → `~/.choose-you/bin/pk` 落位；`dsh/pkSetup.ts` spawn `pk remote setup`。装配在 `dsh/hostEntry.ts`（服务注入命令面 `tunnels`/`pkSetup`，部署写命令 resync）。
 - **`agent_sessions.session_id` 的 `pty:` 标记**：远端交互派发把 dsh-ssh PTY 句柄落该列（同任务重派写回同一 PTY），
   必须经 `dispatch/sessionsReplay.ts` 的 `ptySessionRef()` 加前缀——它不是 agent 会话 id，回放路由见前缀走

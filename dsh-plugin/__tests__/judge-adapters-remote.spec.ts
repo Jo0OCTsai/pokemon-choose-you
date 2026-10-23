@@ -42,7 +42,7 @@ describe("cliJudgeExecutor × 执行世界 · 远端路径", () => {
     const exec = cliJudgeExecutor({
       conn: db.conn,
       agent: judgeAgent({ args: "-p {prompt} --output-format json", workdir: "/srv/app", deployment: "dev-box" }),
-      remoteExecutorFor: () => fake,
+      remoteExecutorFor: () => ({ executor: fake, workdir: "" }),
       spawnFn: async () => {
         throw new Error("本机 spawn 不应被调用");
       },
@@ -59,7 +59,10 @@ describe("cliJudgeExecutor × 执行世界 · 远端路径", () => {
   it("远端超时 → JUDGE_TIMEOUT；执行错误 / 非零退出带详情抛错（与本机口径同形）", async () => {
     const agent = judgeAgent({ deployment: "dev-box" });
     const run = (fake: ReturnType<typeof createFakeExecutor>) =>
-      cliJudgeExecutor({ conn: db.conn, agent, remoteExecutorFor: () => fake }).run({ prompt: "p", messageIds: [] });
+      cliJudgeExecutor({ conn: db.conn, agent, remoteExecutorFor: () => ({ executor: fake, workdir: "" }) }).run({
+        prompt: "p",
+        messageIds: [],
+      });
     const timeout = createFakeExecutor();
     timeout.enqueue({ timedOut: true });
     await expect(run(timeout)).rejects.toMatchObject({ code: "JUDGE_TIMEOUT" });
@@ -67,8 +70,28 @@ describe("cliJudgeExecutor × 执行世界 · 远端路径", () => {
     broken.enqueue({ error: "远端连接不可用（部署 dev-box）" });
     await expect(run(broken)).rejects.toThrow(/远端执行失败.*远端连接不可用/);
     const nonzero = createFakeExecutor();
-    nonzero.enqueue({ exitCode: 3, stdout: "agent exploded" });
-    await expect(run(nonzero)).rejects.toThrow(/退出码 3.*agent exploded/);
+    nonzero.enqueue({ exitCode: 3, stdout: "noise on stdout", stderr: "boom: auth token missing" });
+    await expect(run(nonzero)).rejects.toThrow(/退出码 3：boom: auth token missing/);
+    const stderrEmpty = createFakeExecutor();
+    stderrEmpty.enqueue({ exitCode: 1, stdout: "only stdout detail" });
+    await expect(run(stderrEmpty)).rejects.toThrow(/退出码 1：only stdout detail/);
+  });
+});
+
+describe("cliJudgeExecutor × 执行世界 · workdir 暴露（账本快照/回放 cd 来源）", () => {
+  it("远端工厂给部署工作区 → 压过 agent 本机路径；实体未登记（空串）→ 回落 agent.workdir", () => {
+    const overridden = cliJudgeExecutor({
+      conn: db.conn,
+      agent: judgeAgent({ workdir: "~/local-ws", deployment: "dev-box" }),
+      remoteExecutorFor: () => ({ executor: createFakeExecutor(), workdir: "/workspaces/dev-env-settings" }),
+    });
+    expect(overridden.workdir).toBe("/workspaces/dev-env-settings");
+    const fallback = cliJudgeExecutor({
+      conn: db.conn,
+      agent: judgeAgent({ workdir: "~/local-ws", deployment: "dev-box" }),
+      remoteExecutorFor: () => ({ executor: createFakeExecutor(), workdir: "" }),
+    });
+    expect(fallback.workdir).toBe("~/local-ws");
   });
 });
 
@@ -100,6 +123,7 @@ describe("cliJudgeExecutor × 执行世界 · 拒绝与本机", () => {
       },
     });
     expect(exec.remoteHost).toBeNull();
+    expect(exec.workdir).toBe(""); // 本机执行方 = agent.workdir 原样（该测试 agent 未配）
     expect((await exec.run({ prompt: "p", messageIds: [] })).sessionId).toBe("s-local");
   });
 });

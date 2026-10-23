@@ -41,6 +41,8 @@ export interface ExecOutcome {
   exitCode: number | null;
   durationMs: number;
   stdout: string;
+  /** stderr 透传（失败详情上呈——判定/诊断路径消费；成功路径通常为空） */
+  stderr?: string;
   /** 超时被杀（编排层置 failed + DISPATCH_TIMEOUT 记因） */
   timedOut: boolean;
   /** spawn 失败等执行错误（原因文本） */
@@ -246,7 +248,7 @@ function closeOutcome(
       error: `进程被信号终止${stderr === "" ? "" : `：${stderr.slice(0, 200)}`}`,
     };
   }
-  return { exitCode: code, durationMs, stdout: ctx.out.stdout(), timedOut: false };
+  return { exitCode: code, durationMs, stdout: ctx.out.stdout(), stderr: ctx.out.stderr(), timedOut: false };
 }
 
 // ---- fake 执行器（测试：可编程三态——成功 / 失败 / 挂起等 kill） ----

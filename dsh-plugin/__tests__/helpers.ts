@@ -128,7 +128,14 @@ export function seedMessage(conn: Conn, messageId: string, opts: ChatSeedInput =
 /** 直接插一个 agent 配置到 ai_agents 设置（queue_due 的可用性判定起点） */
 export function seedAgents(
   conn: Conn,
-  agents: Array<{ id: string; command?: string; enabled?: boolean; host?: string; deployment?: string | null }>,
+  agents: Array<{
+    id: string;
+    command?: string;
+    enabled?: boolean;
+    host?: string;
+    deployment?: string | null;
+    workdir?: string;
+  }>,
 ): void {
   conn.prepare("INSERT OR REPLACE INTO settings (key, value) VALUES ('ai_agents', ?)").run(
     JSON.stringify(
@@ -138,7 +145,7 @@ export function seedAgents(
         command: a.command ?? "claude",
         args: "",
         historyArgs: "",
-        workdir: "",
+        workdir: a.workdir ?? "",
         timeoutSecs: 120,
         enabled: a.enabled ?? true,
         ...(a.host ? { remote: { host: a.host, port: 22, persistent: false } } : {}),

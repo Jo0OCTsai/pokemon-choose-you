@@ -11,7 +11,7 @@ import { injectLineGuarded } from "./context";
 import { kindForCommand, type LocalReplayLaunch, type ReplayLauncher } from "../dispatch/sessions";
 import { createRemoteTerminalAdapter } from "../remote/sshExecutor";
 import { deploymentByAlias } from "../remote/deployments";
-import { posixQuote, sshAliasLine } from "../dispatch/cmdline";
+import { cdSegment, posixQuote, sshAliasLine } from "../dispatch/cmdline";
 import { dstReplayLine, isDshKind } from "../dispatch/dstLaunch";
 
 // ---- 回放唤起装配（sessions.ts ReplayLauncher 注入件——本文件属命令装配层） ----
@@ -48,7 +48,7 @@ function agentReplayLine(l: LocalReplayLaunch): string {
  * 回放命令行组装（desktop history_invocation 同构基准）：tmux attach 优先；dsh 类 agent
  * 整行换 dst（resume → `dst --resume <id>`；picker → 裸 dst 会话管理器）；其余 = agent 配置
  * 命令 + 历史参数；工作目录非空时 cd 前缀（desktop local_history_line 同款——历史会话与
- * 派发同目录）。
+ * 派发同目录；~ 前缀裸写）。
  */
 export function replayCommandLine(l: LocalReplayLaunch): string {
   if (l.branch === "tmux" && l.tmuxSession !== null) {
@@ -58,7 +58,9 @@ export function replayCommandLine(l: LocalReplayLaunch): string {
     ? dstReplayLine(l.branch === "resume" ? l.sessionId : null)
     : agentReplayLine(l);
   const dir = l.workdir.trim();
-  return dir === "" ? line : `cd ${posixQuote(dir)} && ${line}`;
+  // cd 段经 cdSegment：前导 ~ 裸写给 shell 展开（整体引用会让 `cd '~/x'` 找字面目录名必失败——
+  // 判定行 workdir 多为 ~/.choose-you/workspace 形态）
+  return dir === "" ? line : `${cdSegment(dir)} && ${line}`;
 }
 
 /** target → 部署实体（快照自包含：单源化后 remote_host = 部署 alias，直配即得） */

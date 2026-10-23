@@ -51,7 +51,15 @@ function petCmdDepsOf(args: PetHandlerArgs, petBridge: () => BridgeClient | null
         args.log("warn", "pet:capture", "未配置 AI agent，捕捉丢弃");
         return;
       }
-      void captureTodo({ conn: args.conn, executor, health: args.health }, text).catch((error: unknown) => {
+      void captureTodo(
+        {
+          conn: args.conn,
+          executor,
+          health: args.health,
+          log: (level, message) => args.log(level, "judge", message),
+        },
+        text,
+      ).catch((error: unknown) => {
         args.log("warn", "pet:capture", String(error));
       });
     },

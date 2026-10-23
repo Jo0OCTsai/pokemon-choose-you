@@ -2,7 +2,8 @@
  * 判定 CLI 执行面（从 adapters.ts 拆出——棘轮 max-lines，等量迁移；adapters.ts 为统一再出口，
  * 消费面不变）：本机子进程 spawn（realAgentSpawn——which.rs/runner.rs 基准的 GUI 精简 PATH
  * 适配）、命令行组装（build_invocation 本地分支同构）、远端 DispatchExecutor 路径（绑定部署
- * 的 agent 在部署上执行——judge.rs resolve_remote_target 同构）与远端结果折算判定口径。
+ * 的 agent 在部署上执行——judge.rs resolve_remote_target 同构）与远端结果折算判定口径；
+ * 远端面解析（工厂缺席拒绝）在 adapters.ts resolveRemoteExecutor。
  * 零 dsh 依赖。
  */
 import { spawn } from "node:child_process";
@@ -100,6 +101,8 @@ export interface JudgeInvocation {
   pregen: string | null;
   timeoutMs: number;
   env: Record<string, string> | undefined;
+  /** 执行时工作目录（cliJudgeExecutor 按执行世界解析：远端 = 部署工作区口径；本机 = agent.workdir） */
+  workdir: string;
 }
 
 /** 本机子进程执行（realAgentSpawn 口径：argv 已替换 {prompt}，会话旗标追加 argv 尾） */
@@ -107,7 +110,7 @@ export async function spawnLocalJudge(spawnFn: AgentSpawn, inv: JudgeInvocation)
   const built = buildAgentInvocation(inv.agent, inv.prompt);
   const out = await spawnFn(built.program, sessionArgv(built.argv, inv.kind, inv.pregen, inv.agent.args), {
     stdin: built.stdin,
-    cwd: inv.agent.workdir === "" ? undefined : inv.agent.workdir,
+    cwd: inv.workdir === "" ? undefined : inv.workdir,
     timeoutMs: inv.timeoutMs,
     ...(inv.env === undefined ? {} : { env: inv.env }),
   });
@@ -120,7 +123,7 @@ export async function spawnRemoteJudge(executor: DispatchExecutor, inv: JudgeInv
     command: inv.agent.command,
     args: [inv.agent.args, ...sessionArgv([], inv.kind, inv.pregen, inv.agent.args)].filter((t) => t !== "").join(" "),
     prompt: inv.prompt,
-    workdir: inv.agent.workdir === "" ? null : inv.agent.workdir,
+    workdir: inv.workdir === "" ? null : inv.workdir,
     timeoutSecs: inv.agent.timeoutSecs,
     ...(inv.env === undefined ? {} : { env: inv.env }),
   });
@@ -143,24 +146,63 @@ function remoteStdoutOf(
     throw new Error(`Agent「${agent.name}」远端执行失败: ${outcome.error}`);
   }
   if (outcome.exitCode !== 0) {
-    throw new Error(`Agent「${agent.name}」退出码 ${outcome.exitCode ?? -1}：${outcome.stdout.trim().slice(0, 300)}`);
+    // stderr 优先（CLI 失败详情多在 stderr），stdout 兜底——与 realAgentSpawn 口径同形
+    const detail = (outcome.stderr ?? "").trim().slice(0, 300) || outcome.stdout.trim().slice(0, 300);
+    throw new Error(`Agent「${agent.name}」退出码 ${outcome.exitCode ?? -1}：${detail}`);
   }
   return outcome.stdout;
 }
 
-/** 绑定部署的 agent 取远端执行器：工厂缺席（远程平台面未装配）或工厂返回 null 一律明确拒绝，不回落本机 */
+/** 远端执行面 bundle（remoteJudgeExecutorFor 产出）：执行器 + 部署登记工作区（空 = 未登记） */
+export interface RemoteJudgePlane {
+  executor: DispatchExecutor;
+  workdir: string;
+}
+
+/** 绑定部署的 agent 取远端执行面：工厂缺席（远程平台面未装配）或返回 null 一律明确拒绝，不回落本机 */
 export function resolveRemoteExecutor(
-  factory: ((agent: AgentConfig) => DispatchExecutor | null) | undefined,
+  factory: ((agent: AgentConfig) => RemoteJudgePlane | null) | undefined,
   agent: AgentConfig,
-): DispatchExecutor {
+): RemoteJudgePlane {
   const alias = agent.deployment?.trim() ?? "";
-  const executor = factory?.(agent) ?? null;
-  if (executor === null) {
+  const remote = factory?.(agent) ?? null;
+  if (remote === null) {
     throw new PkyError(
       "DEPLOYMENT_NOT_READY",
       `agent「${agent.name}」绑定部署「${alias}」，但当前宿主未装配远程执行面，无法在部署上判定`,
       "在 dsh 宿主内运行，或解除该 agent 的部署绑定改回本机执行",
     );
   }
-  return executor;
+  return remote;
+}
+
+/**
+ * 判定执行世界（cliJudgeExecutor 消费；懒解析 + 实例内缓存——执行方一次判定一建）：
+ * 远端面经注入工厂解析（绑定部署；缺席明确拒绝）；工作目录随执行世界——远端 = 部署登记
+ * 工作区压过 agent.workdir（本机路径语义在远端展开成远端 home 子目录），本机 = agent.workdir。
+ */
+export function judgeWorldOf(
+  agent: AgentConfig,
+  remoteExecutorFor: ((agent: AgentConfig) => RemoteJudgePlane | null) | undefined,
+) {
+  const remoteHost = agent.deployment?.trim() ?? "";
+  let cachedRemote: RemoteJudgePlane | null | undefined;
+  let cachedWorkdir: string | null = null;
+  const remoteOf = (): RemoteJudgePlane | null => {
+    if (remoteHost === "") {
+      return null;
+    }
+    return (cachedRemote ??= resolveRemoteExecutor(remoteExecutorFor, agent));
+  };
+  return {
+    remoteHost,
+    remoteOf,
+    workdirOf(): string {
+      if (cachedWorkdir === null) {
+        const remote = remoteOf();
+        cachedWorkdir = remote === null ? agent.workdir : remote.workdir.trim() !== "" ? remote.workdir : agent.workdir;
+      }
+      return cachedWorkdir;
+    },
+  };
 }

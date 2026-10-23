@@ -26,7 +26,7 @@ export interface DispatchRemoteFx {
   readonly scope: FakeSshScope;
   readonly platform: RemoteDispatchPlatform;
   familyAvailable: boolean;
-  seedAgent(id: string, args: string, opts?: { timeoutSecs?: number; command?: string }): void;
+  seedAgent(id: string, args: string, opts?: { timeoutSecs?: number; command?: string; workdir?: string }): void;
   seedReadyDeployment(opts?: { degraded?: boolean; status?: string }): string;
   seedDeploymentTask(title: string, opts?: { workdir?: string; worktree?: boolean }): number;
   fakeSshScript(body: string): string;
@@ -50,7 +50,7 @@ function seedAgentInto(
   db: TestDb,
   id: string,
   args: string,
-  opts: { timeoutSecs?: number; command?: string; deployment?: string | null } = {},
+  opts: { timeoutSecs?: number; command?: string; deployment?: string | null; workdir?: string } = {},
 ): void {
   db.conn.prepare("INSERT OR REPLACE INTO settings (key, value) VALUES ('ai_agents', ?)").run(
     JSON.stringify([
@@ -60,7 +60,7 @@ function seedAgentInto(
         command: opts.command ?? "claude",
         args,
         historyArgs: "",
-        workdir: "",
+        workdir: opts.workdir ?? "",
         timeoutSecs: opts.timeoutSecs ?? 120,
         enabled: true,
         deployment: opts.deployment ?? ALIAS,

@@ -23,6 +23,11 @@ function executorOf(deps: Parameters<CommandTable["pollNow"]>[1]) {
   return executor;
 }
 
+/** 判定管线运行日志出口（背包-诊断-运行日志 target=judge；轮询链路同 target，见 loopSection） */
+function judgeLogOf(deps: Parameters<CommandTable["pollNow"]>[1]): (level: "info" | "warn", message: string) => void {
+  return (level, message) => deps.log(level, "judge", message);
+}
+
 /** 快捕结果映射（judge/capture 的 outcome → 客户端视图 caught/updateSuggested） */
 function captureOutcome(out: { messageId: string; outcome: "task" | "suggestion"; taskId: number | null }): {
   messageId: string;
@@ -53,7 +58,10 @@ function reviewCommandSet(): CommandTable {
   return {
     captureTodo: async (p, deps) => {
       const executor = executorOf(deps);
-      const out = await captureTodo({ conn: deps.conn, executor, health: deps.health }, (p as { text: string }).text);
+      const out = await captureTodo(
+        { conn: deps.conn, executor, health: deps.health, log: judgeLogOf(deps) },
+        (p as { text: string }).text,
+      );
       deps.onWrites();
       return captureOutcome(out);
     },
@@ -104,7 +112,7 @@ function failureCommandSet(): CommandTable {
       const executor = executorOf(deps);
       const ids = retryIds(deps.conn, (p as { messageIds: string[] | "all" }).messageIds);
       const result = await retryJudge(
-        { conn: deps.conn, executor, health: deps.health, onWrites: () => deps.onWrites() },
+        { conn: deps.conn, executor, health: deps.health, onWrites: () => deps.onWrites(), log: judgeLogOf(deps) },
         ids,
       );
       deps.onWrites();

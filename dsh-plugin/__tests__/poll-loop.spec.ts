@@ -246,3 +246,17 @@ describe("claim 并发收敛（轮询与判定链路的桥接）", () => {
     expect(String(scalar(db.conn, "SELECT ai_status FROM chat_messages WHERE message_id='om_taken'"))).toBe("judging");
   });
 });
+
+describe("判定日志分流（judgeLog——target=judge 由装配层绑定）", () => {
+  it("轮询触发的判定完成进 judgeLog（与轮询自身 log 分流）", async () => {
+    const judgeLogs: string[] = [];
+    const deps = makeDeps({ judgeLog: (level, message) => judgeLogs.push(`${level}: ${message}`) });
+    const out = await createPollLoop(deps).runRound();
+    expect(out.ok).toBe(true);
+    expect(judgeLogs.length).toBeGreaterThan(0);
+    expect(judgeLogs[0]).toMatch(
+      /^info: 判定完成：\d+ 条（todo \d+ · update \d+ · followup \d+ · none \d+）· 执行方 fake · \d+ms$/,
+    );
+    expect(logs.every((l) => !l.includes("判定完成"))).toBe(true);
+  });
+});

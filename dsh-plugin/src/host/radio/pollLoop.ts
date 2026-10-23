@@ -37,6 +37,8 @@ export interface PollLoopDeps {
   timer?: TimerApi;
   /** 日志出口（host 半边内存环形缓冲）；缺省丢弃 */
   log?: (level: "info" | "warn", message: string) => void;
+  /** 判定管线日志出口（target=judge——与轮询自身日志分流）；缺省丢弃 */
+  judgeLog?: (level: "info" | "warn", message: string) => void;
   /** 未授权单次事件（host→客户端提示的装配层挂点） */
   onEvent?: (event: PollEvent) => void;
   /** 判定写后通知（迟到回看翻正时刷新 UI——orchestrator onWrites 透传） */
@@ -85,7 +87,13 @@ async function runSuccessPath(state: LoopState): Promise<PollRoundResult> {
   const pull = await pullOnce(deps.conn, deps.lark, { nowMs: state.now() });
   const executor = deps.newExecutor();
   if (executor !== null && pull.pendingIds.length > 0) {
-    await judgePending({ conn: deps.conn, executor, health: deps.health, onWrites: deps.onWrites });
+    await judgePending({
+      conn: deps.conn,
+      executor,
+      health: deps.health,
+      onWrites: deps.onWrites,
+      ...(deps.judgeLog === undefined ? {} : { log: deps.judgeLog }),
+    });
   }
   deps.health.recordSuccess(FEISHU, rfc3339(state.now()));
   if (state.paused) {

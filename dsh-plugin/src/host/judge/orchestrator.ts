@@ -45,7 +45,20 @@ export interface OrchestrateResult {
 export interface OrchestrateDeps extends LateRecheckDeps {
   executor: JudgeExecutor;
   health?: HealthState;
+  /** 运行日志出口（背包-诊断-运行日志；缺省丢弃）——判定开始/完成/失败随行 */
+  log?: (level: "info" | "warn", message: string) => void;
   now?: () => string;
+}
+
+/** 执行方呈现（运行日志/诊断用）：名 + 绑定部署（远端执行世界）——capture 同链消费 */
+export function executorLabel(executor: JudgeExecutor): string {
+  const remote = executor.remoteHost?.trim();
+  return remote === undefined || remote === "" ? executor.name : `${executor.name} · 部署 ${remote}`;
+}
+
+/** 判定事件运行日志（deps.log 缺省丢弃——target=judge 由装配层绑定）——capture 同链消费 */
+export function logJudgeEvent(deps: Pick<OrchestrateDeps, "log">, level: "info" | "warn", message: string): void {
+  deps.log?.(level, message);
 }
 
 function emptyResult(): OrchestrateResult {
@@ -170,8 +183,10 @@ function handleFailure(
     durationMs: Date.now() - started,
     status: "error",
     remoteHost: deps.executor.remoteHost,
+    workdir: deps.executor.workdir,
   });
   deps.health?.recordFailure(AI, message);
+  logJudgeEvent(deps, "warn", `判定失败（执行方 ${executorLabel(deps.executor)}）：${message.slice(0, 200)}`);
   if (deps.executor.selfLanding) {
     const { result, missed } = salvageClaimed(deps, claimed, claimTs);
     scheduleLateRecheck(deps, missed);
@@ -206,6 +221,7 @@ export async function orchestrateBatch(deps: OrchestrateDeps, messageIds: string
       durationMs: Date.now() - started,
       status: "ok",
       remoteHost: deps.executor.remoteHost,
+      workdir: deps.executor.workdir,
     });
     deps.health?.recordSuccess(AI, now);
     let counts: Pick<OrchestrateResult, "todo" | "update" | "followUp" | "none">;
@@ -220,6 +236,11 @@ export async function orchestrateBatch(deps: OrchestrateDeps, messageIds: string
       counts = countActions(outcome.suggestions);
     }
     fallbackNone(deps.conn, claimTs, deps.executor.id, now);
+    logJudgeEvent(
+      deps,
+      "info",
+      `判定完成：${claimed.length} 条（todo ${counts.todo} · update ${counts.update} · followup ${counts.followUp} · none ${counts.none}）· 执行方 ${executorLabel(deps.executor)} · ${Date.now() - started}ms`,
+    );
     return { claimed: claimed.length, ...counts, markedError: 0, dropped };
   } catch (error) {
     return handleFailure(deps, claimed, claimTs, started, error);
@@ -270,6 +291,9 @@ export async function retryJudge(deps: OrchestrateDeps, messageIds: string[]): P
     } else {
       resettable.push(id);
     }
+  }
+  if (resettable.length > 0) {
+    logJudgeEvent(deps, "info", `重判 ${resettable.length} 条 · 执行方 ${executorLabel(deps.executor)}`);
   }
   const result = await judgePending(deps, resettable);
   return { ...result, dropped: [...dropped, ...result.dropped] };

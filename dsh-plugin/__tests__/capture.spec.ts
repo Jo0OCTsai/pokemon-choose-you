@@ -209,3 +209,24 @@ describe("5 秒撤销（undoCapture）", () => {
     expect(scalar(db.conn, "SELECT review_status FROM chat_messages WHERE message_id=?", mid)).toBe("pending");
   });
 });
+
+describe("快捕运行日志（deps.log——背包-诊断-运行日志 target=judge）", () => {
+  it("成功 info 带判定结果与执行方；失败 warn 带原因", async () => {
+    const lines: string[] = [];
+    const okDeps = depsWith((batch) => {
+      const id = [...batch.prompt.matchAll(/\[(cap_[0-9a-f-]+)\]/g)][0][1];
+      return [{ messageId: id, action: "none", reason: "闲聊", tags: [] }];
+    });
+    okDeps.log = (level, message) => lines.push(`${level}: ${message}`);
+    await captureTodo(okDeps, "记个事");
+    expect(lines[0]).toMatch(/^info: 快捕判定完成：none · 执行方 fake · \d+ms$/);
+
+    const failLines: string[] = [];
+    const failDeps = depsWith(() => {
+      throw new Error("agent 没响应");
+    });
+    failDeps.log = (level, message) => failLines.push(`${level}: ${message}`);
+    await expect(captureTodo(failDeps, "再记一个")).rejects.toThrow("agent 没响应");
+    expect(failLines[0]).toBe("warn: 快捕判定失败（执行方 fake）：agent 没响应");
+  });
+});

@@ -70,6 +70,17 @@ function commandVOutcome(remoteBins: Map<string, string>, cmd: string): ShellOut
     : { code: 0, stdout: bin, stderr: "" };
 }
 
+/** head -c <n> <path> 应答（CLI 头部分类探测——模拟远端文件系统；未登记 = 不存在） */
+function headCOutcome(files: Map<string, string>, cmd: string): ShellOutcome | null {
+  const m = /^head -c (\d+) (.+)$/.exec(cmd);
+  if (m === null) return null;
+  const path = posixUnquote(m[2]);
+  const content = files.get(path);
+  return content === undefined
+    ? { code: 1, stdout: "", stderr: `head: ${path}: No such file or directory` }
+    : { code: 0, stdout: content.slice(0, Number(m[1])), stderr: "" };
+}
+
 /** sha256sum 应答（模拟远端文件系统内容自洽） */
 function sha256Outcome(files: Map<string, string>, cmd: string): ShellOutcome {
   const path = posixUnquote(cmd.slice("sha256sum ".length));
@@ -219,6 +230,10 @@ export class FakeSshScope implements SshTerminalScope {
     }
     if (cmd.startsWith("command -v ")) {
       return commandVOutcome(this.remoteBins, cmd);
+    }
+    const head = headCOutcome(this.files, cmd);
+    if (head !== null) {
+      return head;
     }
     if (cmd.includes(" install --prefix ")) {
       return this.npmInstallOutcome(cmd);

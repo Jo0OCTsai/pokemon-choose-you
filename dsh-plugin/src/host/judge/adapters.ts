@@ -21,12 +21,13 @@ import { kindForCommand } from "../dispatch/sessions";
 import { pregenSessionId, withSessionId } from "./sessionId";
 import {
   MIN_AGENT_TIMEOUT_SECS,
+  judgeWorldOf,
   realAgentSpawn,
-  resolveRemoteExecutor,
   spawnLocalJudge,
   spawnRemoteJudge,
   type AgentSpawn,
   type JudgeInvocation,
+  type RemoteJudgePlane,
 } from "./cliRun";
 import { nowRfc3339, type Conn } from "../storage/db";
 import { primaryAgent, type AgentConfig } from "../domain/settings";
@@ -63,6 +64,9 @@ export interface JudgeExecutor {
   readonly selfLanding: boolean;
   /** 执行世界（会话账本 remote_host）：部署 alias；本机 / 内置通道缺省 */
   readonly remoteHost?: string | null;
+  /** 执行时工作目录（会话账本 workdir 快照——回放 cd 前缀来源；远端 = 部署工作区口径）；
+   *  内置通道缺省（dsh 宿主会话，不组 CLI 回放行） */
+  readonly workdir?: string | null;
   run(batch: JudgeBatch): Promise<JudgeRunOutcome>;
 }
 
@@ -144,7 +148,8 @@ export function landedCount(suggestions: AiSuggestion[]): number {
 }
 
 /** 会话账本（agent_sessions；log_session_conn 同构的判定字段集）——kind：classify 收音机分类 / capture 快速捕捉；
- *  remoteHost = 执行世界快照（部署 alias；本机空——与派发行 executionWorld 同口径） */
+ *  remoteHost = 执行世界快照（部署 alias；本机空——与派发行 executionWorld 同口径）；
+ *  workdir = 执行时工作目录快照（回放 cd 前缀来源——desktop log_session_conn 同构） */
 export function logJudgeSession(
   conn: Conn,
   rec: {
@@ -155,13 +160,14 @@ export function logJudgeSession(
     status: "ok" | "error";
     kind?: "classify" | "capture";
     remoteHost?: string | null;
+    workdir?: string | null;
   },
   now = nowRfc3339(),
 ): void {
   conn
     .prepare(
-      "INSERT INTO agent_sessions (agent_id, agent_name, session_id, status, duration_ms, kind, remote_host, created_at) " +
-        "VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+      "INSERT INTO agent_sessions (agent_id, agent_name, session_id, status, duration_ms, kind, workdir, remote_host, created_at) " +
+        "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
     )
     .run(
       rec.agentId,
@@ -170,9 +176,47 @@ export function logJudgeSession(
       rec.status,
       rec.durationMs,
       rec.kind ?? "classify",
+      (rec.workdir ?? "").trim(),
       (rec.remoteHost ?? "").trim(),
       now,
     );
+}
+
+/** 判定提示词（feedback = A21 校验失败修正回执追加） */
+function judgePromptOf(batch: JudgeBatch): string {
+  return batch.feedback === undefined
+    ? batch.prompt
+    : `${batch.prompt}\n\n上次提交校验失败，请修正后重试：${batch.feedback}`;
+}
+
+/** 回读判定并校验落库（整批遗漏判失败——run_and_collect 的 landed 口径） */
+function landedSuggestions(conn: Conn, agent: Pick<AgentConfig, "name">, messageIds: string[]): AiSuggestion[] {
+  const suggestions = loadSuggestionsFor(conn, messageIds);
+  if (landedCount(suggestions) === 0 && messageIds.length > 0) {
+    throw new Error(
+      `agent「${agent.name}」执行完成但没有任何判定落库（${messageIds.length} 条全部遗漏）——请确认其无头模式允许执行 pk 命令（工具白名单）`,
+    );
+  }
+  return suggestions;
+}
+
+/** 执行面分派 + 回读校验（cliJudgeExecutor.run 主体；会话 id 三源与失败回链在此收口） */
+async function executeJudge(
+  world: ReturnType<typeof judgeWorldOf>,
+  spawnFn: AgentSpawn,
+  conn: Conn,
+  inv: JudgeInvocation,
+  messageIds: string[],
+): Promise<JudgeRunOutcome> {
+  let sessionId = inv.pregen;
+  try {
+    const remote = world.remoteOf();
+    const stdout = remote === null ? await spawnLocalJudge(spawnFn, inv) : await spawnRemoteJudge(remote.executor, inv);
+    sessionId = extractPayload(stdout).sessionId ?? parseDshSessionId(stdout) ?? inv.pregen;
+    return { suggestions: landedSuggestions(conn, inv.agent, messageIds), sessionId };
+  } catch (error) {
+    throw withSessionId(error, sessionId);
+  }
 }
 
 /** CLI 执行方（selfLanding=true：agent 经 pk suggest batch 写回，适配器从库回读） */
@@ -183,46 +227,43 @@ export function cliJudgeExecutor(args: {
   /** agent 子进程凭据环境（dsh 形态 DEEPSEEK_API_KEY 注入；缺省不注入） */
   agentEnv?: AgentEnvProvider;
   /**
-   * 远端执行器工厂（agent 绑定部署时消费；装配层按 planRemoteRoute 选型——部署缺失/家族
-   * 缺失由工厂抛 PkyError 前置拒绝）。绑定部署而工厂缺席 = 远程平台面未装配 → 明确报错，
+   * 远端执行面工厂（agent 绑定部署时消费；装配层按 planRemoteRoute 选型并给出部署登记
+   * 工作区 workdir——实体未登记为空串，由执行世界回落 agent.workdir；部署缺失/家族缺失
+   * 由工厂抛 PkyError 前置拒绝）。绑定部署而工厂缺席 = 远程平台面未装配 → 明确报错，
    * 不回落本机。
    */
-  remoteExecutorFor?: (agent: AgentConfig) => DispatchExecutor | null;
+  remoteExecutorFor?: (agent: AgentConfig) => RemoteJudgePlane | null;
 }): JudgeExecutor {
   const { conn, agent } = args;
   const spawnFn = args.spawnFn ?? realAgentSpawn;
   const timeoutMs = Math.max(agent.timeoutSecs, MIN_AGENT_TIMEOUT_SECS) * 1000;
   const kind = kindForCommand(agent.command);
-  const remoteHost = agent.deployment?.trim() ?? "";
+  const world = judgeWorldOf(agent, args.remoteExecutorFor);
   return {
     id: agent.id,
     name: agent.name,
     selfLanding: true,
-    remoteHost: remoteHost === "" ? null : remoteHost,
+    remoteHost: world.remoteHost === "" ? null : world.remoteHost,
+    get workdir() {
+      return world.workdirOf();
+    },
     async run(batch) {
-      const prompt =
-        batch.feedback !== undefined
-          ? `${batch.prompt}\n\n上次提交校验失败，请修正后重试：${batch.feedback}`
-          : batch.prompt;
-      const pregen = pregenSessionId(kind);
       const env = args.agentEnv === undefined ? undefined : await args.agentEnv(agent.command);
-      const remote = remoteHost === "" ? null : resolveRemoteExecutor(args.remoteExecutorFor, agent);
-      const inv: JudgeInvocation = { agent, prompt, kind, pregen, timeoutMs, env };
-      // 会话 id 三源（信封回填 > dsh 事件流捕获 > 预生成）；失败也经 withSessionId 回链到账本
-      let sessionId = pregen;
-      try {
-        const stdout = remote === null ? await spawnLocalJudge(spawnFn, inv) : await spawnRemoteJudge(remote, inv);
-        sessionId = extractPayload(stdout).sessionId ?? parseDshSessionId(stdout) ?? pregen;
-        const suggestions = loadSuggestionsFor(conn, batch.messageIds);
-        if (landedCount(suggestions) === 0 && batch.messageIds.length > 0) {
-          throw new Error(
-            `agent「${agent.name}」执行完成但没有任何判定落库（${batch.messageIds.length} 条全部遗漏）——请确认其无头模式允许执行 pk 命令（工具白名单）`,
-          );
-        }
-        return { suggestions, sessionId };
-      } catch (error) {
-        throw withSessionId(error, sessionId);
-      }
+      return executeJudge(
+        world,
+        spawnFn,
+        conn,
+        {
+          agent,
+          prompt: judgePromptOf(batch),
+          kind,
+          pregen: pregenSessionId(kind),
+          timeoutMs,
+          env,
+          workdir: world.workdirOf(),
+        },
+        batch.messageIds,
+      );
     },
   };
 }
@@ -233,7 +274,7 @@ export function cliJudgeExecutor(args: {
 export function defaultJudgeExecutor(
   conn: Conn,
   agentEnv?: AgentEnvProvider,
-  remoteExecutorFor?: (agent: AgentConfig) => DispatchExecutor | null,
+  remoteExecutorFor?: (agent: AgentConfig) => { executor: DispatchExecutor; workdir: string } | null,
 ): JudgeExecutor | null {
   const agent = primaryAgent(conn);
   return agent === null

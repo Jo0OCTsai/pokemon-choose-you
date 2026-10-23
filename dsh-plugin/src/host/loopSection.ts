@@ -46,6 +46,7 @@ export function assemblePollLoops(args: {
     newExecutor: () => args.newExecutor(conn),
     timer: deps.pollTimer ?? realTimer,
     log: (level, message) => args.log(level, "radio", message),
+    judgeLog: (level, message) => args.log(level, "judge", message),
     onEvent: (event) => args.log("warn", "radio", `event: ${event}`),
     onWrites: () => args.feed.notifyLocalWrite(),
   });

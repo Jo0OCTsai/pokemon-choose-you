@@ -9,6 +9,7 @@
  */
 import { txImmediate, type Conn } from "../storage/db";
 import { paramError } from "../storage/errors";
+import { deploymentByAlias } from "../remote/deployments";
 import { getSetting, loadAgents, primaryAgent, type AgentConfig } from "../domain/settings";
 import { getTask } from "../domain/tasks";
 import { parseTagMeta } from "../domain/dispatch";
@@ -178,6 +179,26 @@ function agentDeployment(agent: AgentConfig): RouteDeployment | null {
   return alias ? { ref: alias, target: alias } : null;
 }
 
+/**
+ * 生效工作目录（执行世界决定工作目录）：显式配置层（路由表 > tag meta——远端 agent 的
+ * 项目配置本就是远端路径）恒先；缺省层按执行世界分叉——本机路由 = agent.workdir；部署
+ * 绑定路由 = **部署实体登记工作区**压过 agent.workdir（agent.workdir 是本机路径语义，
+ * `~/.choose-you/workspace` 之类在远端展开成远端 home 子目录或不存在），实体未登记/缺失
+ * 再回落 agent.workdir。实体缺失不在此硬拒（planRemoteRoute 派发时守卫不变）。
+ */
+function routeWorkdir(
+  conn: Conn,
+  configWorkdir: string,
+  agent: AgentConfig,
+  deployment: RouteDeployment | null,
+): string {
+  if (deployment === null) {
+    return firstNonEmpty(configWorkdir, agent.workdir);
+  }
+  const entityWorkdir = deploymentByAlias(conn, deployment.ref)?.workdir.trim() ?? "";
+  return firstNonEmpty(configWorkdir, entityWorkdir, agent.workdir);
+}
+
 export function resolveDispatchRoute(conn: Conn, taskId: number, routeOverride?: string): ResolvedDispatchRoute {
   const task = getTask(conn, taskId);
   const projectTag = task.tags.find((t) => t.dimension === "project")?.name;
@@ -192,13 +213,13 @@ export function resolveDispatchRoute(conn: Conn, taskId: number, routeOverride?:
     { agentId: meta?.agentId, source: "meta" },
   ]);
   const config = routeConfig(conn, route, meta);
-  // 执行世界单源：所选 agent 的部署绑定（实体缺失由派发时 planRemoteRoute 硬拒，解析不查实体）
+  // 执行世界单源：所选 agent 的部署绑定（实体缺失由派发时 planRemoteRoute 硬拒，解析不硬拒）
   const deployment = agentDeployment(picked.agent);
   return {
     agent: picked.agent,
     source: picked.source,
     projectTag,
-    workdir: firstNonEmpty(config.workdir, picked.agent.workdir),
+    workdir: routeWorkdir(conn, config.workdir, picked.agent, deployment),
     context: config.context,
     maxConcurrent: resolveMaxConcurrent(conn, route),
     worktree: config.worktree,

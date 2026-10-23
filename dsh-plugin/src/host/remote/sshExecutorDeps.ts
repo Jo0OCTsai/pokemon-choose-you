@@ -165,18 +165,20 @@ export function remoteHeadlessDeps(
 }
 
 /**
- * 判定远端执行器工厂（cliJudgeExecutor.remoteExecutorFor 注入件；desktop judge.rs
+ * 判定远端执行面工厂（cliJudgeExecutor.remoteExecutorFor 注入件；desktop judge.rs
  * resolve_remote_target 同构）：agent 绑定部署 → 以绑定合成最小路由（ref = target = alias）
  * 经 planRemoteRoute 选型 family/direct；reject 分支抛 PkyError（PROTOCOL §2 映射与
  * envelope 同款：SSH_FAMILY_MISSING → HELPER_CAPABILITY_MISSING，其余 DEPLOYMENT_NOT_READY）
- * ——判定不回落本机（执行世界与账本必须一致）。未绑定部署 → null（调用方本机路径）。
- * minTimeoutSecs 由调用方按判定口径传入（派发缺省 600 对判定过长）。
+ * ——判定不回落本机（执行世界与账本必须一致）。**工作目录随执行世界**：随执行器返回部署
+ * 实体登记的 workdir（cliJudgeExecutor 以其压过 agent.workdir——本机路径语义在远端展开成
+ * 远端 home 子目录或不存在；实体未登记返回空串由调用方回落 agent.workdir）。未绑定部署 →
+ * null（调用方本机路径）。minTimeoutSecs 由调用方按判定口径传入（派发缺省 600 对判定过长）。
  */
 export function remoteJudgeExecutorFor(
   conn: Conn,
   platform: RemoteDispatchPlatform,
   opts: RemoteDispatchOptions = {},
-): (agent: AgentConfig) => DispatchExecutor | null {
+): (agent: AgentConfig) => { executor: DispatchExecutor; workdir: string } | null {
   return (agent) => {
     const alias = agent.deployment?.trim() ?? "";
     if (alias === "") {
@@ -187,7 +189,11 @@ export function remoteJudgeExecutorFor(
       const code = plan.tag === "SSH_FAMILY_MISSING" ? "HELPER_CAPABILITY_MISSING" : "DEPLOYMENT_NOT_READY";
       throw new PkyError(code, `判定无法在部署上执行：${plan.message}`, plan.hint);
     }
-    return executorForPlan(plan, alias, platform, opts);
+    const executor = executorForPlan(plan, alias, platform, opts);
+    if (executor === null || plan.kind === "local") {
+      return executor === null ? null : { executor, workdir: "" };
+    }
+    return { executor, workdir: plan.entity.workdir.trim() };
   };
 }
 

@@ -178,6 +178,31 @@ describe("交互 TerminalAdapter：本机 GUI 终端在场 → 部署路由弹 s
   });
 });
 
+describe("派发工作目录随执行世界（tag meta 缺省时 = 部署实体登记工作区，不是 agent 本机路径）", () => {
+  it("交互 ssh 弹窗载荷与无头远端脚本均 cd 到实体工作区；账本 workdir 快照同值（回放据此 cd）", async () => {
+    fx.seedReadyDeployment();
+    fx.seedAgent("claude", "-p {prompt}", { workdir: "~/.choose-you/workspace" });
+    const local = createFakeTerminal();
+    const parts = remoteInteractiveParts(fx.db.conn, fx.platform, { localSshWindow: local });
+    const interactiveId = fx.seedDeploymentTask("交互实体工作区");
+    await dispatchInteractive(
+      fx.db.conn,
+      { terminal: createFakeTerminal(), terminalFor: parts.terminalFor, deploymentPrecheck: parts.deploymentPrecheck },
+      interactiveId,
+    );
+    expect(local.injections[0]?.line).toContain(`cd ${WORKDIR} && claude`);
+    expect(local.injections[0]?.line).not.toContain(".choose-you/workspace");
+    expect(fx.lastSession(interactiveId)["workdir"]).toBe(WORKDIR);
+
+    const headlessId = fx.seedDeploymentTask("无头实体工作区");
+    fx.scope.enqueueSpawn({ code: 0, stdout: ENVELOPE, stderr: "", durationMs: 5 });
+    await dispatchHeadless(fx.db.conn, remoteHeadlessDeps(fx.db.conn, fx.platform), headlessId);
+    const script = fx.scope.spawns.find((argv) => argv[0] === "/bin/sh")?.[2] ?? "";
+    expect(script).toContain(`cd ${WORKDIR} || exit 1`);
+    expect(fx.lastSession(headlessId)["workdir"]).toBe(WORKDIR);
+  });
+});
+
 describe("远端 worktree：脚本远端执行与幂等复用", () => {
   it("脚本在远端执行（scope.shell）+ 生效目录进执行 argv", async () => {
     fx.seedReadyDeployment();

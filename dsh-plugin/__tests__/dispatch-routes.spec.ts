@@ -12,6 +12,7 @@ import {
   routeUpsert,
 } from "../src/host/dispatch/routes";
 import { getSetting } from "../src/host/domain/settings";
+import { deploymentUpsert } from "../src/host/remote/deployments";
 import { createTestDb, seedAgents, seedTask, type TestDb } from "./helpers";
 
 let db: TestDb;
@@ -128,6 +129,35 @@ describe("路由解析默认层与回写语义", () => {
     // ai_agent_id 指向启用项时优先
     db.conn.prepare("INSERT OR REPLACE INTO settings (key, value) VALUES ('ai_agent_id', 'ag-2')").run();
     expect(resolveDispatchRoute(db.conn, taskId).agent.id).toBe("ag-2");
+  });
+});
+
+describe("工作目录执行世界（部署绑定路由的缺省层）", () => {
+  it("工作目录执行世界：部署绑定的缺省层 = 实体登记工作区（压过 agent 本机路径）；显式配置层恒先；悬空/本机回落不变", () => {
+    seedAgents(db.conn, [
+      { id: "ag-r", command: "claude", workdir: "~/.choose-you/workspace", deployment: "dev-box" },
+      { id: "ag-l", command: "claude", workdir: "~/local-ws" },
+    ]);
+    deploymentUpsert(db.conn, {
+      alias: "dev-box",
+      nodePath: "/usr/local/bin/node",
+      workdir: "/workspaces/dev-env-settings",
+    });
+    const taskId = seedTask(db.conn, "任务");
+    seedProjectTag(taskId, "Remote", JSON.stringify({ agentId: "ag-r" }));
+    // 缺省层：agent.workdir 是本机路径语义——远端路由用实体工作区
+    expect(resolveDispatchRoute(db.conn, taskId).workdir).toBe("/workspaces/dev-env-settings");
+    // 显式配置层（tag meta，远端路径语义）压过实体工作区
+    db.conn
+      .prepare("UPDATE tags SET meta=? WHERE name='Remote'")
+      .run(JSON.stringify({ agentId: "ag-r", workdir: "/workspaces/other" }));
+    expect(resolveDispatchRoute(db.conn, taskId).workdir).toBe("/workspaces/other");
+    // 悬空绑定（实体被删）：回落 agent.workdir（派发时 planRemoteRoute 仍硬拒）
+    db.conn.prepare("UPDATE tags SET meta=? WHERE name='Remote'").run(JSON.stringify({ agentId: "ag-r" }));
+    db.conn.prepare("DELETE FROM settings WHERE key='dsh:deployments'").run();
+    expect(resolveDispatchRoute(db.conn, taskId).workdir).toBe("~/.choose-you/workspace");
+    // 本机路由：agent.workdir 照旧
+    expect(resolveDispatchRoute(db.conn, taskId, "ag-l").workdir).toBe("~/local-ws");
   });
 });
 

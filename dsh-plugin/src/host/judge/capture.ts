@@ -17,7 +17,7 @@ import { createTaskFromMessage, recordFeedback } from "../domain/suggest-resolve
 import { suggestBatch, type AiSuggestion } from "../domain/suggest";
 import { buildCapturePrompt } from "./prompt";
 import { logJudgeSession, sessionIdOfError, type JudgeExecutor } from "./adapters";
-import { MAX_VALIDATE_RETRIES } from "./orchestrator";
+import { MAX_VALIDATE_RETRIES, executorLabel, logJudgeEvent } from "./orchestrator";
 import { AI, type HealthState } from "../health/snapshot";
 
 /** 捕捉输入上限（capture.rs MAX_CAPTURE_CHARS） */
@@ -34,6 +34,8 @@ export interface CaptureDeps {
   conn: Conn;
   executor: JudgeExecutor;
   health?: HealthState;
+  /** 运行日志出口（背包-诊断-运行日志；缺省丢弃）——快捕判定成败随行 */
+  log?: (level: "info" | "warn", message: string) => void;
   now?: () => string;
   nowMs?: () => number;
 }
@@ -101,6 +103,7 @@ function logCaptureSession(deps: CaptureDeps, started: number, status: "ok" | "e
     status,
     kind: "capture",
     remoteHost: deps.executor.remoteHost,
+    workdir: deps.executor.workdir,
   });
 }
 
@@ -128,14 +131,21 @@ export async function captureTodo(deps: CaptureDeps, input: string): Promise<Cap
     const { hit: suggestion, sessionId } = await runCapture(deps, prompt, messageId);
     logCaptureSession(deps, started, "ok", sessionId);
     deps.health?.recordSuccess(AI, now);
+    logJudgeEvent(
+      deps,
+      "info",
+      `快捕判定完成：${suggestion.action} · 执行方 ${executorLabel(deps.executor)} · ${Date.now() - started}ms`,
+    );
     return suggestion.action === "todo"
       ? finishCapture(deps.conn, messageId, now)
       : { messageId, outcome: "suggestion", taskId: null };
   } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
     markAiError(deps.conn, [messageId]);
     // 执行方挂在错误上的会话 id（预生成 / 内置通道会话）——失败捕捉会话同样可回放
     logCaptureSession(deps, started, "error", sessionIdOfError(error));
-    deps.health?.recordFailure(AI, error instanceof Error ? error.message : String(error));
+    deps.health?.recordFailure(AI, message);
+    logJudgeEvent(deps, "warn", `快捕判定失败（执行方 ${executorLabel(deps.executor)}）：${message.slice(0, 200)}`);
     throw error;
   }
 }

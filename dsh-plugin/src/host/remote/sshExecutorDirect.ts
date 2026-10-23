@@ -21,7 +21,8 @@ type ExecFileError = (NodeJS.ErrnoException & { code?: number | string; killed?:
 
 /**
  * 直连降级执行器（家族缺失/降级标记的兜底）：不解析远端可执行——agent 命令需为
- * 远端绝对路径；超时由 execFile timeout kill 承载（无常驻句柄）。
+ * 远端绝对路径；解释形态固定 node 前缀（本链无驻留连接做头部分类探测，原生二进制
+ * CLI 场景见 docs/debt.md）；超时由 execFile timeout kill 承载（无常驻句柄）。
  */
 export function createDirectSshExecutor(input: {
   target: string;
@@ -44,7 +45,7 @@ export function createDirectSshExecutor(input: {
         return { exitCode: null, durationMs: duration(), stdout: "", timedOut: false, error: executableHint };
       }
       const timeoutMs = effectiveTimeoutSecs(job.timeoutSecs, input.minTimeoutSecs ?? DISPATCH_MIN_TIMEOUT_SECS) * 1000;
-      const { script, stdin } = remoteDispatchScript(job, input.nodePath, cli);
+      const { script, stdin } = remoteDispatchScript(job, cli, { nodePath: input.nodePath, interpreter: "node" });
       const argv = [
         ...sshConnectArgs(input.target, input.connectTimeoutSecs ?? SSH_CONNECT_TIMEOUT_SECS),
         "--",
@@ -72,6 +73,7 @@ function execOverSshBinary(
         exitCode: err === null ? 0 : typeof err.code === "number" ? err.code : null,
         durationMs: duration(),
         stdout: String(stdout),
+        stderr: String(stderr),
         timedOut,
         ...(timedOut || err === null ? {} : { error: `ssh 直连执行失败：${String(stderr).slice(0, 160)}` }),
       });

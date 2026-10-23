@@ -80,16 +80,17 @@ describe("local 执行器（真实 node 子进程）", () => {
     expect(outcome.error).toBeUndefined();
   });
 
-  it("失败：非零退出码透传（不抛错）", async () => {
+  it("失败：非零退出码透传（不抛错）；stderr 随 outcome 透传（失败详情上呈）", async () => {
     const executor = createLocalExecutor();
     const outcome = await executor.launch({
       command: NODE,
-      args: "-e process.exit(3)",
+      args: "-e console.error('bad-thing');process.exit(3)",
       prompt: "",
       timeoutSecs: 60,
     });
     expect(outcome.exitCode).toBe(3);
     expect(outcome.timedOut).toBe(false);
+    expect(outcome.stderr?.trim()).toBe("bad-thing");
   });
 
   it("超时 kill：挂起子进程到时被杀，timedOut=true（下限注入缩短等待）", async () => {
