@@ -67,6 +67,9 @@ graph TD
 | `health/` | 诊断快照、支持报告与日志查看器（共用三层脱敏管线）、运行日志环形缓冲（2000 条） |
 | `i18n/` | 字典装载与三语键集校验（主应用字典 `@app-i18n` alias 直引） |
 
+agent CLI 交互机制（部署/provision、pk 通道、技能、测试/判定/派发/回放 × 本地/远程，含时序图）
+的链路深潜见 `dsh-plugin/docs/agent-cli-flows.md`（活文档，跟随结构变更同步）。
+
 客户端半边 `src/client/`（React）：侧边栏「图鉴机」全局面板（sidebar main 槽）= SegmentNav 七段（冒险/草丛/路线/图鉴/收音机/日志/背包；原 plugins.detail.section 槽已摘除，详情页回归纯信息页），
 背包八分区与主应用设置页同名同构（ADR-0002）。
 
