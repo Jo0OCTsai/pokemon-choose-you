@@ -4,7 +4,16 @@
   // - 前端 UI 用 Chrome 连 Vite dev server（浏览器里没有 Tauri IPC，仅适合调界面/样式）
   // devUrl 与 vite.config.ts 一致：http://localhost:1420（strictPort）
   //
+  // 双载体适配（macos 宿主 / WSL2 Remote-WSL）：
+  // - Rust 调试与 📦 编译项路径全走 ${workspaceFolder}、命令走终端，两载体同配共用
+  // - Chrome 调试与 🚀 组合按载体分 · macOS / · WSL2 两份，差异只在浏览器启动侧
+  //
+  // 📦 编译项走 node-terminal（VSCode 内置 JS 调试器提供，无需扩展）：在集成终端跑
+  // 编译命令、不挂调试器，跑完即止——覆盖仓库四个编译目标（pk / 桌面应用 / dsh 插件 /
+  // 前端），cargo 参数与 tasks.json 调试任务同源。
+  //
   // 怎么选：
+  // - 只要编译产物不要调试 → 「📦 编译：xxx」
   // - 只调 Rust / 跑通整体流程 → 单开「🐾 Tauri 桌面应用」（自动编译 + 起 Vite）
   // - Rust 与前端断点都要 → 用「🚀 一键本地调试」组合（桌面应用 + Chrome 两会话）
   // - 调 pk CLI → 单开「🛠 pk CLI」，args 改成要调的子命令
@@ -29,15 +38,56 @@
       "preLaunchTask": "调试准备：pk CLI"
     },
     {
+      // runtimeExecutable 留空 = 自动探测本机 stable Chrome（/Applications/Google Chrome.app）
       "type": "chrome",
       "request": "launch",
-      "name": "🌐 前端 UI（Chrome + Vite）",
+      "name": "🌐 前端 UI（Chrome + Vite）· macOS",
       "url": "http://localhost:1420",
       "webRoot": "${workspaceFolder}/src",
       "preLaunchTask": "vite: dev",
-      // WSL2：调试会话在 WSL 侧，需通过 interop 启动 Windows 侧 Chrome；按实际安装路径调整
-      "runtimeExecutable": "C:/Program Files/Google/Chrome/Application/chrome.exe",
       "userDataDir": "${workspaceFolder}/.vscode/chrome-debug-profile"
+    },
+    {
+      // WSL2：调试会话与 Vite 都在 WSL 侧，Chrome 必须委托 Windows 侧（UI 侧）启动——
+      // 默认 browserLaunchLocation=workspace 会拿 C:/ 路径在 WSL 里 exec（ENOENT），
+      // 换 /mnt/c interop 也连不上 Windows 侧 localhost 调试端口（js-debug#591 的超时）。
+      // =ui 时浏览器在 Windows 侧启动，runtimeExecutable 也按 Windows 侧解析：
+      // 留空 = Windows 侧自动探测 stable Chrome，非常规安装路径时才填 C:/... 全路径。
+      // userDataDir 不设：默认 Windows 侧临时 profile（${workspaceFolder} 是 Linux 路径，
+      // Windows Chrome 写不了）；Windows Chrome 经 WSL2 localhost 转发访问 WSL 里的 Vite。
+      "type": "chrome",
+      "request": "launch",
+      "name": "🌐 前端 UI（Chrome + Vite）· WSL2",
+      "url": "http://localhost:1420",
+      "webRoot": "${workspaceFolder}/src",
+      "preLaunchTask": "vite: dev",
+      "browserLaunchLocation": "ui"
+    },
+    {
+      "type": "node-terminal",
+      "request": "launch",
+      "name": "📦 编译：pk CLI（debug）",
+      "command": "cargo build --manifest-path ${workspaceFolder}/src-tauri/Cargo.toml --bin pk"
+    },
+    {
+      "type": "node-terminal",
+      "request": "launch",
+      "name": "📦 编译：桌面应用（debug）",
+      "command": "cargo build --manifest-path ${workspaceFolder}/src-tauri/Cargo.toml --bin pokemon-choose-you"
+    },
+    {
+      // dsh-plugin build（build.mjs）先构建 helper 子包再打 host/client 双入口，单条命令全量
+      "type": "node-terminal",
+      "request": "launch",
+      "name": "📦 编译：dsh 插件",
+      "command": "pnpm --dir \"${workspaceFolder}/dsh-plugin\" build"
+    },
+    {
+      // 前端 build = vue-tsc --noEmit + vite build（root package.json 单源）
+      "type": "node-terminal",
+      "request": "launch",
+      "name": "📦 编译：前端（vue-tsc + vite）",
+      "command": "pnpm --dir \"${workspaceFolder}\" build"
     }
   ],
   "compounds": [
@@ -45,8 +95,13 @@
       // 一键：桌面应用（Rust 断点）+ Chrome（前端断点）同时起；
       // 共用 vite: dev 后台任务只会起一个 dev server；
       // stopAll 让停止时两会话一起收（dev server 终端如仍存活，手动关掉即可）
-      "name": "🚀 一键本地调试（桌面应用 + 前端）",
-      "configurations": ["🐾 Tauri 桌面应用（Rust）", "🌐 前端 UI（Chrome + Vite）"],
+      "name": "🚀 一键本地调试（桌面应用 + 前端）· macOS",
+      "configurations": ["🐾 Tauri 桌面应用（Rust）", "🌐 前端 UI（Chrome + Vite）· macOS"],
+      "stopAll": true
+    },
+    {
+      "name": "🚀 一键本地调试（桌面应用 + 前端）· WSL2",
+      "configurations": ["🐾 Tauri 桌面应用（Rust）", "🌐 前端 UI（Chrome + Vite）· WSL2"],
       "stopAll": true
     }
   ]
