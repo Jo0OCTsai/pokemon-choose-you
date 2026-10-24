@@ -284,10 +284,10 @@ flowchart TB
     A["dispatchInteractive(taskId)"] --> B["前置校验: workdir 本地存在性预检<br/>(远端不本地预检)"]
     B --> C["原子 claim(重复派发报错) + prompt 假名化定界组装<br/>(任务 + task_notes 最新3条跟进 + 路由上下文)"]
     C --> D{"路由解析: pick > route 表 > tag meta > default<br/>workdir: 显式配置 > agent.workdir"}
-    D --> E["命令行组装: agentLine(command,<br/>interactiveArgs 剔除 --resume/-r/--session-id, prompt 整体 POSIX 引用)<br/>dsh 家族整行换 dst -- prompt"]
+    D --> E["命令行组装: agentLine(command,<br/>interactiveArgs 剔除 --resume/-r/--session-id<br/>+ claude/pi 预生成 --session-id <uuid>, prompt 整体 POSIX 引用)<br/>dsh 家族整行换 dst -- prompt"]
     E --> F{"终端唤起链"}
-    F --> G["外部 GUI 终端(kitty→Ghostty→Alacritty→<br/>WezTerm→iTerm2→Terminal.app, 偏好优先)<br/>cd workdir && 命令行"]
-    F --> H["无终端 → copy-line handoff:<br/>命令行经 note 回传客户端复制执行(无会话句柄)"]
+    F --> G["外部 GUI 终端(kitty→Ghostty→Alacritty→<br/>WezTerm→iTerm2→Terminal.app, 偏好优先)<br/>cd workdir && export PATH=<appHome>/bin:$PATH && 命令行"]
+    F --> H["无终端 → copy-line handoff:<br/>同款 PATH 前缀命令行经 note 回传客户端复制执行<br/>(claude/pi 落预生成会话 id, 其余无句柄走 picker 回放)"]
     G & H --> I["落账: dispatch_state=running + agent_sessions 行 + task_logs"]
     I --> J{"结果收口三路"}
     J --> K["agent 回传工具 todo_dispatch_done/fail<br/>→ dispatchReport CAS 收口(幂等)"]
@@ -298,14 +298,18 @@ flowchart TB
 **读的配置**：`ai_agents`；路由级联（pick / `dsh:dispatch_routes` / tag meta / default，
 `routes.ts:138-157`）；`tasks.dispatched_session`（续接）；`terminal_preference`（终端偏好）。
 
-**写的配置（库表）**：`tasks.dispatch_state`（→running）；`agent_sessions`（交互式本地无
-会话句柄，回放走 picker）；`task_logs`。
+**写的配置（库表）**：`tasks.dispatch_state`（→running）；`agent_sessions`（session_id =
+适配器句柄（PTY 链）> claude/pi 预生成 `--session-id` uuid > NULL——外部终端/copy-line 形态
+落预生成 id，回放精确 `--resume`；dsh/其余 NULL 走 picker 兜底）；`tasks.dispatched_session`
+（预生成 id 回写，后续无头轮次续接不断层）；`task_logs`。
 
 **产生的文件**：无（会话转录由 agent CLI 自存在自己的目录）。
 
-**执行的命令**：在所选终端里执行 `cd <workdir> && <agent> <args> '<prompt>'`（prompt 是
-首条输入整体引用，不可信输入不裸拼，`dsh-plugin/src/host/dispatch/cmdline.ts:54-56`）；
-dsh 家族为 `dst -- <prompt>`（`dstLaunch.ts:21-28`）。
+**执行的命令**：在所选终端里执行 `cd <workdir> && export PATH=<appHome>/bin:"$PATH" && <agent>
+<args> --session-id <uuid> '<prompt>'`（PATH 前缀 = `localPkPathPrefix()`——登录 shell 不吃
+childEnvFor 注入，agent 内 `pk` 裸名可达的兜底，落位缺席时省略；prompt 是首条输入整体引用，
+不可信输入不裸拼，`dsh-plugin/src/host/dispatch/cmdline.ts:54-56`）；dsh 家族为
+`dst -- <prompt>`（`dstLaunch.ts:21-28`，无会话旗标）。
 
 ---
 
@@ -354,14 +358,12 @@ agent 配置 args 自带，如 claude 的 `--output-format json`；`headlessRun.
 
 ```mermaid
 flowchart TB
-    A["sessionReplay(行id)"] --> B{"可回放? session_id 或<br/>tmux_session 任一非空"}
-    B -- 否 --> X["not-replayable"]
-    B -- 是 --> C["三分支: tmux attach > --resume id > picker<br/>(pty: 前缀句柄不是会话id → 强制 picker)"]
-    C --> D["agent 命令按 agent_id 查 ai_agents<br/>(已删除回落主 agent; 行内 command 不是命令来源)"]
-    D --> E["命令行: claude→--resume id / pi→--session-id id /<br/>dsh 家族→dst --resume id / tmux attach-session -t name<br/>workdir 非空加 cd 前缀(~ 裸写由 shell 展开)"]
-    E --> F{"本机终端注入面在场?"}
-    F -- 是 --> G["注入外部 GUI 终端打开"]
-    F -- 否 --> H["handoff: 命令行回传客户端复制执行<br/>SessionReplayRouted{line, opened=false}"]
+    A["sessionReplay(行id)"] --> B["三分支: tmux attach > --resume id > picker<br/>(pty: 前缀句柄不是会话id → 强制 picker;<br/>无句柄行不拦截, 恒落 picker 兜底)"]
+    B --> C["agent 命令按 agent_id 查 ai_agents<br/>(已删除回落主 agent; 行内 command 不是命令来源)"]
+    C --> D["命令行: claude→--resume id / pi→--session-id id /<br/>dsh 家族→dst --resume id / tmux attach-session -t name<br/>workdir 非空加 cd 前缀(~ 裸写由 shell 展开)"]
+    D --> E{"本机终端注入面在场?"}
+    E -- 是 --> F["注入外部 GUI 终端打开"]
+    E -- 否 --> G["handoff: 命令行回传客户端复制执行<br/>SessionReplayRouted{line, opened=false}"]
 ```
 
 **读的配置**：`agent_sessions` 行（sessionId / tmuxSession / workdir 快照）；`ai_agents`
@@ -370,8 +372,9 @@ flowchart TB
 **写的配置 / 产生的文件**：无——回放纯读，不动库不产文件。
 
 **执行的命令**：`tmux attach-session -t <name>`，或
-`cd <workdir> && <agent> <historyArgs 注入会话 id>`，或裸 `<agent>`（picker 分支，agent 自带
-历史选择器）；dsh 家族 `dst --resume <id>`（`dsh-plugin/src/host/commands/replayRig.ts:53-64`）。
+`cd <workdir> && <agent> <historyArgs 注入会话 id>`，或 picker 分支（claude/pi 历史参数无
+旗标时补不带值的 `--resume` = agent 自带会话选择器，裸命令是开新会话；dsh 家族裸 `dst`
+即会话管理器）；dsh 家族 `dst --resume <id>`（`dsh-plugin/src/host/commands/replayRig.ts:53-64`）。
 
 ---
 
@@ -410,9 +413,11 @@ flowchart TB
 | copy-line | 都缺席 | 命令行回传客户端复制 |
 
 **读的配置**：同 §6 + 部署实体（workdir：部署登记工作区**压过** agent.workdir，
-`routes.ts:182-200`）。**写的配置**：同 §6，但 PTY 链会话句柄落
-`agent_sessions.session_id = "pty:<handle>"`（回放据此走 picker）。**产生的文件**：无
-（远程转录由 agent CLI 自存）。**执行的命令**：上面的 ssh 别名载荷或 PTY 注入行。
+`routes.ts:182-200`）。**写的配置**：同 §6（含 claude/pi 预生成 id 回写），但会话句柄优先级
+分链：PTY 链落 `agent_sessions.session_id = "pty:<handle>"`（同任务重派写回同一 PTY 优先，
+回放走 picker）；ssh 别名窗口 / copy-line 链落预生成会话 id（回放 = ssh 到目标机
+`--resume <id>`）。**产生的文件**：无（远程转录由 agent CLI 自存）。**执行的命令**：
+上面的 ssh 别名载荷或 PTY 注入行。
 
 **远端特有——断连与迟到回传**：周期 recheck 发现断连 → guard 单事务把部署置 `disconnected`
 并将该 hostKey 在途无头派发逐个收口失败（"未确认操作已拒绝、不自动重放"）；恢复时

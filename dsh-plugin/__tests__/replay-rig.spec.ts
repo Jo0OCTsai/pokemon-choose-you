@@ -61,6 +61,22 @@ describe("replayCommandLine · resume 分支按 kind 注入会话 id", () => {
       "claude --resume",
     );
   });
+
+  it("picker 兜底实义：claude/pi 历史参数无旗标时补不带值的 --resume（agent 自带会话选择器——裸命令是开新会话）", () => {
+    expect(replayCommandLine(launch({ branch: "picker", agentCommand: "claude", sessionId: null }))).toBe(
+      "claude --resume",
+    );
+    expect(replayCommandLine(launch({ branch: "picker", agentCommand: "pi", sessionId: null }))).toBe("pi --resume");
+    // 已配选择器/续接旗标族 → 不重复补
+    expect(replayCommandLine(launch({ branch: "picker", agentCommand: "claude", historyArgs: "-r" }))).toBe(
+      "claude -r",
+    );
+    expect(
+      replayCommandLine(launch({ branch: "picker", agentCommand: "claude", historyArgs: "--resume-picker" })),
+    ).toBe("claude --resume-picker");
+    // 未知 kind 无可靠续接语义 → 裸命令不强插
+    expect(replayCommandLine(launch({ branch: "picker", agentCommand: "my-agent", sessionId: null }))).toBe("my-agent");
+  });
 });
 
 describe("replayCommandLine · dsh 类 agent 整行换 dst（dsh 本体无续接旗标）", () => {

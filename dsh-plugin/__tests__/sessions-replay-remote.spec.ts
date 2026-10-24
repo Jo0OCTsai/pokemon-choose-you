@@ -12,7 +12,6 @@ import {
   ptySessionRef,
   replayBranchOf,
   sessionReplay,
-  sessionReplayable,
   type ReplayLauncher,
 } from "../src/host/dispatch/sessions";
 import { PkyError } from "../src/host/storage/errors";
@@ -221,9 +220,8 @@ describe("sessionReplay：远端 PTY 句柄行（pty: 标记——句柄非 agen
     expect(ptyHandleOf("abc")).toBe("abc");
   });
 
-  it("PTY 句柄行可回放但走 picker 分支（不组 --resume <句柄>），sessionId 收敛 null", () => {
+  it("PTY 句柄行走 picker 分支（不组 --resume <句柄>），sessionId 收敛 null", () => {
     expect(replayBranchOf({ tmuxSession: "", sessionId: "pty:pty-7" })).toBe("picker");
-    expect(sessionReplayable({ tmuxSession: "", sessionId: "pty:pty-7" })).toBe(true);
     const rowId = seedRow("dispatch_interactive", {
       sessionId: "pty:pty-7",
       command: "claude",

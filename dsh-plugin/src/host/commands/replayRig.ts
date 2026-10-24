@@ -16,6 +16,16 @@ import { dstReplayLine, isDshKind } from "../dispatch/dstLaunch";
 
 // ---- 回放唤起装配（sessions.ts ReplayLauncher 注入件——本文件属命令装配层） ----
 
+/** 选择器/续接旗标族（picker 兜底判重用——在场则不重复补 --resume） */
+const PICKER_FLAGS: ReadonlySet<string> = new Set([
+  "--resume",
+  "-r",
+  "resume",
+  "--resume-picker",
+  "--session",
+  "--session-id",
+]);
+
 /**
  * 历史参数注入会话 id（desktop adapt_history_args 同构）：已有 --session-id/--resume/
  * resume 旗标时紧跟其后插入（用户自配参数在后不被挤丢）；无旗标按 kind 追加
@@ -35,11 +45,19 @@ function injectSessionArg(args: string[], sessionId: string, kind: string | null
   }
 }
 
-/** 非 dsh 类 agent 的回放行：agent 配置命令 + 历史参数（resume 分支注入会话 id——`claude --resume <id>` 直接回放转录） */
+/** 非 dsh 类 agent 的回放行：agent 配置命令 + 历史参数（resume 分支注入会话 id——`claude --resume <id>` 直接回放转录；
+ * picker 分支 claude/pi 无旗标时补不带值的 --resume——agent 自带会话选择器，裸命令是开新会话） */
 function agentReplayLine(l: LocalReplayLaunch): string {
   const args = l.historyArgs.split(/\s+/).filter((t) => t !== "");
+  const kind = kindForCommand(l.agentCommand);
   if (l.branch === "resume" && l.sessionId !== null) {
-    injectSessionArg(args, l.sessionId, kindForCommand(l.agentCommand));
+    injectSessionArg(args, l.sessionId, kind);
+  } else if (
+    l.branch === "picker" &&
+    (kind === "claude-code" || kind === "pi") &&
+    !args.some((a) => PICKER_FLAGS.has(a))
+  ) {
+    args.push("--resume");
   }
   return [posixQuote(l.agentCommand), ...args.map(posixQuote)].join(" ");
 }

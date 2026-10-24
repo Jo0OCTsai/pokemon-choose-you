@@ -82,18 +82,21 @@ describe("命令行组装（cmdline.rs 同构）", () => {
 });
 
 describe("交互派发主链路", () => {
-  it("注入成功：prompt 定界 + 会话标识落库 + 状态 running 等回传", async () => {
+  it("注入成功：prompt 定界 + 预生成会话旗标 + 会话标识落库 + 状态 running 等回传", async () => {
     const terminal = createFakeTerminal();
     const taskId = seedProjectTask("修 bug");
     const outcome = await dispatchInteractive(db.conn, { terminal }, taskId);
     expect(outcome.state).toBe("running");
     expect(outcome.terminal).toBe("fake-terminal");
     expect(terminal.injections).toHaveLength(1);
-    // 注入行：命令 + 清洗后的参数 + prompt 首条输入（定界在场，不解析输出——A15）
+    // 注入行：命令 + 清洗后的参数 + 预生成会话旗标（claude 回放精确 --resume 的句柄源）
+    // + prompt 首条输入（定界在场，不解析输出——A15）
     expect(terminal.injections[0]?.line).toContain("claude");
+    expect(terminal.injections[0]?.line).toMatch(/--session-id [0-9a-f-]{36}/);
     expect(terminal.injections[0]?.line).toContain("===== 待办数据开始 =====");
     expect(terminal.injections[0]?.line).not.toContain("--resume"); // 交互开新会话，恢复开关剔除
-    // 落库：kind=dispatch_interactive + 会话/执行标识（fake 终端 pane id）
+    const preId = terminal.injections[0]?.line.match(/--session-id ([0-9a-f-]{36})/)?.[1] ?? "";
+    // 落库：kind=dispatch_interactive + 会话/执行标识（fake 终端 pane id 优先于预生成 id）
     const row = db.conn
       .prepare("SELECT kind, session_id, status, command FROM agent_sessions WHERE task_id=?")
       .get(taskId) as Record<string, unknown>;
@@ -101,6 +104,11 @@ describe("交互派发主链路", () => {
     expect(row["session_id"]).toBe(`pane-${taskId}`);
     expect(row["status"]).toBe("ok");
     expect(String(row["command"])).toContain("claude");
+    // 预生成 id 回写 tasks.dispatched_session（后续无头轮次续接不断层——planHeadlessRun 同款）
+    const task = db.conn.prepare("SELECT dispatched_session FROM tasks WHERE id=?").get(taskId) as {
+      dispatched_session: string | null;
+    };
+    expect(task.dispatched_session).toBe(preId);
   });
 
   it("重复派发互斥：running 中 → DISPATCH_ALREADY_ACTIVE", async () => {
@@ -111,7 +119,7 @@ describe("交互派发主链路", () => {
     });
   });
 
-  it("注入失败：迁移 failed + 原因入审计 + DISPATCH_LAUNCH_FAILED", async () => {
+  it("注入失败：迁移 failed + 原因入审计 + DISPATCH_LAUNCH_FAILED；预生成 id 不回写（会话未起）", async () => {
     const terminal = createFakeTerminal();
     terminal.failNext("终端面板不存在");
     const taskId = seedProjectTask("任务");
@@ -119,11 +127,66 @@ describe("交互派发主链路", () => {
       code: "DISPATCH_LAUNCH_FAILED",
     });
     expect(state(taskId)).toBe("failed");
+    const task = db.conn.prepare("SELECT dispatched_session FROM tasks WHERE id=?").get(taskId) as {
+      dispatched_session: string | null;
+    };
+    expect(task.dispatched_session).toBeNull();
     const log = db.conn
       .prepare("SELECT new_value, origin FROM task_logs WHERE task_id=? AND field='dispatch_state' ORDER BY id DESC")
       .get(taskId) as { new_value: string; origin: string };
     expect(log.new_value).toMatch(/终端面板不存在/);
     expect(log.origin).toBe("dsh:dispatch-interactive");
+  });
+});
+
+describe("交互会话旗标（claude/pi 预生成 --session-id；dsh/其余无旗标走 picker 兜底）", () => {
+  /** 无句柄终端（外部终端 / ssh 窗口形态——不回 sessionRef） */
+  const bareTerminal = {
+    async inject() {
+      return { terminal: "external-Ghostty" };
+    },
+  };
+
+  it("无句柄终端：预生成 id 落 session_id（回放精确 --resume）+ 回写 dispatched_session", async () => {
+    const taskId = seedProjectTask("外部终端派发");
+    const outcome = await dispatchInteractive(db.conn, { terminal: bareTerminal }, taskId);
+    expect(outcome.terminal).toBe("external-Ghostty");
+    const row = db.conn.prepare("SELECT session_id FROM agent_sessions WHERE task_id=?").get(taskId) as {
+      session_id: string | null;
+    };
+    expect(row.session_id).toMatch(/^[0-9a-f-]{36}$/);
+    const task = db.conn.prepare("SELECT dispatched_session FROM tasks WHERE id=?").get(taskId) as {
+      dispatched_session: string | null;
+    };
+    expect(task.dispatched_session).toBe(row.session_id);
+  });
+
+  it("pi 同型预生成 --session-id", async () => {
+    seedAgents(db.conn, [{ id: "ag-pi", command: "pi" }]);
+    const taskId = seedProjectTask("pi 任务", { meta: JSON.stringify({ agentId: "ag-pi" }) });
+    const terminal = createFakeTerminal();
+    await dispatchInteractive(db.conn, { terminal }, taskId);
+    expect(terminal.injections[0]?.line).toMatch(/^pi .*--session-id [0-9a-f-]{36}/);
+  });
+
+  it("dsh 类走 dst：无会话旗标，session_id 与 dispatched_session 均不动（回放 picker 兜底）", async () => {
+    seedAgents(db.conn, [{ id: "ag-dsh", command: "dst" }]);
+    const taskId = seedProjectTask("dst 任务", { meta: JSON.stringify({ agentId: "ag-dsh" }) });
+    const terminal = createFakeTerminal();
+    await dispatchInteractive(db.conn, { terminal }, taskId);
+    expect(terminal.injections[0]?.line).toMatch(/^dst -- '/);
+    expect(terminal.injections[0]?.line).not.toContain("--session-id");
+    const taskId2 = seedProjectTask("dst 任务·无句柄终端", { meta: JSON.stringify({ agentId: "ag-dsh" }) });
+    const outcome = await dispatchInteractive(db.conn, { terminal: bareTerminal }, taskId2);
+    expect(outcome.state).toBe("running");
+    const row = db.conn
+      .prepare("SELECT session_id FROM agent_sessions WHERE task_id=? ORDER BY id DESC")
+      .get(taskId2) as { session_id: string | null };
+    expect(row.session_id).toBeNull();
+    const task = db.conn.prepare("SELECT dispatched_session FROM tasks WHERE id=?").get(taskId2) as {
+      dispatched_session: string | null;
+    };
+    expect(task.dispatched_session).toBeNull();
   });
 });
 

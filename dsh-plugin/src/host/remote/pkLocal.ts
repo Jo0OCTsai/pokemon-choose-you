@@ -8,6 +8,7 @@ import { chmodSync, copyFileSync, existsSync, mkdirSync, readFileSync, statSync 
 import { createHash } from "node:crypto";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
+import { posixQuote } from "../dispatch/cmdline";
 import { appHome } from "../storage/paths";
 
 /** 本机 pk 落点（<appHome>/bin/pk——shim 内嵌路径与桌面侧定位的统一约定） */
@@ -24,6 +25,16 @@ export function localPkDir(): string | undefined {
     return undefined;
   }
   return dirname(target);
+}
+
+/**
+ * 本机交互行 PATH 前缀：交互派发的命令行经用户登录 shell 执行（外部终端窗口 / copy-line
+ * 手动粘贴——不吃 childEnvFor 的子进程注入面），落位在场才前插 `export PATH=<dir>:"$PATH" && `
+ * （agent 内 `pk context` / `pk suggest` 裸名可达）；缺席返回空串不加（localPkDir 同缺席语义）。
+ */
+export function localPkPathPrefix(): string {
+  const dir = localPkDir();
+  return dir === undefined ? "" : `export PATH=${posixQuote(dir)}:"$PATH" && `;
 }
 
 /** 宿主三元组（构建/落位两侧命名一致单源；导出供测试自建 vendor） */

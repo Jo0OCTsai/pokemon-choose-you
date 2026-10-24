@@ -69,7 +69,7 @@ describe("降级链：家族缺失拒绝与悬空路由", () => {
     expect(outcome.note).toContain("复制完整命令行");
     expect(outcome.note).toContain(ALIAS);
     expect(outcome.note).toContain("claude");
-    expect(fx.lastSession(taskId2)["session_id"]).toBeNull(); // 无 PTY 会话标识
+    expect(fx.lastSession(taskId2)["session_id"]).toMatch(/^[0-9a-f-]{36}$/); // 无 PTY 句柄，落预生成会话 id（回放精确 --resume）
   });
 
   it("路由指向的部署缺失 → DEPLOYMENT_NOT_READY（不静默降级本机）", async () => {

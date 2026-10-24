@@ -157,7 +157,6 @@ export {
   PTY_SESSION_REF_PREFIX,
   replayBranchOf,
   sessionReplay,
-  sessionReplayable,
   type LocalReplayLaunch,
   type ReplayBranch,
   type ReplayDeploymentRef,

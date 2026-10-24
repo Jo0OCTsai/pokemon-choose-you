@@ -63,7 +63,7 @@ describe("本机 handoff 终端（dsh 宿主无第三方终端面板——debt �
     expect(out.sessionRef).toBeUndefined();
   });
 
-  it("交互派发 handoff：状态 running 等回传 + session_id 落 NULL（pane 假句柄清零）+ outcome 带 line", async () => {
+  it("交互派发 handoff：状态 running 等回传 + session_id 落预生成会话 id（pane 假句柄清零，回放精确 --resume）+ outcome 带 line", async () => {
     const taskId = seedProjectTask("handoff 派发");
     const outcome = await dispatchInteractive(db.conn, { terminal: createHandoffTerminal("无面板") }, taskId);
     expect(outcome.state).toBe("running");
@@ -74,6 +74,6 @@ describe("本机 handoff 终端（dsh 宿主无第三方终端面板——debt �
       string,
       unknown
     >;
-    expect(row["session_id"]).toBeNull();
+    expect(row["session_id"]).toMatch(/^[0-9a-f-]{36}$/);
   });
 });

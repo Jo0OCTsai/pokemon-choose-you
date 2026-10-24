@@ -5,13 +5,7 @@
  * 夹具（seedRow/db 生命周期）与原文件同构复制。
  */
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import {
-  logAgentSession,
-  replayBranchOf,
-  sessionReplay,
-  sessionReplayable,
-  type ReplayLauncher,
-} from "../src/host/dispatch/sessions";
+import { logAgentSession, replayBranchOf, sessionReplay, type ReplayLauncher } from "../src/host/dispatch/sessions";
 import { PkyError } from "../src/host/storage/errors";
 import { createTestDb, seedAgents, type TestDb } from "./helpers";
 
@@ -103,12 +97,12 @@ describe("sessionReplay：路由三分支与可回放判定", () => {
     });
   });
 
-  it("无 session_id 且无 tmux 的行 → 明确不可回放值，唤起执行体零调用", () => {
+  it("无 session_id 且无 tmux 的行 → picker 分支兜底唤起（交互行恒可回放——desktop resume_route 同构）", () => {
     const rowId = seedRow("classify");
     const { launcher, rec } = makeLauncher();
-    expect(sessionReplay(db.conn, rowId, launcher)).toEqual({ kind: "not-replayable" });
-    expect(rec.local).toHaveLength(0);
-    expect(rec.remote).toHaveLength(0);
+    expect(sessionReplay(db.conn, rowId, launcher)).toEqual({ kind: "routed", world: "local", branch: "picker" });
+    expect(rec.local).toHaveLength(1);
+    expect(rec.local[0]).toMatchObject({ branch: "picker", sessionId: null, tmuxSession: null });
   });
 });
 
@@ -138,14 +132,7 @@ describe("sessionReplay：agent 解析（agent_id → ai_agents 配置，删除�
   });
 });
 
-describe("sessionReplay：可回放判定与 NOT_FOUND", () => {
-  it("sessionReplayable：session_id 或 tmux 会话名任一非空即可回放（desktop 同口径）", () => {
-    expect(sessionReplayable({ sessionId: "s", tmuxSession: "" })).toBe(true);
-    expect(sessionReplayable({ sessionId: null, tmuxSession: "t" })).toBe(true);
-    expect(sessionReplayable({ sessionId: null, tmuxSession: "" })).toBe(false);
-    expect(sessionReplayable({ sessionId: "  ", tmuxSession: " " })).toBe(false);
-  });
-
+describe("sessionReplay：NOT_FOUND", () => {
   it("rowId 不存在 → NOT_FOUND", () => {
     const { launcher } = makeLauncher();
     expect(() => sessionReplay(db.conn, 999, launcher)).toThrowError(PkyError);

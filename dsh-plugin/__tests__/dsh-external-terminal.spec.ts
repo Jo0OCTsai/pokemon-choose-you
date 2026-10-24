@@ -257,6 +257,42 @@ describe("TerminalAdapter · handoff 降级", () => {
   });
 });
 
+describe("TerminalAdapter · 本机 pk PATH 前缀（登录 shell 不吃 childEnvFor 注入）", () => {
+  it("落位在场：注入行前插 export PATH（cd 织入在前，真窗口执行与 copy-line 手动粘贴同源）", async () => {
+    const prefix = `export PATH='/x/.choose-you/bin':"$PATH" && `;
+    const { env, spawned } = fakeEnv({ appExists: (name) => name === "Ghostty" });
+    await createExternalTerminalAdapter(env, () => prefix).inject({
+      line: "claude --resume s1",
+      agent: TEST_AGENT,
+      taskId: 1,
+      workdir: "/ws",
+    });
+    expect(spawned[0]?.[9]).toBe(`cd /ws && ${prefix}claude --resume s1`);
+    const failing = fakeEnv({
+      appExists: (name) => name === "Ghostty",
+      spawn: async () => Promise.reject(new Error("boom")),
+    });
+    const out = await createExternalTerminalAdapter(failing.env, () => prefix).inject({
+      line: "claude",
+      agent: TEST_AGENT,
+      taskId: 1,
+      workdir: null,
+    });
+    expect(out.note).toContain(`${prefix}claude`);
+  });
+
+  it("落位缺席（空串前缀）：行为不变——裸命令行直通", async () => {
+    const { env, spawned } = fakeEnv({ appExists: (name) => name === "Ghostty" });
+    await createExternalTerminalAdapter(env, () => "").inject({
+      line: "claude",
+      agent: TEST_AGENT,
+      taskId: 1,
+      workdir: null,
+    });
+    expect(spawned[0]?.[9]).toBe("claude");
+  });
+});
+
 describe("terminalLine 注入件", () => {
   it("行直通 spawn 且随偏好解析；失败上抛（回放经 injectLineGuarded 折 DISPATCH_LAUNCH_FAILED）", async () => {
     const { env, spawned } = fakeEnv({ appExists: (name) => name === "Ghostty" || name === "iTerm2" });

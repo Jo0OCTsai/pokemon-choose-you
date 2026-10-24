@@ -26,7 +26,7 @@ import { agentLine, interactiveArgs, promptSummary } from "./cmdline";
 import { dstLaunchLine, isDshKind } from "./dstLaunch";
 import { prepareDispatchPrompt, type DispatchPromptPrep } from "./prompt";
 import type { ResolvedDispatchRoute } from "./routes";
-import { logAgentSession, executionWorld } from "./sessions";
+import { logAgentSession, executionWorld, kindForCommand, sessionFlags } from "./sessions";
 import type { SshCheckOutcome } from "./sshCheck";
 import type { HandoffReasonCode } from "./terminalAdapters";
 
@@ -118,30 +118,51 @@ async function assertInteractiveRoute(connDeps: InteractiveDeps, route: Resolved
 
 /**
  * 交互首行（终端注入 / 账本摘要共用）：dsh 类 agent 换 dst 前端（dstLaunch.ts——dsh 本体无
- * 交互旗标）；其余 = agent 命令 + 交互参数（清洗会话恢复开关）+ prompt 首条输入整体引用。
+ * 交互旗标）；其余 = agent 命令 + 交互参数（清洗会话恢复开关）+ 会话旗标（claude/pi 预生成
+ * `--session-id <uuid>`）+ prompt 首条输入整体引用。
  */
-function launchLine(agent: AgentConfig, prompt: string): string {
+function launchLine(agent: AgentConfig, prompt: string, flags: readonly string[] = []): string {
   return isDshKind(agent.command)
     ? dstLaunchLine(prompt)
-    : agentLine(agent.command, interactiveArgs(agent.historyArgs), prompt);
+    : agentLine(agent.command, [...interactiveArgs(agent.historyArgs), ...flags], prompt);
 }
 
-/** 注入成功：落 agent_sessions（kind=dispatch_interactive，session_id=终端会话标识） */
+/**
+ * 交互启动的会话旗标（sessionFlags 单源，prevSession 恒空走预生成分支）：claude/pi 预生成
+ * `--session-id <uuid>`——账本 session_id 落真实会话 id，回放精确 `--resume <id>`（外部终端/
+ * ssh 窗口无句柄形态的回放解）；dsh 的 `--session-id` 是 adopt 语义不可预生成、其余 agent 无
+ * 可靠续接 → 无旗标（回放走 picker 兜底）。
+ */
+function interactiveSessionFlags(agent: AgentConfig): { flags: string[]; preSession: string | null } {
+  const { flags, preSession } = sessionFlags(kindForCommand(agent.command), null);
+  return { flags: flags === "" ? [] : flags.split(" "), preSession };
+}
+
+/**
+ * 注入成功：落 agent_sessions（kind=dispatch_interactive）。session_id 优先级 = 适配器句柄
+ * （dsh 终端 pane / PTY——重派复用查询键）> 预生成会话 id（claude/pi）> NULL（picker 兜底）；
+ * 预生成 id 同时回写 tasks.dispatched_session（后续无头轮次续接不断层——planHeadlessRun 同款）。
+ */
 function logInteractiveSession(
   conn: Conn,
   prep: DispatchPromptPrep,
   launched: { sessionRef?: string; note?: string },
+  preSession: string | null,
+  flags: readonly string[],
 ): number {
   const { agent, route } = prep;
+  if (preSession !== null) {
+    conn.prepare("UPDATE tasks SET dispatched_session=? WHERE id=?").run(preSession, prep.task.id);
+  }
   return logAgentSession(
     conn,
     {
       taskId: prep.task.id,
       agentId: agent.id,
       kind: "dispatch_interactive",
-      // claude 会话 id 启动时不可知：session_id 落 dsh 终端的会话/执行标识（回放路由用）
-      sessionId: launched.sessionRef ?? null,
-      command: launchLine(agent, promptSummary(prep.prompt)),
+      // claude 会话 id 预生成已知（interactiveSessionFlags）；适配器句柄在场则优先
+      sessionId: launched.sessionRef ?? preSession ?? null,
+      command: launchLine(agent, promptSummary(prep.prompt), flags),
       status: "ok",
       workdir: route.workdir,
       ...executionWorld(agent, route),
@@ -182,7 +203,8 @@ export async function dispatchInteractive(
       "该待办已在派发执行中（running）；等 agent 回传结束，或在抽屉里重置状态后重派",
     );
   }
-  const line = launchLine(agent, prep.prompt);
+  const { flags, preSession } = interactiveSessionFlags(agent);
+  const line = launchLine(agent, prep.prompt, flags);
   try {
     const terminal = deps.terminalFor?.(route) ?? deps.terminal;
     const launched = await terminal.inject({
@@ -193,7 +215,7 @@ export async function dispatchInteractive(
       // 终端偏好随注入传递（desktop 外部终端按此解析；主应用 exec.rs 每次唤起前读 pref 同构）
       terminalPreference: getSetting(conn, "terminal_preference"),
     });
-    const sessionRowId = logInteractiveSession(conn, prep, launched);
+    const sessionRowId = logInteractiveSession(conn, prep, launched, preSession, flags);
     const note = [launched.note].filter((n): n is string => n !== undefined && n !== "").join("；");
     return {
       state: DS_RUNNING,

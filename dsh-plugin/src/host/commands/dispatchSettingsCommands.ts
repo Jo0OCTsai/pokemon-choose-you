@@ -155,7 +155,8 @@ export function dispatchSettingsCommands(): CommandTable {
     ...dispatchCommandSet(),
     ...settingsCommandSet(),
     // 行内回放（FR-C2）：按账本行执行世界快照路由（快照压过当前配置）；错误 tag →
-    // PROTOCOL 码映射（DEPLOYMENT_NOT_READY / DISPATCH_LAUNCH_FAILED / SSH_AUTH_REQUIRED）
+    // PROTOCOL 码映射（DEPLOYMENT_NOT_READY / DISPATCH_LAUNCH_FAILED / SSH_AUTH_REQUIRED）；
+    // 无句柄行走 picker 兜底（agent 自带历史选择器），不再拦「不可回放」
     sessionReplay: async (p, deps) => {
       const rowId = (p as { rowId?: unknown }).rowId;
       if (!Number.isInteger(rowId) || (rowId as number) <= 0) {
@@ -164,9 +165,6 @@ export function dispatchSettingsCommands(): CommandTable {
       const rig = replayLauncherOf(deps);
       const outcome = sessionReplayDomain(deps.conn, rowId as number, rig.launcher);
       await rig.settle(); // 唤起在 domain（同步）触发的异步注入——失败在此浮出为信封
-      if (outcome.kind === "not-replayable") {
-        throw paramError("该会话无回放句柄（session_id 与 tmux 会话名皆无）");
-      }
       if (outcome.kind === "error") {
         throw outcome.hint === undefined
           ? new PkyError(outcome.tag, outcome.message)

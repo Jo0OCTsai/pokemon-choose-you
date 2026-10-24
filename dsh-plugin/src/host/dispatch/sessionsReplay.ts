@@ -99,7 +99,6 @@ export interface ReplayLauncher {
 }
 
 export type SessionReplayOutcome =
-  | { kind: "not-replayable" }
   | { kind: "routed"; world: ReplayWorld; branch: ReplayBranch }
   | { kind: "error"; tag: ReplayErrorTag; message: string; hint?: string };
 
@@ -112,11 +111,6 @@ export function replayBranchOf(row: { tmuxSession: string; sessionId: string | n
     return "resume";
   }
   return "picker";
-}
-
-/** 可回放判定：session_id 或 tmux 会话名任一非空（UI 按行数据渲染按钮——desktop 同口径） */
-export function sessionReplayable(row: { sessionId: string | null; tmuxSession: string }): boolean {
-  return row.tmuxSession.trim() !== "" || (row.sessionId ?? "").trim() !== "";
 }
 
 /** 注入执行体错误的转发映射：预期两码转为 tag，其余原样上抛（不吞非预期错误） */
@@ -221,8 +215,9 @@ function deploymentNotReplayable(target: string, dep: ReplayDeploymentRef | null
 /**
  * 回放路由（domain 层）：按账本行的执行世界快照路由——remote_host 空 = 本机三分支
  * 唤起；非空 = 对应部署唤起；**快照压过当前配置**（完全不读 ai_agents 当前配置，
- * 会话在哪台机器录的就回哪台）。无回放句柄（session_id 与 tmux 会话名皆无）返回
- * 明确不可回放值；部署已删/未就绪产出 DEPLOYMENT_NOT_READY tag（hint 给替代）。
+ * 会话在哪台机器录的就回哪台）。无回放句柄（session_id 与 tmux 会话名皆无）落 picker
+ * 分支兜底（agent 自带历史选择器——desktop resume_route 同构，交互行不再拦不可回放）；
+ * 部署已删/未就绪产出 DEPLOYMENT_NOT_READY tag（hint 给替代）。
  */
 export function sessionReplay(conn: Conn, rowId: number, launcher: ReplayLauncher): SessionReplayOutcome {
   const raw = conn.prepare(`SELECT ${SESSION_COLS} FROM agent_sessions WHERE id=?`).get(rowId);
@@ -230,9 +225,6 @@ export function sessionReplay(conn: Conn, rowId: number, launcher: ReplayLaunche
     throw notFound(`会话记录 No.${rowId} 不存在`);
   }
   const row = rowToSession(raw as SessionSqlRow);
-  if (!sessionReplayable(row)) {
-    return { kind: "not-replayable" };
-  }
   const agent = replayAgentOf(conn, row.agentId);
   const branch = replayBranchOf(row);
   const handles = replayHandles(row);

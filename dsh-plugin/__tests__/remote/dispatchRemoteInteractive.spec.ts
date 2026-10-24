@@ -159,7 +159,7 @@ describe("交互 TerminalAdapter：本机 GUI 终端在场 → 部署路由弹 s
     };
   }
 
-  it("ssh -tt <别名> 包装 `cd 远端目录 && agent 行` 交本机终端；本机侧 workdir=null；不开 PTY；账本 remote_host=alias、无会话句柄", async () => {
+  it("ssh -tt <别名> 包装 `cd 远端目录 && agent 行` 交本机终端；本机侧 workdir=null；不开 PTY；账本 remote_host=alias、session_id 落预生成会话 id", async () => {
     fx.seedReadyDeployment();
     const local = createFakeTerminal();
     const taskId = fx.seedDeploymentTask("交互弹窗", { workdir: "~/proj" });
@@ -175,7 +175,7 @@ describe("交互 TerminalAdapter：本机 GUI 终端在场 → 部署路由弹 s
     expect(injected?.line).toContain("cd ~/proj && claude");
     const row = fx.lastSession(taskId);
     expect(row["remote_host"]).toBe(ALIAS);
-    expect(row["session_id"]).toBeNull();
+    expect(row["session_id"]).toMatch(/^[0-9a-f-]{36}$/); // 预生成会话 id（远端 claude 以该 id 起会话，回放远端 --resume）
   });
 
   it("dsh 类 agent：ssh 载荷换 dst 前端（`dst -- <提示词>`，不带 dsh 历史参数）", async () => {

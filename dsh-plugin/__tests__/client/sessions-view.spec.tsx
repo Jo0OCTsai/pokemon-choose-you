@@ -172,10 +172,10 @@ describe("执行世界徽章与回放路由", () => {
     expect(screen.getByTestId("session-note").textContent).toContain("该会话的远程部署已被移除，无法回放");
   });
 
-  it("无回放句柄（session_id 与 tmux 皆无）的行不渲染回放按钮", async () => {
+  it("无回放句柄（session_id 与 tmux 皆无）的行也渲染回放按钮（picker 兜底——desktop 同口径）", async () => {
     renderLogs(mockHost({ sessionRows: [makeSessionRow({ id: 4, sessionId: null })] }));
     await flush();
-    expect(screen.queryByTestId("session-replay")).toBeNull();
+    expect(screen.getByTestId("session-replay")).toBeTruthy();
   });
 
   it("pty: 标记句柄行：会话标识剥前缀呈现（句柄非 agent 会话 id），回放按钮仍渲染（可发起判定看原始值）", async () => {

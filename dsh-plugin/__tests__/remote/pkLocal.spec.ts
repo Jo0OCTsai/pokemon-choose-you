@@ -6,7 +6,7 @@ import { chmodSync, mkdirSync, mkdtempSync, readFileSync, rmSync, statSync, writ
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { ensureLocalPk, hostTriple, localPkPath, vendorDir } from "../../src/host/remote/pkLocal";
+import { ensureLocalPk, hostTriple, localPkPath, localPkPathPrefix, vendorDir } from "../../src/host/remote/pkLocal";
 
 let home: string;
 
@@ -23,6 +23,18 @@ afterEach(() => {
 describe("localPkPath", () => {
   it("落点 = <appHome>/bin/pk（CHOOSE_YOU_HOME 覆盖优先）", () => {
     expect(localPkPath()).toBe(join(home, "bin", "pk"));
+  });
+});
+
+describe("localPkPathPrefix", () => {
+  it('落位在场 → `export PATH=<dir>:"$PATH" && `（posixQuote 条件引用——含空格目录亦安全）', () => {
+    mkdirSync(join(home, "bin"), { recursive: true });
+    writeFileSync(join(home, "bin", "pk"), "#!/bin/sh\n");
+    expect(localPkPathPrefix()).toBe(`export PATH=${join(home, "bin")}:"$PATH" && `);
+  });
+
+  it("落位缺席 → 空串（行为不变，不加前缀）", () => {
+    expect(localPkPathPrefix()).toBe("");
   });
 });
 

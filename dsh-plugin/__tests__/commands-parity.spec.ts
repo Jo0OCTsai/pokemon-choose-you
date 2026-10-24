@@ -117,7 +117,7 @@ describe("full-parity 命令面 · 会话回放（handoff / 注入两态）", ()
     expect(out.data.routed.line).toBe("cd /local/ws && claude --resume s9");
   });
 
-  it("sessionReplay：终端注入面在场 → 真实注入（opened 缺省 = 契约兼容）；无句柄 → INVALID_ARGUMENT", async () => {
+  it("sessionReplay：终端注入面在场 → 真实注入（opened 缺省 = 契约兼容）；无句柄 → picker 兜底注入", async () => {
     const id = insertSession({ session_id: null, tmux_session: "t1" });
     const injections: string[] = [];
     f.deps.terminalLine = {
@@ -129,8 +129,9 @@ describe("full-parity 命令面 · 会话回放（handoff / 注入两态）", ()
     expect(out.data.routed).toEqual({ world: "local" });
     expect(injections[0]).toContain("tmux attach-session -t t1");
     const bare = insertSession({ kind: "classify", session_id: null, tmux_session: "" });
-    const no = (await f.call("sessionReplay", { rowId: bare })) as { error: { code: string } };
-    expect(no.error.code).toBe("INVALID_ARGUMENT");
+    const pick = (await f.call("sessionReplay", { rowId: bare })) as { data: { routed: unknown } };
+    expect(pick.data.routed).toEqual({ world: "local" });
+    expect(injections[1]).toContain("claude --resume"); // picker 兜底：无值 --resume = agent 自带选择器
   });
 });
 
