@@ -3,18 +3,15 @@
  * 图鉴宝可梦来陪坐（排除当前与主宝可梦，候选空回退伊布）；一次专注会话一位一次；
  * 零台词零数值（桌面纪律）——title 提示与挥手告别是仅有的交互面。
  *
- * 候选池注记：桌面取图鉴已捕捉 sprites（api.dexStats）；helper 桥协议当前无图鉴统计
- * 下行面（接线注记见 helper/README）——v1 用内置六只精灵清单（sprites.ts 单源）。
- * enabled 注记：pet_mate 共享键（默认关）同样无下行面——MATE_ENABLED 常量关门待接线。
+ * 候选池 = 图鉴已捕捉精灵（sys-config.pet.dexCaught 下行，桌面 api.dexStats 同口径；
+ * 空集回退内置六只——sprites.ts 单源）。排除当前任务精灵与主宝可梦。
+ * enabled：sys-config.pet.mate 下行投影（pet_mate 共享键，默认关）。
  */
 import { mateSessionReset, pickMateSprite, shouldInviteMate } from "../state/mate.ts";
 import { DEFAULT_BUILTIN } from "../sprites.ts";
 import { lines } from "./lines.ts";
 import { mirror, type Snapshot } from "./mirror.ts";
 import { refs } from "./refs.ts";
-
-/** pet_mate 共享键的 helper 投影（桥协议扩展前默认关——FR-B4 默认关口径） */
-const MATE_ENABLED = false;
 
 let mate: { sprite: string; phase: "walk" | "sit" | "wave" } | null = null;
 let shownThisSession = false;
@@ -28,7 +25,7 @@ export function tickMate(snap: Snapshot): void {
   const focusSec = running && snap.pomo ? (snap.pomo.durationMs - snap.pomo.msLeft) / 1000 : 0;
   if (
     shouldInviteMate({
-      enabled: MATE_ENABLED,
+      enabled: mirror.petConfig.mate,
       working: snap.petState.base === "working",
       focusSec,
       present: mate !== null,
@@ -41,8 +38,9 @@ export function tickMate(snap: Snapshot): void {
 }
 
 async function invite(): Promise<void> {
-  const pool = DEFAULT_BUILTIN.map((e) => e.key);
-  const exclude = [mirror.lastTask?.categoryPokemon ?? "", "pikachu"]; // 当前 + 主宝可梦兜底
+  // 候选池 = 图鉴已捕捉（P2 缺口5：sys-config.pet.dexCaught；空集回退内置六只）
+  const pool = mirror.petConfig.dexCaught.length > 0 ? mirror.petConfig.dexCaught : DEFAULT_BUILTIN.map((e) => e.key);
+  const exclude = [mirror.lastTask?.categoryPokemon ?? "", mirror.petConfig.mainPokemon || "pikachu"];
   const sprite = pickMateSprite(pool, exclude);
   mate = { sprite, phase: mirror.reducedMotion ? "sit" : "walk" }; // reducedMotion 直接 sit 相位
   renderMate();

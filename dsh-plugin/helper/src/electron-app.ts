@@ -36,18 +36,33 @@ app.dock?.hide();
 export function startElectronApp(runtime: HelperRuntime, opts: ElectronAppOptions): void {
   injectCatalog(runtime, path.join(__dirname, "renderer", "pokemon-catalog.json"));
   app.whenReady().then(() => {
-    const win = createWindow(opts.initialPos);
+    const win = createWindow(opts.initialPos, runtime.petConfig.scale);
     void attachSysModules(runtime, win, opts);
     const unsubscribe = forwardUiEvents(win, opts.subscribeUi);
+    // 置顶看门狗读配置（pet_always_on_top 关 = 不重申，可被其他窗口压下——P1 D5）
     const topWatchdog = setInterval(() => {
-      if (!win.isDestroyed()) win.setAlwaysOnTop(true, "screen-saver");
+      if (!win.isDestroyed() && runtime.petConfig.alwaysOnTop) win.setAlwaysOnTop(true, "screen-saver");
     }, ALWAYS_ON_TOP_REASSERT_MS);
+    // 窗口配置即时应用（pet-config 事件面）：置顶开关 + 缩放等比（左上角锚定）
+    let lastScale = runtime.petConfig.scale;
+    const unsubCfg = opts.subscribeUi((ev) => {
+      if (ev.kind !== "pet-config" || win.isDestroyed()) return;
+      const cfg = runtime.petConfig;
+      win.setAlwaysOnTop(cfg.alwaysOnTop, "screen-saver");
+      if (cfg.scale !== lastScale) {
+        const [w, h] = win.getSize();
+        const ratio = cfg.scale / lastScale;
+        win.setSize(Math.round(w * ratio), Math.round(h * ratio), false);
+        lastScale = cfg.scale;
+      }
+    });
     wireIpc(win, runtime);
     watchRendererHealth(win, runtime);
     checkPerch(win, runtime); // 启动时窗口记忆位置可能就在底缘
     win.on("closed", () => {
       clearInterval(topWatchdog);
       unsubscribe();
+      unsubCfg();
     });
     app.on("window-all-closed", () => app.quit());
   });
@@ -82,15 +97,41 @@ function injectCatalog(runtime: HelperRuntime, catalogPath: string): void {
   }
 }
 
-/** UiEvent → 渲染层转发（quit → app.quit，宿主死亡/退出口径见 main.ts） */
+/** UiEvent → 渲染层转发（quit → app.quit；reset-pos → 主进程直接复位窗口，P1 D6） */
 function forwardUiEvents(win: BrowserWindow, subscribe: ElectronAppOptions["subscribeUi"]): () => void {
   return subscribe((ev: UiEvent) => {
     if (ev.kind === "quit") {
       app.quit();
       return;
     }
+    if (ev.kind === "reset-pos") {
+      if (!win.isDestroyed()) {
+        const p = defaultPos();
+        win.setPosition(p.x, p.y, false);
+      }
+      return;
+    }
     if (!win.isDestroyed()) win.webContents.send("ui-event", ev);
   });
+}
+
+/** 默认落位：主屏工作区右下角内缩 24px（建窗缺省位与 reset-pos 共用单源） */
+export function defaultPos(): { x: number; y: number } {
+  const area = screen.getPrimaryDisplay().workArea;
+  return { x: area.x + area.width - WINDOW_W - 24, y: area.y + area.height - WINDOW_H - 24 };
+}
+
+/** 记忆位可见性校验（P1 D6）：任一显示器 bounds 外扩一窗内仍算可见，否则回落默认位 */
+export function posVisible(pos: { x: number; y: number }): boolean {
+  return screen
+    .getAllDisplays()
+    .some(
+      (d) =>
+        pos.x >= d.bounds.x - WINDOW_W &&
+        pos.x <= d.bounds.x + d.bounds.width &&
+        pos.y >= d.bounds.y - WINDOW_H &&
+        pos.y <= d.bounds.y + d.bounds.height,
+    );
 }
 
 /** 渲染进程崩溃：记录诊断并重载一次（插件侧监督兜底崩溃重启） */
@@ -101,10 +142,10 @@ function watchRendererHealth(win: BrowserWindow, runtime: HelperRuntime): void {
   });
 }
 
-function createWindow(initialPos?: { x: number; y: number }): BrowserWindow {
+function createWindow(initialPos?: { x: number; y: number }, scale = 1): BrowserWindow {
   const win = new BrowserWindow({
-    width: WINDOW_W,
-    height: WINDOW_H,
+    width: Math.round(WINDOW_W * scale),
+    height: Math.round(WINDOW_H * scale),
     transparent: true,
     // 显式全透明（#00000000）：BrowserWindow 默认 backgroundColor 是不透明白，
     // 新版 macOS 上会压过 transparent:true 直接渲染成白色实底窗
@@ -126,8 +167,9 @@ function createWindow(initialPos?: { x: number; y: number }): BrowserWindow {
   });
   win.setAlwaysOnTop(true, "screen-saver");
   // 跨 Space 悬浮：窗口默认归属创建时所在的 Space（多全屏/多桌面切换即消失——真机反馈）。
-  // canJoinAllSpaces 跟随用户当前 Space + fullscreenAuxiliary 允许悬浮在全屏 app 之上
-  win.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
+  // canJoinAllSpaces 跟随用户当前 Space；visibleOnFullScreen 关闭 = 不悬浮在全屏 app 之上
+  // （全屏避让社区惯例：真全屏（游戏独占/全屏视频）让路——置顶看门狗也压不过系统全屏层）
+  win.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: false });
   // 默认点击穿透（forward 让渲染层仍能收到 mousemove 做命中翻转）
   win.setIgnoreMouseEvents(true, { forward: true });
   placeWindow(win, initialPos);
@@ -136,11 +178,11 @@ function createWindow(initialPos?: { x: number; y: number }): BrowserWindow {
 }
 
 function placeWindow(win: BrowserWindow, initialPos?: { x: number; y: number }): void {
-  if (initialPos) {
+  // 恢复位须可见（显示器拔除后坐标越界 → 回落默认位，P1 D6）；缺省 = 主屏右下内缩
+  if (initialPos && posVisible(initialPos)) {
     win.setPosition(initialPos.x, initialPos.y, false);
     return;
   }
-  // 缺省落位：主屏工作区右下角内缩（避开系统角标/双桌宠首启错开由宿主下 pos）
-  const area = screen.getPrimaryDisplay().workArea;
-  win.setPosition(area.x + area.width - WINDOW_W - 24, area.y + area.height - WINDOW_H - 24, false);
+  const p = defaultPos();
+  win.setPosition(p.x, p.y, false);
 }

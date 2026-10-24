@@ -123,29 +123,139 @@ describe("chat-reply 与渲染层事件", () => {
     expect(replies[1]).toEqual({ kind: "chat-reply", text: "", ok: false });
     h.runtime.dispose();
   });
+});
 
-  it("completeTask → catch-scene 事件（默认 plain；solemn 注入 milestone 优先）", () => {
+/** 喂一只进行中任务（完成迁移用例的公共夹具） */
+function seedActive(h: ReturnType<typeof makeHarness>, task: Record<string, unknown>): void {
+  h.write({ type: "task-state", activeTask: task, badge: { pendingSuggestions: 0, failures: 0 }, ts: 0 });
+}
+
+function pushFinished(h: ReturnType<typeof makeHarness>, caught?: Record<string, unknown>): void {
+  h.write({
+    type: "task-state",
+    activeTask: null,
+    badge: { pendingSuggestions: 0, failures: 0 },
+    ts: 1,
+    ...(caught ? { caught } : {}),
+  });
+}
+
+describe("完成仪式：plain 与外部收尾（task-state.caught 驱动）", () => {
+  it("本地 done 不再本地编排演出——host 收官单推 plain → 捕捉成功台词 + plain 演出", () => {
+    const h = makeHarness();
+    seedActive(h, { id: 1, title: "写周报", categoryPokemon: "pikachu", status: "active" });
+    h.runtime.completeTask();
+    expect(h.events.find((e) => e.kind === "catch-scene")).toBeUndefined();
+    expect(h.upstream("cmd").some((m) => m.op === "done")).toBe(true);
+    pushFinished(h);
+    expect(h.events.find((e) => e.kind === "catch-scene")).toEqual({
+      kind: "catch-scene",
+      scene: "plain",
+      allDone: false,
+    });
+    expect(h.events.filter((e) => e.kind === "bubble").at(-1)?.text).toContain("捕捉成功");
+    h.runtime.dispose();
+  });
+
+  it("外部完成（无本地 done）→ 别处收工台词 + plain 演出（桌面 pk 完成同演捕捉戏口径）", () => {
+    const h = makeHarness();
+    seedActive(h, { id: 3, title: "远端任务", categoryPokemon: "psyduck", status: "active" });
+    pushFinished(h);
+    expect(h.events.find((e) => e.kind === "catch-scene")).toEqual({
+      kind: "catch-scene",
+      scene: "plain",
+      allDone: false,
+    });
+    expect(h.events.filter((e) => e.kind === "bubble").at(-1)?.text).toContain("别处收工");
+    h.runtime.dispose();
+  });
+});
+
+describe("完成仪式：caught 变体与 pet 基础面投影", () => {
+  it("caught.milestone → milestone 演出 + 里程碑台词", () => {
+    const h = makeHarness();
+    seedActive(h, { id: 1, title: "写周报", categoryPokemon: "pikachu", status: "active" });
+    h.runtime.completeTask();
+    pushFinished(h, { milestone: 100 });
+    expect(h.events.find((e) => e.kind === "catch-scene")).toEqual({
+      kind: "catch-scene",
+      scene: "milestone",
+      allDone: false,
+    });
+    expect(h.events.filter((e) => e.kind === "bubble").at(-1)?.text).toContain("100");
+    h.runtime.dispose();
+  });
+
+  it("台词优先级 allDone > streak（allDone+streakDays → streak 双球演出 + 收工台词）", () => {
+    const h = makeHarness();
+    seedActive(h, { id: 2, title: "复盘", categoryPokemon: "eevee", status: "active" });
+    pushFinished(h, { allDone: true, streakDays: 4 });
+    expect(h.events.find((e) => e.kind === "catch-scene")).toMatchObject({ scene: "streak", allDone: true });
+    expect(h.events.filter((e) => e.kind === "bubble").at(-1)?.text).toContain("图鉴圆满");
+    h.runtime.dispose();
+  });
+
+  it("sys-config.pet 分节 → pet-config 投影（mate/聊聊 + 精灵与窗口配置继承缺省）", () => {
     const h = makeHarness();
     h.write({
-      type: "task-state",
-      activeTask: { id: 1, title: "写周报", categoryPokemon: "pikachu", status: "active" },
-      badge: { pendingSuggestions: 0, failures: 0 },
-      ts: 0,
+      type: "sys-config",
+      pet: { mate: true, agentConfigured: false, mainPokemon: "eevee", scale: 1.5, opacity: 80 },
     });
-    h.runtime.completeTask();
-    expect(h.events.find((e) => e.kind === "catch-scene")).toEqual({ kind: "catch-scene", scene: "plain" });
+    expect(h.runtime.petConfig).toEqual({
+      mate: true,
+      agentConfigured: false,
+      mainPokemon: "eevee",
+      alwaysOnTop: true,
+      scale: 1.5,
+      opacity: 80,
+      dexCaught: [],
+    });
+    expect(h.events.find((e) => e.kind === "pet-config")).toMatchObject({ kind: "pet-config", mate: true, scale: 1.5 });
     h.runtime.dispose();
+  });
+});
 
-    const events2: UiEvent[] = [];
-    const h2 = createHelperRuntime({
-      input: new PassThrough(),
-      output: new PassThrough(),
-      solemn: () => ({ milestone: 100, streakDays: 5 }),
-      onUiEvent: (ev) => events2.push(ev),
-    });
-    h2.completeTask();
-    expect(events2.find((e) => e.kind === "catch-scene")).toEqual({ kind: "catch-scene", scene: "milestone" });
-    h2.dispose();
+describe("quotes / pet-event 下行（P1 新增面）", () => {
+  it("惰性台词集 + 提醒 urgent 底态 + 位置复位", () => {
+    const h = makeHarness();
+    h.write({ type: "quotes", map: { psyduck: ["呆呆地看着你"] } });
+    expect(h.runtime.quotes).toEqual({ psyduck: ["呆呆地看着你"] });
+    expect(h.events.find((e) => e.kind === "quotes")).toMatchObject({ kind: "quotes" });
+    h.write({ type: "pet-event", kind: "reminder", taskId: 7, title: "周报", urgent: true, pokemon: "psyduck" });
+    expect(h.runtime.petState.base).toBe("urgent");
+    expect(h.events.find((e) => e.kind === "reminder")).toMatchObject({ kind: "reminder", taskId: 7, urgent: true });
+    h.write({ type: "pet-event", kind: "reset-pos" });
+    expect(h.events.find((e) => e.kind === "reset-pos")).toEqual({ kind: "reset-pos" });
+    h.runtime.dispose();
+  });
+
+  it("非 urgent 提醒不进 urgent 底态；urgent 撤离回 idle", () => {
+    const h = makeHarness();
+    h.write({ type: "pet-event", kind: "reminder", taskId: 8, title: "普通", urgent: false });
+    expect(h.runtime.petState.base).not.toBe("urgent");
+    h.write({ type: "pet-event", kind: "reminder", taskId: 9, title: "急件", urgent: true });
+    expect(h.runtime.petState.base).toBe("urgent");
+    h.runtime.dispose();
+  });
+});
+
+describe("本地 TTS 自触发面（P2-3：对话回答/allDone 收工；tts.enabled 门控）", () => {
+  it("tts 关（默认静音）：chat-reply ok 不发声", () => {
+    const h = makeHarness();
+    h.write({ type: "chat-reply", text: "连胜 5 天了！", ok: true });
+    expect(h.sys.tts.records.spoken).toEqual([]);
+    h.runtime.dispose();
+  });
+
+  it("tts 开：chat-reply ok 发声（归一文本）；allDone 收工语音随完成仪式", () => {
+    const h = makeHarness();
+    h.write({ type: "sys-config", tts: { enabled: true } });
+    h.write({ type: "chat-reply", text: "🎉 连胜 5 天了！", ok: true });
+    expect(h.sys.tts.records.spoken).toEqual(["连胜 5 天了！"]); // emoji 剥除
+    seedActive(h, { id: 11, title: "最后一只", categoryPokemon: "pikachu", status: "active" });
+    pushFinished(h, { allDone: true });
+    expect(h.sys.tts.records.spoken.at(-1)).toBe("今日图鉴圆满！皮卡丘说：收工，好好休息！");
+    h.runtime.dispose();
   });
 });
 

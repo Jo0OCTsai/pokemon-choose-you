@@ -52,13 +52,14 @@ function wireWindowIpc(win: BrowserWindow, runtime: HelperRuntime): void {
     return runtime.sendCmd("pet-interact", { pos: { x, y } });
   });
 
-  // 快捷图鉴屏 300 ↔ 590 宽翻转（UIUX §3.2：LCD 今日列表 590 宽；左缘不动向右展开）
+  // 快捷图鉴屏 300 ↔ 590 宽翻转（UIUX §3.2：LCD 待捕列表 590 宽；左缘不动向右展开；P1 D5 缩放等比）
   ipcMain.handle("pet:quickSize", (_e, open: boolean) => {
     if (win.isDestroyed()) return;
     const [x, y] = win.getPosition();
-    const width = open ? QUICK_W : WINDOW_W;
+    const scale = runtime.petConfig.scale;
+    const width = Math.round((open ? QUICK_W : WINDOW_W) * scale);
     if (win.getBounds().width !== width) {
-      win.setSize(width, WINDOW_H, false);
+      win.setSize(width, Math.round(WINDOW_H * scale), false);
       win.setPosition(x, y, false);
     }
   });
@@ -68,7 +69,8 @@ function wireWindowIpc(win: BrowserWindow, runtime: HelperRuntime): void {
   ipcMain.handle("pet:chatSize", (_e, open: boolean) => {
     if (win.isDestroyed()) return;
     const [x, y] = win.getPosition();
-    const height = open ? CHAT_H : WINDOW_H;
+    const scale = runtime.petConfig.scale;
+    const height = Math.round((open ? CHAT_H : WINDOW_H) * scale);
     if (win.getBounds().height !== height) {
       win.setSize(win.getBounds().width, height, false);
       win.setPosition(x, y, false);
@@ -89,6 +91,9 @@ function wireCommandIpc(runtime: HelperRuntime): void {
   });
 
   ipcMain.handle("pet:complete", () => runtime.completeTask());
+
+  // 本地 TTS（生日台词等渲染层触发面——runtime.speak 内部经 sys 路由按 tts.enabled 门控）
+  ipcMain.handle("pet:speak", (_e, text: string) => runtime.speak(String(text ?? "")));
 
   ipcMain.handle("pet:interact", (_e, kind: string) => {
     if (!INTERACT_KINDS.has(kind)) return;
@@ -130,6 +135,8 @@ function wireDataIpc(win: BrowserWindow, runtime: HelperRuntime): void {
       perched: runtime.perched,
       petVisible: runtime.petVisible,
       inputResponse: runtime.inputResponse,
+      petConfig: runtime.petConfig,
+      quotes: runtime.quotes,
     };
   });
 

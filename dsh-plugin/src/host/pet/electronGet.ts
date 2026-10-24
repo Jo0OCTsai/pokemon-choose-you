@@ -64,6 +64,23 @@ export interface ElectronGetDeps {
   arch?: string;
 }
 
+/** 首启进度快照（P1 D7：rpc petSetupProgress 查询面；模块级单例——装配层后台获取时记录） */
+export interface ElectronSetupPhase {
+  phase: "idle" | "downloading" | "extracting" | "done" | "failed";
+  at: number;
+}
+
+let setupPhase: ElectronSetupPhase = { phase: "idle", at: 0 };
+
+/** 当前进度快照（客户端设置面「显示桌宠」行轮询消费） */
+export function electronSetupProgress(): ElectronSetupPhase {
+  return setupPhase;
+}
+
+function mark(phase: ElectronSetupPhase["phase"]): void {
+  setupPhase = { phase, at: Date.now() };
+}
+
 export type EnsureElectronResult =
   | { status: "present"; binPath: string }
   | { status: "installed"; binPath: string }
@@ -83,16 +100,22 @@ interface GetContext {
 export async function ensureElectronDist(deps: ElectronGetDeps = {}): Promise<EnsureElectronResult> {
   const ctx = resolveContext(deps);
   if (isRegularFile(ctx.binPath)) {
+    mark("done");
     return { status: "present", binPath: ctx.binPath };
   }
   mkdirSync(ctx.distRoot, { recursive: true });
+  mark("downloading");
   const zipPath = await downloadWithFallback(ctx, deps);
   if (zipPath === null) {
+    mark("failed");
     return failed(ctx, "download-or-checksum-failed");
   }
+  mark("extracting");
   if (!(await extractAndPlace(ctx, deps, zipPath))) {
+    mark("failed");
     return failed(ctx, "extract-or-place-failed");
   }
+  mark("done");
   return { status: "installed", binPath: ctx.binPath };
 }
 

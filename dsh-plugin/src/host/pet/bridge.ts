@@ -26,6 +26,7 @@ import {
   type ShortcutFiredMsg,
   type SpritesMsg,
   type SysUnsupportedMsg,
+  type PetEventMsg,
   type TaskStateMsg,
   type TrayActionMsg,
   type UpstreamMsg,
@@ -211,6 +212,16 @@ export class BridgeClient {
     return this.send({ type: "heartbeat", ts });
   }
 
+  /** 每宝可梦自定义台词惰性下发（P1 D2：相关集 = 主宝可梦 + 进行中任务精灵） */
+  sendQuotes(map: Record<string, string[]>): boolean {
+    return this.send({ type: "quotes", map });
+  }
+
+  /** 桌宠事件下行（提醒敲门/催促、位置复位——P1 D3/D6） */
+  sendPetEvent(ev: Omit<PetEventMsg, "type">): boolean {
+    return this.send({ type: "pet-event", ...ev });
+  }
+
   // ---- 上行解码与分发 ----
 
   private handleLine(line: string): void {
@@ -237,31 +248,13 @@ export class BridgeClient {
 
   /** 上行分发（基础五种直派；seq 四消息进 sys 通道；sys 事件六种派可选处理器） */
   private dispatchUpstream(msg: UpstreamMsg): void {
-    if (msg.type === "cmd") {
-      this.handlers.onCmd(msg);
-      return;
-    }
-    if (msg.type === "focus-settle") {
-      this.handlers.onFocusSettle(msg);
-      return;
-    }
-    if (msg.type === "pomo-state") {
-      this.handlers.onPomoState?.(msg);
-      return;
-    }
-    if (msg.type === "hello") {
-      this.dispatchHello(msg);
-      return;
-    }
-    if (isSeqUpstream(msg)) {
-      this.sys.handleUpstream(msg);
-      return;
-    }
-    if (isSysEventUpstream(msg)) {
-      this.dispatchSysEvent(msg);
-      return;
-    }
-    this.handlers.onCrashDiag?.(msg as CrashDiagMsg);
+    if (msg.type === "cmd") this.handlers.onCmd(msg);
+    else if (msg.type === "focus-settle") this.handlers.onFocusSettle(msg);
+    else if (msg.type === "pomo-state") this.handlers.onPomoState?.(msg);
+    else if (msg.type === "hello") this.dispatchHello(msg);
+    else if (isSeqUpstream(msg)) this.sys.handleUpstream(msg);
+    else if (isSysEventUpstream(msg)) this.dispatchSysEvent(msg);
+    else this.handlers.onCrashDiag?.(msg as CrashDiagMsg);
   }
 
   /** hello 到达：记录握手 + 可选回调 + 唤醒全部 ready 等待者 */

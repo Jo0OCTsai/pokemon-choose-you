@@ -117,6 +117,17 @@ export function dexDoneCount(conn: Conn): number {
   return Number((conn.prepare("SELECT COALESCE(SUM(status='done'), 0) AS n FROM tasks").get() as { n: number }).n);
 }
 
+/** open 任务计数（allDone 收工判定数据源——桌面 listTasks("open") 同口径：全部未完成） */
+export function openTaskCount(conn: Conn): number {
+  return Number(
+    (
+      conn.prepare("SELECT COUNT(*) AS n FROM tasks WHERE status IN ('inbox','scheduled','active','paused')").get() as {
+        n: number;
+      }
+    ).n,
+  );
+}
+
 /**
  * Completion path one-stop solemn moment (taskComplete orchestration / pet done path shared consumption——2.7 wiring):
  * dexCounts provides before/after Pokémon count (milestone judgment); streak source fixed to streakFromDb.

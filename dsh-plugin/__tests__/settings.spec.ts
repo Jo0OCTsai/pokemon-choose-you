@@ -65,8 +65,8 @@ describe("36 共享设置键（配置 100% 对齐，§8⑨）", () => {
       .filter((s) => s !== "")
       .map((s) => s.replace(/^"|"$/g, ""));
     expect([...SETTING_KEYS]).toEqual(mainAppKeys);
-    expect(SETTING_KEYS.length).toBe(36);
-    expect(new Set(SETTING_KEYS).size).toBe(36);
+    expect(SETTING_KEYS.length).toBe(39);
+    expect(new Set(SETTING_KEYS).size).toBe(39);
   });
 
   it("readSettings / writeSettings 读写往返；缺键不出现", () => {

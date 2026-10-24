@@ -2,8 +2,9 @@
  * 桥协议消息全集（specs/dsh-plugin AD §4.3 + specs/dsh-plugin-full-parity AD §4.3）——
  * stdio JSON 行，每行一个 JSON 对象。
  *
- * 信封字段 = `type`；基础下行（插件 → helper）五种：task-state / pomodoro-config / lang /
- * sprites / heartbeat + 系统能力扩展下行八种（sys-config / sys-notify / tts-speak /
+ * 信封字段 = `type`；基础下行（插件 → helper）七种：task-state / pomodoro-config / lang /
+ * sprites / heartbeat / quotes（自定义台词惰性集）/ pet-event（提醒敲门·位置复位）+
+ * 系统能力扩展下行八种（sys-config / sys-notify / tts-speak /
  * dialog-request / dialog-cancel / open-path / mac-auth-query / chat-reply，见
  * `sys-protocol.ts`）；基础上行（helper → 插件）五种：cmd / focus-settle / pomo-state / hello /
  * crash-diag + 系统能力扩展上行九种（tray-action / shortcut-fired / notify-clicked /
@@ -76,14 +77,15 @@ export interface TaskStateMsg {
   badge: Badge;
   ts: number;
   todayTasks?: QuickTask[];
-  /** 捕获演出变体（full-parity 2.7 补充接线：完成路径郑重判定结果随行；缺省 = plain 变体） */
+  /** 捕获演出变体（完成路径郑重判定随行；缺省 = plain） */
   caught?: CaughtVariant;
 }
 
-/** 郑重时刻变体数据（solemn 判定投影：里程碑阈值 / 连胜天数——helper CatchShow 消费） */
+/** 郑重时刻变体数据（solemn 投影：里程碑/连胜/收工清空——allDone = 无进行中且 open 为 0） */
 export interface CaughtVariant {
   milestone?: number;
   streakDays?: number;
+  allDone?: boolean;
 }
 
 export interface PomodoroConfigMsg {
@@ -91,8 +93,12 @@ export interface PomodoroConfigMsg {
   /** 专注时长档位（分钟） */
   durations: number[];
   breakMin: number;
-  /** 番茄功能开关（共享设置 pomodoro_enabled；false 时 PomoPill 不显示——主应用 parity） */
+  /** 番茄功能开关（pomodoro_enabled；false 时 PomoPill 不显示） */
   enabled: boolean;
+  /** 到期系统通知（pomodoro_notify——helper 本地 sys-notify 发声） */
+  notify?: boolean;
+  /** 长番茄提示音（共享设置 pomodoro_chime；仅 ≥45min：中点 1 声 / 剩 5 分钟 2 声） */
+  chime?: boolean;
   lang: Lang;
 }
 
@@ -128,6 +134,8 @@ export type DownstreamMsg =
   | LangMsg
   | SpritesMsg
   | HeartbeatMsg
+  | QuotesMsg
+  | PetEventMsg
   | SysConfigMsg
   | SysNotifyMsg
   | TtsSpeakMsg
@@ -143,6 +151,8 @@ export const DOWNSTREAM_TYPES = [
   "lang",
   "sprites",
   "heartbeat",
+  "quotes",
+  "pet-event",
   "sys-config",
   "sys-notify",
   "tts-speak",
@@ -165,6 +175,8 @@ export const CMD_OPS = [
   "pet-interact",
   // ---- 系统能力扩展（full-parity AD §4.3）：AI 聊聊问题上载（FR-A8）----
   "pet-chat",
+  // ---- P1 D4：提醒就近动作条「推迟 N 分钟」（写 remind_at + 重置 reminded）----
+  "snooze",
 ] as const;
 
 export type CmdOp = (typeof CMD_OPS)[number];
@@ -175,6 +187,8 @@ export interface CmdMsg {
   taskId?: number | string;
   /** capture（⚡发报文本）/ pet-chat（AI 聊聊问题 ≤200 字符）等载荷 */
   text?: string;
+  /** snooze：推迟分钟数（缺省 10） */
+  minutes?: number;
   /** 拖动后窗口位置（宿主侧持久化，§4.1.1 petMove） */
   pos?: { x: number; y: number };
 }
@@ -185,26 +199,6 @@ export interface FocusSettleMsg {
   taskId: number | string;
   localSessionId: string;
   elapsedMin: number;
-}
-
-/** 番茄相位快照（D2 本地计时态的唯一出口——chip 精确倒计时/短休息态数据源） */
-export interface PomoPhaseSnapshot {
-  kind: "focus" | "break" | "trial";
-  /** 相位到期时刻（helper 时钟 epoch ms） */
-  endAt: number;
-  /** focus 档位分钟（break/trial 无） */
-  durationMin?: number;
-}
-
-/**
- * 番茄相位上行：相位迁移（开始专注/先试/休息、到期置空）与每次 hello 后发送，
- * 宿主只保留最新一帧（不落库）；taskId = 发送时 activeTask（相位归属——chip 跨任务不串台）。
- */
-export interface PomoStateMsg {
-  type: "pomo-state";
-  phase: PomoPhaseSnapshot | null;
-  taskId: number | string | null;
-  ts: number;
 }
 
 /** 握手：版本 + 能力位 */
@@ -284,3 +278,7 @@ export { validateDownstream, validateUpstream } from "./validators.ts";
 export function encodeLine(msg: UpstreamMsg | DownstreamMsg): string {
   return `${JSON.stringify(msg)}\n`;
 }
+
+// ---- pet 域消息族（等量迁移至 pet-protocol.ts；消费面 import 路径经本模块再出口不变） ----
+import type { PetEventMsg, PomoPhaseSnapshot, PomoStateMsg, QuotesMsg } from "./pet-protocol";
+export type { PetEventMsg, PomoPhaseSnapshot, PomoStateMsg, QuotesMsg };

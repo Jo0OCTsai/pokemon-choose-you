@@ -175,6 +175,8 @@ function reminderMainChain(
     decision.notification === null
       ? "dropped"
       : deps.delivery.notify("reminder", decision.notification, decision.silenced);
+  // 桌宠事件（P1 D3：提醒第一现场——敲门/催促经桥下发；桥缺席静默，通知通道已承载）
+  if (decision.pet !== null) deps.delivery.petEvent(decision.pet);
   return {
     due: due.length,
     claimed: claimed.length,

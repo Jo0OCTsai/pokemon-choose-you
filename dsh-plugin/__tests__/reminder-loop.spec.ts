@@ -40,13 +40,17 @@ describe("提醒主链：到期 → CAS 抢占 → 聚合送达", () => {
     seedReminder("买咖啡", -5);
     const rig = deliveryRig(true);
     const out = await runReminderTick(loopDeps(rig, baseNow()));
-    expect(out).toMatchObject({ due: 1, claimed: 1, silenced: 0, channel: "helper" });
+    expect(out).toMatchObject({ due: 1, claimed: 1, silenced: 0, channel: "helper", petFired: true });
     expect(rig.notified).toHaveLength(1);
     expect(rig.notified[0]).toMatchObject({ kind: "reminder", title: expect.stringContaining("训练家") });
+    // P1 D3：桌宠事件随送达下发（敲门载荷含任务 id/标题）
+    expect(rig.petEvents).toHaveLength(1);
+    expect(rig.petEvents[0]).toMatchObject({ kind: "reminder", urgent: false, title: "买咖啡" });
     // 第二轮：reminded 已置 1 → 粗筛不再看到（去重）
     const again = await runReminderTick(loopDeps(rig, baseNow() + 60_000));
     expect(again.claimed).toBe(0);
     expect(rig.notified).toHaveLength(1);
+    expect(rig.petEvents).toHaveLength(1);
   });
 
   it("多条到期聚合成一条（点名 + 等 N 项）；任一紧急整体 ‼ 前缀", async () => {

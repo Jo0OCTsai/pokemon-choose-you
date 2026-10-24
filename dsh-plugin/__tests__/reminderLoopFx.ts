@@ -10,9 +10,20 @@ import type { ReminderLoopDeps } from "../src/host/reminder/loop";
 import { ReminderDelivery, type ReminderToastPayload } from "../src/host/reminder/deliver";
 import type { BridgeClient } from "../src/host/pet/bridge";
 
-/** 送达记录 rig：helper 在位（sendSysNotify 记录）或缺席（toast 记录） */
+/** 送达记录 rig：helper 在位（sendSysNotify / sendPetEvent 记录）或缺席（toast 记录） */
 export type Notified = { kind: string; title: string; body: string };
-export type DeliveryRig = { delivery: ReminderDelivery; notified: Notified[]; toasts: ReminderToastPayload[] };
+export type PetEventRecord = {
+  kind: "reminder" | "reset-pos";
+  taskId?: number | string;
+  title?: string;
+  urgent?: boolean;
+};
+export type DeliveryRig = {
+  delivery: ReminderDelivery;
+  notified: Notified[];
+  petEvents: PetEventRecord[];
+  toasts: ReminderToastPayload[];
+};
 
 /** 正午基准时刻（提醒窗口的中点基准；固定日期锚定——真实日期会在「缺省 review_dow=周一」
  *  与真实星期撞车时触发无关复盘提醒（周一时炸），确定性取周三） */
@@ -40,9 +51,10 @@ function seedReminderRow(
   );
 }
 
-/** 送达 rig 组装：helper 在位（sendSysNotify 记录）或缺席（toast 记录） */
+/** 送达 rig 组装：helper 在位（sendSysNotify / sendPetEvent 记录）或缺席（toast 记录） */
 function buildDeliveryRig(helper: boolean): DeliveryRig {
   const notified: Notified[] = [];
+  const petEvents: PetEventRecord[] = [];
   const toasts: ReminderToastPayload[] = [];
   const bridge =
     helper === true
@@ -53,13 +65,17 @@ function buildDeliveryRig(helper: boolean): DeliveryRig {
               return true;
             },
           },
+          sendPetEvent: (ev: PetEventRecord) => {
+            petEvents.push(ev);
+            return true;
+          },
         } as unknown as BridgeClient)
       : null;
   const delivery = new ReminderDelivery({
     bridge: () => bridge,
     toast: (payload) => toasts.push(payload),
   });
-  return { delivery, notified, toasts };
+  return { delivery, notified, petEvents, toasts };
 }
 
 /** 装配受测面（beforeEach 重建 / afterEach 收口）；调用方 spec 顶层调用一次 */

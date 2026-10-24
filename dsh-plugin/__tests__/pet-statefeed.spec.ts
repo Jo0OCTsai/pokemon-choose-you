@@ -8,9 +8,12 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import {
   buildPomodoroConfig,
   buildSpritesMsg,
+  buildSysConfig,
   changeMark,
   getPetPos,
   PET_POS_KEY,
+  quotesFor,
+  quotesKeysFor,
   resolveLang,
   setPetPos,
   snapshotBadge,
@@ -118,15 +121,25 @@ describe("配置下发组装", () => {
     expect(buildSpritesMsg(db.conn).reducedMotion).toBe(true);
   });
 
-  it("pomodoro-config：档位 [15,25,45,60] 固定 + breakMin 读共享设置缺省 5 + enabled 缺省 false", () => {
+  it("pomodoro-config：档位 [15,25,45,60] 固定 + breakMin 读共享设置缺省 5 + enabled/notify/chime 缺省 false", () => {
     expect(buildPomodoroConfig(db.conn)).toEqual({
       durations: [15, 25, 45, 60],
       breakMin: 5,
       enabled: false,
+      notify: false,
+      chime: false,
       lang: "zh-Hans",
     });
     db.conn.prepare("INSERT OR REPLACE INTO settings (key, value) VALUES ('break_minutes', '10')").run();
     expect(buildPomodoroConfig(db.conn).breakMin).toBe(10);
+    db.conn
+      .prepare(
+        "INSERT OR REPLACE INTO settings (key, value) VALUES ('pomodoro_notify', 'true'), ('pomodoro_chime', 'true')",
+      )
+      .run();
+    const on = buildPomodoroConfig(db.conn);
+    expect(on.notify).toBe(true);
+    expect(on.chime).toBe(true);
   });
 
   it("pomodoro-config：enabled 读共享设置 pomodoro_enabled（主应用同键同语义）", () => {
@@ -134,6 +147,46 @@ describe("配置下发组装", () => {
     expect(buildPomodoroConfig(db.conn).enabled).toBe(true);
     db.conn.prepare("INSERT OR REPLACE INTO settings (key, value) VALUES ('pomodoro_enabled', 'false')").run();
     expect(buildPomodoroConfig(db.conn).enabled).toBe(false);
+  });
+});
+
+describe("配置下发组装：pet 分节与 quotes 惰性（P1）", () => {
+  it("sys-config.pet（P1 D2/D5）：mainPokemon/置顶/缩放/透明度投影 + 值域非法回落缺省", () => {
+    expect(buildSysConfig(db.conn).pet).toEqual({
+      mate: false,
+      agentConfigured: false,
+      alwaysOnTop: true,
+      scale: 1,
+      opacity: 100,
+    });
+    db.conn
+      .prepare(
+        "INSERT OR REPLACE INTO settings (key, value) VALUES " +
+          "('main_pokemon', 'eevee'), ('pet_always_on_top', 'false'), ('pet_scale', '1.5'), ('pet_opacity', '60')",
+      )
+      .run();
+    expect(buildSysConfig(db.conn).pet).toMatchObject({
+      mainPokemon: "eevee",
+      alwaysOnTop: false,
+      scale: 1.5,
+      opacity: 60,
+    });
+    db.conn.prepare("INSERT OR REPLACE INTO settings (key, value) VALUES ('pet_scale', '3')").run(); // 越界档
+    expect(buildSysConfig(db.conn).pet?.scale).toBe(1);
+  });
+
+  it("quotes 惰性集（P1 D2）：相关集 = 主宝可梦 + 进行中精灵 ∩ 已配置键；解析坏档空集", () => {
+    db.conn
+      .prepare(
+        "INSERT OR REPLACE INTO settings (key, value) VALUES " +
+          "('main_pokemon', 'eevee'), ('pokemon_quotes', '{\"eevee\":[\"伊布台词\"],\"psyduck\":[\"呆呆\"]}')",
+      )
+      .run();
+    expect(quotesKeysFor(db.conn, "eevee", "psyduck")).toEqual(["eevee", "psyduck"]);
+    expect(quotesKeysFor(db.conn, "eevee", "snorlax")).toEqual(["eevee"]); // 无台词的精灵不进集
+    expect(quotesFor(db.conn, ["eevee"])).toEqual({ eevee: ["伊布台词"] });
+    db.conn.prepare("INSERT OR REPLACE INTO settings (key, value) VALUES ('pokemon_quotes', 'not-json')").run();
+    expect(quotesKeysFor(db.conn, "eevee", "")).toEqual([]);
   });
 });
 
@@ -147,6 +200,24 @@ describe("StateFeed（推送与轮询）", () => {
     expect((last?.["activeTask"] as { id: number }).id).toBe(taskId);
     const noBridge = new StateFeed(db.conn, { bridgeProvider: () => null });
     expect(() => noBridge.notifyLocalWrite()).not.toThrow();
+  });
+
+  it("quotes 惰性下发（P1 D2）：相关集非空随首推下发，集未变不重发，republishAll 基线复位必发", () => {
+    db.conn
+      .prepare(
+        "INSERT OR REPLACE INTO settings (key, value) VALUES " +
+          "('main_pokemon', 'eevee'), ('pokemon_quotes', '{\"eevee\":[\"伊布台词\"]}')",
+      )
+      .run();
+    const { feed, sent } = makeFeed();
+    const quotesMsgs = () => sent.filter((m) => m.type === "quotes");
+    feed.notifyLocalWrite();
+    expect(quotesMsgs()).toHaveLength(1);
+    expect(quotesMsgs()[0]).toMatchObject({ map: { eevee: ["伊布台词"] } });
+    feed.notifyLocalWrite(); // 相关集未变 → 不重发
+    expect(quotesMsgs()).toHaveLength(1);
+    feed.republishAll(); // 重启恢复：基线复位必发
+    expect(quotesMsgs()).toHaveLength(2);
   });
 
   it("轮询：库被外部形态改写 → 推送；无变化不推（≤2s 上界的机制面）", () => {

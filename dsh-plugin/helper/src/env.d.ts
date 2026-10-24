@@ -31,6 +31,8 @@ interface PetBridgeApi {
   checkPerch: () => Promise<boolean>;
   cmd: (op: string, fields?: Record<string, unknown>) => Promise<boolean>;
   complete: () => Promise<void>;
+  /** 本地 TTS（生日台词等——主进程 sys 路由，tts.enabled 门控） */
+  speak: (text: string) => Promise<void>;
   interact: (kind: string) => Promise<void>;
   pomo: (action: "focus" | "trial" | "break", durationMin?: number) => Promise<void>;
   snapshot: () => Promise<unknown>;

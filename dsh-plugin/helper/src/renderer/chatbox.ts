@@ -13,14 +13,9 @@ import { hideDialog } from "./dialog.ts";
 
 const bridge = window.petBridge;
 
-/** agentConfigured 条件（FR-A8：配了 agent 才出现）——桥协议当前无承载面（见
- * helper/README 接线注记），v1 缺省呈现（host 未配置时经失败回退气泡优雅降级）。 */
-let agentConfigured = true;
-export function setAgentConfigured(v: boolean): void {
-  agentConfigured = v;
-}
+/** agentConfigured 条件（FR-A8：配了 agent 才出现）——sys-config.pet.agentConfigured 下行投影 */
 export function isAgentConfigured(): boolean {
-  return agentConfigured;
+  return mirror.petConfig.agentConfigured;
 }
 
 let log: ChatEntry[] = [];

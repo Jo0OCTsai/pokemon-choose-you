@@ -194,6 +194,8 @@ function miscFacade(
   | "petHide"
   | "petStatus"
   | "petMove"
+  | "petResetPos"
+  | "petSetupProgress"
   | "dbStatus"
   | "pomoTryFive"
   | "panelSnapshot"
@@ -210,6 +212,8 @@ function miscFacade(
     petHide: () => call("petHide"),
     petStatus: () => call("petStatus"),
     petMove: (p) => call("petMove", p),
+    petResetPos: () => call("petResetPos"),
+    petSetupProgress: () => call("petSetupProgress"),
     dbStatus: () => call("dbStatus"),
     pomoTryFive: (p) => call("pomoTryFive", p),
     panelSnapshot: () => call("panelSnapshot"),

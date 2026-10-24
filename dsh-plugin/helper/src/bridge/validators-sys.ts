@@ -54,17 +54,47 @@ function ttsSection(v: unknown): SysConfigMsg["tts"] | null {
   return isObj(v) && isBool(v.enabled) ? { enabled: v.enabled } : null;
 }
 
-/** pet 分节（桌宠基础面——陪跑闸门 + ChatBox 菜单条件项；两键均可选） */
+/** 缩放档值域（sys-config.pet.scale 与共享键 pet_scale 单源） */
+export const PET_SCALES = [1, 1.25, 1.5, 2] as const;
+/** 透明度档值域（sys-config.pet.opacity 与共享键 pet_opacity 单源） */
+export const PET_OPACITIES = [100, 80, 60] as const;
+
+/** 可选字段搬移（守卫不过 → false = 整条作废；缺省跳过） */
+function optGuard(
+  source: Record<string, unknown>,
+  out: Record<string, unknown>,
+  key: string,
+  guard: (raw: unknown) => boolean,
+): boolean {
+  const raw = source[key];
+  if (raw === undefined) return true;
+  if (!guard(raw)) return false;
+  out[key] = raw;
+  return true;
+}
+
+/** pet 分节（桌宠基础面——陪跑/聊聊/精灵/窗口配置；键均可选，存在即须合法） */
 function petSection(v: unknown): SysConfigMsg["pet"] | null {
   if (!isObj(v)) return null;
-  const mate = v.mate;
-  const agentConfigured = v.agentConfigured;
-  if (mate !== undefined && !isBool(mate)) return null;
-  if (agentConfigured !== undefined && !isBool(agentConfigured)) return null;
-  return {
-    ...(mate === undefined ? {} : { mate }),
-    ...(agentConfigured === undefined ? {} : { agentConfigured }),
-  };
+  const out: Record<string, unknown> = {};
+  const ok =
+    optGuard(v, out, "mate", isBool) &&
+    optGuard(v, out, "agentConfigured", isBool) &&
+    optGuard(v, out, "alwaysOnTop", isBool) &&
+    optGuard(v, out, "mainPokemon", isStr) &&
+    optGuard(
+      v,
+      out,
+      "scale",
+      (raw): raw is number => typeof raw === "number" && (PET_SCALES as readonly number[]).includes(raw),
+    ) &&
+    optGuard(
+      v,
+      out,
+      "opacity",
+      (raw): raw is number => typeof raw === "number" && (PET_OPACITIES as readonly number[]).includes(raw),
+    );
+  return ok ? (out as SysConfigMsg["pet"]) : null;
 }
 
 /** 可选分节搬移：缺省通过；存在但守卫不过返回 false（整条消息作废） */

@@ -12,7 +12,7 @@ import { primaryAgent } from "./domain/settings";
 import { StateFeed, feedSystemTimer, getPetPos } from "./pet/stateFeed";
 import { PetSupervisor, type PetSupervisorOptions } from "./pet/supervisor";
 import { handleCmd, handleFocusSettle } from "./pet/cmdHandler";
-import { celebrateSolemn, caughtVariantOf, dexDoneCount } from "./pet/solemn";
+import { celebrateSolemn, caughtVariantOf, dexDoneCount, openTaskCount } from "./pet/solemn";
 import { runPetChat } from "./pet/petChat";
 import { makeSysEventHandlers } from "./pet/sysEvents";
 import type { BridgeClient } from "./pet/bridge";
@@ -107,14 +107,23 @@ export function petHandlers(args: PetHandlerArgs): PetSupervisorOptions["handler
   return {
     onCmd: (msg) => {
       // done 路径郑重时刻（A30）：完成动作发生在本形态 → 前后图鉴计数喂 milestone 判定；
-      // 判定命中随 task-state.caught 变体直推（A1——helper CatchShow 消费）
+      // 收官单推（变体/allDone 随行）由本函数编排——抑制 handleDone 的通用写后直推防
+      // 双推（plain 快照先到会吞掉完成迁移，helper 仪式拿不到变体）
       const celebrate = msg.op === "done";
       const before = celebrate ? dexDoneCount(args.conn) : 0;
-      handleCmd(petCmdDepsOf(args, petBridge), msg);
+      const deps = petCmdDepsOf(args, petBridge);
+      if (celebrate) deps.onWrites = () => undefined;
+      handleCmd(deps, msg);
       if (celebrate) {
         const solemn = celebrateSolemn(args.conn, petBridge, { before, after: dexDoneCount(args.conn) });
-        if (solemn !== null) {
-          args.slots.feed?.announceCaught(caughtVariantOf(solemn));
+        const allDone = openTaskCount(args.conn) === 0;
+        if (solemn !== null || allDone) {
+          args.slots.feed?.announceCaught({
+            ...(solemn === null ? {} : caughtVariantOf(solemn)),
+            ...(allDone ? { allDone: true } : {}),
+          });
+        } else {
+          args.slots.feed?.pushTaskState();
         }
       }
     },

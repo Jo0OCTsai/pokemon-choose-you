@@ -149,7 +149,7 @@ function buildCommandDeps(args: {
     terminal: deps.terminal ?? createFakeTerminal(),
     ...(deps.terminalLine === undefined ? {} : { terminalLine: deps.terminalLine }),
     pet: petFaceOf(args.supervisor, args.pomo),
-    onWrites: () => args.stateFeed.notifyLocalWrite(),
+    onWrites: () => args.stateFeed.notifyWrites(), // task-state + sys-config 双推（P1 D1）
     openPage: args.openPage,
     feishuConfigured: deps.feishuConfigured ?? true,
     meta: { pluginVersion: deps.meta?.pluginVersion ?? "0.1.0", dshVersion: deps.meta?.dshVersion ?? null },

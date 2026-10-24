@@ -89,6 +89,8 @@ export function miscCommands(
   | "petHide"
   | "petStatus"
   | "petMove"
+  | "petResetPos"
+  | "petSetupProgress"
   | "dbStatus"
   | "pomoTryFive"
   | "pollNow"
@@ -99,21 +101,7 @@ export function miscCommands(
     async pollNow() {
       return await mockPollNow(ctx);
     },
-
-    async petShow() {
-      return mockPetRunning(ctx, "petShow", true);
-    },
-    async petHide() {
-      return mockPetRunning(ctx, "petHide", false);
-    },
-    async petStatus() {
-      ctx.record("petStatus");
-      return { ok: true, data: { running: ctx.state.petRunning, pomodoro: ctx.state.pomodoro } };
-    },
-    async petMove(params) {
-      ctx.record("petMove", params);
-      return { ok: true, data: { ok: true } };
-    },
+    ...petMockCommands(ctx),
     async dbStatus() {
       ctx.record("dbStatus");
       return { ok: true, data: ctx.state.dbStatus };
@@ -128,6 +116,36 @@ export function miscCommands(
     async macAuthPaneOpen() {
       ctx.record("macAuthPaneOpen");
       return { ok: true, data: { ok: true } };
+    },
+  };
+}
+
+/** 桌宠命令 mock 组（拆小函数控棘轮 max-lines-per-function） */
+function petMockCommands(
+  ctx: MockContext,
+): Pick<HostClient, "petShow" | "petHide" | "petStatus" | "petMove" | "petResetPos" | "petSetupProgress"> {
+  return {
+    async petShow() {
+      return mockPetRunning(ctx, "petShow", true);
+    },
+    async petHide() {
+      return mockPetRunning(ctx, "petHide", false);
+    },
+    async petStatus() {
+      ctx.record("petStatus");
+      return { ok: true, data: { running: ctx.state.petRunning, pomodoro: ctx.state.pomodoro } };
+    },
+    async petMove(params) {
+      ctx.record("petMove", params);
+      return { ok: true, data: { ok: true } };
+    },
+    async petResetPos() {
+      ctx.record("petResetPos");
+      return { ok: true, data: { ok: true, delivered: ctx.state.petRunning } };
+    },
+    async petSetupProgress() {
+      ctx.record("petSetupProgress");
+      return { ok: true, data: { phase: ctx.state.petRunning ? "done" : "idle", at: 0 } };
     },
   };
 }

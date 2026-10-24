@@ -61,15 +61,16 @@ describe("planCatchScene 里程碑优先互不叠加（Gherkin「里程碑优先
 });
 
 describe("演出时序表", () => {
-  it("单球 ≤1.5s（收场 ≤1320ms）", () => {
+  it("单球 ≤1.5s（桌面节拍：蹲 120 → 飞 300 → 落地 350 → 三摇 600 → 星星收场）", () => {
     const seq = plainSceneSeq();
     expect(seq.at(-1)!.at).toBeLessThanOrEqual(1500);
     expect(seq[0]).toMatchObject({ phase: "crouch" });
+    expect(seq.filter((s) => s.phase === "land")).toHaveLength(1);
     expect(seq.filter((s) => s.phase === "shake")).toHaveLength(1);
   });
-  it("双球三摇 ≤2s、双球侧 ±1 交替、各摇 2 轮", () => {
+  it("双球三摇 ~2.2s（桌面实拍节拍）、双球侧 ±1 交替、各摇 2 轮", () => {
     const seq = streakSceneSeq();
-    expect(seq.at(-1)!.at).toBeLessThanOrEqual(2000);
+    expect(seq.at(-1)!.at).toBeLessThanOrEqual(2300);
     expect(seq.filter((s) => s.phase === "shake" && s.side === -1)).toHaveLength(2);
     expect(seq.filter((s) => s.phase === "shake" && s.side === 1)).toHaveLength(2);
   });

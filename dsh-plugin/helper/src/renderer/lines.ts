@@ -23,11 +23,14 @@ export interface LineSet {
   petQuotes: string[];
   /** 快捷屏空态 */
   quickEmpty: string;
-  /** 右键菜单 */
+  /** 右键菜单（对齐桌面六项口径与文案） */
   menuSwitch: string;
+  menuQuick: string;
+  quickClose: string;
+  menuPause: string;
   menuOpenPage: string;
   menuHide: string;
-  /** AI 聊聊入口（UIUX §8 helper 行；agentConfigured 才现——接线注记见 helper/README） */
+  /** AI 聊聊入口（UIUX §8 helper 行；agentConfigured 才现） */
   menuChat: string;
   /** 素材缺失单次提示（A20） */
   spriteMissing: string;
@@ -61,6 +64,13 @@ export interface LineSet {
   chatSend: string;
   chatClose: string;
   chatChips: [string, string, string];
+  // ---- P1 台词优先级（自定义 quotes > 深夜池 > 默认池）与提醒（pet 桌面同文） ----
+  quotesNight: string[];
+  remindNormal: string;
+  remindUrgent: string;
+  reminderDo: string;
+  reminderSnooze: string;
+  reminderSnoozed: string;
 }
 
 const hans: LineSet = {
@@ -71,11 +81,14 @@ const hans: LineSet = {
   greetNight: "夜深了，{p}说：再专注也要睡觉哦",
   chatQuotes: ["嗯？有什么事吗？", "我在听呢。", "皮皮～", "要一起去草丛看看吗？"],
   petQuotes: ["嘿嘿，好舒服～", "再摸摸头也可以哦。", "呼噜呼噜……"],
-  quickEmpty: "草丛静悄悄——今天还没有待捕捉的目标",
-  menuSwitch: "⇄ 换目标",
-  menuOpenPage: "打开图鉴机页面",
+  quickEmpty: "图鉴屏空空的，去图鉴机遇见一只野生宝可梦吧",
+  menuSwitch: "切换捕捉目标…",
+  menuQuick: "快捷图鉴屏",
+  quickClose: "✕ 收起",
+  menuPause: "暂停当前任务",
+  menuOpenPage: "打开图鉴机",
   menuHide: "隐藏桌宠",
-  menuChat: "💬 对话",
+  menuChat: "💬 和精灵聊聊",
   spriteMissing: "素材缺失，先由{p}代班",
   pausedLine: "{p}在原地休息",
   escapedLine: "{t} 逃走了，下次再遇到它",
@@ -97,7 +110,17 @@ const hans: LineSet = {
   chatPh: "问它任务 / 图鉴的事…",
   chatSend: "发送",
   chatClose: "收起对话",
-  chatChips: ["连胜几天了？", "接下来做什么？", "今天辛苦了"],
+  chatChips: ["今天还剩什么？", "这周捕捉了多少？", "连胜几天了？"],
+  quotesNight: [
+    "这么晚还在冒险，宝可梦陪你，但要早点休息~",
+    "深夜的草丛很安静，明早再出发吧。",
+    "再专注也要睡觉，卡比兽先睡了。",
+  ],
+  remindNormal: "🐾 {p}拉拉你的衣角：「{t}」别忘了",
+  remindUrgent: "‼ {p}急得直跺脚：「{t}」很紧急！",
+  reminderDo: "完成",
+  reminderSnooze: "推迟 10 分钟",
+  reminderSnoozed: "好～10 分钟后再提醒你",
 };
 
 const hant: LineSet = {
@@ -108,11 +131,14 @@ const hant: LineSet = {
   greetNight: "夜深了，{p}說：再專注也要睡覺哦",
   chatQuotes: ["嗯？有什麼事嗎？", "我在聽呢。", "皮皮～", "要一起去草叢看看嗎？"],
   petQuotes: ["嘿嘿，好舒服～", "再摸摸頭也可以哦。", "呼嚕呼嚕……"],
-  quickEmpty: "草叢靜悄悄——今天還沒有待捕捉的目標",
-  menuSwitch: "⇄ 換目標",
-  menuOpenPage: "打開圖鑑機頁面",
+  quickEmpty: "圖鑑屏空空的，去圖鑑機遇見一隻野生寶可夢吧",
+  menuSwitch: "切換捕捉目標…",
+  menuQuick: "快捷圖鑑屏",
+  quickClose: "✕ 收起",
+  menuPause: "暫停目前任務",
+  menuOpenPage: "開啟圖鑑機",
   menuHide: "隱藏桌寵",
-  menuChat: "💬 對話",
+  menuChat: "💬 和精靈聊聊",
   spriteMissing: "素材缺失，先由{p}代班",
   pausedLine: "{p}在原地休息",
   escapedLine: "{t}逃走了，下次再遇到它",
@@ -134,7 +160,17 @@ const hant: LineSet = {
   chatPh: "問牠任務 / 圖鑑的事…",
   chatSend: "送出",
   chatClose: "收起對話",
-  chatChips: ["連勝幾天了？", "接下來做什麼？", "今天辛苦了"],
+  chatChips: ["今天還剩什麼？", "這週捕捉了多少？", "連勝幾天了？"],
+  quotesNight: [
+    "這麼晚還在冒險，寶可夢陪你，但要早點休息~",
+    "深夜的草叢很安靜，明早再出發吧。",
+    "再專注也要睡覺，卡比獸先睡了。",
+  ],
+  remindNormal: "🐾 {p}拉拉你的衣角：「{t}」別忘了",
+  remindUrgent: "‼ {p}急得直跺腳：「{t}」很緊急！",
+  reminderDo: "完成",
+  reminderSnooze: "延後 10 分鐘",
+  reminderSnoozed: "好～10 分鐘後再提醒你",
 };
 
 const en: LineSet = {
@@ -145,11 +181,14 @@ const en: LineSet = {
   greetNight: "It's late—{p} says: focus, but sleep too",
   chatQuotes: ["Hm? What's up?", "I'm listening.", "Pika~", "Shall we check the tall grass?"],
   petQuotes: ["Hehe, that's nice~", "Head pats welcome.", "Purr purr…"],
-  quickEmpty: "The tall grass is quiet — nothing to catch today yet",
-  menuSwitch: "⇄ Switch target",
-  menuOpenPage: "Open Pokédex page",
+  quickEmpty: "Nothing here yet—encounter a wild Pokemon in the Pokedex",
+  menuSwitch: "Switch target…",
+  menuQuick: "Quick Dex screen",
+  quickClose: "✕ Close",
+  menuPause: "Pause current task",
+  menuOpenPage: "Open Pokédex",
   menuHide: "Hide pet",
-  menuChat: "💬 Chat",
+  menuChat: "💬 Chat with your Pokemon",
   spriteMissing: "Sprite missing — {p} is standing in",
   pausedLine: "{p} is resting",
   escapedLine: "{t} got away — you'll meet again",
@@ -171,7 +210,17 @@ const en: LineSet = {
   chatPh: "Ask about tasks / Pokedex…",
   chatSend: "Send",
   chatClose: "Close chat",
-  chatChips: ["Streak lately?", "What's next?", "Good work today"],
+  chatChips: ["What's left today?", "How many caught this week?", "Streak lately?"],
+  quotesNight: [
+    "Adventuring this late? I'm with you—but rest soon~",
+    "The grass is quiet at night; set out tomorrow morning.",
+    "Even trainers need sleep—Snorlax went first.",
+  ],
+  remindNormal: "🐾 {p} tugs at your sleeve: don't forget '{t}'",
+  remindUrgent: "‼ {p} is stomping anxiously: '{t}' is urgent!",
+  reminderDo: "Done",
+  reminderSnooze: "Snooze 10 min",
+  reminderSnoozed: "Okay — I'll knock again in 10 minutes",
 };
 
 const LINES: Record<Lang, LineSet> = { "zh-Hans": hans, "zh-Hant": hant, en };

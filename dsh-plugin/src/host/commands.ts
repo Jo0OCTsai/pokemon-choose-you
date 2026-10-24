@@ -94,6 +94,8 @@ export const HOST_COMMAND_NAMES = [
   "petHide",
   "petStatus",
   "petMove",
+  "petResetPos",
+  "petSetupProgress",
   "dbStatus",
   "pomoTryFive",
   // 实体读域（Phase B 契约缺口补齐——面板首载聚合 + 按需懒载，全部只读）

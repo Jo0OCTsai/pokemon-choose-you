@@ -36,11 +36,6 @@ export interface RuntimeOptions {
   axGranted?: boolean;
   /** headless 平台注入（input-count 的 D32 darwin 门在 Linux CI 上测 darwin 行为用；缺省 = 真实平台） */
   platform?: NodeJS.Platform;
-  /**
-   * 郑重时刻演出输入（FR-B3 演出面）：完成动作时取里程碑/连胜判定 → catch-scene 事件。
-   * 默认恒 plain——host 侧数据面接线后注入（桥协议当前无承载，见 helper/README 接线注记）。
-   */
-  solemn?: () => { milestone: number | null; streakDays: number | null };
 }
 
 export type UiEvent =
@@ -51,14 +46,24 @@ export type UiEvent =
   | { kind: "pet-state"; state: PetState }
   | { kind: "bubble"; text: string; tone: BubbleTone; blink: boolean }
   | { kind: "quit"; reason: HostDeathReason }
-  /** 捕捉演出变体（plain/streak/milestone——庆祝态入口，渲染层据 variant 编排） */
-  | { kind: "catch-scene"; scene: SceneKind }
+  /** 捕捉演出变体（plain/streak/milestone——庆祝态入口，渲染层据 variant 编排；allDone 送客陪跑） */
+  | { kind: "catch-scene"; scene: SceneKind; allDone?: boolean }
   /** AI 聊聊回答（chat-reply 下行直达；ok=false 走失败回退气泡） */
   | { kind: "chat-reply"; text: string; ok: boolean }
   /** 全局输入活动强度（sys inputCount 上行镜像——渲染层微抖/回头/哈欠分档消费） */
   | { kind: "input-activity"; cps: number }
   /** 坐栖判定翻转（拖拽落定/拎起——渲染层姿态幅度减半与落座台词） */
-  | { kind: "perch"; perched: boolean };
+  | { kind: "perch"; perched: boolean }
+  /** 桌宠基础面投影（sys-config.pet：陪跑/聊聊条件 + 精灵与窗口配置） */
+  | ({ kind: "pet-config" } & PetConfigView)
+  /** 长番茄打点（≥45min 中点 1 声 / 剩 5 分钟 2 声——渲染层 Web Audio 合成） */
+  | { kind: "pomo-chime"; count: 1 | 2 }
+  /** 自定义台词惰性集（quotes 下行——渲染层台词优先级消费） */
+  | { kind: "quotes"; map: Record<string, string[]> }
+  /** 提醒到达（pet-event reminder——钉住气泡 + 就近动作条 + urgent 底态） */
+  | { kind: "reminder"; taskId: number | string; title: string; urgent: boolean; pokemon: string }
+  /** 位置复位（pet-event reset-pos——electron 胶水 setPosition 回默认位） */
+  | { kind: "reset-pos" };
 
 export type BubbleTone = "info" | "event" | "warn";
 
@@ -67,6 +72,19 @@ export interface InputResponseView {
   enabled: boolean;
   /** hop 节奏耦合上限（0–0.1；0 = 关） */
   hopCoupleMax: number;
+}
+
+/** 桌宠基础面投影（sys-config.pet：陪跑/聊聊条件 + 精灵与窗口配置——P1 D2/D5） */
+export interface PetConfigView {
+  mate: boolean;
+  agentConfigured: boolean;
+  /** 主宝可梦 key（空 = 未设，空闲兜底 pikachu） */
+  mainPokemon: string;
+  alwaysOnTop: boolean;
+  scale: number;
+  opacity: number;
+  /** 图鉴已捕捉精灵 key 集（mate 候选池；空集回退内置六只——P2 缺口 5） */
+  dexCaught: string[];
 }
 
 export interface HelperRuntime {
@@ -86,13 +104,17 @@ export interface HelperRuntime {
   readonly petVisible: boolean;
   /** 输入响应配置投影（渲染层 hop 耦合消费） */
   readonly inputResponse: InputResponseView;
+  /** 桌宠基础面（sys-config.pet 投影：陪跑/聊聊条件 + 精灵与窗口配置） */
+  readonly petConfig: PetConfigView;
+  /** 每宝可梦自定义台词（quotes 下行惰性集——渲染层台词优先级消费） */
+  readonly quotes: Record<string, string[]>;
   /** 坐栖态（拖拽落定判定；渲染层姿态幅度减半） */
   readonly perched: boolean;
   sendCmd(op: CmdOp, fields?: Omit<CmdMsg, "type" | "op">): boolean;
   sendFocusSettleNow(): boolean;
   /** 渲染层交互事件回流（拖动开始/结束、撸宠、点击……驱动状态机与唤醒） */
   interact(ev: PetEvent): void;
-  /** 本端完成 → done cmd + focus-settle 结账 + celebrating + catch-scene（变体经 solemn 输入） */
+  /** 本端完成（done cmd + focus-settle 结账；演出与收尾台词等 host task-state.caught 推回后统一编排） */
   completeTask(): void;
   /** 番茄本地控制（开新一轮 / 🍦 先试 5 分钟 / 短休息） */
   pomo: {
@@ -102,6 +124,11 @@ export interface HelperRuntime {
   };
   /** 坐栖判定（electron 胶水拖拽落定/启动时调用——纯逻辑在 state/perch.ts） */
   reportPerch(perched: boolean): void;
+  /**
+   * 本地 TTS 出口（生日/对话回答/allDone 收工等 helper 自触发面）：文本经 state/ttsText
+   * 归一后走 sys 路由（tts-speak）——模块内部按 sys-config.tts.enabled 门控，默认静音
+   */
+  speak(text: string): void;
   dispose(): void;
 }
 

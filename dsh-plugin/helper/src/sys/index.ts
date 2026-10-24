@@ -29,7 +29,7 @@ export type { SysContext } from "./context.ts";
 import type { HeadlessDialogs } from "./dialogs.ts";
 import type { HeadlessInputCount } from "./inputCount.ts";
 import type { HeadlessMacAuth } from "./macAuth.ts";
-import type { HeadlessNotify } from "./notify.ts";
+import type { HeadlessNotify, NotifyModule } from "./notify.ts";
 import type { HeadlessOpenPath } from "./openPath.ts";
 import type { HeadlessShortcuts } from "./shortcuts.ts";
 import type { HeadlessTray } from "./tray.ts";
@@ -54,6 +54,8 @@ export function isSysDownMsg(msg: DownstreamMsg): msg is SysDownMsg {
 export interface SysRouter {
   /** 当前能力位（hello 组装源；变更经 onCapsChange 通知——runtime 重发 hello 校正快照） */
   readonly caps: readonly SysCap[];
+  /** 系统通知模块面（helper 本地发起的通知复用同一实现——如番茄到期 pomo-done） */
+  readonly notify: NotifyModule;
   onCapsChange(cb: () => void): () => void;
   handle(msg: SysDownMsg): boolean;
   /** lang 下行（托盘菜单/退出确认三语） */

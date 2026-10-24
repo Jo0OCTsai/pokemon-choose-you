@@ -1,10 +1,10 @@
 /**
  * 桌宠分区页（🐾，对齐主应用 SectionPets + QuotesEditorCard）：主宝可梦（全图鉴搜索选择，
  * 存 PokeAPI 裸 key；「跟随第一个分类」可清回）/ 按宝可梦分组的台词编辑器（pokemon_quotes
- * 是 JSON map——逐精灵 merge 写回，不再平面覆写共享键）/ 输入响应×2/语音/陪跑——标「作用于
- * 主应用桌宠」badge；减弱动效（默认跟随系统，U15——dsh helper 同读）；启动时自动显示
- * 桌宠（petAutoStart，dsh Config schema 即时写——pluginConfig，A2 双轨）+ 显示桌宠
- * （petShow/petHide 即时动作；hello 握手 5 秒未完成时行内警告，恢复入口 U4）。
+ * 是 JSON map——逐精灵 merge 写回，不再平面覆写共享键）/ 输入响应×2/语音/陪跑/减弱动效/
+ * 显隐与自启。作用面口径（无 badge，语义如实）：输入响应/语音/陪跑两形态生效（helper 经
+ * sys-config / pomodoro-config 下行消费）；主宝可梦与自定义台词目前仅主应用桌宠生效
+ * （helper 下行面待接线，见 host/pet/README 缺口清单）。
  * 宝可梦选择 = PokemonPicker 内联下拉（桌面 PokemonPicker 同构交互）。
  */
 import { useCallback, useEffect, useMemo, useState } from "react";
@@ -19,6 +19,24 @@ import styles from "../settings.module.css";
 import { PokemonPicker, type PokemonCandidate } from "./PokemonPicker";
 import { AxPermHint, isMacPlatform } from "./AxPermHint";
 import { PetAutoStartRow } from "../PluginConfigRows";
+import { PetWindowCard, usePetSetupPhase } from "./PetWindowCard";
+
+/** 首启阶段 → i18n 键（静态字面量——i18n 键集扫描按源内字面键展开枚举） */
+const SETUP_PHASE_KEY = {
+  downloading: "dsh.pet.setup_downloading",
+  extracting: "dsh.pet.setup_extracting",
+} as const;
+
+/** 显隐状态行文案键（模块级小函数——控组件复杂度棘轮） */
+function petStateKey(petRunning: boolean | null): string {
+  if (petRunning === null) return "dsh.pet.stateUnknown";
+  return petRunning ? "dsh.pet.stateShown" : "dsh.pet.stateHidden";
+}
+
+/** 首启阶段后缀（无活跃阶段 → 空串） */
+function setupPhaseSuffix(phase: keyof typeof SETUP_PHASE_KEY | null, t: (key: string) => string): string {
+  return phase === null ? "" : ` · ${t(SETUP_PHASE_KEY[phase])}`;
+}
 
 /** key → 当前语言名 + 名录搜索（桌面 pokemonName/searchPokemon 同源；适配层未注入搜索时本地名录兜底） */
 function usePokemonCatalog(locale: "zh-Hans" | "zh-Hant" | "en"): {
@@ -74,6 +92,9 @@ export function PetSection({
   useEffect(() => {
     refreshPetStatus();
   }, [refreshPetStatus]);
+
+  /** Electron 首启进度（P1 D7）：一次性进度链，仅在下载/解压活跃阶段续询（hook 拆件 PetWindowCard 侧） */
+  const setupPhase = usePetSetupPhase(client, petRunning);
 
   const mainKey = draft["main_pokemon"];
   const quotesMap = parseQuotes(draft["pokemon_quotes"]);
@@ -207,6 +228,8 @@ export function PetSection({
           onChange={(v) => onField("pet_mate", String(v))}
         />
       </div>
+      {/* 窗口行为卡（P1 D5/D6）：置顶开关 + 缩放档 + 透明度档 + 重置位置（拆件 PetWindowCard） */}
+      <PetWindowCard draft={draft} onField={onField} />
       <div className={ui.card}>
         <Toggle
           label={t("display.reduceMotion")}
@@ -223,9 +246,8 @@ export function PetSection({
           <span style={{ flex: 1 }}>{t("dsh.pet.showRow")}</span>
           <span data-testid="pet-show-state">
             {t("dsh.pet.stateLabel")}
-            {t(
-              petRunning === null ? "dsh.pet.stateUnknown" : petRunning ? "dsh.pet.stateShown" : "dsh.pet.stateHidden",
-            )}
+            {t(petStateKey(petRunning))}
+            {setupPhaseSuffix(setupPhase, t)}
           </span>
           <button type="button" className={ui.button} aria-label={t("dsh.pet.showRow")} onClick={() => void showPet()}>
             {t("dsh.pet.show")}

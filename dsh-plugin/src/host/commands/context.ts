@@ -114,8 +114,8 @@ export interface HostCommandDeps {
   sshFamily?: () => SshFamilyProjection | null;
   /** dsh 平台表面全量探测（diagnosticsSnapshot.capabilities——timer/session/worktrees/ssh/storage/slots/terminal + dsh；null = 未探测） */
   capabilities?: () => DshCapabilityProbes | null;
-  /** task-state.caught 变体直推（完成路径郑重判定命中时——stateFeed.announceCaught） */
-  announceCaught?(variant: { milestone?: number; streakDays?: number }): void;
+  /** task-state.caught 变体直推（完成路径郑重/收工判定命中时——stateFeed.announceCaught） */
+  announceCaught?(variant: { milestone?: number; streakDays?: number; allDone?: boolean }): void;
   /** 桌宠显隐变化后的 sys-config 回推（tray.petVisible 托盘 label 同步——A3） */
   onPetLifecycle?(): void;
 }

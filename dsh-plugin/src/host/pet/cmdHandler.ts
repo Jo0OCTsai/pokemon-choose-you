@@ -10,6 +10,7 @@
 import type { Conn } from "../storage/db";
 import { paramError } from "../storage/errors";
 import { completeTask, pauseCurrentTask, resumeTask, startTask } from "../domain/task-lifecycle";
+import { formatRfc3339Utc } from "../reminder/query";
 import { settleFocus, type SettleFocusResult } from "../domain/focus";
 import { setPetPos } from "./stateFeed";
 import type { CmdMsg, CmdOp, FocusSettleMsg } from "../../../helper/src/bridge/protocol";
@@ -77,6 +78,14 @@ const handleDone: OpHandler = (deps, msg) => {
   deps.onWrites?.();
 };
 
+/** snooze（P1 D4）：remind_at 后移 N 分钟（缺省 10）+ 重置 reminded——到点再次敲门 */
+const handleSnooze: OpHandler = (deps, msg) => {
+  const minutes = msg.minutes === undefined ? 10 : Number(msg.minutes);
+  const at = formatRfc3339Utc(Date.now() + minutes * 60_000);
+  deps.conn.prepare("UPDATE tasks SET remind_at = ?, reminded = 0 WHERE id = ?").run(at, toTaskId(msg));
+  deps.onWrites?.();
+};
+
 const handleCapture: OpHandler = (deps, msg) => {
   deps.onCapture?.(msg.text ?? "");
 };
@@ -104,6 +113,7 @@ const OP_HANDLERS: Record<CmdOp, OpHandler> = {
   pause: handlePause,
   resume: handleResume,
   done: handleDone,
+  snooze: handleSnooze,
   capture: handleCapture,
   hide: handleHide,
   "open-page": handleOpenPage,

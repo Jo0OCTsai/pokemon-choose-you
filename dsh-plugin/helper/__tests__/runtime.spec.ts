@@ -113,7 +113,7 @@ describe("createHelperRuntime · 番茄上行", () => {
 });
 
 describe("createHelperRuntime · 上行与存亡", () => {
-  it("sendCmd / completeTask 上行接线（cmd done + celebrating 气泡）", () => {
+  it("sendCmd / completeTask 上行接线（cmd done + celebrating；仪式等 host 收官单推）", () => {
     const h = makeHarness();
     h.write(taskState(activeTask(4)));
     h.runtime.completeTask();
@@ -123,7 +123,11 @@ describe("createHelperRuntime · 上行与存亡", () => {
       .map((m) => m.op);
     expect(ops).toContain("done");
     expect(h.runtime.petState.transient).toBe("celebrating");
+    expect(h.events.filter((e) => e.kind === "bubble" && e.text.includes("捕捉成功"))).toHaveLength(0);
+    // host 收官单推 → 捕捉成功台词 + plain 演出
+    h.write(taskState(null));
     expect(h.events.find((e) => e.kind === "bubble" && e.text.includes("捕捉成功"))).toBeTruthy();
+    expect(h.events.find((e) => e.kind === "catch-scene")).toMatchObject({ scene: "plain" });
     // 未知 op 拒发（校验在 runtime.sendCmd）
     expect(h.runtime.sendCmd("fly" as never)).toBe(false);
     h.runtime.dispose();

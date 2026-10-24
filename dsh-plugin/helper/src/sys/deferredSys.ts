@@ -7,12 +7,19 @@
  */
 import type { Lang, SysCap } from "../bridge/protocol.ts";
 import type { SysDownMsg, SysRouter } from "./index.ts";
+import type { NotifyModule } from "./notify.ts";
+
+/** attach 前的 no-op 通知位（装配窗口内无本地通知场景——pomo 到期必然晚于 ready） */
+const NOOP_NOTIFY: NotifyModule = {
+  show: () => undefined,
+  dispose: () => undefined,
+};
 
 export class DeferredSys implements SysRouter {
   private queue: SysDownMsg[] = [];
   private target: SysRouter | null = null;
   private readonly capsListeners: (() => void)[] = [];
-  private readonly staticCaps: SysCap[];
+  private readonly staticCaps: readonly SysCap[];
   private lang: Lang;
   private visible = true;
   private detachCaps: (() => void) | null = null;
@@ -35,6 +42,10 @@ export class DeferredSys implements SysRouter {
 
   get caps(): readonly SysCap[] {
     return this.target ? this.target.caps : this.staticCaps;
+  }
+
+  get notify(): NotifyModule {
+    return this.target ? this.target.notify : NOOP_NOTIFY;
   }
 
   onCapsChange(cb: () => void): () => void {
