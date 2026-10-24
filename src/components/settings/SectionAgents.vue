@@ -9,6 +9,7 @@ import DexSelect from "../DexSelect.vue";
 import DexToggle from "../DexToggle.vue";
 import SettingRow from "../SettingRow.vue";
 import AgentConfigCard from "./AgentConfigCard.vue";
+import DeploymentCard from "./DeploymentCard.vue";
 import PromptsCard from "./PromptsCard.vue";
 import TagDispatchCard from "./TagDispatchCard.vue";
 
@@ -42,7 +43,7 @@ const primaryAgentOptions = computed(() => [
     .filter((a) => a.enabled)
     .map((a) => ({
       value: a.id,
-      label: `${a.name || a.command}${a.remote?.host?.trim() ? " · SSH" : ""}`,
+      label: `${a.name || a.command}${a.deployment?.trim() ? ` · ${a.deployment.trim()}` : ""}`,
     })),
 ]);
 
@@ -50,7 +51,7 @@ function addAgent() {
   agentsStore.add(agentPreset.value);
 }
 
-/** 平台限定的说明只在对应平台渲染（DESIGN_SYSTEM.md §4.4 说明文字四层归属） */
+/** 平台限定的说明只在对应平台渲染（DESIGN_SYSTEM.md §4.4 说明文字悬浮气泡归属） */
 const isLinux = /linux/i.test(navigator.userAgent);
 /** 终端偏好选项按当前平台裁剪：可选值与后端 TerminalPref 对齐（default 恒可选） */
 const isMac = /mac/i.test(navigator.userAgent);
@@ -58,11 +59,15 @@ const isWin = /win/i.test(navigator.userAgent);
 const terminalOptions = computed(() => {
   const opts = [{ value: "default", label: t("ai.termBuiltin") }];
   if (isMac) {
-    opts.push({ value: "iterm2", label: "iTerm2" }, { value: "ghostty", label: "Ghostty" });
+    opts.push(
+      { value: "iterm2", label: "iTerm2" },
+      { value: "ghostty", label: "Ghostty" },
+      { value: "kitty", label: "kitty" },
+    );
   } else if (isWin) {
     opts.push({ value: "windows-terminal", label: "Windows Terminal" });
   } else if (isLinux) {
-    opts.push({ value: "ghostty", label: "Ghostty" });
+    opts.push({ value: "ghostty", label: "Ghostty" }, { value: "kitty", label: "kitty" });
   }
   return opts;
 });
@@ -82,8 +87,7 @@ function onDispatchFeedback(msg: string) {
 
 <template>
   <section class="set-card">
-    <h3>{{ t("ai.title") }}</h3>
-    <p class="set-sub">{{ t("ai.hint") }}</p>
+    <h3 :data-tip="`${t('ai.hint')}\n${t('ai.cliHint')}`">{{ t("ai.title") }}</h3>
     <SettingRow :label="t('ai.primary')">
       <DexSelect v-model="settings.values.ai_agent_id" :options="primaryAgentOptions" />
     </SettingRow>
@@ -91,12 +95,12 @@ function onDispatchFeedback(msg: string) {
       <DexSelect v-model="settings.values.terminal_preference" :options="terminalOptions" />
     </SettingRow>
     <!-- 单 agent 编辑卡：字段/SSH/隧道状态/测试历史/技能/远程一键配置都在卡内（agents store 取数） -->
+    <DeploymentCard />
     <AgentConfigCard v-for="ag in agentsStore.list" :key="ag.id" :agent-id="ag.id" />
     <div class="btn-row add-agent">
       <DexSelect v-model="agentPreset" :options="presetOptions" />
       <button class="btn ghost" @click="addAgent">{{ t("ai.add") }}</button>
     </div>
-    <p class="set-foot">{{ t("ai.cliHint") }}</p>
   </section>
 
   <!-- AI 提示词：5 处系统提示词的查看/编辑/恢复默认（分区叙事「谁执行→怎么判→怎么派」的第 2 卡；
@@ -109,8 +113,7 @@ function onDispatchFeedback(msg: string) {
 
   <!-- 待办派发：M3 自动化与隔离（默认全关；手动派发不受这些开关影响） -->
   <section class="set-card">
-    <h3>{{ t("dispatchCfg.title") }}</h3>
-    <p class="set-sub">{{ t("dispatchCfg.hint") }}</p>
+    <h3 :data-tip="`${t('dispatchCfg.hint')}\n${t('dispatchCfg.foot')}`">{{ t("dispatchCfg.title") }}</h3>
     <SettingRow :label="t('dispatchCfg.auto')" :desc="t('dispatchCfg.autoDesc')">
       <DexToggle v-model="dispatchAutoOn" />
     </SettingRow>
@@ -120,7 +123,6 @@ function onDispatchFeedback(msg: string) {
     <SettingRow :label="t('dispatchCfg.worktree')" :desc="t('dispatchCfg.worktreeDesc')">
       <DexToggle v-model="dispatchWorktreeOn" />
     </SettingRow>
-    <p class="set-foot">{{ t("dispatchCfg.foot") }}</p>
   </section>
 </template>
 
@@ -140,21 +142,6 @@ function onDispatchFeedback(msg: string) {
 .set-card h3 {
   margin: 0 0 12px;
   font-size: 16px;
-}
-/* 说明文字四层归属的页面两层（行内 desc 在 SettingRow 组件内）：区块副标题 + 卡片脚注 */
-.set-sub {
-  margin: -6px 0 12px;
-  font-size: 12px;
-  color: var(--ink-soft);
-  line-height: 1.7;
-}
-.set-foot {
-  margin: 12px 0 0;
-  padding-top: 10px;
-  border-top: 2px dashed var(--ink-faint);
-  font-size: 12px;
-  color: var(--ink-soft);
-  line-height: 1.7;
 }
 .btn-row {
   display: flex;

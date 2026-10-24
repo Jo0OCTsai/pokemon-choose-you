@@ -1,0 +1,17 @@
+{
+  "kind": "anonymize",
+  "name": "collision-probe",
+  "now": "2026-01-15T09:00:00+08:00",
+  "setup": {
+    "feishu_users": [
+      { "open_id": "ou_b", "name": "李四", "updated_at": "2026-01-01T00:00:00Z" }
+    ]
+  },
+  "steps": [
+    { "op": "anon_preoccupy", "args": { "openId": "ou_taken", "withHashOf": "ou_b" } },
+    { "op": "anon_build", "args": { "openIds": ["ou_b"] } },
+    { "op": "anon_scrub", "args": { "text": "李四对齐一下" } },
+    { "op": "anon_build", "args": { "openIds": ["ou_b", "ou_taken"] } }
+  ],
+  "expect": "exact"
+}

@@ -1,0 +1,151 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<testsuites name="vitest tests" tests="64" failures="0" errors="0" time="5.544914874">
+    <testsuite name="__tests__/bridge.contract.spec.ts" timestamp="2026-10-11T20:01:58.499Z" hostname="MacBookPro" tests="9" failures="0" errors="0" skipped="0" time="1.103130458">
+        <testcase classname="__tests__/bridge.contract.spec.ts" name="桥契约 · 握手与上行 &gt; 握手：hello → 下行全集按序送达且计数正确" time="0.093587083">
+        </testcase>
+        <testcase classname="__tests__/bridge.contract.spec.ts" name="桥契约 · 握手与上行 &gt; 握手：fake host 侧也收到 hello（stderr 回显通道）" time="0.062615041">
+        </testcase>
+        <testcase classname="__tests__/bridge.contract.spec.ts" name="桥契约 · 上行送达 &gt; 上行：cmd（start/pause/switch/hide/open-page）与 focus-settle/crash-diag 真管道送达" time="0.046584667">
+        </testcase>
+        <testcase classname="__tests__/bridge.contract.spec.ts" name="桥契约 · 编解码容错 &gt; 坏行：坏 JSON 行计错不崩，后续合法消息照常送达" time="0.0547735">
+        </testcase>
+        <testcase classname="__tests__/bridge.contract.spec.ts" name="桥契约 · 编解码容错 &gt; 半行：JSON 拆两次 write 只解出一条（解码器缓冲）" time="0.163945875">
+        </testcase>
+        <testcase classname="__tests__/bridge.contract.spec.ts" name="桥契约 · 编解码容错 &gt; 粘包：一个 chunk 两条完整消息逐行解出" time="0.055259416">
+        </testcase>
+        <testcase classname="__tests__/bridge.contract.spec.ts" name="桥契约 · 编解码容错 &gt; 校验丢弃：合法 JSON 但缺字段/未知 type → invalidMessages 计数，heartbeat 照常送达" time="0.056592458">
+        </testcase>
+        <testcase classname="__tests__/bridge.contract.spec.ts" name="桥契约 · 宿主存亡 &gt; 心跳超时：宿主静默超阈值（可配短值）→ host-dead(heartbeat-timeout) 单次触发" time="0.411568084">
+        </testcase>
+        <testcase classname="__tests__/bridge.contract.spec.ts" name="桥契约 · 宿主存亡 &gt; stdin 管道守卫：宿主退出（stdin end）→ host-dead(stdin-end)，输出侧不再发送" time="0.156044375">
+        </testcase>
+    </testsuite>
+    <testsuite name="__tests__/bubbleTiming.spec.ts" timestamp="2026-10-11T20:01:58.507Z" hostname="MacBookPro" tests="3" failures="0" errors="0" skipped="0" time="0.00374575">
+        <testcase classname="__tests__/bubbleTiming.spec.ts" name="气泡时序计算（3.5s + 120ms/字 封顶 12s，与主应用同口径） &gt; 空/短台词 = 基础 3.5s" time="0.000938792">
+        </testcase>
+        <testcase classname="__tests__/bubbleTiming.spec.ts" name="气泡时序计算（3.5s + 120ms/字 封顶 12s，与主应用同口径） &gt; 每字 +120ms（按 Unicode 码点：CJK 与 emoji 各算一个字）" time="0.000120125">
+        </testcase>
+        <testcase classname="__tests__/bubbleTiming.spec.ts" name="气泡时序计算（3.5s + 120ms/字 封顶 12s，与主应用同口径） &gt; 长台词封顶 12s" time="0.000093709">
+        </testcase>
+    </testsuite>
+    <testsuite name="__tests__/focusSettle.spec.ts" timestamp="2026-10-11T20:01:58.508Z" hostname="MacBookPro" tests="5" failures="0" errors="0" skipped="0" time="0.009492458">
+        <testcase classname="__tests__/focusSettle.spec.ts" name="focus-settle 纯逻辑（D16：离开进行中时整分钟入账，短休息取消） &gt; 任务完成/离开：active 段时长向下取整分钟上报；不足 1 分钟为 null" time="0.004243083">
+        </testcase>
+        <testcase classname="__tests__/focusSettle.spec.ts" name="focus-settle · 挂起/切任务/收口 &gt; paused 挂起不累计：active→paused→active 只有 active 段计入" time="0.001286166">
+        </testcase>
+        <testcase classname="__tests__/focusSettle.spec.ts" name="focus-settle · 挂起/切任务/收口 &gt; 切任务：旧会话结账 + 新会话新 localSessionId（幂等键各不相同）" time="0.000548875">
+        </testcase>
+        <testcase classname="__tests__/focusSettle.spec.ts" name="focus-settle · 挂起/切任务/收口 &gt; 同任务驻留（paused↔active 切换）不结账、会话延续" time="0.000570625">
+        </testcase>
+        <testcase classname="__tests__/focusSettle.spec.ts" name="focus-settle · 挂起/切任务/收口 &gt; settleNow 主动收口：结账后会话清空（重复调用幂等）" time="0.000446666">
+        </testcase>
+    </testsuite>
+    <testsuite name="__tests__/lineCodec.spec.ts" timestamp="2026-10-11T20:01:58.510Z" hostname="MacBookPro" tests="7" failures="0" errors="0" skipped="0" time="0.006051083">
+        <testcase classname="__tests__/lineCodec.spec.ts" name="LineDecoder 行协议编解码 &gt; 整行解码（单 chunk 单行）" time="0.001446083">
+        </testcase>
+        <testcase classname="__tests__/lineCodec.spec.ts" name="LineDecoder 行协议编解码 &gt; 半行缓冲：一条消息拆多次 write（无换行直到补齐）只产出一次" time="0.000427666">
+        </testcase>
+        <testcase classname="__tests__/lineCodec.spec.ts" name="LineDecoder 行协议编解码 &gt; 粘包：一个 chunk 多条完整消息逐行产出" time="0.000779667">
+        </testcase>
+        <testcase classname="__tests__/lineCodec.spec.ts" name="LineDecoder 行协议编解码 &gt; CRLF 容忍（\r\n 行尾剥 \r）" time="0.000170625">
+        </testcase>
+        <testcase classname="__tests__/lineCodec.spec.ts" name="LineDecoder 行协议编解码 &gt; Buffer 输入与字符串输入等价" time="0.000222">
+        </testcase>
+        <testcase classname="__tests__/lineCodec.spec.ts" name="LineDecoder 行协议编解码 &gt; 超长行护栏：单行超上限丢弃并计数，不撑爆缓冲" time="0.000424292">
+        </testcase>
+        <testcase classname="__tests__/lineCodec.spec.ts" name="LineDecoder 行协议编解码 &gt; 无换行的超长缓冲直接丢弃（保内存优先）" time="0.000788875">
+        </testcase>
+    </testsuite>
+    <testsuite name="__tests__/petState.spec.ts" timestamp="2026-10-11T20:01:58.512Z" hostname="MacBookPro" tests="7" failures="0" errors="0" skipped="0" time="0.003743042">
+        <testcase classname="__tests__/petState.spec.ts" name="petState 状态机（UIUX §3.4 矩阵） &gt; task-state 驱动底态：null → idle；active → working；paused → paused；其他状态 → idle" time="0.001054708">
+        </testcase>
+        <testcase classname="__tests__/petState.spec.ts" name="petState 状态机（UIUX §3.4 矩阵） &gt; task-state 事件切换 idle/working/paused（渲染层状态转移表主路径）" time="0.000446209">
+        </testcase>
+        <testcase classname="__tests__/petState.spec.ts" name="petState 状态机（UIUX §3.4 矩阵） &gt; celebrating 一次性：task-done 进入，celebrate-end 回落底态且不重复" time="0.000189375">
+        </testcase>
+        <testcase classname="__tests__/petState.spec.ts" name="petState 状态机（UIUX §3.4 矩阵） &gt; 新任务出发清演出态并唤醒（就决定是你了由气泡层接棒）" time="0.000094708">
+        </testcase>
+        <testcase classname="__tests__/petState.spec.ts" name="petState · 瞬态与睡醒 &gt; petting：celebrating 期间拒绝；dragging 优先；pet-end 回落" time="0.000165083">
+        </testcase>
+        <testcase classname="__tests__/petState.spec.ts" name="petState · 瞬态与睡醒 &gt; rest：break-start 进入 / break-end 回落；celebrating/dragging 期间不进" time="0.000121167">
+        </testcase>
+        <testcase classname="__tests__/petState.spec.ts" name="petState · 瞬态与睡醒 &gt; asleep：idle + 5min 无交互入睡；任意交互（interact/task-state 带 task）醒来" time="0.000192208">
+        </testcase>
+    </testsuite>
+    <testsuite name="__tests__/pomodoro.spec.ts" timestamp="2026-10-11T20:01:58.514Z" hostname="MacBookPro" tests="5" failures="0" errors="0" skipped="0" time="0.004267208">
+        <testcase classname="__tests__/pomodoro.spec.ts" name="番茄本地计时（D2：绝不自动续轮） &gt; startFocus 默认档 = durations[1]（25min）；自定义档生效" time="0.002107542">
+        </testcase>
+        <testcase classname="__tests__/pomodoro.spec.ts" name="番茄本地计时（D2：绝不自动续轮） &gt; tickPhase：未到期不动；到期 ended 且 phase=null（不自动接休息/下一轮）" time="0.000202791">
+        </testcase>
+        <testcase classname="__tests__/pomodoro.spec.ts" name="番茄本地计时（D2：绝不自动续轮） &gt; 🍦 先试 5 分钟（trial）到期同样不自动接休息" time="0.000181792">
+        </testcase>
+        <testcase classname="__tests__/pomodoro.spec.ts" name="番茄本地计时（D2：绝不自动续轮） &gt; break：startBreak 配置分钟；msLeft/mmss 倒计时口径" time="0.000169875">
+        </testcase>
+        <testcase classname="__tests__/pomodoro.spec.ts" name="番茄本地计时（D2：绝不自动续轮） &gt; ringProgress：绿→琥珀→红（0.7/0.95 档位）；无 phase 返回 null" time="0.000264583">
+        </testcase>
+    </testsuite>
+    <testsuite name="__tests__/protocol.spec.ts" timestamp="2026-10-11T20:01:58.515Z" hostname="MacBookPro" tests="13" failures="0" errors="0" skipped="0" time="0.003714916">
+        <testcase classname="__tests__/protocol.spec.ts" name="parseLine（JSON 解析层） &gt; 合法 JSON 对象通过" time="0.000912625">
+        </testcase>
+        <testcase classname="__tests__/protocol.spec.ts" name="parseLine（JSON 解析层） &gt; 空行 / 非 JSON / 非对象（数组、字面量）全部拒绝且给出原因" time="0.000188417">
+        </testcase>
+        <testcase classname="__tests__/protocol.spec.ts" name="validateDownstream（下行全集 + 拒绝面） &gt; task-state：全集字段（含 todayTasks 可选扩展）通过" time="0.000227708">
+        </testcase>
+        <testcase classname="__tests__/protocol.spec.ts" name="validateDownstream · 无进行中与全集 &gt; task-state：activeTask=null（无进行中）通过" time="0.000108042">
+        </testcase>
+        <testcase classname="__tests__/protocol.spec.ts" name="validateDownstream · 无进行中与全集 &gt; task-state：缺 badge / ts 非数 / activeTask 字段不全 → 拒绝" time="0.000115625">
+        </testcase>
+        <testcase classname="__tests__/protocol.spec.ts" name="validateDownstream · 无进行中与全集 &gt; pomodoro-config / lang / sprites / heartbeat 全集通过" time="0.000208791">
+        </testcase>
+        <testcase classname="__tests__/protocol.spec.ts" name="validateDownstream · 拒绝面 &gt; lang 非枚举 / durations 空数组 / sprites builtin 条目缺 id → 拒绝" time="0.000104292">
+        </testcase>
+        <testcase classname="__tests__/protocol.spec.ts" name="validateDownstream · 拒绝面 &gt; heartbeat 缺 ts → 拒绝" time="0.0000935">
+        </testcase>
+        <testcase classname="__tests__/protocol.spec.ts" name="validateDownstream · 拒绝面 &gt; 未知 type → 拒绝" time="0.000087416">
+        </testcase>
+        <testcase classname="__tests__/protocol.spec.ts" name="validateUpstream（上行全集 + 拒绝面） &gt; cmd：九个 op 全部通过（含可选字段）" time="0.000330792">
+        </testcase>
+        <testcase classname="__tests__/protocol.spec.ts" name="validateUpstream（上行全集 + 拒绝面） &gt; cmd：未知 op / pos 形状错 → 拒绝" time="0.000091958">
+        </testcase>
+        <testcase classname="__tests__/protocol.spec.ts" name="validateUpstream（上行全集 + 拒绝面） &gt; focus-settle：字段齐全通过；缺 localSessionId / 负数分钟 → 拒绝" time="0.000098667">
+        </testcase>
+        <testcase classname="__tests__/protocol.spec.ts" name="validateUpstream（上行全集 + 拒绝面） &gt; hello / crash-diag 通过；能力位非字符串数组 / 诊断条目缺字段 → 拒绝" time="0.000122">
+        </testcase>
+    </testsuite>
+    <testsuite name="__tests__/runtime.headless.spec.ts" timestamp="2026-10-11T20:01:58.519Z" hostname="MacBookPro" tests="2" failures="0" errors="0" skipped="0" time="3.2335555">
+        <testcase classname="__tests__/runtime.headless.spec.ts" name="headless 集成（真入口 · 桥全链路 + 宿主存亡守卫） &gt; 启动即 hello（版本+能力位）；坏行容错；stdin end → 10s 内退出" time="0.968362791">
+        </testcase>
+        <testcase classname="__tests__/runtime.headless.spec.ts" name="headless 集成 · --host-pid 双保险 &gt; --host-pid 双保险：宿主进程死亡 → helper 10s 内自杀（心跳仍在也退）" time="2.263144417">
+        </testcase>
+    </testsuite>
+    <testsuite name="__tests__/runtime.spec.ts" timestamp="2026-10-11T20:01:58.520Z" hostname="MacBookPro" tests="6" failures="0" errors="0" skipped="0" time="1.171394334">
+        <testcase classname="__tests__/runtime.spec.ts" name="createHelperRuntime 装配 &gt; 启动即 hello（版本+能力位）" time="0.009662125">
+        </testcase>
+        <testcase classname="__tests__/runtime.spec.ts" name="createHelperRuntime 装配 &gt; task-state 驱动：working 底态 + 出发台词双气泡时序（就决定是你了 → {p}正在捕捉：{t}）" time="1.104429041">
+        </testcase>
+        <testcase classname="__tests__/runtime.spec.ts" name="createHelperRuntime 装配 &gt; focus-settle 接线：61 秒专注后任务离开 → 整分钟上报（虚拟时钟推进）" time="0.000736333">
+        </testcase>
+        <testcase classname="__tests__/runtime.spec.ts" name="createHelperRuntime · 上行与存亡 &gt; sendCmd / completeTask 上行接线（cmd done + celebrating 气泡）" time="0.000960334">
+        </testcase>
+        <testcase classname="__tests__/runtime.spec.ts" name="createHelperRuntime · 上行与存亡 &gt; 外部收尾（跨形态打断 D16）→ 一次性中性气泡" time="0.000312583">
+        </testcase>
+        <testcase classname="__tests__/runtime.spec.ts" name="createHelperRuntime · 上行与存亡 &gt; 宿主死亡：stdin end → quit UiEvent（headless main 据此 process.exit）" time="0.053292792">
+        </testcase>
+    </testsuite>
+    <testsuite name="__tests__/sprites.spec.ts" timestamp="2026-10-11T20:01:58.521Z" hostname="MacBookPro" tests="7" failures="0" errors="0" skipped="0" time="0.005820125">
+        <testcase classname="__tests__/sprites.spec.ts" name="素材链（AD §3.3 A20：内置 → CDN → 双缺回退 + 单次缺失提示） &gt; 内置清单口径 = 主应用 BUNDLED_POKEMON × public/pokemon 实际素材（6 只）" time="0.002505042">
+        </testcase>
+        <testcase classname="__tests__/sprites.spec.ts" name="素材链（AD §3.3 A20：内置 → CDN → 双缺回退 + 单次缺失提示） &gt; 内置精灵 → 本地候选（pokemon/{key}.gif|png，与主应用 URL 形态一致）" time="0.000369917">
+        </testcase>
+        <testcase classname="__tests__/sprites.spec.ts" name="素材链 · CDN 候选与双缺回退 &gt; 非内置且 keyToId 有映射 → CDN 候选（≤#649 动图 + png；&gt;649 只有 png）" time="0.000197042">
+        </testcase>
+        <testcase classname="__tests__/sprites.spec.ts" name="素材链 · CDN 候选与双缺回退 &gt; 非内置且无映射（双缺第一层）→ 回退主宝可梦占位 + 单次缺失事件（同 key 去重）" time="0.000436541">
+        </testcase>
+        <testcase classname="__tests__/sprites.spec.ts" name="素材链 · CDN 候选与双缺回退 &gt; 宿主重下发 sprites（网络恢复）→ 清缺失去重，可再次提示（A20 恢复语义）" time="0.000260208">
+        </testcase>
+        <testcase classname="__tests__/sprites.spec.ts" name="素材链 · CDN 候选与双缺回退 &gt; 宿主下发空 builtin → 回落默认内置清单（配置坏值不裸奔）" time="0.000106125">
+        </testcase>
+        <testcase classname="__tests__/sprites.spec.ts" name="素材链 · CDN 候选与双缺回退 &gt; pokemonName：内置按语言取名；未知 key 原样返回" time="0.000129375">
+        </testcase>
+    </testsuite>
+</testsuites>

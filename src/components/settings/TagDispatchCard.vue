@@ -67,7 +67,7 @@ function agentOptions(draft: Draft): { value: string; label: string }[] {
     if (!a.enabled && a.id !== draft.agentId) continue;
     opts.push({
       value: a.id,
-      label: `${a.name || a.command}${a.remote?.host?.trim() ? " · SSH" : ""}${a.enabled ? "" : ` · ${t("tags.metaAgentOff")}`}`,
+      label: `${a.name || a.command}${a.deployment?.trim() ? ` · ${a.deployment.trim()}` : ""}${a.enabled ? "" : ` · ${t("tags.metaAgentOff")}`}`,
     });
   }
   return opts;
@@ -128,8 +128,7 @@ async function openHistory(draft: Draft) {
 
 <template>
   <section class="set-card">
-    <h3>⚡ {{ t("tagDispatch.title") }}</h3>
-    <p class="set-sub">{{ t("tagDispatch.hint") }}</p>
+    <h3 :data-tip="`${t('tagDispatch.hint')}\n${t('tagDispatch.foot')}`">⚡ {{ t("tagDispatch.title") }}</h3>
     <div v-for="row in rows" :key="row.tag.id" class="dispatch-block">
       <div class="db-head">
         <span class="db-name" :title="row.tag.name">{{ row.tag.name }}</span>
@@ -165,12 +164,11 @@ async function openHistory(draft: Draft) {
       </SettingRow>
     </div>
     <p v-if="!rows.length" class="hint">{{ t("tagDispatch.empty") }}</p>
-    <p class="set-foot">{{ t("tagDispatch.foot") }}</p>
   </section>
 </template>
 
 <style scoped>
-/* 卡片本体与 h3 / set-sub 需自备同款（宿主 scoped 样式够不到二层子组件，见 src/AGENTS.md） */
+/* 卡片本体与 h3 需自备同款（宿主 scoped 样式够不到二层子组件，见 src/AGENTS.md） */
 .set-card {
   width: 100%;
   max-width: 920px;
@@ -185,20 +183,6 @@ async function openHistory(draft: Draft) {
 .set-card h3 {
   margin: 0 0 12px;
   font-size: 16px;
-}
-.set-sub {
-  margin: -6px 0 12px;
-  font-size: 12px;
-  color: var(--ink-soft);
-  line-height: 1.7;
-}
-.set-foot {
-  margin: 12px 0 0;
-  padding-top: 10px;
-  border-top: 2px dashed var(--ink-faint);
-  font-size: 12px;
-  color: var(--ink-soft);
-  line-height: 1.7;
 }
 .hint {
   font-size: 12px;

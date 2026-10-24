@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="zh-Hans">
+  <head>
+    <meta charset="utf-8" />
+    <title>pky dsh-plugin client harness（E2E）</title>
+    <style>
+      /* 宿主壳最小样（dsh main 区近似）：透明底、占满视口 */
+      body {
+        margin: 0;
+        font-family: -apple-system, "PingFang SC", sans-serif;
+      }
+      #root {
+        min-height: 100vh;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="root"></div>
+    <!-- 顺序：React 全局 → ModuleLoader shim + mock 伪 rpc → 真实 dist 产物 → 渲染 boot -->
+    <script src="./vendor.js"></script>
+    <script src="./pre.js"></script>
+    <script src="./client.js"></script>
+    <script src="./boot.js"></script>
+  </body>
+</html>

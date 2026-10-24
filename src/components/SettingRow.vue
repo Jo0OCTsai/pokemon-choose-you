@@ -1,13 +1,13 @@
 <script setup lang="ts">
 /**
- * 设置行：左侧「标题 + 行内说明」两行堆叠，右侧控件贴右缘垂直居中。
- * 说明文字四层归属（标签/ desc / sub / foot）见 DESIGN_SYSTEM.md §4.4；
- * 本组件只承载 1、2 两层，副标题与脚注由页面用 .set-sub / .set-foot 排。
+ * 设置行：左侧标签（说明悬浮气泡）、右侧控件贴右缘垂直居中。
+ * 说明文字悬浮气泡归属（标签内联 / label data-tip / 卡标题 data-tip）见
+ * DESIGN_SYSTEM.md §4.4；本组件承载前两层，卡片级说明由页面挂到卡标题 data-tip。
  */
 defineProps<{
   /** 标签：只写名字，一行以内 */
   label: string;
-  /** 行内说明：一句话（至多两行），可省略 */
+  /** 行内说明：悬浮标签时气泡展示，可省略 */
   desc?: string;
   /** 文本输入类控件加 wide，占满标签右侧整行（默认控件按内容宽） */
   wide?: boolean;
@@ -19,8 +19,7 @@ defineProps<{
 <template>
   <div class="set-row" :class="{ wide }" :style="labelWidth ? { gap: '0px' } : undefined">
     <div class="set-text" :style="labelWidth ? { flex: `0 0 ${labelWidth}px`, paddingRight: '12px' } : undefined">
-      <span class="set-label">{{ label }}</span>
-      <span v-if="desc" class="set-desc">{{ desc }}</span>
+      <span class="set-label" :data-tip="desc || undefined">{{ label }}<slot name="label-extra" /></span>
     </div>
     <div class="set-control" :style="labelWidth ? { margin: '0 auto 0 0' } : undefined">
       <slot />
@@ -48,10 +47,12 @@ defineProps<{
   color: var(--ink);
   line-height: 1.5;
 }
-.set-desc {
+/* 标签行内附加内容（如时间制式预览）：软色小字缀在标签右侧 */
+.set-label :deep(.row-preview) {
+  margin-left: 8px;
   font-size: 12px;
+  font-weight: 400;
   color: var(--ink-soft);
-  line-height: 1.55;
 }
 .set-control {
   flex: none;

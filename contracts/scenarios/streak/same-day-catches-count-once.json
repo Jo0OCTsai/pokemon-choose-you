@@ -1,0 +1,10 @@
+{
+  "kind": "streak",
+  "name": "same-day-catches-count-once",
+  "now": "2026-09-13T09:00:00+08:00",
+  "setup": {},
+  "steps": [
+    { "op": "streak_eval", "args": { "doneDays": ["2026-09-13", "2026-09-12"], "today": "2026-09-13", "todayCount": 3 } }
+  ],
+  "expect": "exact"
+}

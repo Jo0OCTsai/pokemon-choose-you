@@ -1,0 +1,27 @@
+{
+  "kind": "judge_protocol",
+  "name": "acceptance-fallbacks",
+  "now": "2026-01-15T09:00:00+08:00",
+  "setup": {
+    "chat_messages": [
+      {
+        "id": 1,
+        "message_id": "om_f",
+        "chat_type": "local",
+        "content": "记得交周报",
+        "suggested_title": "交周报",
+        "suggested_category": "不存在的分类",
+        "suggested_priority": "super-urgent",
+        "suggested_due": "   ",
+        "suggested_tags": "[{\"name\":\"幻觉\",\"dimension\":\"topic\"},{\"name\":\"新项目\",\"dimension\":\"project\",\"isNew\":true}]",
+        "ai_status": "todo",
+        "review_status": "pending",
+        "created_at": "2026-01-10T00:00:00Z"
+      }
+    ]
+  },
+  "steps": [
+    { "op": "review_accept", "args": { "messageId": "om_f" } }
+  ],
+  "expect": "exact"
+}

@@ -1,0 +1,252 @@
+/**
+ * dsh（DeepSeek Harness）宿主插件入口（平台胶水层，Phase A host 半边真实适配）。  形态（dsh 0.2.1-rc.2 插件清单）：本包经 `dsh plugin --profile <name> add file:…` 作为自注册 bundle 安装（包内 cordis.patch.yml insert 本 entry），loader 读 package.json main（dist/host.js）加载本模块，消费具名导出 name/inject/Config/apply。  职责边界：本层只做平台接线——能力探测、createPlugin 依赖注入（timer/pet spawner/ 判定执行方）、22 工具 → ctx.tools（defineTool JSON DSL 投影）、69 host 命令 → connection 共享 /api 通道 `
+ */
+import z from "@deepseek-ai/schemastery";
+import type { Context } from "@deepseek-ai/cordis";
+import type {} from "@deepseek-ai/cordis-plugin-timer"; // 类型面：ctx.interval/ctx.timeout 增强
+import type {} from "@deepseek-ai/dsh-client-connection"; // 类型面：Context.connection 增强
+import { createPlugin, defaultJudgeExecutor, probeNodeSqlite, unsupportedSqliteError, type Plugin } from "../index";
+import { detectExternalTerminal } from "./externalTerminal";
+import { createExternalTerminalAdapter, externalTerminalLine } from "./externalTerminalAdapter";
+import { ensureElectronDist } from "../pet/electronGet";
+import { detectPetSpawner, locateHelperMain } from "./petLocate";
+import { dbFileFrom } from "../storage/paths";
+import { registerEmbeddedSchemas } from "../storage/migrate";
+import schemaRaw from "../storage/schema-raw";
+import { dshSessionExecutorOf } from "./sessionExecutor";
+import { buildToolContextData } from "../tools/contextData";
+import type { Conn } from "../storage/db";
+import { MIN_AGENT_TIMEOUT_SECS, type JudgeExecutor } from "../judge/adapters";
+import { remoteJudgeExecutorFor } from "../remote/sshExecutor";
+import { dshCredentialEnvOf } from "./credentialEnv";
+import type { HelperSpawner } from "../pet/supervisor";
+import type { TimerApi as LoopTimer } from "../dispatch/autoDispatch";
+import { registerTodoTools } from "./toolRegister";
+import { PkyRemoteService } from "./remoteService";
+import { remotePlatformOf, wireRemoteGuard, type RemoteAssembly } from "./remoteAssembly";
+import { listDeployments } from "../remote/deployments";
+import { pkSetupOf } from "./pkSetup";
+import { TunnelSupervisor, type TunnelLogFn } from "../remote/tunnelSupervisor";
+
+// 契约 SQL 编译期内嵌注册（migrate 双 loader 的内嵌侧）：安装形态磁盘相对路径不可达，
+// dist 产物经 build.mjs 的 ?raw loader 内嵌——模块加载期注册一次（fs 回落留给仓内 dev 直跑）
+registerEmbeddedSchemas({ ...schemaRaw });
+
+// 远程派发适配面（任务 2.1/2.2 产出；接线归任务 2.9）：此处仅再出口使模块进构建图——
+// 保持 `import("@deepseek-ai/dsh-ssh")` 动态字面量落进 dist（external 口径，运行时从
+// 插件包闭包解析——spike 验证点③）；不改变 apply 行为（惰性装载语义不变）
+export { createSshScopeHost, type CordisHostContext, type SshScopeHost } from "./sshScope";
+export { DSH_CAPABILITY_KEYS, probeDshCapabilities, sshFamilyOf } from "./probeDsh";
+
+/** 入口 id（cordis.patch.yml 的 insert id 同名；包名 pokemon-choose-you-dsh 是安装定位面） */
+export const name = "pokemon-choose-you";
+
+/** 必需服务（timer 需 inject；agents/sessions/agentDefaultModel = 内置判定通道消费面——
+ *  dsh-base 恒在场，缺席则插件不装（fail fast）；credentials = dsh 形态子进程凭据注入
+ *  消费面——dsh-base 组合自带 dsh-credentials-local，见 dsh/credentialEnv.ts） */
+export const inject = ["tools", "timer", "agents", "sessions", "agentDefaultModel", "credentials"];
+
+/**
+ * 插件 Config（schemastery；A2 Config 双轨最小集）。
+ * volatile = live 表单字段（设置面改值即时生效，读值走 .get()——本层只在装配期读一次）。
+ */
+export const Config = z.object({
+  petAutoStart: z
+    .boolean()
+    .default(true)
+    .volatile()
+    .description("随宿主启动显示桌宠（helper/electron 就绪才生效；未就绪自动降级停用）"),
+  judgeExecutor: z
+    .union(["session", "subagent", "cli"])
+    // root 会话形态（2026-10-19 裁决）：默认 session（一批一会话，进主会话列表可回放）；
+    // subagent = 旧存量值别名（同走内置通道，仅避免宿主已存配置校验失败）；cli = 外部 agent CLI 子进程
+    .default("session")
+    .volatile()
+    .description(
+      "判定执行方：session = dsh 内置通道（root 会话一批一会话，可回放；旧值 subagent 等价）；cli = 外部 agent CLI 子进程",
+    ),
+});
+
+/** loader 解析后的 config 形态（volatile 字段为 { get() } 引用；兼容普通值便于测试） */
+export interface ResolvedPkyConfig {
+  petAutoStart: { get(): boolean } | boolean;
+  judgeExecutor: { get(): "session" | "subagent" | "cli" } | "session" | "subagent" | "cli";
+}
+
+/** volatile/普通值兼容读取（live 表单改值经 .get() 生效） */
+function readSetting<T>(field: { get(): T } | T): T {
+  return typeof field === "object" && field !== null && typeof (field as { get?: unknown }).get === "function"
+    ? (field as { get(): T }).get()
+    : (field as T);
+}
+
+/**
+ * 判定执行方路由（活闭包按当前配置值）：cli = 业务核心缺省（主 agent CLI 子进程，凭据环境
+ * 经 agentEnv 注入；绑定部署的主 agent 经远端执行器在部署上判定——desktop judge.rs
+ * resolve_remote_target 同构，超时下限按判定口径而非派发 600s）；session/subagent（旧值
+ * 别名）= dsh 内置通道（dsh/sessionExecutor.ts，root 会话一批一会话，默认）——判定上下文以
+ * 当前 conn 现取（pk context 同构 JSON），每批新鲜。
+ */
+function judgeExecutorOf(
+  ctx: Context,
+  config: ResolvedPkyConfig,
+  agentEnv: ReturnType<typeof dshCredentialEnvOf>,
+  conn: Conn,
+  remote: RemoteAssembly,
+): JudgeExecutor | null {
+  return readSetting(config.judgeExecutor) === "cli"
+    ? defaultJudgeExecutor(
+        conn,
+        agentEnv,
+        remoteJudgeExecutorFor(conn, remote.platform, { minTimeoutSecs: MIN_AGENT_TIMEOUT_SECS }),
+      )
+    : dshSessionExecutorOf(ctx, () => JSON.stringify(buildToolContextData(conn)));
+}
+
+/** createPlugin 依赖注入面（timer/桌宠 spawner/判定执行方/远程平台——接线单源） */
+function pluginDepsOf(
+  ctx: Context,
+  config: ResolvedPkyConfig,
+  dbPath: string,
+  petSpawner: HelperSpawner | undefined,
+  remote: RemoteAssembly,
+  tunnels: NonNullable<Parameters<typeof createPlugin>[0]>["tunnels"],
+  pkSetup: NonNullable<Parameters<typeof createPlugin>[0]>["pkSetup"],
+): Parameters<typeof createPlugin>[0] {
+  const agentEnv = dshCredentialEnvOf(ctx); // dsh 形态子进程凭据注入（见 dsh/credentialEnv.ts）
+  const externalTerminal = createExternalTerminalAdapter();
+  return {
+    dbPath,
+    pollTimer: (cb, ms) => ctx.interval(cb, ms),
+    autoTimer: loopTimerOf(ctx),
+    feedTimer: loopTimerOf(ctx),
+    reminderTimer: (cb, ms) => ctx.interval(cb, ms),
+    backupTimer: (cb, ms) => ctx.interval(cb, ms),
+    petSpawner,
+    helperPath: () => locateHelperMain() ?? "",
+    remote: remote.platform,
+    sshFamily: () => remote.familyProjection(),
+    capabilities: () => remote.capabilities(),
+    // 常驻隧道服务面（deploymentList 状态行 + 部署写 resync）与 pk 通道开通执行器
+    tunnels,
+    pkSetup,
+    petAutoStart: {
+      // D18「随 dsh 启动」默认开：宿主配置面未显式写 false 时视为开（schemastery
+      // default(true) 在 dsh 配置面未落值时不生效——真机冒烟实测，未设值 = undefined）
+      get: () => readSetting(config.petAutoStart) !== false,
+      set: () => undefined, // 平台持久化归 dsh 配置面（Phase B 客户端设置段写回）
+    },
+    // 判定执行方（volatile 活读——背包改值热应用后下一次判定即生效；newExecutor 每次判定调用）
+    newExecutor: (conn) => judgeExecutorOf(ctx, config, agentEnv, conn, remote),
+    agentEnv,
+    // dispatchDeps/larkBin 缺省：lark-cli 走 PATH；无头派发 executorFor 缺省走 local 子进程。
+    // 交互终端/terminalLine（debt ③ a 本机载体解 + 终端偏好遵循）：darwin 宿主（dsh 桌面
+    // app / dsh web / dsh-tui——浏览器与宿主同机口径）→ 适配器按次解析（共享设置
+    // terminal_preference 命中优先，探测链 kitty → Ghostty → … → iTerm2 → Terminal.app 回落；
+    // 探测无产物 / 唤起失败自动回落 copy-line handoff，命令行回传 + 客户端复制面）。远端
+    // 部署路由经 remoteInteractiveParts：探测到 GUI 终端 → 同一外部终端弹 ssh 别名窗口
+    // （remoteSshWindow）；否则 PTY / copy-line 既有链。
+    terminal: externalTerminal,
+    // 回放/lark 登录的终端行注入（探测到 GUI 终端 → 真窗口，injectLineGuarded 统一读偏好
+    // 随行注入；无终端缺省——回放自动走 handoff 命令行回传，lark 登录 note 携带命令行）
+    ...(detectExternalTerminal() !== null
+      ? { terminalLine: externalTerminalLine(), remoteSshWindow: externalTerminal }
+      : {}),
+  };
+}
+
+/** 桌宠降级面收口（A20）：helper 产物在而 electron 缺失 → 后台按需获取 + 降级明示 */
+function degradePetRuntime(plugin: Plugin, petSpawner: HelperSpawner | undefined): void {
+  if (petSpawner !== undefined) {
+    return;
+  }
+  if (locateHelperMain() === undefined) {
+    warnDegrade(plugin, "桌宠降级停用（A20）：未定位到 helper/dist/main.js（插件包分发面缺件）");
+    return;
+  }
+  // D30：helper 产物在、electron 二进制缺失 → electronGet 后台按需获取（NFR-15：下载不阻塞
+  // 冷启动——本次会话降级明示，落位 ~/.dsh/electron/dist/ 即被探测链命中，下次启动恢复）
+  void ensureElectronDist().then(
+    (result) => {
+      if (result.status === "failed") {
+        warnDegrade(plugin, `electron 运行时获取失败：${result.reason}——手动放置指引：${result.guidance}`);
+      } else {
+        warnDegrade(plugin, `electron 运行时已就绪（${result.binPath}）——本次为下载期降级，下次启动桌宠自动恢复`);
+      }
+    },
+    (error) => warnDegrade(plugin, `electron 运行时获取异常：${String(error)}`),
+  );
+  warnDegrade(
+    plugin,
+    "桌宠降级停用（A20）：electron 二进制缺失——已发起后台按需获取（~/.dsh/electron/dist/），就绪后下次启动生效",
+  );
+}
+
+/**
+ * 插件 apply：能力探测（node:sqlite 硬拒绝——NFR-3 不静默半工作）→ createPlugin 真实
+ * 装配 → 工具/RPC 注册（全部挂 ctx.effect，fiber 卸载逆序注销）。
+ */
+export function apply(ctx: Context, config: ResolvedPkyConfig): void {
+  const capability = probeNodeSqlite();
+  if (!capability.ok) {
+    throw unsupportedSqliteError(capability);
+  }
+  const dbPath = dbFileFrom();
+  if (dbPath === undefined) {
+    throw new Error("[pokemon-choose-you] 无法定位待办库：CHOOSE_YOU_HOME 与 home 均不可用（AD §5.1 库定位）");
+  }
+  process.stderr.write(`[pokemon-choose-you] 待办库：${dbPath}\n`);
+  const petSpawner = detectPetSpawner();
+  // 远程部署平台面（full-parity 2.9）：scope 宿主 + 家族探测投影 + 闭包 helper 制品
+  const remote = remotePlatformOf(ctx);
+  // 常驻隧道（ADR-0003 §2）：任一宿主驻留期维持（让位锁与桌面协调）；服务面与日志面均惰性绑定（插件就绪后重绑）
+  let tunnelLog: TunnelLogFn = () => undefined;
+  const tunnels = new TunnelSupervisor({ log: (level, message) => tunnelLog(level, message) });
+  let resyncFromRegistry: () => void = () => undefined;
+  const tunnelsService = {
+    resync: () => resyncFromRegistry(),
+    statusOf: (id: string) => tunnels.statusOf(id),
+  };
+  const plugin = createPlugin(pluginDepsOf(ctx, config, dbPath, petSpawner, remote, tunnelsService, pkSetupOf()));
+  tunnelLog = (level, message) => plugin.log(level, "tunnel", message);
+  try {
+    wireRemoteGuard(ctx, plugin, remote);
+    resyncFromRegistry = () => tunnels.sync(Object.values(listDeployments(plugin.conn)));
+    ctx.effect(() => () => tunnels.stopAll());
+    resyncFromRegistry();
+    degradePetRuntime(plugin, petSpawner);
+  } catch (error) {
+    // createPlugin 已启动轮询等常驻件而 plugin.dispose 尚未挂 effect——装配失败须先收口
+    // 再上抛；否则在途循环会在已销毁 fiber 上重注册 timer，INACTIVE_EFFECT 掩盖真实错误并崩宿主
+    plugin.dispose();
+    throw error;
+  }
+  // 装配逆序注册：dispose 最先进 effect → 卸载时最后执行（先注销工具/RPC，再收口循环与连接）
+  ctx.effect((): (() => void) => plugin.dispose);
+  try {
+    registerTodoTools(ctx, plugin);
+    new PkyRemoteService(ctx, plugin.commands, (listener) => plugin.onPageOpen(listener));
+  } catch (error) {
+    process.stderr.write(
+      `[pokemon-choose-you] 工具/RPC 注册失败：${String(error)}\n${error instanceof Error ? error.stack : ""}\n`,
+    );
+    throw error;
+  }
+}
+
+// ---- 远程部署平台面装配（full-parity 2.9）：platform/断连守卫/家族探测拆在
+// remoteAssembly.ts（控本文件行数棘轮）；此处再出口使装配件进构建图
+
+/** 循环 timer 面（autoDispatch 与 stateFeed 同形：every/cancel → ctx.interval 反注册函数） */
+function loopTimerOf(ctx: Context): LoopTimer {
+  return {
+    every: (ms, fn) => ctx.interval(fn, ms),
+    cancel: (handle) => (handle as () => void)(),
+  };
+}
+
+/** 降级告警双出口：统一日志面（环 + 落盘共享文件，ADR-0005）+ stderr（宿主启动期可见） */
+function warnDegrade(plugin: Plugin, message: string): void {
+  plugin.log("warn", "dsh", message);
+  process.stderr.write(`[pokemon-choose-you] ${message}\n`);
+}

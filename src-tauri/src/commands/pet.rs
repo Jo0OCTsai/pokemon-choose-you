@@ -86,12 +86,31 @@ pub fn streak_conn(conn: &Connection) -> AppResult<StreakInfo> {
         })?
         .filter_map(|r| r.ok().flatten())
         .collect();
+    drop(stmt);
     let today = chrono::Local::now().date_naive();
+    let today_count: i64 = conn.query_row(
+        "SELECT COUNT(*) FROM tasks
+         WHERE status='done' AND date(completed_at, 'localtime') = date('now', 'localtime')",
+        [],
+        |r| r.get(0),
+    )?;
+    Ok(streak_eval(&days_set, today, today_count))
+}
+
+/// 连胜纯核心（P3 抽取：streak_conn 与契约 oracle 共用，SDD FR-B3 语义）：
+/// done 本地日集合从 today 往回走——有捕捉计一天；整天空着可用掉唯一一个
+/// 宽容日；再空即断；回溯上限 400 天（恰好/超过 400 连续天都封顶 400）。
+/// 输出 {days, todayCount}（todayCount 由调用方统计，今日未完成不算断）。
+pub fn streak_eval(
+    done_days: &std::collections::HashSet<chrono::NaiveDate>,
+    today: chrono::NaiveDate,
+    today_count: i64,
+) -> StreakInfo {
     let mut days: i64 = 0;
     let mut grace = 1;
     let mut cur = today;
     for _ in 0..400 {
-        if days_set.contains(&cur) {
+        if done_days.contains(&cur) {
             days += 1;
         } else if grace > 0 {
             grace -= 1;
@@ -100,13 +119,7 @@ pub fn streak_conn(conn: &Connection) -> AppResult<StreakInfo> {
         }
         cur -= chrono::Duration::days(1);
     }
-    let today_count: i64 = conn.query_row(
-        "SELECT COUNT(*) FROM tasks
-         WHERE status='done' AND date(completed_at, 'localtime') = date('now', 'localtime')",
-        [],
-        |r| r.get(0),
-    )?;
-    Ok(StreakInfo { days, today_count })
+    StreakInfo { days, today_count }
 }
 
 // ---- F2 AI 对话：接主 agent + 任务上下文的单轮问答（≤2 句，只答不执行） ----
@@ -120,7 +133,7 @@ pub async fn pet_chat(db: State<'_, Db>, message: String) -> AppResult<String> {
     if q.chars().count() > 200 {
         return Err(AppError::Invalid("问题太长了，精灵记不住～".into()));
     }
-    let (agent, ctx, system) = {
+    let (agent, remote, ctx, system) = {
         let conn = db.0.lock().unwrap();
         let get = |k: &str| -> Option<String> {
             conn.query_row("SELECT value FROM settings WHERE key=?1", params![k], |r| {
@@ -132,12 +145,14 @@ pub async fn pet_chat(db: State<'_, Db>, message: String) -> AppResult<String> {
             .ok_or_else(|| AppError::Invalid("还没有配置 AI agent（设置 → AI 集成）".into()))?;
         // 覆盖行与 agent 配置同一锁窗口点查（微秒级），渲染与调用在锁外
         let resolved = ai::effective_system_prompt(&get, ai::PromptFeature::PetChat);
-        (agent, build_context(&conn)?, resolved.text)
+        let remote = crate::commands::resolve_remote_target(&conn, &agent)
+            .map_err(|e| AppError::Invalid(e.message))?;
+        (agent, remote, build_context(&conn)?, resolved.text)
     };
     // 默认模板 = PET_CHAT_SYSTEM_PROMPT（prompts.rs 单源），单遍替换与迁移前
     // format! 输出逐字节相同；自定义覆盖经同一渲染路径注入 ctx/q
     let prompt = ai::render_template(&system, &[("<CONTEXT>", ctx.as_str()), ("<QUESTION>", q)]);
-    let out = ai::run_agent(&agent, &prompt).await?;
+    let out = ai::run_agent(&agent, &prompt, remote.as_ref()).await?;
     Ok(trim_sentences(&out, 2))
 }
 
@@ -278,6 +293,32 @@ mod tests {
         let s = streak_conn(&conn).unwrap();
         assert_eq!(s.days, 2);
         assert_eq!(s.today_count, 2);
+    }
+
+    /// P3 纯核心：回溯上限 400 天的三个边界（恰好 400 / 401 / 今日空 + 400 连续）
+    #[test]
+    fn streak_eval_caps_lookback_at_400_days() {
+        let today = chrono::NaiveDate::from_ymd_opt(2026, 9, 13).unwrap();
+        let span = |from: i64, to: i64| -> std::collections::HashSet<chrono::NaiveDate> {
+            (from..=to)
+                .map(|i| today - chrono::Duration::days(i))
+                .collect()
+        };
+        assert_eq!(
+            streak_eval(&span(0, 399), today, 1).days,
+            400,
+            "恰好 400 连续天 → 400"
+        );
+        assert_eq!(
+            streak_eval(&span(0, 400), today, 1).days,
+            400,
+            "401 连续天仍封顶 400（回溯窗口只看 400 天）"
+        );
+        assert_eq!(
+            streak_eval(&span(1, 400), today, 0).days,
+            399,
+            "今日空用宽容日，窗口内只剩 399 天可计"
+        );
     }
 
     #[test]

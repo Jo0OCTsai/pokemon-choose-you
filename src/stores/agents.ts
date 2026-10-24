@@ -1,6 +1,5 @@
 import { defineStore } from "pinia";
-import { api } from "../api";
-import type { AgentConfig, AgentSkillStatus, TunnelStatus } from "../types";
+import type { AgentConfig, AgentSkillStatus } from "../types";
 import { useSettingsStore } from "./settings";
 
 /**
@@ -31,15 +30,14 @@ function newId(): string {
 
 /**
  * AI agent CLI 域状态（从 SettingsTab 上移）：列表与设置键 ai_agents 的双向同步、
- * CRUD 与重名去重、常驻隧道状态与 pk 技能状态（跨分区切换不丢失）。
+ * CRUD 与重名去重、pk 技能状态（跨分区切换不丢失）。远程执行经部署绑定
+ * （ADR-0003）：隧道/部署状态归 deployments store。
  */
 export const useAgentsStore = defineStore("agents", {
   state: () => ({
     list: [] as AgentConfig[],
     /** agent 的 pk 技能检查结果（id → 状态；检查/安装时更新） */
     skillStatus: {} as Record<string, AgentSkillStatus>,
-    /** 常驻反向隧道状态（id → 后端 tunnel_status） */
-    tunnelStates: {} as Record<string, TunnelStatus>,
   }),
   actions: {
     /** 从设置键解析 agent 列表（旧配置无 workdir 字段归一成空串、skillDir 归一成 null，输入框受控；残留的 mode 字段（对接方式已下线）忽略） */
@@ -67,16 +65,13 @@ export const useAgentsStore = defineStore("agents", {
       settings.values.ai_agents = JSON.stringify(
         this.list.map((a) => ({
           ...a,
-          // 技能目录空串归一成 null（后端空白视为未指定，落库前先清干净）
+          // 技能目录空串归一成 null（后端空白视为未指定，落库前先清干净）；
+          // 部署绑定空白归一 null（本机执行——ADR-0003 执行世界单源）
           skillDir: a.skillDir?.trim() || null,
-          remote: a.remote
-            ? { ...a.remote, tunnel: a.remote.tunnel || null, persistent: a.remote.persistent || false }
-            : null,
+          deployment: a.deployment?.trim() || null,
         })),
       );
       await settings.save(["ai_agents", "ai_agent_id"]);
-      await api.syncTunnels().catch(() => {});
-      this.loadTunnelStatuses();
     },
     /** 预设名已被占用时加序号后缀（如 Claude Code 2）：同类型配多个（本地 + 远程）时列表仍可辨 */
     dedupeName(base: string): string {
@@ -102,22 +97,6 @@ export const useAgentsStore = defineStore("agents", {
       const settings = useSettingsStore();
       this.list = this.list.filter((a) => a.id !== id);
       if (settings.values.ai_agent_id === id) settings.values.ai_agent_id = "";
-    },
-    /** 拉单个 agent 的常驻隧道状态（失败清掉旧条目，回退「未知」） */
-    refreshTunnel(id: string) {
-      if (!id) return;
-      api
-        .tunnelStatus(id)
-        .then((s) => {
-          this.tunnelStates[id] = s;
-        })
-        .catch(() => {
-          delete this.tunnelStates[id];
-        });
-    },
-    /** 刷新所有开了常驻隧道的 agent 状态（设置页进入/保存后调用） */
-    loadTunnelStatuses() {
-      this.list.filter((a) => a.remote?.persistent).forEach((a) => this.refreshTunnel(a.id));
     },
   },
 });

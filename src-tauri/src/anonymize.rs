@@ -69,7 +69,8 @@ fn existing_alias(conn: &Connection, open_id: &str) -> Option<String> {
 
 /// open_id → 「成员_xxxx」：DefaultHasher 在同一构建内确定（std 不承诺跨版本稳定，
 /// 但已分配代号以库为准，哈希漂移只影响未分配的新 open_id，无一致性风险）
-fn alias_hash(open_id: &str) -> String {
+/// pub(crate)：契约套件（contracts 模块）构造碰撞场景用，行为不变
+pub(crate) fn alias_hash(open_id: &str) -> String {
     use std::hash::{Hash, Hasher};
     let mut h = std::collections::hash_map::DefaultHasher::new();
     open_id.hash(&mut h);

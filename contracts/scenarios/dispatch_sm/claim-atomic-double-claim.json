@@ -1,0 +1,19 @@
+{
+  "kind": "dispatch_sm",
+  "name": "claim-atomic-double-claim",
+  "now": "2026-01-15T09:00:00+08:00",
+  "setup": {
+    "tasks": [
+      { "id": 1, "title": "原子抢占", "status": "scheduled", "created_at": "2026-01-01T00:00:00Z" }
+    ]
+  },
+  "steps": [
+    { "op": "dispatch_claim", "args": { "taskId": 1, "withSlot": false, "allowNull": true, "states": ["done", "failed", "queued"] } },
+    { "op": "dispatch_claim", "args": { "taskId": 1, "withSlot": false, "allowNull": true, "states": ["done", "failed", "queued"] } },
+    { "op": "dispatch_reset", "args": { "taskId": 1 } },
+    { "op": "dispatch_claim", "args": { "taskId": 1, "withSlot": false, "allowNull": false, "states": ["queued"] } },
+    { "op": "dispatch_transition", "args": { "taskId": 1, "to": "queued" } },
+    { "op": "dispatch_claim", "args": { "taskId": 1, "withSlot": false, "allowNull": false, "states": ["queued"] } }
+  ],
+  "expect": "exact"
+}

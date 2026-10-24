@@ -686,26 +686,27 @@ async function snoozeFromReminder() {
   }
 }
 
-// ---- 时段问候：每天窗口首次出现说一次，只此一次（不打扰原则的例外清单） ----
+// ---- 时段问候：各时段每日一次（扩版——helper greetings.ts 同口径；早5-11/午11-17/晚17-22/夜22-5） ----
 function mainPokemonName() {
   return pokemonName(settings.sget("main_pokemon"), currentCat.value?.pokemon ?? "");
 }
 function greetOnce() {
-  const key = "pet.greetedOn";
-  const today = new Date().toISOString().slice(0, 10);
+  const h = new Date().getHours();
+  const period = h >= 5 && h < 11 ? "morning" : h < 17 ? "day" : h < 22 ? "evening" : "night";
+  const now = new Date();
+  const key = `pet.greet.${period}.${now.getFullYear()}-${now.getMonth() + 1}-${now.getDate()}`;
   try {
-    if (localStorage.getItem(key) === today) return;
-    localStorage.setItem(key, today);
+    if (localStorage.getItem(key) === "1") return;
+    localStorage.setItem(key, "1");
   } catch {
     return; // 存储不可用（如测试环境）→ 直接放弃问候
   }
-  const h = new Date().getHours();
   const line =
-    h >= 5 && h < 11
+    period === "morning"
       ? t("pet.greetMorning", { p: mainPokemonName() })
-      : h < 17
+      : period === "day"
         ? t("pet.greetDay", { p: mainPokemonName() })
-        : h < 23
+        : period === "evening"
           ? t("pet.greetEvening", { p: mainPokemonName() })
           : t("pet.greetNight", { p: mainPokemonName() });
   setTimeout(() => say(line, true), 800);
@@ -725,7 +726,10 @@ onMounted(async () => {
   idleCtl.start();
   if (settings.bool("pet_input_response")) irCtl.start();
   setTimeout(() => void checkPerch(false), 600); // 启动时窗口记忆位置可能就在底缘
-  lineTimer = setInterval(checkTimeLines, 30_000);
+  lineTimer = setInterval(() => {
+    checkTimeLines();
+    greetOnce(); // 跨入新时段也能问候一次（每时段每日一次的扩版口径）
+  }, 30_000);
   setTimeout(checkTimeLines, 2500); // 问候之后不久补一次时刻检查
   // 睡眠检测：窗口内任何交互都算「还醒着」；Esc 收起对话
   window.addEventListener("pointermove", markActivity, { passive: true });
@@ -924,6 +928,16 @@ onUnmounted(() => {
             "
           >
             {{ t("pet.chatQ2") }}
+          </button>
+          <button
+            class="chat-chip"
+            :disabled="chatThinking"
+            @click="
+              chatInput = t('pet.chatQ3');
+              sendChat();
+            "
+          >
+            {{ t("pet.chatQ3") }}
           </button>
         </div>
         <div class="chat-row">
@@ -1173,7 +1187,7 @@ onUnmounted(() => {
   animation: pk-hop 3s var(--e-sway) infinite;
 }
 .pet-sprite.asleep {
-  filter: grayscale(0.35) brightness(0.92);
+  filter: brightness(0.92); /* 睡觉不上灰度（与 dsh helper 统一口径——用户偏好） */
   animation: pk-sleep-breathe 3.2s var(--e-sleep) infinite;
 }
 /* 撸宠反馈：蹲下蓄力 → 弹起过冲（可爱三律） */

@@ -2,8 +2,15 @@ pub mod ai;
 // 假名化：pk CLI（context 脱敏 / suggest 还原）与应用共用同一套映射
 pub mod anonymize;
 pub mod backup;
+// 外部变更侦听（§7.1 条目 7 / A17）：轮询库变更标记，外部进程（dsh / pk）写库
+// 也走既有 events 广播刷新前端
+mod change_watcher;
 // db / models / error / commands 对外公开：pk CLI（src/bin/pk.rs）以 crate 库形式复用同一套数据逻辑
 pub mod commands;
+// 契约 harness（FR-X3 Rust oracle 侧）：执行 contracts/scenarios 场景生成/比对
+// contracts/fixtures 夹具（specs/dsh-plugin AD §4.4），仅测试期编译
+#[cfg(test)]
+mod contracts;
 pub mod db;
 pub mod error;
 mod events;
@@ -120,6 +127,11 @@ pub fn run() {
             commands::dispatch::spawn_dispatch_loop(app.handle().clone());
             backup::spawn_daily_loop(app.handle().clone());
             feishu::spawn_poll_loop(app.handle().clone());
+            // 外部变更侦听（条目 7 / A17）：pk / dsh 插件写库 ≤2 秒内触发既有 events
+            app.manage(change_watcher::ChangeWatchState(std::sync::Mutex::new(
+                None,
+            )));
+            change_watcher::spawn_change_watcher(app.handle().clone());
             tray::setup(app.handle())?;
             shortcuts::register(app.handle());
             commands::spawn_update_check(app.handle().clone());
@@ -185,7 +197,13 @@ pub fn run() {
             commands::undo_chat_review,
             commands::test_ai_config,
             commands::open_agent_history,
-            commands::setup_remote_pk,
+            commands::setup_deployment_pk,
+            commands::deployment_list,
+            commands::deployment_upsert_cmd,
+            commands::deployment_delete_cmd,
+            commands::ssh_alias_options,
+            commands::dangling_deployment_refs,
+            commands::migrate_agent_remote,
             commands::tunnel_status,
             commands::sync_tunnels,
             commands::agent_skill_status,

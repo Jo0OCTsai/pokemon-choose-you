@@ -6,6 +6,7 @@ import { useTasksStore } from "../stores/tasks";
 import type { ChatMessage } from "../types";
 import CaptureBar from "../components/radio/CaptureBar.vue";
 import ClearNoiseActions from "../components/radio/ClearNoiseActions.vue";
+import FailedGroupActions from "../components/radio/FailedGroupActions.vue";
 import ImDetailPanel from "../components/radio/ImDetailPanel.vue";
 import ImListGroup from "../components/radio/ImListGroup.vue";
 import ImMessageRow from "../components/radio/ImMessageRow.vue";
@@ -72,10 +73,15 @@ async function reload() {
   }
 }
 
-// ---- 分诊分组：待办信号要细审内容，无信号（none/error）只需快速清扫 ----
+// ---- 分诊分组：待办信号要细审内容；无信号（none）快速清扫；AI 判定失败（error）独立成组可重判 ----
 const isSignal = (m: ChatMessage) => m.aiStatus === "todo" || m.aiStatus === "update";
 const signalList = computed(() => list.value.filter((m) => m.reviewStatus === "pending" && isSignal(m)));
-const noiseList = computed(() => list.value.filter((m) => m.reviewStatus === "pending" && !isSignal(m)));
+const failedList = computed(() =>
+  list.value.filter((m) => m.reviewStatus === "pending" && !isSignal(m) && m.aiStatus === "error"),
+);
+const noneList = computed(() =>
+  list.value.filter((m) => m.reviewStatus === "pending" && !isSignal(m) && m.aiStatus !== "error"),
+);
 const caughtList = computed(() => list.value.filter((m) => m.reviewStatus === "accepted"));
 const escapedList = computed(() => list.value.filter((m) => m.reviewStatus === "dismissed"));
 
@@ -110,15 +116,18 @@ const channelGroups = computed(() => {
 const selectedId = ref<number | null>(null);
 const selected = computed(() => list.value.find((m) => m.id === selectedId.value) ?? null);
 
+/** 键盘/前进池：信号 → 判定失败 → 无信号（dsh RadioSegment 池同构） */
+const triagePool = computed(() => [...signalList.value, ...failedList.value, ...noneList.value]);
+
 watch(list, syncSelection, { immediate: true });
 function syncSelection() {
   if (selectedId.value !== null && list.value.some((m) => m.id === selectedId.value)) return;
-  selectedId.value = [...signalList.value, ...noiseList.value][0]?.id ?? list.value[0]?.id ?? null;
+  selectedId.value = triagePool.value[0]?.id ?? list.value[0]?.id ?? null;
 }
 watch(selectedId, () => (escapeMenuId.value = null));
 
 function advanceFrom(id: number) {
-  const pool = [...signalList.value, ...noiseList.value];
+  const pool = triagePool.value;
   if (!pool.length) {
     selectedId.value = null;
     return;
@@ -248,9 +257,9 @@ async function batch(action: "accept" | "dismiss") {
   }
 }
 
-/** 一键清空无信号：噪音不需要逐条审，整组逃走并落 noise 原因 */
+/** 一键清空无信号：噪音不需要逐条审，整组逃走并落 noise 原因（只扫 none 组，不含判定失败） */
 async function clearNoise() {
-  const ids = noiseList.value.map((m) => m.id);
+  const ids = noneList.value.map((m) => m.id);
   if (!ids.length || batching.value) return;
   batching.value = true;
   try {
@@ -267,8 +276,7 @@ async function clearNoise() {
   }
 }
 
-// ---- 判定失败重判：error 消息重新送 AI 判定（无信号区一键批量 / 详情单条） ----
-const failedList = computed(() => noiseList.value.filter((m) => m.aiStatus === "error"));
+// ---- 判定失败组：error 消息整组重判 / 强制逃走（详情另有单条重判） ----
 const retrying = ref(false);
 async function retryFailed(ids: number[]) {
   if (!ids.length || retrying.value) return;
@@ -286,6 +294,25 @@ async function retryFailed(ids: number[]) {
   }
 }
 
+/** 强制逃走判定失败组：AI 建议不可信时整组直接处置（不留原因码，dsh FailedGroup forceDismiss 同构） */
+async function forceEscapeFailed() {
+  const ids = failedList.value.map((m) => m.id);
+  if (!ids.length || batching.value) return;
+  batching.value = true;
+  try {
+    const r = await api.batchReviewChatMessages(ids, "dismiss");
+    showToast(
+      r.failed.length ? t("im.batchPartial", { ok: r.ok, fail: r.failed.length }) : t("im.batchDone", { n: r.ok }),
+    );
+    if (ids.includes(selectedId.value ?? -1)) advanceFrom(selectedId.value!);
+  } catch (e) {
+    showToast(`❌ ${errorMessage(e)}`, { error: true });
+  } finally {
+    batching.value = false;
+    await reload();
+  }
+}
+
 // ---- 键盘流：↑↓/J/K 换条 · C 捕捉 · X 逃走 · F 强制 ----
 function onKeydown(e: KeyboardEvent) {
   const el = e.target as HTMLElement | null;
@@ -296,7 +323,7 @@ function onKeydown(e: KeyboardEvent) {
     escapeMenuId.value = null;
     return;
   }
-  const pool = [...signalList.value, ...noiseList.value];
+  const pool = triagePool.value;
   if (["arrowdown", "j", "arrowup", "k"].includes(key)) {
     if (!pool.length) return;
     e.preventDefault();
@@ -368,27 +395,49 @@ onUnmounted(() => {
               />
             </ImListGroup>
 
-            <!-- 无信号：不是任务（或判定失败），一键清扫 -->
+            <!-- 判定失败：AI 没判成，整组重判 / 强制逃走（独立于无信号，dsh FailedGroup 同构） -->
             <ImListGroup
-              v-if="noiseList.length"
+              v-if="failedList.length"
+              data-group="failed"
+              :title="t('im.groupFailed')"
+              :count="failedList.length"
+              :collapsed="collapsed.has('failed')"
+              @toggle="toggleGroup('failed')"
+            >
+              <template #actions>
+                <FailedGroupActions
+                  :expanded="!collapsed.has('failed')"
+                  :retrying="retrying"
+                  @retry="retryFailed(failedList.map((m) => m.id))"
+                  @force-escape="forceEscapeFailed"
+                />
+              </template>
+              <ImMessageRow
+                v-for="m in failedList"
+                :key="m.id"
+                v-model:selected-id="selectedId"
+                variant="noise"
+                :message="m"
+                :checked="checked.has(m.id)"
+                @toggle-check="toggleOne"
+              />
+            </ImListGroup>
+
+            <!-- 无信号：AI 判非任务，一键清扫 -->
+            <ImListGroup
+              v-if="noneList.length"
               data-group="noise"
               :title="t('im.groupNoise')"
               :head-title="t('im.groupNoiseTitle')"
-              :count="noiseList.length"
+              :count="noneList.length"
               :collapsed="collapsed.has('noise')"
               @toggle="toggleGroup('noise')"
             >
               <template #actions>
-                <ClearNoiseActions
-                  :expanded="!collapsed.has('noise')"
-                  :failed-count="failedList.length"
-                  :retrying="retrying"
-                  @retry="retryFailed(failedList.map((m) => m.id))"
-                  @clear="clearNoise"
-                />
+                <ClearNoiseActions :expanded="!collapsed.has('noise')" @clear="clearNoise" />
               </template>
               <ImMessageRow
-                v-for="m in noiseList"
+                v-for="m in noneList"
                 :key="m.id"
                 v-model:selected-id="selectedId"
                 variant="noise"

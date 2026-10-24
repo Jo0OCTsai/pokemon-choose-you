@@ -316,9 +316,10 @@ pub fn apply_suggestion_conn(
 }
 
 /// tools 模式的回读：agent 经 `pk suggest` 把判定落库后，应用侧从 chat_messages
-/// 读回该批消息的判定结果（替代解析 agent 文本输出）。
-/// 仍为 pending（agent 遗漏未处理）或其他未落库状态的消息，action 标为 "pending"，
-/// 由调用方决定兜底策略（feishu 循环会按 none 落库；全批遗漏则整次判失败）。
+/// 读回该批消息的判定结果（替代解析 agent 文本输出）。none 是已落库判定
+/// （action="none"，计入落库口径）；仍为 pending（agent 遗漏未处理）或其他未落库
+/// 状态的消息，action 标为 "pending"，由调用方决定兜底策略（feishu 循环会按 none
+/// 落库；全批遗漏则整次判失败）。
 pub fn load_suggestions_conn(
     conn: &Connection,
     message_ids: &[String],
@@ -340,6 +341,9 @@ pub fn load_suggestions_conn(
                         "todo" => "todo",
                         "update" => "update",
                         "followup" => "followUp",
+                        // none 是已落库判定（agent 经 pk 写回的「无关」结论），计入落库
+                        // 口径——整批全 none 不能折叠成 pending 误报「全部遗漏」
+                        "none" => "none",
                         other => {
                             log::warn!("radio: 消息 {id} 分类后状态仍为「{other}」");
                             "pending"
@@ -584,8 +588,9 @@ mod tests {
         );
     }
 
-    /// tools 模式回读：已落库的判定还原成 AiSuggestion（含 update/followup 的目标 id），
-    /// agent 遗漏（仍 pending）标 action=pending，不存在的消息兜底 none
+    /// tools 模式回读：已落库的判定还原成 AiSuggestion（含 update/followup 的目标 id、
+    /// none 的落库态语义），agent 遗漏（仍 pending/judging）标 action=pending，
+    /// 不存在的消息兜底 none
     #[test]
     fn load_suggestions_maps_status_and_flags_missed() {
         let conn = crate::db::tests::test_conn();
@@ -612,6 +617,12 @@ mod tests {
             [],
         )
         .unwrap();
+        conn.execute(
+            "INSERT INTO chat_messages (message_id, content, suggested_reason, ai_status, created_at)
+             VALUES ('om_n', '闲聊', '群机器人问答', 'none', 'x')",
+            [],
+        )
+        .unwrap();
 
         let out = load_suggestions_conn(
             &conn,
@@ -620,6 +631,7 @@ mod tests {
                 "om_b".into(),
                 "om_c".into(),
                 "om_d".into(),
+                "om_n".into(),
                 "om_none".into(),
             ],
         )
@@ -635,7 +647,12 @@ mod tests {
             out[3].action, "pending",
             "agent 遗漏的消息标 pending 待上层兜底"
         );
-        assert_eq!(out[4].action, "", "不存在的消息兜底 none 语义");
+        assert_eq!(
+            out[4].action, "none",
+            "已落库的 none 判定也是落库态，不折叠成 pending（整批 none 不误报全部遗漏）"
+        );
+        assert_eq!(out[4].reason.as_deref(), Some("群机器人问答"));
+        assert_eq!(out[5].action, "", "不存在的消息兜底 none 语义");
     }
 
     /// apply 的 follow-up 幂等：已应用过（followup + accepted）再重放不重复挂跟进

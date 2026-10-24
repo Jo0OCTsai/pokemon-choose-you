@@ -125,7 +125,7 @@ async function doImport() {
 
 <template>
   <section class="set-card">
-    <h3>📤 {{ t("export.title") }}</h3>
+    <h3 :data-tip="t('export.hint')">📤 {{ t("export.title") }}</h3>
     <div class="backup-controls">
       <button class="btn ghost" :disabled="exporting" @click="runExport(() => api.exportJson())">
         {{ t("export.json") }}
@@ -165,7 +165,6 @@ async function doImport() {
       </button>
     </div>
     <p v-if="exportMsg" class="hint">{{ exportMsg }}</p>
-    <p class="set-foot">{{ t("export.hint") }}</p>
   </section>
 </template>
 
@@ -185,14 +184,6 @@ async function doImport() {
 .set-card h3 {
   margin: 0 0 12px;
   font-size: 16px;
-}
-.set-foot {
-  margin: 12px 0 0;
-  padding-top: 10px;
-  border-top: 2px dashed var(--ink-faint);
-  font-size: 12px;
-  color: var(--ink-soft);
-  line-height: 1.7;
 }
 /* 瞬时反馈信息（保存结果 / 错误 / 空态），不是常驻说明 */
 .hint {

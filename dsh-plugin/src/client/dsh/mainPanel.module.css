@@ -1,0 +1,20 @@
+/*
+ * 主区全局面板壳（入口型页面约定）：darwin 桌面顶部避让红绿灯带（ui-layout 发布
+ * --dsh-frame-top-clearance，macOS 48px；普通 web 无该变量回落 0），整页自滚动
+ * （main 列 overflow:hidden，滚动由面板自理——与 conversation 同口径）。
+ */
+
+.shell {
+  flex: 1 1 auto;
+  height: 100%;
+  min-height: 0;
+  overflow-y: auto;
+  box-sizing: border-box;
+  /* 顶距收窄（用户裁决 2026-10-17：标题上边距缩小）；底距 16——填充段定高止于内容盒
+   * 底缘，过大底距会在页脚留死空 */
+  padding: 10px 24px 16px;
+}
+
+html[data-platform="darwin"] .shell {
+  padding-top: calc(10px + var(--dsh-frame-top-clearance, 0px));
+}

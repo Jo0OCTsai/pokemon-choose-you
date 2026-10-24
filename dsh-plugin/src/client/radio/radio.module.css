@@ -1,0 +1,681 @@
+/* 收音机分段（桌面 RadioTab 双栏同构 + 建议行选中制）：scoped、零闪烁、命中区 ≥32px */
+
+.radioSegment {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  /* 填充形态（segmentFill 定高）下本段恰占满：内部伸缩、不出页面滚动条 */
+  height: 100%;
+  min-height: 0;
+}
+/* 主区两栏（桌面 .im-main 同构：左列表 3 : 右详情 2，窄屏纵排）；填充形态占满剩余高 */
+.radioMain {
+  display: flex;
+  gap: 14px;
+  align-items: stretch;
+  flex: 1 1 auto;
+  min-height: 0;
+}
+/* 空态（桌面 .empty 同款居中）：填充形态下撑满剩余区，收发报条仍贴底 */
+.radioEmpty {
+  flex: 1 1 auto;
+  padding: 40px 12px;
+  text-align: center;
+  color: var(--dsw-alias-label-secondary, #57606a);
+  font-size: 13px;
+  line-height: 2;
+}
+@media (max-width: 760px) {
+  .radioMain {
+    flex-direction: column;
+  }
+}
+
+/* 左栏（桌面 .im-left 同构）：工具行 + 列表容器（内部滚动）+ 批量条 */
+.feedColumn {
+  flex: 3 1 0;
+  min-width: 300px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-height: 0;
+}
+/* 列表容器（桌面 .im-list-box 同构：描边容器内滚）。展开内容内滚吸收——不撑页面高度；
+ * 上限/下限经 segmentFill 下传变量（填充形态放开上限、允许压缩；窄屏回落定值） */
+.listBox {
+  flex: 1;
+  min-height: var(--list-floor, 220px);
+  max-height: var(--list-cap, 560px);
+  overflow-y: auto;
+  border: 1px solid var(--dsw-alias-border-l1, #e3e7ec);
+  border-radius: 10px;
+  background: var(--dsw-alias-bg-layer-1, #ffffff);
+  padding: 6px;
+}
+/* 待办信号组空态（桌面 .pending-empty 同构）：0 条时组内居中显示「全部处理完」 */
+.pendingEmpty {
+  padding: 18px 10px;
+  text-align: center;
+  font-size: 13px;
+  line-height: 2;
+  color: var(--dsw-alias-label-secondary, #57606a);
+}
+
+/* 右栏详情（桌面 .im-right 同构）：面板底 + 内容伸缩 + 操作行固定底部 */
+.detailPanel {
+  flex: 2 1 0;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  min-height: var(--detail-floor, 220px);
+  border: 1px solid var(--dsw-alias-border-l1, #e3e7ec);
+  border-radius: 10px;
+  background: var(--dsw-alias-bg-layer-1, #ffffff);
+  padding: 12px 14px;
+}
+.detailEmpty {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--dsw-alias-label-secondary, #57606a);
+  font-size: 13px;
+  line-height: 2;
+  text-align: center;
+}
+.detailBody {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.detailMeta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--dsw-alias-label-secondary, #57606a);
+  flex-wrap: wrap;
+}
+/* 状态章 = 键帽档（specs/dsh-plugin-style T2#12：bg-layer-1 底 + 墨线 + 墨色底沿） */
+.detailStatus {
+  margin-left: auto;
+  flex: none;
+  font-size: 11px;
+  font-weight: 800;
+  border: 1px solid var(--dsw-alias-label-primary, #1f2328);
+  border-radius: 4px;
+  padding: 1px 6px;
+  color: var(--dsw-alias-label-secondary, #57606a);
+  background: var(--dsw-alias-bg-layer-1, #ffffff);
+  box-shadow: 0 2px 0 var(--dsw-alias-label-primary, #1f2328);
+}
+/* LCD 屏 = 签名位（specs/dsh-plugin-style T2#12）：边框/内阴影/扫描线挂不滚动的静框层
+ * （abs ::after 在滚动容器里会随内容滚走），正文滚动在 .detailContent 内 */
+.detailScreen {
+  position: relative;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 110px;
+  border: 1.5px solid var(--dsw-alias-label-primary, #1f2328);
+  border-radius: 8px;
+  box-shadow: inset 2px 2px 0 var(--pcy-lcd-dark, #9caa86);
+}
+.detailScreen::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: repeating-linear-gradient(0deg, rgba(0, 0, 0, 0.05) 0 2px, transparent 2px 4px);
+}
+.detailContent {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 12px;
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.8;
+  white-space: pre-wrap;
+  background: var(--pcy-lcd, #c4cfa1);
+  color: var(--pcy-lcd-text, #3a4a32);
+  overflow-wrap: break-word;
+}
+.noneLine {
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--dsw-alias-label-secondary, #57606a);
+  border: 1px dashed var(--dsw-alias-border-l2, #d0d7de);
+  border-radius: 8px;
+  padding: 8px 10px;
+}
+.doneBanner {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  font-size: 12.5px;
+  font-weight: 700;
+  color: var(--pcy-ok-ink, #1d6b3c);
+  background: var(--pcy-ok-soft, #dff3e4);
+  border: 1px solid var(--pcy-ok, #2e9e5b);
+  border-radius: 8px;
+  padding: 8px 10px;
+}
+.bannerSub {
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--dsw-alias-label-secondary, #57606a);
+}
+/* kbd = 键帽档（specs/dsh-plugin-style T2#12：bg-layer-1 底 + 墨线 + 0 2px 0 墨色底沿） */
+.kbdChip {
+  display: inline-block;
+  margin-left: 6px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 9.5px;
+  background: var(--dsw-alias-bg-layer-1, #ffffff);
+  color: var(--dsw-alias-label-primary, #1f2328);
+  border: 1px solid var(--dsw-alias-label-primary, #1f2328);
+  border-radius: 4px;
+  padding: 0 5px;
+  line-height: 14px;
+  vertical-align: 1px;
+  box-shadow: 0 2px 0 var(--dsw-alias-label-primary, #1f2328);
+}
+
+/* 单条电波行（桌面 .rrow 同构：勾选 + 两行主体 + 行尾标记；点击选中）
+ * specs/dsh-plugin-style T1#6 一等弱选中：奶油黄底 + 重墨线（不用 ▶ 与纯黄——
+ * 行内 label-secondary 辅助文字对纯黄仅 4.2:1 不达标）；恒定 1.5px 边框透明占位防抖动 */
+.messageRow {
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+  padding: 7px 8px;
+  border-radius: 8px;
+  cursor: pointer;
+  border: 1.5px solid transparent;
+  font-size: 12px;
+}
+.messageRow:hover {
+  background: var(--pcy-hover, #fff3c4);
+}
+.messageRow[data-selected="true"] {
+  background: var(--pcy-hover, #fff3c4);
+  border-color: var(--dsw-alias-label-primary, #1f2328);
+}
+.messageRow[data-dim="true"] {
+  opacity: 0.6;
+}
+.messageRow:focus-visible {
+  outline: 2px solid var(--dsw-alias-state-business-primary, #316dca);
+  outline-offset: -2px;
+}
+.rowCheck {
+  min-width: 32px;
+  min-height: 32px;
+  display: inline-flex;
+  align-items: flex-start;
+  flex: none;
+}
+.rowMain {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.rowLine1 {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-weight: 700;
+  min-width: 0;
+}
+.rowBadge {
+  flex: none;
+  font-size: 10.5px;
+  font-weight: 800;
+  color: var(--dsw-alias-label-secondary, #57606a);
+  border: 1px solid var(--dsw-alias-border-l3, #c7cdd4);
+  border-radius: 4px;
+  padding: 0 4px;
+  max-width: 130px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.rowSender {
+  flex: none;
+  max-width: 96px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.rowTime {
+  margin-left: auto;
+  flex: none;
+  font-size: 10.5px;
+  color: var(--dsw-alias-label-secondary, #57606a);
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+}
+.rowSnippet {
+  font-size: 12px;
+  color: var(--dsw-alias-label-secondary, #57606a);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.rowMarkOk {
+  flex: none;
+  margin-top: 2px;
+  font-size: 11px;
+  font-weight: 800;
+  color: var(--pcy-ok-ink, #1d6b3c);
+}
+.rowMarkNo {
+  flex: none;
+  margin-top: 2px;
+  font-size: 11px;
+  font-weight: 800;
+  color: var(--dsw-alias-label-secondary, #57606a);
+}
+.rowMarks {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex: none;
+  margin-top: 2px;
+}
+.vetoChip {
+  font-size: 10px;
+  font-weight: 800;
+  color: var(--pcy-warn-ink, #8a5e06);
+  border: 1px solid var(--pcy-warn-ink, #8a5e06);
+  border-radius: 4px;
+  padding: 0 4px;
+  white-space: nowrap;
+}
+/* 置信色点（桌面 .conf 同构：形色 + title 文字冗余） */
+.confDot {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  border: 1px solid rgba(26, 27, 37, 0.35);
+  flex: none;
+}
+.confDot[data-conf="high"] {
+  background: var(--pcy-ok, #2e9e5b);
+}
+.confDot[data-conf="medium"] {
+  background: var(--pcy-warn, #ffcb05);
+}
+.confDot[data-conf="low"] {
+  background: var(--dsw-alias-border-l3, #c7cdd4);
+}
+
+/* HealthStrip（原型 health：点 + 文字状态 + tabular 数字 + ⚡主色描边钮右置） */
+.healthStrip {
+  display: flex;
+  align-items: center;
+  gap: 8px 14px;
+  flex-wrap: wrap;
+  padding: 8px 12px;
+  border-radius: 10px;
+  border: 1px solid var(--dsw-alias-border-l1, #e3e7ec);
+  background: var(--dsw-alias-bg-layer-1, #ffffff);
+  font-size: 12px;
+}
+.healthItem {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--dsw-alias-label-secondary, #57606a);
+  font-variant-numeric: tabular-nums;
+}
+/* ⚡ 立即拉取 = 主行动黄按钮档（specs/dsh-plugin-style §5 主行动清单；就地换挡保留 margin-left:auto） */
+.pollNow {
+  box-sizing: border-box;
+  min-height: var(--pcy-control-h, 32px);
+  margin-left: auto;
+  padding: 2px 12px;
+  border-radius: 8px;
+  border: 1.5px solid var(--dsw-alias-label-primary, #1f2328);
+  background: var(--pcy-running, #ffcb05);
+  color: #1a1b25;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  box-shadow: 2px 2px 0 var(--dsw-alias-label-primary, #1f2328);
+  transition:
+    transform 80ms,
+    box-shadow 80ms;
+}
+.pollNow:hover:not(:disabled) {
+  background: var(--pcy-running, #ffcb05);
+}
+.pollNow:active:not(:disabled) {
+  transform: translate(1px, 1px);
+  box-shadow: 1px 1px 0 var(--dsw-alias-label-primary, #1f2328);
+}
+.pollNow:focus-visible {
+  outline: 2px solid var(--dsw-alias-state-business-primary, #316dca);
+  outline-offset: 1px;
+}
+.pollNow:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+@media (prefers-reduced-motion: reduce) {
+  .pollNow {
+    transition-duration: 0.01ms;
+  }
+}
+
+/* AuthBanner（警示软底为固定色——宿主 surface token 会盖掉回落警示色） */
+.authBanner {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 14px;
+  border-radius: 10px;
+  border: 1.5px solid var(--pcy-warn, #c98a06);
+  background: var(--pcy-warn-soft, #fff3cd);
+  color: var(--pcy-warn-ink, #8a5e06);
+  font-size: 13px;
+}
+
+/* SuggestionFeed（原型 group-h：小号加粗弱化色 + 计数 pill） */
+.feedGroup {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+/* 工具栏（桌面 im-toolbar parity：电波搜索 + ⏱/📡 视图切换） */
+.toolbar {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.searchInput {
+  flex: 1;
+  min-width: 160px;
+  box-sizing: border-box;
+  height: var(--pcy-control-h, 32px);
+  padding: 4px 10px;
+  border-radius: 8px;
+  border: 1px solid var(--dsw-alias-border-l2, #d0d7de);
+  background: var(--dsw-alias-bg-layer-1, #ffffff);
+  color: inherit;
+  font-size: 12.5px;
+}
+.searchInput:focus-visible {
+  outline: 2px solid var(--dsw-alias-state-business-primary, #316dca);
+  outline-offset: 1px;
+}
+/* ⏱按状态 / 📡按频道 互切（aria-pressed 态高亮当前模式；二等选中 = 奶油黄底，
+ * 文字走 alias 随主题翻转——固定墨字对暗档 hover 黄仅 1.5:1，specs/dsh-plugin-style §3.2） */
+.viewToggle {
+  display: inline-flex;
+  border: 1px solid var(--dsw-alias-border-l3, #c7cdd4);
+  border-radius: 8px;
+  overflow: hidden;
+  background: var(--dsw-alias-bg-layer-1, #ffffff);
+}
+.viewToggle button {
+  box-sizing: border-box;
+  min-height: var(--pcy-control-h, 32px);
+  padding: 4px 10px;
+  border: none;
+  background: transparent;
+  color: var(--dsw-alias-label-secondary, #57606a);
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.viewToggle button[aria-pressed="true"] {
+  background: var(--pcy-hover, #fff3c4);
+  color: var(--dsw-alias-label-primary, #1f2328);
+}
+.viewToggle button:focus-visible {
+  outline: 2px solid var(--dsw-alias-state-business-primary, #316dca);
+  outline-offset: -2px;
+}
+/* 折叠分组（桌面 ImListGroup parity）：组头 = 折叠钮（caret+标题+计数+状态字）+ 动作区 */
+.feedGroupSection + .feedGroupSection {
+  margin-top: 6px;
+}
+.groupHead {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 8px;
+}
+.groupToggle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1;
+  min-width: 0;
+  padding: 4px 6px;
+  border: none;
+  border-radius: 6px;
+  background: none;
+  cursor: pointer;
+  user-select: none;
+  text-align: left;
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.4px;
+  color: var(--dsw-alias-label-secondary, #57606a);
+}
+.groupToggle:hover {
+  background: var(--dsw-alias-interactive-bg-hover, #f0f2f5);
+}
+.groupToggle:focus-visible {
+  outline: 2px solid var(--dsw-alias-state-business-primary, #316dca);
+  outline-offset: -2px;
+}
+.groupCaret {
+  font-size: 10px;
+  width: 12px;
+  flex: none;
+}
+.groupTitleText {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.groupState {
+  margin-left: auto;
+  flex: none;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0;
+}
+/* 组头动作钮（一键清空/一键重判——叠在 ui.button 上收小字重边距） */
+.headAction {
+  flex: none;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 2px 8px;
+}
+.groupCount {
+  display: inline-block;
+  min-width: 18px;
+  text-align: center;
+  padding: 0 7px;
+  border-radius: 999px;
+  background: var(--dsw-alias-border-l1, #e3e7ec);
+  font-size: 10.5px;
+  font-weight: 700;
+  line-height: 18px;
+}
+/* 频道组头「{n} 待处理」热点态：组内有待处理信号时高亮（桌面 count-hot parity） */
+.groupCount[data-hot="true"] {
+  background: var(--pcy-conf-mid-soft, #fff3d6);
+  color: var(--pcy-warn-ink, #8a5e06);
+}
+/* 操作行 = 逃走原因浮层的定位锚（桌面 .im-actions position:relative 同构） */
+.actionBar {
+  position: relative;
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+/* AI 建议盒（SuggestionAiBox：标题/截止/分类/理由 + 新标签提议行） */
+.aiBox {
+  border: 1.5px solid var(--dsw-alias-border-l3, #c7cdd4);
+  border-radius: 8px;
+  padding: 8px 10px;
+  font-size: 12.5px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.aiBoxTags {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  font-size: 12px;
+}
+.tagProposal {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  border: 1px solid var(--dsw-alias-border-l2, #d0d7de);
+  border-radius: 999px;
+  padding: 1px 8px;
+  font-size: 11px;
+}
+.tagProposalAccept {
+  box-sizing: border-box;
+  min-height: var(--pcy-control-h, 32px);
+  min-width: 32px;
+  padding: 0 8px;
+  border-radius: 999px;
+  border: 1px solid var(--dsw-alias-border-l2, #d0d7de);
+  background: none;
+  cursor: pointer;
+  font-size: 11px;
+}
+.tagProposalAccept[aria-pressed="true"] {
+  background: var(--dsw-alias-bg-layer-1, #e8f2ea);
+  border-color: var(--pcy-conf-high, #2f7d3c);
+}
+/* 逃走原因浮层（桌面 EscapeReasonPop 同构）：脱离文档流向上弹、右对齐——操作行贴详情底部，
+ * 在流内展开会压缩 flex:1 的 LCD 屏把内容往上顶；向下弹则盖住发报条。极矮窗口限高内滚兜底 */
+.reasonMenu {
+  position: absolute;
+  bottom: calc(100% + 6px);
+  right: 0;
+  z-index: 60;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 6px;
+  min-width: 200px;
+  max-height: min(320px, 60vh);
+  overflow-y: auto;
+  border: 1.5px solid var(--dsw-alias-label-primary, #1f2328);
+  border-radius: 8px;
+  background: var(--dsw-alias-bg-layer-1, #ffffff);
+  box-shadow: 2px 2px 0 var(--dsw-alias-label-primary, #1f2328);
+}
+.reasonMenu button {
+  box-sizing: border-box;
+  min-height: var(--pcy-control-h, 32px);
+  border: none;
+  background: none;
+  text-align: left;
+  cursor: pointer;
+  border-radius: 6px;
+  font-size: 12px;
+  padding: 2px 10px;
+}
+.reasonMenu button:hover {
+  background: var(--dsw-alias-interactive-bg-hover, #f0f2f5);
+}
+
+/* BatchBar（左栏底部常驻，桌面 .batch-bar parity）：纸色托盘 + 重墨线 + 2px 硬阴影
+ * （specs/dsh-plugin-style T1#8「托盘」隐喻；文字走纸面配对墨色） */
+.batchBar {
+  position: sticky;
+  bottom: 0;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  padding: 8px 12px;
+  border-radius: 10px;
+  border: 1.5px solid var(--dsw-alias-label-primary, #1f2328);
+  background: var(--pcy-paper, #f5f0dc);
+  color: var(--pcy-paper-ink, #1a1b25);
+  font-size: 13px;
+  font-weight: 700;
+  box-shadow: 2px 2px 0 var(--dsw-alias-label-primary, #1f2328);
+}
+/* 全选待处理勾选行（label 整体为命中区，≥32px） */
+.batchCheck {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  min-height: 32px;
+  font-size: 12px;
+  cursor: pointer;
+  user-select: none;
+}
+
+/* CaptureBar（通栏垫底；原型 capture：顶部重墨分隔线——桌面 3px navy 的宿主降档）。
+ * kbdHint 行已收敛为输入框内 ⌨ 图标（悬浮气泡）——主区/空态经 flex 各自吸收腾出的高度 */
+.captureBar {
+  display: flex;
+  gap: 8px;
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 2px solid var(--dsw-alias-label-primary, #1f2328);
+}
+.captureWrap {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+  display: flex;
+}
+.captureInput {
+  flex: 1;
+  box-sizing: border-box;
+  height: var(--pcy-control-h, 32px);
+  padding: 4px 10px 4px 30px;
+  border-radius: 8px;
+  border: 1px solid var(--dsw-alias-border-l2, #d0d7de);
+  background: var(--dsw-alias-bg-layer-1, #ffffff);
+  color: inherit;
+  font-size: 13px;
+}
+.captureInput:focus-visible {
+  outline: 2px solid var(--dsw-alias-state-business-primary, #316dca);
+  outline-offset: 1px;
+}
+.judgingChip {
+  font-size: 12px;
+  color: var(--dsw-alias-label-secondary, #57606a);
+}
+/* 快捷键提示图标锚（绝对定位于输入框左内侧；气泡内容 = dsh.radio.kbdHint） */
+.kbdTipAnchor {
+  position: absolute;
+  left: 8px;
+  top: 50%;
+  transform: translateY(-50%);
+}
+.kbdTipGlyph {
+  font-size: 14px;
+  line-height: 1;
+  color: var(--dsw-alias-label-secondary, #57606a);
+  user-select: none;
+}

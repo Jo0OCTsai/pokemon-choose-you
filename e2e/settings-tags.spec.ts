@@ -17,7 +17,6 @@ const AGENTS = [
     workdir: "",
     timeoutSecs: 120,
     enabled: true,
-    remote: null,
   },
   {
     id: "ag-remote",
@@ -28,7 +27,7 @@ const AGENTS = [
     workdir: "",
     timeoutSecs: 120,
     enabled: true,
-    remote: { host: "me@server", port: 22, keyPath: "", tunnel: 10022 },
+    deployment: "gpu-1",
   },
   {
     id: "ag-off",
@@ -39,7 +38,6 @@ const AGENTS = [
     workdir: "",
     timeoutSecs: 120,
     enabled: false,
-    remote: null,
   },
 ];
 
@@ -136,7 +134,7 @@ test.describe("设置 · 标签与项目派发", () => {
     await expect(card.locator(".dispatch-block")).toHaveCount(2);
     const block = card.locator(".dispatch-block", { hasText: "pokemon-choose-you" });
     await expect(block.locator(".db-state")).toHaveClass(/on/);
-    await expect(block.locator(".ds-btn")).toContainText("Claude Code 2 · SSH");
+    await expect(block.locator(".ds-btn")).toContainText("Claude Code 2 · gpu-1");
     await expect(block.locator("input[placeholder='~/projects/my-repo']")).toHaveValue("~/projects/pokemon-choose-you");
     await expect(block.locator("input[placeholder='技术栈、注意事项…']")).toHaveValue("Tauri 2 + Vue 3");
     await expect(card.locator(".dispatch-block", { hasText: "lark-mcp" }).locator(".db-state")).toContainText("未配置");

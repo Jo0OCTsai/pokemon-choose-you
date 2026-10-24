@@ -55,9 +55,21 @@ vi.mock("../api", () => ({
     testAiConfig: vi.fn(),
     openAgentHistory: vi.fn(),
     openRecordedSession: vi.fn(async () => "已在 Terminal 中启动"),
-    setupRemotePk: vi.fn(),
+    setupDeploymentPk: vi.fn(),
     tunnelStatus: vi.fn(async () => ({ state: "off", detail: "" })),
     syncTunnels: vi.fn(async () => {}),
+    deploymentList: vi.fn(async () => []),
+    deploymentUpsert: vi.fn(),
+    deploymentDelete: vi.fn(async () => {}),
+    sshAliasOptions: vi.fn(async () => ["gpu-1"]),
+    danglingDeploymentRefs: vi.fn(async () => []),
+    migrateAgentRemote: vi.fn(async () => ({
+      created: [],
+      rebound: 0,
+      skipped: 0,
+      configBackup: null,
+      configEntries: 0,
+    })),
     agentSkillStatus: vi.fn(),
     agentSkillInstall: vi.fn(),
     resolveTaskDispatch: vi.fn(),
@@ -856,8 +868,8 @@ describe("App 图鉴机主面板", () => {
     expect(drawer.text()).toContain("备注内容");
     expect(drawer.text()).toContain("跟进记录");
     expect(drawer.text()).toContain("操作历史");
-    // 从抽屉进入编辑弹窗（抽屉保持在下层）
-    await drawer.get(".btn-row .btn").trigger("click");
+    // 从抽屉进入编辑弹窗（抽屉保持在下层；编辑钮在总览卡右上角）
+    await drawer.get(".d-edit").trigger("click");
     expect(w.findComponent({ name: "TaskEditModal" }).exists()).toBe(true);
     expect(w.find(".drawer").exists()).toBe(true);
   });
@@ -908,13 +920,15 @@ describe("App 图鉴机主面板", () => {
     }
   });
 
-  it("设置页飞书：无 App ID/Secret 输入，常驻 lark-cli 指引", async () => {
+  it("设置页飞书：无 App ID/Secret 输入，lark-cli 指引挂卡标题 data-tip 气泡", async () => {
     const w = await mountApp();
     await w.findAll(".menu-btn")[6].trigger("click"); // 设置
     await w.findAll(".stab")[5].trigger("click"); // 飞书
     expect(w.text()).not.toContain("App ID");
     expect(w.text()).not.toContain("App Secret");
-    expect(w.text()).toContain("npm install -g @larksuite/cli");
+    // 说明文案迁为悬浮气泡（DESIGN_SYSTEM.md §4.4）：指引在卡标题的 data-tip 里
+    const feishuTitle = w.findAll("h3[data-tip]").find((h) => h.text().includes("飞书"));
+    expect(feishuTitle?.attributes("data-tip")).toContain("npm install -g @larksuite/cli");
     expect(w.text()).toContain("授权登录");
   });
 
@@ -1041,7 +1055,7 @@ describe("App 图鉴机主面板", () => {
       .trigger("click");
   });
 
-  it("AI agent 支持配置 SSH 远程执行并序列化进 ai_agents", async () => {
+  it("AI agent 支持绑定部署（下拉）并序列化进 ai_agents", async () => {
     const w = await mountApp();
     await w.findAll(".menu-btn")[6].trigger("click"); // 设置
     await w.findAll(".stab")[4].trigger("click"); // Agent
@@ -1051,14 +1065,11 @@ describe("App 图鉴机主面板", () => {
       .find((b) => b.text().includes("添加 Agent"))!
       .trigger("click");
     const block = w.findAll(".agent-block")[0];
-    // 开启 SSH（布尔统一走 DexToggle）：出现 host/port/key 输入
-    const sshLabel = block.findAll(".set-row").find((l) => l.text().includes("SSH 远程执行"))!;
-    await sshLabel.find(".dex-toggle").trigger("click");
-    expect(block.find(".ssh-row").exists()).toBe(true);
-    const [host, , key] = block.findAll(".ssh-row input");
-    await host.setValue("dev@buildbox");
-    await key.setValue("~/.ssh/id_ed25519");
-    // 保存：ai_agents JSON 携带 remote
+    // 绑定部署：下拉选 ~/.ssh/config 候选 gpu-1（别名进 ai_agents.deployment）
+    const bindRow = block.findAll(".set-row").find((l) => l.text().includes("绑定部署"))!;
+    expect(bindRow.exists()).toBe(true);
+    const select = bindRow.findComponent({ name: "DexSelect" });
+    await select.vm.$emit("update:model-value", "gpu-1");
     await block
       .findAll(".btn")
       .find((b) => b.text() === "保存")!
@@ -1066,14 +1077,8 @@ describe("App 图鉴机主面板", () => {
     await new Promise((r) => setTimeout(r));
     const saved = vi.mocked(api.setSetting).mock.calls.find((c) => c[0] === "ai_agents")?.[1] ?? "";
     const parsed = JSON.parse(saved);
-    expect(parsed[0].remote).toMatchObject({
-      host: "dev@buildbox",
-      port: 22,
-      keyPath: "~/.ssh/id_ed25519",
-    });
-    // 关闭 SSH：remote 清空
-    await sshLabel.find(".dex-toggle").trigger("click");
-    expect(block.find(".ssh-row").exists()).toBe(false);
+    expect(parsed[0].deployment).toBe("gpu-1");
+    expect(parsed[0].remote).toBeUndefined();
   });
 
   it("设置页分类与标签分区：进入即列出内置分类，停用开关调用后端", async () => {

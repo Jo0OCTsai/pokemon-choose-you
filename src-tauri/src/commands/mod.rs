@@ -2,10 +2,12 @@
 /// lib.rs 的 generate_handler 通过 `commands::` 前缀引用，此处统一 re-export。
 pub mod backup;
 pub mod categories;
+pub mod deployments;
 pub mod diagnostics;
 pub mod dispatch;
 pub mod export;
 pub mod integrations;
+pub mod migrate;
 pub mod pet;
 pub mod prompts;
 pub mod radio;
@@ -17,14 +19,17 @@ pub mod tag_health;
 pub mod tags;
 pub mod tasks;
 pub mod tunnel;
+pub mod tunnel_lock;
 pub mod windows;
 
 pub use backup::*;
 pub use categories::*;
+pub use deployments::*;
 pub use diagnostics::*;
 pub use dispatch::*;
 pub use export::*;
 pub use integrations::*;
+pub use migrate::*;
 pub use pet::*;
 pub use prompts::*;
 pub use radio::*;
@@ -36,4 +41,5 @@ pub use tag_health::*;
 pub use tags::*;
 pub use tasks::*;
 pub use tunnel::*;
+pub use tunnel_lock::*;
 pub use windows::*;

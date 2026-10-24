@@ -37,6 +37,11 @@
 - `src-tauri/` —— Rust 后端：SQLite 迁移只追加不修改（`db.rs`）；`bin/pk/` 是 agent 消费面，命令签名/
   返回结构变更必须同步 `src-tauri/skills/` 技能文档（`SKILL_VERSION` 随内容演进）；AI 判定只走 tools
   模式（`pk context` + `pk suggest batch`，text 解析模式已下线）
+- `contracts/` —— TS/Rust 双实现契约单一源：迁移 SQL 只追加（001 已冻结）、fixtures 由 Rust oracle
+  生成不得手改、错误码 15 枚举单源在 `PROTOCOL.md` §2——详见 `contracts/AGENTS.md`
+- `dsh-plugin/` —— dsh 插件形态（host Node + client React + helper Electron 子包）：业务核心零 dsh
+  依赖（平台面只在适配层）、storage 唯一握连接（guarded 迁移封顶 minSchema）、写路径
+  BEGIN IMMEDIATE 短事务 + CAS——详见 `dsh-plugin/AGENTS.md`
 
 ## 命令速查
 

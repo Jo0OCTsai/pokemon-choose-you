@@ -1,0 +1,608 @@
+/**
+ * 共享 UI 原语样式（CSS Modules · scoped）：宿主主题 token `--dsw-alias-*`（官方
+ * practices 口径：token 是与宿主唯一共享的样式依赖，2026-10-13 对齐），宿主未注入时
+ * 回退中性色；世界观 scoped 色 `--pcy-*`
+ * 只挂小图形容器。命中区 ≥32px（a11y 断言④）。零闪烁（无 animation 声明，NFR-6）。
+ */
+
+/* 表单控件统一高度档（border-box；输入/下拉/按钮等单行控件全走此档——同排等高，
+ * dsw 宿主无全局 box-sizing 复位，各控件显式声明）。消费方带回落值兜底。 */
+:root {
+  --pcy-control-h: 32px;
+}
+
+/* 世界观 scoped 色·暗色配对值（亮色默认 = 各消费点 fallback，值同源 DESIGN_SYSTEM；
+ * 暗色为派生新色——桌面 app 无暗色主题可同源，按保色相 + 对比 ≥4.5 派生。
+ * 挂 prefers-color-scheme 最佳努力：宿主主题与 OS 背离时只损失色温和谐不损可读，
+ * paper/lcd 面文字走同泡配对值（paper-ink / lcd-*）各自自洽。specs/dsh-plugin-style §4） */
+@media (prefers-color-scheme: dark) {
+  :root {
+    --pcy-paper: #2a2b35;
+    --pcy-paper-ink: #dfe3ea;
+    --pcy-paper-dim: #23242c;
+    /* 逃逸卡墨（对 paper-dim ≥4.5:1 的配对值；亮色 fallback 在消费点） */
+    --pcy-escape-ink: #a9adb6;
+    --pcy-hover: #3f3a1c;
+    --pcy-lcd: #2b3327;
+    --pcy-lcd-text: #cddcb4;
+    --pcy-lcd-dim: #93a887;
+    --pcy-lcd-dark: #1e241c;
+    --pcy-lcd-log-error: #e58585;
+    --pcy-lcd-log-warn: #d4b05e;
+  }
+}
+
+/* ---- 部署状态语义别名（specs/dsh-plugin-full-parity UIUX §6.1：语义命名新增、值零新增——
+ * 映射表与 --pcy-* 表同文件维护，防第二套状态色漂移。徽章文字恒墨色，仅状态点取色） ---- */
+:root {
+  --pcy-deploy-ready: var(--pcy-ok, #2f7d3c);
+  --pcy-deploy-ready-direct: var(--pcy-warn, #b58900);
+  --pcy-deploy-notready: var(--pcy-warn, #b58900);
+  --pcy-deploy-disconnected: var(--pcy-fail, #b3590f);
+}
+
+/* ---- LCD 输出屏共享容器（T2 ② 类目单源——向导输出屏与诊断日志屏两落位） ---- */
+.lcd {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  border: 1.5px solid var(--dsw-alias-label-primary, #1f2328);
+  border-radius: 10px;
+  background: var(--pcy-lcd, #c4cfa1);
+  color: var(--pcy-lcd-text, #3a4a32);
+  box-shadow: inset 2px 2px 0 var(--pcy-lcd-dark, #9caa86);
+  padding: 10px 12px;
+}
+.lcd::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: repeating-linear-gradient(0deg, rgba(0, 0, 0, 0.05) 0 2px, transparent 2px 4px);
+}
+
+/* ---- Modal / 确认弹层 ---- */
+.overlay {
+  position: fixed;
+  inset: 0;
+  background: var(--dsw-alias-bg-mask-drop, rgba(0, 0, 0, 0.32));
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 60;
+}
+.dialog {
+  background: var(--dsw-alias-bg-layer-1, #ffffff);
+  color: var(--dsw-alias-label-primary, #1f2328);
+  border: 1px solid var(--dsw-alias-border-l2, #d0d7de);
+  border-radius: 10px;
+  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.18);
+  min-width: 320px;
+  max-width: 520px;
+  padding: 16px;
+}
+.dialogTitle {
+  margin: 0 0 8px;
+  font-size: 15px;
+  font-weight: 700;
+}
+.dialogBody {
+  margin: 0 0 14px;
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--dsw-alias-label-secondary, #57606a);
+}
+/* 无底部动作区（actions 缺省、调用方自排）时去掉与动作区的预留间距 */
+.dialogBody[data-flush="true"] {
+  margin-bottom: 0;
+}
+.dialogActions {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+}
+
+/* ---- 抽屉（任务详情）——样式在组件消费侧 tasks.module.css（drawer/drawerOverlay），此处不重复 ---- */
+
+/* ---- 按钮 / 控件（命中区 ≥32px；border-box + 统一高度档——同排输入/下拉/按钮等高） ---- */
+.button {
+  box-sizing: border-box;
+  min-height: var(--pcy-control-h, 32px);
+  padding: 4px 12px;
+  border-radius: 8px;
+  border: 1px solid var(--dsw-alias-border-l2, #d0d7de);
+  background: var(--dsw-alias-bg-layer-1, #ffffff);
+  color: var(--dsw-alias-label-primary, #1f2328);
+  font-size: 13px;
+  cursor: pointer;
+}
+.button:hover {
+  background: var(--dsw-alias-interactive-bg-hover, #f0f2f5);
+}
+.button:active {
+  background: var(--dsw-alias-interactive-bg-active, #e4e7eb);
+}
+.button:focus-visible {
+  outline: 2px solid var(--dsw-alias-state-business-primary, #316dca);
+  outline-offset: 1px;
+}
+.button:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+.buttonPrimary {
+  composes: button;
+  background: var(--dsw-alias-state-business-primary, #316dca);
+  border-color: var(--dsw-alias-state-business-primary, #316dca);
+  color: #ffffff;
+}
+.buttonDanger {
+  composes: button;
+  color: var(--pcy-danger, #b3590f);
+}
+/* 黄按钮档（specs/dsh-plugin-style §3.2 主行动）：黄底固定墨字 + 重墨线 + 2px 硬阴影 +
+ * 按压位移 80ms（唯一新增 transition 档，reduced-motion 归零）。仅主行动位点使用。 */
+.buttonDex {
+  composes: button;
+  background: var(--pcy-running, #ffcb05);
+  border: 1.5px solid var(--dsw-alias-label-primary, #1f2328);
+  color: #1a1b25;
+  font-weight: 700;
+  box-shadow: 2px 2px 0 var(--dsw-alias-label-primary, #1f2328);
+  transition:
+    transform 80ms,
+    box-shadow 80ms;
+}
+/* 盖过 .button:hover 的灰底（:not 提高特异性——同特异性按序覆盖会漏 hover 路径） */
+.buttonDex:hover:not(:disabled) {
+  background: var(--pcy-running, #ffcb05);
+}
+.buttonDex:active:not(:disabled) {
+  transform: translate(1px, 1px);
+  box-shadow: 1px 1px 0 var(--dsw-alias-label-primary, #1f2328);
+}
+@media (prefers-reduced-motion: reduce) {
+  .buttonDex {
+    transition-duration: 0.01ms;
+  }
+}
+
+.toggle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  min-height: 32px;
+  width: 100%;
+  cursor: pointer;
+  background: none;
+  border: none;
+  padding: 0;
+  color: inherit;
+  font-size: 13px;
+}
+.toggleLabel {
+  flex: 1;
+  text-align: left;
+  font-size: 13px;
+  min-width: 0;
+}
+/* 内联紧凑形态（实体行内）：不占整行宽，紧随相邻控件 */
+.toggle[data-compact="true"] {
+  width: auto;
+  flex: none;
+  gap: 6px;
+}
+.toggle[data-compact="true"] .toggleLabel {
+  flex: none;
+  font-size: 12px;
+  color: var(--dsw-alias-label-secondary, #57606a);
+}
+.toggleTrack {
+  width: 34px;
+  height: 18px;
+  border-radius: 9px;
+  background: var(--dsw-alias-border-l3, #c7cdd4);
+  position: relative;
+  transition: background 0.12s ease;
+  flex: none;
+}
+.toggleThumb {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: #ffffff;
+  transition: transform 0.12s ease;
+}
+.toggle[data-on="true"] .toggleTrack {
+  background: var(--dsw-alias-state-business-primary, #316dca);
+}
+.toggle[data-on="true"] .toggleThumb {
+  transform: translateX(16px);
+}
+.toggle:focus-visible {
+  outline: 2px solid var(--dsw-alias-state-business-primary, #316dca);
+  outline-offset: 2px;
+  border-radius: 6px;
+}
+.toggle:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+/* 下拉（appearance:none 自绘箭头——原生箭头贴右缘且不随 padding 收进，
+ * 与左内边距不对称；背景箭头右缩进 10px 与文字左缩进 8px 视觉对齐，中性灰明暗两用） */
+.select {
+  appearance: none;
+  box-sizing: border-box;
+  height: var(--pcy-control-h, 32px);
+  padding: 2px 26px 2px 8px;
+  border-radius: 8px;
+  border: 1px solid var(--dsw-alias-border-l2, #d0d7de);
+  background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath d='M1 1l4 4 4-4' fill='none' stroke='%238b949e' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E")
+    no-repeat right 10px center;
+  background-color: var(--dsw-alias-bg-layer-1, #ffffff);
+  color: var(--dsw-alias-label-primary, #1f2328);
+  font-size: 13px;
+}
+.select:focus-visible {
+  outline: 2px solid var(--dsw-alias-state-business-primary, #316dca);
+  outline-offset: 1px;
+}
+.select:disabled {
+  opacity: 0.45;
+}
+/* 带 label 的设置行下拉（单独靠右档）：定宽 250（背包设置页统一口径） */
+.labelSelect {
+  width: 250px;
+}
+
+.input {
+  box-sizing: border-box;
+  height: var(--pcy-control-h, 32px);
+  padding: 4px 8px;
+  border-radius: 8px;
+  border: 1px solid var(--dsw-alias-border-l2, #d0d7de);
+  background: var(--dsw-alias-bg-layer-1, #ffffff);
+  color: var(--dsw-alias-label-primary, #1f2328);
+  font-size: 13px;
+}
+.input:focus-visible {
+  outline: 2px solid var(--dsw-alias-state-business-primary, #316dca);
+  outline-offset: 1px;
+}
+.input:disabled {
+  opacity: 0.45;
+}
+
+/* ---- 日期时间选择器（桌面 DexDateTime 同构）：零键入弹层（月历 + 时/分下拉），分钟
+ * 粒度半小时。选中日 = 一等选中（黄底 --pcy-running + 固定墨字，黄固定不翻转双主题安全）；
+ * 悬停/今日 = 奶油黄 --pcy-hover 面 + alias 文字（二等选中口径）；其余全 alias 随主题 ---- */
+.dtRoot {
+  position: relative;
+}
+.dtBtn {
+  composes: button;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  text-align: left;
+}
+.dtLabel {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.dtBtn[data-none="true"] .dtLabel {
+  color: var(--dsw-alias-label-secondary, #57606a);
+}
+.dtArrow {
+  font-size: 10px;
+}
+.dtPop {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  z-index: 5;
+  width: 264px;
+  padding: 10px;
+  background: var(--dsw-alias-bg-layer-1, #ffffff);
+  border: 1px solid var(--dsw-alias-border-l2, #d0d7de);
+  border-radius: 10px;
+  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.18);
+}
+.dtPop[data-above="true"] {
+  top: auto;
+  bottom: calc(100% + 4px);
+}
+.dtNav {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 6px;
+}
+.dtTitle {
+  font-size: 13px;
+  font-weight: 600;
+}
+.dtNavBtn {
+  composes: button;
+  width: 26px;
+  height: 26px;
+  min-height: 26px;
+  padding: 0;
+  font-size: 10px;
+}
+.dtGrid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 2px;
+}
+.dtWeek {
+  padding: 2px 0;
+  font-size: 10px;
+  font-weight: 600;
+  text-align: center;
+  color: var(--dsw-alias-label-secondary, #57606a);
+}
+.dtDay {
+  height: 26px;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--dsw-alias-label-primary, #1f2328);
+  font-size: 12px;
+  cursor: pointer;
+}
+.dtDay:hover {
+  background: var(--pcy-hover, #fff3c4);
+}
+.dtDay:focus-visible {
+  outline: 2px solid var(--dsw-alias-state-business-primary, #316dca);
+  outline-offset: 1px;
+}
+.dtDay[data-today="true"] {
+  border-color: var(--dsw-alias-border-l3, #c7cdd4);
+}
+.dtDay[data-selected="true"] {
+  background: var(--pcy-running, #ffcb05);
+  border: 1.5px solid var(--dsw-alias-label-primary, #1f2328);
+  color: #1a1b25;
+  font-weight: 700;
+}
+.dtBlank {
+  pointer-events: none;
+}
+.dtTime {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 10px;
+}
+/* 内嵌时/分下拉收窄（弹层 264px 容纳：时 + 分 + 清空；12h 再加上午/下午位） */
+.dtSelect {
+  composes: select;
+  width: 64px;
+  padding: 2px 22px 2px 8px;
+}
+.dtSelectPeriod {
+  composes: select;
+  width: 84px;
+}
+.dtColon {
+  font-weight: 700;
+}
+.dtClear {
+  composes: button;
+  margin-left: auto;
+  min-height: 28px;
+  padding: 2px 8px;
+  font-size: 12px;
+  color: var(--pcy-danger, #b3590f);
+}
+
+/* ---- 状态点（非颜色冗余：旁边必有文字状态） ---- */
+.statusRow {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+}
+.statusDot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex: none;
+  border: 1px solid rgba(0, 0, 0, 0.25);
+}
+.statusDot[data-level="ok"] {
+  background: var(--pcy-ok, #2f7d3c);
+}
+.statusDot[data-level="warn"] {
+  background: var(--pcy-warn, #b58900);
+}
+.statusDot[data-level="fail"] {
+  background: var(--pcy-fail, #b3590f);
+}
+
+/* ---- 撤销 toast（右下角，role=status，不抢焦点） ---- */
+.undoToast {
+  position: fixed;
+  right: 16px;
+  bottom: 16px;
+  z-index: 70;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 14px;
+  border-radius: 10px;
+  background: var(--dsw-alias-bg-layer-1, #2d333b);
+  color: #f4f6f8;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.25);
+  font-size: 13px;
+}
+.undoToastButton {
+  composes: button;
+  min-height: 32px;
+}
+
+/* ---- 卡片 / 行 ---- */
+.card {
+  background: var(--dsw-alias-bg-layer-1, #ffffff);
+  border: 1px solid var(--dsw-alias-border-l1, #e3e7ec);
+  border-radius: 10px;
+  padding: 12px 14px;
+  /* 卡内行节奏统一 10px（对齐主应用 .set-row margin-bottom；标题/提示行不再自带 margin 叠加） */
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.muted {
+  color: var(--dsw-alias-label-secondary, #57606a);
+  font-size: 12px;
+}
+.hint {
+  color: var(--dsw-alias-label-secondary, #57606a);
+  font-size: 12px;
+}
+
+/* ---- 说明文字悬浮气泡（data-tip）——与主应用 dex.css 同一模式：静态说明一律迁出
+   常驻版面，悬浮对应 label / 卡标题时以气泡呈现。裸属性选择器即全局（构建器
+   build.mjs 只 scoping .类名、不处理 :global() 指令——产物按字面透传，浏览器直接生效）---- */
+[data-tip] {
+  position: relative;
+  cursor: help;
+}
+[data-tip]::after {
+  content: attr(data-tip);
+  position: absolute;
+  left: 0;
+  bottom: calc(100% + 7px);
+  z-index: 95;
+  box-sizing: border-box;
+  width: max-content;
+  max-width: 320px;
+  padding: 5px 10px;
+  border: 1px solid var(--dsw-alias-label-primary, #1f2328);
+  border-radius: 6px;
+  background: var(--dsw-alias-label-primary, #1f2328);
+  color: var(--dsw-alias-bg-layer-1, #ffffff);
+  font-size: 12px;
+  font-weight: 400;
+  line-height: 1.6;
+  text-align: left;
+  white-space: pre-line;
+  box-shadow: 2px 2px 0 rgba(31, 35, 40, 0.2);
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  transition:
+    opacity 0.1s ease 0s,
+    visibility 0s linear 0s;
+}
+[data-tip]::before {
+  content: "";
+  position: absolute;
+  left: 14px;
+  bottom: calc(100% + 4px);
+  z-index: 94;
+  width: 9px;
+  height: 9px;
+  background: var(--dsw-alias-label-primary, #1f2328);
+  transform: rotate(45deg);
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  transition:
+    opacity 0.1s ease 0s,
+    visibility 0s linear 0s;
+}
+/* 展示延迟 ≈ 原生 tooltip（0.45s），移开即隐：过渡参数取自目标态（hover 态带延迟） */
+[data-tip]:hover::after,
+[data-tip]:hover::before {
+  opacity: 1;
+  visibility: visible;
+  transition:
+    opacity 0.12s ease 0.45s,
+    visibility 0s linear 0.45s;
+}
+@media (prefers-reduced-motion: reduce) {
+  [data-tip]::after,
+  [data-tip]::before {
+    transition-duration: 0.01ms;
+  }
+}
+/* 设置行标签右侧内联附加内容（如时间制式预览） */
+.labelExtra {
+  margin-left: 8px;
+}
+.errorText {
+  color: var(--pcy-danger, #b3590f);
+  font-size: 12px;
+}
+.row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 32px;
+}
+.rowLabel {
+  flex: 1;
+  font-size: 13px;
+}
+/* wide 行（对齐主应用 .set-row.wide）：标签列定宽，控件占满标签右侧整行 */
+.row[data-wide="true"] {
+  gap: 0;
+}
+.row[data-wide="true"] .rowLabel {
+  flex: 0 0 128px;
+  box-sizing: border-box;
+  padding-right: 12px;
+}
+.row[data-wide="true"] > :not(.rowLabel) {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+/* labelWidth 定宽行（非 wide，对齐主应用 SettingRow label-width）：标签列 border-box
+ * 定宽（含内边距——桌面首行名称 120 + 间隙 8 = 标签列 128 同轴），控件贴行右缘 */
+.row[data-right="true"] > :not(.rowLabel) {
+  margin-left: auto;
+}
+.row[data-right="true"] .input {
+  width: 200px;
+}
+.row[data-right="true"] .select {
+  width: 250px;
+}
+.sectionTitle {
+  margin: 0 0 4px;
+  font-size: 14px;
+  font-weight: 700;
+}
+
+/* ---- 骨架 ---- */
+.skeletonRow {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  padding: 8px 4px;
+}
+.skeletonSprite {
+  width: 28px;
+  height: 28px;
+  border-radius: 6px;
+  background: var(--dsw-alias-border-l1, #e3e7ec);
+  flex: none;
+}
+.skeletonLine {
+  height: 10px;
+  border-radius: 4px;
+  background: var(--dsw-alias-border-l1, #e3e7ec);
+}

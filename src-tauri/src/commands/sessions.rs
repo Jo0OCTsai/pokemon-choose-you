@@ -1,5 +1,5 @@
 //! Agent 会话回链与成本记录：分类调用自动落库，agent 代办经 pk session log 关联任务。
-use crate::ai::{AgentConfig, AgentRemote};
+use crate::ai::{AgentConfig, RemoteTarget};
 use crate::db::{now, Db};
 use crate::error::{AppError, AppResult};
 use crate::models::AgentSession;
@@ -34,8 +34,13 @@ pub struct NewAgentSession {
 impl NewAgentSession {
     /// 以执行时的 agent 配置为基底：agent_id + 来源 + 工作目录/远端快照就位，
     /// 其余字段（task/session/时长/成本…）由调用方按结果覆盖
-    pub fn for_run(kind: &str, agent: &AgentConfig, workdir_snapshot: &str) -> Self {
-        let (remote_host, remote_port, remote_key) = remote_snapshot(agent);
+    pub fn for_run(
+        kind: &str,
+        agent: &AgentConfig,
+        remote: Option<&RemoteTarget>,
+        workdir_snapshot: &str,
+    ) -> Self {
+        let (remote_host, remote_port, remote_key) = remote_snapshot(remote);
         Self {
             task_id: None,
             agent_id: agent.id.clone(),
@@ -57,33 +62,22 @@ impl NewAgentSession {
     }
 }
 
-/// agent 端点快照（执行时机器）：本地 = 空串三元组；远程 = host/port/key（key 空串 = ssh 默认）
-pub fn remote_snapshot(agent: &AgentConfig) -> (String, i64, String) {
-    match agent.remote.as_ref().filter(|r| !r.host.trim().is_empty()) {
+/// agent 端点快照（执行时机器）：本地 = 空串三元组；远程 = 部署别名（alias 模式，
+/// 端口/密钥由 ~/.ssh/config 承载——列保留仅兼容既有表结构与历史行）
+pub fn remote_snapshot(remote: Option<&RemoteTarget>) -> (String, i64, String) {
+    match remote {
         None => (String::new(), 0, String::new()),
-        Some(r) => (
-            r.host.trim().to_string(),
-            r.port as i64,
-            r.key_path
-                .as_deref()
-                .map(str::trim)
-                .unwrap_or_default()
-                .to_string(),
-        ),
+        Some(t) => (t.alias.clone(), 0, String::new()),
     }
 }
 
-/// 快照三元组还原成 AgentRemote（host 空 = None = 本地）
-pub(crate) fn remote_from_snapshot(host: &str, port: i64, key: &str) -> Option<AgentRemote> {
-    let host = host.trim();
-    if host.is_empty() {
-        return None;
-    }
-    Some(AgentRemote {
-        host: host.to_string(),
-        port: port.clamp(1, 65535) as u16,
-        key_path: (!key.trim().is_empty()).then(|| key.trim().to_string()),
-        ..AgentRemote::default()
+/// 快照 host 列还原回放用远程目标（空 = None = 本地）。隧道不带：纯回放只读
+/// 转录，不依赖 pk shim 回连（与旧口径一致）
+pub(crate) fn remote_target_from_snapshot(host: &str) -> Option<RemoteTarget> {
+    let alias = host.trim();
+    (!alias.is_empty()).then(|| RemoteTarget {
+        alias: alias.to_string(),
+        tunnel_port: None,
     })
 }
 
@@ -498,15 +492,13 @@ mod tests {
             id: "ag-1".into(),
             command: "claude".into(),
             workdir: "/remote/ws".into(),
-            remote: Some(crate::ai::AgentRemote {
-                host: "vscode@localhost".into(),
-                port: 1022,
-                key_path: Some("/keys/pk".into()),
-                ..Default::default()
-            }),
             ..Default::default()
         };
-        let mut rec = NewAgentSession::for_run("classify", &agent, "/remote/ws");
+        let remote = crate::ai::RemoteTarget {
+            alias: "vscode@localhost".into(),
+            tunnel_port: None,
+        };
+        let mut rec = NewAgentSession::for_run("classify", &agent, Some(&remote), "/remote/ws");
         rec.task_id = None;
         rec.session_id = Some("0b0ae984".into());
         rec.status = "error".into();
@@ -519,8 +511,9 @@ mod tests {
         assert_eq!(s.kind, "classify");
         assert_eq!(s.workdir, "/remote/ws");
         assert_eq!(s.remote_host, "vscode@localhost");
-        assert_eq!(s.remote_port, 1022);
-        assert_eq!(s.remote_key, "/keys/pk");
+        // alias 模式快照：端口/密钥由 ~/.ssh/config 承载，列恒 0/空（兼容既有表）
+        assert_eq!(s.remote_port, 0);
+        assert_eq!(s.remote_key, "");
         assert_eq!(s.status, "error");
         assert_eq!(s.tmux_session, "");
 
@@ -530,7 +523,7 @@ mod tests {
             command: "claude".into(),
             ..Default::default()
         };
-        let rec = NewAgentSession::for_run("capture", &local, "/Users/x/ws");
+        let rec = NewAgentSession::for_run("capture", &local, None, "/Users/x/ws");
         assert_eq!(
             (
                 rec.remote_host.as_str(),
@@ -575,7 +568,7 @@ mod tests {
         .into_iter()
         .enumerate()
         {
-            let mut rec = NewAgentSession::for_run(kind, &local, "/ws");
+            let mut rec = NewAgentSession::for_run(kind, &local, None, "/ws");
             rec.command = Some(format!("run-{i}"));
             log_session_conn(&conn, &rec).unwrap();
         } // id 1..=7

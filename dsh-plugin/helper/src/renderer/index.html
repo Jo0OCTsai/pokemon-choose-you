@@ -1,0 +1,108 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>桌宠 · 就决定是你了</title>
+    <!-- 渲染层样式单（esbuild 产出 renderer.css；HTML 不会被构建器改写，link 必须手写——
+         缺失即整页裸 HTML：stage 不居中、色环/对话框/胶囊全无样式） -->
+    <link rel="stylesheet" href="./renderer.css" />
+    <!--
+      PokeAPI sprites 版权声明（NFR-9）：本 helper 分发的精灵素材来自 PokeAPI/sprites
+      （https://github.com/PokeAPI/sprites），沿用主应用 public/pokemon/ 分发口径；
+      声明全文见 dsh-plugin/helper/README.md。
+    -->
+    <style>
+      /* 页面根与挂载容器不接鼠标：空白区点击穿透按「实体命中区」（.hit）检测翻转——
+         容器自身必须让开（与主应用 pet.html 同构） */
+      html,
+      body,
+      #app {
+        margin: 0;
+        padding: 0;
+        background: transparent;
+        overflow: hidden;
+        user-select: none;
+        pointer-events: none;
+        width: 100%;
+        height: 100%;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="app">
+      <!-- ============================== SpriteStage（UIUX §3.2） ============================== -->
+      <div id="stage" class="stage st-idle">
+        <svg id="ring" class="ring" viewBox="0 0 112 112" aria-hidden="true">
+          <circle class="ring-bg" cx="56" cy="56" r="52" />
+          <circle id="ring-fg" class="ring-fg" cx="56" cy="56" r="52" />
+        </svg>
+        <img id="sprite" class="pet-sprite hit" src="pokemon/pikachu.gif" draggable="false" alt="桌宠精灵" />
+        <button id="quick-fab" class="quick-fab hit px" title="☰" aria-label="快捷图鉴">☰</button>
+        <div id="zzz" class="zzz" aria-hidden="true"><i>z</i><i>z</i><i>z</i></div>
+        <!-- CaptureShow 道具（蹲→球抛物线→三摇→星星；≤1.5s 点击可跳过；streak 双球第二球） -->
+        <div id="capture-ball" class="capture-ball" aria-hidden="true"></div>
+        <div id="capture-ball-2" class="capture-ball ball-r" aria-hidden="true"></div>
+        <div id="capture-stars" class="capture-stars" aria-hidden="true">
+          <i></i><i></i><i></i><i></i><i></i><i></i>
+        </div>
+        <!-- 陪跑精灵（FR-B4：专注满 25 分钟一位客人来旁陪坐；点它挥手告别） -->
+        <div id="mate" class="pet-mate" aria-hidden="true">
+          <span id="mate-title" class="mate-title"></span>
+          <img id="mate-img" class="hit" src="pokemon/eevee.gif" draggable="false" alt="陪跑精灵" />
+        </div>
+      </div>
+
+      <!-- ============================== DialogBox（初代双线框 + 右下 ▼） ============================== -->
+      <div id="dialog" class="dialog">
+        <div class="dialog-inner hit">
+          <span id="dialog-text" class="dialog-text"></span>
+          <span id="dialog-next" class="dialog-next" aria-hidden="true">▼</span>
+        </div>
+      </div>
+
+      <!-- ============================== PomoPill（⏸/▶/✔/🍦） ============================== -->
+      <div id="pomo-pill" class="pomo-pill">
+        <span id="pomo-text" class="px pomo-text">🍅</span>
+        <button id="pill-pause" class="pomo-btn hit on" title="暂停">⏸</button>
+        <button id="pill-resume" class="pomo-btn hit" title="继续">▶</button>
+        <button id="pill-trial" class="pomo-btn hit" title="🍦 先试 5 分钟">🍦</button>
+        <button id="pill-done" class="pomo-btn hit" title="完成捕捉">✔</button>
+      </div>
+
+      <!-- ============================== QuickDexScreen（LCD 今日列表，590 宽展开） ============================== -->
+      <div id="quick-dex" class="quick-dex">
+        <div class="hinge" aria-hidden="true"></div>
+        <div class="lcd screen">
+          <h4 class="px">ADVENTURE</h4>
+          <div id="quick-list" class="quick-list"></div>
+          <div id="quick-empty" class="q-empty on"></div>
+        </div>
+        <div class="ops">
+          <button id="quick-close" class="pomo-btn hit" title="收起">✕</button>
+        </div>
+      </div>
+
+      <!-- ============================== ChatBox（FR-A8：原位 ≤4 行 AI 聊聊） ============================== -->
+      <div id="chat-box" class="chat-box">
+        <div class="chat-inner hit">
+          <div id="chat-log" class="chat-log"></div>
+          <div id="chat-chips" class="chat-chips">
+            <button type="button"></button>
+            <button type="button"></button>
+            <button type="button"></button>
+          </div>
+          <div class="chat-row">
+            <input id="chat-input" class="chat-input" type="text" maxlength="200" />
+            <button id="chat-send" type="button" class="chat-send"></button>
+          </div>
+        </div>
+        <button id="chat-close" type="button" class="chat-close hit" title="收起对话">✕</button>
+      </div>
+
+      <!-- ============================== ContextMenu（右键 ≤6 项） ============================== -->
+      <div id="ctx-menu" class="ctx-menu"></div>
+    </div>
+    <script type="module" src="./renderer.js"></script>
+  </body>
+</html>

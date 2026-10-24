@@ -1,0 +1,926 @@
+/* 背包（设置分段，U21：分区选单 + 分区整页 + 保存制）：scoped、零闪烁、命中区 ≥32px */
+
+.settingsSegment {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  /* 填充形态（segmentFill 定高）下本段恰占满：选单行固定、仅分区页内容内滚 */
+  height: 100%;
+  min-height: 0;
+}
+
+/* SectionNav：八分区横向选单（窄屏横向滚动，不折行）——原型 secnav 描边胶囊口径 */
+.sectionNav {
+  display: flex;
+  gap: 6px;
+  overflow-x: auto;
+  padding-bottom: 4px;
+}
+.sectionNavButton {
+  box-sizing: border-box;
+  min-height: var(--pcy-control-h, 32px);
+  padding: 4px 14px;
+  border: 1px solid var(--dsw-alias-border-l1, #e3e7ec);
+  border-radius: 999px;
+  background: var(--dsw-alias-bg-layer-1, #ffffff);
+  color: var(--dsw-alias-label-secondary, #57606a);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+  flex: none;
+}
+.sectionNavButton:hover {
+  border-color: var(--dsw-alias-border-l3, #c7cdd4);
+  background: var(--pcy-hover, #fff3c4);
+}
+/* 一等选中（specs/dsh-plugin-style §5#3，与七段导航同一语言）：黄底固定墨字 + 重墨线 + 字重
+ * （验收裁决去 ▶ 前缀） */
+.sectionNavButton[aria-pressed="true"] {
+  border: 1.5px solid var(--dsw-alias-label-primary, #1f2328);
+  background: var(--pcy-running, #ffcb05);
+  color: #1a1b25;
+  font-weight: 700;
+}
+.sectionNavButton:focus-visible {
+  outline: 2px solid var(--dsw-alias-state-business-primary, #316dca);
+  outline-offset: 1px;
+}
+
+/* 分区选单行（保存控件同行靠右，无独立保存行——桌面「标题行右侧保存」同位）；固定不随滚动 */
+.settingsHeadRow {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  flex: none;
+}
+/* 分区页滚动容器（填充形态下唯一滚动位：分区选单行常驻，滚动只发生在分区页内容；
+ * 非填充形态——窄屏 segmentFill 高度回落 auto——随文档流自然展开不出内滚） */
+.settingsBody {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+}
+.settingsHeadRow .sectionNav {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+/* 保存控件组：display:contents 让 hint/按钮/失败行直接并入选单行 flex 排布 */
+.saveControls {
+  display: contents;
+}
+/* 失败/防呆行：独占一行（换行到选单行下方，不挤压选单） */
+.saveFailWrap {
+  flex-basis: 100%;
+}
+.saveFailWrap .saveFailHint {
+  margin: 0;
+}
+/* 保存 = 主行动黄按钮档（specs/dsh-plugin-style §5 主行动清单；就地换挡保留 relative 供角标定位） */
+.saveButton {
+  box-sizing: border-box;
+  min-height: var(--pcy-control-h, 32px);
+  padding: 4px 14px;
+  position: relative;
+  border-radius: 8px;
+  border: 1.5px solid var(--dsw-alias-label-primary, #1f2328);
+  background: var(--pcy-running, #ffcb05);
+  color: #1a1b25;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  box-shadow: 2px 2px 0 var(--dsw-alias-label-primary, #1f2328);
+  transition:
+    transform 80ms,
+    box-shadow 80ms;
+}
+.saveButton:active:not(:disabled) {
+  transform: translate(1px, 1px);
+  box-shadow: 1px 1px 0 var(--dsw-alias-label-primary, #1f2328);
+}
+.saveButton:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+@media (prefers-reduced-motion: reduce) {
+  .saveButton {
+    transition-duration: 0.01ms;
+  }
+}
+/* 未保存静态角标（不闪烁） */
+.unsavedDot {
+  position: absolute;
+  top: -4px;
+  right: -4px;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--pcy-warn, #b58900);
+  border: 1px solid var(--dsw-alias-bg-layer-1, #ffffff);
+}
+/* 分区选单项上的静态点提示；选中黄底上改墨底白圈保对比（specs/dsh-plugin-style §5#3） */
+.unsavedDotInline {
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  margin-left: 6px;
+  border-radius: 50%;
+  background: var(--pcy-warn, #b58900);
+  vertical-align: middle;
+}
+.sectionNavButton[aria-pressed="true"] .unsavedDotInline {
+  background: #1a1b25;
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.75);
+}
+.savedHint {
+  font-size: 11.5px;
+  font-weight: 700;
+  color: var(--pcy-ok-ink, #1d6b3c);
+  background: var(--pcy-ok-soft, #dff3e4);
+  border: 1px solid var(--pcy-ok, #2e9e5b);
+  border-radius: 6px;
+  padding: 2px 8px;
+}
+.saveFailHint {
+  font-size: 12px;
+  color: var(--pcy-danger, #b3590f);
+}
+
+/* 分区整页布局（原型 sectionpage：卡片容器承载整页表单；920px 上限 + 水平居中——
+ * 桌面 .set-card 同口径，宽宿主下不留右侧死区。box-sizing 显式声明——宿主无全局
+ * 复位，width:100% + padding/border 不收口会右溢出） */
+.sectionPage {
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  width: 100%;
+  max-width: 920px;
+  margin-inline: auto;
+  background: var(--dsw-alias-bg-layer-1, #ffffff);
+  border: 1px solid var(--dsw-alias-border-l1, #e3e7ec);
+  border-radius: 12px;
+  padding: 14px 16px 16px;
+}
+.cardTitle {
+  font-size: 14px;
+  font-weight: 700;
+  margin: 0;
+}
+.cardHint {
+  font-size: 12px;
+  color: var(--dsw-alias-label-secondary, #57606a);
+  margin: 0;
+  line-height: 1.6;
+  /* 说明文案紧贴上一行控件（桌面 SettingRow label+desc gap 2px 同口径；卡 gap 10 − 8） */
+  margin-top: -8px;
+}
+/* 卡标题下的区块副标题不收紧过头（桌面 .set-sub 对 h3 约 6px） */
+.cardTitle + .cardHint {
+  margin-top: -4px;
+}
+/* 连续说明行之间保持常规行距，不做控件说明的贴身收紧 */
+.cardHint + .cardHint {
+  margin-top: 0;
+}
+
+/* 分类卡 / 标签维度卡 / agent 卡 */
+.entityList {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.entityCard {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+  border: 1px solid var(--dsw-alias-border-l1, #e3e7ec);
+  border-radius: 8px;
+  background: var(--dsw-alias-bg-layer-1, #ffffff);
+  flex-wrap: wrap;
+}
+/* 堆叠形态实体卡（分类卡/项目派发卡/agent 编辑卡）：上行标识与操作、下行通栏字段——
+ * 桌面 cat-row / dispatch-block 同构（上行一行排齐、下行描述/表单通栏不换行错落） */
+.entityCardStack {
+  composes: entityCard;
+  flex-direction: column;
+  align-items: stretch;
+}
+/* 卡内单行（实体行第一行）：控件同行排齐、不折行——桌面 cat-line / agent-row 同构 */
+.entityLine {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+/* 行内定宽档（对齐桌面：名称 110 / agent 名 120 / 维度 key 84 / 端口·上限 64 / 维度下拉 92 /
+ * 我的称呼等右档输入 250——背包设置页统一口径） */
+.w110 {
+  width: 110px;
+  flex: none;
+}
+.w250 {
+  width: 250px;
+  flex: none;
+}
+.w120 {
+  width: 120px;
+  flex: none;
+}
+.w84 {
+  width: 84px;
+  flex: none;
+}
+.w64 {
+  width: 64px;
+  flex: none;
+}
+.w92 {
+  width: 92px;
+  flex: none;
+}
+/* 行内伸缩档：占满同行剩余宽（命令/描述输入），超长省略不撑爆 */
+.grow {
+  flex: 1;
+  min-width: 0;
+}
+/* 标识行文本（agent 折叠态：名称 + 命令摘要） */
+.entityName {
+  width: 120px;
+  flex: none;
+  font-size: 13px;
+  font-weight: 700;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.entitySub {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 12px;
+}
+/* 卡底动作行（保存/取消等——桌面 .btn-row 同构） */
+.cardActions {
+  display: flex;
+  gap: 10px;
+  margin-top: 10px;
+}
+/* 停用中的实体行整体降透明（分类停用/agent 停用同观感，主应用 .off 同口径） */
+.entityCard[data-off="true"] {
+  opacity: 0.55;
+}
+/* 精灵图鉴框（specs/dsh-plugin-style T1#10：纸底 + 重墨线小件框） */
+.entitySprite {
+  width: 32px;
+  height: 32px;
+  image-rendering: pixelated;
+  border-radius: 6px;
+  border: 1.5px solid var(--dsw-alias-label-primary, #1f2328);
+  background: var(--pcy-paper, #f5f0dc);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+}
+.entityMain {
+  flex: 1;
+  min-width: 160px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-size: 13px;
+}
+.entityNameInput {
+  box-sizing: border-box;
+  height: var(--pcy-control-h, 32px);
+  padding: 2px 8px;
+  border-radius: 6px;
+  border: 1px solid var(--dsw-alias-border-l2, #d0d7de);
+  background: var(--dsw-alias-bg-layer-1, #ffffff);
+  color: inherit;
+  font-size: 13px;
+}
+.entityDescInput {
+  box-sizing: border-box;
+  /* min-height 档（QuotesEditor 台词 textarea 也挂此类——textarea 不可钉死单行高） */
+  min-height: var(--pcy-control-h, 32px);
+  padding: 2px 8px;
+  border-radius: 6px;
+  border: 1px solid var(--dsw-alias-border-l2, #d0d7de);
+  background: var(--dsw-alias-bg-layer-1, #ffffff);
+  color: var(--dsw-alias-label-secondary, #57606a);
+  font-size: 12px;
+  width: 100%;
+}
+/* 维度 key 列（建后只读，桌面 dim-key 同款：定宽 84 + 省略） */
+.dimKey {
+  flex: none;
+  width: 84px;
+  font-size: 11px;
+  font-weight: 800;
+  color: var(--dsw-alias-label-secondary, #57606a);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.dimCount {
+  font-size: 11px;
+  color: var(--dsw-alias-label-secondary, #57606a);
+}
+
+/* 标签管理卡：维度分组（组头 = 维度名 + 配额 + 单选标记 + 新增入口） */
+.tagDimGroup {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 12px;
+}
+.tagDimGroup:last-of-type {
+  margin-bottom: 0;
+}
+.tagDimHead {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 32px;
+  font-size: 13px;
+}
+.tagDimHead b {
+  flex: none;
+}
+/* ⚡ 徽标：已配置项目派发的标签（配置入口在 Agent 分区的「项目派发」卡片） */
+.tagChip {
+  flex: none;
+  font-size: 13px;
+  cursor: help;
+}
+
+/* agent 卡 SSH 远程执行组（host/端口/私钥/反向隧道/常驻隧道）；左缘线收编 2px l3
+ * （specs/dsh-plugin-style §3.1：3px 浅灰左缘线非墨线语言，统一降档） */
+.sshGroup {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 8px 10px;
+  border-left: 2px solid var(--dsw-alias-border-l3, #c7cdd4);
+}
+
+/* 宝可梦下拉选择器（桌面 PokemonPicker 同构）：按钮 → 内联面板（搜索 + 名录列表） */
+.pkPicker {
+  position: relative;
+  flex: none;
+}
+.pkButton {
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: var(--pcy-control-h, 32px);
+  min-width: 150px;
+  padding: 3px 10px;
+  border: 1px solid var(--dsw-alias-border-l2, #d0d7de);
+  border-radius: 8px;
+  background: var(--dsw-alias-bg-layer-1, #ffffff);
+  color: var(--dsw-alias-label-primary, #1f2328);
+  font-size: 13px;
+  font-weight: 600;
+  font-family: inherit;
+  cursor: pointer;
+}
+.pkButton:hover {
+  background: var(--dsw-alias-interactive-bg-hover, #f0f2f5);
+}
+.pkButton[data-open="true"] {
+  background: var(--dsw-alias-interactive-bg-active, #e4e7eb);
+}
+.pkButton:focus-visible {
+  outline: 2px solid var(--dsw-alias-state-business-primary, #316dca);
+  outline-offset: 1px;
+}
+.pkThumb {
+  width: 24px;
+  height: 24px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+}
+.pkLabel {
+  flex: 1;
+  min-width: 0;
+  text-align: left;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.pkArrow {
+  flex: none;
+  font-size: 10px;
+}
+.pkPanel {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  z-index: 60;
+  width: min(320px, 78vw);
+  background: var(--dsw-alias-bg-layer-1, #ffffff);
+  border: 1px solid var(--dsw-alias-border-l2, #d0d7de);
+  border-radius: 10px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.14);
+  padding: 8px;
+}
+.pkSearch {
+  box-sizing: border-box;
+  width: 100%;
+  height: var(--pcy-control-h, 32px);
+  padding: 4px 9px;
+  border: 1px solid var(--dsw-alias-border-l2, #d0d7de);
+  border-radius: 8px;
+  background: var(--dsw-alias-bg-layer-1, #ffffff);
+  color: inherit;
+  font-size: 13px;
+  font-family: inherit;
+  margin-bottom: 6px;
+}
+.pkSearch:focus-visible {
+  outline: 2px solid var(--dsw-alias-state-business-primary, #316dca);
+  outline-offset: 1px;
+}
+.pkList {
+  list-style: none;
+  margin: 0;
+  padding: 2px;
+  max-height: 260px;
+  overflow-y: auto;
+}
+.pkItem {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  padding: 4px 6px;
+  border-radius: 6px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.pkItem:hover {
+  background: var(--dsw-alias-interactive-bg-hover, #f0f2f5);
+}
+.pkItem[data-sel="true"] {
+  background: var(--dsw-alias-interactive-bg-active, #e4e7eb);
+}
+.pkCursor {
+  width: 10px;
+  flex: none;
+  font-size: 10px;
+  opacity: 0;
+}
+.pkItem[data-sel="true"] .pkCursor {
+  opacity: 1;
+}
+.pkName {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.pkId {
+  flex: none;
+  font-size: 9px;
+  opacity: 0.65;
+  font-variant-numeric: tabular-nums;
+}
+.pkBundled {
+  flex: none;
+  font-size: 10.5px;
+  border: 1px solid var(--dsw-alias-border-l2, #d0d7de);
+  border-radius: 4px;
+  padding: 0 4px;
+  line-height: 14px;
+  color: var(--dsw-alias-label-secondary, #57606a);
+}
+.pkNone {
+  font-size: 12.5px;
+  color: var(--dsw-alias-label-secondary, #57606a);
+  text-align: center;
+  padding: 14px 0;
+  cursor: default;
+}
+.pkNone:hover {
+  background: none;
+}
+
+/* 会话过滤行 */
+.filterRow {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 32px;
+  font-size: 13px;
+}
+/* 过滤工具行（桌面 .cf-toolbar 同构）：搜索框伸缩占主宽 + 三维下拉定宽，控件统一 32px 等高 */
+.filterToolbar input,
+.filterToolbar select {
+  height: var(--pcy-control-h, 32px);
+  box-sizing: border-box;
+}
+.filterSearch {
+  flex: 1 1 200px;
+  min-width: 0;
+}
+.filterSelect {
+  width: 120px;
+  flex: none;
+}
+.filterChatName {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+/* 生效 chip（桌面 .cf-eff 同构：浅底深字；拉取=ok / 过滤=中性弱化 / 降级=warn） */
+.filterEff {
+  flex: none;
+  max-width: 40%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 11px;
+  font-weight: 600;
+  border: 1px solid var(--dsw-alias-border-l2, #d0d7de);
+  border-radius: 999px;
+  padding: 2px 8px;
+  background: transparent;
+  color: var(--dsw-alias-label-secondary, #57606a);
+}
+.filterEffPull {
+  border-color: transparent;
+  background: var(--pcy-ok-soft, #dff3e4);
+  color: var(--pcy-ok-ink, #1d6b3c);
+}
+.filterEffMute {
+  background: transparent;
+}
+.filterEffDegraded {
+  border-color: var(--pcy-warn-ink, #8a5e06);
+  background: var(--pcy-warn-soft, #fff3cd);
+  color: var(--pcy-warn-ink, #8a5e06);
+}
+.triStateGroup {
+  display: inline-flex;
+  border: 1px solid var(--dsw-alias-border-l2, #d0d7de);
+  border-radius: 999px;
+  overflow: hidden;
+}
+.triStateButton {
+  box-sizing: border-box;
+  min-height: var(--pcy-control-h, 32px);
+  padding: 2px 12px;
+  border: none;
+  background: transparent;
+  color: var(--dsw-alias-label-secondary, #57606a);
+  font-size: 12px;
+  cursor: pointer;
+}
+.triStateButton[aria-pressed="true"] {
+  background: var(--dsw-alias-state-business-primary, #316dca);
+  color: #ffffff;
+}
+.triStateButton:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+/* 诊断 · 集成健康行（桌面 HealthCard .health-row 同构：点 + 名称 + 状态章 + 元信息伸缩 + 动作钮右置）。
+ * 行距 = 卡 gap 10px（与标题→首行同距；不再自带 margin 叠加） */
+.healthRow {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.healthDot {
+  flex: none;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  border: 1px solid rgba(0, 0, 0, 0.25);
+  font-size: 0;
+  line-height: 0;
+}
+.healthDot[data-level="ok"] {
+  background: var(--pcy-ok, #2e9e5b);
+}
+.healthDot[data-level="warn"] {
+  background: var(--pcy-warn, #ffcb05);
+}
+.healthDot[data-level="fail"] {
+  background: var(--pcy-fail, #ee1515);
+}
+.healthName {
+  flex: none;
+  font-size: 13px;
+  font-weight: 800;
+}
+.healthState {
+  flex: none;
+  font-size: 12px;
+  font-weight: 700;
+  border: 1px solid var(--dsw-alias-border-l2, #d0d7de);
+  border-radius: 4px;
+  padding: 1px 8px;
+  background: var(--dsw-alias-bg-layer-1, #ffffff);
+  color: var(--dsw-alias-label-secondary, #57606a);
+}
+.healthState[data-level="fail"] {
+  background: var(--pcy-fail-soft, #fdeaea);
+  border-color: var(--pcy-fail, #ee1515);
+  color: var(--pcy-fail, #ee1515);
+}
+.healthState[data-level="warn"] {
+  background: var(--pcy-conf-mid-soft, #fff3d6);
+  border-color: var(--pcy-warn-ink, #8a5e06);
+  color: var(--pcy-warn-ink, #8a5e06);
+}
+.healthMeta {
+  flex: 1;
+  min-width: 200px;
+  font-size: 12px;
+  color: var(--dsw-alias-label-secondary, #57606a);
+}
+.healthErr {
+  margin: 4px 0 0 20px;
+  font-size: 12px;
+  color: var(--pcy-fail, #ee1515);
+  overflow-wrap: break-word;
+}
+
+/* LogViewer（桌面 LogViewer 同构：元数据一行（时间/级别/来源）+ message 独立一行全宽）
+ * specs/dsh-plugin-style T2#13：日志屏 = LCD 签名位（分页制不滚动，静框可直接承载扫描线；
+ * 时间戳走 --pcy-lcd-dim 4.7/5.1:1——不得用内阴影色 --pcy-lcd-dark 1.2~1.5:1） */
+/* LCD 日志屏容器 = ui/LcdScreen 单源组件（.lcd，ui.module.css）——本文件只保留屏内行样式 */
+.logRow {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  font-size: 12px;
+  padding: 2px 0;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}
+.logRow + .logRow {
+  margin-top: 4px;
+}
+.logMeta {
+  display: flex;
+  gap: 10px;
+  align-items: baseline;
+  min-width: 0;
+}
+.logTime {
+  color: var(--pcy-lcd-dim, #4a563f);
+  flex: none;
+}
+.logTarget {
+  color: var(--pcy-lcd-dim, #4a563f);
+  flex: none;
+  word-break: break-all;
+}
+.logMsg {
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+.logLevel {
+  flex: none;
+  width: 44px;
+}
+.logLevel[data-level="error"] {
+  color: var(--pcy-lcd-log-error, #d64545);
+  font-weight: 700;
+}
+.logLevel[data-level="warn"] {
+  color: var(--pcy-lcd-log-warn, #b8860b);
+}
+.logPager {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+}
+
+/* 提示词编辑器 */
+.promptPanel {
+  border: 1px solid var(--dsw-alias-border-l1, #e3e7ec);
+  border-radius: 8px;
+  padding: 8px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+/* 面板头行（桌面 .panel-head 同构 + 动作钮右置）：折叠钮占主宽 + 编辑/恢复默认贴右缘 */
+.promptHeadRow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.promptHeadRow .promptHead {
+  flex: 1;
+  min-width: 0;
+}
+.promptHeadActions {
+  display: flex;
+  gap: 6px;
+  flex: none;
+}
+/* 面板头折叠钮（桌面 .panel-head 同构：caret + 名称 + 徽章，整行命中区） */
+.promptHead {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 32px;
+  border: none;
+  background: none;
+  cursor: pointer;
+  text-align: left;
+  font-size: 13px;
+  color: inherit;
+  padding: 2px 4px;
+  border-radius: 6px;
+}
+.promptHead:hover {
+  background: var(--dsw-alias-interactive-bg-hover, #f0f2f5);
+}
+.promptCaret {
+  font-size: 10px;
+  width: 12px;
+  flex: none;
+}
+.promptTextarea {
+  min-height: 120px;
+  padding: 8px;
+  border-radius: 6px;
+  border: 1px solid var(--dsw-alias-border-l2, #d0d7de);
+  background: var(--dsw-alias-bg-layer-1, #ffffff);
+  color: inherit;
+  font-size: 12px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}
+.promptBadge {
+  font-size: 11px;
+  border: 1px solid var(--dsw-alias-border-l2, #d0d7de);
+  border-radius: 999px;
+  padding: 0 8px;
+  line-height: 18px;
+}
+.promptBadge[data-source="custom"] {
+  border-color: var(--pcy-conf-high, #2f7d3c);
+  color: var(--pcy-conf-high, #2f7d3c);
+}
+.promptBadge[data-source="default_warned"] {
+  border-color: var(--pcy-warn, #b58900);
+  color: var(--pcy-warn, #b58900);
+}
+
+/* 预览行（显示分区） */
+.previewLine {
+  font-size: 12px;
+  color: var(--dsw-alias-label-secondary, #57606a);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}
+
+/* 使用指南链接（GitHub 文档 · 新窗口打开；次级文字色 + 下划线可点暗示） */
+.guideLink {
+  font-size: 12px;
+  color: var(--dsw-alias-label-secondary, #57606a);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.guideLink:hover {
+  color: var(--dsw-alias-state-business-primary, #316dca);
+}
+.guideLink:focus-visible {
+  outline: 2px solid var(--dsw-alias-state-business-primary, #316dca);
+  outline-offset: 1px;
+  border-radius: 4px;
+}
+
+/* ---- full-parity 增量（U25 导入/恢复 + 双形态小贴士） ---- */
+/* 文件选择承接件（视觉隐藏但可聚焦可点——键盘可达） */
+.hiddenFileInput {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+}
+.importPickButton {
+  box-sizing: border-box;
+  min-height: var(--pcy-control-h, 32px);
+  padding: 4px 12px;
+  border-radius: 8px;
+  border: 1.5px solid var(--dsw-alias-label-primary, #1f2328);
+  background: var(--pcy-running, #ffcb05);
+  color: #1a1b25;
+  font-weight: 700;
+  font-size: 13px;
+  box-shadow: 2px 2px 0 var(--dsw-alias-label-primary, #1f2328);
+  cursor: pointer;
+}
+.importPickButton:active {
+  transform: translate(1px, 1px);
+  box-shadow: 1px 1px 0 var(--dsw-alias-label-primary, #1f2328);
+}
+.importCounts {
+  margin: 4px 0 0;
+  font-size: 12px;
+  color: var(--dsw-alias-label-secondary, #57606a);
+}
+
+/* ---- AX 授权引导块（U26：输入响应卡的授权门槛伴随态） ---- */
+.axPermHint {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+  margin-top: 6px;
+  padding: 10px 12px;
+  border: 1.5px dashed var(--dsw-alias-border-l3, #c7cdd4);
+  border-radius: 8px;
+  font-size: 12px;
+  line-height: 1.7;
+  color: var(--dsw-alias-label-secondary, #57606a);
+}
+.axPermHint p {
+  margin: 0;
+}
+.axPermRevoked {
+  color: var(--pcy-danger, #b3590f);
+  font-weight: 700;
+}
+.axPermPathRow {
+  align-self: stretch;
+}
+.axPermPath {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 11px;
+  text-align: left;
+  background: none;
+  border: 1px solid var(--dsw-alias-border-l3, #c7cdd4);
+  border-radius: 4px;
+  padding: 4px 8px;
+  color: var(--dsw-alias-label-primary, #1f2328);
+  word-break: break-all;
+  cursor: copy;
+  min-height: 32px;
+}
+.axPermPathHint {
+  font-size: 11px;
+}
+
+/* ---- helper 能力矩阵 / 快捷键行 / SSH 家族行（U30） ---- */
+.capList {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.capRow {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  padding: 5px 0;
+  font-size: 13px;
+  border-bottom: 1px solid var(--dsw-alias-border-l1, #e3e7ec);
+  flex-wrap: wrap;
+}
+.capDot {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  border: 1.5px solid var(--dsw-alias-label-primary, #1f2328);
+  flex: none;
+  align-self: center;
+}
+.capDot[data-ok="true"] {
+  background: var(--pcy-ok, #2f7d3c);
+}
+.capDot[data-ok="false"] {
+  background: transparent;
+  border-style: dashed;
+}
+.capState {
+  margin-left: auto;
+  font-size: 12px;
+  color: var(--dsw-alias-label-secondary, #57606a);
+}
+.shortcutLine {
+  margin: 0;
+  font-size: 12px;
+  color: var(--pcy-danger, #b3590f);
+}

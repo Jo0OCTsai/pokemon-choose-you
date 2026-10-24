@@ -1,0 +1,1059 @@
+/**
+ * 桌宠视觉与动效（DESIGN_SYSTEM §1–§7 token 口径 + PET_INTERACTION_DESIGN 动画规范；
+ * 与主应用 src/dex.css 同一设计源——Electron helper 自带样式，无宿主约束，UIUX §6.1）。
+ *
+ * 红线：禁止 blur 阴影/渐变阴影；描边/阴影/圆角/时长/缓动走档位。
+ * 闪烁纪律：同屏唯一闪烁名额 = 对话框 ▼（新事件闪 3 次后转静态），其余一律静态。
+ * reduced-motion：@media prefers-reduced-motion + html.reduced-motion（sprites 配置位）双通道全停，
+ * 色环保留静态进度、精灵灰度等「状态语义」不丢。
+ */
+
+:root {
+  /* ---- 色彩 token（DESIGN_SYSTEM §1） ---- */
+  --dex-red: #ee1515;
+  --dex-body: #f5f0dc;
+  --dex-navy: #1a1b25;
+  --poke-yellow: #ffcb05;
+  --lcd: #c4cfa1;
+  --lcd-text: #3a4a32;
+  --lcd-dark: #9caa86;
+  --ink: #1a1b25;
+  --ink-soft: #6b6657;
+  --ok: #2e9e5b;
+  --warn: #c98a06;
+  --rest-blue: #3c5aa6;
+
+  /* ---- 动效令牌（PET_INTERACTION_DESIGN §3.1） ---- */
+  --t-tap: 80ms;
+  --t-pop: 150ms;
+  --t-act: 300ms;
+  --t-scene: 600ms;
+  --e-pop: cubic-bezier(0.34, 1.56, 0.64, 1);
+  --e-snap: cubic-bezier(0.2, 0.9, 0.3, 1.2);
+  --e-sway: cubic-bezier(0.45, 0, 0.55, 1);
+  --e-sleep: cubic-bezier(0.4, 0, 0.6, 1);
+}
+
+/* ============================== 布局骨架（300×330 局部小窗） ============================== */
+
+#app {
+  position: relative;
+  font-family: "Noto Sans CJK SC", "Noto Sans CJK", "PingFang SC", "Microsoft YaHei", sans-serif;
+  color: var(--ink);
+}
+
+.px {
+  font-family: "Press Start 2P", monospace;
+  font-size: 8px;
+  letter-spacing: 0.5px;
+}
+
+/* ============================== SpriteStage ============================== */
+
+.stage {
+  position: absolute;
+  left: 50%;
+  bottom: 96px;
+  width: 112px;
+  height: 112px;
+  transform: translateX(-50%);
+}
+
+.pet-sprite {
+  position: absolute;
+  inset: 4px;
+  width: 104px;
+  height: 104px;
+  object-fit: contain;
+  image-rendering: pixelated; /* 像素是皮肤（DESIGN_SYSTEM §3） */
+  pointer-events: auto;
+  cursor: grab;
+}
+
+/* ---- 状态机类（petState；动画即信息：循环动画只传达状态） ---- */
+
+/* idle：慢呼吸 */
+.st-idle .pet-sprite {
+  animation: breathe 3.2s var(--e-sleep) infinite;
+}
+
+/* working：pk-hop 跳跃主循环（1.6s/3s 节拍） */
+.st-working .pet-sprite {
+  animation: pk-hop 1.6s var(--e-snap) infinite;
+}
+
+/* paused：慢呼吸（不上灰度——用户偏好：暂停态保持本色） */
+.st-paused .pet-sprite {
+  animation: breathe 3.2s var(--e-sleep) infinite;
+}
+
+/* asleep：呼吸渐弱（不上灰度） */
+.stage.asleep .pet-sprite {
+  animation: breathe 4.5s var(--e-sleep) infinite;
+}
+
+/* petting：纯弹跳 0.9s（可被打断） */
+.tr-petting .pet-sprite {
+  animation: pet-bounce 0.9s var(--e-pop);
+}
+
+/* dragging：悬挂物理（8° 倾斜 + 头甩） */
+.tr-dragging .pet-sprite {
+  cursor: grabbing;
+  animation: drag-sway 0.6s var(--e-sway) infinite;
+}
+
+/* rest：休息态 */
+.tr-rest .pet-sprite {
+  filter: saturate(0.85) brightness(1.02);
+}
+
+/* celebrating：蹲（CaptureShow 预备帧由 cap-crouch 接管） */
+.tr-celebrating .pet-sprite {
+  animation: none;
+}
+
+/* ---- 微动作池（受调度离散事件；变形代替表情——GB 时代正统） ---- */
+.m-blink .pet-sprite {
+  animation: micro-blink 240ms var(--e-pop);
+}
+.m-look .pet-sprite {
+  animation: micro-look 900ms var(--e-sway);
+}
+.m-flip .pet-sprite {
+  animation: micro-flip 600ms ease-in-out;
+}
+.m-yawn .pet-sprite {
+  animation: micro-yawn 900ms var(--e-sleep);
+}
+
+/* ---- TimeRing（SVG 细环，全程被动，绿→琥珀→红） ---- */
+
+.ring {
+  position: absolute;
+  inset: 0;
+  width: 112px;
+  height: 112px;
+  transform: rotate(-90deg);
+  display: none;
+}
+.ring.on {
+  display: block;
+}
+.ring-bg {
+  fill: none;
+  stroke: var(--dex-navy);
+  stroke-width: 3;
+  opacity: 0.25;
+}
+.ring-fg {
+  fill: none;
+  stroke: var(--ok);
+  stroke-width: 3;
+  stroke-linecap: butt;
+  stroke-dasharray: 0 327;
+  transition: stroke-dasharray 1s linear;
+}
+.ring[data-tone="amber"] .ring-fg {
+  stroke: var(--warn);
+}
+.ring[data-tone="red"] .ring-fg {
+  stroke: var(--dex-red);
+}
+
+/* ---- ☰ 悬停浮现（呼之即来，不点不扰） ---- */
+
+.quick-fab {
+  position: absolute;
+  right: -6px;
+  top: -6px;
+  width: 24px;
+  height: 24px;
+  border: 2px solid var(--dex-navy);
+  border-radius: 50%; /* parity：桌面端 ☰ 钮为圆形 */
+  background: var(--poke-yellow);
+  color: var(--dex-navy);
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity var(--t-pop);
+  box-shadow: 2px 2px 0 var(--dex-navy);
+}
+.quick-fab:hover {
+  background: var(--dex-body);
+}
+.stage:hover .quick-fab {
+  opacity: 1;
+}
+
+/* ---- zzz（asleep） ---- */
+
+.zzz {
+  position: absolute;
+  top: -14px;
+  right: 6px;
+  display: none;
+  color: var(--ink-soft);
+}
+.zzz.on {
+  display: block;
+}
+.zzz i {
+  font-style: normal;
+  font-family: "Press Start 2P", monospace;
+  animation: zzz-float 2.4s var(--e-sway) infinite;
+}
+.zzz i:nth-child(2) {
+  animation-delay: 0.8s;
+}
+.zzz i:nth-child(3) {
+  animation-delay: 1.6s;
+}
+
+/* ============================== DialogBox（初代气球尾巴 + 右下 ▼；parity 对齐 src/PetApp.vue） ============================== */
+
+/* 紧凑对白气泡：宽随内容区、单层描边、顶部小尾巴指向精灵；
+   白底 + 藏青框 + 硬投影保留初代语感。窗口 330 高、精灵底缘在距底 96px——
+   气泡锚 top 定位（盒子顶 = 精灵底 + 14px，尾巴尖再探上 9px ≈ 距精灵 5px，与桌面端一致） */
+.dialog {
+  position: absolute;
+  left: 45px; /* 宽度 = 原全宽（280px）的 3/4 = 210px：左右各收 35px */
+  right: 45px;
+  top: 248px;
+  bottom: auto;
+  max-height: 76px;
+  opacity: 0;
+  transform: translateY(6px);
+  transition:
+    opacity var(--t-act),
+    transform var(--t-act);
+  pointer-events: none;
+}
+.dialog.on {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+/* 尾巴：双色三角（藏青描边 + 白芯），白芯底边穿过边框区探入内部与气泡白色连通成「开口」；
+   藏青只留两条斜边——标准气球尾巴画法（同 src/PetApp.vue .dialog::before/::after） */
+.dialog::before,
+.dialog::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: -6px;
+  width: 0;
+  height: 0;
+  border-style: solid;
+  border-color: transparent;
+}
+.dialog::before {
+  margin-left: -7px;
+  border-width: 0 7px 9px;
+  border-bottom-color: var(--dex-navy);
+}
+.dialog::after {
+  top: -5px;
+  margin-left: -4px;
+  border-width: 0 4px 9px;
+  border-bottom-color: #fff;
+}
+
+/* 单层描边（parity：不再用初代双线框），投影 2px 与桌面端同档 */
+.dialog-inner {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 12px 5px 10px;
+  background: #fff;
+  border: 3px solid var(--dex-navy);
+  border-radius: 8px; /* 控件级 */
+  box-shadow: 2px 2px 0 var(--dex-navy);
+  cursor: pointer; /* 点击收起 */
+  pointer-events: auto;
+}
+
+.dialog-text {
+  flex: 1;
+  font-size: 12.5px;
+  font-weight: 600;
+  line-height: 1.5;
+  color: var(--dex-navy);
+  overflow-wrap: anywhere;
+}
+
+.dialog[data-tone="event"] .dialog-text {
+  font-weight: 700;
+}
+.dialog[data-tone="warn"] .dialog-text {
+  color: var(--ink-soft);
+}
+
+/* ▼ 同屏唯一闪烁名额：默认静态（存在即语义），新事件 blink 3 次后停；红色 v2 与桌面端同源 */
+.dialog-next {
+  font-size: 10px;
+  color: var(--dex-red);
+  opacity: 0.9;
+  align-self: flex-end;
+  flex: none;
+}
+.dialog-next.blink {
+  animation: blink-3 0.9s steps(1) 3;
+}
+
+/* ============================== PomoPill ============================== */
+
+.pomo-pill {
+  position: absolute;
+  top: 6px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: none;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 8px;
+  background: var(--dex-body);
+  border: 3px solid var(--dex-navy); /* 控件级 */
+  border-radius: 999px; /* 胶囊 */
+  box-shadow: 3px 3px 0 var(--dex-navy);
+}
+.pomo-pill.on {
+  display: flex;
+}
+.pomo-pill.break {
+  border-color: var(--rest-blue);
+}
+
+.pomo-text {
+  font-size: 8px;
+  color: var(--ink);
+  min-width: 64px; /* 定宽防跳动 */
+  text-align: center;
+}
+
+.pomo-btn {
+  width: 26px;
+  height: 26px;
+  border: 2px solid var(--dex-navy); /* 小件级 */
+  border-radius: 4px;
+  background: var(--poke-yellow);
+  color: var(--dex-navy);
+  font-size: 12px;
+  line-height: 1;
+  cursor: pointer;
+  box-shadow: 2px 2px 0 var(--dex-navy);
+  transition: transform var(--t-tap);
+  display: none;
+}
+.pomo-btn.on {
+  display: inline-block;
+}
+.pomo-btn:hover {
+  background: var(--dex-body);
+}
+.pomo-btn:active {
+  transform: translate(1px, 1px); /* 按压位移 = 阴影一半 */
+  box-shadow: 1px 1px 0 var(--dex-navy);
+}
+
+/* ============================== QuickDexScreen（LCD 今日列表，590 宽展开） ============================== */
+
+.quick-dex {
+  position: absolute;
+  left: 50%;
+  bottom: 90px;
+  width: 570px; /* 300 窗内先以滚动容器呈现；展开 590 窗宽由主进程 resize 承接（v1 视窗内滚动） */
+  max-width: calc(100vw - 20px);
+  display: none;
+  flex-direction: column;
+  background: var(--dex-body);
+  border: 4px solid var(--dex-navy); /* 机壳级 */
+  border-radius: 16px;
+  box-shadow: 8px 8px 0 var(--dex-navy);
+}
+.quick-dex.on {
+  display: flex;
+}
+
+.quick-dex .hinge {
+  height: 6px;
+  background: var(--dex-red);
+  border-bottom: 3px solid var(--dex-navy);
+  border-radius: 12px 12px 0 0;
+}
+
+.quick-dex .screen {
+  margin: 8px;
+  padding: 10px;
+  background: var(--lcd);
+  border: 2px solid var(--dex-navy);
+  border-radius: 4px;
+  /* 扫描线（DESIGN_SYSTEM §3） */
+  background-image: repeating-linear-gradient(0deg, rgba(0, 0, 0, 0.05) 0 2px, transparent 2px 4px);
+  color: var(--lcd-text);
+  max-height: 200px;
+  overflow-y: auto;
+}
+
+.quick-dex h4 {
+  margin: 0 0 8px;
+  font-size: 8px;
+  color: var(--lcd-text);
+}
+
+.quick-list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.q-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 6px 8px;
+  background: transparent;
+  border: none;
+  color: var(--lcd-text);
+  font-size: 12.5px;
+  text-align: left;
+  cursor: pointer;
+  pointer-events: auto;
+}
+.q-item .cursor {
+  visibility: hidden;
+  color: var(--lcd-text);
+}
+.q-item:hover,
+.q-item.sel {
+  background: var(--lcd-dark); /* LCD 反色（hover 反色惯例，UIUX §4.3） */
+}
+.q-item:hover .cursor,
+.q-item.sel .cursor {
+  visibility: visible;
+}
+.q-item.active {
+  font-weight: 700;
+}
+.q-title {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.q-no {
+  color: var(--lcd-dark);
+}
+
+.q-empty {
+  display: none;
+  padding: 12px 8px;
+  font-size: 12px;
+  color: var(--lcd-text);
+}
+.q-empty.on {
+  display: block;
+}
+
+.quick-dex .ops {
+  display: flex;
+  justify-content: flex-end;
+  padding: 0 8px 8px;
+}
+
+/* ============================== ContextMenu（右键 ≤6 项） ============================== */
+
+.ctx-menu {
+  position: absolute;
+  z-index: 95;
+  display: none;
+  flex-direction: column;
+  min-width: 140px;
+  padding: 4px;
+  background: var(--dex-body);
+  border: 3px solid var(--dex-navy); /* 控件级 */
+  border-radius: 8px;
+  box-shadow: 4px 4px 0 var(--dex-navy);
+}
+.ctx-menu.on {
+  display: flex;
+}
+
+.ctx-item {
+  padding: 8px 10px;
+  background: transparent;
+  border: none;
+  border-radius: 4px;
+  color: var(--ink);
+  font-size: 12.5px;
+  text-align: left;
+  cursor: pointer;
+  pointer-events: auto;
+}
+.ctx-item:hover {
+  background: var(--poke-yellow); /* 唯一悬停/选中黄 */
+}
+
+/* ============================== CaptureShow（≤1.5s：蹲→球抛物线→三摇→星星） ============================== */
+
+.capture-ball {
+  position: absolute;
+  left: 50%;
+  bottom: 110px;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  border: 2px solid var(--dex-navy);
+  background: linear-gradient(to bottom, var(--dex-red) 0 46%, var(--dex-body) 46% 54%, #fff 54% 100%);
+  opacity: 0;
+}
+.capture-ball.fly {
+  animation: ball-fly 300ms linear forwards;
+}
+.capture-ball.shake {
+  animation: ball-shake 600ms var(--e-sway);
+}
+
+.capture-stars {
+  position: absolute;
+  left: 50%;
+  top: 0;
+  width: 0;
+  height: 0;
+}
+.capture-stars i {
+  position: absolute;
+  width: 8px;
+  height: 8px;
+  background: var(--poke-yellow);
+  border: 1px solid var(--dex-navy);
+  clip-path: polygon(50% 0%, 61% 35%, 98% 35%, 68% 57%, 79% 91%, 50% 70%, 21% 91%, 32% 57%, 2% 35%, 39% 35%);
+  opacity: 0;
+}
+.capture-stars.burst i {
+  animation: star-burst 300ms var(--e-pop) forwards;
+}
+.capture-stars.burst i:nth-child(1) {
+  --sx: -34px;
+  --sy: -26px;
+}
+.capture-stars.burst i:nth-child(2) {
+  --sx: 30px;
+  --sy: -30px;
+}
+.capture-stars.burst i:nth-child(3) {
+  --sx: -40px;
+  --sy: 8px;
+}
+.capture-stars.burst i:nth-child(4) {
+  --sx: 38px;
+  --sy: 10px;
+}
+.capture-stars.burst i:nth-child(5) {
+  --sx: -12px;
+  --sy: -40px;
+}
+.capture-stars.burst i:nth-child(6) {
+  --sx: 12px;
+  --sy: -42px;
+}
+
+/* 演出帧：蹲 / 精灵入球隐藏 */
+.stage.cap-crouch .pet-sprite {
+  transform: scale(0.9);
+}
+.stage.cap-hide-sprite .pet-sprite {
+  opacity: 0;
+}
+
+/* ============================== 关键帧 ============================== */
+
+@keyframes breathe {
+  0%,
+  100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.02);
+  }
+}
+
+@keyframes pk-hop {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  12% {
+    transform: translateY(2px) scaleY(0.92); /* 预备帧：跳之前蹲一下 */
+  }
+  40% {
+    transform: translateY(-14px) scaleY(1.05); /* 可爱三律：过冲必回弹 */
+  }
+  70% {
+    transform: translateY(0) scaleY(0.94); /* 落地必挤压 */
+  }
+  85% {
+    transform: translateY(0) scaleY(1.02);
+  }
+}
+
+@keyframes pet-bounce {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  30% {
+    transform: translateY(-10px) scaleY(1.06);
+  }
+  60% {
+    transform: translateY(0) scaleY(0.92);
+  }
+  80% {
+    transform: translateY(-4px);
+  }
+}
+
+@keyframes drag-sway {
+  0%,
+  100% {
+    transform: rotate(-8deg) translateY(1px);
+  }
+  50% {
+    transform: rotate(-8deg) translateY(-1px);
+  }
+}
+
+@keyframes micro-blink {
+  0%,
+  100% {
+    transform: scaleY(1);
+  }
+  50% {
+    transform: scaleY(0.12);
+  }
+}
+
+@keyframes micro-look {
+  0%,
+  100% {
+    transform: translateX(0) rotate(0);
+  }
+  30% {
+    transform: translateX(4px) rotate(-2deg);
+  }
+  60% {
+    transform: translateX(-4px) rotate(2deg);
+  }
+}
+
+@keyframes micro-flip {
+  0%,
+  100% {
+    transform: scaleX(1);
+  }
+  50% {
+    transform: scaleX(-1);
+  }
+}
+
+@keyframes micro-yawn {
+  0%,
+  100% {
+    transform: scaleY(1) translateY(0);
+  }
+  50% {
+    transform: scaleY(1.12) translateY(2px);
+  }
+}
+
+@keyframes zzz-float {
+  0% {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  30% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+}
+
+/* ▼ 闪 3 次（steps 硬切，初代节拍） */
+@keyframes blink-3 {
+  0%,
+  49% {
+    opacity: 1;
+  }
+  50%,
+  100% {
+    opacity: 0;
+  }
+}
+
+@keyframes ball-fly {
+  0% {
+    opacity: 1;
+    transform: translate(-90px, 20px) scale(0.8);
+  }
+  100% {
+    opacity: 1;
+    transform: translate(0, -46px) scale(1);
+  }
+}
+
+@keyframes ball-shake {
+  0%,
+  100% {
+    opacity: 1;
+    transform: translate(0, 0) rotate(0);
+  }
+  15% {
+    transform: translate(-2px, 0) rotate(-14deg);
+  }
+  30% {
+    transform: translate(2px, 0) rotate(14deg);
+  }
+  45% {
+    transform: translate(-2px, 0) rotate(-14deg);
+  }
+  60% {
+    transform: translate(2px, 0) rotate(14deg);
+  }
+  75% {
+    transform: translate(-1px, 0) rotate(-8deg);
+  }
+}
+
+@keyframes star-burst {
+  0% {
+    opacity: 0;
+    transform: translate(0, 0) scale(0.4);
+  }
+  40% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+    transform: translate(var(--sx, 0), var(--sy, 0)) scale(1);
+  }
+}
+
+/* ============================== reduced-motion 双通道（全停；状态语义保留） ============================== */
+
+@media (prefers-reduced-motion: reduce) {
+  .st-idle .pet-sprite,
+  .st-working .pet-sprite,
+  .st-paused .pet-sprite,
+  .stage.asleep .pet-sprite,
+  .tr-petting .pet-sprite,
+  .tr-dragging .pet-sprite,
+  .m-blink .pet-sprite,
+  .m-look .pet-sprite,
+  .m-flip .pet-sprite,
+  .m-yawn .pet-sprite,
+  .zzz i,
+  .dialog-next.blink {
+    animation: none !important;
+  }
+  .dialog,
+  .ring-fg {
+    transition: none !important;
+  }
+}
+
+/* sprites 配置位通道（html.reduced-motion 由渲染层挂类） */
+html.reduced-motion .st-idle .pet-sprite,
+html.reduced-motion .st-working .pet-sprite,
+html.reduced-motion .st-paused .pet-sprite,
+html.reduced-motion .stage.asleep .pet-sprite,
+html.reduced-motion .tr-petting .pet-sprite,
+html.reduced-motion .tr-dragging .pet-sprite,
+html.reduced-motion .m-blink .pet-sprite,
+html.reduced-motion .m-look .pet-sprite,
+html.reduced-motion .m-flip .pet-sprite,
+html.reduced-motion .m-yawn .pet-sprite,
+html.reduced-motion .zzz i,
+html.reduced-motion .dialog-next.blink {
+  animation: none !important;
+}
+html.reduced-motion .dialog,
+html.reduced-motion .ring-fg {
+  transition: none !important;
+}
+
+/* ============================== FR-B1 坐栖（perched：姿态幅度减半） ============================== */
+
+.stage.perched .pet-sprite {
+  /* 幅度减半 = 时长×2 + 缩放收束（坐/趴姿态——动画即信息的弱化版） */
+  animation-duration: calc(var(--perch-dur, 3.2s) * 2);
+  transform-origin: bottom center;
+  filter: saturate(0.96);
+}
+.stage.perched.st-working .pet-sprite {
+  --perch-dur: 1.6s;
+}
+.stage.perched.st-idle .pet-sprite,
+.stage.perched.st-paused .pet-sprite {
+  --perch-dur: 3.2s;
+}
+/* 输入响应 hop 耦合（FR-A9）：working hop 时长经 --hop-dur 轻缩放（≤+10%） */
+.st-working .pet-sprite {
+  animation-duration: var(--hop-dur, 1.6s);
+}
+
+/* 输入响应微动作：耳抖（±2°/120ms——轻微档） */
+.m-earwig .pet-sprite {
+  animation: micro-earwig 120ms var(--e-sway);
+}
+@keyframes micro-earwig {
+  0%,
+  100% {
+    transform: rotate(0);
+  }
+  30% {
+    transform: rotate(2deg);
+  }
+  70% {
+    transform: rotate(-2deg);
+  }
+}
+
+/* ============================== FR-B3 演出变体（streak 双球 / pk-star 动态造星） ============================== */
+
+.capture-ball.ball-r {
+  /* 双球右侧位（左侧由默认位承担；交替三摇时两球并立） */
+  left: calc(50% + 26px);
+}
+.capture-ball.landed {
+  opacity: 1;
+  transform: translate(0, -46px) scale(1);
+}
+
+.pk-star {
+  position: absolute;
+  left: 50%;
+  top: 34%;
+  width: 8px;
+  height: 8px;
+  background: var(--poke-yellow);
+  border: 1px solid var(--dex-navy);
+  clip-path: polygon(50% 0%, 61% 35%, 98% 35%, 68% 57%, 79% 91%, 50% 70%, 21% 91%, 32% 57%, 2% 35%, 39% 35%);
+  animation: pk-star-fly 450ms var(--e-pop) forwards;
+}
+.pk-star.big {
+  width: 12px;
+  height: 12px;
+}
+@keyframes pk-star-fly {
+  0% {
+    opacity: 1;
+    transform: translate(0, 0) scale(0.6);
+  }
+  100% {
+    opacity: 0;
+    transform: translate(var(--dx, 0), var(--dy, -20px)) scale(1.1);
+  }
+}
+
+/* ============================== FR-B4 陪跑精灵（MateSprite） ============================== */
+
+.pet-mate {
+  position: absolute;
+  left: calc(50% - 88px);
+  bottom: 10px;
+  width: 72px;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 220ms var(--e-snap);
+}
+.pet-mate.on {
+  opacity: 1;
+  pointer-events: auto;
+}
+.pet-mate img {
+  width: 64px;
+  height: 64px;
+  object-fit: contain;
+  image-rendering: pixelated;
+  cursor: pointer;
+}
+.mate-title {
+  position: absolute;
+  top: -18px;
+  left: 0;
+  width: 120px;
+  font-size: 9px;
+  color: var(--dex-navy);
+  text-shadow: 0 1px 0 rgba(255, 255, 255, 0.8);
+  white-space: nowrap;
+}
+.pet-mate.walk img {
+  animation: mate-walk 650ms var(--e-snap);
+}
+.pet-mate.sit img {
+  transform: scale(0.94);
+  transform-origin: bottom center;
+}
+.pet-mate.wave img {
+  animation: mate-wave 600ms var(--e-sway);
+}
+@keyframes mate-walk {
+  0% {
+    opacity: 0;
+    transform: translateX(-24px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+@keyframes mate-wave {
+  0%,
+  100% {
+    transform: rotate(0);
+  }
+  25% {
+    transform: rotate(-10deg);
+  }
+  55% {
+    transform: rotate(8deg);
+  }
+  80% {
+    transform: rotate(-6deg);
+  }
+}
+
+/* ============================== FR-A8 ChatBox（原位 ≤4 行） ============================== */
+
+.chat-box {
+  position: absolute;
+  inset: auto 0 0 0;
+  height: 150px;
+  display: none;
+}
+.chat-box.on {
+  display: block;
+}
+.chat-inner {
+  position: absolute;
+  inset: 6px 6px 26px 6px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 6px;
+  background: var(--dex-body);
+  border: 2px solid var(--dex-navy);
+  border-radius: 6px;
+  box-shadow: 0 2px 0 rgba(0, 0, 0, 0.25);
+}
+.chat-log {
+  flex: 1;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  scrollbar-width: none;
+}
+.chat-log::-webkit-scrollbar {
+  display: none;
+}
+.chat-entry {
+  font-size: 10px;
+  line-height: 1.5;
+  padding: 2px 6px;
+  border-radius: 4px;
+  max-width: 92%;
+}
+.chat-entry.user {
+  align-self: flex-end;
+  background: var(--poke-yellow);
+  border: 1px solid var(--dex-navy);
+  color: var(--dex-navy);
+}
+.chat-entry.bot {
+  align-self: flex-start;
+  background: rgba(255, 255, 255, 0.85);
+  border: 1px solid var(--dex-navy);
+  color: var(--dex-navy);
+}
+.chat-entry.thinking {
+  opacity: 0.85;
+}
+.chat-dots::after {
+  content: "···";
+  letter-spacing: 2px;
+  animation: chat-dots 1s steps(3) infinite;
+}
+@keyframes chat-dots {
+  0% {
+    content: "·";
+  }
+  50% {
+    content: "··";
+  }
+  100% {
+    content: "···";
+  }
+}
+.chat-chips {
+  display: flex;
+  gap: 4px;
+}
+.chat-chips button {
+  flex: 1;
+  font-size: 9px;
+  padding: 2px 4px;
+  background: transparent;
+  border: 1px solid var(--dex-navy);
+  border-radius: 999px;
+  color: var(--dex-navy);
+  cursor: pointer;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.chat-chips button:hover {
+  background: var(--pcy-hover, rgba(0, 0, 0, 0.06));
+}
+.chat-row {
+  display: flex;
+  gap: 4px;
+}
+.chat-input {
+  flex: 1;
+  font-size: 11px;
+  padding: 3px 6px;
+  border: 1px solid var(--dex-navy);
+  border-radius: 4px;
+  background: #fff;
+  color: var(--dex-navy);
+}
+.chat-input:focus {
+  outline: 2px solid var(--poke-yellow);
+  outline-offset: -1px;
+}
+.chat-send {
+  font-size: 10px;
+  padding: 3px 8px;
+  background: var(--poke-yellow);
+  border: 1px solid var(--dex-navy);
+  border-radius: 4px;
+  color: var(--dex-navy);
+  cursor: pointer;
+}
+.chat-close {
+  position: absolute;
+  top: 8px;
+  right: 10px;
+  width: 18px;
+  height: 18px;
+  font-size: 10px;
+  line-height: 1;
+  background: var(--dex-body);
+  border: 1px solid var(--dex-navy);
+  border-radius: 50%;
+  color: var(--dex-navy);
+  cursor: pointer;
+}

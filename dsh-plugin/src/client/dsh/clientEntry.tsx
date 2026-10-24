@@ -1,0 +1,245 @@
+/**
+ * dsh 客户端半边入口（Phase B 真实适配层）：浏览器端 vendored cordis Loader 经
+ * window.__ModuleLoader__.load 挂载本模块（dist/client.js，IIFE-CJS），消费具名导出
+ * inject/apply——与宿主半边 hostEntry 同形（平台胶水；业务在 src/client/** 视图与
+ * src/host/** 核心）。
+ *
+ * apply 职责：ctx.connection.rpc → DshRpcTransport → createHostClient，注册三个 slot：
+ * ① conversation.session.header.actions（list/session）：ConversationChip 四态挂载
+ *   （无进行中任务零占位）。选 actions 而非 conversation.header：后者是 single 容器位
+ *   （dsh 自身的会话头壳占据，第三方注册即同 cell 冲突），actions 是标题邻接控制 list
+ *   位——多插件共存互不挤占；
+ * ② sidebar.panellist（list/root）+ ③ main（keyed/root，key = PANEL_ID）：侧边栏一级
+ *   入口（图标 + locale-aware 标签）与主区全局面板（见 sidebarPanel.tsx——U16 的
+ *   「仅 detail page 可达」平台事实已被 0.2.0-rc.2 全局面板机制取代）。
+ * ctx.configForms（ui-settings 设置域基础服务）经 createPluginConfig 绑定后随主面板
+ * Context 注入——背包分区行（AI 判定方式 / 启动时自动显示桌宠）的读写面（用户裁决
+ * 2026-10-18：插件私有配置背包为唯一编辑面，原 plugins.bundle.config 详情页配置区已撤）。
+ * 原第四槽 plugins.detail.section 已摘除（用户裁决）：插件管理器详情页回归纯信息页
+ * （元数据来自包清单 locale/*——readPluginMeta），图鉴机 UI 只经侧边栏面板呈现。
+ *
+ * chip 点击主体的 pageOpen 语义（打开插件页面）：经 ctx.layout.selectPanel 客户端
+ * 闭环接真（见 sidebarPanel.createPanelOpener）；⏸/✔ 就近控制走 rpc 真实可用；
+ * 桌宠双击/托盘/快捷键的 host:pageOpen 推送（2026-10-21 接真）：ctx.remote 订阅 host 流端点
+ * `pky/pageOpenEvents`（pageOpenStream.ts）→ transport.emitPageOpen → host.onPageOpen 两消费方
+ * ——本入口的导航监听（selectPanel 直达本面板）+ 面板内 usePageOpenAnchor（分段锚点）。
+ * slots.inject 自带 ctx.effect 纤维回收（返回幂等 disposer），apply 内直接调用即得
+ * 卸载清理（dsh cordis-client-runner 样例同形）。
+ */
+import { useCallback, useEffect, useState, type ReactNode } from "react";
+import { ConversationChip, type ChipMode } from "../chip/ConversationChip";
+import { ClientProvider } from "../clientContext";
+import { I18nProvider, type Locale } from "../i18n";
+import { createHostClient, type HostClient, type PageSection, type PomoPhaseView } from "../rpc";
+import type { Task } from "../../host/domain/tasks";
+import { loadLocale, pokemonNameOf } from "./panelData";
+import { hasPageOpenStreamFace, subscribePageOpen, type DshClientRemote } from "./pageOpenStream";
+import { createPluginConfig, type ConfigFormsFace } from "./pluginConfig";
+import { createDshRpcTransport, type DshConnectionRpc } from "./transport";
+import {
+  createMainPanel,
+  createPanelLabel,
+  createPanelOpener,
+  PanelIcon,
+  PANEL_ID,
+  PANEL_ORDER,
+  type PanelLayoutFace,
+} from "./sidebarPanel";
+
+/** 本包名（bundle 定位面） */
+const PKG_NAME = "pokemon-choose-you-dsh";
+
+/** 会话头 chip 槽（conversation 契约：kind list / scope session，标题邻接控制位） */
+const CHIP_SLOT = "conversation.session.header.actions";
+/** 侧边栏一级入口槽（sidebar 契约：kind list / scope root，id 寻址 main key） */
+const PANEL_LIST_SLOT = "sidebar.panellist";
+/** 主区全局面板槽（layout 契约：kind keyed / scope root，conversation 为保留 key） */
+const MAIN_SLOT = "main";
+
+/** slot 注册 options（list 槽 id / keyed 槽 key；对齐 dsh-client-ui-slots 的 KindOptions） */
+interface SlotRegisterOptions {
+  name: string;
+  id?: string;
+  key?: string;
+  order?: number;
+  label?: () => string;
+}
+
+/** slot 组件（框架 props 透传——owner/标准件按槽契约合成，本层只消费已知键） */
+type SlotComponent = (props: Record<string, unknown>) => ReactNode;
+
+/** dsh client 侧 ctx（结构化收窄：本入口消费的服务面） */
+export interface DshClientContext {
+  slots: {
+    inject(key: string, contribute: () => Iterable<() => void> | (() => void)): () => void;
+    register(options: SlotRegisterOptions, component: SlotComponent): () => void;
+  };
+  /** 语言自持（共享设置 language 键经 rpc 读）；侧边栏标签额外读宿主 locale 快照 */
+  locale: unknown;
+  connection: { rpc: DshConnectionRpc };
+  /** 设置域基础服务（ui-settings 提供）：宿主 Config schema 的读写面（pluginConfig 绑定后线入背包分区行） */
+  configForms: ConfigFormsFace;
+  /** 布局面（chip 点击直达的面板选中；web 组合由 ui-layout 供给） */
+  layout?: PanelLayoutFace;
+  /** Remote 面（api-gateway client）：pageOpen 推送流订阅——结构化收窄 + 特征检测，形态不符即不订阅 */
+  remote?: DshClientRemote;
+  /** fiber 效果注册（订阅流随本入口 fiber 卸载 dispose） */
+  effect(callback: () => () => void): () => void;
+}
+
+/** 必需服务（client 侧 ctx 属性名；web 组合齐备——configForms 随 ui-settings 装配、remote 随 api-gateway client） */
+export const inject = ["slots", "locale", "connection", "configForms", "layout", "remote"];
+
+/**
+ * chip 数据源（v1 事件驱动面，NFR-6 客户端无周期性自动动作——不设轮询定时器）：
+ * panelSnapshot.currentTask + 分类精灵名 + dbStatus 只读位 + petStatus.pomodoro（helper
+ * 番茄相位最新帧——D2 本地计时态经 pomo-state 上行落宿主）；挂载 / 就近控制动作后
+ * （onMutate）/ 会话窗口重新可见（visibilitychange·focus）时拉取。
+ * 计时秒 = 相位归属当前任务时取**到期倒计时**（focus/trial → running·paused，break →
+ * resting）；无相位（helper 未运行 / 未开番茄）回落自 startedAt 起算的已专注时长——两者
+ * 都是最近一次刷新时的快照值（面板不驱动计时）。
+ */
+function useChipTask(
+  host: HostClient,
+  locale: Locale,
+): {
+  task: Task | null;
+  mode: ChipMode;
+  secondsLeft: number;
+  pokemonName: string;
+  readonly: boolean;
+  refresh: () => void;
+} {
+  const [state, setState] = useState<{
+    task: Task | null;
+    pokemon: string;
+    readonly: boolean;
+    pomodoro: PomoPhaseView | null;
+  }>({ task: null, pokemon: "", readonly: false, pomodoro: null });
+  const refresh = useCallback((): void => {
+    void Promise.all([host.panelSnapshot(), host.dbStatus(), host.petStatus()]).then(([snap, db, pet]) => {
+      if (!snap.ok) {
+        return; // 读失败保持上一帧（下一次事件驱动刷新重试）
+      }
+      const task = snap.data.currentTask ?? null;
+      const category = task === null ? undefined : snap.data.categories.find((c) => c.id === task.categoryId);
+      setState({
+        task,
+        pokemon: category?.pokemon ?? "",
+        readonly: db.ok && db.data.mode === "readonly",
+        pomodoro: pet.ok ? pet.data.pomodoro : null,
+      });
+    });
+  }, [host]);
+  useEffect(() => {
+    refresh();
+    const onVisible = (): void => {
+      if (document.visibilityState === "visible") {
+        refresh();
+      }
+    };
+    document.addEventListener("visibilitychange", onVisible);
+    window.addEventListener("focus", onVisible);
+    return () => {
+      document.removeEventListener("visibilitychange", onVisible);
+      window.removeEventListener("focus", onVisible);
+    };
+  }, [refresh]);
+  const task = state.task;
+  const timing = task === null ? null : chipTiming(task, state.pomodoro, Date.now());
+  return {
+    task,
+    mode: timing?.mode ?? "running",
+    secondsLeft: timing?.secondsLeft ?? 0,
+    pokemonName: pokemonNameOf(state.pokemon, locale),
+    readonly: state.readonly,
+    refresh,
+  };
+}
+
+/** 相位归属当前任务（全局相位 taskId=null 也算归属）且未到期 → 结束时刻；否则 null */
+function phaseEndMs(pomodoro: PomoPhaseView, task: Task, now: number): number | null {
+  if (pomodoro.taskId !== null && String(pomodoro.taskId) !== String(task.id)) {
+    return null;
+  }
+  const endMs = Date.parse(pomodoro.endAt);
+  return Number.isFinite(endMs) && endMs > now ? endMs : null;
+}
+
+/**
+ * chip 计时三态判定：相位归属当前任务且未到期 → 倒计时（break = resting；focus/trial 随
+ * 任务 paused/running）；否则已专注时长快照（paused/running 两态）。
+ */
+export function chipTiming(
+  task: Task,
+  pomodoro: PomoPhaseView | null,
+  now: number,
+): { mode: ChipMode; secondsLeft: number } {
+  const base: ChipMode = task.status === "paused" ? "paused" : "running";
+  if (pomodoro !== null) {
+    const endMs = phaseEndMs(pomodoro, task, now);
+    if (endMs !== null) {
+      return { mode: pomodoro.kind === "break" ? "resting" : base, secondsLeft: Math.ceil((endMs - now) / 1000) };
+    }
+  }
+  const startedMs = task.startedAt === null || task.startedAt === undefined ? NaN : Date.parse(task.startedAt);
+  return {
+    mode: base,
+    secondsLeft: Number.isFinite(startedMs) ? Math.max(0, Math.floor((now - startedMs) / 1000)) : 0,
+  };
+}
+
+/** 会话头 chip 工厂：语言经共享设置初始化（切换走背包显示分区保存后刷新拉新值） */
+function createChipEntry(host: HostClient, openPage: (section?: PageSection) => void): SlotComponent {
+  function ChipRoot(): React.JSX.Element | null {
+    const [locale, setLocale] = useState<Locale>("zh-Hans");
+    useEffect(() => {
+      void loadLocale(host).then(setLocale);
+    }, []);
+    const chip = useChipTask(host, locale);
+    return (
+      <I18nProvider locale={locale}>
+        <ClientProvider client={host}>
+          <ConversationChip
+            task={chip.task}
+            mode={chip.mode}
+            secondsLeft={chip.secondsLeft}
+            pokemonName={chip.pokemonName}
+            readonly={chip.readonly}
+            onMutate={chip.refresh}
+            onOpenPage={openPage}
+          />
+        </ClientProvider>
+      </I18nProvider>
+    );
+  }
+  return function ChipEntry(): ReactNode {
+    return <ChipRoot />;
+  };
+}
+
+/** 客户端 apply：transport → HostClient → pageOpen 推送订阅 → 三 slot 注册（fiber 卸载经 slots.inject / effect 回收） */
+export function apply(ctx: DshClientContext): void {
+  const transport = createDshRpcTransport(ctx.connection.rpc);
+  const host = createHostClient(transport);
+  const pluginConfig = createPluginConfig(ctx.configForms);
+  const openPanel = createPanelOpener(ctx.layout);
+  // host:pageOpen（桌宠双击/托盘/快捷键）→ 导航直达本面板；分段锚点由面板内 usePageOpenAnchor 同源消费
+  host.onPageOpen((event) => openPanel(event.section));
+  const remote = ctx.remote;
+  if (hasPageOpenStreamFace(remote)) {
+    ctx.effect(() => subscribePageOpen(remote, (event) => transport.emitPageOpen(event)));
+  }
+  ctx.slots.inject(CHIP_SLOT, () =>
+    ctx.slots.register({ name: CHIP_SLOT, id: `${PKG_NAME}#chip` }, createChipEntry(host, openPanel)),
+  );
+  ctx.slots.inject(PANEL_LIST_SLOT, () =>
+    ctx.slots.register(
+      { name: PANEL_LIST_SLOT, id: PANEL_ID, order: PANEL_ORDER, label: createPanelLabel(ctx.locale) },
+      PanelIcon,
+    ),
+  );
+  ctx.slots.inject(MAIN_SLOT, () =>
+    ctx.slots.register({ name: MAIN_SLOT, key: PANEL_ID }, createMainPanel(host, pluginConfig)),
+  );
+}

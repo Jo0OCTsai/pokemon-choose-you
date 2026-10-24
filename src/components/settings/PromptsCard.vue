@@ -18,8 +18,7 @@ const FEATURE_ORDER = ["im_classify", "capture", "pet_chat", "tag_health", "disp
 
 <template>
   <section class="set-card">
-    <h3>{{ t("prompts.title") }}</h3>
-    <p class="set-sub">{{ t("prompts.sub") }}</p>
+    <h3 :data-tip="`${t('prompts.sub')}\n${t('prompts.foot')}`">{{ t("prompts.title") }}</h3>
 
     <!-- 读取失败：错误行 + 重试；面板不渲染残缺文本 -->
     <div v-if="loadError !== null" class="load-error">
@@ -35,8 +34,6 @@ const FEATURE_ORDER = ["im_classify", "capture", "pet_chat", "tag_health", "disp
     <template v-else>
       <PromptFeaturePanel v-for="p in panels" :key="p.id" :panel="p" />
     </template>
-
-    <p class="set-foot">{{ t("prompts.foot") }}</p>
   </section>
 </template>
 
@@ -56,20 +53,6 @@ const FEATURE_ORDER = ["im_classify", "capture", "pet_chat", "tag_health", "disp
 .set-card h3 {
   margin: 0 0 12px;
   font-size: 16px;
-}
-.set-sub {
-  margin: -6px 0 12px;
-  font-size: 12px;
-  color: var(--ink-soft);
-  line-height: 1.7;
-}
-.set-foot {
-  margin: 12px 0 0;
-  padding-top: 10px;
-  border-top: 2px dashed var(--ink-faint);
-  font-size: 12px;
-  color: var(--ink-soft);
-  line-height: 1.7;
 }
 
 /* 卡级错误行：底色纯白 + --dex-red-dark 文字（白底 ≥6:1） */

@@ -40,8 +40,7 @@ defineExpose({ reload: loadHealth });
 
 <template>
   <section class="set-card">
-    <h3>{{ t("diag.healthTitle") }}</h3>
-    <p class="set-sub">{{ t("diag.healthHint") }}</p>
+    <h3 :data-tip="t('diag.healthHint')">{{ t("diag.healthTitle") }}</h3>
     <div v-for="h in health" :key="h.provider" class="health-item">
       <div class="health-row">
         <span class="health-dot" :class="'h-' + h.status">●</span>
@@ -87,13 +86,6 @@ defineExpose({ reload: loadHealth });
 .set-card h3 {
   margin: 0 0 12px;
   font-size: 16px;
-}
-/* 说明文字四层归属的页面两层（行内 desc 在 SettingRow 组件内）：区块副标题 + 卡片脚注 */
-.set-sub {
-  margin: -6px 0 12px;
-  font-size: 12px;
-  color: var(--ink-soft);
-  line-height: 1.7;
 }
 /* 瞬时反馈信息（保存结果 / 错误 / 空态），不是常驻说明 */
 .hint {

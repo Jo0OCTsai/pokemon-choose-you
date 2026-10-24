@@ -69,8 +69,7 @@ async function addTag(dimKey: string) {
 
 <template>
   <section class="set-card">
-    <h3>{{ t("tags.title") }}</h3>
-    <p class="set-sub">{{ t("tags.hint") }}</p>
+    <h3 :data-tip="`${t('tags.hint')}\n${t('tags.dimHint')}`">{{ t("tags.title") }}</h3>
     <div v-for="group in editingGroups" :key="group.dim.key" class="tag-dim-group">
       <div class="tag-dim-head">
         <b>{{ group.dim.name }}</b>
@@ -98,7 +97,6 @@ async function addTag(dimKey: string) {
         </div>
       </template>
     </div>
-    <p class="set-foot">{{ t("tags.dimHint") }}</p>
   </section>
 </template>
 
@@ -118,21 +116,6 @@ async function addTag(dimKey: string) {
 .set-card h3 {
   margin: 0 0 12px;
   font-size: 16px;
-}
-/* 说明文字四层归属的页面两层（行内 desc 在 SettingRow 组件内）：区块副标题 + 卡片脚注 */
-.set-sub {
-  margin: -6px 0 12px;
-  font-size: 12px;
-  color: var(--ink-soft);
-  line-height: 1.7;
-}
-.set-foot {
-  margin: 12px 0 0;
-  padding-top: 10px;
-  border-top: 2px dashed var(--ink-faint);
-  font-size: 12px;
-  color: var(--ink-soft);
-  line-height: 1.7;
 }
 .set-card .btn.del {
   color: var(--danger);

@@ -52,7 +52,11 @@ pub fn claim_dispatch(
 }
 
 /// 按状态机迁移派发状态并写审计日志（应用命令与 pk dispatch 子命令共用）。
-/// to=None 重置为未派发（救援卡死的 running）；不满足迁移给可操作报错
+/// to=None 重置为未派发（救援卡死的 running）；不满足迁移给可操作报错。
+/// 写路径为 CAS（§7.1 条目 8 / M1a）：UPDATE 携带期望前态（NULL 用 IS），
+/// 跨进程并发迁移（pk×GUI / dsh 双形态的 done/failed 回传）不再互相覆盖——
+/// affected=0 时重读：目标态已达成按幂等成功（transition_or_already 语义泛化，
+/// 不重复写审计），否则前态被并发改为第三态，按现行非法迁移报错（重读值入文案）。
 pub fn dispatch_transition_conn(
     conn: &Connection,
     task_id: i64,
@@ -79,10 +83,11 @@ pub fn dispatch_transition_conn(
             "待办 No.{task_id} 派发状态为「{from_text}」，不能迁移到「{to_text}」；先派发领取 running，或在应用抽屉里重置"
         )));
     }
-    conn.execute(
-        "UPDATE tasks SET dispatch_state=?2 WHERE id=?1",
-        params![task_id, to],
-    )?;
+    // CAS 写：仅当前态仍为读取时的前态才落库；未迁移（前态被并发改走且目标态已
+    // 达成）时按幂等成功收口，不写审计
+    if !cas_dispatch_state(conn, task_id, from.as_deref(), to)? {
+        return Ok(());
+    }
     let new_value = match (to, note.map(str::trim).filter(|n| !n.is_empty())) {
         (Some(t), Some(n)) => format!("{t}：{n}"),
         (Some(t), None) => t.to_string(),
@@ -101,6 +106,45 @@ pub fn dispatch_transition_conn(
         ],
     )?;
     Ok(())
+}
+
+/// CAS 迁移原语（条目 8）：UPDATE 携带期望前态（NULL 用 `IS ?` 兼容），返回是否
+/// 发生了迁移。前态被并发改走（affected=0）时重读仲裁：目标态已达成 → 幂等成功
+/// 返回 false（transition_or_already 语义泛化，未迁移不写审计）；否则按重读到的
+/// 实际状态报非法迁移（重读值入文案）。expected_from 独立成参，供测试直接构造
+/// 「读取后行被并发改写」的失配场景。
+fn cas_dispatch_state(
+    conn: &Connection,
+    task_id: i64,
+    expected_from: Option<&str>,
+    to: Option<&str>,
+) -> AppResult<bool> {
+    let n = conn.execute(
+        "UPDATE tasks SET dispatch_state=?3 WHERE id=?1 AND dispatch_state IS ?2",
+        params![task_id, expected_from, to],
+    )?;
+    if n > 0 {
+        return Ok(true);
+    }
+    let cur: Option<String> = conn
+        .query_row(
+            "SELECT dispatch_state FROM tasks WHERE id=?1",
+            params![task_id],
+            |r| r.get(0),
+        )
+        .map_err(AppError::Db)?;
+    if cur.as_deref() == to {
+        log::info!(
+            "dispatch: 待办 No.{task_id} 已并发迁移到「{}」，按幂等成功收口",
+            to.unwrap_or("未派发")
+        );
+        return Ok(false);
+    }
+    let from_text = cur.as_deref().unwrap_or("未派发");
+    let to_text = to.unwrap_or("未派发（重置）");
+    Err(AppError::Invalid(format!(
+        "待办 No.{task_id} 派发状态已并发变为「{from_text}」，不能迁移到「{to_text}」；先派发领取 running，或在应用抽屉里重置"
+    )))
 }
 
 /// 迁移到 to，但目标态已达成时按成功处理（agent 中途 `pk dispatch done` 回传后，
@@ -251,6 +295,54 @@ mod tests {
         // 不存在的任务
         let err = dispatch_transition_conn(&conn, 99, Some(DS_DONE), None, "t").unwrap_err();
         assert!(matches!(err, AppError::NotFound(_)), "{err}");
+    }
+
+    /// 条目 8（CAS 化）：并发失配仲裁——前态被并发改走且目标态已达成按幂等成功
+    /// （false = 未迁移、不写审计），前态变成第三态则按重读值报非法迁移。
+    /// expected_from 独立传参，直接构造「读取后行被并发改写」的场景
+    #[test]
+    fn cas_update_resolves_concurrent_mismatch_idempotently() {
+        let conn = test_conn();
+        conn.execute(
+            "INSERT INTO tasks (title, status, created_at) VALUES ('t', 'inbox', '2026-09-13T00:00:00Z')",
+            [],
+        )
+        .unwrap();
+        // 正常迁移：NULL → running
+        assert!(cas_dispatch_state(&conn, 1, None, Some(DS_RUNNING)).unwrap());
+        // 并发失配·目标态已达成：行已被并发翻到 done，迟到方仍按 running→done CAS
+        conn.execute("UPDATE tasks SET dispatch_state='done'", [])
+            .unwrap();
+        assert!(
+            !cas_dispatch_state(&conn, 1, Some(DS_RUNNING), Some(DS_DONE)).unwrap(),
+            "目标态已达成 → 幂等成功（未迁移）"
+        );
+        let logs: i64 = conn
+            .query_row(
+                "SELECT COUNT(*) FROM task_logs WHERE field='dispatch_state'",
+                [],
+                |r| r.get(0),
+            )
+            .unwrap();
+        assert_eq!(logs, 0, "幂等收口不写审计（transition_or_already 同口径）");
+        // 并发失配·第三态：行被并发重置回 NULL，迟到方按 running→done CAS → 报错
+        conn.execute("UPDATE tasks SET dispatch_state=NULL", [])
+            .unwrap();
+        let err = cas_dispatch_state(&conn, 1, Some(DS_RUNNING), Some(DS_DONE)).unwrap_err();
+        assert!(matches!(err, AppError::Invalid(_)), "{err}");
+        assert!(err.to_string().contains("未派发"), "重读值入文案: {err}");
+        // 重置（to=NULL）同样走 IS 兼容：done → NULL 由上层状态机放行后 CAS 命中
+        conn.execute("UPDATE tasks SET dispatch_state='running'", [])
+            .unwrap();
+        assert!(cas_dispatch_state(&conn, 1, Some(DS_RUNNING), None).unwrap());
+        let state: Option<String> = conn
+            .query_row("SELECT dispatch_state FROM tasks WHERE id=1", [], |r| {
+                r.get(0)
+            })
+            .unwrap();
+        assert_eq!(state, None);
+        // 双重重置并发：第二个按 running→NULL CAS 落空，重读已是 NULL → 幂等成功
+        assert!(!cas_dispatch_state(&conn, 1, Some(DS_RUNNING), None).unwrap());
     }
 
     /// 手动标记：done/failed 走状态机；idle 从任意态（含卡死 running）重置

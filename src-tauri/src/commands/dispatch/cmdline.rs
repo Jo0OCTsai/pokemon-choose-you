@@ -1,6 +1,6 @@
 //! 派发命令行组装（纯函数，独立测试）：交互参数清洗、agent 命令行（POSIX /
 //! PowerShell 两版）、tmux attach-or-create / 注入行与 ssh argv 形态。
-use crate::ai::{self, posix_quote, quote_cd_target, AgentRemote};
+use crate::ai::{self, posix_quote, quote_cd_target, RemoteTarget};
 
 /// 交互启动参数：历史参数去掉会话恢复类开关——派发开新会话，不是回放历史
 /// （claude 的 --resume 不进派发命令行；--resume-id 后跟的会话 id 一并剔除；
@@ -68,25 +68,12 @@ pub(crate) fn tmux_session_name(task_id: i64) -> String {
     format!("pk-{task_id}")
 }
 
-/// ssh argv 的密钥/端口/主机段（-- 之后到远端命令行之前）：
-/// 与 history_invocation 同构——exec "$SHELL" -lc 让 brew/nvm 的 PATH 可见
-fn push_ssh_target(remote: &AgentRemote, argv: &mut Vec<String>) {
-    if let Some(key) = remote
-        .key_path
-        .as_deref()
-        .map(str::trim)
-        .filter(|k| !k.is_empty())
-    {
-        argv.push("-i".into());
-        argv.push(key.to_string());
-    }
-    if remote.port != 0 && remote.port != 22 {
-        argv.push("-p".into());
-        argv.push(remote.port.to_string());
-    }
+/// ssh argv 的目标段（-- 之后到远端命令行之前）：alias 模式（ADR-0003）——
+/// 凭据与端口由 ~/.ssh/config 承载，与 history_invocation 同构的 exec "$SHELL" -lc
+fn push_ssh_target(remote: &RemoteTarget, argv: &mut Vec<String>) {
     // -- 在 host 之前：以 - 开头的 host 不被当成 ssh 选项
     argv.push("--".into());
-    argv.push(remote.host.trim().to_string());
+    argv.push(remote.alias.clone());
     argv.push("exec".into());
     argv.push("\"$SHELL\"".into());
     argv.push("-lc".into());
@@ -95,7 +82,7 @@ fn push_ssh_target(remote: &AgentRemote, argv: &mut Vec<String>) {
 /// 终端里跑的 ssh（交互式，不设 BatchMode：密钥未就绪允许在终端里输密码）：
 /// 远端登录 shell 里 tmux attach-or-create，-c 指定工作目录（空则远端登录目录）。
 /// 会话历史回连远程交互派发共用此 argv
-pub(crate) fn tmux_attach_argv(remote: &AgentRemote, session: &str, workdir: &str) -> Vec<String> {
+pub(crate) fn tmux_attach_argv(remote: &RemoteTarget, session: &str, workdir: &str) -> Vec<String> {
     let mut argv = vec![
         "-tt".to_string(),
         "-o".to_string(),
@@ -117,7 +104,7 @@ pub(crate) fn tmux_attach_argv(remote: &AgentRemote, session: &str, workdir: &st
 }
 
 /// 降级路径（远端无 tmux）：直接 ssh -tt 启动 agent；会话不持久，断开即结束
-pub(crate) fn direct_ssh_argv(remote: &AgentRemote, workdir: &str, line: &str) -> Vec<String> {
+pub(crate) fn direct_ssh_argv(remote: &RemoteTarget, workdir: &str, line: &str) -> Vec<String> {
     let mut argv = vec![
         "-tt".to_string(),
         "-o".to_string(),
@@ -206,12 +193,9 @@ mod tests {
 
     #[test]
     fn tmux_argv_and_inject_line_shapes() {
-        let remote = AgentRemote {
-            host: "dev@buildbox".into(),
-            port: 2222,
-            key_path: Some("~/.ssh/id_ed25519".into()),
-            tunnel: None,
-            persistent: false,
+        let remote = RemoteTarget {
+            alias: "buildbox".into(),
+            tunnel_port: None,
         };
         // attach：-tt + 登录 shell + attach-or-create，带 -c 工作目录
         let argv = tmux_attach_argv(&remote, "pk-5", "~/lab repo");

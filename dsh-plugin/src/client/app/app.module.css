@@ -1,0 +1,247 @@
+/* 插件页面壳样式（scoped；宿主主题 token --dsw-alias-*，缺省回退中性色；零闪烁） */
+
+.page {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  color: var(--dsw-alias-label-primary, #1f2328);
+  background: var(--dsw-alias-bg-base, transparent);
+  font-size: 14px;
+}
+
+/* PageHeader（桌面 dex-main-head 同构：标题块左 + CAUGHT 进度右，七段常显）
+ * specs/dsh-plugin-style T1#1：纸色头条 + 2px 重墨线底缘；面内文字走纸面配对墨色
+ * （--pcy-paper-ink 与 --pcy-paper 同泡翻转，宿主/OS 主题背离也不损可读） */
+.pageHeader {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: var(--pcy-paper, #f5f0dc);
+  border-bottom: 2px solid var(--dsw-alias-label-primary, #1f2328);
+  border-radius: 10px 10px 0 0;
+  padding: 8px 12px 6px;
+}
+.pageHeadMain {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+/* 标题行（title + 装饰英文 + 待处理徽章同行；CAUGHT 挂外层右端） */
+.pageTitleRow {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+}
+/* 日期（等宽小字 + 丝印字距）：页头右端与 CAUGHT 同排、居其前（用户裁决 2026-10-16：
+ * 不再桌面 today 页「标题下方独立行」同位） */
+.pageDate {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 1px;
+  color: var(--pcy-paper-ink, #1a1b25);
+  opacity: 0.65;
+}
+/* CAUGHT 计数 + 描边进度条（桌面 catch-progress 同构：计数左、进度条右同行） */
+.pageCaught {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: none;
+}
+.caughtLabel {
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  color: var(--pcy-paper-ink, #1a1b25);
+  font-weight: 600;
+}
+.caughtBar {
+  width: 110px;
+  height: 10px;
+  border: 1.5px solid var(--dsw-alias-label-primary, #1f2328);
+  border-radius: 999px;
+  background: var(--dsw-alias-bg-layer-1, #ffffff);
+  overflow: hidden;
+}
+.caughtFill {
+  display: block;
+  height: 100%;
+  background: var(--pcy-ok, #2e9e5b);
+}
+.pageTitle {
+  font-size: 18px;
+  font-weight: 700;
+  margin: 0;
+  color: var(--pcy-paper-ink, #1a1b25);
+}
+/* POKé-DEX 装饰英文（§8：不入 i18n；等宽小字 + 字距，原型 pagehead 同款；
+ * 非信息装饰文字，不设对比度要求） */
+.pageTitleDeco {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 10px;
+  letter-spacing: 1.5px;
+  color: var(--dsw-alias-label-tertiary, var(--dsw-alias-label-secondary, #57606a));
+  margin-left: -6px;
+  transform: translateY(3px);
+}
+.pendingBadge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 20px;
+  height: 20px;
+  padding: 0 6px;
+  border-radius: 999px;
+  /* 行动红底白字（DESIGN_SYSTEM --danger #E00F0F，白字 5.0:1——#ee1515 仅 4.4 不达标）+ 1px 墨线；
+   * 计数静态无动画 NFR-6 */
+  background: var(--pcy-badge-red, #e00f0f);
+  color: #ffffff;
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 20px;
+  border: 1px solid #1a1b25;
+}
+
+/* SchemaBanner（持久横幅，只读模式；警示软底为固定色，理由同 AuthBanner） */
+.schemaBanner {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  border-radius: 10px;
+  border: 1.5px solid var(--pcy-warn, #c98a06);
+  background: var(--pcy-warn-soft, #fff3cd);
+  color: var(--pcy-warn-ink, #8a5e06);
+  font-size: 13px;
+}
+.schemaReadonlyTag {
+  margin-left: auto;
+  flex: none;
+  padding: 1px 10px;
+  border-radius: 6px;
+  border: 1.5px solid var(--pcy-warn-ink, #8a5e06);
+  font-size: 11px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+/* SegmentNav（七段胶囊选单；计数静态）——原型 segnav 口径：描边胶囊、active 主色填充 */
+.segmentNav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding-bottom: 2px;
+}
+.segmentButton {
+  box-sizing: border-box;
+  min-height: 32px;
+  padding: 4px 14px;
+  border: 1px solid var(--dsw-alias-border-l1, #e3e7ec);
+  border-radius: 999px;
+  background: var(--dsw-alias-bg-layer-1, #ffffff);
+  color: var(--dsw-alias-label-secondary, #57606a);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.segmentButton:hover {
+  border-color: var(--dsw-alias-border-l3, #c7cdd4);
+  background: var(--pcy-hover, #fff3c4);
+}
+.segmentButton:focus-visible {
+  outline: 2px solid var(--dsw-alias-state-business-primary, #316dca);
+  outline-offset: 1px;
+}
+/* 一等选中（specs/dsh-plugin-style §3.2）：黄底固定墨字 + 重墨线 + 字重（验收裁决去 ▶ 前缀；
+ * 非颜色冗余由 aria-current + 字重 + 墨线承担；黄固定不翻转，双主题安全 11.2:1） */
+.segmentButton[aria-current="page"] {
+  color: #1a1b25;
+  background: var(--pcy-running, #ffcb05);
+  border: 1.5px solid var(--dsw-alias-label-primary, #1f2328);
+  font-weight: 700;
+}
+.segmentButton[aria-current="page"] .segmentCount {
+  background: rgba(26, 27, 37, 0.12);
+  border-color: transparent;
+}
+.segmentCount {
+  display: inline-block;
+  min-width: 20px;
+  text-align: center;
+  padding: 0 6px;
+  border-radius: 999px;
+  background: var(--dsw-alias-bg-layer-1, #eaeef2);
+  border: 1px solid var(--dsw-alias-border-l2, #d0d7de);
+  font-size: 11px;
+  line-height: 18px;
+  /* 静态计数：无闪烁、无弹跳动画（U14 ⚠ 为静态前缀字符） */
+}
+
+.segmentBody {
+  min-height: 200px;
+}
+/* 收音机/日志/背包段填充窗口剩余高度（--pcy-remaining 由 PluginDetailPage 按段体顶缘实测写入）：
+ * 整页不出滚动条——段内滚动位各自治内滚（收音机 = 列表/详情；日志 = 会话记录列表，
+ * 分页器常驻；背包 = 分区页内容），页头/选单常驻可视。
+ * 收音机/日志列表伸缩口径经自定义属性下传（radio.module.css / tasks.module.css 消费：--list-cap/--list-floor/--detail-floor） */
+.segmentFill {
+  height: var(--pcy-remaining, auto);
+  min-height: 260px;
+  --list-cap: none;
+  --list-floor: 0px;
+  --detail-floor: 0px;
+}
+@media (max-width: 760px) {
+  /* 窄屏纵排回落页面滚动（双面板上下堆叠塞定高会互相挤压） */
+  .segmentFill {
+    height: auto;
+    --list-cap: 560px;
+    --list-floor: 220px;
+    --detail-floor: 160px;
+  }
+}
+
+/* HelperBanner（U30：系统能力面降级静态横幅——纸色点缀底 + 墨线，批量托盘同词汇；schema 拒绝优先在上不叠抢） */
+.helperBanner {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  border-radius: 10px;
+  border: 1.5px solid var(--dsw-alias-label-primary, #1f2328);
+  background: var(--pcy-paper, #f5f0dc);
+  color: var(--pcy-paper-ink, #1a1b25);
+  font-size: 13px;
+}
+.helperBannerLink {
+  margin-left: auto;
+  flex: none;
+  box-sizing: border-box;
+  min-height: var(--pcy-control-h, 32px);
+  padding: 4px 12px;
+  border-radius: 8px;
+  border: 1.5px solid var(--dsw-alias-label-primary, #1f2328);
+  background: var(--pcy-running, #ffcb05);
+  color: #1a1b25;
+  font-size: 12px;
+  font-weight: 700;
+  box-shadow: 2px 2px 0 var(--dsw-alias-label-primary, #1f2328);
+  cursor: pointer;
+}
+.helperBannerLink:active {
+  transform: translate(1px, 1px);
+  box-shadow: 1px 1px 0 var(--dsw-alias-label-primary, #1f2328);
+}
+@media (prefers-reduced-motion: reduce) {
+  .helperBannerLink,
+  .helperBannerLink:active {
+    transition-duration: 0.01ms;
+  }
+}

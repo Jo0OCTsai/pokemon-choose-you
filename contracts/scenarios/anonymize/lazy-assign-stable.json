@@ -1,0 +1,19 @@
+{
+  "kind": "anonymize",
+  "name": "lazy-assign-stable",
+  "now": "2026-01-15T09:00:00+08:00",
+  "setup": {
+    "feishu_users": [
+      { "open_id": "ou_a", "name": "张三", "updated_at": "2026-01-01T00:00:00Z" },
+      { "open_id": "ou_b", "name": "李四", "updated_at": "2026-01-01T00:00:00Z" }
+    ]
+  },
+  "steps": [
+    { "op": "anon_build", "args": { "openIds": ["ou_a", "ou_b"] } },
+    { "op": "anon_scrub", "args": { "text": "张三说找李四对齐材料" } },
+    { "op": "anon_scrub", "args": { "text": "张三说找李四对齐材料" } },
+    { "op": "anon_scrub", "args": { "text": "李四又说找张三" } },
+    { "op": "anon_build", "args": { "openIds": ["ou_b", "ou_a"] } }
+  ],
+  "expect": "exact"
+}

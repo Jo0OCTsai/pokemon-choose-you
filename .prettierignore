@@ -14,3 +14,12 @@ specs
 *.md
 src-tauri/Cargo.lock
 src/pokemon/catalog.json
+
+# 契约夹具/场景（FR-X3）：机器生成与 serde_json pretty 输出逐字节对齐（oracle 比对单源），
+# 不得经 prettier 重排——格式漂移会让 UPDATE_FIXTURES 比对误红
+contracts/fixtures
+contracts/scenarios
+
+# dsh-plugin e2e harness 为 esbuild 生成物（build-harness.mjs 重建，同 dist 口径勿手排；
+# 子包 .prettierignore 已豁免，此条覆盖 root 全仓扫描）
+dsh-plugin/e2e/harness

@@ -38,3 +38,4 @@ coverage/
 
 # pk CLI sidecar（构建时由 scripts/prepare-pk-cli.mjs 生成）
 src-tauri/binaries/
+e2e/harness/

@@ -1,0 +1,17 @@
+{
+  "kind": "judge_protocol",
+  "name": "batch-atomic-and-duplicate-id",
+  "now": "2026-01-15T09:00:00+08:00",
+  "setup": {
+    "chat_messages": [
+      { "id": 1, "message_id": "om_1", "content": "x", "created_at": "2026-01-10T00:00:00Z" },
+      { "id": 2, "message_id": "om_2", "content": "x", "created_at": "2026-01-10T00:00:00Z" }
+    ]
+  },
+  "steps": [
+    { "op": "suggest_batch", "args": { "results": [ { "messageId": "om_1", "action": "todo", "title": "甲" }, { "messageId": "om_1", "action": "none" } ] } },
+    { "op": "suggest_batch", "args": { "results": [ { "messageId": "om_1", "action": "todo", "title": "甲" }, { "messageId": "om_2", "action": "todo" } ] } },
+    { "op": "suggest_batch", "args": { "results": [ { "messageId": "om_1", "action": "todo", "title": "甲", "due": "  " }, { "messageId": "om_2", "action": "none", "reason": "闲聊" } ] } }
+  ],
+  "expect": "exact"
+}

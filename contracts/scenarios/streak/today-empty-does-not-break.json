@@ -1,0 +1,10 @@
+{
+  "kind": "streak",
+  "name": "today-empty-does-not-break",
+  "now": "2026-09-13T09:00:00+08:00",
+  "setup": {},
+  "steps": [
+    { "op": "streak_eval", "args": { "doneDays": ["2026-09-12", "2026-09-11"], "today": "2026-09-13", "todayCount": 0 } }
+  ],
+  "expect": "exact"
+}

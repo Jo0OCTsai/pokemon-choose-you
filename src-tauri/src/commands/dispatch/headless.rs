@@ -4,7 +4,7 @@ use super::cmdline::summarize_line;
 use super::prompt::dispatch_prompt;
 use super::route::DispatchPrep;
 use super::state::{transition_or_already, DS_DONE, DS_FAILED};
-use crate::ai::{self, posix_quote, AgentConfig, AgentRemote};
+use crate::ai::{self, posix_quote, AgentConfig, RemoteTarget};
 use crate::commands::sessions::{log_session_conn, NewAgentSession};
 use crate::commands::skills::ssh_run;
 use crate::db::Db;
@@ -12,8 +12,8 @@ use crate::error::AppResult;
 use crate::models::AgentSession;
 use rusqlite::params;
 
-/// 无头派发超时下限（秒）：任务处理远慢于分类（§5.3）
-const DISPATCH_MIN_TIMEOUT_SECS: u64 = 600;
+/// 无头派发超时下限（秒）：任务处理远慢于分类（§5.3）。auto 的槽租约时长同口径引用
+pub(crate) const DISPATCH_MIN_TIMEOUT_SECS: u64 = 600;
 
 /// 派发用无头参数：剔除应用分类预设塞的 `--allowedTools Bash(pk:*)`（派发要读写仓库，
 /// §6 白名单只约束分类）。值列表里的预设项一并剔除；用户自定义的其他 --allowedTools 值保留
@@ -102,7 +102,7 @@ fn parse_headless_envelope(stdout: &str) -> HeadlessEnvelope {
 /// 返回 (生效目录, 说明)；目录 None = 降级用原目录（说明给用户）。本地经 sh、远程经 ssh，
 /// 与远端同一脚本形态（定位仓库根 → 兄弟目录建/复用）
 pub(crate) async fn ensure_worktree(
-    remote: Option<&AgentRemote>,
+    remote: Option<&RemoteTarget>,
     workdir: &str,
     task_id: i64,
 ) -> (Option<String>, Option<String>) {
@@ -123,7 +123,7 @@ pub(crate) async fn ensure_worktree(
     let result = match remote {
         None => run_shell(&script).await,
         Some(r) => ssh_run(
-            r,
+            &r.alias,
             &format!("exec \"$SHELL\" -lc {}", posix_quote(&script)),
             None,
         )
@@ -180,7 +180,7 @@ pub(crate) async fn run_headless_dispatch(
     use_worktree: bool,
 ) -> HeadlessOutcome {
     let agent = &prep.agent;
-    let remote = agent.remote.as_ref().filter(|r| !r.host.trim().is_empty());
+    let remote = prep.remote.as_ref();
     let (effective_dir, wt_note) = if use_worktree && !prep.workdir.trim().is_empty() {
         ensure_worktree(remote, &prep.workdir, prep.task.id).await
     } else {
@@ -218,10 +218,10 @@ pub(crate) async fn run_headless_dispatch(
     let started = std::time::Instant::now();
     let task_id_str = prep.task.id.to_string();
     let envs = [("PK_DISPATCH_TASK", task_id_str.as_str())];
-    let run = ai::run_agent_env(&a, &prompt, &envs).await;
+    let run = ai::run_agent_env(&a, &prompt, &envs, remote).await;
     let duration_ms = started.elapsed().as_millis() as i64;
     // 执行时快照（a.workdir = 生效目录：worktree 或标签 meta/agent 配置）：历史回放按此路由
-    let workdir_snapshot = ai::session_workdir_snapshot(&a, &a.workdir);
+    let workdir_snapshot = ai::session_workdir_snapshot(&a, &a.workdir, remote);
 
     let mut note = wt_note;
     let state: &str;
@@ -247,7 +247,8 @@ pub(crate) async fn run_headless_dispatch(
             if envelope.is_error {
                 note = Some("agent 信封标记 is_error（处理失败）".into()).or(note);
             }
-            let mut rec = NewAgentSession::for_run("dispatch_headless", agent, &workdir_snapshot);
+            let mut rec =
+                NewAgentSession::for_run("dispatch_headless", agent, remote, &workdir_snapshot);
             rec.task_id = Some(prep.task.id);
             rec.session_id = session_id;
             rec.command = Some(summary.clone());
@@ -266,7 +267,8 @@ pub(crate) async fn run_headless_dispatch(
             state = DS_FAILED;
             let reason: String = e.to_string().chars().take(200).collect();
             note = Some(reason).or(note);
-            let mut rec = NewAgentSession::for_run("dispatch_headless", agent, &workdir_snapshot);
+            let mut rec =
+                NewAgentSession::for_run("dispatch_headless", agent, remote, &workdir_snapshot);
             rec.task_id = Some(prep.task.id);
             rec.session_id = prep.prev_session.clone().or(pre_session);
             rec.command = Some(summary.clone());
@@ -289,7 +291,7 @@ pub(crate) async fn run_headless_dispatch(
 /// 会话落库失败时的兜底记录（时间线不因落库故障缺整行）
 fn fallback_session(prep: &DispatchPrep, summary: &str) -> AgentSession {
     let (remote_host, remote_port, remote_key) =
-        crate::commands::sessions::remote_snapshot(&prep.agent);
+        crate::commands::sessions::remote_snapshot(prep.remote.as_ref());
     AgentSession {
         id: 0,
         task_id: Some(prep.task.id),
@@ -304,7 +306,7 @@ fn fallback_session(prep: &DispatchPrep, summary: &str) -> AgentSession {
         input_tokens: None,
         output_tokens: None,
         kind: "dispatch_headless".into(),
-        workdir: ai::session_workdir_snapshot(&prep.agent, &prep.workdir),
+        workdir: ai::session_workdir_snapshot(&prep.agent, &prep.workdir, prep.remote.as_ref()),
         tmux_session: String::new(),
         remote_host,
         remote_port,
@@ -320,13 +322,14 @@ pub(crate) fn log_dispatch(
     db: &Db,
     task_id: i64,
     agent: &AgentConfig,
+    remote: Option<&RemoteTarget>,
     workdir: &str,
     tmux_name: Option<String>,
     summary: &str,
 ) -> AppResult<AgentSession> {
     let conn = db.0.lock().unwrap();
-    let snapshot = ai::session_workdir_snapshot(agent, workdir);
-    let mut rec = NewAgentSession::for_run("dispatch_interactive", agent, &snapshot);
+    let snapshot = ai::session_workdir_snapshot(agent, workdir, remote);
+    let mut rec = NewAgentSession::for_run("dispatch_interactive", agent, remote, &snapshot);
     rec.task_id = Some(task_id);
     rec.session_id = None;
     rec.command = Some(summary.to_string());
