@@ -112,7 +112,10 @@ function strOrNull(v: unknown): string | null {
 
 function rowToSuggestion(id: string, r: Record<string, unknown>): AiSuggestion {
   const status = String(r.ai_status);
-  const action = status === "todo" || status === "update" || status === "followup" ? status : "pending";
+  // none 是已落库判定（agent 经 pk 写回的「无关」结论），与 todo/update/followup
+  // 同列落库口径——整批全 none 不能折叠成 pending 误报「全部遗漏」
+  const action =
+    status === "todo" || status === "update" || status === "followup" || status === "none" ? status : "pending";
   return {
     messageId: id,
     action,

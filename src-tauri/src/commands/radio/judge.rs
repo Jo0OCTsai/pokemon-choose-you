@@ -794,13 +794,15 @@ mod tests {
         );
     }
 
-    /// 失败挽救（claim 口径，条目 3 / A22）：已落库且令牌匹配的判定保留计数；
-    /// claim 到未落库的标 error；令牌失配的（已被重归属/回收）不标 error 不采纳
+    /// 失败挽救（claim 口径，条目 3 / A22）：已落库且令牌匹配的判定保留计数（含 none
+    /// ——整批全 none 时不能把已落库判定当遗漏标 error）；claim 到未落库的标 error；
+    /// 令牌失配的（已被重归属/回收）不标 error 不采纳
     #[test]
     fn salvage_keeps_landed_marks_error_and_ignores_foreign_claim() {
         let app = setup();
         let ts = "2026-10-11T00:00:00+00:00";
         seed_status_message(&app, "om_landed", "pending", "pending");
+        seed_status_message(&app, "om_landed_none", "pending", "pending");
         seed_status_message(&app, "om_missed", "pending", "pending");
         seed_status_message(&app, "om_foreign", "pending", "pending");
         {
@@ -808,16 +810,24 @@ mod tests {
             let conn = db.0.lock().unwrap();
             let ids = [
                 "om_landed".to_string(),
+                "om_landed_none".to_string(),
                 "om_missed".to_string(),
                 "om_foreign".to_string(),
             ];
             let claimed = claim_judging_conn(&conn, &ids, ts).unwrap();
-            assert_eq!(claimed.len(), 3, "三条 pending 全部 claim 到");
+            assert_eq!(claimed.len(), 4, "四条 pending 全部 claim 到");
             // om_landed：agent 被杀前 pk 已落库的判定（令牌保持本批）；
+            // om_landed_none：pk 已落库的 none 判定（同样算已落库）；
             // om_foreign：claim 后被其他形态回收重归属（令牌翻新 + 对方在判）
             conn.execute(
                 "UPDATE chat_messages SET ai_status='todo', suggested_title='参加周会'
                  WHERE message_id='om_landed'",
+                [],
+            )
+            .unwrap();
+            conn.execute(
+                "UPDATE chat_messages SET ai_status='none', suggested_reason='群机器人问答'
+                 WHERE message_id='om_landed_none'",
                 [],
             )
             .unwrap();
@@ -832,13 +842,18 @@ mod tests {
             assert_eq!(
                 missed,
                 vec!["om_missed".to_string()],
-                "只有未落库的标 error"
+                "只有未落库的标 error（已落库的 none 不算遗漏）"
             );
         }
         assert_eq!(
             ai_status_of(&app, "om_landed"),
             ("todo".into(), Some("参加周会".into())),
             "已落库判定保留，不被失败标记覆盖"
+        );
+        assert_eq!(
+            ai_status_of(&app, "om_landed_none").0,
+            "none",
+            "已落库的 none 判定保留"
         );
         assert_eq!(ai_status_of(&app, "om_missed").0, "error");
         let (status, token): (String, String) = {

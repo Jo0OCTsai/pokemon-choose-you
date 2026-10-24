@@ -61,13 +61,21 @@ describe("extractPayload / loadSuggestionsFor", () => {
   it("回读：已落库态映射 action；pending 语义行；缺失消息按 none 兜底", () => {
     seedMessage(db.conn, "om_t", {});
     seedMessage(db.conn, "om_p", {});
+    seedMessage(db.conn, "om_n", {});
     applySuggestion(db.conn, { messageId: "om_t", action: "todo", title: "交周报", tags: [] }, "cli");
-    const out = loadSuggestionsFor(db.conn, ["om_t", "om_p", "om_missing"]);
+    applySuggestion(
+      db.conn,
+      { messageId: "om_n", action: "none", reason: "群机器人问答", confidence: "medium", tags: [] },
+      "cli",
+    );
+    const out = loadSuggestionsFor(db.conn, ["om_t", "om_p", "om_n", "om_missing"]);
     expect(out[0]).toMatchObject({ messageId: "om_t", action: "todo", title: "交周报" });
     expect(out[0].tags).toEqual([]);
     expect(out[1].action).toBe("pending");
     expect(out[2].action).toBe("none");
-    expect(landedCount(out)).toBe(2);
+    expect(out[2]).toMatchObject({ reason: "群机器人问答", confidence: "medium" });
+    expect(out[3].action).toBe("none");
+    expect(landedCount(out)).toBe(3);
   });
 });
 
@@ -119,6 +127,25 @@ describe("cliJudgeExecutor（真实子进程 + fake agent 脚本）", () => {
       // 预落一条判定（模拟 agent 期间经 pk suggest batch 写回）
       applySuggestion(db.conn, { messageId: "om_1", action: "todo", title: "交周报", tags: [] }, "a1");
       await assertFakeAgentRun(exec, join(dir, "prompt.txt"));
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("整批 none 落库不判「全部遗漏」：回读 action=none（agent 经 pk 写回是真实落库）", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "pky-agent-none-"));
+    try {
+      const { exec } = stageFakeAgent(db.conn, { marker: join(dir, "prompt.txt"), bin: join(dir, "fake-agent.sh") });
+      seedMessage(db.conn, "om_1", {});
+      // 预落 none 判定（模拟 agent 期间经 pk suggest batch 写回——真实事故形态：
+      // 整批恰好全判 none 时不能误报「没有任何判定落库」）
+      applySuggestion(
+        db.conn,
+        { messageId: "om_1", action: "none", reason: "在@群智能体提问，非指派用户", confidence: "medium", tags: [] },
+        "a1",
+      );
+      const out = await exec.run({ prompt: "判定这批", messageIds: ["om_1"] });
+      expect(out.suggestions[0]).toMatchObject({ messageId: "om_1", action: "none" });
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
