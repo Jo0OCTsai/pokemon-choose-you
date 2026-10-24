@@ -14,6 +14,7 @@ import { sshCheck } from "../dispatch/sshCheck";
 import { gitWorktree } from "../dispatch/worktree";
 import type { AgentConfig } from "../domain/settings";
 import type { DeploymentEntity } from "./deployments";
+import { recordDeploymentLaunchError } from "./deployments";
 import { recheckDeployment } from "./recheck";
 import {
   RemoteDispatchRejection,
@@ -193,7 +194,26 @@ export function remoteJudgeExecutorFor(
     if (executor === null || plan.kind === "local") {
       return executor === null ? null : { executor, workdir: "" };
     }
-    return { executor, workdir: plan.entity.workdir.trim() };
+    return { executor: judgeLaunchErrorLogging(conn, plan.entity.id, executor), workdir: plan.entity.workdir.trim() };
+  };
+}
+
+/** 判定远端执行失败 → 部署实体 lastError 留痕（部署设置 UI 可见——探测/通道异常不再
+ *  只活在运行日志；诊断 best-effort 不影响判定结果，清账归 recheck 恢复路径） */
+function judgeLaunchErrorLogging(conn: Conn, deploymentId: string, executor: DispatchExecutor): DispatchExecutor {
+  return {
+    kill: () => executor.kill(),
+    async launch(job) {
+      const outcome = await executor.launch(job);
+      if (outcome.error !== undefined) {
+        try {
+          recordDeploymentLaunchError(conn, deploymentId, `判定远端执行失败：${outcome.error}`);
+        } catch {
+          // 诊断留痕 best-effort：落库异常不影响判定结果
+        }
+      }
+      return outcome;
+    },
   };
 }
 

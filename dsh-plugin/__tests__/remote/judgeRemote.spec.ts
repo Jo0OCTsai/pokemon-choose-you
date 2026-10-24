@@ -99,6 +99,37 @@ describe("判定在部署上执行（家族链真跑）", () => {
   });
 });
 
+describe("判定远端执行失败 → 部署实体 lastError 留痕", () => {
+  it("launch 失败 → lastError 记源错误、status 不动；成功不自清（清账归 recheck 恢复路径）", async () => {
+    const depId = fx.seedReadyDeployment();
+    const factory = remoteJudgeExecutorFor(fx.db.conn, fx.platform, { minTimeoutSecs: 10 });
+    fx.scope.remoteBins.delete("claude");
+    const bad = await factory(agentOf(ALIAS))!.executor.launch({
+      command: "claude",
+      args: "-p x",
+      prompt: "x",
+      workdir: null,
+      timeoutSecs: 10,
+    });
+    expect(bad.error).toContain("远端找不到命令");
+    const entity = listDeployments(fx.db.conn)[depId];
+    expect(entity.lastError).toContain("判定远端执行失败");
+    expect(entity.lastError).toContain("远端找不到命令");
+    expect(entity.status).toBe("ready"); // 状态迁移归 recheck——留痕只动 lastError
+    fx.scope.remoteBins.set("claude", "/usr/local/bin/claude");
+    fx.scope.enqueueSpawn({ code: 0, stdout: '{"result":"ok"}', stderr: "", durationMs: 5 });
+    const ok = await factory(agentOf(ALIAS))!.executor.launch({
+      command: "claude",
+      args: "-p x",
+      prompt: "x",
+      workdir: null,
+      timeoutSecs: 10,
+    });
+    expect(ok.error).toBeUndefined();
+    expect(listDeployments(fx.db.conn)[depId].lastError).toContain("判定远端执行失败");
+  });
+});
+
 describe("判定 CLI 解释形态（家族链——头部分类探测）", () => {
   it("原生二进制 CLI 不加 node 前缀（回归：claude-code ≥2.x npm bin 链到 bin/claude.exe ELF，node 直载报 ERR_UNKNOWN_FILE_EXTENSION）", async () => {
     fx.seedReadyDeployment();

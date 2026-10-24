@@ -1,9 +1,11 @@
 /**
  * fake SshScope 的模拟远端文件系统原语与应答族（从 fakeSshScope.ts 拆出——棘轮
  * max-lines，等量迁移；posixUnquote / sha256Of 经 fakeSshScope 再出口，消费面不变）：
- * head 头部读取 / sha256sum 复核 / rm -rf 目录删除三类 shell 命令的内存 Map 应答。
+ * head 头部读取 / sha256sum 复核 / rm -rf 目录删除三类 shell 命令的内存 Map 应答
+ * + 固定应答命令族（printf 探针 / 登录 shell 探测）。
  */
 import { createHash } from "node:crypto";
+import { loginShellProbeCommand } from "../../src/host/remote/sshExecutor";
 
 /** posixQuote 逆操作（fake 远端解析 shell 命令取回路径用；只覆盖 posixQuote 的产物形态） */
 export function posixUnquote(token: string): string {
@@ -11,6 +13,23 @@ export function posixUnquote(token: string): string {
     return token.slice(1, -1).replaceAll(`'\\''`, `'`);
   }
   return token;
+}
+
+/** 固定应答命令（printf 探针 / 登录 shell 探测 / --version 固定形态；不匹配 = null——npm 探测走实例态） */
+export function fixedOutcome(cmd: string, homeDir: string, loginShell: string): ShellOutcome | null {
+  if (cmd === 'printf %s "$HOME"') {
+    return { code: 0, stdout: homeDir, stderr: "" };
+  }
+  if (cmd === loginShellProbeCommand()) {
+    return { code: 0, stdout: loginShell, stderr: "" };
+  }
+  if (cmd === "printf pky-ok") {
+    return { code: 0, stdout: "pky-ok", stderr: "" };
+  }
+  if (cmd.endsWith(" --version")) {
+    return { code: 0, stdout: "v22.11.0\n", stderr: "" };
+  }
+  return null;
 }
 
 export function sha256Of(content: string): string {

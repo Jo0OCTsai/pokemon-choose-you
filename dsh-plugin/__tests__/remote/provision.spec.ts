@@ -12,9 +12,10 @@ import {
   mismatchRecorded,
   provisionRun,
   provisionStatusOf,
+  workdirProbeCommand,
   type ProvisionRunResult,
 } from "../../src/host/remote/provision";
-import { listDeployments } from "../../src/host/remote/deployments";
+import { deploymentUpsert, listDeployments } from "../../src/host/remote/deployments";
 import { DEFAULT_HELPER_CONTENT, FakeSshScope, fakeProvisionDeps, sha256Of } from "./fakeSshScope";
 import { setupProvisionFx } from "./provisionFx";
 
@@ -66,6 +67,35 @@ describe("步① probe-ssh（免密失败即停——Gherkin FR-RD2）", () => {
     expect(entity.status).toBe("probing");
     expect(entity.provision?.homeDir).toBe("/home/pky");
     expect(entity.provision?.steps["probe-ssh"].status).toBe("ok");
+  });
+});
+
+describe("步① probe-ssh：登记工作目录存在性", () => {
+  it("工作目录在远端不存在 → 步① 失败给改正指引（开通面拦截，不漏到判定/派发误报）", async () => {
+    const id = seedDeployment(); // workdir = /srv/app
+    const scope = new FakeSshScope();
+    scope.program(/^test -d /, { code: 1 });
+    const result = await provisionRun(fx.db.conn, id, makeDeps(scope));
+    expect(result).toMatchObject({ ok: false, step: "probe-ssh", tag: "PROVISION_STEP_FAILED" });
+    expect(result.message).toContain("工作目录在远端不存在：/srv/app");
+    expect(result.hint).toContain("留空使用登录目录");
+    const entity = listDeployments(fx.db.conn)[id];
+    expect(entity.status).toBe("not_ready");
+    expect(entity.lastError).toContain("工作目录在远端不存在");
+  });
+
+  it("工作目录存在 → 探测通过不拦截；留空（登录目录缺省）→ 不探测", async () => {
+    const id = seedDeployment();
+    const scope = new FakeSshScope();
+    const result = await provisionRun(fx.db.conn, id, makeDeps(scope));
+    expect(result).toMatchObject({ ok: true, step: "probe-ssh" });
+    expect(scope.commands).toContain(workdirProbeCommand("/srv/app"));
+    const emptyId = deploymentUpsert(fx.db.conn, { alias: "dev-empty", nodePath: "/usr/local/bin/node", workdir: "" })
+      .deployment.id;
+    const emptyScope = new FakeSshScope();
+    const emptyResult = await provisionRun(fx.db.conn, emptyId, makeDeps(emptyScope));
+    expect(emptyResult).toMatchObject({ ok: true, step: "probe-ssh" });
+    expect(emptyScope.commands.some((c) => c.startsWith("test -d "))).toBe(false);
   });
 });
 

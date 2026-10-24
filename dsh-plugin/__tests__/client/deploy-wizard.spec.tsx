@@ -171,6 +171,35 @@ describe("开通向导（拉式步进）", () => {
     expect(screen.queryByTestId("deploy-wizard-running")).toBeNull();
     expect(screen.getByText("就绪")).toBeTruthy();
   });
+
+  it("[关闭] 按钮 = Esc 同语义：执行中恒在可点，点击后台继续不中止（与其他弹窗交互一致）", async () => {
+    const host = mockHost({ deployments: [makeDeployment({ id: "d1", alias: "gpu-1" })] });
+    // 首步挂起（可控闸门）：按钮关闭后循环应继续
+    let release: () => void = () => undefined;
+    const gate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    const original = host.provisionRun.bind(host);
+    let gated = false;
+    host.provisionRun = async (params) => {
+      if (!gated) {
+        gated = true;
+        await gate;
+      }
+      return original(params);
+    };
+    await boot(host);
+    fireEvent.click(screen.getByTestId("deploy-provision"));
+    await flush();
+    fireEvent.click(screen.getByText("关闭"));
+    await flush();
+    expect(screen.queryByTestId("deploy-wizard")).toBeNull();
+    expect(screen.getByTestId("deploy-wizard-running")).toBeTruthy();
+    release();
+    await flush(16);
+    expect(host.calls.filter((c) => c.command === "provisionRun").length).toBe(4);
+    expect(screen.getByText("就绪")).toBeTruthy();
+  });
 });
 
 describe("移除与只读", () => {

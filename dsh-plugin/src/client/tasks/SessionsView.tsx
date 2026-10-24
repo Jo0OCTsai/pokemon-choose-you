@@ -5,7 +5,8 @@
  * - SessionPager：counts 汇总常显「共 N 条 · 第 p/总页 页」+ 上一页/下一页（翻页保留旧页
  *   不闪空——stale-while-revalidate）；每页条数 20/50/100（1–100 钳制在控件内）。
  * - 行内「回放」按钮（无 session_id 与 tmux 会话名的行不渲染）+ 执行世界徽章
- *   （本机 / 部署别名）；已移除部署 = 回放时中性提示（host 侧判定）。本机回放
+ *   （本机 / 部署别名）+ 右对齐等宽时间（createdAt RFC3339 → 本地时区同形，诊断
+ *   日志 fmtLogTimeLocal 同源）；已移除部署 = 回放时中性提示（host 侧判定）。本机回放
  *   handoff（宿主无第三方终端面板）：命令行复制到剪贴板（不可用 → 手动复制提示），
  *   命令行与工作目录常显可选中复制——零静默。
  */
@@ -15,6 +16,7 @@ import { useT } from "../i18n";
 import { isErrorCode, displaySessionId, type SessionGroup, type SessionRow } from "../rpc";
 import { EmptyState } from "./TaskList";
 import { copyText, HandoffLine } from "./handoff";
+import { fmtLogTimeLocal } from "../ui/dateTime";
 import styles from "./tasks.module.css";
 import ui from "../ui/ui.module.css";
 
@@ -178,6 +180,7 @@ export function LogSegment({ readonly }: { readonly: boolean }): React.JSX.Eleme
               {displaySessionId(session.sessionId) !== null && (
                 <span className={ui.muted}>{displaySessionId(session.sessionId)}</span>
               )}
+              <span className={styles.ledgerTime}>{fmtLogTimeLocal(session.createdAt)}</span>
               {replayable(session) && (
                 <button
                   type="button"

@@ -42,7 +42,7 @@ function validateRemotePath(field: string, value: string, allowEmpty: boolean): 
     throw inputInvalid(`部署的${field}不能为空`);
   }
   if (v.startsWith("~")) {
-    throw inputInvalid(`部署的${field}不接受「~」前缀——请填展开后的绝对路径（如 /home/user/...）`);
+    throw inputInvalid(`部署的${field}不接受「~」前缀——请填展开后的绝对路径（如 /home/<用户名>/work）`);
   }
   if (!v.startsWith("/")) {
     throw inputInvalid(`部署的${field}必须是远端绝对路径（以 / 开头）`);

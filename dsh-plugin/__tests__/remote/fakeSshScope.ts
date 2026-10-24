@@ -7,12 +7,16 @@
 import type { SshSpawnResult, SshTerminalOptions } from "../../src/host/remote/sshScope";
 import type { ProvisionDeps } from "../../src/host/remote/provision";
 import type { DeploymentEntity } from "../../src/host/remote/deployments";
+import { REMOTE_PATH_BOOTSTRAP, type SshTerminalScope } from "../../src/host/remote/sshExecutor";
 import {
-  loginShellProbeCommand,
-  REMOTE_PATH_BOOTSTRAP,
-  type SshTerminalScope,
-} from "../../src/host/remote/sshExecutor";
-import { headCOutcome, posixUnquote, rmRfOutcome, sha256Of, sha256Outcome, type ShellOutcome } from "./fakeRemoteFs";
+  fixedOutcome,
+  headCOutcome,
+  posixUnquote,
+  rmRfOutcome,
+  sha256Of,
+  sha256Outcome,
+  type ShellOutcome,
+} from "./fakeRemoteFs";
 
 // 原语与模拟远端文件系统应答族已拆 fakeRemoteFs.ts（棘轮 max-lines）——再出口保消费面
 export { posixUnquote, sha256Of } from "./fakeRemoteFs";
@@ -34,23 +38,6 @@ export interface FakeNpmInstall {
 /** 编程应答 → shell 结果信封 */
 function programmedOutcome(hit: ProgrammedResult): ShellOutcome {
   return { code: hit.code, stdout: hit.stdout ?? "", stderr: hit.stderr ?? "" };
-}
-
-/** 固定应答命令（printf 探针 / 登录 shell 探测 / --version 三固定形态；不匹配 = null——npm 探测走实例态） */
-function fixedOutcome(cmd: string, homeDir: string, loginShell: string): ShellOutcome | null {
-  if (cmd === 'printf %s "$HOME"') {
-    return { code: 0, stdout: homeDir, stderr: "" };
-  }
-  if (cmd === loginShellProbeCommand()) {
-    return { code: 0, stdout: loginShell, stderr: "" };
-  }
-  if (cmd === "printf pky-ok") {
-    return { code: 0, stdout: "pky-ok", stderr: "" };
-  }
-  if (cmd.endsWith(" --version")) {
-    return { code: 0, stdout: "v22.11.0\n", stderr: "" };
-  }
-  return null;
 }
 
 /** npm 探测命令形态（npmProbeCommand 产物——sibling 优先分支 + command -v 回落） */
@@ -106,6 +93,8 @@ export class FakeSshScope implements SshTerminalScope {
   installedHelperContent = DEFAULT_HELPER_CONTENT;
   /** 可编程 spawn 队列（"hold" = 挂起直到 releaseHeldSpawn；空 = 缺省 code 0 空输出） */
   spawnQueue: Array<Partial<SshSpawnResult> | "hold"> = [];
+  /** 置位时 spawn 一律抛错（模拟通道级故障——如部署工作目录不存在时 node spawn ENOENT） */
+  spawnError: Error | null = null;
   /** 远端可执行登记（command -v 应答面——dispatch 远端链） */
   remoteBins = new Map<string, string>([["claude", "/usr/local/bin/claude"]]);
   /** 登录 shell 路径（getent 探测应答；对抗样例可改——非绝对路径触发 /bin/sh 回落） */
@@ -162,6 +151,9 @@ export class FakeSshScope implements SshTerminalScope {
 
   async spawn(cmd: string[]): Promise<SshSpawnResult> {
     this.spawns.push(cmd);
+    if (this.spawnError !== null) {
+      throw this.spawnError;
+    }
     // 登录 shell 视角 command -v 探测（两 argv 形态见 loginProbeScriptOf）：函数/别名应答
     // 裸名（非绝对输出 → 执行走 shell 名形态）；登记可见一律绝对路径；loginProbeMisses
     // 模拟登录环境不可见（驱动回落链）——探测 spawn 不吃执行结果队列

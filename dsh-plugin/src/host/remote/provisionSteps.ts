@@ -5,7 +5,7 @@
  */
 import { nowRfc3339 } from "../storage/db";
 import type { DeploymentEntity } from "./deployments";
-import { homeProbeCommand, initialProvisionState, probeNodeCommand } from "./provisionCommands";
+import { homeProbeCommand, initialProvisionState, probeNodeCommand, workdirProbeCommand } from "./provisionCommands";
 import type { ProvisionDeps, ProvisionErrorTag, ProvisionState, ProvisionStep } from "./provision";
 import type { SshScope } from "./sshScope";
 
@@ -65,6 +65,31 @@ export async function liveScope(
   return { scope };
 }
 
+/** 步① 附加：登记工作目录存在性探测（workdir 是家族链 scope 的 spawn cwd——不存在
+ *  则此后每次远端执行 ENOENT；开通面即时拦截，不再漏到判定/派发误报「找不到命令」）。
+ *  通过 = null，失败 = StepOutcome */
+async function probeWorkdir(scope: SshScope, workdir: string, homeDir: string): Promise<StepOutcome | null> {
+  if (workdir === "") {
+    return null;
+  }
+  let code = -1;
+  try {
+    const wd = await scope.shell(workdirProbeCommand(workdir));
+    code = wd.code;
+  } catch (error) {
+    return failOutcome("probe-ssh", "PROVISION_STEP_FAILED", `工作目录探测失败：${String(error).slice(0, 160)}`);
+  }
+  if (code !== 0) {
+    return failOutcome(
+      "probe-ssh",
+      "PROVISION_STEP_FAILED",
+      `工作目录在远端不存在：${workdir}`,
+      `在部署设置改为远端存在的绝对路径（远端主目录 ${homeDir} 下），或留空使用登录目录`,
+    );
+  }
+  return null;
+}
+
 /** 步① probe-ssh：免密探测 + 远端 $HOME 探测（失败 → SSH_AUTH_REQUIRED 语义） */
 export async function execProbeSsh(entity: DeploymentEntity, deps: ProvisionDeps): Promise<StepOutcome> {
   const got = await liveScope(entity, deps);
@@ -88,6 +113,10 @@ export async function execProbeSsh(entity: DeploymentEntity, deps: ProvisionDeps
       code !== 0 ? `SSH 连接失败（exit ${code}）` : "远端主目录探测异常",
       SSH_AUTH_HINT,
     );
+  }
+  const workdirFailure = await probeWorkdir(got.scope, entity.workdir.trim(), homeDir);
+  if (workdirFailure !== null) {
+    return workdirFailure;
   }
   const at = nowRfc3339();
   return {

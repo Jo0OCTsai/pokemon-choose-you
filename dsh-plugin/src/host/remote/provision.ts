@@ -264,5 +264,6 @@ export {
   probeNodeCommand,
   sha256Command,
   sshFamilySpec,
+  workdirProbeCommand,
 } from "./provisionCommands";
 export { markHelperMismatch } from "./provisionInstall";

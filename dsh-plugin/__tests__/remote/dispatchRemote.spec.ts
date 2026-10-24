@@ -134,6 +134,39 @@ describe("sshExecutor 家族链（无头）：失败路径", () => {
   });
 });
 
+describe("sshExecutor 家族链（无头）：探测通道异常（传输层失败与负缓存）", () => {
+  it("探测通道异常（如部署工作目录不存在 → spawn ENOENT）→ 通道/工作目录指引，不误报找不到命令", async () => {
+    fx.seedReadyDeployment();
+    fx.scope.remoteBins.delete("claude");
+    fx.scope.spawnError = new Error("spawn /bin/sh ENOENT");
+    const taskId = fx.seedDeploymentTask("远端任务-enoent");
+    const outcome = await dispatchHeadless(fx.db.conn, remoteHeadlessDeps(fx.db.conn, fx.platform), taskId);
+    expect(outcome.state).toBe("failed");
+    expect(outcome.note).toContain("spawn /bin/sh ENOENT");
+    expect(outcome.note).toContain("工作目录");
+    expect(outcome.note).not.toContain("远端找不到命令");
+  });
+
+  it("探测通道异常不落负缓存：同一执行器恢复后重试可解析", async () => {
+    fx.seedReadyDeployment();
+    fx.scope.remoteBins.delete("claude");
+    fx.scope.spawnError = new Error("spawn /bin/sh ENOENT");
+    const executor = remoteHeadlessDeps(fx.db.conn, fx.platform).executorFor!(
+      {} as AgentConfig,
+      { deployment: { ref: ALIAS, target: ALIAS } } as unknown as ResolvedDispatchRoute,
+    )!;
+    const job = { command: "claude", args: "-p {prompt}", prompt: "hi", workdir: null, timeoutSecs: 10 };
+    const first = await executor.launch(job);
+    expect(first.error).toContain("spawn /bin/sh ENOENT");
+    fx.scope.spawnError = null;
+    fx.scope.remoteBins.set("claude", "/usr/local/bin/claude");
+    fx.scope.enqueueSpawn({ code: 0, stdout: ENVELOPE, stderr: "", durationMs: 5 });
+    const second = await executor.launch(job);
+    expect(second.error).toBeUndefined();
+    expect(second.exitCode).toBe(0);
+  });
+});
+
 describe("sshExecutor 家族链（无头）：可执行解析与执行面 shell", () => {
   it("CLI 只装在 ~/.local/bin → 登录 shell 视角可解析（ssh 会话同环境）并直执行原生二进制", async () => {
     fx.seedReadyDeployment();

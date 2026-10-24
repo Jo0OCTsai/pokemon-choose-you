@@ -9,6 +9,7 @@ import { ClientProvider } from "../../src/client/clientContext";
 import { I18nProvider } from "../../src/client/i18n";
 import { mockHost, type MockHost } from "../../src/client/rpc";
 import { LogSegment } from "../../src/client/tasks/SessionsView";
+import { fmtLogTimeLocal } from "../../src/client/ui/dateTime";
 import { makeDeployment, makeSessionRow } from "./fixtures";
 
 afterEach(cleanup);
@@ -96,6 +97,12 @@ describe("分页与 counts 常显", () => {
     fireEvent.change(screen.getByLabelText("每页条数"), { target: { value: "50" } });
     await flush();
     expect(screen.getByText("共 61 条 · 第 1/2 页")).toBeTruthy();
+  });
+
+  it("行内时间显示：createdAt（RFC3339 带偏移）→ 本地时区同形（诊断日志 fmtLogTimeLocal 同源）", async () => {
+    renderLogs(mockHost({ sessionRows: [makeSessionRow({ id: 1, sessionId: "s1" })] }));
+    await flush();
+    expect(screen.getByTestId("session-row").textContent).toContain(fmtLogTimeLocal("2026-10-17T08:00:00+08:00"));
   });
 });
 

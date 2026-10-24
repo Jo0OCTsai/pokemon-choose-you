@@ -87,7 +87,10 @@ export type ResolvedRemoteCli =
  * （头部探测定解释形态）；裸名先经登录 shell `command -v`（与执行同环境——PATH、
  * .zshenv 函数/别名封装与 ssh 会话一致），命中绝对路径 → exec 定位，命中函数/别名
  * （非绝对输出）→ 登录 shell 名形态（用户封装原样生效）；未命中回落 /bin/sh + PATH
- * 兜底段探测保底。返回 error 文案 = 启动失败。
+ * 兜底段探测保底。返回 error 文案 = 启动失败，且按 miss 成因分流：确证找不到 →
+ * 安装/绝对路径指引；探测通道异常（spawn 抛错，如部署工作目录不存在时 node ENOENT）
+ * → 通道/工作目录指引——两类折叠成同一条「找不到命令」曾掩盖坏 workdir 配置
+ * （2026-10-24 pky-remote 判定全线误报）。通道异常不落负缓存（瞬态可重试）。
  */
 export async function resolveRemoteExecutable(
   scope: SshScope,
@@ -103,10 +106,22 @@ export async function resolveRemoteExecutable(
     return { error: `agent 命令含路径分隔符但非绝对路径：${cmd}（远端执行世界需绝对路径）` };
   }
   if (!cache.has(cmd)) {
-    const resolved = cmd.includes("/")
-      ? ({ mode: "exec", path: cmd, interpreter: await probeCliInterpreter(scope, cmd) } as const)
-      : await resolveBareCli(scope, cmd, loginShell);
-    cache.set(cmd, resolved);
+    if (cmd.includes("/")) {
+      cache.set(cmd, { mode: "exec", path: cmd, interpreter: await probeCliInterpreter(scope, cmd) });
+    } else {
+      const probed = await resolveBareCli(scope, cmd, loginShell);
+      if (probed.cli !== null) {
+        cache.set(cmd, probed.cli);
+      } else if (probed.transportError !== null) {
+        return {
+          error:
+            `远端命令探测未能执行（通道异常，或部署工作目录在远端不存在）：${probed.transportError}` +
+            "——请在部署设置检查工作目录是否为远端存在的绝对路径，或稍后重试",
+        };
+      } else {
+        cache.set(cmd, null); // 确证找不到才落负缓存；通道异常不落（瞬态可重试）
+      }
+    }
   }
   const hit = cache.get(cmd) ?? null;
   return hit === null
@@ -118,20 +133,38 @@ export async function resolveRemoteExecutable(
     : hit;
 }
 
+/** 裸名两级探测产物：cli 命中即权威；双 miss 时 transportError 非空 = 探测通道异常
+ * （spawn/shell 抛错——与「确证找不到」分流，null = 两级探测真实落空） */
+interface BareProbeOutcome {
+  cli: ResolvedRemoteCli | null;
+  transportError: string | null;
+}
+
+/** 异常串截断（探测通道异常文案内嵌——与 recheck/provision 的 160 截断同口径） */
+function briefError(error: unknown): string {
+  return String(error).slice(0, 160);
+}
+
 /** 裸名解析：登录 shell 视角优先，未命中回落 /bin/sh + PATH 兜底段探测 */
-async function resolveBareCli(scope: SshScope, cmd: string, loginShell: string): Promise<ResolvedRemoteCli | null> {
+async function resolveBareCli(scope: SshScope, cmd: string, loginShell: string): Promise<BareProbeOutcome> {
   const viaLogin = await loginShellCommandV(scope, loginShell, cmd);
-  if (viaLogin !== null) {
+  if (viaLogin.cli !== null) {
     return viaLogin;
   }
-  const path = await probeCommandPath(scope, cmd);
-  return path === null ? null : { mode: "exec", path, interpreter: await probeCliInterpreter(scope, path) };
+  const fallback = await probeCommandPath(scope, cmd);
+  if (fallback.path !== null) {
+    return {
+      cli: { mode: "exec", path: fallback.path, interpreter: await probeCliInterpreter(scope, fallback.path) },
+      transportError: null,
+    };
+  }
+  return { cli: null, transportError: viaLogin.transportError ?? fallback.transportError };
 }
 
 /** 登录 shell 视角 command -v（与执行同环境）：绝对路径 → exec 定位（头部分类）；
  * 非绝对输出（zsh 函数/别名/内建，zsh 对函数回显函数名）→ 登录 shell 名形态；
- * 未命中/通道故障 → null（回落链承载） */
-async function loginShellCommandV(scope: SshScope, loginShell: string, cmd: string): Promise<ResolvedRemoteCli | null> {
+ * 未命中 → cli null 无 transport；spawn 抛错 → transportError（通道异常口径） */
+async function loginShellCommandV(scope: SshScope, loginShell: string, cmd: string): Promise<BareProbeOutcome> {
   try {
     const probe = await scope.spawn([
       loginShell,
@@ -140,29 +173,35 @@ async function loginShellCommandV(scope: SshScope, loginShell: string, cmd: stri
       `command -v ${posixQuote(cmd)}`,
     ]);
     if (probe.code !== 0) {
-      return null;
+      return { cli: null, transportError: null };
     }
     const first = probe.stdout.trim().split(/\s+/)[0] ?? "";
     if (first === "") {
-      return null;
+      return { cli: null, transportError: null };
     }
-    return first.startsWith("/")
-      ? { mode: "exec", path: first, interpreter: await probeCliInterpreter(scope, first) }
-      : { mode: "shell", name: cmd };
-  } catch {
-    return null;
+    return {
+      cli: first.startsWith("/")
+        ? { mode: "exec", path: first, interpreter: await probeCliInterpreter(scope, first) }
+        : { mode: "shell", name: cmd },
+      transportError: null,
+    };
+  } catch (error) {
+    return { cli: null, transportError: briefError(error) };
   }
 }
 
 /** 远端 `command -v` 单次探测（REMOTE_PATH_BOOTSTRAP 前插——~/.local/bin 家族 CLI 在
- * helper 缺省 PATH 外仍可解析；通道故障与找不到同归 null——launch 失败文案给指引） */
-async function probeCommandPath(scope: SshScope, cmd: string): Promise<string | null> {
+ * helper 缺省 PATH 外仍可解析；shell 抛错以 transportError 上抛与「确证找不到」分流） */
+async function probeCommandPath(
+  scope: SshScope,
+  cmd: string,
+): Promise<{ path: string | null; transportError: string | null }> {
   try {
     const probe = await scope.shell(`${REMOTE_PATH_BOOTSTRAP}; command -v ${posixQuote(cmd)}`);
     const hit = probe.code === 0 ? (probe.stdout.trim().split(/\s+/)[0] ?? "") : "";
-    return hit.startsWith("/") ? hit : null;
-  } catch {
-    return null;
+    return { path: hit.startsWith("/") ? hit : null, transportError: null };
+  } catch (error) {
+    return { path: null, transportError: briefError(error) };
   }
 }
 

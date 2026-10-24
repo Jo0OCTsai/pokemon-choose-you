@@ -17,6 +17,11 @@ export function probeNodeCommand(nodePath: string): string {
   return `${posixQuote(nodePath)} --version`;
 }
 
+/** 步① 附加：部署登记工作目录存在性探测（workdir 非空时消费——空 = 登录目录缺省不探测） */
+export function workdirProbeCommand(workdir: string): string {
+  return `test -d ${posixQuote(workdir)}`;
+}
+
 /** 路径 dirname（host 侧展开；根内路径退化 "/"——与远端 dirname(1) 语义一致） */
 export function parentDirOf(path: string): string {
   const cut = path.lastIndexOf("/");

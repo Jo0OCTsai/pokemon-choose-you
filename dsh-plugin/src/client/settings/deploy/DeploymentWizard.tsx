@@ -60,12 +60,14 @@ export function stepDisplayState(
   return preCompleted.has(step) ? "skipped" : "done";
 }
 
-/** 按钮组（§8）：失败步出 [重试此步]；[中止] 为显式停止（执行中才有意义） */
+/** 按钮组（§8）：失败步出 [重试此步]；[中止] 为显式停止（执行中才有意义）；
+ * [关闭] 恒在（与 Esc 同语义 = 后台继续，M8——不随执行态消失，readonly 只读也可关窗） */
 function wizardActions(
   failedStep: ProvisionStep | null,
   t: (key: string) => string,
   onRetry: () => void,
   onAbort: () => void,
+  onClose: () => void,
   readonly: boolean,
   running: boolean,
 ): ModalAction[] {
@@ -74,6 +76,7 @@ function wizardActions(
     actions.push({ label: t("dsh.deploy.wizard.retry"), onChoose: onRetry, disabled: readonly });
   }
   actions.push({ label: t("dsh.deploy.wizard.abort"), onChoose: onAbort, disabled: readonly || !running });
+  actions.push({ label: t("dsh.common.close"), onChoose: onClose });
   return actions;
 }
 
@@ -157,7 +160,7 @@ export function DeploymentWizard({
   const failedStep = status?.failedStep ?? null;
   // D31 第一分支：步③失败且 helper 从未安装（helperPath 空）→「跳过安装，转直连」入口
   const neverInstalled = entity.helperPath.trim() === "";
-  const actions = wizardActions(failedStep, t, onRetry, onAbort, readonly, running);
+  const actions = wizardActions(failedStep, t, onRetry, onAbort, onClose, readonly, running);
 
   async function confirmDegrade(): Promise<void> {
     if (degradeAsk === null) {

@@ -14,6 +14,7 @@
  * deploymentDelete.ts；本文件为统一再出口（消费面不变）。
  */
 import type { Conn } from "../storage/db";
+import { txImmediate } from "../storage/db";
 import { loadAgents } from "../domain/settings";
 import type { ProvisionState } from "./provision";
 
@@ -152,6 +153,19 @@ export function deploymentById(conn: Conn, id: string): DeploymentEntity | null 
 export function deploymentByAlias(conn: Conn, alias: string): DeploymentEntity | null {
   const hit = Object.values(listDeployments(conn)).find((d) => d.alias === alias);
   return hit ?? null;
+}
+
+/** 远端执行失败落实体 lastError（判定链诊断留痕，部署设置 UI 可见；status 迁移归
+ *  recheck——本写入不动状态，recheck 恢复时清空。实体并发消失 = 静默（best-effort）） */
+export function recordDeploymentLaunchError(conn: Conn, id: string, message: string): void {
+  txImmediate(conn, () => {
+    const deployments = listDeployments(conn);
+    if (deployments[id] === undefined) {
+      return;
+    }
+    deployments[id] = { ...deployments[id], lastError: message };
+    storeDeployments(conn, deployments);
+  });
 }
 
 /**
