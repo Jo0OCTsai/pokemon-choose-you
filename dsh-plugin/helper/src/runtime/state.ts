@@ -22,6 +22,7 @@ export abstract class RuntimeStateBase {
     alwaysOnTop: true,
     scale: 1,
     opacity: 100,
+    dexCaught: [],
   };
   protected quotesValue: Record<string, string[]> = {};
 

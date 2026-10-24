@@ -14,6 +14,7 @@ import type {
   TaskStateMsg,
 } from "../bridge/protocol.ts";
 import type { SysDownMsg } from "../sys/index.ts";
+import { prepareTtsText } from "../state/ttsText.ts";
 import type { PomoConfig } from "../state/pomodoro.ts";
 import { planCatchScene, type SceneKind } from "../state/catchScene.ts";
 import type { InputResponseView, PetConfigView, UiEvent } from "./index.ts";
@@ -26,6 +27,8 @@ export interface CeremonyHost {
   readonly resolver: { pokemonName(key: string, lang: CeremonyLang): string };
   bubble(text: string, tone: BubbleTone, blink?: boolean): void;
   uiEvent(ev: UiEvent): void;
+  /** 本地 TTS 出口（allDone 收工语音——sys 路由内部门控，缺省不发） */
+  speak?(text: string): void;
 }
 type CeremonyLang = Parameters<typeof LINES.caught>[0];
 
@@ -51,7 +54,9 @@ export function finishCeremony(
 ): void {
   const scene = planCatchScene(caught ?? {});
   const p = host.resolver.pokemonName(prev.categoryPokemon, host.lang);
-  host.bubble(finishLine(host.lang, p, prev.title, caught, local), "event", true);
+  const line = finishLine(host.lang, p, prev.title, caught, local);
+  host.bubble(line, "event", true);
+  if (caught?.allDone) host.speak?.(LINES.allDone(host.lang, p)); // 收工语音（桌面郑重四类之一）
   host.uiEvent({ kind: "catch-scene", scene, allDone: Boolean(caught?.allDone) });
 }
 
@@ -107,6 +112,7 @@ export function petConfigOf(
     alwaysOnTop?: boolean;
     scale?: number;
     opacity?: number;
+    dexCaught?: string[];
   },
   cur: PetConfigView,
 ): PetConfigView {
@@ -117,6 +123,7 @@ export function petConfigOf(
     alwaysOnTop: section.alwaysOnTop ?? cur.alwaysOnTop,
     scale: section.scale ?? cur.scale,
     opacity: section.opacity ?? cur.opacity,
+    dexCaught: section.dexCaught ?? cur.dexCaught,
   };
 }
 
@@ -134,7 +141,8 @@ export function petConfigChanged(a: PetConfigView, b: PetConfigView): boolean {
     a.mainPokemon !== b.mainPokemon ||
     a.alwaysOnTop !== b.alwaysOnTop ||
     a.scale !== b.scale ||
-    a.opacity !== b.opacity
+    a.opacity !== b.opacity ||
+    a.dexCaught.join(",") !== b.dexCaught.join(",")
   );
 }
 
@@ -208,11 +216,22 @@ export function dispatchDownstream(host: DispatchHost, msg: DownstreamMsg): void
     case "heartbeat":
       break; // 管道守卫已在 bridge 层喂狗（任意数据都算活着）
     case "chat-reply":
-      // AI 聊聊回答直达渲染层（ChatBox 消费；失败 ok=false 气泡回退）
-      host.uiEvent({ kind: "chat-reply", text: msg.text, ok: msg.ok });
+      dispatchChatReply(host, msg);
       break;
     default:
       host.routeSysMsg(msg as SysDownMsg);
       break;
   }
+}
+
+/** chat-reply：直达渲染层（失败 ok=false 气泡回退）+ 回答语音播报（桌面郑重四类） */
+function dispatchChatReply(host: DispatchHost, msg: Extract<DownstreamMsg, { type: "chat-reply" }>): void {
+  host.uiEvent({ kind: "chat-reply", text: msg.text, ok: msg.ok });
+  if (msg.ok) host.speak?.(msg.text);
+}
+
+/** 本地 TTS 出口（P2-3）：state/ttsText 归一 → sys 路由（模块内 tts.enabled 门控；空文本不发） */
+export function speakViaSys(sys: { handle(msg: SysDownMsg): boolean }, text: string): void {
+  const prepared = prepareTtsText(text);
+  if (prepared !== null) sys.handle({ type: "tts-speak", text: prepared });
 }

@@ -92,6 +92,9 @@ function wireCommandIpc(runtime: HelperRuntime): void {
 
   ipcMain.handle("pet:complete", () => runtime.completeTask());
 
+  // 本地 TTS（生日台词等渲染层触发面——runtime.speak 内部经 sys 路由按 tts.enabled 门控）
+  ipcMain.handle("pet:speak", (_e, text: string) => runtime.speak(String(text ?? "")));
+
   ipcMain.handle("pet:interact", (_e, kind: string) => {
     if (!INTERACT_KINDS.has(kind)) return;
     runtime.interact({

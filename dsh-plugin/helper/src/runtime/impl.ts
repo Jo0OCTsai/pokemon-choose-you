@@ -1,8 +1,7 @@
 /**
- * helper 运行时实现（桥 + 状态机 + sys/ 装配；**零静态 Electron 依赖**——headless 模式
- * 与契约测试直接跑，Electron 胶水只消费 index.ts 暴露的事件面与命令面）。拆件（棘轮
- * max-lines，等量迁移）：番茄本地计时 = pomoTicker.ts、完成仪式/番茄出口/下行分发与
- * 组装 = implCeremony.ts、版本能力位/出发台词 = implSupport.ts。
+ * helper 运行时实现（桥 + 状态机 + sys/ 装配；零静态 Electron 依赖——headless 直跑）。
+ * 拆件（棘轮等量迁移）：番茄计时 = pomoTicker.ts、仪式/番茄出口/下行分发 = implCeremony.ts、
+ * 版本能力位/出发台词 = implSupport.ts。
  */
 import { Bridge } from "../bridge/bridge.ts";
 import { HostPidWatchdog, type HostDeathReason } from "../bridge/heartbeat.ts";
@@ -37,6 +36,7 @@ import {
   pomoConfigOf,
   dispatchDownstream,
   petEventUiEventOf,
+  speakViaSys,
   spritesEventOf,
 } from "./implCeremony.ts";
 
@@ -159,9 +159,8 @@ export class RuntimeImpl extends RuntimeStateBase implements HelperRuntime {
     this.bridge.stop();
   }
 
-  // ---- 下行分发（switch 表在 implCeremony.dispatchDownstream——棘轮 max-lines 等量迁移） ----
   handleMessage(msg: DownstreamMsg): void {
-    dispatchDownstream(this, msg);
+    dispatchDownstream(this, msg); // switch 表在 implCeremony.dispatchDownstream
   }
 
   setLangValue(lang: Lang): void {
@@ -170,6 +169,10 @@ export class RuntimeImpl extends RuntimeStateBase implements HelperRuntime {
 
   setQuotes(map: Record<string, string[]>): void {
     this.quotesValue = map;
+  }
+
+  speak(text: string): void {
+    speakViaSys(this.sys, text); // 本地 TTS（生日/对话回答/allDone——implCeremony 组装）
   }
 
   /** sys/ 模块族路由：消息认识但实现在位面缺失 → sys-unsupported 兜底上报（NFR-14；host 侧 hello 门控） */

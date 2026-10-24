@@ -95,9 +95,11 @@ function sayTimeLine(key: "birthday" | "night" | "friday" | "hour", now: Date): 
   const set = lines(mirror.lang);
   if (key === "birthday") {
     const days = companionDays(mirror.metAt, now.getTime());
-    void withPokemonName((name) =>
-      showDialog(fill(set.birthdayLine, { p: name, n: days }), { tone: "event", blink: true }),
-    );
+    void withPokemonName((name) => {
+      const text = fill(set.birthdayLine, { p: name, n: days });
+      showDialog(text, { tone: "event", blink: true });
+      void bridge.speak(text); // 生日语音（桌面郑重四类之一——tts.enabled 门控在主进程）
+    });
     return;
   }
   const text = key === "night" ? set.nightLine : key === "friday" ? set.fridayLine : set.hourLine;

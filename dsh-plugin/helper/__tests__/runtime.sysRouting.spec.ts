@@ -208,6 +208,7 @@ describe("完成仪式：caught 变体与 pet 基础面投影", () => {
       alwaysOnTop: true,
       scale: 1.5,
       opacity: 80,
+      dexCaught: [],
     });
     expect(h.events.find((e) => e.kind === "pet-config")).toMatchObject({ kind: "pet-config", mate: true, scale: 1.5 });
     h.runtime.dispose();
@@ -234,6 +235,26 @@ describe("quotes / pet-event 下行（P1 新增面）", () => {
     expect(h.runtime.petState.base).not.toBe("urgent");
     h.write({ type: "pet-event", kind: "reminder", taskId: 9, title: "急件", urgent: true });
     expect(h.runtime.petState.base).toBe("urgent");
+    h.runtime.dispose();
+  });
+});
+
+describe("本地 TTS 自触发面（P2-3：对话回答/allDone 收工；tts.enabled 门控）", () => {
+  it("tts 关（默认静音）：chat-reply ok 不发声", () => {
+    const h = makeHarness();
+    h.write({ type: "chat-reply", text: "连胜 5 天了！", ok: true });
+    expect(h.sys.tts.records.spoken).toEqual([]);
+    h.runtime.dispose();
+  });
+
+  it("tts 开：chat-reply ok 发声（归一文本）；allDone 收工语音随完成仪式", () => {
+    const h = makeHarness();
+    h.write({ type: "sys-config", tts: { enabled: true } });
+    h.write({ type: "chat-reply", text: "🎉 连胜 5 天了！", ok: true });
+    expect(h.sys.tts.records.spoken).toEqual(["连胜 5 天了！"]); // emoji 剥除
+    seedActive(h, { id: 11, title: "最后一只", categoryPokemon: "pikachu", status: "active" });
+    pushFinished(h, { allDone: true });
+    expect(h.sys.tts.records.spoken.at(-1)).toBe("今日图鉴圆满！皮卡丘说：收工，好好休息！");
     h.runtime.dispose();
   });
 });

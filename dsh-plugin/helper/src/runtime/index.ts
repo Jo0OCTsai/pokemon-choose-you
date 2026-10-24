@@ -83,6 +83,8 @@ export interface PetConfigView {
   alwaysOnTop: boolean;
   scale: number;
   opacity: number;
+  /** 图鉴已捕捉精灵 key 集（mate 候选池；空集回退内置六只——P2 缺口 5） */
+  dexCaught: string[];
 }
 
 export interface HelperRuntime {
@@ -122,6 +124,11 @@ export interface HelperRuntime {
   };
   /** 坐栖判定（electron 胶水拖拽落定/启动时调用——纯逻辑在 state/perch.ts） */
   reportPerch(perched: boolean): void;
+  /**
+   * 本地 TTS 出口（生日/对话回答/allDone 收工等 helper 自触发面）：文本经 state/ttsText
+   * 归一后走 sys 路由（tts-speak）——模块内部按 sys-config.tts.enabled 门控，默认静音
+   */
+  speak(text: string): void;
   dispose(): void;
 }
 

@@ -27,7 +27,7 @@ helper sys/ 模块族与桌宠行为已实装；下表为历史缺口与当前�
 | 2 | **pet_mate / agentConfigured 共享键** | ✅ 已接线：`sys-config.pet` 分节下发，helper `observeSysConfig` 投影 `pet-config`（mate 闸门开门、ChatBox 菜单条件项如实增减） |
 | 3 | **桌宠可见性回传** | ✅ 已接线：`sys-config.tray.petVisible` + supervisor running 投影 |
 | 4 | **main_pokemon / pokemon_quotes 无下行面** | ✅ 已接线（P1 D2）：`sys-config.pet.mainPokemon` + 独立 `quotes` 消息惰性下发（相关集 = 主宝可梦 + 进行中精灵，变化才发）；helper 空闲精灵链与台词优先级对齐桌面（自定义 > 深夜池 > 默认池） |
-| 5 | **mate 候选池无图鉴统计下行面** | ⏳ 待接线（P2）：候选池暂用内置六只（桌面用图鉴已捕捉池） |
+| 5 | **mate 候选池无图鉴统计下行面** | ✅ 已接线（P2）：`sys-config.pet.dexCaught`（done 任务去重分类精灵集）下发；helper 候选池 = 图鉴已捕捉（空集回退内置六只），排除当前精灵与主宝可梦 |
 
 补面原则：全部为**可选字段的向后兼容增量**（旧 helper 分节守卫丢弃未知字段不崩——
 NFR-14 既有立场），不需协议版本位。

@@ -73,6 +73,7 @@ const UI_EVENT_HANDLERS: Record<string, (ev: Record<string, unknown>) => void> =
       alwaysOnTop: ev.alwaysOnTop === undefined ? true : Boolean(ev.alwaysOnTop),
       scale: Number(ev.scale ?? 1) || 1,
       opacity: Number(ev.opacity ?? 100) || 100,
+      dexCaught: Array.isArray(ev.dexCaught) ? (ev.dexCaught as string[]) : [],
     };
     applyPetVars();
   },

@@ -42,3 +42,8 @@
 - [x] 7.1 e2e-acceptance：两个能力各 Scenario ≥1 用例（helper 契约测试 + 渲染层 happy-dom 交互），raw 报告落 `openspec/changes/pet-parity-p1/reports/`
 - [x] 7.2 lint-gate 三服务 + 质量棘轮 + 三包测试全绿
 - [x] 7.3 文档同步：host/pet/README 缺口 4/5 收口；dsh-plugin/AGENTS.md 若有协议面描述则更新
+
+## 8. P2 补充（2026-10-24 追加实施）
+
+- [x] 8.1 TTS 触发面对齐桌面四类：helper 侧 prepareTtsText 归一 + runtime.speak（sys 路由内 tts.enabled 门控）；allDone 收工语音（完成仪式随行）、对话回答语音（chat-reply ok）、生日语音（渲染层台词时刻经 pet:speak IPC）
+- [x] 8.2 mate 图鉴候选池：sys-config.pet.dexCaught（done 任务去重分类精灵）下发；helper 池 = 图鉴已捕捉（空集回退内置六只），排除当前精灵与主宝可梦

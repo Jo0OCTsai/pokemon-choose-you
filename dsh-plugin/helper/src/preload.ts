@@ -28,6 +28,8 @@ contextBridge.exposeInMainWorld("petBridge", {
   cmd: (op: string, fields?: Record<string, unknown>) => ipcRenderer.invoke("pet:cmd", op, fields),
   /** 本端完成（done cmd + focus-settle 结账 + celebrating） */
   complete: () => ipcRenderer.invoke("pet:complete"),
+  /** 本地 TTS（生日台词等——主进程 sys 路由，tts.enabled 门控） */
+  speak: (text: string) => ipcRenderer.invoke("pet:speak", text),
   /** 交互事件回流（pet-start/drag-end/celebrate-end/interact…白名单在主进程） */
   interact: (kind: string) => ipcRenderer.invoke("pet:interact", kind),
   /** 番茄本地控制（focus/trial/break） */

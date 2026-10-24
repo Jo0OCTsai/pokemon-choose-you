@@ -44,6 +44,7 @@ export interface Snapshot {
     alwaysOnTop: boolean;
     scale: number;
     opacity: number;
+    dexCaught: string[];
   };
   /** 每宝可梦自定义台词惰性集（quotes 下行；台词优先级最高档） */
   quotes: Record<string, string[]>;
@@ -81,6 +82,7 @@ export interface Mirror {
     alwaysOnTop: boolean;
     scale: number;
     opacity: number;
+    dexCaught: string[];
   };
   /** 当前精灵 key（台词优先级与视线跟随基准；setSprite 维护） */
   spriteKey: string;
@@ -104,7 +106,15 @@ export const mirror: Mirror = {
   metAt: Date.now(),
   inputResponse: { enabled: false, hopCoupleMax: 0 },
   inputBand: "silent",
-  petConfig: { mate: false, agentConfigured: true, mainPokemon: "", alwaysOnTop: true, scale: 1, opacity: 100 },
+  petConfig: {
+    mate: false,
+    agentConfigured: true,
+    mainPokemon: "",
+    alwaysOnTop: true,
+    scale: 1,
+    opacity: 100,
+    dexCaught: [],
+  },
   spriteKey: "pikachu",
   quotes: {},
 };

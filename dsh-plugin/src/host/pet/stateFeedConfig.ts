@@ -58,11 +58,12 @@ export function buildSysConfig(
   };
 }
 
-/** pet 分节组装（P1 D2/D5：精灵与窗口配置共享键投影，值域非法回落缺省） */
+/** pet 分节组装（P1 D2/D5 + P2 缺口5：精灵与窗口配置共享键投影 + 图鉴已捕捉池，值域非法回落缺省） */
 function buildPetSection(conn: Conn): NonNullable<SysConfigMsg["pet"]> {
   const mainPokemon = getSetting(conn, "main_pokemon");
   const scale = Number(getSetting(conn, "pet_scale"));
   const opacity = Number(getSetting(conn, "pet_opacity"));
+  const dexCaught = dexCaughtSprites(conn);
   return {
     mate: getSetting(conn, "pet_mate") === "true",
     agentConfigured: primaryAgent(conn) !== null,
@@ -70,7 +71,20 @@ function buildPetSection(conn: Conn): NonNullable<SysConfigMsg["pet"]> {
     alwaysOnTop: getSetting(conn, "pet_always_on_top") !== "false",
     scale: (PET_SCALES as readonly number[]).includes(scale) ? scale : 1,
     opacity: (PET_OPACITIES as readonly number[]).includes(opacity) ? opacity : 100,
+    ...(dexCaught.length > 0 ? { dexCaught } : {}),
   };
+}
+
+/** 图鉴已捕捉精灵 key 集（完成任务的去重分类精灵——mate 候选池，桌面 api.dexStats 同口径） */
+function dexCaughtSprites(conn: Conn): string[] {
+  return (
+    conn
+      .prepare(
+        "SELECT DISTINCT c.sprite FROM tasks t JOIN categories c ON c.id = t.category_id " +
+          "WHERE t.status = 'done' AND c.sprite IS NOT NULL AND c.sprite != '' ORDER BY 1",
+      )
+      .all() as Array<{ sprite: string }>
+  ).map((r) => r.sprite);
 }
 
 /**

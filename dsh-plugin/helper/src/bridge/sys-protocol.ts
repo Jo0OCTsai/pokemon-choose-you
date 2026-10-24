@@ -64,6 +64,8 @@ export interface SysConfigMsg {
     scale?: number;
     /** 精灵/气泡透明度档（值域 100 / 80 / 60） */
     opacity?: number;
+    /** 图鉴已捕捉精灵 key 集（mate 候选池——P2 缺口 5；空集或缺省 = helper 回退内置六只） */
+    dexCaught?: string[];
   };
 }
 
