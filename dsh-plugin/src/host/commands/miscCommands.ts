@@ -10,7 +10,8 @@ import { dbStatus } from "../storage/migrate";
 import { diagnosticsSnapshot } from "../health/snapshot";
 import { buildSupportReport } from "../health/supportReport";
 import { logQuery } from "../health/logRing";
-import { setPetPos } from "../pet/stateFeed";
+import { clearPetPos, setPetPos } from "../pet/stateFeed";
+import { electronSetupProgress } from "../pet/electronGet";
 import type { LogQueryParams } from "../health/logRing";
 import { logDirFrom } from "../storage/paths";
 import { paramError, PkyError } from "../storage/errors";
@@ -83,11 +84,6 @@ function petCommandSet(): CommandTable {
     },
     // 桌宠显隐状态（背包桌宠分区状态行回显源：running = helper 子进程存活——hide 即停进程）
     petStatus: (_p, deps) => ({ running: deps.pet.running }),
-    petMove: (p, deps) => {
-      setPetPos(deps.conn, (p as { pos: { x: number; y: number } }).pos);
-      deps.onWrites();
-      return { ok: true };
-    },
     // 番茄「先试 5 分钟」为 helper 本地计时（AD §4.1.1：结束不自动接休息）；计时态在
     // helper 侧（D2），host 命令面返回 ok——桥下行消息随 dsh 适配层装配接线。
     pomoTryFive: (_p, deps) => {
@@ -115,6 +111,26 @@ function petCommandSet(): CommandTable {
   };
 }
 
+/** 桌宠位置与首启进度段（P1 D6/D7——拆小函数控棘轮 max-lines-per-function） */
+function petPositionCommandSet(): CommandTable {
+  return {
+    petMove: (p, deps) => {
+      setPetPos(deps.conn, (p as { pos: { x: number; y: number } }).pos);
+      deps.onWrites();
+      return { ok: true };
+    },
+    // 重置桌宠位置：清宿主记忆位 + 通知 helper 回默认位（桥缺席只清位，下次启动生效）
+    petResetPos: (_p, deps) => {
+      clearPetPos(deps.conn);
+      const bridge = deps.petBridge?.() ?? null;
+      const delivered = bridge === null ? false : bridge.sendPetEvent({ kind: "reset-pos" });
+      return { ok: true, delivered };
+    },
+    // Electron 首启进度（设置面「显示桌宠」行——下载/校验/解压阶段化呈现）
+    petSetupProgress: () => electronSetupProgress(),
+  };
+}
+
 /** macAuthorizationStatus 命令实现（独立成 const——控表函数行数棘轮） */
 const macAuthorizationStatusCommand: CommandFn = async (p, deps) => {
   const kind = (p as { kind?: unknown }).kind;
@@ -133,5 +149,5 @@ const macAuthorizationStatusCommand: CommandFn = async (p, deps) => {
 
 /** 诊断/桌宠/通用/专注命令表（11 条） */
 export function miscCommands(): CommandTable {
-  return { ...diagCommandSet(), ...petCommandSet() };
+  return { ...diagCommandSet(), ...petCommandSet(), ...petPositionCommandSet() };
 }

@@ -26,6 +26,7 @@ import {
   type SpritesMsg,
   type SysUnsupportedMsg,
   type TaskStateMsg,
+  type PetEventMsg,
   type TrayActionMsg,
   type UpstreamMsg,
 } from "../../../helper/src/bridge/protocol";
@@ -206,6 +207,16 @@ export class BridgeClient {
 
   sendHeartbeat(ts = Date.now()): boolean {
     return this.send({ type: "heartbeat", ts });
+  }
+
+  /** 每宝可梦自定义台词惰性下发（P1 D2：相关集 = 主宝可梦 + 进行中任务精灵） */
+  sendQuotes(map: Record<string, string[]>): boolean {
+    return this.send({ type: "quotes", map });
+  }
+
+  /** 桌宠事件下行（提醒敲门/催促、位置复位——P1 D3/D6） */
+  sendPetEvent(ev: Omit<PetEventMsg, "type">): boolean {
+    return this.send({ type: "pet-event", ...ev });
   }
 
   // ---- 上行解码与分发 ----

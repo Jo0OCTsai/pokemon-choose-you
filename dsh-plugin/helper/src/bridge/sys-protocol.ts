@@ -52,8 +52,19 @@ export interface SysConfigMsg {
   shortcuts?: { capture: string; togglePet: string };
   inputResponse?: { enabled: boolean; focusHopCoupleMax?: number };
   tts?: { enabled: boolean };
-  /** 桌宠基础面（无能力位——仅 hello 门控）：陪跑闸门 + ChatBox 菜单条件项 */
-  pet?: { mate?: boolean; agentConfigured?: boolean };
+  /** 桌宠基础面（无能力位——仅 hello 门控）：陪跑/聊聊条件 + 精灵与窗口配置（P1 D2/D5） */
+  pet?: {
+    mate?: boolean;
+    agentConfigured?: boolean;
+    /** 主宝可梦 key（空闲精灵选择链；缺省 = 兜底 pikachu） */
+    mainPokemon?: string;
+    /** 置顶开关（默认 true；false = 取消 alwaysOnTop 且看门狗停跑） */
+    alwaysOnTop?: boolean;
+    /** 缩放档（值域 1 / 1.25 / 1.5 / 2；窗口尺寸与渲染几何等比联动） */
+    scale?: number;
+    /** 精灵/气泡透明度档（值域 100 / 80 / 60） */
+    opacity?: number;
+  };
 }
 
 /** 系统通知（三语文案 host 组装——与桌面 notification_text 同源；点击无动作） */

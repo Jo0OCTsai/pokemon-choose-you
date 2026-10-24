@@ -2,8 +2,9 @@
  * 桥协议消息全集（specs/dsh-plugin AD §4.3 + specs/dsh-plugin-full-parity AD §4.3）——
  * stdio JSON 行，每行一个 JSON 对象。
  *
- * 信封字段 = `type`；基础下行（插件 → helper）五种：task-state / pomodoro-config / lang /
- * sprites / heartbeat + 系统能力扩展下行八种（sys-config / sys-notify / tts-speak /
+ * 信封字段 = `type`；基础下行（插件 → helper）七种：task-state / pomodoro-config / lang /
+ * sprites / heartbeat / quotes（自定义台词惰性集）/ pet-event（提醒敲门·位置复位）+
+ * 系统能力扩展下行八种（sys-config / sys-notify / tts-speak /
  * dialog-request / dialog-cancel / open-path / mac-auth-query / chat-reply，见
  * `sys-protocol.ts`）；基础上行（helper → 插件）四种：cmd / focus-settle / hello /
  * crash-diag + 系统能力扩展上行九种（tray-action / shortcut-fired / notify-clicked /
@@ -128,12 +129,34 @@ export interface HeartbeatMsg {
   ts: number;
 }
 
+/** 每宝可梦自定义台词惰性下发（P1 D2：相关集 = 主宝可梦 + 进行中任务精灵，变化才发） */
+export interface QuotesMsg {
+  type: "quotes";
+  map: Record<string, string[]>;
+}
+
+/** 桌宠事件下行（P1 D3/D6：提醒敲门/催促、位置复位） */
+export interface PetEventMsg {
+  type: "pet-event";
+  kind: "reminder" | "reset-pos";
+  /** reminder：目标任务（动作条完成/推迟回写用） */
+  taskId?: number | string;
+  /** reminder：任务标题（气泡文案插值） */
+  title?: string;
+  /** reminder：紧急优先级（urgent 底态 + 催促文案） */
+  urgent?: boolean;
+  /** reminder：分类精灵 key（缺省精灵名兜底） */
+  pokemon?: string;
+}
+
 export type DownstreamMsg =
   | TaskStateMsg
   | PomodoroConfigMsg
   | LangMsg
   | SpritesMsg
   | HeartbeatMsg
+  | QuotesMsg
+  | PetEventMsg
   | SysConfigMsg
   | SysNotifyMsg
   | TtsSpeakMsg
@@ -149,6 +172,8 @@ export const DOWNSTREAM_TYPES = [
   "lang",
   "sprites",
   "heartbeat",
+  "quotes",
+  "pet-event",
   "sys-config",
   "sys-notify",
   "tts-speak",
@@ -171,6 +196,8 @@ export const CMD_OPS = [
   "pet-interact",
   // ---- 系统能力扩展（full-parity AD §4.3）：AI 聊聊问题上载（FR-A8）----
   "pet-chat",
+  // ---- P1 D4：提醒就近动作条「推迟 N 分钟」（写 remind_at + 重置 reminded）----
+  "snooze",
 ] as const;
 
 export type CmdOp = (typeof CMD_OPS)[number];
@@ -181,6 +208,8 @@ export interface CmdMsg {
   taskId?: number | string;
   /** capture（⚡发报文本）/ pet-chat（AI 聊聊问题 ≤200 字符）等载荷 */
   text?: string;
+  /** snooze：推迟分钟数（缺省 10） */
+  minutes?: number;
   /** 拖动后窗口位置（宿主侧持久化，§4.1.1 petMove） */
   pos?: { x: number; y: number };
 }

@@ -12,7 +12,7 @@
 import type { Conn } from "../storage/db";
 import { setSetting, getSetting } from "../domain/settings";
 import { parseTimeIn } from "./query";
-import type { NotificationText } from "./aggregate";
+import type { NotificationText, PetReminderEvent } from "./aggregate";
 import type { BridgeClient } from "../pet/bridge";
 import type { SysNotifyMsg } from "../../../helper/src/bridge/protocol";
 
@@ -73,6 +73,19 @@ export class ReminderDelivery {
     }
     this.dropped += 1;
     return "dropped";
+  }
+
+  /** 桌宠敲门/催促事件（pet-event 下行——提醒第一现场；桥缺席静默跳过，通知通道已降级承载） */
+  petEvent(ev: PetReminderEvent): boolean {
+    const bridge = this.deps.bridge();
+    if (bridge === null) return false;
+    return bridge.sendPetEvent({
+      kind: "reminder",
+      taskId: ev.id,
+      title: ev.title,
+      urgent: ev.urgent,
+      ...(ev.pokemon === null ? {} : { pokemon: ev.pokemon }),
+    });
   }
 }
 

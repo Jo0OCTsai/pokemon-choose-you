@@ -4,7 +4,7 @@
  */
 import type { ActiveTask, Lang, QuickTask } from "../bridge/protocol.ts";
 import { PET_IDLE_STATE, type PetState } from "../state/petState.ts";
-import type { InputResponseView } from "./index.ts";
+import type { InputResponseView, PetConfigView } from "./index.ts";
 
 export abstract class RuntimeStateBase {
   protected petStateValue: PetState = PET_IDLE_STATE;
@@ -15,7 +15,15 @@ export abstract class RuntimeStateBase {
   protected petVisibleValue = true;
   protected perchedValue = false;
   protected inputResponseValue: InputResponseView = { enabled: false, hopCoupleMax: 0 };
-  protected petConfigValue: { mate: boolean; agentConfigured: boolean } = { mate: false, agentConfigured: true };
+  protected petConfigValue: PetConfigView = {
+    mate: false,
+    agentConfigured: true,
+    mainPokemon: "",
+    alwaysOnTop: true,
+    scale: 1,
+    opacity: 100,
+  };
+  protected quotesValue: Record<string, string[]> = {};
 
   get petState(): PetState {
     return this.petStateValue;
@@ -38,7 +46,10 @@ export abstract class RuntimeStateBase {
   get inputResponse(): InputResponseView {
     return this.inputResponseValue;
   }
-  get petConfig(): { mate: boolean; agentConfigured: boolean } {
+  get petConfig(): PetConfigView {
     return this.petConfigValue;
+  }
+  get quotes(): Record<string, string[]> {
+    return this.quotesValue;
   }
 }

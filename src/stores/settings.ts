@@ -46,6 +46,10 @@ export const SETTING_DEFAULTS: Record<string, string> = {
   pet_voice: "false",
   /** 陪跑精灵（F6）：专注满 25 分钟图鉴里的一只宝可梦来旁边陪坐（默认关） */
   pet_mate: "false",
+  /** 桌宠窗口行为三键（dsh helper 形态消费——P1；桌面形态暂无对应 UI，默认值即桌面行为不变） */
+  pet_always_on_top: "true",
+  pet_scale: "1",
+  pet_opacity: "100",
   feishu_poll_interval: "120",
   feishu_enabled: "false",
   /** 我的称呼（逗号/顿号分隔）：群里被这样叫的消息会标注疑似指派给你；真名不发给 AI */
@@ -105,6 +109,9 @@ export const SETTING_KEYS = [
   "pet_input_response_working",
   "pet_voice",
   "pet_mate",
+  "pet_always_on_top",
+  "pet_scale",
+  "pet_opacity",
   "feishu_poll_interval",
   "feishu_my_names",
   "ai_agents",

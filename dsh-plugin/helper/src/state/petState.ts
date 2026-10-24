@@ -12,7 +12,7 @@
  */
 import type { ActiveTask } from "../bridge/protocol.ts";
 
-export type PetBaseState = "idle" | "working" | "paused";
+export type PetBaseState = "idle" | "working" | "paused" | "urgent";
 export type PetTransient = "celebrating" | "petting" | "dragging" | "rest";
 
 export interface PetState {
@@ -39,7 +39,9 @@ export type PetEvent =
   | { kind: "break-start" }
   | { kind: "break-end" }
   /** 任意用户交互（点击/悬停/拖动开始）——asleep 揉眼醒来 */
-  | { kind: "interact" };
+  | { kind: "interact" }
+  /** 提醒 urgent 底态（P1 D3，解除 U10）：on 进催促抖动，off 回任务派生底态 */
+  | { kind: "urgent"; on: boolean };
 
 /** task-state → 底态映射（status 对齐任务六态；helper 只关心 active/paused） */
 export function baseFromTask(task: ActiveTask | null): PetBaseState {
@@ -61,6 +63,12 @@ function onTaskState(state: PetState, ev: Extract<PetEvent, { kind: "task-state"
 
 function onTaskDone(state: PetState): PetState {
   return { ...state, transient: "celebrating", asleep: false };
+}
+
+/** urgent 底态（P1 D3 解除 U10）：on = 催促抖动（演出/睡觉让位），off 回 idle 待 task-state 校正 */
+function onUrgent(state: PetState, ev: Extract<PetEvent, { kind: "urgent" }>): PetState {
+  if (!ev.on) return state.base === "urgent" ? { ...state, base: "idle" } : state;
+  return { ...state, base: "urgent", transient: null, asleep: false };
 }
 
 function clearTransient(state: PetState, which: PetTransient): PetState {
@@ -85,6 +93,7 @@ const HANDLERS: { [K in PetEvent["kind"]]: PetHandler<K> } = {
   "break-start": (s) => (occupied(s) ? s : { ...s, transient: "rest" }),
   "break-end": (s) => clearTransient(s, "rest"),
   interact: (s) => (s.asleep ? { ...s, asleep: false } : s),
+  urgent: onUrgent,
 };
 
 export function reduce(state: PetState, ev: PetEvent): PetState {

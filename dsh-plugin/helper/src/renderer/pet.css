@@ -1059,3 +1059,56 @@ html.reduced-motion .ring-fg {
   color: var(--dex-navy);
   cursor: pointer;
 }
+
+/* ============================== P1 窗口缩放 / 透明度 / urgent / 提醒动作条 ============================== */
+
+/* 根缩放（P1 D5）：#app 整树等比——窗口尺寸由主进程按 scale 换算，.hit 命中区随元素几何自然联动 */
+#app {
+  transform: scale(var(--pet-scale, 1));
+  transform-origin: 0 0;
+}
+/* 透明度档（pet_opacity 100/80/60 → 1/0.8/0.6）：精灵与气泡本体 */
+.pet-sprite,
+.dialog-inner {
+  opacity: var(--pet-opacity, 1);
+}
+
+/* urgent 底态（P1 D3 解除 U10）：催促抖动（reduced-motion 全停通道兜底） */
+.stage.st-urgent .pet-sprite {
+  animation: urgent-shake 0.6s var(--e-sway) infinite;
+}
+@keyframes urgent-shake {
+  0%,
+  100% {
+    transform: translateX(0);
+  }
+  25% {
+    transform: translateX(-2px);
+  }
+  75% {
+    transform: translateX(2px);
+  }
+}
+
+/* 提醒动作条（P1 D3）：钉住气泡下方「完成 / 推迟 10 分钟」——机壳描边按钮口径 */
+.reminder-actions {
+  display: flex;
+  gap: 6px;
+  margin-top: 6px;
+  justify-content: flex-end;
+}
+.reminder-btn {
+  font: inherit;
+  font-size: 11px;
+  padding: 2px 8px;
+  background: var(--dex-body);
+  border: 2px solid var(--dex-navy);
+  border-radius: 4px;
+  box-shadow: 2px 2px 0 var(--dex-navy);
+  color: var(--dex-navy);
+  cursor: pointer;
+}
+.reminder-btn:active {
+  transform: translate(1px, 1px);
+  box-shadow: 1px 1px 0 var(--dex-navy);
+}

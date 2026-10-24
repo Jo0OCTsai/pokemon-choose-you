@@ -20,7 +20,7 @@ import type { Lang, QuickTask } from "../bridge/protocol.ts";
 import { playCapture } from "./capture.ts";
 import { chime } from "./chime.ts";
 import { handleChatReply, initChatBox, openChat, refreshChatStatic } from "./chatbox.ts";
-import { showDialog } from "./dialog.ts";
+import { showDialog, showReminder } from "./dialog.ts";
 import { fill, lines } from "./lines.ts";
 import { initMenu } from "./menu.ts";
 import { mateLeave } from "./mate.ts";
@@ -29,6 +29,7 @@ import { tickMate } from "./mate.ts";
 import { feedActivity, initInputResponse } from "./inputResponse.ts";
 import { loadMetOn, startPetSchedules } from "./petSchedule.ts";
 import { refreshPill } from "./pill.ts";
+import { refs } from "./refs.ts";
 import { withPokemonName } from "./pokemonName.ts";
 import { refreshQuick, toggleQuick } from "./quickdex.ts";
 import { applyPetState, setSprite, updateRing } from "./sprite.ts";
@@ -68,9 +69,28 @@ const UI_EVENT_HANDLERS: Record<string, (ev: Record<string, unknown>) => void> =
     mirror.petConfig = {
       mate: Boolean(ev.mate),
       agentConfigured: Boolean(ev.agentConfigured),
+      mainPokemon: String(ev.mainPokemon ?? ""),
+      alwaysOnTop: ev.alwaysOnTop === undefined ? true : Boolean(ev.alwaysOnTop),
+      scale: Number(ev.scale ?? 1) || 1,
+      opacity: Number(ev.opacity ?? 100) || 100,
     };
+    applyPetVars();
   },
   "pomo-chime": (ev) => chime(ev.count === 2 ? 2 : 1),
+  quotes: (ev) => {
+    mirror.quotes = (ev.map as Record<string, string[]>) ?? {};
+  },
+  reminder: (ev) => {
+    const key = String(ev.pokemon ?? "") || mirror.spriteKey;
+    withPokemonName(
+      (p) =>
+        showReminder(
+          { taskId: ev.taskId as number | string, title: String(ev.title ?? ""), urgent: Boolean(ev.urgent) },
+          p,
+        ),
+      key,
+    );
+  },
 };
 
 function onUiEvent(ev: Record<string, unknown>): void {
@@ -84,7 +104,8 @@ function handleTask(ev: Record<string, unknown>): void {
   mirror.todayTasks = (ev.todayTasks as QuickTask[]) ?? [];
   refreshQuick();
   refreshPill(task, null);
-  setSprite(task ? task.categoryPokemon : ""); // 无进行中：回主宝可梦
+  // 空闲精灵选择链（P1 D2 桌面同构）：任务分类精灵 → main_pokemon → pikachu 兜底
+  setSprite(task ? task.categoryPokemon : mirror.petConfig.mainPokemon || "pikachu");
 }
 
 /** 番茄配置（含功能开关）：开关变化即时重评胶囊显隐 */
@@ -157,7 +178,43 @@ function wireHitToggle(): void {
       hitActive = hit;
       void bridge.setHit(hit);
     }
+    feedGaze(e.clientX); // 光标跟随视线（P1 C4——forward 穿透态 mousemove 仍可达）
   });
+}
+
+// ---- 光标跟随视线（P1 C4）：方位翻转 + look；冷却 2.6s；专注/urgent/演出/睡着让路 ----
+const GAZE_COOLDOWN_MS = 2_600;
+let lastGazeAt = 0;
+let gazeFacing: 1 | -1 = 1;
+
+/** 视线让路面（专注/urgent/演出/对话/快捷屏/睡着/减弱动效） */
+function gazeBlocked(): boolean {
+  const s = mirror.petState;
+  return (
+    mirror.reducedMotion ||
+    s.asleep ||
+    s.transient !== null ||
+    mirror.sceneBusy ||
+    mirror.chatOpen ||
+    mirror.quickOpen ||
+    s.base === "working" ||
+    s.base === "urgent"
+  );
+}
+
+function feedGaze(x: number): void {
+  const now = Date.now();
+  if (now - lastGazeAt < GAZE_COOLDOWN_MS || gazeBlocked()) return;
+  const rect = refs.sprite.getBoundingClientRect();
+  const dir = x < rect.left + rect.width / 2 ? -1 : 1;
+  lastGazeAt = now;
+  if (dir !== gazeFacing) {
+    gazeFacing = dir;
+    refs.stage.classList.add("m-flip");
+    setTimeout(() => refs.stage.classList.remove("m-flip"), 1200);
+  }
+  refs.stage.classList.add("m-look");
+  setTimeout(() => refs.stage.classList.remove("m-look"), 1000);
 }
 
 // ============================== 每秒快照（色环/药丸/坐栖/陪跑/输入响应配置） ==============================
@@ -171,7 +228,16 @@ function applySnapToMirror(snap: Snapshot): boolean {
   mirror.petState = snap.petState;
   mirror.inputResponse = snap.inputResponse ?? mirror.inputResponse;
   mirror.petConfig = snap.petConfig ?? mirror.petConfig;
+  mirror.quotes = snap.quotes ?? mirror.quotes;
+  applyPetVars();
   return perchedChanged;
+}
+
+/** 窗口配置渲染变量（P1 D5）：--pet-scale 根缩放（.hit 几何随元素联动）+ --pet-opacity 精灵/气泡 */
+function applyPetVars(): void {
+  const root = document.documentElement;
+  root.style.setProperty("--pet-scale", String(mirror.petConfig.scale));
+  root.style.setProperty("--pet-opacity", String(mirror.petConfig.opacity / 100));
 }
 
 async function tickSnapshot(): Promise<void> {

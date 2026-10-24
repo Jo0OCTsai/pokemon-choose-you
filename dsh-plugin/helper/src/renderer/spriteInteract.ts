@@ -23,9 +23,15 @@ interface PointerSession {
 }
 let pointerSession: PointerSession | null = null;
 
-/** 台词池随机取一句（petQuotes/chatQuotes；空池兜底空串） */
+/** 台词优先级（P1 D2 桌面同构）：当前精灵自定义 quotes > 深夜档（22–6）安睡池 > 默认池 */
 function randomLine(pool: "petQuotes" | "chatQuotes"): string {
-  const arr = lines(mirror.lang)[pool];
+  const custom = mirror.quotes[mirror.spriteKey];
+  if (custom !== undefined && custom.length > 0) {
+    return custom[Math.floor(Math.random() * custom.length)] ?? "";
+  }
+  const set = lines(mirror.lang);
+  const h = new Date().getHours();
+  const arr = h >= 22 || h < 6 ? set.quotesNight : set[pool];
   return arr[Math.floor(Math.random() * arr.length)] ?? "";
 }
 

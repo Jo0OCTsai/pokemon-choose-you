@@ -4,23 +4,31 @@
  * - 本形态写后直推（写路径回调注册接口——tools/命令层写完调 notifyLocalWrite）；
  * - 跨形态 ≤2 秒侦听（A17 变更标记轮询：MAX(task_logs.id) + active 聚合 +
  *   chat_messages 计数合取单查询，变了 → 重读 active 任务推 task-state + badge）；
- * - 位置持久化 dsh:pet_pos；lang/sprites/pomodoro-config 下发组装
- *   （sprites builtin 清单 = helper 的六只内置 + cdnBase，单一来源 import）。
+ * - 位置持久化 dsh:pet_pos；配置下发组装在 stateFeedConfig.ts（本文件 re-export）。
  */
 import type { Conn } from "../storage/db";
-import { getSetting, primaryAgent, setSetting } from "../domain/settings";
-import { DEFAULT_BUILTIN, DEFAULT_CDN_BASE } from "../../../helper/src/sprites";
-import type {
-  ActiveTask,
-  Badge,
-  Lang,
-  PomodoroConfigMsg,
-  QuickTask,
-  SpritesMsg,
-  SysConfigMsg,
-  TaskStateMsg,
-} from "../../../helper/src/bridge/protocol";
+import { getSetting, setSetting } from "../domain/settings";
+import type { ActiveTask, Badge, QuickTask, TaskStateMsg } from "../../../helper/src/bridge/protocol";
 import { BridgeClient } from "./bridge";
+import {
+  buildPomodoroConfig,
+  buildSpritesMsg,
+  buildSysConfig,
+  quotesFor,
+  quotesKeysFor,
+  resolveLang,
+} from "./stateFeedConfig";
+
+// ---- 配置下发组装（等量迁移至 stateFeedConfig.ts；re-export 保消费面 import 路径不变） ----
+export {
+  buildPomodoroConfig,
+  buildSpritesMsg,
+  buildSysConfig,
+  DEFAULT_SHORTCUTS,
+  quotesFor,
+  quotesKeysFor,
+  resolveLang,
+} from "./stateFeedConfig";
 
 /** 桌宠位置持久化键（AD §4.1.1 petMove / §5.2 dsh: 内部态） */
 export const PET_POS_KEY = "dsh:pet_pos";
@@ -67,6 +75,11 @@ export function getPetPos(conn: Conn): PetPos | null {
 
 export function setPetPos(conn: Conn, pos: PetPos): void {
   setSetting(conn, PET_POS_KEY, JSON.stringify({ x: Math.round(pos.x), y: Math.round(pos.y) }));
+}
+
+/** 清除记忆位（「重置位置」rpc——helper 收 reset-pos 事件回默认位，P1 D6） */
+export function clearPetPos(conn: Conn): void {
+  setSetting(conn, PET_POS_KEY, "");
 }
 
 interface TaskLikeRow {
@@ -141,61 +154,6 @@ export function changeMark(conn: Conn): string {
   return `${row.maxLog}:${row.activeN}:${row.msgN}`;
 }
 
-// ---- lang / sprites / pomodoro-config 下发组装 ----
-
-export function resolveLang(conn: Conn): Lang {
-  const raw = getSetting(conn, "language");
-  return raw === "zh-Hant" || raw === "en" ? raw : "zh-Hans";
-}
-
-/** sprites 下发（builtin = helper 六只内置单源 + cdnBase；reducedMotion 双通道之一 U15） */
-export function buildSpritesMsg(conn: Conn): Omit<SpritesMsg, "type"> {
-  const reduced = getSetting(conn, "reduce_motion");
-  return {
-    builtin: DEFAULT_BUILTIN,
-    cdnBase: DEFAULT_CDN_BASE,
-    ...(reduced !== null ? { reducedMotion: reduced === "true" } : {}),
-  };
-}
-
-/** pomodoro-config 下发（档位固定 [15,25,45,60]，breakMin/enabled/notify/chime 读共享设置；D2 本地计时） */
-export function buildPomodoroConfig(conn: Conn): Omit<PomodoroConfigMsg, "type"> {
-  const breakRaw = Number(getSetting(conn, "break_minutes"));
-  return {
-    durations: [15, 25, 45, 60],
-    breakMin: Number.isInteger(breakRaw) && breakRaw > 0 ? breakRaw : 5,
-    enabled: getSetting(conn, "pomodoro_enabled") === "true",
-    notify: getSetting(conn, "pomodoro_notify") === "true",
-    chime: getSetting(conn, "pomodoro_chime") === "true",
-    lang: resolveLang(conn),
-  };
-}
-
-/** 全局快捷键缺省组合（AD §4.3 sys-config.shortcuts 行——设置面覆写归后续配置键） */
-export const DEFAULT_SHORTCUTS = { capture: "CmdOrCtrl+Shift+K", togglePet: "CmdOrCtrl+Shift+D" } as const;
-
-/**
- * sys-config 组装（full-parity 2.7 补充接线 A2/A3）：tray（tooltip + 桌宠可见性回传）/
- * shortcuts（缺省组合）/ inputResponse（pet_input_response 共享键 + 非 macOS 恒关由
- * 装配层保证）/ tts（pet_voice）/ pet（mate = pet_mate 陪跑闸门 + agentConfigured =
- * 已配置 agent——ChatBox 菜单条件项）。分节能力位过滤在 sysChannel（缺位不发该节）。
- */
-export function buildSysConfig(
-  conn: Conn,
-  opts: { petVisible: boolean } = { petVisible: false },
-): Omit<SysConfigMsg, "type"> {
-  return {
-    tray: { tooltip: "就决定是你了", petVisible: opts.petVisible },
-    shortcuts: { ...DEFAULT_SHORTCUTS },
-    inputResponse: { enabled: getSetting(conn, "pet_input_response") === "true" },
-    tts: { enabled: getSetting(conn, "pet_voice") === "true" },
-    pet: {
-      mate: getSetting(conn, "pet_mate") === "true",
-      agentConfigured: primaryAgent(conn) !== null,
-    },
-  };
-}
-
 // ---- 事件流本体 ----
 
 export interface StateFeedOptions {
@@ -209,6 +167,7 @@ export interface StateFeedOptions {
 
 export class StateFeed {
   private lastMark: string | null = null;
+  private lastQuotesKeys: string = "";
   private timer: FeedTimerApi;
   private pollHandle: unknown = null;
   private readonly conn: Conn;
@@ -228,6 +187,16 @@ export class StateFeed {
     }
     const snap = snapshotTaskState(this.conn);
     bridge.sendTaskState(snap.activeTask, snap.badge, Date.now(), snap.todayTasks, caught);
+    this.maybePushQuotes(bridge, snap.activeTask?.categoryPokemon ?? "");
+  }
+
+  /** 自定义台词惰性下发（P1 D2：相关集变化才发；空集只重置基线不发消息） */
+  private maybePushQuotes(bridge: BridgeClient, activePokemon: string): void {
+    const keys = quotesKeysFor(this.conn, getSetting(this.conn, "main_pokemon") ?? "", activePokemon);
+    const joined = keys.join(",");
+    if (joined === this.lastQuotesKeys) return;
+    this.lastQuotesKeys = joined;
+    if (keys.length > 0) bridge.sendQuotes(quotesFor(this.conn, keys));
   }
 
   /**
@@ -253,6 +222,7 @@ export class StateFeed {
     if (bridge === null) {
       return;
     }
+    this.lastQuotesKeys = ""; // 重发基线复位（重启后首轮必发相关集）
     bridge.sendLang(resolveLang(this.conn));
     bridge.sendSprites(buildSpritesMsg(this.conn));
     bridge.sendPomodoroConfig(buildPomodoroConfig(this.conn));
@@ -263,6 +233,12 @@ export class StateFeed {
   /** 本形态写后直推（tools/命令层写路径回调；FR-P2 ≤2 秒内——直推即时） */
   notifyLocalWrite(): void {
     this.pushTaskState();
+  }
+
+  /** 写后双推（P1 D1）：task-state 快照 + sys-config——设置变更免 helper 重启即生效 */
+  notifyWrites(): void {
+    this.notifyLocalWrite();
+    this.pushSysConfig();
   }
 
   /** 跨形态轮询一轮：变更标记变化 → 重读推送（A17） */

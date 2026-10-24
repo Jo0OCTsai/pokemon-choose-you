@@ -26,8 +26,8 @@ helper sys/ 模块族与桌宠行为已实装；下表为历史缺口与当前�
 | 1 | **FR-B3 演出变体数据**（里程碑/连胜） | ✅ 已接线：`task-state.caught`（含 `allDone` 收工清空）随 done 收官单推下发；helper `onTaskState` 完成迁移统一消费（变体演出 + 台词优先级 allDone > milestone > streak > 收尾） |
 | 2 | **pet_mate / agentConfigured 共享键** | ✅ 已接线：`sys-config.pet` 分节下发，helper `observeSysConfig` 投影 `pet-config`（mate 闸门开门、ChatBox 菜单条件项如实增减） |
 | 3 | **桌宠可见性回传** | ✅ 已接线：`sys-config.tray.petVisible` + supervisor running 投影 |
-| 4 | **main_pokemon / pokemon_quotes 无下行面** | ⏳ 待接线（P1）：helper 空闲精灵不跟随主宝可梦、不消费每宝可梦自定义台词；建议 `sys-config.pet` 增 `mainPokemon` + quotes 按精灵惰性下发 |
-| 5 | **mate 候选池无图鉴统计下行面** | ⏳ 待接线（P1）：候选池暂用内置六只（桌面用图鉴已捕捉池） |
+| 4 | **main_pokemon / pokemon_quotes 无下行面** | ✅ 已接线（P1 D2）：`sys-config.pet.mainPokemon` + 独立 `quotes` 消息惰性下发（相关集 = 主宝可梦 + 进行中精灵，变化才发）；helper 空闲精灵链与台词优先级对齐桌面（自定义 > 深夜池 > 默认池） |
+| 5 | **mate 候选池无图鉴统计下行面** | ⏳ 待接线（P2）：候选池暂用内置六只（桌面用图鉴已捕捉池） |
 
 补面原则：全部为**可选字段的向后兼容增量**（旧 helper 分节守卫丢弃未知字段不崩——
 NFR-14 既有立场），不需协议版本位。

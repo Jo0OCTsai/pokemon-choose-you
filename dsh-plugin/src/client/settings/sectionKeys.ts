@@ -20,7 +20,7 @@ export const FOCUS_KEYS = [
   "quiet_end",
 ] as const satisfies readonly SettingKey[];
 
-/** 桌宠分区（🐾）：主宝可梦/台词/输入响应×2/语音/陪跑（作用于主应用桌宠）+ 减弱动效（dsh 同读） */
+/** 桌宠分区（🐾）：主宝可梦/台词/输入响应×2/语音/陪跑 + 窗口行为三键（P1：置顶/缩放/透明度）+ 减弱动效 */
 export const PET_KEYS = [
   "main_pokemon",
   "pokemon_quotes",
@@ -28,6 +28,9 @@ export const PET_KEYS = [
   "pet_input_response_working",
   "pet_voice",
   "pet_mate",
+  "pet_always_on_top",
+  "pet_scale",
+  "pet_opacity",
   "reduce_motion",
 ] as const satisfies readonly SettingKey[];
 

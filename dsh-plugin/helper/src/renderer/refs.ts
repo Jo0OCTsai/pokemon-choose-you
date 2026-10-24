@@ -11,6 +11,7 @@ export const refs = {
   zzz: $("#zzz"),
   // DialogBox
   dialog: $("#dialog"),
+  dialogInner: $(".dialog-inner"),
   dialogText: $("#dialog-text"),
   dialogNext: $("#dialog-next"),
   // PomoPill

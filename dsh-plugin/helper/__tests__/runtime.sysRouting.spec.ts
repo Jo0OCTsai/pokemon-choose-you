@@ -195,18 +195,45 @@ describe("完成仪式：caught 变体与 pet 基础面投影", () => {
     h.runtime.dispose();
   });
 
-  it("sys-config.pet 分节 → pet-config 投影（mate 闸门 + agentConfigured 条件项）", () => {
+  it("sys-config.pet 分节 → pet-config 投影（mate/聊聊 + 精灵与窗口配置继承缺省）", () => {
     const h = makeHarness();
     h.write({
       type: "sys-config",
-      pet: { mate: true, agentConfigured: false },
+      pet: { mate: true, agentConfigured: false, mainPokemon: "eevee", scale: 1.5, opacity: 80 },
     });
-    expect(h.runtime.petConfig).toEqual({ mate: true, agentConfigured: false });
-    expect(h.events.find((e) => e.kind === "pet-config")).toEqual({
-      kind: "pet-config",
+    expect(h.runtime.petConfig).toEqual({
       mate: true,
       agentConfigured: false,
+      mainPokemon: "eevee",
+      alwaysOnTop: true,
+      scale: 1.5,
+      opacity: 80,
     });
+    expect(h.events.find((e) => e.kind === "pet-config")).toMatchObject({ kind: "pet-config", mate: true, scale: 1.5 });
+    h.runtime.dispose();
+  });
+});
+
+describe("quotes / pet-event 下行（P1 新增面）", () => {
+  it("惰性台词集 + 提醒 urgent 底态 + 位置复位", () => {
+    const h = makeHarness();
+    h.write({ type: "quotes", map: { psyduck: ["呆呆地看着你"] } });
+    expect(h.runtime.quotes).toEqual({ psyduck: ["呆呆地看着你"] });
+    expect(h.events.find((e) => e.kind === "quotes")).toMatchObject({ kind: "quotes" });
+    h.write({ type: "pet-event", kind: "reminder", taskId: 7, title: "周报", urgent: true, pokemon: "psyduck" });
+    expect(h.runtime.petState.base).toBe("urgent");
+    expect(h.events.find((e) => e.kind === "reminder")).toMatchObject({ kind: "reminder", taskId: 7, urgent: true });
+    h.write({ type: "pet-event", kind: "reset-pos" });
+    expect(h.events.find((e) => e.kind === "reset-pos")).toEqual({ kind: "reset-pos" });
+    h.runtime.dispose();
+  });
+
+  it("非 urgent 提醒不进 urgent 底态；urgent 撤离回 idle", () => {
+    const h = makeHarness();
+    h.write({ type: "pet-event", kind: "reminder", taskId: 8, title: "普通", urgent: false });
+    expect(h.runtime.petState.base).not.toBe("urgent");
+    h.write({ type: "pet-event", kind: "reminder", taskId: 9, title: "急件", urgent: true });
+    expect(h.runtime.petState.base).toBe("urgent");
     h.runtime.dispose();
   });
 });

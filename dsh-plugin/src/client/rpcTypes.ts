@@ -187,6 +187,10 @@ export interface HostClient {
   /** 显隐状态（running = helper 子进程存活；背包桌宠分区状态行回显源） */
   petStatus(): Promise<PkyResult<{ running: boolean }>>;
   petMove(params: { pos: { x: number; y: number } }): Promise<PkyResult<{ ok: boolean }>>;
+  /** 重置桌宠位置（P1 D6：清宿主记忆位 + helper 即刻回默认位） */
+  petResetPos(): Promise<PkyResult<{ ok: boolean; delivered: boolean }>>;
+  /** Electron 首启进度（P1 D7：下载/校验/解压阶段化呈现） */
+  petSetupProgress(): Promise<PkyResult<{ phase: string; at: number }>>;
   // 通用
   dbStatus(): Promise<PkyResult<DbStatus>>;
   // ---- full-parity 增量命令（AD §4.1 新 17 条中的 UI 消费面；streakInfo/larkLoginStart 随 2.9 装配补型） ----

@@ -64,6 +64,13 @@ export interface LineSet {
   chatSend: string;
   chatClose: string;
   chatChips: [string, string, string];
+  // ---- P1 台词优先级（自定义 quotes > 深夜池 > 默认池）与提醒（pet 桌面同文） ----
+  quotesNight: string[];
+  remindNormal: string;
+  remindUrgent: string;
+  reminderDo: string;
+  reminderSnooze: string;
+  reminderSnoozed: string;
 }
 
 const hans: LineSet = {
@@ -104,6 +111,16 @@ const hans: LineSet = {
   chatSend: "发送",
   chatClose: "收起对话",
   chatChips: ["今天还剩什么？", "这周捕捉了多少？", "连胜几天了？"],
+  quotesNight: [
+    "这么晚还在冒险，宝可梦陪你，但要早点休息~",
+    "深夜的草丛很安静，明早再出发吧。",
+    "再专注也要睡觉，卡比兽先睡了。",
+  ],
+  remindNormal: "🐾 {p}拉拉你的衣角：「{t}」别忘了",
+  remindUrgent: "‼ {p}急得直跺脚：「{t}」很紧急！",
+  reminderDo: "完成",
+  reminderSnooze: "推迟 10 分钟",
+  reminderSnoozed: "好～10 分钟后再提醒你",
 };
 
 const hant: LineSet = {
@@ -144,6 +161,16 @@ const hant: LineSet = {
   chatSend: "送出",
   chatClose: "收起對話",
   chatChips: ["今天還剩什麼？", "這週捕捉了多少？", "連勝幾天了？"],
+  quotesNight: [
+    "這麼晚還在冒險，寶可夢陪你，但要早點休息~",
+    "深夜的草叢很安靜，明早再出發吧。",
+    "再專注也要睡覺，卡比獸先睡了。",
+  ],
+  remindNormal: "🐾 {p}拉拉你的衣角：「{t}」別忘了",
+  remindUrgent: "‼ {p}急得直跺腳：「{t}」很緊急！",
+  reminderDo: "完成",
+  reminderSnooze: "延後 10 分鐘",
+  reminderSnoozed: "好～10 分鐘後再提醒你",
 };
 
 const en: LineSet = {
@@ -184,6 +211,16 @@ const en: LineSet = {
   chatSend: "Send",
   chatClose: "Close chat",
   chatChips: ["What's left today?", "How many caught this week?", "Streak lately?"],
+  quotesNight: [
+    "Adventuring this late? I'm with you—but rest soon~",
+    "The grass is quiet at night; set out tomorrow morning.",
+    "Even trainers need sleep—Snorlax went first.",
+  ],
+  remindNormal: "🐾 {p} tugs at your sleeve: don't forget '{t}'",
+  remindUrgent: "‼ {p} is stomping anxiously: '{t}' is urgent!",
+  reminderDo: "Done",
+  reminderSnooze: "Snooze 10 min",
+  reminderSnoozed: "Okay — I'll knock again in 10 minutes",
 };
 
 const LINES: Record<Lang, LineSet> = { "zh-Hans": hans, "zh-Hant": hant, en };

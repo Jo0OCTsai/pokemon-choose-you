@@ -1,14 +1,14 @@
 /**
  * helper 运行时实现（桥 + 状态机 + sys/ 装配；**零静态 Electron 依赖**——headless 模式
- * 与契约测试直接跑，Electron 胶水只消费 index.ts 暴露的事件面与命令面）。类形态：每个
- * handler 是小方法，复杂度/行数档位对齐域核心口径。拆件（棘轮 max-lines，等量迁移）：
- * 番茄本地计时 = pomoTicker.ts、完成仪式/番茄出口/下行组装 = implCeremony.ts、
- * 版本能力位/出发台词等支撑件 = implSupport.ts。
+ * 与契约测试直接跑，Electron 胶水只消费 index.ts 暴露的事件面与命令面）。拆件（棘轮
+ * max-lines，等量迁移）：番茄本地计时 = pomoTicker.ts、完成仪式/番茄出口/下行分发与
+ * 组装 = implCeremony.ts、版本能力位/出发台词 = implSupport.ts。
  */
 import { Bridge } from "../bridge/bridge.ts";
 import { HostPidWatchdog, type HostDeathReason } from "../bridge/heartbeat.ts";
 import {
   CMD_OPS,
+  type Lang,
   type CmdMsg,
   type CmdOp,
   type DownstreamMsg,
@@ -32,8 +32,11 @@ import {
   emitPomoEnded,
   finishCeremony,
   inputResponseOf,
+  petConfigChanged,
   petConfigOf,
   pomoConfigOf,
+  dispatchDownstream,
+  petEventUiEventOf,
   spritesEventOf,
 } from "./implCeremony.ts";
 
@@ -156,41 +159,21 @@ export class RuntimeImpl extends RuntimeStateBase implements HelperRuntime {
     this.bridge.stop();
   }
 
-  // ---- 下行分发（薄 switch：每 case 一个小方法） ----
-  private handleMessage(msg: DownstreamMsg): void {
-    switch (msg.type) {
-      case "task-state":
-        this.onTaskState(msg);
-        break;
-      case "pomodoro-config":
-        this.onPomodoroConfig(msg);
-        break;
-      case "lang":
-        this.langValue = msg.lang;
-        this.sys.setLang(msg.lang);
-        this.opts.onUiEvent?.({ kind: "lang", lang: msg.lang });
-        break;
-      case "sprites":
-        this.onSprites(msg);
-        break;
-      case "heartbeat":
-        break; // 管道守卫已在 bridge 层喂狗（任意数据都算活着）
-      case "chat-reply":
-        // AI 聊聊回答直达渲染层（ChatBox 消费；失败 ok=false 气泡回退）
-        this.opts.onUiEvent?.({ kind: "chat-reply", text: msg.text, ok: msg.ok });
-        break;
-      default:
-        this.routeSysMsg(msg);
-        break;
-    }
+  // ---- 下行分发（switch 表在 implCeremony.dispatchDownstream——棘轮 max-lines 等量迁移） ----
+  handleMessage(msg: DownstreamMsg): void {
+    dispatchDownstream(this, msg);
   }
 
-  /**
-   * sys/ 模块族路由（full-parity 2.4）：消息认识但实现在位面缺失 → sys-unsupported
-   * 兜底上报（每类型节流一次 + 计错进诊断，NFR-14——host 侧 hello 门控 + 能力位
-   * 缺位不发，此分支只兜「能力位与实现错位」）
-   */
-  private routeSysMsg(msg: SysDownMsg): void {
+  setLangValue(lang: Lang): void {
+    this.langValue = lang;
+  }
+
+  setQuotes(map: Record<string, string[]>): void {
+    this.quotesValue = map;
+  }
+
+  /** sys/ 模块族路由：消息认识但实现在位面缺失 → sys-unsupported 兜底上报（NFR-14；host 侧 hello 门控） */
+  routeSysMsg(msg: SysDownMsg): void {
     if (msg.type === "sys-config") this.observeSysConfig(msg);
     if (!this.sys.handle(msg)) this.bridge.reportSysUnsupported(msg.type);
   }
@@ -200,12 +183,9 @@ export class RuntimeImpl extends RuntimeStateBase implements HelperRuntime {
     if (msg.inputResponse) this.inputResponseValue = inputResponseOf(msg.inputResponse);
     if (!msg.pet) return;
     const petConfig = petConfigOf(msg.pet, this.petConfigValue);
-    if (
-      petConfig.mate !== this.petConfigValue.mate ||
-      petConfig.agentConfigured !== this.petConfigValue.agentConfigured
-    ) {
+    if (petConfigChanged(petConfig, this.petConfigValue)) {
       this.petConfigValue = petConfig;
-      this.opts.onUiEvent?.({ kind: "pet-config", ...petConfig });
+      this.uiEvent({ kind: "pet-config", ...petConfig });
     }
   }
 
@@ -231,7 +211,7 @@ export class RuntimeImpl extends RuntimeStateBase implements HelperRuntime {
     });
   }
 
-  private onTaskState(msg: TaskStateMsg): void {
+  onTaskState(msg: TaskStateMsg): void {
     const prev = this.activeTaskValue;
     const next = msg.activeTask;
     this.activeTaskValue = next;
@@ -262,7 +242,7 @@ export class RuntimeImpl extends RuntimeStateBase implements HelperRuntime {
     });
   }
 
-  private onPomodoroConfig(msg: PomodoroConfigMsg): void {
+  onPomodoroConfig(msg: PomodoroConfigMsg): void {
     const config = pomoConfigOf(msg);
     this.pomoTicker.config = config;
     this.langValue = msg.lang;
@@ -270,10 +250,17 @@ export class RuntimeImpl extends RuntimeStateBase implements HelperRuntime {
     this.opts.onUiEvent?.({ kind: "pomo-config", config });
   }
 
-  private onSprites(msg: SpritesMsg): void {
+  onSprites(msg: SpritesMsg): void {
     this.resolver.update(msg.builtin, msg.cdnBase);
     this.reducedMotionValue = msg.reducedMotion ?? false;
     this.uiEvent(spritesEventOf(msg, this.reducedMotionValue));
+  }
+
+  /** pet-event 下行（P1 D3/D6）：reminder → urgent 底态；渲染层事件组装在 implCeremony */
+  onPetEvent(msg: Extract<DownstreamMsg, { type: "pet-event" }>): void {
+    if (msg.kind === "reminder") this.setPetState({ kind: "urgent", on: msg.urgent === true });
+    const ev = petEventUiEventOf(msg);
+    if (ev !== null) this.uiEvent(ev);
   }
 
   // ---- 宿主存亡 → 退出意图（main.ts 消化：10s SLA 内退出） ----

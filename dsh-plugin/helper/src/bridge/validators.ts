@@ -15,6 +15,7 @@ import {
   type CmdOp,
   type DownstreamMsg,
   type Lang,
+  type PetEventMsg,
   type UpstreamMsg,
 } from "./protocol.ts";
 import { SYS_DOWNSTREAM_PARSERS, SYS_UPSTREAM_PARSERS } from "./validators-sys.ts";
@@ -136,8 +137,12 @@ function parseCmd(v: Record<string, unknown>): UpstreamMsg | null {
   if (!assignIf(v, msg, "taskId", isTaskId)) return null;
   if (!assignIf(v, msg, "text", isStr)) return null;
   if (!assignIf(v, msg, "pos", isPos)) return null;
+  if (!assignIf(v, msg, "minutes", isPositiveNum)) return null;
   return msg;
 }
+
+/** snooze 分钟数守卫（正有限数） */
+const isPositiveNum = (v: unknown): v is number => typeof v === "number" && Number.isFinite(v) && v > 0;
 
 /** 可选字段搬移：缺省 = 通过不动；存在但不过守卫 = 整条消息作废（返回 false） */
 function assignIf<T>(
@@ -190,8 +195,43 @@ const DOWNSTREAM_PARSERS: Record<string, (v: Record<string, unknown>) => Downstr
   lang: (v) => (isLang(v.lang) ? { type: "lang", lang: v.lang } : null),
   sprites: parseSprites,
   heartbeat: (v) => (isNum(v.ts) ? { type: "heartbeat", ts: v.ts } : null),
+  quotes: parseQuotes,
+  "pet-event": parsePetEvent,
   ...SYS_DOWNSTREAM_PARSERS,
 };
+
+/** quotes 下行：map 值须全为字符串数组（键集任意——相关集惰性下发） */
+function parseQuotes(v: Record<string, unknown>): DownstreamMsg | null {
+  const map = v.map;
+  if (!isObj(map)) return null;
+  const out: Record<string, string[]> = {};
+  for (const [key, lines] of Object.entries(map)) {
+    if (!isStrArray(lines)) return null;
+    out[key] = lines;
+  }
+  return { type: "quotes", map: out };
+}
+
+/** pet-event 载荷可选字段搬移（守卫不过返回 null 整条作废；reset-pos 无载荷通过） */
+function petEventFields(v: Record<string, unknown>): Omit<PetEventMsg, "type" | "kind"> | null {
+  const out: Partial<PetEventMsg> = {};
+  if (!assignIf(v, out, "taskId", isTaskId)) return null;
+  if (!assignIf(v, out, "title", isStr)) return null;
+  if (!assignIf(v, out, "pokemon", isStr)) return null;
+  if (v.urgent !== undefined) {
+    if (typeof v.urgent !== "boolean") return null;
+    out.urgent = v.urgent;
+  }
+  return out as Omit<PetEventMsg, "type" | "kind">;
+}
+
+/** pet-event 下行：kind 枚举 + reminder 载荷可选校验 */
+function parsePetEvent(v: Record<string, unknown>): DownstreamMsg | null {
+  if (v.kind !== "reminder" && v.kind !== "reset-pos") return null;
+  const fields = petEventFields(v);
+  if (fields === null) return null;
+  return { type: "pet-event", kind: v.kind, ...fields };
+}
 
 const UPSTREAM_PARSERS: Record<string, (v: Record<string, unknown>) => UpstreamMsg | null> = {
   cmd: parseCmd,

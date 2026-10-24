@@ -19,6 +19,24 @@ import styles from "../settings.module.css";
 import { PokemonPicker, type PokemonCandidate } from "./PokemonPicker";
 import { AxPermHint, isMacPlatform } from "./AxPermHint";
 import { PetAutoStartRow } from "../PluginConfigRows";
+import { PetWindowCard, usePetSetupPhase } from "./PetWindowCard";
+
+/** 首启阶段 → i18n 键（静态字面量——i18n 键集扫描按源内字面键展开枚举） */
+const SETUP_PHASE_KEY = {
+  downloading: "dsh.pet.setup_downloading",
+  extracting: "dsh.pet.setup_extracting",
+} as const;
+
+/** 显隐状态行文案键（模块级小函数——控组件复杂度棘轮） */
+function petStateKey(petRunning: boolean | null): string {
+  if (petRunning === null) return "dsh.pet.stateUnknown";
+  return petRunning ? "dsh.pet.stateShown" : "dsh.pet.stateHidden";
+}
+
+/** 首启阶段后缀（无活跃阶段 → 空串） */
+function setupPhaseSuffix(phase: keyof typeof SETUP_PHASE_KEY | null, t: (key: string) => string): string {
+  return phase === null ? "" : ` · ${t(SETUP_PHASE_KEY[phase])}`;
+}
 
 /** key → 当前语言名 + 名录搜索（桌面 pokemonName/searchPokemon 同源；适配层未注入搜索时本地名录兜底） */
 function usePokemonCatalog(locale: "zh-Hans" | "zh-Hant" | "en"): {
@@ -74,6 +92,9 @@ export function PetSection({
   useEffect(() => {
     refreshPetStatus();
   }, [refreshPetStatus]);
+
+  /** Electron 首启进度（P1 D7）：一次性进度链，仅在下载/解压活跃阶段续询（hook 拆件 PetWindowCard 侧） */
+  const setupPhase = usePetSetupPhase(client, petRunning);
 
   const mainKey = draft["main_pokemon"];
   const quotesMap = parseQuotes(draft["pokemon_quotes"]);
@@ -207,6 +228,8 @@ export function PetSection({
           onChange={(v) => onField("pet_mate", String(v))}
         />
       </div>
+      {/* 窗口行为卡（P1 D5/D6）：置顶开关 + 缩放档 + 透明度档 + 重置位置（拆件 PetWindowCard） */}
+      <PetWindowCard draft={draft} onField={onField} />
       <div className={ui.card}>
         <Toggle
           label={t("display.reduceMotion")}
@@ -223,9 +246,8 @@ export function PetSection({
           <span style={{ flex: 1 }}>{t("dsh.pet.showRow")}</span>
           <span data-testid="pet-show-state">
             {t("dsh.pet.stateLabel")}
-            {t(
-              petRunning === null ? "dsh.pet.stateUnknown" : petRunning ? "dsh.pet.stateShown" : "dsh.pet.stateHidden",
-            )}
+            {t(petStateKey(petRunning))}
+            {setupPhaseSuffix(setupPhase, t)}
           </span>
           <button type="button" className={ui.button} aria-label={t("dsh.pet.showRow")} onClick={() => void showPet()}>
             {t("dsh.pet.show")}

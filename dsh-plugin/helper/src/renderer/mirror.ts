@@ -3,7 +3,7 @@ import type { Lang, QuickTask } from "../bridge/protocol.ts";
 import type { InputBand } from "../state/inputCps.ts";
 
 export type PetStateLite = {
-  base: "idle" | "working" | "paused";
+  base: "idle" | "working" | "paused" | "urgent";
   transient: "celebrating" | "petting" | "dragging" | "rest" | null;
   asleep: boolean;
 };
@@ -37,7 +37,16 @@ export interface Snapshot {
   perched: boolean;
   petVisible: boolean;
   inputResponse: { enabled: boolean; hopCoupleMax: number };
-  petConfig: { mate: boolean; agentConfigured: boolean };
+  petConfig: {
+    mate: boolean;
+    agentConfigured: boolean;
+    mainPokemon: string;
+    alwaysOnTop: boolean;
+    scale: number;
+    opacity: number;
+  };
+  /** 每宝可梦自定义台词惰性集（quotes 下行；台词优先级最高档） */
+  quotes: Record<string, string[]>;
 }
 
 export interface Mirror {
@@ -64,8 +73,19 @@ export interface Mirror {
   inputResponse: { enabled: boolean; hopCoupleMax: number };
   /** 最近输入活动档位（inputResponse 消费面） */
   inputBand: InputBand;
-  /** 桌宠基础面（sys-config.pet 投影：陪跑闸门 + ChatBox 菜单条件项；快照兜底同步） */
-  petConfig: { mate: boolean; agentConfigured: boolean };
+  /** 桌宠基础面（sys-config.pet 投影：陪跑/聊聊条件 + 精灵与窗口配置；快照兜底同步） */
+  petConfig: {
+    mate: boolean;
+    agentConfigured: boolean;
+    mainPokemon: string;
+    alwaysOnTop: boolean;
+    scale: number;
+    opacity: number;
+  };
+  /** 当前精灵 key（台词优先级与视线跟随基准；setSprite 维护） */
+  spriteKey: string;
+  /** 自定义台词惰性集（quotes ui-event / 快照同步） */
+  quotes: Record<string, string[]>;
 }
 
 export const mirror: Mirror = {
@@ -84,7 +104,9 @@ export const mirror: Mirror = {
   metAt: Date.now(),
   inputResponse: { enabled: false, hopCoupleMax: 0 },
   inputBand: "silent",
-  petConfig: { mate: false, agentConfigured: true },
+  petConfig: { mate: false, agentConfigured: true, mainPokemon: "", alwaysOnTop: true, scale: 1, opacity: 100 },
+  spriteKey: "pikachu",
+  quotes: {},
 };
 
 /** 任意用户交互的时间戳（asleep 判定与唤醒用） */

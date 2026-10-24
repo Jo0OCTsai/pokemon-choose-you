@@ -11,6 +11,7 @@ const RING_C = 2 * Math.PI * RING_R;
 
 /** 精灵候选链（onerror 逐级回退；耗尽 → 主宝可梦 png 兜底） */
 export function setSprite(key: string): void {
+  mirror.spriteKey = key; // 台词优先级（自定义 quotes 按精灵取）与视线跟随的方位基准
   bridge
     .sprite(key)
     .then((raw: unknown) => applySpriteInfo(raw as SpriteInfo))

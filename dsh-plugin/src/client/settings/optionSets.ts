@@ -13,6 +13,10 @@ export const POMODORO_MINUTES = [15, 25, 45, 60] as const;
 export const BREAK_MINUTES = [0, 5, 10] as const;
 /** 提前提醒（分钟；0 = 准时） */
 export const REMIND_AHEAD_MINUTES = [0, 5, 15, 30] as const;
+/** 桌宠缩放档（P1 D5：窗口尺寸与渲染几何等比；值域单源 helper validators-sys PET_SCALES） */
+export const PET_SCALES = [1, 1.25, 1.5, 2] as const;
+/** 桌宠透明度档（%：精灵与气泡本体） */
+export const PET_OPACITIES = [100, 80, 60] as const;
 /** 轮询间隔（值=秒；主应用/host backoff 同口径，下限 30 秒） */
 export const POLL_INTERVAL_SECS = [60, 120, 300, 900] as const;
 /** 日期格式 */

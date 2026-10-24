@@ -6,8 +6,8 @@ import { mirror } from "./mirror.ts";
 
 const bridge = window.petBridge;
 
-export function withPokemonName(then: (name: string) => void): void {
-  const key = mirror.lastTask?.categoryPokemon ?? "";
+export function withPokemonName(then: (name: string) => void, keyOverride?: string): void {
+  const key = keyOverride ?? mirror.lastTask?.categoryPokemon ?? "";
   bridge
     .spriteName(key, mirror.lang)
     .then(then)

@@ -54,10 +54,16 @@ export type UiEvent =
   | { kind: "input-activity"; cps: number }
   /** 坐栖判定翻转（拖拽落定/拎起——渲染层姿态幅度减半与落座台词） */
   | { kind: "perch"; perched: boolean }
-  /** 桌宠基础面投影（sys-config.pet：陪跑闸门 + ChatBox 菜单条件项） */
-  | { kind: "pet-config"; mate: boolean; agentConfigured: boolean }
+  /** 桌宠基础面投影（sys-config.pet：陪跑/聊聊条件 + 精灵与窗口配置） */
+  | ({ kind: "pet-config" } & PetConfigView)
   /** 长番茄打点（≥45min 中点 1 声 / 剩 5 分钟 2 声——渲染层 Web Audio 合成） */
-  | { kind: "pomo-chime"; count: 1 | 2 };
+  | { kind: "pomo-chime"; count: 1 | 2 }
+  /** 自定义台词惰性集（quotes 下行——渲染层台词优先级消费） */
+  | { kind: "quotes"; map: Record<string, string[]> }
+  /** 提醒到达（pet-event reminder——钉住气泡 + 就近动作条 + urgent 底态） */
+  | { kind: "reminder"; taskId: number | string; title: string; urgent: boolean; pokemon: string }
+  /** 位置复位（pet-event reset-pos——electron 胶水 setPosition 回默认位） */
+  | { kind: "reset-pos" };
 
 export type BubbleTone = "info" | "event" | "warn";
 
@@ -66,6 +72,17 @@ export interface InputResponseView {
   enabled: boolean;
   /** hop 节奏耦合上限（0–0.1；0 = 关） */
   hopCoupleMax: number;
+}
+
+/** 桌宠基础面投影（sys-config.pet：陪跑/聊聊条件 + 精灵与窗口配置——P1 D2/D5） */
+export interface PetConfigView {
+  mate: boolean;
+  agentConfigured: boolean;
+  /** 主宝可梦 key（空 = 未设，空闲兜底 pikachu） */
+  mainPokemon: string;
+  alwaysOnTop: boolean;
+  scale: number;
+  opacity: number;
 }
 
 export interface HelperRuntime {
@@ -85,8 +102,10 @@ export interface HelperRuntime {
   readonly petVisible: boolean;
   /** 输入响应配置投影（渲染层 hop 耦合消费） */
   readonly inputResponse: InputResponseView;
-  /** 桌宠基础面（sys-config.pet 投影：陪跑闸门 + ChatBox 菜单条件项） */
-  readonly petConfig: { mate: boolean; agentConfigured: boolean };
+  /** 桌宠基础面（sys-config.pet 投影：陪跑/聊聊条件 + 精灵与窗口配置） */
+  readonly petConfig: PetConfigView;
+  /** 每宝可梦自定义台词（quotes 下行惰性集——渲染层台词优先级消费） */
+  readonly quotes: Record<string, string[]>;
   /** 坐栖态（拖拽落定判定；渲染层姿态幅度减半） */
   readonly perched: boolean;
   sendCmd(op: CmdOp, fields?: Omit<CmdMsg, "type" | "op">): boolean;

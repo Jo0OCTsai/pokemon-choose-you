@@ -4,10 +4,19 @@
  * 收工）、番茄到期出口（通知/自动接休息——决策3 对齐桌面）、sys-config 下行投影与纯组装。
  * 依赖经窄宿主接口注入（RuntimeImpl 直接满足），无循环运行时依赖。
  */
-import type { ActiveTask, CaughtVariant, PomodoroConfigMsg, SpritesMsg } from "../bridge/protocol.ts";
+import type {
+  ActiveTask,
+  CaughtVariant,
+  DownstreamMsg,
+  PetEventMsg,
+  PomodoroConfigMsg,
+  SpritesMsg,
+  TaskStateMsg,
+} from "../bridge/protocol.ts";
+import type { SysDownMsg } from "../sys/index.ts";
 import type { PomoConfig } from "../state/pomodoro.ts";
 import { planCatchScene, type SceneKind } from "../state/catchScene.ts";
-import type { InputResponseView, UiEvent } from "./index.ts";
+import type { InputResponseView, PetConfigView, UiEvent } from "./index.ts";
 import type { BubbleTone } from "./index.ts";
 import LINES, { formatSettledElsewhere } from "./lines.ts";
 
@@ -89,18 +98,44 @@ function emitPomoNotify(host: PomoHost): void {
   );
 }
 
-/** sys-config.pet 分节 → 桌宠基础面投影（缺省继承当前值） */
+/** sys-config.pet 分节 → 桌宠基础面投影（缺省继承当前值；值域钳制在 host 侧完成） */
 export function petConfigOf(
-  section: { mate?: boolean; agentConfigured?: boolean },
-  cur: { mate: boolean; agentConfigured: boolean },
-): { mate: boolean; agentConfigured: boolean } {
-  return { mate: section.mate ?? cur.mate, agentConfigured: section.agentConfigured ?? cur.agentConfigured };
+  section: {
+    mate?: boolean;
+    agentConfigured?: boolean;
+    mainPokemon?: string;
+    alwaysOnTop?: boolean;
+    scale?: number;
+    opacity?: number;
+  },
+  cur: PetConfigView,
+): PetConfigView {
+  return {
+    mate: section.mate ?? cur.mate,
+    agentConfigured: section.agentConfigured ?? cur.agentConfigured,
+    mainPokemon: section.mainPokemon ?? cur.mainPokemon,
+    alwaysOnTop: section.alwaysOnTop ?? cur.alwaysOnTop,
+    scale: section.scale ?? cur.scale,
+    opacity: section.opacity ?? cur.opacity,
+  };
 }
 
 /** sys-config.inputResponse 分节 → 渲染层投影（hop 耦合上限夹在 0.1） */
 export function inputResponseOf(section: { enabled: boolean; focusHopCoupleMax?: number }): InputResponseView {
   const max = section.focusHopCoupleMax;
   return { enabled: section.enabled, hopCoupleMax: typeof max === "number" && max > 0 ? Math.min(max, 0.1) : 0 };
+}
+
+/** pet 基础面变更判定（任一键变化才算——渲染层免抖动重放） */
+export function petConfigChanged(a: PetConfigView, b: PetConfigView): boolean {
+  return (
+    a.mate !== b.mate ||
+    a.agentConfigured !== b.agentConfigured ||
+    a.mainPokemon !== b.mainPokemon ||
+    a.alwaysOnTop !== b.alwaysOnTop ||
+    a.scale !== b.scale ||
+    a.opacity !== b.opacity
+  );
 }
 
 /** pomodoro-config 下行 → 本地 PomoConfig（notify/chime 可选位缺省 false） */
@@ -121,3 +156,63 @@ export function spritesEventOf(msg: SpritesMsg, reducedMotion: boolean): UiEvent
 
 /** 演出变体类型再出口（ceremony 消费面） */
 export type { SceneKind };
+
+/** pet-event 下行 → 渲染层事件组装（reset-pos 由 electron 胶水在主进程消化，仍发事件面） */
+export function petEventUiEventOf(msg: PetEventMsg): UiEvent | null {
+  if (msg.kind === "reset-pos") return { kind: "reset-pos" };
+  return {
+    kind: "reminder",
+    taskId: msg.taskId ?? 0,
+    title: msg.title ?? "",
+    urgent: msg.urgent === true,
+    pokemon: msg.pokemon ?? "",
+  };
+}
+
+/** 下行分发宿主面（RuntimeImpl 满足；方法经 public 提升供结构化消费） */
+export interface DispatchHost extends CeremonyHost {
+  readonly sys: { setLang(lang: CeremonyLang): void; handle(msg: SysDownMsg): boolean };
+  onTaskState(msg: TaskStateMsg): void;
+  onPomodoroConfig(msg: PomodoroConfigMsg): void;
+  onSprites(msg: SpritesMsg): void;
+  onPetEvent(msg: PetEventMsg): void;
+  routeSysMsg(msg: SysDownMsg): void;
+  setLangValue(lang: CeremonyLang): void;
+  setQuotes(map: Record<string, string[]>): void;
+}
+
+/** 下行分发 switch（每 case 一个宿主小方法；系统能力消息回落宿主路由） */
+export function dispatchDownstream(host: DispatchHost, msg: DownstreamMsg): void {
+  switch (msg.type) {
+    case "task-state":
+      host.onTaskState(msg);
+      break;
+    case "pomodoro-config":
+      host.onPomodoroConfig(msg);
+      break;
+    case "lang":
+      host.setLangValue(msg.lang);
+      host.sys.setLang(msg.lang);
+      host.uiEvent({ kind: "lang", lang: msg.lang });
+      break;
+    case "sprites":
+      host.onSprites(msg);
+      break;
+    case "quotes":
+      host.setQuotes(msg.map);
+      host.uiEvent({ kind: "quotes", map: msg.map });
+      break;
+    case "pet-event":
+      host.onPetEvent(msg);
+      break;
+    case "heartbeat":
+      break; // 管道守卫已在 bridge 层喂狗（任意数据都算活着）
+    case "chat-reply":
+      // AI 聊聊回答直达渲染层（ChatBox 消费；失败 ok=false 气泡回退）
+      host.uiEvent({ kind: "chat-reply", text: msg.text, ok: msg.ok });
+      break;
+    default:
+      host.routeSysMsg(msg as SysDownMsg);
+      break;
+  }
+}
