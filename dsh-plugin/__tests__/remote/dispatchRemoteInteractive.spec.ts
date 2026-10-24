@@ -9,7 +9,7 @@ import { dispatchInteractive, dispatchReport } from "../../src/host/dispatch/int
 import { createFakeTerminal } from "../../src/host/dispatch/terminalAdapters";
 import { planRemoteRoute, remoteHeadlessDeps, remoteInteractiveParts } from "../../src/host/remote/sshExecutor";
 import { DEPLOYMENTS_KEY, listDeployments } from "../../src/host/remote/deployments";
-import { setupDispatchRemoteFx, ALIAS, ENVELOPE, TARGET, WORKDIR } from "./dispatchRemoteFx";
+import { setupDispatchRemoteFx, ALIAS, ENVELOPE, execScriptOf, TARGET, WORKDIR } from "./dispatchRemoteFx";
 
 const fx = setupDispatchRemoteFx();
 
@@ -30,7 +30,8 @@ describe("交互 TerminalAdapter：PTY 注入与同上下文重派", () => {
     expect(outcome.state).toBe("running");
     expect(outcome.terminal).toBe("pty-1");
     expect(fx.scope.spawnTerminalCalls).toHaveLength(1);
-    expect(fx.scope.spawnTerminalCalls[0]?.command).toBe("/bin/sh");
+    expect(fx.scope.spawnTerminalCalls[0]?.command).toBe("/usr/bin/zsh");
+    expect(fx.scope.spawnTerminalCalls[0]?.args).toEqual(["-l"]);
     expect(fx.scope.spawnTerminalCalls[0]?.cwd).toBe(WORKDIR);
     expect(fx.scope.terminalWrites).toHaveLength(1);
     expect(fx.scope.terminalWrites[0]?.sessionId).toBe("pty-1");
@@ -66,6 +67,27 @@ describe("交互 TerminalAdapter：PTY 注入与同上下文重派", () => {
     expect(second.terminal).toBe("pty-1");
     expect(fx.scope.spawnTerminalCalls).toHaveLength(1);
     expect(fx.lastSession(taskId)["session_id"]).toBe("pty:pty-1");
+  });
+});
+
+describe("交互 TerminalAdapter：PTY 承载 shell 会话旗标（loginShellFlags 单源——dash 拒绝 -l）", () => {
+  it("登录 shell 即 /bin/sh 的部署 → 旗标为空（回归：无条件 -l 在 dash 上 Illegal option 秒退）", async () => {
+    fx.seedReadyDeployment();
+    fx.scope.loginShellPath = "/bin/sh";
+    const taskId = fx.seedDeploymentTask("交互sh登录壳");
+    await dispatchInteractive(fx.db.conn, interactiveDeps(), taskId);
+    expect(fx.scope.spawnTerminalCalls[0]?.command).toBe("/bin/sh");
+    expect(fx.scope.spawnTerminalCalls[0]?.args).toEqual([]);
+    expect(fx.lastSession(taskId)["session_id"]).toBe("pty:pty-1");
+  });
+
+  it("登录 shell 探测失败（getent 无果）→ /bin/sh 回落同样无 -l", async () => {
+    fx.seedReadyDeployment();
+    fx.scope.program(/getent passwd/, { code: 1 });
+    const taskId = fx.seedDeploymentTask("交互sh回落");
+    await dispatchInteractive(fx.db.conn, interactiveDeps(), taskId);
+    expect(fx.scope.spawnTerminalCalls[0]?.command).toBe("/bin/sh");
+    expect(fx.scope.spawnTerminalCalls[0]?.args).toEqual([]);
   });
 });
 
@@ -197,7 +219,7 @@ describe("派发工作目录随执行世界（tag meta 缺省时 = 部署实体�
     const headlessId = fx.seedDeploymentTask("无头实体工作区");
     fx.scope.enqueueSpawn({ code: 0, stdout: ENVELOPE, stderr: "", durationMs: 5 });
     await dispatchHeadless(fx.db.conn, remoteHeadlessDeps(fx.db.conn, fx.platform), headlessId);
-    const script = fx.scope.spawns.find((argv) => argv[0] === "/bin/sh")?.[2] ?? "";
+    const script = execScriptOf(fx.scope.spawns);
     expect(script).toContain(`cd ${WORKDIR} || exit 1`);
     expect(fx.lastSession(headlessId)["workdir"]).toBe(WORKDIR);
   });
@@ -215,8 +237,7 @@ describe("远端 worktree：脚本远端执行与幂等复用", () => {
     const wtScript = fx.scope.commands.find((c) => c.startsWith("cd /srv/app"));
     expect(wtScript).toContain("git rev-parse --show-toplevel");
     expect(wtScript).toContain(`pk-${taskId}`);
-    const spawn = fx.scope.spawns.find((argv) => argv[0] === "/bin/sh");
-    expect(spawn?.[2]).toContain(`cd ${WORKDIR}-pk-${taskId} || exit 1`);
+    expect(execScriptOf(fx.scope.spawns)).toContain(`cd ${WORKDIR}-pk-${taskId} || exit 1`);
     expect(fx.lastSession(taskId)["workdir"]).toBe(`${WORKDIR}-pk-${taskId}`);
   });
 
@@ -241,8 +262,7 @@ describe("远端 worktree：失败降级 + 路由判定表", () => {
     expect(outcome.state).toBe("done");
     expect(outcome.note).toContain("worktree 建立失败");
     expect(outcome.note).toContain("改用原工作目录");
-    const spawn = fx.scope.spawns.filter((argv) => argv[2]?.includes("exec ")).at(-1);
-    expect(spawn?.[2]).toContain("cd /srv/app || exit 1"); // 降级原目录
+    expect(execScriptOf(fx.scope.spawns)).toContain("cd /srv/app || exit 1"); // 降级原目录
   });
 
   it("planRemoteRoute 判定表（local / family / direct / reject 四分支）", () => {

@@ -182,6 +182,27 @@ export function SuggestionFeed({
               ))}
             </FeedGroup>
 
+            {/* 判定中组（judging/pending 同观感）：不可分诊、非空才渲染——不与待办信号混组 */}
+            {groups.judging.length > 0 && (
+              <FeedGroup
+                testId="judging-group"
+                title={t("dsh.radio.groupJudging")}
+                count={groups.judging.length}
+                collapsed={collapsed.has("judging")}
+                onToggle={() => toggleGroup("judging")}
+              >
+                {groups.judging.map((message) => (
+                  <MessageRow
+                    key={message.messageId}
+                    message={message}
+                    variant="judging"
+                    selected={selectedId === message.messageId}
+                    onSelect={onSelect}
+                  />
+                ))}
+              </FeedGroup>
+            )}
+
             {/* 判定失败组（中性命名 + 组头一键重判/强制） */}
             {groups.failed.length > 0 && (
               <FailedGroup

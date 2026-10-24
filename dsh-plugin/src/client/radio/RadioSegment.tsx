@@ -85,8 +85,8 @@ export function RadioSegment({
   const [acceptedTags, setAcceptedTags] = useState<Set<string>>(new Set());
 
   const groups = useMemo(() => suggestionGroups(data.messages), [data.messages]);
-  /** 键盘/前进池：待处理信号 + 失败 + 无信号（桌面 [signal, noise] 池同构） */
-  const pool = useMemo(() => [...groups.pending, ...groups.failed, ...groups.none], [groups]);
+  /** 键盘/前进池：待处理信号 + 判定中 + 失败 + 无信号（判定中可浏览不可动作——runActionKey isJudging 防护） */
+  const pool = useMemo(() => [...groups.pending, ...groups.judging, ...groups.failed, ...groups.none], [groups]);
   const selectedMessage = useMemo(
     () => data.messages.find((m) => m.messageId === selectedId) ?? null,
     [data.messages, selectedId],
@@ -155,6 +155,7 @@ export function RadioSegment({
             onToggleTag={toggleTag}
             readonly={readonly}
             onChanged={onDetailAction}
+            onRefresh={onChanged}
           />
         </div>
       )}

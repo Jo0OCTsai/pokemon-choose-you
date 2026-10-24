@@ -16,7 +16,7 @@ import {
 } from "../domain/skills";
 import { createLocalExecutor } from "../dispatch/executor";
 import { resolveAgentEnv } from "../dispatch/localEnv";
-import type { ResolvedDispatchRoute } from "../dispatch/routes";
+import { agentMinimalRoute } from "../dispatch/routes";
 import { extractPayload } from "../judge/adapters";
 import { paramError } from "../storage/errors";
 
@@ -70,39 +70,26 @@ function remoteTarget(agent: AgentConfig): string {
   return (agent.deployment ?? "").trim();
 }
 
-/** 探针用派发路由（缺省路由形态：本机 / 单槽 / 无 deployment） */
-function probeRoute(agent: AgentConfig): ResolvedDispatchRoute {
-  return {
-    agent,
-    source: "default",
-    projectTag: "",
-    workdir: agent.workdir ?? "",
-    context: null,
-    maxConcurrent: 1,
-    worktree: false,
-    auto: false,
-    deployment: null,
-    hostKey: "",
-  };
-}
-
 /**
  * 探针执行：执行器选择（注入 provider 优先）→ launch → 四路文案收口。
- * 远端 SSH agent 而平台未装配 provider 时明确报告——本机同名 CLI 跑出的结果指向错误目标，
- * 不能冒充远端探测（本机回落只给无远端配置的 agent）。
+ * 路由随 agent 部署绑定合成（agentMinimalRoute）——远端 agent 必须路由到部署执行器；
+ * 装配层无 provider 或计划被拒（部署不可用/SSH 组件缺失）时返回 null，明确报告——
+ * 本机同名 CLI 跑出的结果指向错误目标，不能冒充远端探测（本机回落只给无部署绑定的 agent）。
  */
 async function probeAgent(
-  deps: Pick<HostCommandDeps, "dispatchDeps">,
+  deps: Pick<HostCommandDeps, "conn" | "dispatchDeps">,
   agent: AgentConfig,
 ): Promise<{ connected: boolean; message: string }> {
-  const injected = deps.dispatchDeps.executorFor?.(agent, probeRoute(agent));
+  const route = agentMinimalRoute(deps.conn, agent);
+  const injected = deps.dispatchDeps.executorFor?.(agent, route);
   const target = remoteTarget(agent);
   if ((injected === null || injected === undefined) && target !== "") {
     return {
       connected: false,
       message:
-        `该 agent 配置为远端 SSH 执行（${target}），dsh 插件尚未装配 SSH 执行 provider，` +
-        "不能用本机同名命令代测——请在桌面主应用中测试，或新建不带远端配置的本机 agent",
+        `该 agent 配置为远端 SSH 执行（${target}），当前会话无法在其部署上执行` +
+        "（SSH 执行 provider 未装配或部署不可用），不能用本机同名 CLI 冒充代测——" +
+        "请在桌面主应用中测试，或解除该 agent 的部署绑定改回本机执行",
     };
   }
   const executor = injected ?? createLocalExecutor();
@@ -110,7 +97,7 @@ async function probeAgent(
     command: agent.command,
     args: agent.args ?? "",
     prompt: AGENT_TEST_PROBE,
-    workdir: agent.workdir ?? "",
+    workdir: route.workdir,
     timeoutSecs: agent.timeoutSecs,
     // dsh 形态凭据环境（与判定/派发同一注入链）：探针不通时才能排除凭据因素
     env: await resolveAgentEnv(deps.dispatchDeps.agentEnv, agent.command),

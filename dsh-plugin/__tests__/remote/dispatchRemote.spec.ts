@@ -5,10 +5,12 @@
  */
 import { describe, expect, it } from "vitest";
 import { dispatchHeadless, runQueuedHeadless } from "../../src/host/dispatch/headless";
-import { remoteHeadlessDeps } from "../../src/host/remote/sshExecutor";
+import type { ResolvedDispatchRoute } from "../../src/host/dispatch/routes";
+import type { AgentConfig } from "../../src/host/domain/settings";
+import { remoteHeadlessDeps, REMOTE_PATH_BOOTSTRAP } from "../../src/host/remote/sshExecutor";
 import { listDeployments } from "../../src/host/remote/deployments";
 import { seedTask } from "../helpers";
-import { setupDispatchRemoteFx, ALIAS, ENVELOPE, WORKDIR } from "./dispatchRemoteFx";
+import { setupDispatchRemoteFx, ALIAS, ENVELOPE, execScriptOf, WORKDIR } from "./dispatchRemoteFx";
 
 const fx = setupDispatchRemoteFx();
 
@@ -20,12 +22,11 @@ describe("sshExecutor 家族链（无头）：就绪派发与信封回传", () =
     const outcome = await dispatchHeadless(fx.db.conn, remoteHeadlessDeps(fx.db.conn, fx.platform), taskId);
     expect(outcome.state).toBe("done");
     expect(outcome.sessionId).toBe("sess-remote-1");
-    // 就绪复核（活性 + 摘要）经 scope.shell；可执行解析 command -v；执行经 spawn
+    // 就绪复核（活性 + 摘要）经 scope.shell；可执行解析 = 登录 shell 视角 command -v
+    // （ssh 会话同环境）；执行经登录 shell argv [shell, -l, -c]
     expect(fx.scope.commands).toContain("printf pky-ok");
-    expect(fx.scope.commands).toContain(`command -v claude`);
-    const spawn = fx.scope.spawns.find((argv) => argv[0] === "/bin/sh");
-    expect(spawn).toBeDefined();
-    const script = spawn?.[1] === "-c" ? (spawn?.[2] ?? "") : "";
+    expect(fx.scope.spawns).toContainEqual(["/usr/bin/zsh", "-l", "-c", "command -v claude"]);
+    const script = execScriptOf(fx.scope.spawns);
     expect(script).toContain("cd /srv/app || exit 1");
     expect(script).toContain("exec /usr/local/bin/node /usr/local/bin/claude");
     expect(script).toContain("export PK_DISPATCH_TASK=");
@@ -47,9 +48,7 @@ describe("sshExecutor 家族链（无头）：就绪派发与信封回传", () =
     const taskId = fx.seedDeploymentTask("远端任务2");
     const outcome = await dispatchHeadless(fx.db.conn, remoteHeadlessDeps(fx.db.conn, fx.platform), taskId);
     expect(outcome.state).toBe("done");
-    const spawn = fx.scope.spawns.find((argv) => argv[0] === "/bin/sh");
-    const script = spawn?.[2] ?? "";
-    expect(script).not.toContain("===== 待办数据开始 =====");
+    expect(execScriptOf(fx.scope.spawns)).not.toContain("===== 待办数据开始 =====");
   });
 });
 
@@ -107,7 +106,7 @@ describe("sshExecutor 家族链（无头）：失败路径", () => {
     const outcome = await dispatchHeadless(fx.db.conn, remoteHeadlessDeps(fx.db.conn, fx.platform), taskId);
     expect(outcome.state).toBe("failed");
     expect(outcome.note).toContain("远端找不到命令");
-    expect(fx.scope.spawns.filter((argv) => argv[0] === "/bin/sh" && argv[2]?.includes("exec "))).toHaveLength(0);
+    expect(fx.scope.spawns.filter((argv) => (argv[3] ?? argv[2] ?? "").includes("exec "))).toHaveLength(0);
   });
 
   it("超时置失败记因（下限可配置缩短）", async () => {
@@ -122,6 +121,76 @@ describe("sshExecutor 家族链（无头）：失败路径", () => {
     expect(outcome.note).toContain("超时");
     expect(fx.slotCount()).toBe(0);
     fx.scope.releaseHeldSpawn({ code: 0, stdout: ENVELOPE, stderr: "", durationMs: 0 }); // 迟到放行不复活结论
+  });
+
+  it("本机分支执行器同吃 opts.minTimeoutSecs（回归：此前漏传恒 600 秒下限）", async () => {
+    const executor = remoteHeadlessDeps(fx.db.conn, fx.platform, { minTimeoutSecs: 1 }).executorFor?.(
+      {} as AgentConfig,
+      { deployment: null } as ResolvedDispatchRoute,
+    );
+    expect(executor).toBeDefined();
+    const outcome = await executor!.launch({ command: "sleep", args: "5", prompt: "", workdir: null, timeoutSecs: 1 });
+    expect(outcome.timedOut).toBe(true);
+  });
+});
+
+describe("sshExecutor 家族链（无头）：可执行解析与执行面 shell", () => {
+  it("CLI 只装在 ~/.local/bin → 登录 shell 视角可解析（ssh 会话同环境）并直执行原生二进制", async () => {
+    fx.seedReadyDeployment();
+    // npm --prefix ~/.local 全局 CLI 场景（pky-remote 实测）：登录环境含 ~/.local/bin
+    fx.scope.remoteBins.set("claude", "/home/dev/.local/bin/claude");
+    fx.scope.files.set("/home/dev/.local/bin/claude", "\u007fELF(fake-native-cli)");
+    fx.scope.enqueueSpawn({ code: 0, stdout: ENVELOPE, stderr: "", durationMs: 5 });
+    const taskId = fx.seedDeploymentTask("远端任务-localbin");
+    const outcome = await dispatchHeadless(fx.db.conn, remoteHeadlessDeps(fx.db.conn, fx.platform), taskId);
+    expect(outcome.state).toBe("done");
+    expect(fx.scope.spawns).toContainEqual(["/usr/bin/zsh", "-l", "-c", "command -v claude"]);
+    expect(execScriptOf(fx.scope.spawns)).toContain("exec /home/dev/.local/bin/claude");
+  });
+
+  it("登录 shell 视角探不到 → 回落 /bin/sh + PATH 兜底段探测仍可解析（回归：helper 缺省 PATH 缺 ~/.local/bin）", async () => {
+    fx.seedReadyDeployment();
+    fx.scope.remoteBins.set("claude", "/home/dev/.local/bin/claude");
+    fx.scope.files.set("/home/dev/.local/bin/claude", "\u007fELF(fake-native-cli)");
+    fx.scope.loginProbeMisses.add("claude");
+    fx.scope.enqueueSpawn({ code: 0, stdout: ENVELOPE, stderr: "", durationMs: 5 });
+    const taskId = fx.seedDeploymentTask("远端任务-fallback");
+    const outcome = await dispatchHeadless(fx.db.conn, remoteHeadlessDeps(fx.db.conn, fx.platform), taskId);
+    expect(outcome.state).toBe("done");
+    expect(fx.scope.commands).toContain(`${REMOTE_PATH_BOOTSTRAP}; command -v claude`);
+    expect(execScriptOf(fx.scope.spawns)).toContain("exec /home/dev/.local/bin/claude");
+  });
+});
+
+describe("sshExecutor 家族链（无头）：登录 shell 封装与退化形态", () => {
+  it("登录 shell 函数/别名封装（.zshenv 等）→ 走 shell 名形态：登录 shell 内裸名执行、不 exec、退出码传播", async () => {
+    fx.seedReadyDeployment();
+    fx.scope.loginFunctions.add("claude");
+    fx.scope.enqueueSpawn({ code: 0, stdout: ENVELOPE, stderr: "", durationMs: 5 });
+    const taskId = fx.seedDeploymentTask("远端任务-fn");
+    const outcome = await dispatchHeadless(fx.db.conn, remoteHeadlessDeps(fx.db.conn, fx.platform), taskId);
+    expect(outcome.state).toBe("done");
+    const script = execScriptOf(fx.scope.spawns);
+    expect(script).toContain("; claude -p"); // 收口段裸名（无 exec 前缀）
+    expect(script).not.toContain("exec ");
+    // 执行 argv = 登录 shell 形态（非 /bin/sh）
+    expect(fx.scope.spawns.some((argv) => argv[1] === "-l" && argv[3] === script)).toBe(true);
+  });
+
+  it("登录 shell 探测失败（getent 无果）→ /bin/sh 退化形态执行（[sh, -c]），探测同形态无 -l", async () => {
+    fx.seedReadyDeployment();
+    fx.scope.program(/getent passwd/, { code: 0, stdout: "" });
+    fx.scope.enqueueSpawn({ code: 0, stdout: ENVELOPE, stderr: "", durationMs: 5 });
+    const taskId = fx.seedDeploymentTask("远端任务-shfallback");
+    const outcome = await dispatchHeadless(fx.db.conn, remoteHeadlessDeps(fx.db.conn, fx.platform), taskId);
+    expect(outcome.state).toBe("done");
+    // 探测与执行同为 [sh, -c] 形态（退化无 -l）；执行 spawn 以 export PATH 前缀区分
+    const sh = fx.scope.spawns.find(
+      (argv) => argv[0] === "/bin/sh" && argv[1] === "-c" && !(argv[2] ?? "").startsWith("command -v "),
+    );
+    expect(sh).toBeDefined();
+    expect(sh?.[2]).toContain("exec /usr/local/bin/node /usr/local/bin/claude");
+    expect(fx.scope.spawns).toContainEqual(["/bin/sh", "-c", "command -v claude"]);
   });
 });
 

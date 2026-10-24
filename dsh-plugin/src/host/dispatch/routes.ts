@@ -199,6 +199,29 @@ function routeWorkdir(
   return firstNonEmpty(configWorkdir, entityWorkdir, agent.workdir);
 }
 
+/**
+ * 无任务上下文的单 agent 最小路由（探针 / 体检复核等一次性执行场景）：
+ * 部署绑定随 agent 合成（remoteJudgeExecutorFor 同款语义）——路由丢掉 deployment
+ * 会被装配层按本机路由解析（remoteHeadlessDeps 对 deployment:null 恒回本机执行器），
+ * 远端 agent 就以本机同名 CLI 冒充执行了；工作目录随执行世界（无路由表/tag meta 层：
+ * 实体登记工作区压过 agent.workdir，实体缺失/未登记回落）。
+ */
+export function agentMinimalRoute(conn: Conn, agent: AgentConfig): ResolvedDispatchRoute {
+  const deployment = agentDeployment(agent);
+  return {
+    agent,
+    source: "default",
+    projectTag: "",
+    workdir: routeWorkdir(conn, "", agent, deployment),
+    context: null,
+    maxConcurrent: 1,
+    worktree: false,
+    auto: false,
+    deployment,
+    hostKey: dispatchHostKey(deployment !== null ? { host: deployment.target } : null),
+  };
+}
+
 export function resolveDispatchRoute(conn: Conn, taskId: number, routeOverride?: string): ResolvedDispatchRoute {
   const task = getTask(conn, taskId);
   const projectTag = task.tags.find((t) => t.dimension === "project")?.name;

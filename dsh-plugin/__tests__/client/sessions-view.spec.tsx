@@ -171,6 +171,14 @@ describe("执行世界徽章与回放路由", () => {
     expect(screen.queryByTestId("session-replay")).toBeNull();
   });
 
+  it("pty: 标记句柄行：会话标识剥前缀呈现（句柄非 agent 会话 id），回放按钮仍渲染（可发起判定看原始值）", async () => {
+    renderLogs(mockHost({ sessionRows: [makeSessionRow({ id: 6, sessionId: "pty:term-9", remoteHost: "gpu-1" })] }));
+    await flush();
+    expect(screen.getByText("term-9")).toBeTruthy();
+    expect(screen.queryByText("pty:term-9")).toBeNull();
+    expect(screen.getByTestId("session-replay")).toBeTruthy();
+  });
+
   it("只读模式回放禁用（M7：远端唤起属写路径副作用）", async () => {
     renderLogs(mockHost({ sessionRows: [makeSessionRow({ id: 5, sessionId: "s5" })] }), true);
     await flush();

@@ -8,7 +8,7 @@ import { useT } from "../i18n";
 import type { RadioMessage } from "../rpc";
 import styles from "./radio.module.css";
 
-export type RowVariant = "signal" | "noise" | "caught" | "escaped" | "channel";
+export type RowVariant = "signal" | "noise" | "judging" | "caught" | "escaped" | "channel";
 
 /** 待办信号（桌面 isSignal 同口径）：AI 挑出的待办/更新建议 */
 export function isSignal(message: RadioMessage): boolean {

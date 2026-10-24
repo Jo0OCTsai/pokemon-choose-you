@@ -8,6 +8,7 @@ import { act, cleanup, fireEvent, render, screen, within } from "@testing-librar
 import { afterEach, describe, expect, it } from "vitest";
 import { PluginDetailPage } from "../../src/client/app/PluginDetailPage";
 import { mockHost } from "../../src/client/rpc";
+import { fmtLogTimeLocal } from "../../src/client/ui/dateTime";
 import { makeData } from "./fixtures";
 
 afterEach(cleanup);
@@ -126,13 +127,16 @@ describe("诊断段三件（背包·诊断分区 · U30）", () => {
     expect(screen.queryByTestId("ssh-cap-row")).toBeNull();
   });
 
-  it("诊断日志屏 = LcdScreen 单源组件（与向导输出屏同件两落位）", async () => {
+  it("诊断日志屏 = LcdScreen 单源组件（与向导输出屏同件两落位）；时间按本机时区出屏", async () => {
     await bootDiag(
       mockHost({ logEntries: [{ time: "2026-10-17 09:00:00", level: "info", target: "poll", message: "ok" }] }),
     );
     expect(screen.getByTestId("log-viewer")).toBeTruthy();
     fireEvent.click(screen.getByText("刷新"));
     await flush();
-    expect(screen.getByTestId("log-screen")).toBeTruthy();
+    const lcd = screen.getByTestId("log-screen");
+    expect(lcd).toBeTruthy();
+    // 磁盘行是 UTC 墙钟；屏上须是本机时区换算值（纯函数语义见 log-time.spec.ts）
+    expect(lcd.textContent).toContain(fmtLogTimeLocal("2026-10-17 09:00:00"));
   });
 });

@@ -13,8 +13,8 @@ import { applyTagHealthVerdict, buildTagHealthPrompt, parseTagHealthVerdict } fr
 import { editableSpecByKey, resolveOverride } from "../domain/prompt-overrides";
 import { createLocalExecutor, type DispatchExecutor, type ExecOutcome } from "../dispatch/executor";
 import { resolveAgentEnv } from "../dispatch/localEnv";
+import { agentMinimalRoute, type ResolvedDispatchRoute } from "../dispatch/routes";
 import type { HeadlessDeps } from "../dispatch/headless";
-import type { ResolvedDispatchRoute } from "../dispatch/routes";
 import { extractPayload } from "./adapters";
 
 export interface TagHealthReviewDeps {
@@ -24,25 +24,14 @@ export interface TagHealthReviewDeps {
   log(level: "debug" | "info" | "warn" | "error", target: string, message: string): void;
 }
 
-/** 复核用派发路由（缺省路由形态：本机 / 单槽 / 无 deployment——agentTest probeRoute 同形） */
-function reviewRoute(agent: AgentConfig): ResolvedDispatchRoute {
-  return {
-    agent,
-    source: "default",
-    projectTag: "",
-    workdir: agent.workdir ?? "",
-    context: null,
-    maxConcurrent: 1,
-    worktree: false,
-    auto: false,
-    deployment: null,
-    hostKey: "",
-  };
-}
-
-/** 执行器选择：注入 provider 优先；远端绑定 agent 无 provider → null（不冒充） */
-function executorOf(deps: TagHealthReviewDeps, agent: AgentConfig): DispatchExecutor | null {
-  const injected = deps.dispatchDeps.executorFor?.(agent, reviewRoute(agent));
+/** 执行器选择：注入 provider 优先（路由随 agent 部署绑定合成——agentTest 同口径）；
+ * 远端绑定 agent 无 provider / 计划被拒 → null（不冒充） */
+function executorOf(
+  deps: TagHealthReviewDeps,
+  agent: AgentConfig,
+  route: ResolvedDispatchRoute,
+): DispatchExecutor | null {
+  const injected = deps.dispatchDeps.executorFor?.(agent, route);
   if (injected !== undefined && injected !== null) {
     return injected;
   }
@@ -70,12 +59,13 @@ export async function tagCheckupReviewed(deps: TagHealthReviewDeps): Promise<Tag
   if (agent === null) {
     return report;
   }
-  const executor = executorOf(deps, agent);
+  const route = agentMinimalRoute(deps.conn, agent);
+  const executor = executorOf(deps, agent, route);
   if (executor === null) {
     deps.log(
       "warn",
       "tag-health",
-      `主 agent「${agent.name}」绑定远端部署而 SSH 执行 provider 未装配，按本地预筛结果展示`,
+      `主 agent「${agent.name}」绑定远端部署而 SSH 执行不可用（provider 未装配或部署不可用），按本地预筛结果展示`,
     );
     return report;
   }
@@ -88,7 +78,7 @@ export async function tagCheckupReviewed(deps: TagHealthReviewDeps): Promise<Tag
       command: agent.command,
       args: agent.args ?? "",
       prompt: buildTagHealthPrompt(resolveOverride(deps.conn, spec).text, tags, report.merges),
-      workdir: agent.workdir ?? "",
+      workdir: route.workdir,
       timeoutSecs: agent.timeoutSecs,
       env: await resolveAgentEnv(deps.dispatchDeps.agentEnv, agent.command),
     });

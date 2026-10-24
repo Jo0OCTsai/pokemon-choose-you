@@ -138,7 +138,7 @@ export function remoteHeadlessDeps(
     executorFor: (_agent, route) => {
       const plan = planRemoteRoute(conn, route, platform);
       if (plan.kind === "local") {
-        return createLocalExecutor();
+        return createLocalExecutor(opts.minTimeoutSecs);
       }
       if (route.deployment === null) {
         return null; // 前置复核应已拒绝；兜底走 providerMissing 收口（failed + 指引）

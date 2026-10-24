@@ -19,6 +19,7 @@ export function MessageDetail({
   onToggleTag,
   readonly,
   onChanged,
+  onRefresh,
 }: {
   /** 当前选中电波（null = 未选中空态） */
   message: RadioMessage | null;
@@ -26,6 +27,8 @@ export function MessageDetail({
   onToggleTag: (name: string) => void;
   readonly: boolean;
   onChanged: () => void;
+  /** 纯刷新（不前进选中）——重判发起时立即拉一次「判定中」态 */
+  onRefresh: () => void;
 }): React.JSX.Element {
   const t = useT();
   const [conflict, setConflict] = useState<string | null>(null);
@@ -65,7 +68,7 @@ export function MessageDetail({
         </div>
         <DetailSuggestion message={message} acceptedTags={acceptedTags} readonly={readonly} onToggleTag={onToggleTag} />
         <DetailBanner message={message} />
-        <MessageActions message={message} readonly={readonly} run={run} />
+        <MessageActions message={message} readonly={readonly} run={run} onRefresh={onRefresh} />
         {conflict !== null && (
           <div role="status" className={ui.muted}>
             {conflict}

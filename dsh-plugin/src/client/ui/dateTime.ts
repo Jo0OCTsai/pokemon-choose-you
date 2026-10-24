@@ -176,3 +176,18 @@ export function calendarCells(year: number, month0: number): number[] {
   const lead = (new Date(year, month0, 1).getDay() + 6) % 7;
   return [...new Array<number>(lead).fill(0), ...Array.from({ length: days }, (_, i) => i + 1)];
 }
+
+const DISK_LOG_TIME_RE = /^(\d{4}-\d{2}-\d{2}) (\d{2}:\d{2}:\d{2})$/;
+
+/** 运行日志时间 → 本机时区同形展示（YYYY-MM-DD HH:mm:ss）。磁盘行是 UTC 墙钟且无时区
+ *  标记（tauri-plugin-log / pk CLI / 插件 fileLogSink 三方互认格式，不可改），此处补 Z 再
+ *  换算；RFC3339 带偏移（内存环口径）直接解析；解析失败原样返回，一行脏日志不炸整屏 */
+export function fmtLogTimeLocal(time: string): string {
+  const m = DISK_LOG_TIME_RE.exec(time);
+  const d = new Date(m === null ? time : `${m[1]}T${m[2]}Z`);
+  if (Number.isNaN(d.getTime())) {
+    return time;
+  }
+  const date = dateKey(d.getFullYear(), d.getMonth() + 1, d.getDate());
+  return `${date} ${pad2(d.getHours())}:${pad2(d.getMinutes())}:${pad2(d.getSeconds())}`;
+}

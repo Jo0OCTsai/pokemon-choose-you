@@ -9,6 +9,22 @@ export type { ProposedTag };
 export type EscapeReasonCode = (typeof ESCAPE_REASONS)[number];
 export const ESCAPE_REASON_CODES: readonly EscapeReasonCode[] = ESCAPE_REASONS;
 
+/**
+ * 远端 PTY 句柄落账本的标记前缀（host 单源 = dispatch/sessionsReplay.ts
+ * PTY_SESSION_REF_PREFIX——host 模块带 node 依赖不可入 client bundle，此处镜像；
+ * 回放可发起判定仍看原始值非空，剥前缀只做呈现）。
+ */
+const PTY_SESSION_REF_PREFIX = "pty:";
+
+/** 呈现层会话标识：剥 pty: 标记（dsh-ssh 终端句柄不是 agent 会话 id，裸句柄展示）；其余原样 */
+export function displaySessionId(sessionId: string | null): string | null {
+  const raw = sessionId?.trim() ?? "";
+  if (raw === "") {
+    return null;
+  }
+  return raw.startsWith(PTY_SESSION_REF_PREFIX) ? raw.slice(PTY_SESSION_REF_PREFIX.length) : raw;
+}
+
 /** 收音机健康四元组（D13 最小可视面；三档聚合呈现） */
 export interface RadioHealth {
   /** ok=正常 / warn=重试中（退避）/ fail=故障或未授权 */

@@ -11,8 +11,8 @@ describe("remoteDispatchScript · 环境兜底", () => {
   it("PATH 兜底段前插 ~/.local/bin（回归：agent Bash 工具缺该路径致 pk 127，白名单下 agent 无法自救）", () => {
     const out = remoteDispatchScript(
       { command: "claude", args: "-p {prompt}", prompt: "p", timeoutSecs: 120, workdir: "~/.choose-you/workspace" },
-      "/home/vscode/.local/bin/claude",
-      { nodePath: "/usr/bin/node", interpreter: "node" },
+      { mode: "exec", path: "/home/vscode/.local/bin/claude", interpreter: "node" },
+      { nodePath: "/usr/bin/node" },
     );
     expect(out.script.startsWith('export PATH="$HOME/.local/bin:${PATH:-/usr/local/bin:/usr/bin:/bin}"')).toBe(true);
   });
@@ -20,8 +20,8 @@ describe("remoteDispatchScript · 环境兜底", () => {
   it("~ 前缀 workdir：cd 段波浪号裸拼不进引号（回归：引号阻断远端 $HOME 展开）", () => {
     const out = remoteDispatchScript(
       { command: "claude", args: "-p {prompt}", prompt: "p", timeoutSecs: 120, workdir: "~/.choose-you/workspace" },
-      "/home/vscode/.local/bin/claude",
-      { nodePath: "/usr/bin/node", interpreter: "node" },
+      { mode: "exec", path: "/home/vscode/.local/bin/claude", interpreter: "node" },
+      { nodePath: "/usr/bin/node" },
     );
     expect(out.script).toContain("cd ~/.choose-you/workspace || exit 1");
   });
@@ -36,8 +36,8 @@ describe("remoteDispatchScript · 环境兜底", () => {
         workdir: "/srv/app",
         env: { PK_DISPATCH_TASK: "4" },
       },
-      "/home/vscode/.local/bin/claude",
-      { nodePath: "/usr/bin/node", interpreter: "node" },
+      { mode: "exec", path: "/home/vscode/.local/bin/claude", interpreter: "node" },
+      { nodePath: "/usr/bin/node" },
     );
     const lines = out.script.split("; ");
     const pathIdx = lines.findIndex((l) => l.startsWith("export PATH="));
@@ -54,8 +54,8 @@ describe("remoteDispatchScript · direct 解释形态", () => {
   it("direct：exec 不带 node 前缀（原生二进制 CLI 直执行）", () => {
     const out = remoteDispatchScript(
       { command: "claude", args: "-p {prompt}", prompt: "p", timeoutSecs: 120, workdir: null },
-      "/home/vscode/.local/bin/claude",
-      { nodePath: "/usr/bin/node", interpreter: "direct" },
+      { mode: "exec", path: "/home/vscode/.local/bin/claude", interpreter: "direct" },
+      { nodePath: "/usr/bin/node" },
     );
     expect(out.script).toContain("exec /home/vscode/.local/bin/claude -p p");
     expect(out.script).not.toContain("/usr/bin/node");
@@ -78,5 +78,19 @@ describe("classifyRemoteCliHead · CLI 解释形态分类", () => {
     expect(classifyRemoteCliHead("#!/bin/sh\n")).toBe("direct");
     expect(classifyRemoteCliHead("#!/usr/bin/env python3\n")).toBe("direct");
     expect(classifyRemoteCliHead("console.log('entry');\n")).toBe("node");
+  });
+});
+
+describe("remoteDispatchScript · 登录 shell 名形态（函数/别名封装）", () => {
+  it("shell 名形态：裸名收口不 exec（函数不可 exec），退出码经登录 shell 传播", () => {
+    const out = remoteDispatchScript(
+      { command: "claude", args: "-p {prompt} --output-format json", prompt: "p", timeoutSecs: 120, workdir: "/srv" },
+      { mode: "shell", name: "claude" },
+      { nodePath: "/usr/bin/node" },
+    );
+    const lines = out.script.split("; ");
+    expect(lines[lines.length - 1]).toBe("claude -p p --output-format json");
+    expect(out.script).not.toContain("exec ");
+    expect(out.script).toContain("cd /srv || exit 1");
   });
 });

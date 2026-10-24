@@ -237,6 +237,21 @@ describe("失败组与逃走组", () => {
     expect(host.calls.map((c) => c.command)).toContain("forceDismiss");
   });
 
+  it("重判发起即刷新一次（host 同步段已 claim judging——判定中立即可见），命令完成后再刷新落最终态", async () => {
+    const { host, onChanged } = renderRadio([makeMessage({ messageId: "r1", aiStatus: "error" })]);
+    fireEvent.click(screen.getByText("一键重判"));
+    expect(onChanged).toHaveBeenCalledTimes(1);
+    await flush();
+    expect(onChanged).toHaveBeenCalledTimes(2);
+    // 单条重判（右栏 ♻）同口径：onRefresh 立即刷（不前进选中）+ run 尾再刷
+    selectRow("r1");
+    fireEvent.click(screen.getByText("♻ 重判"));
+    expect(host.calls).toContainEqual({ command: "retryJudge", params: { messageIds: ["r1"] } });
+    expect(onChanged).toHaveBeenCalledTimes(3);
+    await flush();
+    expect(onChanged).toHaveBeenCalledTimes(4);
+  });
+
   it("逃走留档组默认折叠，展开选中行 → 右栏 ↩恢复（reviewRestore）", async () => {
     const { host } = renderRadio([makeMessage({ messageId: "e1", reviewStatus: "dismissed", dismissReason: "noise" })]);
     // 组头折叠钮（FeedGroup：caret + 标题 + 计数 + 状态字）；默认折叠，点一次展开

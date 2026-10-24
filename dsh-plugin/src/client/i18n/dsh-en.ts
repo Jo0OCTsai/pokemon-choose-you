@@ -60,6 +60,7 @@ export default {
       "J/K navigate · C catch/apply update · X release · F force capture (active only inside the plugin page — no global shortcuts)",
     acceptTag: "＋ Accept new tag",
     judging: "Judging…",
+    groupJudging: "◌ Judging",
   },
   dispatch: {
     handoffCopied: "Dispatch command copied — paste it into a terminal; the agent writes results back when done",

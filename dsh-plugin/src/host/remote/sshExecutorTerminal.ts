@@ -13,9 +13,7 @@ import { cdSegment } from "../dispatch/cmdline";
 import { ptyHandleOf, ptySessionRef } from "../dispatch/sessionsReplay";
 import type { DeploymentEntity } from "./deployments";
 import type { SshTerminalScope } from "./sshExecutor";
-
-/** 远端 PTY 承载 shell（POSIX 保底；任务命令行注入后由 agent 会话自持） */
-const REMOTE_TERMINAL_SHELL = "/bin/sh";
+import { loginShellFlags, loginShellOf } from "./sshExecutorResolve";
 
 /** 向远端终端写入（通道故障与未知会话同归 false——驱动兜底新开） */
 async function writeIntoTerminal(scope: SshTerminalScope, sessionId: string, data: string): Promise<boolean> {
@@ -29,17 +27,20 @@ async function writeIntoTerminal(scope: SshTerminalScope, sessionId: string, dat
 /** 新开远端 PTY 并写入首行（写入失败即抛——不留半开会话给上层）。
  * dsh-ssh 协议层 cwd 只收绝对 POSIX 路径（remotePath schema）：绝对 workdir 走
  * cwd；~/相对路径不上协议，改把 cd 段拼进注入行首（远端 shell 展开，无头脚本
- * 同构）；空 workdir 不传（部署缺省承载）。 */
+ * 同构）；空 workdir 不传（部署缺省承载）。承载 shell 会话旗标走 loginShellFlags
+ * 单源（/bin/sh 退化形态无 -l——dash 拒绝登录旗标）。 */
 async function spawnTerminalWithLine(
   scope: SshTerminalScope,
   payload: string,
   workdir: string | null | undefined,
   alias: string,
+  shell: string,
 ): Promise<string> {
   const dir = workdir?.trim() ?? "";
   const cdLine = dir !== "" && !dir.startsWith("/") ? `${cdSegment(dir)} || exit 1\n` : "";
   const term = await scope.spawnTerminal({
-    command: REMOTE_TERMINAL_SHELL,
+    command: shell,
+    args: loginShellFlags(shell),
     ...(dir.startsWith("/") ? { cwd: dir } : {}),
   });
   if (!(await writeIntoTerminal(scope, term.sessionId, `${cdLine}${payload}`))) {
@@ -60,6 +61,7 @@ export function createRemoteTerminalAdapter(input: {
   target: string;
 }): TerminalAdapter {
   const { conn, scopeFor, entity, target } = input;
+  const shellCache = new Map<string, string>();
   return {
     async inject({ line, taskId, workdir }) {
       const scope = await scopeFor();
@@ -79,7 +81,13 @@ export function createRemoteTerminalAdapter(input: {
         return { terminal: prevHandle, sessionRef: ptySessionRef(prevHandle) };
       }
       const note = prev !== undefined ? "原会话已关闭，已开新会话注入" : undefined;
-      const sessionId = await spawnTerminalWithLine(scope, payload, workdir, entity.alias);
+      const sessionId = await spawnTerminalWithLine(
+        scope,
+        payload,
+        workdir,
+        entity.alias,
+        await loginShellOf(scope, shellCache),
+      );
       const sessionRef = ptySessionRef(sessionId);
       return note === undefined ? { terminal: sessionId, sessionRef } : { terminal: sessionId, sessionRef, note };
     },

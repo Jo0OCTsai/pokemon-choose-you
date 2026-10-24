@@ -13,6 +13,7 @@ import { HELPER_CAP_ROWS } from "../../rpc";
 import { useClient } from "../../clientContext";
 import { useT } from "../../i18n";
 import { LcdScreen } from "../../ui/LcdScreen";
+import { fmtLogTimeLocal } from "../../ui/dateTime";
 import ui from "../../ui/ui.module.css";
 import styles from "../settings.module.css";
 
@@ -247,7 +248,7 @@ export function LogViewer(): React.JSX.Element {
           {entries.map((entry, index) => (
             <div key={`${entry.time}-${index}`} className={styles.logRow}>
               <div className={styles.logMeta}>
-                <span className={styles.logTime}>{entry.time}</span>
+                <span className={styles.logTime}>{fmtLogTimeLocal(entry.time)}</span>
                 <span className={styles.logLevel} data-level={entry.level}>
                   {entry.level}
                 </span>

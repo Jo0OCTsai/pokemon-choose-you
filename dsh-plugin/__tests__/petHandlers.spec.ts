@@ -11,6 +11,7 @@ import type { Conn } from "../src/host/storage/db";
 import { petHandlers, type PluginSlots } from "../src/host/petSection";
 import { PomoStateStore } from "../src/host/pet/pomoState";
 import { HealthState } from "../src/host/health/snapshot";
+import { seedAgents } from "./helpers";
 
 let dir: string;
 let conn: Conn;
@@ -134,26 +135,46 @@ function seedDexToMilestone(): void {
   ins.run("第十只", "active");
 }
 
+/** pet-chat 上行便捷件：装配处理器 + 桥回送捕获（聊聊降级两用例共用） */
+function petChatFixture(): {
+  h: ReturnType<typeof petHandlers>;
+  replies: Array<[string, boolean]>;
+  rec: ReturnType<typeof recorder>;
+} {
+  const replies: Array<[string, boolean]> = [];
+  const rec = recorder();
+  const slots: PluginSlots = { feed: null, supervisor: null, pomo: new PomoStateStore() };
+  const h = petHandlers({
+    conn,
+    health: new HealthState(),
+    log: rec.log,
+    slots,
+    openPage: () => undefined,
+    newExecutor: () => null,
+  });
+  slots.supervisor = {
+    currentBridge: () => ({ sys: { sendChatReply: (t: string, ok: boolean) => (replies.push([t, ok]), true) } }),
+  } as never;
+  return { h, replies, rec };
+}
+
 describe("petHandlers：聊聊降级与 milestone 庆祝", () => {
   it("pet-chat 上行：未配置 AI agent → 降级回复经桥 sendChatReply", () => {
-    const replies: Array<[string, boolean]> = [];
-    const slots: PluginSlots = { feed: null, supervisor: null, pomo: new PomoStateStore() };
-    const rec = recorder();
-    const h = petHandlers({
-      conn,
-      health: new HealthState(),
-      log: rec.log,
-      slots,
-      openPage: () => undefined,
-      newExecutor: () => null,
-    });
-    slots.supervisor = {
-      currentBridge: () => ({ sys: { sendChatReply: (t: string, ok: boolean) => (replies.push([t, ok]), true) } }),
-    } as never;
+    const { h, replies, rec } = petChatFixture();
     h.onCmd?.({ op: "pet-chat", text: "在吗" } as never);
     expect(replies).toHaveLength(1);
     expect(replies[0]?.[1]).toBe(false); // 降级面 ok=false
     expect(rec.logs.some(([t]) => t === "pet:chat")).toBe(true);
+  });
+
+  it("pet-chat 上行：主 agent 绑定远端部署 → 不以本机 CLI 冒充，降级回复 + warn", () => {
+    seedAgents(conn, [{ id: "ag-cc", command: "claude", deployment: "pky-remote" }]);
+    const { h, replies, rec } = petChatFixture();
+    h.onCmd?.({ op: "pet-chat", text: "在吗" } as never);
+    expect(replies).toHaveLength(1);
+    expect(replies[0]?.[1]).toBe(false);
+    expect(replies[0]?.[0]).toContain("远端部署");
+    expect(rec.logs.some(([t, m]) => t === "pet:chat" && m.includes("未接远端执行通道"))).toBe(true);
   });
 
   it("done 上行跨 milestone（第 10 只）→ announceCaught 触发（CatchShow 变体直推）", () => {

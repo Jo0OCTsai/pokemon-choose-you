@@ -183,9 +183,12 @@ export function dispatchTooltipKey(state: string | null): string | null {
   }
 }
 
-/** 建议流五分组：待处理 / 无动作 / 判定失败 / 已捕捉 / 已逃走（后两组默认折叠） */
+/** 建议流分组：待办信号 / 判定中 / 无动作 / 判定失败 / 已捕捉 / 已逃走（后两组默认折叠） */
 export interface SuggestionGroups {
+  /** 待办信号（todo/update——可分诊） */
   pending: RadioMessage[];
+  /** 判定中与待判定（judging/pending 同观感，im.status.judging 口径）——独立成组不混入待办信号（2026-10-23 裁决） */
+  judging: RadioMessage[];
   none: RadioMessage[];
   failed: RadioMessage[];
   caught: RadioMessage[];
@@ -193,7 +196,7 @@ export interface SuggestionGroups {
 }
 
 export function suggestionGroups(messages: RadioMessage[]): SuggestionGroups {
-  const groups: SuggestionGroups = { pending: [], none: [], failed: [], caught: [], escaped: [] };
+  const groups: SuggestionGroups = { pending: [], judging: [], none: [], failed: [], caught: [], escaped: [] };
   for (const message of messages) {
     if (message.reviewStatus === "accepted") {
       groups.caught.push(message);
@@ -202,8 +205,7 @@ export function suggestionGroups(messages: RadioMessage[]): SuggestionGroups {
     } else if (message.aiStatus === "error") {
       groups.failed.push(message);
     } else if (message.aiStatus === "judging" || message.aiStatus === "pending") {
-      // 判定中与待判定同观感（im.status.judging 口径）
-      groups.pending.push(message);
+      groups.judging.push(message);
     } else if (message.aiStatus === "todo" || message.aiStatus === "update") {
       groups.pending.push(message);
     } else {

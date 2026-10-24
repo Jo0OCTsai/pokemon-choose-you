@@ -4,23 +4,18 @@
  * 安装把 helper 入口落进安装目录）。remote/ 全模块（deployments/provision/recheck）
  * 单测的共用替身。
  */
-import { createHash } from "node:crypto";
 import type { SshSpawnResult, SshTerminalOptions } from "../../src/host/remote/sshScope";
 import type { ProvisionDeps } from "../../src/host/remote/provision";
 import type { DeploymentEntity } from "../../src/host/remote/deployments";
-import type { SshTerminalScope } from "../../src/host/remote/sshExecutor";
+import {
+  loginShellProbeCommand,
+  REMOTE_PATH_BOOTSTRAP,
+  type SshTerminalScope,
+} from "../../src/host/remote/sshExecutor";
+import { headCOutcome, posixUnquote, rmRfOutcome, sha256Of, sha256Outcome, type ShellOutcome } from "./fakeRemoteFs";
 
-export function sha256Of(content: string): string {
-  return createHash("sha256").update(content, "utf8").digest("hex");
-}
-
-/** posixQuote 逆操作（fake 远端解析 shell 命令取回路径用；只覆盖 posixQuote 的产物形态） */
-export function posixUnquote(token: string): string {
-  if (token.length >= 2 && token.startsWith("'") && token.endsWith("'")) {
-    return token.slice(1, -1).replaceAll(`'\\''`, `'`);
-  }
-  return token;
-}
+// 原语与模拟远端文件系统应答族已拆 fakeRemoteFs.ts（棘轮 max-lines）——再出口保消费面
+export { posixUnquote, sha256Of } from "./fakeRemoteFs";
 
 export interface ProgrammedResult {
   code: number;
@@ -36,18 +31,18 @@ export interface FakeNpmInstall {
   command: string;
 }
 
-/** shell 应答信封形态 */
-type ShellOutcome = { code: number; stdout: string; stderr: string };
-
 /** 编程应答 → shell 结果信封 */
 function programmedOutcome(hit: ProgrammedResult): ShellOutcome {
   return { code: hit.code, stdout: hit.stdout ?? "", stderr: hit.stderr ?? "" };
 }
 
-/** 固定应答命令（printf 探针 / --version 三固定形态；不匹配 = null——npm 探测走实例态） */
-function fixedOutcome(cmd: string, homeDir: string): ShellOutcome | null {
+/** 固定应答命令（printf 探针 / 登录 shell 探测 / --version 三固定形态；不匹配 = null——npm 探测走实例态） */
+function fixedOutcome(cmd: string, homeDir: string, loginShell: string): ShellOutcome | null {
   if (cmd === 'printf %s "$HOME"') {
     return { code: 0, stdout: homeDir, stderr: "" };
+  }
+  if (cmd === loginShellProbeCommand()) {
+    return { code: 0, stdout: loginShell, stderr: "" };
   }
   if (cmd === "printf pky-ok") {
     return { code: 0, stdout: "pky-ok", stderr: "" };
@@ -61,45 +56,25 @@ function fixedOutcome(cmd: string, homeDir: string): ShellOutcome | null {
 /** npm 探测命令形态（npmProbeCommand 产物——sibling 优先分支 + command -v 回落） */
 const NPM_PROBE_RE = /^if \[ -x (.+) \]; then printf %s (.+); else command -v npm; fi$/;
 
-/** command -v <name> 应答（remoteBins 未登记 = command not found） */
-function commandVOutcome(remoteBins: Map<string, string>, cmd: string): ShellOutcome {
-  const name = posixUnquote(cmd.slice("command -v ".length));
+/** 登录 shell 视角 command -v 探测脚本提取（[shell, -l, -c] 与 /bin/sh 退化 [sh, -c] 两形态）；非探测形态 = null */
+function loginProbeScriptOf(cmd: string[]): string | null {
+  const script = cmd[1] === "-l" ? (cmd[2] === "-c" ? cmd[3] : undefined) : cmd[1] === "-c" ? cmd[2] : undefined;
+  return typeof script === "string" && script.startsWith("command -v ") ? script : null;
+}
+
+/** command -v 应答（PATH 兜底前插形态剥壳；非 command -v 形态 = null 交还 shell 路由；
+ * ~/.local/bin 家族只在兜底段生效时可见——helper 非登录 shell 缺省 PATH 外） */
+function commandVOutcome(remoteBins: Map<string, string>, cmd: string): ShellOutcome | null {
+  const prefix = `${REMOTE_PATH_BOOTSTRAP}; `;
+  const bootstrapped = cmd.startsWith(prefix);
+  const probe = bootstrapped ? cmd.slice(prefix.length) : cmd;
+  if (!probe.startsWith("command -v ")) {
+    return null;
+  }
+  const name = posixUnquote(probe.slice("command -v ".length));
   const bin = remoteBins.get(name);
-  return bin === undefined
-    ? { code: 1, stdout: "", stderr: `command not found: ${name}` }
-    : { code: 0, stdout: bin, stderr: "" };
-}
-
-/** head -c <n> <path> 应答（CLI 头部分类探测——模拟远端文件系统；未登记 = 不存在） */
-function headCOutcome(files: Map<string, string>, cmd: string): ShellOutcome | null {
-  const m = /^head -c (\d+) (.+)$/.exec(cmd);
-  if (m === null) return null;
-  const path = posixUnquote(m[2]);
-  const content = files.get(path);
-  return content === undefined
-    ? { code: 1, stdout: "", stderr: `head: ${path}: No such file or directory` }
-    : { code: 0, stdout: content.slice(0, Number(m[1])), stderr: "" };
-}
-
-/** sha256sum 应答（模拟远端文件系统内容自洽） */
-function sha256Outcome(files: Map<string, string>, cmd: string): ShellOutcome {
-  const path = posixUnquote(cmd.slice("sha256sum ".length));
-  const content = files.get(path);
-  if (content === undefined) {
-    return { code: 1, stdout: "", stderr: `sha256sum: ${path}: No such file or directory` };
-  }
-  return { code: 0, stdout: `${sha256Of(content)}  ${path}\n`, stderr: "" };
-}
-
-/** rm -rf -- <dir> 应答（目录级删除模拟远端文件系统条目） */
-function rmRfOutcome(files: Map<string, string>, cmd: string): ShellOutcome {
-  const dir = posixUnquote(cmd.slice("rm -rf -- ".length));
-  for (const key of [...files.keys()]) {
-    if (key === dir || key.startsWith(`${dir}/`)) {
-      files.delete(key);
-    }
-  }
-  return { code: 0, stdout: "", stderr: "" };
+  const visible = bin !== undefined && (bootstrapped || !bin.includes("/.local/bin/"));
+  return visible ? { code: 0, stdout: bin, stderr: "" } : { code: 1, stdout: "", stderr: `command not found: ${name}` };
 }
 
 /** 默认 helper 制品内容 */
@@ -133,6 +108,12 @@ export class FakeSshScope implements SshTerminalScope {
   spawnQueue: Array<Partial<SshSpawnResult> | "hold"> = [];
   /** 远端可执行登记（command -v 应答面——dispatch 远端链） */
   remoteBins = new Map<string, string>([["claude", "/usr/local/bin/claude"]]);
+  /** 登录 shell 路径（getent 探测应答；对抗样例可改——非绝对路径触发 /bin/sh 回落） */
+  loginShellPath = "/usr/bin/zsh";
+  /** 登录 shell 函数/别名封装名（登录视角 command -v 应答裸名——非绝对输出走 shell 名形态） */
+  loginFunctions = new Set<string>();
+  /** 登录视角探测不可见名（登录 shell command -v 落空 → 回落 /bin/sh + PATH 兜底探测链） */
+  loginProbeMisses = new Set<string>();
   /** 终端写入记录（writeTerminal 断言面） */
   terminalWrites: Array<{ sessionId: string; data: string }> = [];
   /** 视为已关闭的终端会话（writeTerminal 返回 false 驱动兜底新开） */
@@ -181,6 +162,23 @@ export class FakeSshScope implements SshTerminalScope {
 
   async spawn(cmd: string[]): Promise<SshSpawnResult> {
     this.spawns.push(cmd);
+    // 登录 shell 视角 command -v 探测（两 argv 形态见 loginProbeScriptOf）：函数/别名应答
+    // 裸名（非绝对输出 → 执行走 shell 名形态）；登记可见一律绝对路径；loginProbeMisses
+    // 模拟登录环境不可见（驱动回落链）——探测 spawn 不吃执行结果队列
+    const probe = loginProbeScriptOf(cmd);
+    if (probe !== null) {
+      const name = posixUnquote(probe.slice("command -v ".length));
+      if (this.loginProbeMisses.has(name)) {
+        return { code: 1, stdout: "", stderr: `command not found: ${name}`, durationMs: 1 };
+      }
+      if (this.loginFunctions.has(name)) {
+        return { code: 0, stdout: name, stderr: "", durationMs: 1 };
+      }
+      const bin = this.remoteBins.get(name);
+      return bin === undefined
+        ? { code: 1, stdout: "", stderr: `command not found: ${name}`, durationMs: 1 }
+        : { code: 0, stdout: bin, stderr: "", durationMs: 1 };
+    }
     const next = this.spawnQueue.shift();
     if (next === "hold") {
       return await new Promise<SshSpawnResult>((resolve) => {
@@ -216,7 +214,7 @@ export class FakeSshScope implements SshTerminalScope {
     if (hit !== null) {
       return programmedOutcome(hit);
     }
-    const fixed = fixedOutcome(cmd, this.homeDir);
+    const fixed = fixedOutcome(cmd, this.homeDir, this.loginShellPath);
     if (fixed !== null) {
       return fixed;
     }
@@ -228,8 +226,9 @@ export class FakeSshScope implements SshTerminalScope {
         ? { code: 0, stdout: posixUnquote(npmProbe[2]), stderr: "" }
         : { code: 0, stdout: this.npmPath, stderr: "" };
     }
-    if (cmd.startsWith("command -v ")) {
-      return commandVOutcome(this.remoteBins, cmd);
+    const commandV = commandVOutcome(this.remoteBins, cmd);
+    if (commandV !== null) {
+      return commandV;
     }
     const head = headCOutcome(this.files, cmd);
     if (head !== null) {

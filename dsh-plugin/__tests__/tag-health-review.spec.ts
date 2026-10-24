@@ -3,13 +3,13 @@
  * 执行失败回落 · 远端绑定无 provider 不冒充 四路；纯函数半边见 tag-health-verdict.spec。
  */
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { createTestDb, seedAgents, seedTask, type TestDb } from "./helpers";
+import { createTestDb, seedAgents, seedDeployment, seedTask, type TestDb } from "./helpers";
 import type { Conn } from "../src/host/storage/db";
 import { localReport } from "../src/host/domain/tag-health";
 import { TAG_HEALTH_SYSTEM_PROMPT } from "../src/host/domain/prompts";
 import { listTags } from "../src/host/domain/vocabulary-tags";
 import { tagCheckupReviewed, type TagHealthReviewDeps } from "../src/host/judge/tagHealthReview";
-import type { DispatchJob, ExecOutcome } from "../src/host/dispatch/executor";
+import type { DispatchExecutor, DispatchJob, ExecOutcome } from "../src/host/dispatch/executor";
 
 let db: TestDb;
 beforeEach(() => {
@@ -61,6 +61,51 @@ function depsWith(
     },
   };
   return { deps, jobs, warns };
+}
+
+/** 本机执行器替身：置 used 标记 + 空输出 */
+function markedLocalExecutor(mark: { used: boolean }): DispatchExecutor {
+  return {
+    launch: async () => {
+      mark.used = true;
+      return { exitCode: 0, durationMs: 1, stdout: "", timedOut: false };
+    },
+    kill: () => undefined,
+  };
+}
+
+/** 远端执行器替身：记录 job + 固定 stdout 回放 */
+function recordingExecutor(jobs: DispatchJob[], stdout: string): DispatchExecutor {
+  return {
+    launch: async (job) => {
+      jobs.push(job);
+      return { exitCode: 0, durationMs: 1, stdout, timedOut: false };
+    },
+    kill: () => undefined,
+  };
+}
+
+/**
+ * 装配层同形替身（remoteHeadlessDeps 语义）：路由带 deployment → 远端执行器；
+ * deployment null → 本机执行器（used 标记）。远端 agent 落到本机执行器即
+ * 「本机 CLI 冒充」回归红。
+ */
+function depsWithRouting(remoteStdout: string): {
+  deps: TagHealthReviewDeps;
+  remoteJobs: DispatchJob[];
+  localUsed(): boolean;
+} {
+  const remoteJobs: DispatchJob[] = [];
+  const local = { used: false };
+  const deps: TagHealthReviewDeps = {
+    conn: db.conn,
+    dispatchDeps: {
+      executorFor: (_agent, route) =>
+        route.deployment === null ? markedLocalExecutor(local) : recordingExecutor(remoteJobs, remoteStdout),
+    },
+    log: () => undefined,
+  };
+  return { deps, remoteJobs, localUsed: () => local.used };
 }
 
 describe("tagCheckupReviewed（复核编排：无 agent / 有 agent / 信封解包）", () => {
@@ -145,5 +190,24 @@ describe("tagCheckupReviewed（失败回落与远端不冒充）", () => {
     seed(db.conn, "工作周报", "topic");
     const { deps } = depsWith(null);
     expect(await tagCheckupReviewed(deps)).toEqual(localReport(listTags(db.conn)));
+  });
+});
+
+describe("tagCheckupReviewed（复核路由随部署绑定——远端不落本机执行）", () => {
+  it("主 agent 绑定远端部署且 provider 在场 → 路由带 deployment 经远端执行器复核，workdir 取实体登记工作区", async () => {
+    seed(db.conn, "周报", "topic", 3);
+    seed(db.conn, "工作周报", "topic");
+    // agent.workdir 本机语义路径：实体登记工作区必须压过它（远端没有这个目录）
+    seedAgents(db.conn, [{ id: "ag-1", deployment: "gpu-1", workdir: "/Users/jotsai/local-ws" }]);
+    seedDeployment(db.conn, "gpu-1", "/workspaces/dev-env-settings");
+    const verdict = {
+      merges: [{ from: "工作周报", into: "周报", merge: true, reason: "同义" }],
+      newDimensions: [],
+    };
+    const { deps, remoteJobs, localUsed } = depsWithRouting("```json\n" + JSON.stringify(verdict) + "\n```");
+    const report = await tagCheckupReviewed(deps);
+    expect(report.judged).toBe(true);
+    expect(localUsed()).toBe(false); // 回归红线：远端 agent 的复核不得落本机执行器
+    expect(remoteJobs[0]?.workdir).toBe("/workspaces/dev-env-settings");
   });
 });

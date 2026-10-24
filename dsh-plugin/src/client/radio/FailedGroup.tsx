@@ -49,7 +49,11 @@ export function FailedGroup({
             disabled={readonly || busy}
             onClick={async () => {
               setBusy(true);
-              await client.retryJudge({ messageIds: "all" });
+              // host 侧命令开头同步段已把 error 重置并 claim 为 judging——不等判定全程，
+              // 先刷一次让记录立即离开本组进「判定中」组（命令完成后再刷落最终态）
+              const pending = client.retryJudge({ messageIds: "all" });
+              onChanged();
+              await pending;
               setBusy(false);
               onChanged();
             }}

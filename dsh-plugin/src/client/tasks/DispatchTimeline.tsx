@@ -3,6 +3,7 @@
  */
 import { useMemo } from "react";
 import { useT } from "../i18n";
+import { displaySessionId } from "../rpc";
 import type { PanelData } from "../model";
 import ui from "../ui/ui.module.css";
 import styles from "./tasks.module.css";
@@ -23,7 +24,9 @@ function DispatchTimeline({ data, taskId }: { data: PanelData; taskId: number })
             <span className={styles.timelineMain}>
               <div>
                 {t(`sess.kind.${session.kind}`)} · {session.agentId}
-                {session.sessionId !== null && <span className={ui.muted}> · {session.sessionId}</span>}
+                {displaySessionId(session.sessionId) !== null && (
+                  <span className={ui.muted}> · {displaySessionId(session.sessionId)}</span>
+                )}
               </div>
               <div className={ui.muted}>
                 {session.durationMs !== null && <span>{Math.round(session.durationMs / 1000)}s </span>}

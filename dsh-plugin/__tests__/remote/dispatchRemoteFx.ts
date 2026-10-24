@@ -199,3 +199,17 @@ function lastSessionOf(db: TestDb, taskId: number): Record<string, unknown> {
     unknown
   >;
 }
+
+/** 执行脚本提取（执行面 shell argv 形态：登录 [shell, -l, -c, script] / /bin/sh 回落
+ * [sh, -c, script]；跳过同形的登录视角 command -v 探测 spawn） */
+export function execScriptOf(spawns: string[][]): string {
+  const login = spawns.find((a) => a[1] === "-l" && a[2] === "-c" && !startsWithCommandV(a[3]));
+  if (login !== undefined) {
+    return login[3] ?? "";
+  }
+  return spawns.find((a) => a[0] === "/bin/sh" && a[1] === "-c" && !startsWithCommandV(a[2]))?.[2] ?? "";
+}
+
+function startsWithCommandV(script: string | undefined): boolean {
+  return (script ?? "").startsWith("command -v ");
+}

@@ -12,7 +12,7 @@
 import { useEffect, useState } from "react";
 import { useClient } from "../clientContext";
 import { useT } from "../i18n";
-import { isErrorCode, type SessionGroup, type SessionRow } from "../rpc";
+import { isErrorCode, displaySessionId, type SessionGroup, type SessionRow } from "../rpc";
 import { EmptyState } from "./TaskList";
 import { copyText, HandoffLine } from "./handoff";
 import styles from "./tasks.module.css";
@@ -175,7 +175,9 @@ export function LogSegment({ readonly }: { readonly: boolean }): React.JSX.Eleme
                   exit {session.exitCode}
                 </span>
               )}
-              {session.sessionId !== null && <span className={ui.muted}>{session.sessionId}</span>}
+              {displaySessionId(session.sessionId) !== null && (
+                <span className={ui.muted}>{displaySessionId(session.sessionId)}</span>
+              )}
               {replayable(session) && (
                 <button
                   type="button"

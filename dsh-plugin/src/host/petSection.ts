@@ -72,6 +72,13 @@ function petCmdDepsOf(args: PetHandlerArgs, petBridge: () => BridgeClient | null
         petBridge()?.sys.sendChatReply("（还没配置 AI agent，先到设置里配一个吧）", false);
         return;
       }
+      // 远端绑定 agent 不以本机同名 CLI 冒充（agentTest / 标签体检同口径）——聊聊未接
+      // 远端执行缝，完整接线见 docs/debt.md
+      if ((agent.deployment ?? "").trim() !== "") {
+        args.log("warn", "pet:chat", `主 agent「${agent.name}」绑定远端部署，聊聊未接远端执行通道，回退`);
+        petBridge()?.sys.sendChatReply("（主 agent 在远端部署上，聊聊还没接上远端执行……）", false);
+        return;
+      }
       void runPetChat({ conn: args.conn, agent, bridge: petBridge, agentEnv: args.agentEnv }, text);
     },
   };

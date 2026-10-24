@@ -18,13 +18,16 @@ export function MessageActions({
   message,
   readonly,
   run,
+  onRefresh,
 }: {
   message: RadioMessage;
   readonly: boolean;
   run: RunAction;
+  /** 纯刷新（不前进选中）——重判发起时立即拉一次「判定中」态 */
+  onRefresh: () => void;
 }): React.JSX.Element {
   const [escapeOpen, setEscapeOpen] = useState(false);
-  const base = { message, readonly, run };
+  const base = { message, readonly, run, onRefresh };
   const toggleEscape = () => setEscapeOpen((v) => !v);
   return (
     <div className={styles.actionBar}>
@@ -42,6 +45,8 @@ interface ActionProps {
   message: RadioMessage;
   readonly: boolean;
   run: RunAction;
+  /** 纯刷新（不前进选中）——重判发起时立即拉一次「判定中」态 */
+  onRefresh?: () => void;
   /** 逃走菜单收口（仅 MessageActions 顶层持有菜单态；其余动作钮不消费） */
   closeEscape?: () => void;
 }
@@ -51,6 +56,7 @@ function PendingActions({
   message,
   readonly,
   run,
+  onRefresh,
   escapeOpen,
   toggleEscape,
 }: ActionProps & { escapeOpen: boolean; toggleEscape: () => void }): React.JSX.Element {
@@ -66,7 +72,13 @@ function PendingActions({
         <CatchButton message={message} readonly={readonly} run={run} closeEscape={() => undefined} />
       )}
       {message.aiStatus === "error" && (
-        <RetryButton message={message} readonly={readonly} run={run} closeEscape={() => undefined} />
+        <RetryButton
+          message={message}
+          readonly={readonly}
+          run={run}
+          onRefresh={onRefresh}
+          closeEscape={() => undefined}
+        />
       )}
       {escapable && (
         <>
@@ -162,7 +174,7 @@ function CatchButton({ message, readonly, run }: ActionProps): React.JSX.Element
   );
 }
 
-function RetryButton({ message, readonly, run }: ActionProps): React.JSX.Element {
+function RetryButton({ message, readonly, run, onRefresh }: ActionProps): React.JSX.Element {
   const t = useT();
   const client = useClient();
   return (
@@ -170,7 +182,13 @@ function RetryButton({ message, readonly, run }: ActionProps): React.JSX.Element
       type="button"
       className={ui.button}
       disabled={readonly}
-      onClick={() => void run(() => client.retryJudge({ messageIds: [message.messageId] }))}
+      onClick={() => {
+        // host 侧命令开头同步段已 claim 为 judging——不等判定全程，先刷一次让记录
+        // 立即离开失败组进「判定中」组（命令完成后 run 尾再刷落最终态）
+        const pending = client.retryJudge({ messageIds: [message.messageId] });
+        onRefresh?.();
+        void run(() => pending);
+      }}
     >
       ♻ {t("im.retry")}
     </button>

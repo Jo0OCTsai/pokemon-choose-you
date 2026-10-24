@@ -126,7 +126,12 @@ export function planRemoteRoute(
 
 // ---- 统一再出口（拆件前的全部导出面——消费方 import 路径不变） ----
 
-export { createSshDispatchExecutor } from "./sshExecutorScope";
+export {
+  createSshDispatchExecutor,
+  loginShellProbeCommand,
+  REMOTE_PATH_BOOTSTRAP,
+  type ResolvedRemoteCli,
+} from "./sshExecutorScope";
 export { createDirectSshExecutor, scopeShellRunner, directSshRunner } from "./sshExecutorDirect";
 export { createRemoteTerminalAdapter, createCopyLineTerminal } from "./sshExecutorTerminal";
 export {

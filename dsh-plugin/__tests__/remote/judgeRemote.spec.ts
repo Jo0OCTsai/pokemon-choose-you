@@ -13,7 +13,7 @@ import { captureTodo } from "../../src/host/judge/capture";
 import { applySuggestion } from "../../src/host/domain/suggest-apply";
 import type { AgentConfig } from "../../src/host/domain/settings";
 import { seedMessage } from "../helpers";
-import { setupDispatchRemoteFx, ALIAS, WORKDIR } from "./dispatchRemoteFx";
+import { setupDispatchRemoteFx, ALIAS, execScriptOf, WORKDIR } from "./dispatchRemoteFx";
 
 const fx = setupDispatchRemoteFx();
 
@@ -80,7 +80,7 @@ describe("判定在部署上执行（家族链真跑）", () => {
     const out = await exec.run({ prompt: "判定这批", messageIds: ["om_1"] });
     expect(out.sessionId).toBe("sess-remote");
     expect(out.suggestions[0]).toMatchObject({ messageId: "om_1", action: "todo" });
-    const script = fx.scope.spawns.find((argv) => argv[0] === "/bin/sh")?.[2] ?? "";
+    const script = execScriptOf(fx.scope.spawns);
     expect(script).toContain(`cd ${WORKDIR} || exit 1`);
     expect(script).toMatch(
       /exec \/usr\/local\/bin\/node \/usr\/local\/bin\/claude -p '判定这批' --session-id [0-9a-f-]{36}$/,
@@ -111,7 +111,7 @@ describe("判定 CLI 解释形态（家族链——头部分类探测）", () =>
       remoteExecutorFor: remoteJudgeExecutorFor(fx.db.conn, fx.platform, { minTimeoutSecs: 10 }),
     });
     await exec.run({ prompt: "p", messageIds: [] });
-    const script = fx.scope.spawns.find((argv) => argv[0] === "/bin/sh")?.[2] ?? "";
+    const script = execScriptOf(fx.scope.spawns);
     expect(script).toMatch(/exec \/home\/vscode\/\.local\/bin\/claude -p p --session-id [0-9a-f-]{36}$/);
     expect(script).not.toContain("/usr/local/bin/node");
   });
@@ -127,7 +127,7 @@ describe("判定 CLI 解释形态（家族链——头部分类探测）", () =>
       remoteExecutorFor: remoteJudgeExecutorFor(fx.db.conn, fx.platform, { minTimeoutSecs: 10 }),
     });
     await exec.run({ prompt: "p", messageIds: [] });
-    const script = fx.scope.spawns.find((argv) => argv[0] === "/bin/sh")?.[2] ?? "";
+    const script = execScriptOf(fx.scope.spawns);
     expect(script).toContain("exec /usr/local/bin/node /usr/local/bin/claude -p p");
   });
 });
@@ -175,7 +175,7 @@ describe("判定工作目录随执行世界（部署实体 workdir 压过 agent 
       remoteExecutorFor: remoteJudgeExecutorFor(fx.db.conn, fx.platform, { minTimeoutSecs: 10 }),
     });
     await exec.run({ prompt: "p", messageIds: [] });
-    const script = fx.scope.spawns.find((argv) => argv[0] === "/bin/sh")?.[2] ?? "";
+    const script = execScriptOf(fx.scope.spawns);
     expect(script).toContain(`cd ${WORKDIR} || exit 1`);
     expect(script).not.toContain(".choose-you/workspace");
   });
@@ -194,7 +194,7 @@ describe("判定工作目录随执行世界（部署实体 workdir 压过 agent 
       remoteExecutorFor: remoteJudgeExecutorFor(fx.db.conn, fx.platform, { minTimeoutSecs: 10 }),
     });
     await exec.run({ prompt: "p", messageIds: [] });
-    const script = fx.scope.spawns.find((argv) => argv[0] === "/bin/sh")?.[2] ?? "";
+    const script = execScriptOf(fx.scope.spawns);
     expect(script).toContain("cd ~/proj || exit 1");
   });
 });

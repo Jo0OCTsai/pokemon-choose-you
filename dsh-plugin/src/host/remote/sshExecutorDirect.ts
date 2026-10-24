@@ -45,7 +45,13 @@ export function createDirectSshExecutor(input: {
         return { exitCode: null, durationMs: duration(), stdout: "", timedOut: false, error: executableHint };
       }
       const timeoutMs = effectiveTimeoutSecs(job.timeoutSecs, input.minTimeoutSecs ?? DISPATCH_MIN_TIMEOUT_SECS) * 1000;
-      const { script, stdin } = remoteDispatchScript(job, cli, { nodePath: input.nodePath, interpreter: "node" });
+      // 直连链经系统 ssh：sshd 按用户登录 shell 起会话（env 同源），node 前缀固定形态
+      // 维持既有口径（见 docs/debt.md 直连降级链条目）
+      const { script, stdin } = remoteDispatchScript(
+        job,
+        { mode: "exec", path: cli, interpreter: "node" },
+        { nodePath: input.nodePath },
+      );
       const argv = [
         ...sshConnectArgs(input.target, input.connectTimeoutSecs ?? SSH_CONNECT_TIMEOUT_SECS),
         "--",

@@ -56,6 +56,7 @@ export default {
     kbdHint: "J/K 上下條 · C 捕捉/應用更新 · X 逃走 · F 強制捕捉（僅插件頁面聚焦域內生效，不註冊全域快捷鍵）",
     acceptTag: "＋ 接受新標籤提議",
     judging: "判定中…",
+    groupJudging: "◌ 判定中",
   },
   dispatch: {
     handoffCopied: "派發命令已複製——在終端貼上執行，完成後 agent 會自動寫回結果",

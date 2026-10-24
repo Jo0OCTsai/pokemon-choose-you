@@ -57,6 +57,7 @@ export default {
     kbdHint: "快捷键：J/K 上下条 · C 捕捉/应用更新 · X 逃走 · F 强制捕捉（仅插件页面聚焦域内生效，不注册全局快捷键）",
     acceptTag: "＋ 接受新标签提议",
     judging: "判定中…",
+    groupJudging: "◌ 判定中",
   },
   dispatch: {
     handoffCopied: "派发命令已复制——在终端粘贴执行，完成后 agent 会自动写回结果",

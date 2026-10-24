@@ -104,6 +104,8 @@ export interface HostClient {
   dispatchHeadless(params: { taskId: number; routeOverride?: string }): Promise<PkyResult<DispatchView>>;
   dispatchClose(params: { taskId: number; result: "done" | "failed"; note?: string }): Promise<PkyResult<DispatchView>>;
   dispatchReset(params: { taskId: number }): Promise<PkyResult<DispatchView>>;
+  // 桌面 API parity 保留面：dsh 客户端无调用方（救援走 dispatchClose/dispatchReset、
+  // 重派走 dispatchInteractive/Headless），勿当活功能维护
   dispatchCancel(params: { taskId: number }): Promise<PkyResult<DispatchView>>;
   dispatchRedo(params: { taskId: number }): Promise<PkyResult<DispatchView>>;
   // 设置

@@ -8,7 +8,9 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { mkdtempSync } from "node:fs";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import type { ExecOutcome } from "../src/host/dispatch/executor";
+import type { DispatchJob, ExecOutcome } from "../src/host/dispatch/executor";
+import type { ResolvedDispatchRoute } from "../src/host/dispatch/routes";
+import { seedDeployment } from "./helpers";
 import { createCommandsFixture, type CommandsFixture } from "./commandsSetup";
 
 let f: CommandsFixture;
@@ -34,14 +36,50 @@ function probeStdout(stdout: string, extra: Partial<ExecOutcome> = {}): void {
 }
 
 /** 直插一个 agent 配置（ai_agents 设置键，loadAgents 口径；remote 可选 = 远端 SSH 执行） */
-function seedAgent(id: string, command: string, deployment?: string): void {
-  f.conn
-    .prepare("INSERT OR REPLACE INTO settings (key, value) VALUES ('ai_agents', ?)")
-    .run(
-      JSON.stringify([
-        { id, name: id, command, args: "", historyArgs: "", workdir: "", timeoutSecs: 30, enabled: true, deployment },
-      ]),
-    );
+function seedAgent(id: string, command: string, deployment?: string, workdir = ""): void {
+  f.conn.prepare("INSERT OR REPLACE INTO settings (key, value) VALUES ('ai_agents', ?)").run(
+    JSON.stringify([
+      {
+        id,
+        name: id,
+        command,
+        args: "",
+        historyArgs: "",
+        workdir,
+        timeoutSecs: 30,
+        enabled: true,
+        ...(deployment !== undefined ? { deployment } : {}),
+      },
+    ]),
+  );
+}
+
+/**
+ * 装配层同形替身（remoteHeadlessDeps 语义）：路由带 deployment → 远端执行器（记录 job、
+ * 回 remoteStdout）；deployment null → 本机执行器（记录 job、stdout 恒空）。远端 agent
+ * 落到本机执行器即「本机 CLI 冒充」回归红。
+ */
+function executorRouting(remoteStdout: string): {
+  seen: Array<Pick<ResolvedDispatchRoute, "deployment" | "workdir">>;
+  remoteJobs: DispatchJob[];
+  localJobs: DispatchJob[];
+} {
+  const seen: Array<Pick<ResolvedDispatchRoute, "deployment" | "workdir">> = [];
+  const remoteJobs: DispatchJob[] = [];
+  const localJobs: DispatchJob[] = [];
+  f.deps.dispatchDeps.executorFor = (_agent, route) => {
+    seen.push({ deployment: route.deployment, workdir: route.workdir });
+    const isLocal = route.deployment === null;
+    const jobs = isLocal ? localJobs : remoteJobs;
+    return {
+      launch: async (job): Promise<ExecOutcome> => {
+        jobs.push(job);
+        return { exitCode: 0, durationMs: 5, stdout: isLocal ? "" : remoteStdout, timedOut: false };
+      },
+      kill: () => undefined,
+    };
+  };
+  return { seen, remoteJobs, localJobs };
 }
 
 describe("agentTest × 凭据环境注入（dispatchDeps.agentEnv——判定/派发同链路）", () => {
@@ -148,6 +186,57 @@ describe("agentTest 远端 SSH agent（无 provider 不本机回落）", () => {
       data: { connected: boolean; message: string };
     };
     expect(local.data.message).not.toContain("远端");
+  });
+});
+
+describe("agentTest 探针路由随部署绑定合成（远端 agent 不落本机执行）", () => {
+  it("部署绑定 → 路由带 deployment 经远端执行器探测；workdir = 实体登记工作区（压过 agent.workdir）", async () => {
+    seedDeployment(f.conn, "pky-remote", "/workspaces/dev-env-settings");
+    // agent.workdir 留本机语义路径：若落本机执行器，cwd 不存在直接 ENOENT（回归现场）
+    seedAgent("ag-cc", "claude", "pky-remote", "/Users/jotsai/local-ws");
+    const routing = executorRouting('{"openTasks":1}');
+    const out = (await f.call("agentTest", { agentId: "ag-cc" })) as {
+      data: { connected: boolean; message: string };
+    };
+    expect(out.data.connected).toBe(true);
+    expect(routing.remoteJobs).toHaveLength(1);
+    expect(routing.localJobs).toHaveLength(0);
+    expect(routing.seen[0]?.deployment).toEqual({ ref: "pky-remote", target: "pky-remote" });
+    expect(routing.remoteJobs[0]).toMatchObject({
+      command: "claude",
+      workdir: "/workspaces/dev-env-settings",
+    });
+  });
+
+  it("未绑定部署 → 路由 deployment null + workdir = agent.workdir（本机探针行为不变）", async () => {
+    seedAgent("ag-local", "claude", undefined, "/tmp/local-ws");
+    const routing = executorRouting('{"openTasks":1}');
+    const out = (await f.call("agentTest", { agentId: "ag-local" })) as {
+      data: { connected: boolean; message: string };
+    };
+    expect(routing.seen[0]?.deployment).toBeNull();
+    expect(routing.remoteJobs).toHaveLength(0);
+    expect(routing.localJobs[0]).toMatchObject({ command: "claude", workdir: "/tmp/local-ws" });
+    expect(out.data.connected).toBe(false); // 本机执行器替身 stdout 恒空 → 不连通文案
+  });
+
+  it("悬空绑定（实体已删）→ 路由仍带 deployment 且 workdir 回落 agent.workdir；装配层拒绝（null）→ 守卫文案点名部署", async () => {
+    seedAgent("ag-dangling", "claude", "ghost", "/tmp/ws");
+    const routing = executorRouting('{"openTasks":1}');
+    const out = (await f.call("agentTest", { agentId: "ag-dangling" })) as {
+      data: { connected: boolean };
+    };
+    expect(out.data.connected).toBe(true); // 实体缺失在路由合成不硬拒——planRemoteRoute 派发时守卫
+    expect(routing.seen[0]?.deployment).toEqual({ ref: "ghost", target: "ghost" });
+    expect(routing.remoteJobs[0]?.workdir).toBe("/tmp/ws");
+    // 装配层计划被拒（DEPLOYMENT_NOT_READY / SSH_FAMILY_MISSING）形态 = null → 不冒充本机
+    f.deps.dispatchDeps.executorFor = () => null;
+    const rejected = (await f.call("agentTest", { agentId: "ag-dangling" })) as {
+      data: { connected: boolean; message: string };
+    };
+    expect(rejected.data.connected).toBe(false);
+    expect(rejected.data.message).toContain("ghost");
+    expect(rejected.data.message).toContain("不能用本机同名 CLI 冒充");
   });
 });
 

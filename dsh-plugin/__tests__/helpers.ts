@@ -8,6 +8,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { open, type Conn } from "../src/host/storage/db";
 import { initConn } from "../src/host/storage/init";
+import { storeDeployments } from "../src/host/remote/deployments";
 import { LogRing } from "../src/host/health/logRing";
 import { HealthState } from "../src/host/health/snapshot";
 import { createFakeTerminal } from "../src/host/dispatch/terminalAdapters";
@@ -162,6 +163,26 @@ export function seedTag(conn: Conn, name: string, dimensionKey = "topic"): numbe
     .prepare("INSERT INTO tags (name, description, dimension_id, created_at) VALUES (?, '', ?, '2026-01-01')")
     .run(name, dimId);
   return Number(result.lastInsertRowid);
+}
+
+/** 直插部署实体（storeDeployments 落库口径；agent 绑定路由的实体层断言用） */
+export function seedDeployment(conn: Conn, alias: string, workdir: string): void {
+  storeDeployments(conn, {
+    [`dep-${alias}`]: {
+      id: `dep-${alias}`,
+      alias,
+      nodePath: "/usr/bin/node",
+      helperPath: "",
+      helperHash: null,
+      workdir,
+      note: "",
+      status: "ready",
+      lastError: null,
+      provision: null,
+      degraded: false,
+      pkTunnel: null,
+    },
+  });
 }
 
 /** 读单行单列便捷件 */
