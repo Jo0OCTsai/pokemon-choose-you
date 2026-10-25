@@ -31,8 +31,9 @@ export const refs = {
   captureBall: $("#capture-ball"),
   captureBall2: $("#capture-ball-2"),
   captureStars: $("#capture-stars"),
-  // ChatBox（FR-A8：原位 ≤4 行）
+  // ChatBox（FR-A8：展开区 AI 聊聊）
   chatBox: $("#chat-box"),
+  chatTitle: $("#chat-title"),
   chatLog: $("#chat-log"),
   chatInput: $<HTMLInputElement>("#chat-input"),
   chatSend: $("#chat-send"),

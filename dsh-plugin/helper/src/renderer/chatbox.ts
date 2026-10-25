@@ -1,9 +1,9 @@
 /**
- * ChatBox（FR-A8，语义移植 composables/usePetChat）：右键菜单「💬 对话」原位展开
- * ≤4 行（最近回答 + 思考点 + 输入行(≤200 字) + 快捷 chips）；展开调高（透明窗多余
- * 高度不可见）、Esc/✕ 收起；问题经桥 cmd.pet-chat 上行（host onPetChat 执行）→
- * chat-reply 下发（回答截前 2 句 host 侧完成）；失败气泡回退；历史内存 3 条不持久化。
- * 文本渲染一律 textContent（桥文本不视为可信——纵深防御红线）。
+ * ChatBox（FR-A8，语义移植 composables/usePetChat）：右键菜单「💬 对话」展开 ≤4 行
+ * （标题行 + 最近回答 + 思考点 + 输入行(≤200 字) + 快捷 chips）；展开调高（窗体底缘不动
+ * 向上长——精灵不动，面板悬在精灵上方）、Esc/✕ 收起；问题经桥 cmd.pet-chat 上行
+ * （host onPetChat 执行）→ chat-reply 下发（回答截前 2 句 host 侧完成）；失败气泡回退；
+ * 历史内存 3 条不持久化。文本渲染一律 textContent（桥文本不视为可信——纵深防御红线）。
  */
 import { CHAT_HISTORY_MAX, CHAT_MAX_QUESTION, chatQuestion, pushChatEntry, type ChatEntry } from "../state/chatLog.ts";
 import { fill, lines } from "./lines.ts";
@@ -29,6 +29,7 @@ export function openChat(): void {
   if (mirror.chatOpen || mirror.sceneBusy || mirror.quickOpen) return; // 演出/快捷屏优先
   mirror.chatOpen = true;
   refs.chatBox.classList.add("on");
+  refs.pill.classList.remove("on"); // 药丸位让给聊天面板（收起后由秒级快照 tick 依 chatOpen 恢复）
   void bridge.chatSize(true);
   if (log.length === 0) appendEntry({ role: "bot", text: lines(mirror.lang).chatGreet });
   renderLog();
@@ -124,6 +125,7 @@ export function initChatBox(): void {
 
 export function refreshChatStatic(): void {
   const set = lines(mirror.lang);
+  refs.chatTitle.textContent = set.menuChat; // 面板标题与右键菜单入口同文
   refs.chatInput.placeholder = set.chatPh;
   refs.chatSend.title = set.chatSend;
   refs.chatSend.textContent = set.chatSend;

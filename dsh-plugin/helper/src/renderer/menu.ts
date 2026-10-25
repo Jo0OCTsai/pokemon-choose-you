@@ -41,9 +41,20 @@ export function showCtx(x: number, y: number): void {
   }
   items.push({ label: set.menuHide, action: () => void bridge.cmd("hide") });
   refs.ctxMenu.replaceChildren(...items.map(ctxItem));
-  refs.ctxMenu.style.left = `${String(Math.min(x, 180))}px`;
-  refs.ctxMenu.style.top = `${String(Math.min(y, 220))}px`;
   refs.ctxMenu.classList.add("on");
+  clampCtxIntoWindow(x, y);
+}
+
+/** 菜单定位：先渲染量实际尺寸，再夹回窗体内（写死上限会随项数/缩放越界裁切）；视口坐标 → #app 坐标 */
+function clampCtxIntoWindow(x: number, y: number): void {
+  const s = mirror.petConfig.scale || 1;
+  const margin = 6; // 硬投影 4px + 余量
+  const maxX = Math.max(window.innerWidth - s * refs.ctxMenu.offsetWidth - margin, margin);
+  const maxY = Math.max(window.innerHeight - s * refs.ctxMenu.offsetHeight - margin, margin);
+  const vx = Math.min(Math.max(x, margin), maxX);
+  const vy = Math.min(Math.max(y, margin), maxY);
+  refs.ctxMenu.style.left = `${String(vx / s)}px`;
+  refs.ctxMenu.style.top = `${String(window.innerHeight - (window.innerHeight - vy) / s)}px`;
 }
 
 function ctxItem(it: { label: string; action: () => void }): HTMLButtonElement {

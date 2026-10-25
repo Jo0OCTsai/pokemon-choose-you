@@ -1,12 +1,13 @@
 /**
  * 系统托盘（FR-A1）：Tray 常驻 + tooltip（host 组装经 sys-config 下发）+ 左键打开图鉴机 +
  * 右键四项菜单三语（打开图鉴机 / 显示·隐藏桌宠 / 设置 / 退出[确认一次]）→ 上行 tray-action。
- * 图标用既有精灵剪影资产（dist/renderer/pokemon/pikachu.gif——分发口径单源，NFR-9）。
+ * 图标 = 内嵌精灵球模板图（sys/trayIcon.ts；nativeImage 不解 GIF，精灵资产不可作图标源）。
  * headless = no-op 记录器（可编程：click 模拟动作、pickQuit 模拟退出确认）。
  */
 import type { Lang } from "../bridge/protocol.ts";
 import type { SysContext } from "./context.ts";
 import { defaultTooltip, trayLabels } from "./labels.ts";
+import { trayIconPng } from "./trayIcon.ts";
 
 export interface TrayModule {
   setTooltip(tooltip: string): void;
@@ -111,8 +112,10 @@ function makeMenuBuilder(
 /** Electron 实现（动态 import——headless 主链路零 electron 触碰；Tray 须 app ready 后创建） */
 export async function createElectronTray(ctx: SysContext, opts: { lang: Lang }): Promise<TrayModule> {
   const { Tray, Menu, nativeImage, dialog } = await import("electron");
-  const image = nativeImage.createFromPath(`${__dirname}/renderer/pokemon/pikachu.gif`).resize({ width: 20 });
-  const tray = new Tray(image.isEmpty() ? nativeImage.createEmpty() : image);
+  const image = nativeImage.createFromBuffer(trayIconPng(), { scaleFactor: 2 });
+  if (image.isEmpty()) ctx.diag("tray-icon", "embedded png decode failed"); // 图标空转可观测
+  image.setTemplateImage(true); // 模板图：随菜单栏深浅色自动反色
+  const tray = new Tray(image);
 
   const state = { tooltip: defaultTooltip(opts.lang), lang: opts.lang, visible: true };
 

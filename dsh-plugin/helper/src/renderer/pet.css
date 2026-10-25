@@ -52,7 +52,8 @@
 
 .stage {
   position: absolute;
-  left: 50%;
+  /* 锚定左 300 区中心（写死 150px 而非 50%）：快捷屏展开窗体 300→590 向右长宽时精灵在屏幕上不动 */
+  left: 150px;
   bottom: 96px;
   width: 112px;
   height: 112px;
@@ -97,10 +98,15 @@
   animation: pet-bounce 0.9s var(--e-pop);
 }
 
-/* dragging：悬挂物理（8° 倾斜 + 头甩） */
+/* dragging：悬挂小碎步（桌面 pk-drag-hang 同口径：5°↔11° 0.3s） */
 .tr-dragging .pet-sprite {
   cursor: grabbing;
-  animation: drag-sway 0.6s var(--e-sway) infinite;
+  animation: drag-hang 0.3s var(--e-sway) infinite;
+}
+
+/* landing：松手挤压回弹 420ms（桌面 pk-release-squash 同口径） */
+.tr-landing .pet-sprite {
+  animation: release-squash 420ms var(--e-pop);
 }
 
 /* rest：休息态 */
@@ -179,6 +185,7 @@
   opacity: 0;
   transition: opacity var(--t-pop);
   box-shadow: 2px 2px 0 var(--dex-navy);
+  pointer-events: auto; /* #app 根 none 是继承属性——不开 auto 点击穿透连 :hover 都不触发 */
 }
 .quick-fab:hover {
   background: var(--dex-body);
@@ -213,26 +220,22 @@
 
 /* ============================== DialogBox（初代气球尾巴 + 右下 ▼；parity 对齐 src/PetApp.vue） ============================== */
 
-/* 紧凑对白气泡：宽随内容区、单层描边、顶部小尾巴指向精灵；
-   白底 + 藏青框 + 硬投影保留初代语感。窗口 330 高、精灵底缘在距底 96px——
-   气泡锚 top 定位（盒子顶 = 精灵底 + 14px，尾巴尖再探上 9px ≈ 距精灵 5px，与桌面端一致） */
+/* 紧凑对白气泡：定宽 210、单层描边、顶部小尾巴指向精灵；
+   白底 + 藏青框 + 硬投影保留初代语感。精灵底缘在距底 96px——气泡顶缘钉在精灵底 + 14px
+   （bottom 82 + translateY(100%) 自坠一个盒高），行数增多向下长；定宽不随窗体展开横向拉伸 */
 .dialog {
   position: absolute;
   left: 45px; /* 宽度 = 原全宽（280px）的 3/4 = 210px：左右各收 35px */
-  right: 45px;
-  top: 248px;
-  bottom: auto;
+  width: 210px;
+  bottom: 82px;
   max-height: 76px;
   opacity: 0;
-  transform: translateY(6px);
-  transition:
-    opacity var(--t-act),
-    transform var(--t-act);
+  transform: translateY(100%);
+  transition: opacity var(--t-act);
   pointer-events: none;
 }
 .dialog.on {
   opacity: 1;
-  transform: translateY(0);
 }
 
 /* 尾巴：双色三角（藏青描边 + 白芯），白芯底边穿过边框区探入内部与气泡白色连通成「开口」；
@@ -260,7 +263,8 @@
   border-bottom-color: #fff;
 }
 
-/* 单层描边（parity：不再用初代双线框），投影 2px 与桌面端同档 */
+/* 单层描边（parity：不再用初代双线框），投影 2px 与桌面端同档；浮现滑移在 inner（.dialog 的
+   transform 被 translateY(100%) 定位占用） */
 .dialog-inner {
   display: flex;
   align-items: center;
@@ -272,6 +276,11 @@
   box-shadow: 2px 2px 0 var(--dex-navy);
   cursor: pointer; /* 点击收起 */
   pointer-events: auto;
+  transform: translateY(8px);
+  transition: transform var(--t-act);
+}
+.dialog.on .dialog-inner {
+  transform: translateY(0);
 }
 
 .dialog-text {
@@ -306,8 +315,10 @@
 
 .pomo-pill {
   position: absolute;
-  top: 6px;
-  left: 50%;
+  /* 贴精灵头顶（精灵顶缘距底 208，留 12px 间隙）；left 同 .stage 锚左 300 区。
+     不用 top 锚：ChatBox 展开窗体顶缘上移，top 锚会让药丸跟着漂走 */
+  bottom: 220px;
+  left: 150px;
   transform: translateX(-50%);
   display: none;
   align-items: center;
@@ -345,6 +356,7 @@
   box-shadow: 2px 2px 0 var(--dex-navy);
   transition: transform var(--t-tap);
   display: none;
+  pointer-events: auto; /* 药丸容器随根穿透，按钮须自开命中 */
 }
 .pomo-btn.on {
   display: inline-block;
@@ -361,10 +373,10 @@
 
 .quick-dex {
   position: absolute;
-  left: 50%;
+  /* 展开区右栏：窗体 300→590 向右长宽、精灵居左 300 区——面板钉右缘（right 锚）不遮精灵不越窗 */
+  right: 10px;
   bottom: 90px;
-  width: 570px; /* 300 窗内先以滚动容器呈现；展开 590 窗宽由主进程 resize 承接（v1 视窗内滚动） */
-  max-width: calc(100vw - 20px);
+  width: 270px; /* 590 − 精灵区 300 − 两侧 10px 边距 */
   display: none;
   flex-direction: column;
   background: var(--dex-body);
@@ -392,7 +404,8 @@
   /* 扫描线（DESIGN_SYSTEM §3） */
   background-image: repeating-linear-gradient(0deg, rgba(0, 0, 0, 0.05) 0 2px, transparent 2px 4px);
   color: var(--lcd-text);
-  max-height: 200px;
+  /* 总高预算：bottom 90 上方 240（hinge 9 + margin 16 + border 4 + padding 20 + 标题 ~18 + ops 34） */
+  max-height: 138px;
   overflow-y: auto;
 }
 
@@ -615,13 +628,28 @@
   }
 }
 
-@keyframes drag-sway {
+@keyframes drag-hang {
   0%,
   100% {
-    transform: rotate(-8deg) translateY(1px);
+    transform: rotate(5deg);
   }
   50% {
-    transform: rotate(-8deg) translateY(-1px);
+    transform: rotate(11deg);
+  }
+}
+
+@keyframes release-squash {
+  0% {
+    transform: rotate(8deg) scale(1.02, 0.98);
+  }
+  35% {
+    transform: rotate(0) scale(1.1, 0.84) translateY(3px);
+  }
+  70% {
+    transform: rotate(0) scale(0.97, 1.04) translateY(-3px);
+  }
+  100% {
+    transform: rotate(0) scale(1, 1);
   }
 }
 
@@ -760,6 +788,7 @@
     animation: none !important;
   }
   .dialog,
+  .dialog-inner,
   .ring-fg {
     transition: none !important;
   }
@@ -772,6 +801,7 @@ html.reduced-motion .st-paused .pet-sprite,
 html.reduced-motion .stage.asleep .pet-sprite,
 html.reduced-motion .tr-petting .pet-sprite,
 html.reduced-motion .tr-dragging .pet-sprite,
+html.reduced-motion .tr-landing .pet-sprite,
 html.reduced-motion .m-blink .pet-sprite,
 html.reduced-motion .m-look .pet-sprite,
 html.reduced-motion .m-flip .pet-sprite,
@@ -781,6 +811,7 @@ html.reduced-motion .dialog-next.blink {
   animation: none !important;
 }
 html.reduced-motion .dialog,
+html.reduced-motion .dialog-inner,
 html.reduced-motion .ring-fg {
   transition: none !important;
 }
@@ -927,57 +958,96 @@ html.reduced-motion .ring-fg {
   }
 }
 
-/* ============================== FR-A8 ChatBox（原位 ≤4 行） ============================== */
+/* ============================== FR-A8 ChatBox（窗体向上长高，面板悬在精灵上方） ============================== */
 
+/* 锚定：面板底 = 精灵顶缘（距底 208）+ 8px 间距——主进程 pet:chatSize 底缘不动向上长高
+   （330↔480），精灵/气泡在屏幕上纹丝不动，面板恰好落在多出来的上部区域，互不重叠 */
 .chat-box {
   position: absolute;
-  inset: auto 0 0 0;
+  left: 6px;
+  right: 6px;
+  bottom: 216px;
   height: 150px;
   display: none;
 }
 .chat-box.on {
   display: block;
 }
+/* 命中修复：#app 根 pointer-events:none 是继承属性——不显式开 auto 整块点击穿透
+   （mousemove 命中翻转的 .hit 判定也随 target 跳过而失效，窗体永远收不到点击） */
 .chat-inner {
+  pointer-events: auto;
   position: absolute;
-  inset: 6px 6px 26px 6px;
+  inset: 0;
   display: flex;
   flex-direction: column;
-  gap: 4px;
-  padding: 6px;
+  gap: 6px;
+  padding: 8px;
   background: var(--dex-body);
+  border: 3px solid var(--dex-navy); /* 控件级 */
+  border-radius: 8px;
+  box-shadow: 2px 2px 0 var(--dex-navy);
+}
+.chat-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+}
+.chat-title {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--dex-navy);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.chat-close {
+  flex: none;
+  width: 20px;
+  height: 20px;
+  font-size: 10px;
+  line-height: 1;
+  background: transparent;
   border: 2px solid var(--dex-navy);
-  border-radius: 6px;
-  box-shadow: 0 2px 0 rgba(0, 0, 0, 0.25);
+  border-radius: 50%;
+  color: var(--dex-navy);
+  cursor: pointer;
+}
+.chat-close:hover {
+  background: var(--poke-yellow);
 }
 .chat-log {
   flex: 1;
+  min-height: 0;
   overflow-y: auto;
   display: flex;
   flex-direction: column;
-  gap: 3px;
+  gap: 4px;
   scrollbar-width: none;
 }
 .chat-log::-webkit-scrollbar {
   display: none;
 }
 .chat-entry {
-  font-size: 10px;
+  font-size: 11px;
   line-height: 1.5;
-  padding: 2px 6px;
-  border-radius: 4px;
-  max-width: 92%;
+  padding: 3px 8px;
+  border: 1px solid var(--dex-navy);
+  border-radius: 8px;
+  max-width: 88%;
+  overflow-wrap: anywhere;
 }
 .chat-entry.user {
   align-self: flex-end;
   background: var(--poke-yellow);
-  border: 1px solid var(--dex-navy);
+  border-bottom-right-radius: 2px;
   color: var(--dex-navy);
 }
 .chat-entry.bot {
   align-self: flex-start;
-  background: rgba(255, 255, 255, 0.85);
-  border: 1px solid var(--dex-navy);
+  background: #fff;
+  border-bottom-left-radius: 2px;
   color: var(--dex-navy);
 }
 .chat-entry.thinking {
@@ -1005,10 +1075,10 @@ html.reduced-motion .ring-fg {
 }
 .chat-chips button {
   flex: 1;
-  font-size: 9px;
-  padding: 2px 4px;
-  background: transparent;
-  border: 1px solid var(--dex-navy);
+  font-size: 10px;
+  padding: 3px 4px;
+  background: #fff;
+  border: 2px solid var(--dex-navy);
   border-radius: 999px;
   color: var(--dex-navy);
   cursor: pointer;
@@ -1017,7 +1087,7 @@ html.reduced-motion .ring-fg {
   text-overflow: ellipsis;
 }
 .chat-chips button:hover {
-  background: var(--pcy-hover, rgba(0, 0, 0, 0.06));
+  background: var(--poke-yellow);
 }
 .chat-row {
   display: flex;
@@ -1025,47 +1095,42 @@ html.reduced-motion .ring-fg {
 }
 .chat-input {
   flex: 1;
+  min-width: 0;
   font-size: 11px;
-  padding: 3px 6px;
-  border: 1px solid var(--dex-navy);
-  border-radius: 4px;
+  padding: 4px 8px;
+  border: 2px solid var(--dex-navy);
+  border-radius: 6px;
   background: #fff;
   color: var(--dex-navy);
+  font-family: inherit;
 }
 .chat-input:focus {
   outline: 2px solid var(--poke-yellow);
   outline-offset: -1px;
 }
 .chat-send {
-  font-size: 10px;
-  padding: 3px 8px;
+  font-size: 11px;
+  padding: 4px 10px;
   background: var(--poke-yellow);
-  border: 1px solid var(--dex-navy);
-  border-radius: 4px;
+  border: 2px solid var(--dex-navy);
+  border-radius: 6px;
+  box-shadow: 2px 2px 0 var(--dex-navy);
   color: var(--dex-navy);
   cursor: pointer;
 }
-.chat-close {
-  position: absolute;
-  top: 8px;
-  right: 10px;
-  width: 18px;
-  height: 18px;
-  font-size: 10px;
-  line-height: 1;
-  background: var(--dex-body);
-  border: 1px solid var(--dex-navy);
-  border-radius: 50%;
-  color: var(--dex-navy);
-  cursor: pointer;
+.chat-send:active {
+  transform: translate(1px, 1px); /* 按压位移 = 阴影一半 */
+  box-shadow: 1px 1px 0 var(--dex-navy);
 }
 
 /* ============================== P1 窗口缩放 / 透明度 / urgent / 提醒动作条 ============================== */
 
-/* 根缩放（P1 D5）：#app 整树等比——窗口尺寸由主进程按 scale 换算，.hit 命中区随元素几何自然联动 */
+/* 根缩放（P1 D5）：#app 整树等比——窗口尺寸由主进程按 scale 换算，.hit 命中区随元素几何自然联动。
+   origin 取左下：窗体垂直锚定全在底缘（精灵/气泡/药丸/面板 bottom 锚），缩放以底缘为基准不漂移，
+   top 锚元素会被顶出窗上缘——垂直位置一律用 bottom 表达 */
 #app {
   transform: scale(var(--pet-scale, 1));
-  transform-origin: 0 0;
+  transform-origin: left bottom;
 }
 /* 透明度档（pet_opacity 100/80/60 → 1/0.8/0.6）：精灵与气泡本体 */
 .pet-sprite,

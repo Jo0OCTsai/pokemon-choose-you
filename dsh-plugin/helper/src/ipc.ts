@@ -64,20 +64,29 @@ function wireWindowIpc(win: BrowserWindow, runtime: HelperRuntime): void {
     }
   });
 
-  // ChatBox 原位展开调高 330 ↔ 480（透明窗多余高度不可见；宽度不动——快捷屏宽度优先不叠加）。
-  // 窗体默认 focusable:false（点击穿透纪律）——ChatBox 需要键盘输入，展开时临时可聚焦。
-  ipcMain.handle("pet:chatSize", (_e, open: boolean) => {
-    if (win.isDestroyed()) return;
-    const [x, y] = win.getPosition();
-    const scale = runtime.petConfig.scale;
-    const height = Math.round((open ? CHAT_H : WINDOW_H) * scale);
-    if (win.getBounds().height !== height) {
-      win.setSize(win.getBounds().width, height, false);
-      win.setPosition(x, y, false);
-    }
-    win.setFocusable(open);
-    if (open) win.focus();
-  });
+  // ChatBox 高度翻转（窗体行为见 applyChatSize）
+  ipcMain.handle("pet:chatSize", (_e, open: boolean) => applyChatSize(win, runtime, open));
+}
+
+/**
+ * ChatBox 原位展开调高 330 ↔ 480：底缘不动向上长高——精灵/气泡 bottom 锚定在屏幕上纹丝不动，
+ * 面板落在多出来的上部区域（渲染层 .chat-box bottom 锚）；顶部越出工作区则贴顶兜底。
+ * 窗体默认 focusable:false（点击穿透纪律）——ChatBox 需要键盘输入，展开时临时可聚焦。
+ */
+function applyChatSize(win: BrowserWindow, runtime: HelperRuntime, open: boolean): void {
+  if (win.isDestroyed()) return;
+  const scale = runtime.petConfig.scale;
+  const height = Math.round((open ? CHAT_H : WINDOW_H) * scale);
+  const bounds = win.getBounds();
+  if (bounds.height === height) return;
+  let nextY = bounds.y + bounds.height - height; // 底缘不动
+  if (height > bounds.height) {
+    const work = screen.getDisplayMatching(bounds).workArea;
+    nextY = Math.max(nextY, work.y);
+  }
+  win.setBounds({ x: bounds.x, y: nextY, width: bounds.width, height });
+  win.setFocusable(open);
+  if (open) win.focus();
 }
 
 /** 上行命令类：cmd / 本端完成 / 交互回流 / 番茄本地控制 */

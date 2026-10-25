@@ -10,9 +10,10 @@ export function refreshPill(
   pomo: { kind: string; msLeft: number } | null,
 ): void {
   const { pill, pillText, pillPause, pillResume, pillTrial } = refs;
-  // 开关判定（主应用 parity）：pomodoro_enabled=false 时整个胶囊不显示，与有无任务无关
-  pill.classList.toggle("on", !!task && mirror.pomoEnabled);
-  if (!task || !mirror.pomoEnabled) return;
+  // 开关判定（主应用 parity）：pomodoro_enabled=false 时整个胶囊不显示，与有无任务无关；
+  // ChatBox 展开时隐藏——药丸位（精灵头顶）被聊天面板占用，进度仍有色环传达
+  pill.classList.toggle("on", !!task && mirror.pomoEnabled && !mirror.chatOpen);
+  if (!task || !mirror.pomoEnabled || mirror.chatOpen) return;
   const paused = mirror.petState.base === "paused";
   pill.classList.toggle("paused", paused);
   pill.classList.toggle("break", pomo?.kind === "break");

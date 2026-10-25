@@ -83,9 +83,13 @@
         </div>
       </div>
 
-      <!-- ============================== ChatBox（FR-A8：原位 ≤4 行 AI 聊聊） ============================== -->
+      <!-- ============================== ChatBox（FR-A8：展开区 AI 聊聊，悬在精灵上方） ============================== -->
       <div id="chat-box" class="chat-box">
         <div class="chat-inner hit">
+          <div class="chat-head">
+            <span id="chat-title" class="chat-title"></span>
+            <button id="chat-close" type="button" class="chat-close hit" title="收起对话">✕</button>
+          </div>
           <div id="chat-log" class="chat-log"></div>
           <div id="chat-chips" class="chat-chips">
             <button type="button"></button>
@@ -97,7 +101,6 @@
             <button id="chat-send" type="button" class="chat-send"></button>
           </div>
         </div>
-        <button id="chat-close" type="button" class="chat-close hit" title="收起对话">✕</button>
       </div>
 
       <!-- ============================== ContextMenu（右键 ≤6 项） ============================== -->

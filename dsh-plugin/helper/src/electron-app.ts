@@ -52,7 +52,11 @@ export function startElectronApp(runtime: HelperRuntime, opts: ElectronAppOption
       if (cfg.scale !== lastScale) {
         const [w, h] = win.getSize();
         const ratio = cfg.scale / lastScale;
-        win.setSize(Math.round(w * ratio), Math.round(h * ratio), false);
+        const nw = Math.round(w * ratio);
+        const nh = Math.round(h * ratio);
+        const [x, y] = win.getPosition();
+        // 左下角不动（渲染层 transform-origin 左下 + 全 bottom 锚定）：缩放时精灵不跳位
+        win.setBounds({ x, y: y + (h - nh), width: nw, height: nh });
         lastScale = cfg.scale;
       }
     });
@@ -168,8 +172,11 @@ function createWindow(initialPos?: { x: number; y: number }, scale = 1): Browser
   win.setAlwaysOnTop(true, "screen-saver");
   // 跨 Space 悬浮：窗口默认归属创建时所在的 Space（多全屏/多桌面切换即消失——真机反馈）。
   // canJoinAllSpaces 跟随用户当前 Space；visibleOnFullScreen 关闭 = 不悬浮在全屏 app 之上
-  // （全屏避让社区惯例：真全屏（游戏独占/全屏视频）让路——置顶看门狗也压不过系统全屏层）
-  win.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: false });
+  // （全屏避让社区惯例：真全屏（游戏独占/全屏视频）让路——置顶看门狗也压不过系统全屏层）。
+  // skipTransformProcessType 必开：该 API 默认把进程类型在 UIElement↔Foreground 间翻转，
+  // 会把模块顶层 app.dock.hide() 的 accessory 策略翻回前台——Dock 复现 Electron 图标
+  // （隐藏桌宠=停进程、显示=重拉起，每次 spawn 必踩；全屏避让不依赖该翻转兜底的行为）
+  win.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: false, skipTransformProcessType: true });
   // 默认点击穿透（forward 让渲染层仍能收到 mousemove 做命中翻转）
   win.setIgnoreMouseEvents(true, { forward: true });
   placeWindow(win, initialPos);
