@@ -632,8 +632,10 @@ fn assemble_authorized_keys(
 }
 
 /// 追加新受限条目并落权限（装配兜底分支；Windows ACL 尽力修复）。Err = 失败文案。
+// ctx 仅 Windows ACL 分支使用；unix 侧若改名弃用会触发 clippy -D warnings
+#[cfg_attr(not(windows), allow(unused_variables))]
 fn append_authorized_entry(
-    _ctx: &RemotePkSetup,
+    ctx: &RemotePkSetup,
     ssh_dir: &std::path::Path,
     ak: &std::path::Path,
     entry: &str,
