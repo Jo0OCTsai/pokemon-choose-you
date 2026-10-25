@@ -36,7 +36,7 @@ function probeStdout(stdout: string, extra: Partial<ExecOutcome> = {}): void {
 }
 
 /** 直插一个 agent 配置（ai_agents 设置键，loadAgents 口径；remote 可选 = 远端 SSH 执行） */
-function seedAgent(id: string, command: string, deployment?: string, workdir = ""): void {
+function seedAgent(id: string, command: string, deployment?: string, workdir = "", skillDir?: string): void {
   f.conn.prepare("INSERT OR REPLACE INTO settings (key, value) VALUES ('ai_agents', ?)").run(
     JSON.stringify([
       {
@@ -49,6 +49,7 @@ function seedAgent(id: string, command: string, deployment?: string, workdir = "
         timeoutSecs: 30,
         enabled: true,
         ...(deployment !== undefined ? { deployment } : {}),
+        ...(skillDir !== undefined ? { skillDir } : {}),
       },
     ]),
   );
@@ -283,5 +284,31 @@ describe("pk 技能检查与安装（dir 覆盖指向临时目录）", () => {
     expect(out.ok).toBe(false);
     expect(out.error.code).toBe("INVALID_ARGUMENT");
     expect(out.error.message).toContain("技能根目录");
+  });
+
+  it("命令推不出 kind 但有技能根目录（agent 配置或 dir 参数）→ 覆盖兜底，检查/安装照常", async () => {
+    seedAgent("ag-qoder", "qodercli", undefined, "", `${skillDir}/qoder-root`);
+    const check = (await f.call("pkSkillCheck", { agentId: "ag-qoder" })) as {
+      ok: boolean;
+      data: { kind: string; dir: string; installed: boolean };
+    };
+    expect(check.ok).toBe(true);
+    expect(check.data.kind).toBe("custom");
+    expect(check.data.dir.endsWith(join("qoder-root", "pokemon-choose-you"))).toBe(true);
+    expect(check.data.installed).toBe(false);
+    const install = (await f.call("pkSkillInstall", { agentId: "ag-qoder" })) as {
+      ok: boolean;
+      data: { previousVersion: string | null };
+    };
+    expect(install.ok).toBe(true);
+    expect(install.data.previousVersion).toBeNull();
+    // 覆盖值同样吃空白归一：agent 配置只填空白时回到参数错指引
+    seedAgent("ag-blank", "qodercli", undefined, "", "   ");
+    const blank = (await f.call("pkSkillCheck", { agentId: "ag-blank" })) as {
+      ok: boolean;
+      error: { code: string };
+    };
+    expect(blank.ok).toBe(false);
+    expect(blank.error.code).toBe("INVALID_ARGUMENT");
   });
 });

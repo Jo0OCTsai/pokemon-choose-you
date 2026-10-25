@@ -38,7 +38,7 @@ export function kindForCommand(command: string): string | null {
 }
 
 /** 技能目录覆盖值的归一：trim 后非空才算指定 */
-function dirOverride(dir: string | null | undefined): string | null {
+export function dirOverride(dir: string | null | undefined): string | null {
   const trimmed = dir?.trim();
   return trimmed === undefined || trimmed === "" ? null : trimmed;
 }

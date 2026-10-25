@@ -9,6 +9,7 @@ import type { CommandTable, HostCommandDeps } from "./context";
 import { loadAgents, primaryAgent, type AgentConfig } from "../domain/settings";
 import {
   bundledSkillVersion,
+  dirOverride,
   kindForCommand,
   localSkillInstall,
   localSkillStatus,
@@ -36,15 +37,16 @@ function resolveAgent(deps: Pick<HostCommandDeps, "conn">, agentId: string | und
   return agent;
 }
 
-/** kind 推断（命令不可识别 → 带技能根目录指引的参数错） */
-function kindOrThrow(command: string): string {
+/** kind 推断 + 技能目录解析（命令不可识别时靠根目录覆盖兜底；两者皆无才报参数错）。
+ * skillDirFor 对覆盖值优先于 kind 分支，kind 传占位 custom 即可。 */
+function kindAndDir(command: string, dirFlag: string | null | undefined): { kind: string; dir: string } {
   const kind = kindForCommand(command);
-  if (kind === null) {
+  if (kind === null && dirOverride(dirFlag) === null) {
     throw paramError(
       `无法从命令「${command}」推断技能目录：支持 claude / opencode / pi / dsh，其他 agent 请填「技能根目录」`,
     );
   }
-  return kind;
+  return { kind: kind ?? "custom", dir: skillDirFor(kind ?? "custom", dirFlag) };
 }
 
 /** 探针执行结果 → 数据面（成功 / 白名单指引 / 启动失败 / 超时四路文案）。
@@ -120,8 +122,7 @@ export function agentToolsCommands(): CommandTable {
     pkSkillCheck: (p, deps) => {
       const args = p as { agentId?: string; command?: string; dir?: string };
       const agent = resolveAgent(deps, args.agentId);
-      const kind = kindOrThrow(args.command ?? agent.command);
-      const dir = skillDirFor(kind, args.dir ?? agent.skillDir);
+      const { kind, dir } = kindAndDir(args.command ?? agent.command, args.dir ?? agent.skillDir);
       const status = localSkillStatus(dir);
       return {
         kind,
@@ -134,8 +135,7 @@ export function agentToolsCommands(): CommandTable {
     pkSkillInstall: (p, deps) => {
       const args = p as { agentId?: string; command?: string; dir?: string };
       const agent = resolveAgent(deps, args.agentId);
-      const kind = kindOrThrow(args.command ?? agent.command);
-      const dir = skillDirFor(kind, args.dir ?? agent.skillDir);
+      const { kind, dir } = kindAndDir(args.command ?? agent.command, args.dir ?? agent.skillDir);
       const { previousVersion, path } = localSkillInstall(dir);
       return { kind, dir, previousVersion, version: bundledSkillVersion(), path };
     },
