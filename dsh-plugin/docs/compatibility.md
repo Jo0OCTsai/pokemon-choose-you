@@ -74,15 +74,26 @@ Electron 内嵌 Node（A1 宿主侧收口）：Node **24.21.0**（内嵌 SQLite 
 `/api/remote.mux` WebSocket mux 上真实分发——浏览器页内手工开流收到首帧
 `{"type":"item","value":{"type":"ready"}}`（真机闭环证据，见 acceptance-report §4 条目 4）。
 
+## A5 升级记录：dsh 0.2.1-rc.2 → 0.2.1-rc.3（2026-10-25）
+
+| 项 | 结论 |
+| --- | --- |
+| 动因 | dsh 发布 0.2.1-rc.3，peer 钉版 `0.2.1-rc.2` 不满足 → 插件被拒载（同 A2 机制） |
+| diff 实测 | **全家族纯 re-release**：`dsh-client-connection`/`dsh-tools`/`dsh-typert-protocol` + 传递包（scope/session/agent/llm/credentials/brand/user-approval/system-prompt/sandbox/sandbox-policy/working-directory/ptc-runtime/timeout/util-crypto 共 17 包）rc.2 vs rc.3 逐包 diff 仅 package.json 版本字段与家族互引版本号，代码文件零变更 |
+| 改动 | package.json peer/dev `dsh-client-connection`+`dsh-tools`、dependencies `dsh-typert-protocol` 统一钉 `0.2.1-rc.3`；插件版本 0.1.2 → 0.1.3；pnpm-workspace.yaml `minimumReleaseAgeExclude` 名单换 rc.3（新发布包需排除最小发布龄拦截才可安装） |
+| 不动 | dsh-ssh 家族维持 `0.1.6-alpha.1` 钉版（独立升级线，升级需 spike 回归，见矩阵行）；「dsh 0.2.1-rc.2 起 reason 为 {kind} 对象」等历史行为注释保留原版本号（行为引入版本的事实记录，非当前基线） |
+| 验证 | typecheck 零错误；vitest 174 文件 / 1585 测试绿（2 skip 为存量）；build 产物绿；eslint + prettier 绿。`pnpm peers check` 的 10 条 unmet peer 警告与 rc.2 基线逐条一致（stash 对照验证：cordis ~4.0.5 / dsh-sandbox 家族等——咨询性存量，宿主运行期由 install anchor 供 peer）。**真机闭环（2026-10-25）**：本机 dsh CLI 升 0.2.1-rc.3（npm 全局，node-pty 等装包脚本被拦但 prebuilds 在场免脚本）后，旧包 0.1.2 在 rc.3 宿主实测被拒载（add 期显式警告 "requirements … 0.2.1-rc.2" + 启动拒绝，印证 A2 机制）；remove + 重 add 装入 0.1.3（同路径 file: 依赖 pnpm 复用旧解析，须先 remove 再 add 刷新）后警告消失，`dsh --profile pky-test` boot 插件装载成功（hostEntry apply 跑通、待办库 banner 打印、宿主驻留约 100s 无拒载/异常） |
+| 事实边界 | rc.3 与 rc.2 代码零差异，A4 八键真机事实与 worktrees/timer 携带面记录直接沿用 |
+
 ## 兼容矩阵（依赖子系统 × 最低版本 × 探测键）
 
 | 依赖子系统 | 最低版本 | 探测键（`CAPABILITY_KEYS` 单源比对位） | 探测方式 | 状态 |
 | --- | --- | --- | --- | --- |
 | Node 运行时 | ≥ 24 | `node-runtime` | apply 期 `process.versions.node`（`probeNodeRuntime`） | 双形态已实测（web 系统 Node / Electron 内嵌均 24.21.0，见 A1/A4） |
 | node:sqlite（DatabaseSync） | Node ≥ 24（内嵌 SQLite 3.53） | `node-sqlite` | apply 期内存库试开（`probeNodeSqlite`） | 双形态已实测（Electron 内嵌 Node 17 表 schema 冒烟通过，A4） |
-| dsh | 0.2.1-rc.2（基线） | `dsh` | 装配期宿主表面探测（`probeDshCapabilities`：ctx.isolate/plugin 在场即插件已在宿主内运行） | 平台事实（0.2.1-rc.2 peer 钉版，见 A2）；探测实装 |
+| dsh | 0.2.1-rc.3（基线） | `dsh` | 装配期宿主表面探测（`probeDshCapabilities`：ctx.isolate/plugin 在场即插件已在宿主内运行） | 平台事实（0.2.1-rc.3 peer 钉版，见 A2/A5）；探测实装 |
 | cordis-plugin-timer | ~1.1.6（dsh 宿主携带；携带面沿 0.2.0-rc.2 核实） | `dsh-timer` | 装配期 ctx 表面探测（`probeDshCapabilities`：ctx.interval 函数 / ctx.timer 对象任一在场；hostEntry 已 inject timer） | 探测+装配已实测（2026-10-21 web 宿主 ok，四循环 ctx.interval 驱动，A4；行为面沿 full-parity 4.5 真机记录） |
-| dsh session（`ctx.agents` + `ctx.sessions`） | 0.2.1-rc.2（dsh-base 恒在场） | `dsh-session` | 装配期 ctx 注入面存在性（`probeDshCapabilities`：ctx.sessions；hostEntry inject 声明 agents/sessions/agentDefaultModel——缺席插件不装） | 真机探测 ok（2026-10-21 web 宿主，A4）。**消费面已实装（2026-10-19 root 会话判定通道）**：`dsh/sessionExecutor.ts` 经 `agents.create`（root agent、无 origin 分类、meta.cwd 归组项目）+ `agent.followup`/`whenIdle` + `sessions.flush`（执行配方同 dsh-headless）——每批判定 = 一条新会话（`pky-judge-` 前缀），进宿主主会话列表、可回放（前形态无头 subagent 经用户裁决退役，ADR-0003）。root 会话无 outputSchema 结构化约束：prompt 要求裸 JSON 返回 + 围栏容忍解析（垃圾输出=通道失败）；模型组合取 `agentDefaultModel.currentSelection()`（无组合时 prompt 装配报 `{{model}}` 无值，真机实证）。判定会话无插件工具装配——判定上下文（openTasks/categories/tags/dimensions/now，`pk context` 逐字段同构 `buildToolContextData`）由接线层以当前 conn 现取、注入 prompt 头部（2026-10-20 落地，debt 原「候选②执行器预取」；候选①工具装配不采——agentCtx 作用域工具面未验证且 root 形态下无必要） |
+| dsh session（`ctx.agents` + `ctx.sessions`） | 0.2.1-rc.3（dsh-base 恒在场） | `dsh-session` | 装配期 ctx 注入面存在性（`probeDshCapabilities`：ctx.sessions；hostEntry inject 声明 agents/sessions/agentDefaultModel——缺席插件不装） | 真机探测 ok（2026-10-21 web 宿主，A4；基线随 A5 升 rc.3，代码零差异沿用）。**消费面已实装（2026-10-19 root 会话判定通道）**：`dsh/sessionExecutor.ts` 经 `agents.create`（root agent、无 origin 分类、meta.cwd 归组项目）+ `agent.followup`/`whenIdle` + `sessions.flush`（执行配方同 dsh-headless）——每批判定 = 一条新会话（`pky-judge-` 前缀），进宿主主会话列表、可回放（前形态无头 subagent 经用户裁决退役，ADR-0003）。root 会话无 outputSchema 结构化约束：prompt 要求裸 JSON 返回 + 围栏容忍解析（垃圾输出=通道失败）；模型组合取 `agentDefaultModel.currentSelection()`（无组合时 prompt 装配报 `{{model}}` 无值，真机实证）。判定会话无插件工具装配——判定上下文（openTasks/categories/tags/dimensions/now，`pk context` 逐字段同构 `buildToolContextData`）由接线层以当前 conn 现取、注入 prompt 头部（2026-10-20 落地，debt 原「候选②执行器预取」；候选①工具装配不采——agentCtx 作用域工具面未验证且 root 形态下无必要） |
 | dsh worktrees | —（截至基线核实宿主未提供注入面） | `dsh-worktrees` | 装配期 ctx 注入面存在性（`probeDshCapabilities`：ctx.worktrees） | 探测实装；真机确认无注入面（2026-10-21 web 宿主，A4）——派发工作树由插件 ShellRunner 自建 git worktree，缺失只呈现不阻断 |
 | dsh SSH provider family | **0.1.6-alpha.1**（插件 dependencies 钉版分发） | `dsh-ssh` | 装配期动态 `import("@deepseek-ai/dsh-ssh")` + `import("@deepseek-ai/dsh-subprocess-ssh")` 可解析 + 导出面形状（default class + 静态 Config/inject 标记）；闭包版本号经 `createRequire` 读 package.json | 已实测（spike 2026-10-17 PASS；本机闭包动态 import 断言绿）。**Electron 宿主 TLS-PSK 协商失败（A3，2026-10-18）——已实装 broker 过渡通道（系统 Node 子进程传输，0.1.2）** |
 | dsh storage | —（插件自持） | `dsh-storage` | 装配期 ctx 注入面存在性；宿主无 `ctx.storage` → 按前序自持口径标 ok（插件 storage 唯一握连接，detail 注明自持） | 探测实装；自持口径真机成立（2026-10-21，A4） |

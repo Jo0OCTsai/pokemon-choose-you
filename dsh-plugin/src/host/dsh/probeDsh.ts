@@ -133,7 +133,7 @@ function surfaceOf(ctx: DshHostSurface | undefined, key: keyof DshHostSurface): 
 
 function probePlatform(ctx?: DshHostSurface): CapabilityProbe {
   if (ctx !== undefined && typeof ctx.isolate === "function" && typeof ctx.plugin === "function") {
-    return { ok: true, detail: "dsh 宿主进程内运行（ctx.isolate/plugin 表面在场；基线 0.2.1-rc.2）" };
+    return { ok: true, detail: "dsh 宿主进程内运行（ctx.isolate/plugin 表面在场；基线 0.2.1-rc.3）" };
   }
   return { ok: false, detail: "宿主 ctx 表面缺席（不在 dsh 宿主内运行或表面未注入）" };
 }
