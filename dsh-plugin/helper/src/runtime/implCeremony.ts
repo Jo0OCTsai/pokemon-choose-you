@@ -12,6 +12,7 @@ import type {
   PomodoroConfigMsg,
   SpritesMsg,
   TaskStateMsg,
+  UpstreamMsg,
 } from "../bridge/protocol.ts";
 import type { SysDownMsg } from "../sys/index.ts";
 import { prepareTtsText } from "../state/ttsText.ts";
