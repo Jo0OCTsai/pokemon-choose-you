@@ -6,13 +6,8 @@
  */
 import { describe, expect, it } from "vitest";
 import type { DeploymentEntity } from "../src/host/remote/deployments";
-import type { SshScope, SshSpawnResult } from "../src/host/remote/sshScope";
-import {
-  createSshScopeHost,
-  familyProvisioned,
-  type CordisHostContext,
-  type SshFamilyConfig,
-} from "../src/host/dsh/sshScope";
+import { createSshScopeHost, familyProvisioned } from "../src/host/dsh/sshScope";
+import { FakeScope, entity, fakeCtx, setupHost } from "./dsh-scope-host-harness";
 
 /**
  * broker 传输路由（compatibility.md A3 过渡通道）：transport 锁 broker 时装配走
@@ -21,76 +16,6 @@ import {
 import { EventEmitter } from "node:events";
 import type { Readable } from "node:stream";
 import type { HostRequest } from "../src/host/dsh/brokerProtocol";
-
-/** 计数 fake scope（disconnect 收口 / 断开事件断言面；connect 注入按队列出队） */
-class FakeScope implements SshScope {
-  disconnectCalls = 0;
-  onDisconnected?: (id: string) => void;
-  constructor(readonly connectedValue = true) {}
-  get connected(): boolean {
-    return this.connectedValue;
-  }
-  async spawn(): Promise<SshSpawnResult> {
-    return { code: 0, stdout: "", stderr: "", durationMs: 1 };
-  }
-  async spawnTerminal(): Promise<{ sessionId: string }> {
-    return { sessionId: "fake" };
-  }
-  async shell(): Promise<{ code: number; stdout: string; stderr: string }> {
-    return { code: 0, stdout: "", stderr: "" };
-  }
-  async writeFile(): Promise<{ sha256: string }> {
-    return { sha256: "0".repeat(64) };
-  }
-  async disconnect(): Promise<void> {
-    this.disconnectCalls += 1;
-  }
-}
-
-function entity(
-  overrides: Partial<Pick<DeploymentEntity, "helperPath" | "helperHash" | "workdir" | "alias" | "provision">> = {},
-): DeploymentEntity {
-  return {
-    id: "dep-1",
-    alias: overrides.alias ?? "dev-box",
-    nodePath: "/usr/local/bin/node",
-    helperPath: overrides.helperPath ?? "",
-    helperHash: overrides.helperHash ?? null,
-    workdir: overrides.workdir ?? "/srv/app",
-    note: "",
-    status: "not_ready",
-    lastError: null,
-    provision: overrides.provision ?? null,
-    degraded: false,
-    pkTunnel: null,
-  };
-}
-
-/** fake ctx（isolate 装配注入面接管后不再被触碰——占位满足结构类型） */
-const fakeCtx: CordisHostContext = {
-  isolate: () => fakeCtx,
-  plugin: () => Object.assign(Promise.resolve(), { dispose: () => Promise.resolve() }),
-};
-
-/** 受测宿主装配：注入直连/isolate 双工厂记录（connect 按队列出队 scope） */
-function setupHost(opts: { scopes?: FakeScope[] } = {}) {
-  const queue = [...(opts.scopes ?? [new FakeScope()])];
-  const directAliases: string[] = [];
-  const connectCalls: Array<{ deploymentId: string; config: SshFamilyConfig }> = [];
-  const host = createSshScopeHost(fakeCtx, {
-    directScopeFor: (alias) => {
-      directAliases.push(alias);
-      return new FakeScope();
-    },
-    connect: (_ctx, _labels, deploymentId, config, _workdir, onDisconnected) => {
-      connectCalls.push({ deploymentId, config });
-      const made = queue.length > 0 ? queue.shift()! : new FakeScope();
-      made.onDisconnected = onDisconnected;
-      return Promise.resolve({ configKey: JSON.stringify(config), scope: made });
-    },
-  });
-  return { host, directAliases, connectCalls, scopes: opts.scopes ?? [] };
-}
 
 describe("familyProvisioned（helper 落定判定单源）", () => {
   it("helperPath 与 helperHash 均落定 → true；任一未落定 → false（双向）", () => {
@@ -147,7 +72,7 @@ describe("scopeFor 路由：未落定 → 直连工厂", () => {
 });
 
 describe("scopeFor 路由：落定 → isolate 装配", () => {
-  it("helper 五元组组装（host=alias/node/helper/workspace；workdir 空 → 登录目录 '.'）", async () => {
+  it("helper 五元组组装（host=alias/launch.node/helper/workspace；workdir 空 → 登录目录 '.'）", async () => {
     const { host, connectCalls } = setupHost();
     await host.scopeFor(entity({ helperPath: "/h/helper.js", helperHash: "a".repeat(64), workdir: "" }));
     expect(connectCalls).toHaveLength(1);
@@ -155,7 +80,7 @@ describe("scopeFor 路由：落定 → isolate 装配", () => {
       deploymentId: "dep-1",
       config: {
         host: "dev-box",
-        node: "/usr/local/bin/node",
+        launch: { kind: "node-script", node: "/usr/local/bin/node" },
         helper: "/h/helper.js",
         helperHash: "a".repeat(64),
         workspace: ".",

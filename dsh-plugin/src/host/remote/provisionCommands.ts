@@ -17,6 +17,21 @@ export function probeNodeCommand(nodePath: string): string {
   return `${posixQuote(nodePath)} --version`;
 }
 
+/**
+ * 步② 远端 Node 版本门槛：dsh-ssh 0.2.1-rc.3 helper 引入 `node:sea`（Node 20.12 / 21.7 起
+ * 提供），更低版本 helper 启动即崩、表象只是握手超时——探测期按 `--version` 输出提前判死。
+ * 输出不可解析同样判不支持（无法证明可用）。
+ */
+export function remoteNodeSupported(versionOutput: string): boolean {
+  const m = /^v?(\d+)\.(\d+)\.\d+/.exec(versionOutput.trim());
+  if (m === null) {
+    return false;
+  }
+  const major = Number(m[1]);
+  const minor = Number(m[2]);
+  return major >= 22 || (major === 21 && minor >= 7) || (major === 20 && minor >= 12);
+}
+
 /** 步① 附加：部署登记工作目录存在性探测（workdir 非空时消费——空 = 登录目录缺省不探测） */
 export function workdirProbeCommand(workdir: string): string {
   return `test -d ${posixQuote(workdir)}`;

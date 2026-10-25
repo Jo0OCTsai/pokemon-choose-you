@@ -61,7 +61,7 @@ function rig(overrides: Partial<ConstructorParameters<typeof BrokerSshScope>[0]>
     nodeBin: "node",
     brokerJsPath: "/fake/broker.mjs",
     deploymentId: "dep-1",
-    config: { host: "a", node: "/n", helper: "/h", helperHash: "x", workspace: "/w" },
+    config: { host: "a", launch: { kind: "node-script", node: "/n" }, helper: "/h", helperHash: "x", workspace: "/w" },
     workdir: "/w",
     onDisconnected: (id) => disconnected.push(id),
     spawnChild: factory,
@@ -79,7 +79,13 @@ async function startOk(r: { child: FakeBrokerChild; scope: BrokerSshScope }): Pr
 }
 
 const CONFIG_REQ = {
-  config: { host: "a", node: "/n", helper: "/h", helperHash: "x", workspace: "/w" },
+  config: {
+    host: "a",
+    launch: { kind: "node-script" as const, node: "/n" },
+    helper: "/h",
+    helperHash: "x",
+    workspace: "/w",
+  },
   deploymentId: "dep-1",
   workdir: "/w",
 };
@@ -193,7 +199,7 @@ describe("Node 候选链回退（GUI 宿主 PATH 缺 nvm node 场景）", () => 
       nodeCandidates: ["node", "/opt/fake/node"],
       brokerJsPath: "/fake/broker.mjs",
       deploymentId: "dep-1",
-      config: { host: "a", node: "/n", helper: "/h", helperHash: "x", workspace: "/w" },
+      config: CONFIG_REQ.config,
       workdir: "/w",
       onDisconnected: () => undefined,
       spawnChild: (bin) => (bin === "node" ? dead : alive).toChildLike(),
@@ -217,7 +223,7 @@ describe("Node 候选链回退（GUI 宿主 PATH 缺 nvm node 场景）", () => 
       nodeCandidates: ["node", "/opt/fake/node"],
       brokerJsPath: "/fake/broker.mjs",
       deploymentId: "dep-1",
-      config: { host: "a", node: "/n", helper: "/h", helperHash: "x", workspace: "/w" },
+      config: CONFIG_REQ.config,
       workdir: "/w",
       onDisconnected: () => undefined,
       spawnChild: () => {

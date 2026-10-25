@@ -19,7 +19,13 @@ describe("broker 协议编解码", () => {
       {
         id: 1,
         op: "connect",
-        config: { host: "a", node: "/n", helper: "/h", helperHash: "x", workspace: "/w" },
+        config: {
+          host: "a",
+          launch: { kind: "node-script", node: "/n" },
+          helper: "/h",
+          helperHash: "x",
+          workspace: "/w",
+        },
         deploymentId: "d1",
         workdir: "/w",
       },

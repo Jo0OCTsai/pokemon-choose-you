@@ -95,7 +95,7 @@ async function probeSshFamily(): Promise<CapabilityProbe> {
   } catch (error) {
     return {
       ok: false,
-      detail: `dsh-ssh 家族动态 import 失败：${brief(error)}——远程派发不可用，重装插件（依赖钉版 0.1.6-alpha.1）`,
+      detail: `dsh-ssh 家族动态 import 失败：${brief(error)}——远程派发不可用，重装插件（依赖钉版 0.2.1-rc.3）`,
     };
   }
   const ssh = familyFaceOk(sshMod);
@@ -103,13 +103,13 @@ async function probeSshFamily(): Promise<CapabilityProbe> {
   if (!ssh.ok || !subprocess.ok) {
     return {
       ok: false,
-      detail: `dsh-ssh 家族导出面形状不符（${ssh.name}/${subprocess.name} 缺 class+Config/inject 标记）——版本漂移，检查钉版 0.1.6-alpha.1`,
+      detail: `dsh-ssh 家族导出面形状不符（${ssh.name}/${subprocess.name} 缺 class+Config/inject 标记）——版本漂移，检查钉版 0.2.1-rc.3`,
     };
   }
   const version = closureVersion("@deepseek-ai/dsh-ssh");
   return {
     ok: true,
-    detail: `dsh-ssh${version === undefined ? "" : `@${version}`} + dsh-subprocess-ssh（动态 import 解析至插件包闭包；最低版本 0.1.6-alpha.1）`,
+    detail: `dsh-ssh${version === undefined ? "" : `@${version}`} + dsh-subprocess-ssh（动态 import 解析至插件包闭包；最低版本 0.2.1-rc.3）`,
   };
 }
 

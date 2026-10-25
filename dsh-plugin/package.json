@@ -1,7 +1,7 @@
 {
   "name": "pokemon-choose-you-dsh",
   "private": true,
-  "version": "0.1.3",
+  "version": "0.1.4",
   "type": "module",
   "description": "Pokédex Todo (pokemon-choose-you): catch Pokémon by finishing tasks — pomodoro focus, desktop pet, AI agent dispatch and Feishu radio triage",
   "engines": {
@@ -47,7 +47,7 @@
     "test:coverage": "vitest run --coverage"
   },
   "peerDependencies": {
-    "@deepseek-ai/cordis": "~4.0.4",
+    "@deepseek-ai/cordis": "~4.0.5",
     "@deepseek-ai/dsh-client-connection": "0.2.1-rc.3",
     "@deepseek-ai/dsh-tools": "0.2.1-rc.3"
   },
@@ -55,13 +55,13 @@
     "react": "^19.3.0",
     "react-dom": "^19.3.0",
     "@deepseek-ai/dsh-typert-protocol": "0.2.1-rc.3",
-    "@deepseek-ai/dsh-ssh": "0.1.6-alpha.1",
-    "@deepseek-ai/dsh-subprocess-ssh": "0.1.6-alpha.1",
+    "@deepseek-ai/dsh-ssh": "0.2.1-rc.3",
+    "@deepseek-ai/dsh-subprocess-ssh": "0.2.1-rc.3",
     "@electron/get": "5.1.0",
     "uiohook-napi": "1.5.5"
   },
   "devDependencies": {
-    "@deepseek-ai/cordis": "~4.0.4",
+    "@deepseek-ai/cordis": "~4.0.5",
     "@deepseek-ai/cordis-plugin-timer": "~1.1.6",
     "@deepseek-ai/dsh-client-connection": "0.2.1-rc.3",
     "@deepseek-ai/dsh-tools": "0.2.1-rc.3",
