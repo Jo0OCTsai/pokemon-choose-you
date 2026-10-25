@@ -190,23 +190,26 @@ class SingleTunnelRunner {
   /** 拉起 ssh 并接线退出/错误 → 退避重试；健康判定定时器转 healthy */
   private spawnSsh(): void {
     let lastTailAt = 0;
-    this.child = spawn(this.sshBin, tunnelArgv(this.key), {
+    const child = spawn(this.sshBin, tunnelArgv(this.key), {
       stdio: ["ignore", "ignore", "pipe"],
     });
-    this.child.stderr?.on("data", (chunk: Buffer) => {
+    this.child = child;
+    child.stderr?.on("data", (chunk: Buffer) => {
       const line = chunk.toString().trim();
       if (line !== "") {
         this.lastErrTail = line;
         lastTailAt = Date.now();
       }
     });
-    this.child.on("error", (err) => {
+    child.on("error", (err) => {
       if (!this.stopped) {
         this.retry(`无法启动 ssh（${String(err)}）`);
       }
     });
-    this.child.on("exit", (code) => {
-      if (this.stopped) {
+    // close 而非 exit：exit 不等 stdio flush，秒退时 stderr 尾行可能晚于 exit 到达而被误判成「无输出」；
+    // spawn 失败时 error 之后仍会 close，retry 已把 this.child 置空，靠身份比对避免二次退避
+    child.on("close", (code) => {
+      if (this.stopped || this.child !== child) {
         return;
       }
       if (Date.now() - lastTailAt > 5_000) {
