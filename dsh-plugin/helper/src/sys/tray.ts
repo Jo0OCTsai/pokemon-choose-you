@@ -1,7 +1,7 @@
 /**
  * 系统托盘（FR-A1）：Tray 常驻 + tooltip（host 组装经 sys-config 下发）+ 左键打开图鉴机 +
  * 右键四项菜单三语（打开图鉴机 / 显示·隐藏桌宠 / 设置 / 退出[确认一次]）→ 上行 tray-action。
- * 图标 = 内嵌精灵球模板图（sys/trayIcon.ts；nativeImage 不解 GIF，精灵资产不可作图标源）。
+ * 图标 = 桌面 Rust 托盘同源 app 图标全彩内嵌（sys/trayIcon.ts；nativeImage 不解 GIF，精灵资产不可作图标源）。
  * headless = no-op 记录器（可编程：click 模拟动作、pickQuit 模拟退出确认）。
  */
 import type { Lang } from "../bridge/protocol.ts";
@@ -114,7 +114,6 @@ export async function createElectronTray(ctx: SysContext, opts: { lang: Lang }):
   const { Tray, Menu, nativeImage, dialog } = await import("electron");
   const image = nativeImage.createFromBuffer(trayIconPng(), { scaleFactor: 2 });
   if (image.isEmpty()) ctx.diag("tray-icon", "embedded png decode failed"); // 图标空转可观测
-  image.setTemplateImage(true); // 模板图：随菜单栏深浅色自动反色
   const tray = new Tray(image);
 
   const state = { tooltip: defaultTooltip(opts.lang), lang: opts.lang, visible: true };
