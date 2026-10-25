@@ -9,10 +9,10 @@
  * 连真容器 252ms 建连 + 远端执行）；stdin EOF = 宿主侧消亡 → broker 尽力 dispose 退出。
  */
 
-/** 部署连接五元组（dsh-ssh Config 同形 + 部署标识/工作目录） */
+/** 部署连接五元组（dsh-ssh Config 同形 + 部署标识/工作目录；broker 侧原样喂给 sshScope.plugin） */
 export interface BrokerConnectConfig {
   host: string;
-  node: string;
+  launch: { kind: "node-script"; node: string };
   helper: string;
   helperHash: string;
   workspace: string;

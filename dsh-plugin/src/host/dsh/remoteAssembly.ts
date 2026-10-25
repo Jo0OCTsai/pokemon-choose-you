@@ -34,16 +34,17 @@ function readClosureHelperArtifact(): { version: string; sha256: string } {
   // 裸 "./lib/helper.js" 子路径未导出，require.resolve 抛 ERR_PACKAGE_PATH_NOT_EXPORTED）
   const entry = require.resolve("@deepseek-ai/dsh-ssh/helper");
   const sha256 = createHash("sha256").update(readFileSync(entry)).digest("hex");
-  return { version: typeof pkg.version === "string" ? pkg.version : "0.1.6-alpha.1", sha256 };
+  return { version: typeof pkg.version === "string" ? pkg.version : "0.2.1-rc.3", sha256 };
 }
 
 /**
- * 组装 RemoteCommandPlatform：SshScopeHost（家族链连接）+ 闭包 helper 制品（版本 +
- * 权威 sha256 = 运行时读本机闭包 lib/helper.js 计算——spike 修正 C 口径）+ 家族探测。
+ * 组装 RemoteCommandPlatform：SshScopeHost（家族链连接；闭包权威摘要注入——实体 helper
+ * 落后于闭包时先行直连，见 SshScopeHostOptions.helperHashAuthority）+ 闭包 helper 制品
+ * （版本 + 权威 sha256 = 运行时读本机闭包 lib/helper.js 计算——spike 修正 C 口径）+ 家族探测。
  * 家族缺失时 sshFamilyAvailable() = false（远程命令按能力缺失降级，dispatch 走降级链判定）。
  */
 export function remotePlatformOf(ctx: Context): RemoteAssembly {
-  const scopeHost = createSshScopeHost(ctx);
+  const scopeHost = createSshScopeHost(ctx, { helperHashAuthority: () => readClosureHelperArtifact().sha256 });
   let projection: SshFamilyProjection | null = null;
   let probes: DshCapabilityProbes | null = null;
   void probeDshCapabilities(ctx)

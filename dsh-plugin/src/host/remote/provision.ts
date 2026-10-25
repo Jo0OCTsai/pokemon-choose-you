@@ -262,6 +262,7 @@ export {
   npmInstallCommand,
   npmProbeCommand,
   probeNodeCommand,
+  remoteNodeSupported,
   sha256Command,
   sshFamilySpec,
   workdirProbeCommand,

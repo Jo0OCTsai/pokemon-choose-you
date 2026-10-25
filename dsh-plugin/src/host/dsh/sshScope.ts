@@ -40,10 +40,14 @@ export interface CordisHostContext {
   plugin(plugin: object, config?: object): CordisFiber;
 }
 
-/** dsh-ssh Config（0.1.6-alpha.1 实测字段；AD §4.7——从部署实体组装，其余按缺省） */
+/**
+ * dsh-ssh Config（0.2.1-rc.3 实测字段；AD §4.7——从部署实体组装，其余按缺省）。
+ * launch 只用 node-script 形态（远端 nodePath 跑 npm 安装的 helper 脚本）；上游另有
+ * executable 形态（Node SEA 单文件 helper），其归档未公开发布，不进本类型。
+ */
 export interface SshFamilyConfig {
   host: string;
-  node: string;
+  launch: { kind: "node-script"; node: string };
   helper: string;
   helperHash: string;
   workspace: string;

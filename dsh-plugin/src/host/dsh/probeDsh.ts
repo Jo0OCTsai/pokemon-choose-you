@@ -95,7 +95,7 @@ async function probeSshFamily(): Promise<CapabilityProbe> {
   } catch (error) {
     return {
       ok: false,
-      detail: `dsh-ssh 家族动态 import 失败：${brief(error)}——远程派发不可用，重装插件（依赖钉版 0.1.6-alpha.1）`,
+      detail: `dsh-ssh 家族动态 import 失败：${brief(error)}——远程派发不可用，重装插件（依赖钉版 0.2.1-rc.3）`,
     };
   }
   const ssh = familyFaceOk(sshMod);
@@ -103,13 +103,13 @@ async function probeSshFamily(): Promise<CapabilityProbe> {
   if (!ssh.ok || !subprocess.ok) {
     return {
       ok: false,
-      detail: `dsh-ssh 家族导出面形状不符（${ssh.name}/${subprocess.name} 缺 class+Config/inject 标记）——版本漂移，检查钉版 0.1.6-alpha.1`,
+      detail: `dsh-ssh 家族导出面形状不符（${ssh.name}/${subprocess.name} 缺 class+Config/inject 标记）——版本漂移，检查钉版 0.2.1-rc.3`,
     };
   }
   const version = closureVersion("@deepseek-ai/dsh-ssh");
   return {
     ok: true,
-    detail: `dsh-ssh${version === undefined ? "" : `@${version}`} + dsh-subprocess-ssh（动态 import 解析至插件包闭包；最低版本 0.1.6-alpha.1）`,
+    detail: `dsh-ssh${version === undefined ? "" : `@${version}`} + dsh-subprocess-ssh（动态 import 解析至插件包闭包；最低版本 0.2.1-rc.3）`,
   };
 }
 
@@ -133,7 +133,7 @@ function surfaceOf(ctx: DshHostSurface | undefined, key: keyof DshHostSurface): 
 
 function probePlatform(ctx?: DshHostSurface): CapabilityProbe {
   if (ctx !== undefined && typeof ctx.isolate === "function" && typeof ctx.plugin === "function") {
-    return { ok: true, detail: "dsh 宿主进程内运行（ctx.isolate/plugin 表面在场；基线 0.2.1-rc.2）" };
+    return { ok: true, detail: "dsh 宿主进程内运行（ctx.isolate/plugin 表面在场；基线 0.2.1-rc.3）" };
   }
   return { ok: false, detail: "宿主 ctx 表面缺席（不在 dsh 宿主内运行或表面未注入）" };
 }

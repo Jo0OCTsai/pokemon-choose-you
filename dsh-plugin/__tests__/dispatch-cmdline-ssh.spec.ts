@@ -4,11 +4,18 @@
  * 派发 `dst -- <提示词>`、回放 `dst --resume <id>`）+ 交互派发 dsh agent 的注入行/账本摘要。
  */
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { execFileSync } from "node:child_process";
 import { dispatchInteractive } from "../src/host/dispatch/interactive";
 import { createFakeTerminal } from "../src/host/dispatch/terminalAdapters";
-import { promptSummary, remotePayloadLine, sshAliasLine } from "../src/host/dispatch/cmdline";
+import { agentLine, posixQuote, promptSummary, remotePayloadLine, sshAliasLine } from "../src/host/dispatch/cmdline";
+import { dispatchPrompt } from "../src/host/domain/injection";
 import { dstLaunchLine, dstReplayLine, isDshKind } from "../src/host/dispatch/dstLaunch";
 import { createTestDb, seedTask, type TestDb } from "./helpers";
+
+/** 真 shell 剥一层引用（本机 shell / 远端外层 shell 各剥一层——与命令行实际经历的解析一致） */
+function shellUnquote(token: string): string {
+  return execFileSync("/bin/sh", ["-c", `printf '%s' ${token}`], { encoding: "utf8" });
+}
 
 let db: TestDb;
 beforeEach(() => {
@@ -48,6 +55,18 @@ describe("ssh 别名包装行 / 远端载荷（desktop direct_ssh_argv 同构）
     expect(sshAliasLine("dev-box", "x", { port: 2222, keyPath: "~/.ssh/k" })).toContain(
       "ConnectTimeout=10 -i '~/.ssh/k' -p 2222 -- dev-box",
     );
+  });
+
+  it("sshAliasLine：载荷含单引号与多行 prompt 时两层剥引后远端内层 -c 逐字拿到载荷（交互派发只送达首行的回归）", () => {
+    // 真实派发载荷：cd 段 + agent 行（prompt 整体单引号引用，内含 '\'' 转义与多行定界块）
+    const prompt = dispatchPrompt(4, '标题 it\'s "q"', "详情一\n详情二", ["跟进"], "备注");
+    const payload = remotePayloadLine(agentLine("claude", ["--session-id", "s1"], prompt), "~/proj");
+    const line = sshAliasLine("dev-box", payload);
+    const token = posixQuote(posixQuote(payload));
+    expect(line.endsWith(` -c ${token}`)).toBe(true);
+    const remoteWord = shellUnquote(token); // 本机 shell 剥一层 = ssh 原样送达远端的 -c 参数文本
+    expect(shellUnquote(remoteWord)).toBe(payload); // 远端外层 shell 再剥一层 = 内层 -c 的完整命令串
+    expect(payload).toContain("===== 待办数据结束 =====");
   });
 
   it("promptSummary：48 字符截断加省略号；短文原样", () => {

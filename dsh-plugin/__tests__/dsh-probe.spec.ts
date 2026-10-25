@@ -1,7 +1,7 @@
 /**
  * dsh/probeDsh：capability 探测实装（AD §4.8）——键集与 CAPABILITY_KEYS 单源锁一致
  * （dsh 子集双向断言）、fake ctx 表面全枚举（在场/缺席/自持三分支）、dsh-ssh 家族
- * 本机闭包真实动态 import（钉版 0.1.6-alpha.1 在场即 ok）、sshFamily 投影不另立探测路径。
+ * 本机闭包真实动态 import（钉版 0.2.1-rc.3 在场即 ok）、sshFamily 投影不另立探测路径。
  */
 import { describe, expect, it } from "vitest";
 import { CAPABILITY_KEYS } from "../src/host/index";
@@ -78,10 +78,10 @@ describe("ctx 表面探测（fake 全枚举）", () => {
 });
 
 describe("dsh-ssh 家族探测（本机闭包真实动态 import）", () => {
-  it("依赖钉版在场 → ok + 版本 detail（0.1.6-alpha.1）", async () => {
+  it("依赖钉版在场 → ok + 版本 detail（0.2.1-rc.3）", async () => {
     const probes = await probeDshCapabilities(undefined);
     expect(probes["dsh-ssh"].ok).toBe(true);
-    expect(probes["dsh-ssh"].detail).toContain("0.1.6-alpha.1");
+    expect(probes["dsh-ssh"].detail).toContain("0.2.1-rc.3");
   });
 
   it("sshFamily 投影 = capabilities.dsh-ssh 的呈现投影（missing 随 ok 取反）", async () => {

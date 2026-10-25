@@ -13,11 +13,11 @@ import { tlsPskAvailable } from "./tlsStack";
 import { DshSshScope } from "./sshScopeImpl";
 import { loadConsumer, loadFamily } from "./sshScopeFamily";
 
-/** 部署实体 → dsh-ssh Config（AD §4.7：host=alias/node=nodePath/helper/workspace=workdir） */
+/** 部署实体 → dsh-ssh Config（AD §4.7：host=alias/launch.node=nodePath/helper/workspace=workdir） */
 function familyConfig(entity: DeploymentEntity): SshFamilyConfig {
   return {
     host: entity.alias,
-    node: entity.nodePath,
+    launch: { kind: "node-script", node: entity.nodePath },
     helper: entity.helperPath,
     helperHash: entity.helperHash ?? "",
     // workdir 空串 = 登录目录：以 "." 交给远端 helper 缺省（无绝对路径可展开——$HOME 在 provision 状态内不回填实体）
@@ -50,8 +50,9 @@ export type ScopeDisconnectedListener = (deploymentId: string) => void;
 export interface SshScopeHost {
   /**
    * 按部署取/建 SshScope：helper 已落定 → dsh-ssh isolate scope（同配置存活连接
-   * 复用；配置漂移或已断开 → 同 label 重建）；未落定（provision 中）→ 直连 ssh
-   * scope（无长连，每次新建实例——sshScopeHost 兜底路由，acceptance §4 已知项 1）。
+   * 复用；配置漂移或已断开 → 同 label 重建）；未落定（provision 中）或 helper 制品
+   * 与当前闭包权威摘要不符（插件升级后的旧 helper）→ 直连 ssh scope（无长连，每次
+   * 新建实例——sshScopeHost 兜底路由，acceptance §4 已知项 1）。
    */
   scopeFor(entity: DeploymentEntity): Promise<SshScope>;
   /** 关闭指定部署的连接（幂等；deploymentDelete 消费） */
@@ -85,6 +86,14 @@ export interface SshScopeHostOptions {
   transport?: ScopeTransportKind;
   /** broker 传输可调项（transport 命中 broker 时生效；nodeBin/brokerJsPath/spawnChild 注入） */
   broker?: BrokerHostOptions;
+  /**
+   * 闭包 helper 制品权威摘要（remoteAssembly 注入 readClosureHelperArtifact；缺省不校验）。
+   * 实体 helperHash 落于开通时的闭包——插件升级换了 helper 制品后远端仍是旧 helper，家族链
+   * 建连在 hello（协议号/摘要）即被拒，recheck 走不到摘要比对分支、部署卡 disconnected；
+   * 权威摘要在场且与实体不符 → scopeFor 先行直连，recheck 经直连 sha256 比对命中
+   * mismatch → 既有 markHelperMismatch 重装链。
+   */
+  helperHashAuthority?(): string;
 }
 
 /**
@@ -160,6 +169,11 @@ function notifyDisconnected(
   }
 }
 
+/** 实体 helper 落后于当前闭包（权威摘要注入在场且不符——插件升级后的旧 helper；见 SshScopeHostOptions.helperHashAuthority） */
+function helperStale(entity: DeploymentEntity, authority: (() => string) | undefined): boolean {
+  return authority !== undefined && entity.helperHash !== authority();
+}
+
 /**
  * 创建 dsh-ssh 家族 scope 宿主：scopeFor 按 helper 落定状态路由——已落定走家族链
  * （按部署 id 缓存 label 对与存活 scope，重连复用同 label——cordis 同 label join
@@ -184,7 +198,7 @@ export function createSshScopeHost(ctx: CordisHostContext, options: SshScopeHost
     },
 
     async scopeFor(entity) {
-      if (!familyProvisioned(entity)) {
+      if (!familyProvisioned(entity) || helperStale(entity, options.helperHashAuthority)) {
         return directScopeFor(entity.alias); // 直连兜底：每次新实例（无长连可复用）
       }
       const config = familyConfig(entity);

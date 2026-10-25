@@ -69,8 +69,9 @@ export function remotePayloadLine(line: string, workdir: string | null | undefin
  * 终端弹窗执行）：`ssh -tt -o ConnectTimeout=10 [-i key] [-p port] -- <target> exec "$SHELL"
  * -l -c '<payload>'`——不设 BatchMode（密钥未就绪时可在终端输密码）。载荷必须**自携单引号**
  * 到达远端：ssh 重组命令只做空格拼接（不保留引号），而本行先过本机 shell（剥一层引号）
- * ——故对已含引号的载荷再做一层 posixQuote，远端外层 shell 再剥一层，内层 -c 拿到完整
- * 命令串（desktop 直连 spawn 无此层，引号天然保留）。
+ * ——故载荷做两层 posixQuote：内层转义载荷自身的单引号（prompt 整体引用段 `'…'` 与其中的
+ * `'\''`——裸 `'<payload>'` 包裹会在 prompt 开引号处提前闭合，远端只拿到首行），外层给本机
+ * shell 剥；远端外层 shell 再剥一层，内层 -c 拿到完整命令串（desktop 直连 spawn 无本机层）。
  */
 export function sshAliasLine(target: string, payload: string, opts: { keyPath?: string; port?: number } = {}): string {
   const argv = ["ssh", "-tt", "-o", "ConnectTimeout=10"];
@@ -82,7 +83,7 @@ export function sshAliasLine(target: string, payload: string, opts: { keyPath?: 
     argv.push("-p", String(opts.port));
   }
   argv.push("--", target, "exec", `"$SHELL"`, "-l", "-c");
-  return [...argv.map(posixQuote), posixQuote(`'${payload}'`)].join(" ");
+  return [...argv.map(posixQuote), posixQuote(posixQuote(payload))].join(" ");
 }
 
 /** 落库/提示用 prompt 截断版（按字符截，中文安全；48 字符 + 省略号） */

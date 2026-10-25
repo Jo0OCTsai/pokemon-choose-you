@@ -53,7 +53,7 @@ function rig(scope: BrokerScopeFace | ((config: unknown) => BrokerScopeFace)) {
 const CONNECT: HostRequest = {
   id: 1,
   op: "connect",
-  config: { host: "a", node: "/n", helper: "/h", helperHash: "x", workspace: "/w" },
+  config: { host: "a", launch: { kind: "node-script", node: "/n" }, helper: "/h", helperHash: "x", workspace: "/w" },
   deploymentId: "dep-1",
   workdir: "/w",
 };

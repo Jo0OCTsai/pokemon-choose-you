@@ -5,7 +5,13 @@
  */
 import { nowRfc3339 } from "../storage/db";
 import type { DeploymentEntity } from "./deployments";
-import { homeProbeCommand, initialProvisionState, probeNodeCommand, workdirProbeCommand } from "./provisionCommands";
+import {
+  homeProbeCommand,
+  initialProvisionState,
+  probeNodeCommand,
+  remoteNodeSupported,
+  workdirProbeCommand,
+} from "./provisionCommands";
 import type { ProvisionDeps, ProvisionErrorTag, ProvisionState, ProvisionStep } from "./provision";
 import type { SshScope } from "./sshScope";
 
@@ -40,7 +46,9 @@ export function failOutcome(step: ProvisionStep, tag: ProvisionErrorTag, message
 }
 
 const SSH_AUTH_HINT = "先在本机执行 ssh-copy-id <别名> 配好免密登录，再重试";
-const NODE_INSTALL_HINT = "远端未找到可用 Node——先在远端安装 Node.js（版本 ≥ 20）再重试";
+const NODE_INSTALL_HINT = "远端未找到可用 Node——先在远端安装 Node.js（版本 ≥ 20.12）再重试";
+const NODE_VERSION_HINT =
+  "dsh-ssh helper 需要 Node ≥ 20.12（依赖 node:sea）——在远端升级 Node.js，或把部署的 Node 路径改指新版后重试";
 
 /** 解析 sha256sum 输出首 token（hex 小写；解析不出 = null） */
 export function parseSha256(stdout: string): string | null {
@@ -161,6 +169,14 @@ export async function execProbeNode(entity: DeploymentEntity, deps: ProvisionDep
     );
   }
   const version = stdout.trim().slice(0, 60);
+  if (!remoteNodeSupported(version)) {
+    return failOutcome(
+      "probe-node",
+      "PROVISION_STEP_FAILED",
+      `远端 Node 版本过旧或不可解析（${version === "" ? "无输出" : version}，路径 ${entity.nodePath}）`,
+      NODE_VERSION_HINT,
+    );
+  }
   const at = nowRfc3339();
   return {
     ok: true,
