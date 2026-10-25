@@ -1,0 +1,11 @@
+{
+  "kind": "cold_start",
+  "name": "seeds-defaults",
+  "now": "2026-01-15T09:00:00+08:00",
+  "setup": {},
+  "steps": [
+    { "op": "migrate_cold_start", "args": {} },
+    { "op": "migrate_cold_start", "args": {} }
+  ],
+  "expect": "exact"
+}

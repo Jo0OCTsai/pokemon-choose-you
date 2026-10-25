@@ -1,0 +1,17 @@
+{
+  "kind": "task_sm",
+  "name": "route-without-due-falls-to-inbox",
+  "now": "2026-01-15T09:00:00+08:00",
+  "setup": {
+    "tasks": [
+      { "id": 1, "title": "空串脏数据", "status": "scheduled", "due_at": "", "created_at": "2026-01-01T00:00:00Z" },
+      { "id": 2, "title": "清空截止", "status": "scheduled", "due_at": "2026-02-01T09:00", "created_at": "2026-01-01T00:00:00Z" }
+    ]
+  },
+  "steps": [
+    { "op": "task_reschedule", "args": { "taskId": 2, "due": "" } },
+    { "op": "task_update", "args": { "taskId": 1, "priority": "high" } },
+    { "op": "task_update", "args": { "taskId": 1, "dueAt": "2026-02-05T09:00", "status": "scheduled" } }
+  ],
+  "expect": "exact"
+}

@@ -1,0 +1,1334 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>dsh 插件形态 · UIUX 规格可视化原型</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=Noto+Sans+SC:wght@400;500;700;900&display=swap" rel="stylesheet" />
+<link href="https://cdn.jsdelivr.net/npm/@vp-tw/cjk-web-fonts-fusion-pixel-font@0.0.1/dist/12px/proportional/zh_hans/Fusion-Pixel-12px-Proportional-Simplified-Chinese.css" rel="stylesheet" />
+<style>
+/* ============================================================
+   dsh 插件形态 UIUX 规格可视化（非生产代码 · mock 数据 · 不连 API）
+   保真度分级：
+   · 区域 A「dsh 工作台示意」= 中保真——宿主 token 为中性示意（真实视觉
+     跟随 dsh ui-primitives 亮暗主题）；世界观 scoped 层（精灵/徽章）真实。
+   · 区域 B「桌宠」= 高保真——DESIGN_SYSTEM.md 全量 token 真实渲染。
+   ============================================================ */
+
+/* ---- 令牌（与 DESIGN_SYSTEM / dex.css 同源） ---- */
+:root {
+  --dex-red: #EE1515; --dex-red-dark: #B01010; --danger: #E00F0F;
+  --dex-body: #F5F0DC; --dex-navy: #1A1B25; --poke-yellow: #FFCB05;
+  --lcd: #C4CFA1; --lcd-text: #3A4A32; --lcd-dark: #9CAA86;
+  --log-error: #D64545; --log-warn: #B8860B;
+  --ink: #1A1B25; --ink-soft: #6B6657; --ink-faint: #9A937F;
+  --ok: #2E9E5B; --ok-bright: #5BE36B; --ok-soft: #DFF3E4; --ok-ink: #1D6B3C;
+  --warn: #C98A06; --warn-soft: #FFF3CD; --warn-ink: #8A5E06; --hover: #FFF3C4;
+  --tag-pill: #8A97B8; --rest-blue: #3C5AA6;
+  --conf-mid: #FFCB05; --conf-mid-soft: #FFF3D6; --conf-low: #C9C3AE; --conf-low-soft: #ECEADA;
+  --type-work: #F8D030; --type-study: #6890F0; --type-life: #78C850;
+  --type-health: #A8A878; --type-interest: #EE99AC;
+  --prio-urgent: #EE1515; --prio-high: #F08030; --prio-normal: #78C850; --prio-low: #A8A878;
+  --t-tap: 80ms; --t-pop: 150ms; --t-act: 300ms; --t-scene: 600ms;
+  --e-pop: cubic-bezier(.34,1.56,.64,1); --e-snap: cubic-bezier(.2,.9,.3,1.2);
+  --e-sway: cubic-bezier(.45,0,.55,1); --e-sleep: cubic-bezier(.4,0,.6,1);
+
+  /* 「宿主 token」示意值（非真实宿主 token——dsh ui-primitives 实现期映射） */
+  --host-bg: #F6F7F9; --host-surface: #FFFFFF; --host-raised: #FFFFFF;
+  --host-border: #E2E5EA; --host-border-strong: #CDD2DA;
+  --host-text: #23262D; --host-muted: #6B7280; --host-accent: #3B82F6;
+  --host-radius-lg: 12px; --host-radius-md: 8px; --host-radius-sm: 6px;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  font-family: "Noto Sans SC", "Noto Sans CJK SC", "PingFang SC", "Microsoft YaHei", sans-serif;
+  color: var(--ink); background: #2E3140;
+  background-image: repeating-linear-gradient(45deg, #2E3140 0 12px, #2B2E3B 12px 24px);
+  padding: 36px 20px 90px; display: flex; flex-direction: column; align-items: center; gap: 30px;
+}
+.px { font-family: "Press Start 2P", monospace; }
+.px-cn { font-family: "Fusion Pixel 12px Proportional Simplified Chinese", "Noto Sans SC", sans-serif; }
+:focus-visible { outline: 3px solid var(--poke-yellow); outline-offset: 2px; }
+section, header.page-head {
+  width: min(1240px, 100%); background: var(--dex-body);
+  border: 4px solid var(--dex-navy); border-radius: 16px; box-shadow: 8px 8px 0 rgba(0,0,0,.4);
+  padding: 22px 26px 28px;
+}
+.sec-head { display: flex; align-items: baseline; gap: 14px; flex-wrap: wrap; margin-bottom: 4px; }
+.sec-head .no { font-size: 14px; }
+.sec-head h2 { font-size: 17px; font-weight: 900; }
+.fidelity-tag { font-size: 11px; font-weight: 700; padding: 2px 10px; border-radius: 999px; border: 2px solid var(--dex-navy); }
+.fidelity-tag.mid { background: var(--warn-soft); color: var(--warn-ink); }
+.fidelity-tag.hi { background: var(--ok-soft); color: var(--ok-ink); }
+.sec-desc { font-size: 12.5px; color: var(--ink-soft); line-height: 1.9; margin-bottom: 16px; max-width: 100ch; }
+.sec-desc code { font-family: ui-monospace, Menlo, monospace; font-size: 11px; background: #fff; border: 1px solid var(--ink-faint); border-radius: 4px; padding: 0 4px; }
+.sprite { image-rendering: pixelated; display: block; }
+
+/* ---- 通用切换器 ---- */
+.switcher { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin: 10px 0 14px; }
+.switcher .lbl { font-size: 12px; font-weight: 700; color: var(--ink-soft); margin-right: 2px; }
+.switcher button {
+  font: inherit; font-size: 12px; font-weight: 600; cursor: pointer;
+  border: 2px solid var(--dex-navy); border-radius: 8px; background: #fff;
+  padding: 5px 12px; box-shadow: 2px 2px 0 var(--dex-navy); transition: transform var(--t-tap), box-shadow var(--t-tap);
+}
+.switcher button:active { transform: translate(2px, 2px); box-shadow: 0 0 0 var(--dex-navy); }
+.switcher button[aria-pressed="true"] { background: var(--poke-yellow); }
+
+/* ============================================================
+   区域 A · dsh 工作台示意（中保真）
+   ============================================================ */
+.workbench { display: flex; gap: 0; border: 3px solid #1F2129; border-radius: 14px; overflow: hidden; height: 660px; background: var(--host-bg); box-shadow: 4px 4px 0 rgba(0,0,0,.35); }
+/* -- 会话区（宿主原生，示意） -- */
+.conv { flex: 1; min-width: 0; display: flex; flex-direction: column; border-right: 2px solid var(--host-border); }
+.conv-titlebar { display: flex; align-items: center; gap: 8px; background: #ECEEF2; border-bottom: 1px solid var(--host-border); padding: 10px 14px; font-size: 12px; color: var(--host-muted); }
+.conv-titlebar .dot { width: 9px; height: 9px; border-radius: 50%; background: var(--ok-bright); }
+.conv-head { display: flex; align-items: center; justify-content: space-between; padding: 10px 14px; border-bottom: 1px solid var(--host-border); background: var(--host-surface); min-height: 52px; }
+.conv-head .h-left { font-size: 13px; font-weight: 700; color: var(--host-text); }
+.conv-head .h-left small { display: block; font-size: 11px; font-weight: 400; color: var(--host-muted); }
+/* conversation chip（本插件挂载点） */
+.pcy-chip { display: inline-flex; align-items: center; gap: 8px; border: 1.5px solid var(--host-border-strong); background: var(--host-surface); border-radius: 999px; padding: 4px 6px 4px 8px; font-size: 12px; font-weight: 600; color: var(--host-text); }
+.pcy-chip .sprite { width: 18px; height: 18px; }
+.pcy-chip .timer { font-family: ui-monospace, Menlo, monospace; font-variant-numeric: tabular-nums; color: var(--host-muted); }
+.pcy-chip button { border: 1px solid var(--host-border-strong); background: var(--host-bg); border-radius: 6px; width: 32px; height: 32px; cursor: pointer; font-size: 12px; line-height: 1; }
+.pcy-chip button:hover { background: var(--host-border); }
+.chip-note { font-size: 10.5px; color: var(--ink-soft); background: var(--hover); border: 2px dashed var(--dex-navy); border-radius: 6px; padding: 3px 8px; margin-left: 8px; }
+.conv-scroll { flex: 1; overflow-y: auto; padding: 16px 18px; display: flex; flex-direction: column; gap: 14px; }
+.msg { max-width: 78%; font-size: 13px; line-height: 1.7; }
+.msg .who { font-size: 10.5px; color: var(--host-muted); margin-bottom: 3px; }
+.msg .body { border-radius: var(--host-radius-md); padding: 9px 12px; }
+.msg.user { align-self: flex-end; text-align: right; }
+.msg.user .body { background: var(--host-accent); color: #fff; }
+.msg.model { align-self: flex-start; }
+.msg.model .body { background: var(--host-surface); border: 1px solid var(--host-border); color: var(--host-text); }
+.msg.model .body .tool-line { display: block; font-size: 11px; color: var(--host-muted); border-top: 1px dashed var(--host-border); margin-top: 6px; padding-top: 6px; }
+.msg.model .body .tool-line b { color: var(--ok-ink); }
+.conv-input { border-top: 1px solid var(--host-border); background: var(--host-surface); padding: 12px 16px; }
+.conv-input .fake-input { border: 1.5px solid var(--host-border-strong); border-radius: var(--host-radius-md); padding: 10px 12px; font-size: 12.5px; color: var(--host-muted); background: var(--host-bg); }
+.conv-input .hint { font-size: 10.5px; color: var(--host-muted); margin-top: 6px; }
+
+/* -- 宿主左侧导航（示意：main 区路由仅 conversation / Plugins，U16） -- */
+.navrail { width: 138px; flex: none; border-right: 2px solid var(--host-border); background: #ECEEF2; padding: 10px 8px; display: flex; flex-direction: column; gap: 6px; font-size: 11px; color: var(--host-muted); }
+.navrail .nr-h { font-weight: 800; font-size: 10px; letter-spacing: .5px; }
+.navrail .nr-item { border: 1.5px solid var(--host-border); border-radius: 8px; background: var(--host-surface); padding: 5px 8px; }
+.navrail .nr-item.cur { border-color: var(--host-accent); color: var(--host-text); font-weight: 700; box-shadow: inset 3px 0 0 var(--host-accent); }
+.navrail .nr-note { margin-top: auto; font-size: 9.5px; line-height: 1.7; border: 1px dashed var(--host-border-strong); border-radius: 6px; padding: 5px 6px; }
+/* -- 插件页面（plugins.detail.section · main 区全宽 · 独立于会话，U16） -- */
+.pluginpage { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; background: var(--host-bg); }
+.workbench.narrowwin .pluginpage { flex: 0 0 480px; } /* 窄窗/分屏演示：辅助行折行、背包分区选单横向滚动（§7 排布密度，U17/U21） */
+.pagehead { display: flex; align-items: center; gap: 10px; border-bottom: 2px solid var(--host-border); background: var(--host-surface); padding: 10px 14px; }
+.pagehead .crumb { font-size: 11px; color: var(--host-muted); }
+.pagehead .ptitle { font-size: 14px; font-weight: 800; color: var(--host-text); }
+.pagehead .badge { background: var(--dex-red); color: #fff; border-radius: 999px; font-size: 10px; font-weight: 700; min-width: 16px; height: 16px; line-height: 16px; text-align: center; padding: 0 4px; }
+.panel-scroll { flex: 1; overflow-y: auto; padding: 12px; }
+.panel-title { display: flex; align-items: center; gap: 8px; font-size: 14px; font-weight: 800; color: var(--host-text); margin: 2px 0 10px; }
+.panel-title .pokedex { font-size: 8px; letter-spacing: 1px; color: var(--host-muted); }
+
+/* schema 拒绝横幅（持久） */
+.schema-banner { display: none; align-items: flex-start; gap: 10px; background: var(--warn-soft); border: 1.5px solid var(--warn); color: var(--warn-ink); border-radius: var(--host-radius-md); padding: 10px 12px; font-size: 12px; line-height: 1.7; margin-bottom: 10px; }
+body[data-panel="error"] .schema-banner { display: flex; }
+.schema-banner .ro { margin-left: auto; flex: none; font-size: 11px; font-weight: 700; border: 1.5px solid var(--warn-ink); border-radius: 6px; padding: 2px 8px; }
+
+/* 分段导航（七段 · 含背包，U17/U19） */
+.segnav { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 12px; }
+.segnav button { font: inherit; font-size: 12px; font-weight: 600; cursor: pointer; color: var(--host-muted); background: var(--host-surface); border: 1.5px solid var(--host-border); border-radius: 999px; padding: 4px 12px; }
+.segnav button:hover { border-color: var(--host-border-strong); }
+.segnav button[aria-pressed="true"] { color: #fff; background: var(--host-accent); border-color: var(--host-accent); }
+
+/* 冒险页头 */
+.adv-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
+.adv-head .date { font-family: ui-monospace, Menlo, monospace; font-size: 11px; color: var(--host-muted); }
+.caught { display: flex; align-items: center; gap: 8px; }
+.caught .px { font-size: 8px; color: var(--host-text); }
+.caught .bar { width: 110px; height: 10px; border: 2px solid var(--host-text); border-radius: 999px; overflow: hidden; background: var(--host-surface); }
+.caught .bar i { display: block; height: 100%; width: 40%; background: var(--ok); }
+
+/* 逾期折叠行 */
+.overdue-fold { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; background: var(--host-surface); border: 1.5px solid var(--host-border); border-radius: var(--host-radius-md); padding: 9px 12px; font-size: 12.5px; color: var(--host-muted); margin-bottom: 10px; }
+.overdue-fold .n { color: var(--host-text); font-weight: 700; }
+.overdue-fold .btns { margin-left: auto; display: flex; gap: 6px; }
+.overdue-fold button { font: inherit; font-size: 11.5px; font-weight: 600; cursor: pointer; border: 1.5px solid var(--host-border-strong); background: var(--host-bg); border-radius: 6px; padding: 3px 10px; }
+.overdue-fold button:hover { background: var(--host-border); }
+
+/* 精灵条目卡（面板 signature：宿主容器 + 世界观 scoped 层） */
+.tcard { display: flex; align-items: center; gap: 10px; background: var(--host-surface); border: 1.5px solid var(--host-border); border-radius: var(--host-radius-lg); padding: 10px 12px; margin-bottom: 8px; cursor: pointer; transition: border-color .15s ease; position: relative; }
+.tcard:hover { border-color: var(--host-border-strong); }
+.tcard.running { border: 2px solid var(--poke-yellow); }
+.tcard.running .running-tag { position: absolute; top: -9px; left: 12px; font-size: 10px; font-weight: 700; background: var(--poke-yellow); color: var(--ink); border: 1.5px solid var(--ink); border-radius: 999px; padding: 1px 8px; }
+.tcard.done .title { text-decoration: line-through; color: var(--host-muted); }
+.tcard.done .sprite { filter: grayscale(1); opacity: .55; }
+.tcard .no { font-family: "Press Start 2P", monospace; font-size: 7px; color: var(--host-muted); }
+.tcard .sprite { width: 30px; height: 30px; flex: none; }
+.tcard .main { flex: 1; min-width: 0; }
+.tcard .title { font-size: 13px; font-weight: 700; color: var(--host-text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.tcard .aux { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin-top: 4px; }
+.typebadge { font-size: 10px; font-weight: 700; color: var(--dex-navy); border-radius: 4px; padding: 1px 7px; border: 1px solid rgba(26,27,37,.35); }
+.b-work { background: var(--type-work); } .b-study { background: var(--type-study); }
+.b-life { background: var(--type-life); } .b-health { background: var(--type-health); }
+.b-interest { background: var(--type-interest); }
+.prio { width: 9px; height: 9px; border-radius: 50%; border: 1.5px solid var(--dex-navy); flex: none; }
+.p-urgent { background: var(--prio-urgent); } .p-high { background: var(--prio-high); }
+.p-normal { background: var(--prio-normal); } .p-low { background: var(--prio-low); }
+.meta { font-size: 10.5px; color: var(--host-muted); }
+.dispatch-badge { display: inline-flex; align-items: center; gap: 4px; font-size: 10px; font-weight: 700; border-radius: 4px; padding: 1px 6px; }
+.d-running { background: var(--ok-soft); color: var(--ok-ink); }
+.d-failed { background: #FDE8E8; color: #991B1B; }
+.d-done { background: var(--conf-low-soft); color: var(--ink-soft); }
+.d-queued { background: var(--conf-mid-soft); color: var(--warn-ink); }
+/* 紧急档 = 形/色强化（放大点 + 双描边），不闪烁——面板零闪烁（S3-1 裁决） */
+.p-urgent { width: 12px; height: 12px; box-shadow: 0 0 0 2px var(--host-surface), 0 0 0 3.5px var(--prio-urgent); }
+/* 进行中·暂停变体（六态→五呈现）：⏸ 休息中 + 降饱和，与桌宠 paused 灰度呼应 */
+.tcard.paused-var { border: 2px solid var(--host-border-strong); }
+.tcard.paused-var .running-tag { background: var(--host-border); color: var(--host-muted); border-color: var(--host-border-strong); }
+.tcard.paused-var .sprite, .tcard.paused-var .title { filter: saturate(.45); opacity: .85; }
+/* 置信档非颜色冗余：行内文字档位标 */
+.conf-t { flex: none; font-size: 9.5px; font-weight: 800; border: 1px solid currentColor; border-radius: 4px; padding: 0 4px; }
+.conf-t.hi { color: var(--ok-ink); } .conf-t.mid { color: var(--warn-ink); } .conf-t.lo { color: var(--ink-soft); }
+/* 批量分诊（BatchBar）：待处理组选中 ≥1 时浮现 */
+.sug .row .ck { display: none; align-items: center; flex: none; margin-right: 2px; }
+.sug.selectable .row .ck { display: flex; }
+.sug .row .ck input { width: 15px; height: 15px; accent-color: var(--host-accent); }
+.batchbar { display: none; align-items: center; gap: 8px; margin-top: 8px; background: var(--host-surface); border: 2px solid var(--host-accent); border-radius: var(--host-radius-md); padding: 8px 10px; font-size: 12px; font-weight: 700; color: var(--host-text); }
+.batchbar.on { display: flex; }
+.batchbar button { font: inherit; font-size: 11.5px; font-weight: 700; cursor: pointer; border-radius: 6px; padding: 4px 10px; border: 1.5px solid var(--host-border-strong); background: var(--host-bg); color: var(--host-text); }
+.batchbar button.primary { color: #fff; background: var(--host-accent); border-color: var(--host-accent); }
+.batchbar .clear { margin-left: auto; }
+/* 放生危险区（两层确认） */
+.danger { margin-top: 14px; border-top: 2px dashed #E5A3A3; padding-top: 10px; }
+.danger .d-btn { color: #991B1B; border-color: #E5A3A3; background: #FDF3F3; }
+.danger .confirm-box { display: none; background: #FDF3F3; border: 1.5px solid #E5A3A3; border-radius: var(--host-radius-md); padding: 10px 12px; font-size: 11.5px; color: #7A1F1F; line-height: 1.8; }
+.danger.armed .confirm-box { display: block; }
+.danger.armed > .d-btn { display: none; }
+.danger .confirm-box .ops { display: flex; gap: 8px; margin-top: 8px; }
+.danger .confirm-box .ops button { font: inherit; font-size: 12px; font-weight: 700; cursor: pointer; border-radius: var(--host-radius-sm); padding: 5px 12px; border: 1.5px solid var(--host-border-strong); background: var(--host-surface); color: var(--host-text); }
+/* 撤销 toast（role=status 可被读屏感知） */
+.toast { position: fixed; right: 26px; bottom: 26px; z-index: 50; display: none; align-items: center; gap: 10px; background: var(--dex-body); border: 3px solid var(--dex-navy); border-radius: 10px; box-shadow: 3px 3px 0 var(--dex-navy); padding: 10px 14px; font-size: 13px; font-weight: 700; color: var(--ink); }
+.toast.on { display: flex; }
+.toast button { font: inherit; font-size: 12px; font-weight: 700; cursor: pointer; border: 2px solid var(--dex-navy); background: var(--poke-yellow); border-radius: 6px; padding: 3px 10px; box-shadow: 2px 2px 0 var(--dex-navy); }
+/* 健康条文字状态（非颜色冗余） */
+.health .hstate { font-weight: 700; color: var(--host-text); }
+/* 宽度档标注 */
+.width-tag { margin-left: auto; align-self: center; font-size: 9.5px; color: var(--host-muted); border: 1px dashed var(--host-border-strong); border-radius: 4px; padding: 1px 6px; flex: none; }
+
+/* 收音机段 */
+.health { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; background: var(--host-surface); border: 1.5px solid var(--host-border); border-radius: var(--host-radius-md); padding: 8px 12px; font-size: 11.5px; color: var(--host-muted); margin-bottom: 10px; }
+.health .dot { width: 9px; height: 9px; border-radius: 50%; background: var(--ok); flex: none; }
+.health .dot.w { background: var(--warn); } .health .dot.f { background: var(--dex-red); }
+.health b { color: var(--host-text); font-variant-numeric: tabular-nums; }
+.health .now { margin-left: auto; font: inherit; font-size: 11.5px; font-weight: 600; cursor: pointer; color: var(--host-accent); background: transparent; border: 1.5px solid var(--host-accent); border-radius: 6px; padding: 3px 10px; }
+.auth-banner { display: none; align-items: center; gap: 10px; background: var(--conf-mid-soft); border: 1.5px solid var(--warn); border-radius: var(--host-radius-md); padding: 10px 12px; font-size: 12.5px; color: var(--warn-ink); margin-bottom: 10px; }
+body[data-panel="auth"] .auth-banner.notauth, body[data-panel="authlost"] .auth-banner.lost { display: flex; }
+.auth-banner button { font: inherit; font-size: 11.5px; font-weight: 700; cursor: pointer; border: 2px solid var(--warn-ink); background: var(--poke-yellow); border-radius: 6px; padding: 3px 10px; margin-left: auto; box-shadow: 2px 2px 0 var(--warn-ink); }
+.group-h { font-size: 11px; font-weight: 800; color: var(--host-muted); letter-spacing: .4px; margin: 12px 0 6px; display: flex; align-items: center; gap: 8px; }
+.group-h .cnt { background: var(--host-border); border-radius: 999px; font-size: 10px; padding: 0 7px; font-weight: 700; }
+.group-h .ops { margin-left: auto; display: flex; gap: 6px; }
+.group-h .ops button { font: inherit; font-size: 10.5px; font-weight: 600; cursor: pointer; border: 1.5px solid var(--host-border-strong); background: var(--host-surface); border-radius: 6px; padding: 2px 8px; }
+
+/* 建议卡（内联展开） */
+.sug { background: var(--host-surface); border: 1.5px solid var(--host-border); border-radius: var(--host-radius-lg); margin-bottom: 8px; overflow: hidden; }
+.sug.conf-high { border-left: 4px solid var(--ok); }
+.sug.conf-mid { border-left: 4px solid var(--conf-mid); }
+.sug.conf-low { border-left: 4px solid var(--conf-low); }
+.sug .row { display: flex; align-items: center; gap: 8px; padding: 10px 12px; cursor: pointer; }
+.sug .row:hover { background: var(--host-bg); }
+.sug .from { font-size: 10.5px; color: var(--host-muted); flex: none; }
+.sug .text { flex: 1; min-width: 0; font-size: 12.5px; color: var(--host-text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.sug .act { flex: none; font-size: 10.5px; font-weight: 700; border-radius: 4px; padding: 1px 8px; }
+.a-todo { background: var(--ok-soft); color: var(--ok-ink); }
+.a-update { background: var(--conf-mid-soft); color: var(--warn-ink); }
+.a-none { background: var(--conf-low-soft); color: var(--ink-soft); }
+.sug .detail { display: none; border-top: 1.5px dashed var(--host-border); padding: 10px 12px 12px; font-size: 12px; line-height: 1.8; color: var(--host-text); }
+.sug.open .detail { display: block; }
+.sug .msgfull { background: var(--host-bg); border: 1px solid var(--host-border); border-radius: var(--host-radius-sm); padding: 8px 10px; color: var(--host-muted); margin-bottom: 8px; }
+.sug .aibox { border: 1.5px solid var(--host-border-strong); border-radius: var(--host-radius-md); padding: 8px 10px; }
+.sug .aibox .h { font-size: 11px; font-weight: 800; margin-bottom: 4px; }
+.sug .aibox .r { font-size: 11.5px; color: var(--host-muted); }
+.sug .newtag { display: inline-flex; align-items: center; gap: 4px; margin-top: 6px; font-size: 11px; font-weight: 700; color: var(--ok-ink); background: var(--ok-soft); border: 1px dashed var(--ok); border-radius: 6px; padding: 2px 8px; }
+.sug .ops { display: flex; gap: 8px; margin-top: 10px; }
+.sug .ops button { font: inherit; font-size: 12px; font-weight: 700; cursor: pointer; border-radius: var(--host-radius-sm); padding: 5px 14px; }
+.sug .ops .primary { color: #fff; background: var(--host-accent); border: 1.5px solid var(--host-accent); }
+.sug .ops .ghost { color: var(--host-muted); background: var(--host-surface); border: 1.5px solid var(--host-border-strong); }
+.sug.failed { border-left: 4px solid var(--log-error); }
+
+/* 发报条 */
+.capture { display: flex; gap: 8px; margin-top: 12px; padding-top: 12px; border-top: 2px solid var(--host-border-strong); }
+.capture input { flex: 1; font: inherit; font-size: 12.5px; border: 1.5px solid var(--host-border-strong); border-radius: var(--host-radius-md); padding: 8px 12px; color: var(--host-text); background: var(--host-surface); min-width: 0; }
+.capture input::placeholder { color: var(--host-muted); }
+.capture button { font: inherit; font-size: 12.5px; font-weight: 700; cursor: pointer; color: #fff; background: var(--host-accent); border: none; border-radius: var(--host-radius-md); padding: 8px 16px; flex: none; }
+.capture button:hover { filter: brightness(1.08); }
+
+/* 日志段 */
+.filters { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 10px; }
+.filters button { font: inherit; font-size: 11px; font-weight: 600; cursor: pointer; border: 1.5px solid var(--host-border); background: var(--host-surface); color: var(--host-muted); border-radius: 999px; padding: 2px 10px; }
+.filters button[aria-pressed="true"] { color: #fff; background: var(--host-accent); border-color: var(--host-accent); }
+.ledger { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; background: var(--host-surface); border: 1.5px solid var(--host-border); border-radius: var(--host-radius-md); padding: 9px 12px; margin-bottom: 6px; font-size: 11.5px; color: var(--host-muted); }
+.ledger .agent { font-weight: 700; color: var(--host-text); font-size: 12.5px; }
+.ledger .ec-ok { color: var(--ok-ink); font-weight: 700; } .ledger .ec-err { color: #991B1B; font-weight: 700; }
+.ledger .cost { margin-left: auto; font-variant-numeric: tabular-nums; }
+
+/* 空态 / 骨架 */
+.empty { display: none; flex-direction: column; align-items: center; text-align: center; gap: 12px; padding: 44px 18px; color: var(--host-muted); }
+.empty .sprite { width: 56px; height: 56px; opacity: .8; }
+.empty p { font-size: 13px; line-height: 1.9; max-width: 30ch; }
+body[data-panel="empty"] .panel-list { display: none; }
+body[data-panel="empty"] .empty { display: flex; }
+.skel { display: none; flex-direction: column; gap: 10px; padding: 6px 0; }
+body[data-panel="loading"] .panel-list { display: none; }
+body[data-panel="loading"] .skel { display: flex; }
+.sk { display: flex; gap: 10px; align-items: center; background: var(--host-surface); border: 1.5px solid var(--host-border); border-radius: var(--host-radius-lg); padding: 12px; }
+.sk i { display: block; background: linear-gradient(90deg, var(--host-border) 25%, var(--host-bg) 50%, var(--host-border) 75%); background-size: 200% 100%; animation: shimmer 1.4s infinite; border-radius: 6px; }
+.sk .av { width: 30px; height: 30px; flex: none; } .sk .l1 { height: 13px; width: 55%; } .sk .l2 { height: 10px; width: 35%; }
+.sk .col { flex: 1; display: flex; flex-direction: column; gap: 6px; }
+@keyframes shimmer { to { background-position: -200% 0; } }
+body[data-panel="error"] :is(.sug .ops button, .batchbar button, .group-h .ops button, .capture button, .capture input, .health .now, .d-ops button, .danger button, .overdue-fold .fresh, .pcy-chip button) { opacity: .45; pointer-events: none; }
+
+/* 详情抽屉 */
+.drawer-mask { position: absolute; inset: 0; background: rgba(28,34,68,.42); display: none; z-index: 8; }
+.drawer-mask.on { display: block; }
+.drawer { position: absolute; top: 0; right: 0; bottom: 0; width: min(94%, 380px); background: var(--host-surface); border-left: 2px solid var(--host-border-strong); z-index: 9; transform: translateX(102%); transition: transform .25s ease; display: flex; flex-direction: column; }
+.drawer.on { transform: translateX(0); }
+.pluginpage { position: relative; flex: 1; min-width: 0; display: flex; flex-direction: column; }
+/* main 区互斥路由（U16）：会话与插件页面二选一 */
+body[data-view="session"] .pluginpage { display: none; }
+body[data-view="page"] .conv { display: none; }
+.drawer .d-head { display: flex; align-items: flex-start; gap: 10px; padding: 14px 14px 10px; border-bottom: 1px solid var(--host-border); }
+.drawer .d-head .t { font-size: 14px; font-weight: 800; color: var(--host-text); }
+.drawer .d-head .close { margin-left: auto; font-size: 12px; cursor: pointer; border: 1.5px solid var(--host-border-strong); background: var(--host-bg); border-radius: 6px; width: 26px; height: 26px; flex: none; }
+.drawer .d-body { flex: 1; overflow-y: auto; padding: 12px 14px; }
+.d-sec { font-size: 11px; font-weight: 800; color: var(--host-muted); letter-spacing: .4px; margin: 12px 0 6px; }
+.d-sec:first-child { margin-top: 0; }
+.fu { border-left: 3px solid var(--host-border-strong); padding: 2px 0 2px 10px; margin-bottom: 8px; font-size: 12px; color: var(--host-text); line-height: 1.7; }
+.fu small { display: block; font-size: 10.5px; color: var(--host-muted); }
+.tl { display: flex; gap: 10px; margin-bottom: 10px; font-size: 11.5px; color: var(--host-muted); }
+.tl .when { flex: none; font-variant-numeric: tabular-nums; width: 64px; }
+.tl b { color: var(--host-text); }
+.d-ops { display: flex; flex-wrap: wrap; gap: 8px; padding-top: 10px; border-top: 2px solid var(--host-border); }
+.d-ops button { font: inherit; font-size: 12px; font-weight: 700; cursor: pointer; border-radius: var(--host-radius-sm); padding: 6px 12px; border: 1.5px solid var(--host-border-strong); background: var(--host-surface); color: var(--host-text); }
+.d-ops button.primary { color: #fff; background: var(--host-accent); border-color: var(--host-accent); }
+.route-confirm { display: none; background: var(--host-bg); border: 1.5px dashed var(--host-border-strong); border-radius: var(--host-radius-md); padding: 10px 12px; font-size: 11.5px; color: var(--host-muted); line-height: 1.9; margin-bottom: 10px; position: relative; }
+.route-confirm.on { display: block; }
+.route-confirm b { color: var(--host-text); }
+.route-confirm .rc-close { position: absolute; top: 6px; right: 6px; font-size: 11px; cursor: pointer; border: 1.5px solid var(--host-border-strong); background: var(--host-surface); border-radius: 6px; width: 22px; height: 22px; line-height: 1; }
+
+/* 背包分区页表单行（U21：小卡片网格已废弃，行为分区整页内表单行） */
+.srow { display: flex; align-items: center; justify-content: space-between; gap: 10px; font-size: 12px; color: var(--host-text); padding: 5px 0; border-bottom: 1px dashed var(--host-border); }
+.srow:last-child { border-bottom: none; }
+.srow .k { color: var(--host-muted); }
+.srow .v { font-weight: 600; text-align: right; }
+.toggle { width: 34px; height: 19px; border-radius: 999px; background: var(--ok); position: relative; flex: none; }
+.toggle::after { content: ""; position: absolute; right: 2px; top: 2px; width: 15px; height: 15px; border-radius: 50%; background: #fff; }
+.toggle.off { background: var(--host-border-strong); } .toggle.off::after { right: auto; left: 2px; }
+/* 「作用于主应用」作用域标注 badge（U20）：形态专属行为项行尾小 badge——中性色（非警示），
+   title 给全句说明；共享值项不加 badge（两形态等效） */
+.scope-badge { display: inline-flex; align-items: center; flex: none; font-size: 9px; font-weight: 700; color: var(--host-muted); border: 1px solid var(--host-border-strong); background: var(--host-bg); border-radius: 999px; padding: 1px 7px; white-space: nowrap; }
+.srow .v .scope-badge { margin-left: 6px; vertical-align: 1px; }
+
+/* ============================================================
+   背包 · 分区选单 + 分区整页 + 保存制（U21：废弃小卡片网格）
+   ============================================================ */
+/* 八分区横向选单（对齐主应用设置中心「上选单下内容」顶部选单） */
+.secnav { display: flex; flex-wrap: nowrap; gap: 6px; overflow-x: auto; margin-bottom: 12px; padding-bottom: 4px; scrollbar-width: thin; }
+.secnav button { font: inherit; font-size: 12px; font-weight: 600; cursor: pointer; white-space: nowrap; color: var(--host-muted); background: var(--host-surface); border: 1.5px solid var(--host-border); border-radius: 999px; padding: 4px 12px; position: relative; }
+.secnav button:hover { border-color: var(--host-border-strong); }
+.secnav button[aria-pressed="true"] { color: #fff; background: var(--host-accent); border-color: var(--host-accent); }
+/* 未保存静态点提示（分区项，不闪烁——面板零闪烁） */
+.secnav button .udot, .save-btn .udot { display: none; width: 6px; height: 6px; border-radius: 50%; background: var(--poke-yellow); border: 1px solid var(--ink); flex: none; }
+.secnav button.dirty .udot { display: inline-block; margin-left: 6px; vertical-align: 1px; }
+/* 分区整页：一次只显示一个分区（其余 hidden 由 JS 控制） */
+.sectionpage { background: var(--host-surface); border: 1.5px solid var(--host-border); border-radius: var(--host-radius-lg); padding: 14px 16px 16px; }
+/* 分区标题行：标题左 + 「保存」右（对齐主应用标题行右侧保存按钮，U21） */
+.sec-title-row { display: flex; align-items: center; gap: 10px; border-bottom: 2px solid var(--host-border); padding-bottom: 10px; margin-bottom: 12px; }
+.sec-title-row h3 { font-size: 15px; font-weight: 800; color: var(--host-text); }
+.sec-title-row .sub { font-size: 10.5px; color: var(--host-muted); }
+.save-btn { margin-left: auto; flex: none; font: inherit; font-size: 12.5px; font-weight: 700; cursor: pointer; color: #fff; background: var(--host-accent); border: 1.5px solid var(--host-accent); border-radius: var(--host-radius-sm); padding: 5px 14px; display: inline-flex; align-items: center; gap: 6px; }
+.save-btn:hover { filter: brightness(1.06); }
+.save-btn:disabled { opacity: .6; cursor: default; }
+.save-btn.dirty { box-shadow: 0 0 0 2px var(--poke-yellow); } /* 未保存变更提示（静态描边 + 角标，title 给全句） */
+.save-btn .udot { display: none; }
+.save-btn.dirty .udot { display: inline-block; }
+.save-hint { display: none; flex: none; font-size: 11.5px; font-weight: 700; color: var(--ok-ink); background: var(--ok-soft); border: 1px solid var(--ok); border-radius: 6px; padding: 3px 8px; }
+.save-hint.on { display: inline-block; }
+/* 分区内表单分组（全宽，非小卡片） */
+.formgroup { border: 1.5px solid var(--host-border); border-radius: var(--host-radius-md); padding: 10px 12px; margin-bottom: 10px; background: var(--host-bg); }
+.formgroup:last-child { margin-bottom: 0; }
+.formgroup h4 { font-size: 12px; font-weight: 800; color: var(--host-muted); letter-spacing: .3px; margin-bottom: 6px; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.formgroup h4 .ops { margin-left: auto; display: flex; gap: 6px; }
+.formgroup h4 .ops button { font: inherit; font-size: 10.5px; font-weight: 600; cursor: pointer; border: 1.5px solid var(--host-border-strong); background: var(--host-surface); color: var(--host-text); border-radius: 6px; padding: 2px 8px; }
+.sectionpage .srow { padding: 6px 0; }
+/* 未保存离开确认弹层（U21） */
+.leave-mask { position: fixed; inset: 0; background: rgba(28,34,68,.45); z-index: 60; display: none; align-items: center; justify-content: center; }
+.leave-mask.on { display: flex; }
+.leave-confirm { width: min(92vw, 380px); background: var(--host-surface); border: 2px solid var(--host-border-strong); border-radius: var(--host-radius-lg); padding: 16px 18px; box-shadow: 6px 6px 0 rgba(0,0,0,.25); }
+.leave-confirm p { font-size: 13px; font-weight: 700; color: var(--host-text); line-height: 1.8; margin-bottom: 12px; }
+.leave-confirm .ops { display: flex; flex-wrap: wrap; gap: 8px; }
+.leave-confirm .ops button { font: inherit; font-size: 12px; font-weight: 700; cursor: pointer; border-radius: var(--host-radius-sm); padding: 6px 12px; border: 1.5px solid var(--host-border-strong); background: var(--host-surface); color: var(--host-text); }
+.leave-confirm .ops .primary { color: #fff; background: var(--host-accent); border-color: var(--host-accent); }
+.leave-confirm .ops .ghost { color: #991B1B; border-color: #E5A3A3; background: #FDF3F3; }
+/* schema 拒绝时背包保存一并禁用（写操作置灰清单，§4.2） */
+body[data-panel="error"] .save-btn { opacity: .45; pointer-events: none; }
+
+/* ============================================================
+   区域 B · 桌宠（高保真 · DESIGN_SYSTEM 全量）
+   ============================================================ */
+.desk-wrap { display: flex; gap: 40px; align-items: flex-start; justify-content: center; flex-wrap: wrap; }
+.desk { width: 360px; height: 470px; border-radius: 14px; border: 3px solid #10121A; position: relative; overflow: hidden;
+  background: linear-gradient(160deg, #35507B 0%, #22364F 55%, #17273C 100%); box-shadow: inset 0 0 60px rgba(0,0,0,.4), 4px 4px 0 rgba(0,0,0,.35); }
+.desk .wall-time { position: absolute; top: 26px; left: 0; right: 0; text-align: center; color: rgba(255,255,255,.85); font-family: ui-monospace, Menlo, monospace; font-size: 34px; font-weight: 600; text-shadow: 0 2px 8px rgba(0,0,0,.5); }
+.desk .wall-date { position: absolute; top: 68px; left: 0; right: 0; text-align: center; color: rgba(255,255,255,.55); font-size: 12px; }
+.desk .dicon { position: absolute; width: 52px; text-align: center; color: rgba(255,255,255,.8); font-size: 10px; }
+.desk .dicon .ig { width: 40px; height: 40px; margin: 0 auto 4px; border-radius: 8px; background: rgba(255,255,255,.14); border: 1px solid rgba(255,255,255,.22); }
+.desk .dicon.i1 { left: 22px; bottom: 26px; } .desk .dicon.i2 { left: 22px; bottom: 92px; } .desk .dicon.i3 { left: 22px; bottom: 158px; }
+
+/* 桌宠窗 300×330 */
+.petwin { position: absolute; right: 14px; top: 34px; width: 300px; height: 330px; display: flex; flex-direction: column; align-items: center; padding-top: 10px; transition: width var(--t-act) var(--e-snap); }
+.petwin.wide { width: 560px; }
+.sprite-box { position: relative; width: 148px; height: 148px; display: flex; align-items: center; justify-content: center; }
+.sprite-box .sprite { width: 104px; height: 104px; }
+/* 色环：SVG 细环，全程被动显示 */
+.ring { position: absolute; inset: 0; transform: rotate(-90deg); }
+.ring circle { fill: none; stroke-width: 5; }
+.ring .bgc { stroke: rgba(26,27,37,.22); }
+.ring .fgc { stroke: var(--ok); stroke-linecap: round; stroke-dasharray: 415; stroke-dashoffset: 1; transition: stroke-dashoffset 1s linear, stroke .6s ease; }
+body[data-pet="rest"] .ring .fgc { stroke: var(--rest-blue); }
+body[data-pet="paused"] .ring .fgc { stroke: var(--ink-faint); }
+.ring-note { position: absolute; top: -22px; right: -2px; font-size: 10px; color: rgba(255,255,255,.6); text-align: right; line-height: 1.5; }
+
+.sprite-anim { animation: hop 1.6s var(--e-snap) infinite; }
+@keyframes hop { 0%,100% { transform: translateY(0) scaleY(1); } 12% { transform: translateY(3px) scaleY(.88); } 42% { transform: translateY(-7px) scaleY(1.06); } 62% { transform: translateY(0) scaleY(.9); } 78% { transform: translateY(0) scaleY(1.04); } }
+.sprite-breathe { animation: breathe 3.2s var(--e-sleep) infinite; }
+@keyframes breathe { 0%,100% { transform: scale(1); } 50% { transform: scale(1.02); } }
+body[data-pet="paused"] .sprite-anim, body[data-pet="paused"] .sprite-breathe { animation: none; }
+body[data-pet="paused"] .sprite-box .sprite { filter: grayscale(1) opacity(.75); }
+body[data-pet="paused"] .sprite-box .sprite { animation: breathe 3.2s var(--e-sleep) infinite; }
+body[data-pet="idle"] .sprite-box .sprite { animation: breathe 3.2s var(--e-sleep) infinite; }
+body[data-pet="working"] .sprite-box .sprite { animation: hop 1.6s var(--e-snap) infinite; }
+/* 捕获演出（静态示意帧：球 + 星星） */
+.capture-show { display: none; position: absolute; inset: 0; align-items: center; justify-content: center; }
+body[data-pet="celebrating"] .capture-show { display: flex; }
+body[data-pet="celebrating"] .sprite-box .sprite { opacity: .15; }
+.ball { width: 46px; height: 46px; border-radius: 50%; border: 3px solid var(--dex-navy); background: linear-gradient(180deg, var(--dex-red) 0 46%, #fff 46% 54%, #fff 54% 100%); position: relative; box-shadow: 3px 3px 0 rgba(0,0,0,.35); }
+.ball::after { content: ""; position: absolute; left: 50%; top: 50%; transform: translate(-50%,-50%); width: 14px; height: 14px; background: #fff; border: 3px solid var(--dex-navy); border-radius: 50%; }
+.ball { animation: ballrock .6s var(--e-sway) 2; }
+@keyframes ballrock { 0%,100% { transform: rotate(0); } 30% { transform: rotate(14deg); } 70% { transform: rotate(-14deg); } }
+.stars { position: absolute; font-size: 15px; color: var(--poke-yellow); text-shadow: 0 0 0 transparent; animation: pop .4s var(--e-pop) both; }
+.stars span:nth-child(1){ position:absolute; top:6px; left:16px; } .stars span:nth-child(2){ position:absolute; top:0; right:18px; }
+.stars span:nth-child(3){ position:absolute; bottom:10px; left:6px; } .stars span:nth-child(4){ position:absolute; bottom:2px; right:8px; }
+.stars span:nth-child(5){ position:absolute; top:26px; left:-8px; }
+@keyframes pop { from { transform: scale(0); } to { transform: scale(1); } }
+
+/* 悬停 ☰ 钮 */
+.hover-menu { position: absolute; top: 6px; right: 6px; width: 26px; height: 26px; border: 2px solid var(--dex-navy); border-radius: 6px; background: var(--dex-body); color: var(--dex-navy); font-size: 12px; line-height: 22px; text-align: center; cursor: pointer; opacity: 0; transition: opacity var(--t-pop); box-shadow: 2px 2px 0 var(--dex-navy); }
+.sprite-box:hover .hover-menu, .hover-menu:focus-visible { opacity: 1; }
+
+/* 对话框（初代：双线框 + 右下 ▼） */
+.dialog { margin-top: 6px; width: 272px; background: #fff; border: 3px solid var(--dex-navy); border-radius: 10px; box-shadow: 3px 3px 0 rgba(26,27,37,.55); position: relative; }
+.dialog::before { content: ""; position: absolute; inset: 3px; border: 1.5px solid var(--dex-navy); border-radius: 6px; pointer-events: none; }
+.dialog .bubble { min-height: 64px; padding: 12px 14px 14px; font-size: 13px; line-height: 1.75; font-weight: 700; color: var(--ink); }
+.dialog .cursor { position: absolute; right: 12px; bottom: 8px; font-size: 12px; color: var(--ink); }
+.dialog .cursor.blink { animation: blink3 1s steps(2, start) 3; }
+@keyframes blink3 { 50% { opacity: .2; } }
+.bubble-meta { font-size: 10px; color: var(--ink-soft); font-weight: 400; display: block; margin-top: 2px; }
+
+/* 番茄药丸 */
+.pill { margin-top: 10px; display: flex; align-items: center; gap: 8px; background: var(--dex-body); border: 3px solid var(--dex-navy); border-radius: 999px; padding: 5px 10px; box-shadow: 3px 3px 0 var(--dex-navy); }
+.pill .tm { font-family: ui-monospace, Menlo, monospace; font-size: 13px; font-weight: 700; color: var(--ink); font-variant-numeric: tabular-nums; }
+.pill button { font: inherit; font-size: 13px; width: 30px; height: 30px; border-radius: 50%; border: 2px solid var(--dex-navy); background: #fff; cursor: pointer; box-shadow: 2px 2px 0 var(--dex-navy); transition: transform var(--t-tap), box-shadow var(--t-tap); line-height: 1; }
+.pill button:active { transform: translate(2px,2px); box-shadow: 0 0 0 var(--dex-navy); }
+.pill .icecream { font-size: 12px; }
+
+/* 快捷图鉴屏（展开 590 → 示意 560 宽） */
+.quick { position: absolute; left: 8px; top: 40px; width: 226px; background: var(--lcd); border: 4px solid var(--dex-navy); border-radius: 12px; box-shadow: 4px 4px 0 rgba(0,0,0,.4); padding: 8px; display: none; z-index: 5; }
+.petwin.wide .quick { display: block; }
+.quick::after { content: ""; position: absolute; inset: 3px; border: 1.5px solid rgba(58,74,50,.5); border-radius: 8px; pointer-events: none; }
+.quick .qh { font-family: "Press Start 2P", monospace; font-size: 8px; color: var(--lcd-text); padding: 4px 6px 8px; }
+.quick .qi { display: flex; align-items: center; gap: 8px; padding: 6px 8px; border-radius: 6px; cursor: pointer; color: var(--lcd-text); font-size: 12px; font-weight: 700; }
+.quick .qi:hover, .quick .qi.sel { background: var(--lcd-text); color: var(--lcd); }
+.quick .qi .sprite { width: 22px; height: 22px; }
+.quick .qi .t { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.quick .qi .du { margin-left: auto; font-size: 10px; font-weight: 400; opacity: .8; flex: none; }
+.quick .go { margin: 8px 6px 4px; display: block; width: calc(100% - 12px); font: inherit; font-size: 12px; font-weight: 800; color: var(--lcd); background: var(--lcd-text); border: none; border-radius: 6px; padding: 7px 0; cursor: pointer; box-shadow: 2px 2px 0 rgba(26,27,37,.45); }
+
+/* 桌宠状态说明卡 */
+.pet-states { width: 300px; }
+.state-item { border: 3px solid var(--dex-navy); border-radius: 12px; box-shadow: 3px 3px 0 var(--dex-navy); background: #fff; padding: 10px 12px; margin-bottom: 10px; font-size: 12px; line-height: 1.8; }
+.state-item b { display: block; font-size: 13px; }
+.state-item .who { font-size: 10px; color: var(--ink-soft); }
+.state-item.cur { background: var(--hover); }
+
+/* 减弱动效 */
+html.reduce-motion *, html.reduce-motion *::before, html.reduce-motion *::after {
+  animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important;
+}
+
+/* 区域 C · 降级与双形态说明 */
+.degrade { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 12px; }
+.dg-card { border: 3px solid var(--dex-navy); border-radius: 12px; box-shadow: 3px 3px 0 var(--dex-navy); background: #fff; padding: 12px 14px; font-size: 12px; line-height: 1.85; }
+.dg-card b { display: block; font-size: 12.5px; margin-bottom: 4px; }
+.dg-card .src { font-size: 10px; color: var(--ink-soft); }
+
+footer.page-foot { width: min(1240px, 100%); text-align: center; font-size: 11px; color: rgba(245,240,220,.55); line-height: 1.9; }
+</style>
+</head>
+<body data-panel="default" data-pet="working" data-view="page">
+
+<header class="page-head">
+  <div class="sec-head"><span class="no px">DSH-PLUGIN</span><h1 class="px-cn" style="font-size:22px;">「就决定是你了」dsh 插件形态 · UIUX 规格可视化</h1></div>
+  <p class="sec-desc">规格配套原型（非业务实现 · mock 数据 · 不连 API）。区域 A 为<b>中保真</b>：宿主表面用中性灰示意 token，真实视觉由 dsh ui-primitives（圆角守卫 / 亮暗主题）在实现期决定——世界观 scoped 层（精灵 / 徽章）为真实设计；区域 B 为<b>高保真</b>：DESIGN_SYSTEM.md 全量 token 真实渲染。文案全部取自 uiux-design.md §8。<b>挂载点变更（U16 · 2026-10-11 用户裁决）</b>：面板与设置从「右侧栏 tab + settings cards」改为<b>插件自有 detail page</b>（Plugins 页 → 本插件，main 区全宽、独立于会话）——区域 A 的示意载体已随之改为「左侧导航 + 插件页面」；dsh 的 main 区为互斥路由（会话与 Plugins 页二选一），会话区仅作 conversation chip 挂载与入口关系示意，经下方「main 区视图」切换检视。</p>
+</header>
+
+<!-- ================= 区域 A · dsh 工作台示意 ================= -->
+<section>
+  <div class="sec-head"><span class="no px">A</span><h2>dsh · pokemon-choose-you 插件页面（Plugins → 本插件 detail）+ conversation 挂载</h2><span class="fidelity-tag mid">中保真 · 宿主 token 示意</span></div>
+  <p class="sec-desc">挂载点变更（<code>U16</code> 用户裁决）：不注册右侧栏 tab、不复刻宿主 settings cards——面板五分段与设置八分区收进<b>插件自有页面</b>（<code>plugins.detail.section</code>，main 区全宽、独立于会话）。注册面 = 插件页面 ×1 + conversation header chip ×1 + 桌宠 helper ×1（区域 B）；背包内 = <b>分区选单 + 分区整页 + 保存制</b>（<code>U21</code> 用户裁决「不要小卡片，每类设置单独一个页面」：八分区横向选单一次只显示一个分区的完整表单，每分区标题行右侧「保存」提交；与主应用设置中心同名同构、配置项 100% 对齐——<code>U20</code>；形态专属行为项标「作用于主应用」badge；实体管理与即时动作不走保存制——详见 A2）。可达性：左导航两步 / chip 点击 / 桌宠双击一步（<code>host:pageOpen</code>）；conversation input 不占用——对话即捕捉（<code>U3</code>）。切换下方状态与窗口形态检视全部交互状态（§4.2 六类）。</p>
+  <div class="switcher">
+    <span class="lbl">面板状态</span>
+    <button data-panel="default" aria-pressed="true">default</button>
+    <button data-panel="empty" aria-pressed="false">空态</button>
+    <button data-panel="loading" aria-pressed="false">loading</button>
+    <button data-panel="error" aria-pressed="false">schema 拒绝</button>
+    <button data-panel="auth" aria-pressed="false">未授权</button>
+    <button data-panel="authlost" aria-pressed="false">授权失效</button>
+    <span class="lbl" style="margin-left:14px;">窗口形态（§7）</span>
+    <button data-mode="wide" aria-pressed="true">宽屏 · 全宽</button>
+    <button data-mode="narrow" aria-pressed="false">窄窗/分屏（排布密度示意）</button>
+    <span class="lbl" style="margin-left:14px;">main 区视图（互斥路由 · U16）</span>
+    <button data-view="page" aria-pressed="true">插件页面</button>
+    <button data-view="session" aria-pressed="false">会话（chip 挂载示意）</button>
+    <span class="lbl" style="margin-left:14px;">chip 态</span>
+    <button data-chip="run" aria-pressed="true">运行</button>
+    <button data-chip="pause" aria-pressed="false">暂停</button>
+    <button data-chip="rest" aria-pressed="false">休息</button>
+    <button data-chip="none" aria-pressed="false">隐藏</button>
+  </div>
+
+  <div class="workbench">
+    <!-- 宿主左侧导航（示意：main 区路由仅 conversation / Plugins，进本插件 = 两步） -->
+    <div class="navrail" aria-hidden="true">
+      <div class="nr-h">dsh · 左侧导航</div>
+      <div class="nr-item nr-sess">💬 会话…</div>
+      <div class="nr-item nr-plug cur">🧩 Plugins</div>
+      <div class="nr-note">main 区路由仅<br />conversation / Plugins<br />（平台事实 · U16；<br />进本插件 = 两步）</div>
+    </div>
+    <!-- 会话视图（main 区互斥路由之一 · conversation chip 挂载示意） -->
+    <div class="conv">
+      <div class="conv-titlebar"><span class="dot"></span> dsh · 会话 — pokemon-choose-you 插件已加载（main 区互斥视图 · 打开插件页面时本区被替换）</div>
+      <div class="conv-head">
+        <div class="h-left">训练家的会话<small>模型经插件工具面读写待办（FR-T1/T2/T7）</small></div>
+        <!-- ▼ 插件挂载：conversation chip（被动信号 · 无进行中则零占位） -->
+        <div class="pcy-chip" id="pcy-chip" title="皮卡丘 · 捕获中">
+          <img class="sprite" src="../../public/pokemon/pikachu.gif" alt="皮卡丘" />
+          <span>捕获中</span><span class="timer">24:59</span>
+          <button title="暂停" aria-label="暂停">⏸</button>
+          <button title="完成捕捉" aria-label="完成捕捉">✔</button>
+        </div>
+      </div>
+      <div class="conv-scroll">
+        <div class="msg user"><div class="who">训练家</div><div class="body">记个待办：明天下午 5 点交周报</div></div>
+        <div class="msg model"><div class="who">模型（经插件工具）</div><div class="body">已捕捉！「交周报」— 分类：工作 · 截止：明天 17:00 · 有截止已排进<b>路线</b>。
+          <span class="tool-line">tool:captureNatural → 建卡（FR-T1）；5 秒内说「撤销刚才那条」可放回</span>
+        </div></div>
+        <div class="msg user"><div class="who">训练家</div><div class="body">今天还剩什么？</div></div>
+        <div class="msg model"><div class="who">模型</div><div class="body">今天路线还剩 2 只：交周报（17:00）、修复登录页崩溃（进行中）。只作答，不改任何任务（FR-T7）。</div></div>
+      </div>
+      <div class="conv-input">
+        <div class="fake-input">向模型说一句话…（对话即捕捉 / 读写入口）</div>
+        <div class="hint">input 挂载点不被插件占用（U3）——快速捕捉在插件页面 · 收音机分段（chip 点击 / 桌宠双击一步直达）</div>
+      </div>
+    </div>
+
+    <!-- 插件页面：Plugins → pokemon-choose-you detail（plugins.detail.section · main 区全宽 · 独立于会话，U16） -->
+    <div class="pluginpage" id="pluginpage">
+      <div class="pagehead">
+        <span class="crumb">Plugins › pokemon-choose-you</span>
+        <span class="ptitle">图鉴机 <span class="px" style="font-size:8px;letter-spacing:1px;color:var(--host-muted);">POKé-DEX</span></span>
+        <span class="badge" id="tab-badge" title="待处理建议 3 条（收音机分段计数 · 静态；连续失败 ≥3 时叠加 ⚠ 前缀）">3</span>
+        <span class="width-tag" id="width-tag">main 区全宽</span>
+      </div>
+      <div class="panel-scroll">
+        <!-- schema 拒绝横幅（error 态） -->
+        <div class="schema-banner"><span>⚠️</span><div>图鉴机遇到了点状况：待办库版本较新，需升级插件后才能写入。浏览不受影响。</div><span class="ro">只读模式</span></div>
+
+        <nav class="segnav" id="segnav" aria-label="图鉴机分段">
+          <button data-seg="adventure" aria-pressed="true">冒险</button>
+          <button data-seg="grass" aria-pressed="false">草丛</button>
+          <button data-seg="route" aria-pressed="false">路线</button>
+          <button data-seg="dex" aria-pressed="false">图鉴</button>
+          <button data-seg="radio" aria-pressed="false">收音机</button>
+          <button data-seg="log" aria-pressed="false">日志</button>
+          <button data-seg="settings" aria-pressed="false">背包</button>
+        </nav>
+
+        <!-- 骨架（loading 态） -->
+        <div class="skel">
+          <div class="sk"><i class="av"></i><div class="col"><i class="l1"></i><i class="l2"></i></div></div>
+          <div class="sk"><i class="av"></i><div class="col"><i class="l1"></i><i class="l2"></i></div></div>
+          <div class="sk"><i class="av"></i><div class="col"><i class="l1"></i><i class="l2"></i></div></div>
+          <div class="sk"><i class="av"></i><div class="col"><i class="l1"></i><i class="l2"></i></div></div>
+        </div>
+        <!-- 空态（empty 态） -->
+        <div class="empty">
+          <img class="sprite" src="../../public/pokemon/bulbasaur.gif" alt="妙蛙种子" />
+          <p id="empty-text">草丛静悄悄——在会话里说一句，或用 ⚡发报，第一只野生宝可梦就会出现</p>
+        </div>
+
+        <!-- 列表内容（default/error/auth 态） -->
+        <div class="panel-list" id="seg-adventure">
+          <div class="adv-head">
+            <span class="date">10-11 SAT</span>
+            <div class="caught"><span class="px">CAUGHT 2/5</span><div class="bar"><i></i></div></div>
+          </div>
+          <div class="overdue-fold">
+            <span class="n">昨天有 5 只溜走了</span><span style="font-size:10.5px;">逾期不指责，想好了再去看</span>
+            <span class="btns"><button>展开</button><button class="fresh">全部归草丛</button></span>
+          </div>
+          <div class="tcard running" id="run-card" tabindex="0" data-drawer>
+            <span class="running-tag" id="run-tag">♪ 捕获中</span>
+            <span class="no">No.025</span>
+            <img class="sprite" src="../../public/pokemon/pikachu.gif" alt="皮卡丘" />
+            <div class="main">
+              <div class="title">修复登录页崩溃</div>
+              <div class="aux"><span class="typebadge b-work">工作</span><span class="prio p-urgent" title="紧急（形/色强化 · 不闪烁）"></span><span class="meta">17:00</span><span class="meta">⏱ 41 分钟</span><span class="dispatch-badge d-running" title="agent 执行中">◉ 派发执行中</span></div>
+            </div>
+          </div>
+          <div class="tcard" tabindex="0" data-drawer>
+            <span class="no">No.054</span>
+            <img class="sprite" src="../../public/pokemon/psyduck.gif" alt="可达鸭" />
+            <div class="main">
+              <div class="title">对齐周报数据口径</div>
+              <div class="aux"><span class="typebadge b-work">工作</span><span class="prio p-high"></span><span class="meta">今天 18:00</span><span class="meta">⏱ 12 分钟</span></div>
+            </div>
+          </div>
+          <div class="tcard" tabindex="0" data-drawer>
+            <span class="no">No.001</span>
+            <img class="sprite" src="../../public/pokemon/bulbasaur.gif" alt="妙蛙种子" />
+            <div class="main">
+              <div class="title">给老妈订生日蛋糕</div>
+              <div class="aux"><span class="typebadge b-life">生活</span><span class="prio p-normal"></span><span class="meta">明天 12:00</span></div>
+            </div>
+          </div>
+          <div class="tcard done" tabindex="0" data-drawer>
+            <span class="no">No.113</span>
+            <img class="sprite" src="../../public/pokemon/chansey.png" alt="吉利蛋" />
+            <div class="main">
+              <div class="title">复查体检报告指标</div>
+              <div class="aux"><span class="typebadge b-health">健康</span><span class="meta">已捕捉 · 图鉴 +1</span></div>
+            </div>
+          </div>
+          <div class="tcard" tabindex="0" data-drawer>
+            <span class="no">No.133</span>
+            <img class="sprite" src="../../public/pokemon/eevee.gif" alt="伊布" />
+            <div class="main">
+              <div class="title">整理Switch游戏清单</div>
+              <div class="aux"><span class="typebadge b-interest">兴趣</span><span class="prio p-low"></span><span class="meta">草丛 · 无截止</span><span class="dispatch-badge d-failed" title="执行失败：会话启动失败">▲ 失败</span></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="panel-list" id="seg-grass" hidden>
+          <div class="tcard" tabindex="0" data-drawer>
+            <span class="no">No.143</span>
+            <img class="sprite" src="../../public/pokemon/snorlax.gif" alt="卡比兽" />
+            <div class="main"><div class="title">研究RSS阅读器选型</div><div class="aux"><span class="typebadge b-interest">兴趣</span><span class="meta">草丛 · 无截止</span></div></div>
+          </div>
+          <div class="tcard" tabindex="0" data-drawer>
+            <span class="no">No.133</span>
+            <img class="sprite" src="../../public/pokemon/eevee.gif" alt="伊布" />
+            <div class="main"><div class="title">整理Switch游戏清单</div><div class="aux"><span class="typebadge b-interest">兴趣</span><span class="prio p-low"></span><span class="meta">草丛 · 无截止</span><span class="dispatch-badge d-failed">▲ 失败</span></div></div>
+          </div>
+        </div>
+
+        <div class="panel-list" id="seg-route" hidden>
+          <div class="group-h">今天 · 周六 10-11</div>
+          <div class="tcard running" tabindex="0" data-drawer>
+            <span class="running-tag">♪ 捕获中</span><span class="no">No.025</span>
+            <img class="sprite" src="../../public/pokemon/pikachu.gif" alt="皮卡丘" />
+            <div class="main"><div class="title">修复登录页崩溃</div><div class="aux"><span class="typebadge b-work">工作</span><span class="meta">17:00</span></div></div>
+          </div>
+          <div class="group-h">明天 · 周日 10-12</div>
+          <div class="tcard" tabindex="0" data-drawer>
+            <span class="no">No.001</span><img class="sprite" src="../../public/pokemon/bulbasaur.gif" alt="妙蛙种子" />
+            <div class="main"><div class="title">给老妈订生日蛋糕</div><div class="aux"><span class="typebadge b-life">生活</span><span class="meta">12:00</span></div></div>
+          </div>
+        </div>
+
+        <div class="panel-list" id="seg-dex" hidden>
+          <div class="panel-title" style="margin-top:0;">累计捕捉 128 · 逃走 9</div>
+          <div class="meta" style="margin-bottom:10px;">里程碑贺词：百只俱乐部——继续捕捉，训练家！</div>
+          <div class="tcard done" tabindex="0" data-drawer>
+            <span class="no">No.113</span><img class="sprite" src="../../public/pokemon/chansey.png" alt="吉利蛋" />
+            <div class="main"><div class="title">复查体检报告指标</div><div class="aux"><span class="typebadge b-health">健康</span><span class="meta">10-11 · ⏱ 30 分钟</span></div></div>
+          </div>
+          <div class="tcard done" tabindex="0" data-drawer style="background:var(--conf-low-soft);">
+            <span class="no">No.055</span><img class="sprite" src="../../public/pokemon/psyduck.gif" alt="可达鸭" style="filter:grayscale(.4);" />
+            <div class="main"><div class="title" style="text-decoration:none;">（逃走留档 · 可恢复）旧方案调研</div><div class="aux"><span class="meta">已逃走：已有类似待办</span><span class="meta">↩ 恢复</span></div></div>
+          </div>
+        </div>
+
+        <div class="panel-list" id="seg-radio" hidden>
+          <!-- 健康最小面（D13）：未授权 / 授权失效两档横幅 + 文字状态（非颜色冗余） -->
+          <div class="auth-banner notauth">收音机还没调频——授权飞书后开始接收电波 <button>授权登录</button></div>
+          <div class="auth-banner lost">飞书授权已失效，轮询已暂停 <button>重新授权</button></div>
+          <div class="health">
+            <span class="dot" id="health-dot"></span>
+            <span class="hstate" id="hstate">正常</span>
+            <span>上次成功 <b>2 分钟前</b></span><span>下次轮询 <b>00:47</b></span>
+            <span>连续失败 <b id="fail-cnt">0</b></span><span>待处理 <b>3</b></span>
+            <button class="now">⚡ 立即拉取</button>
+          </div>
+          <div class="group-h">待处理 · 信号 <span class="cnt">3</span></div>
+          <div class="sug conf-high open selectable">
+            <div class="row" tabindex="0">
+              <label class="ck"><input type="checkbox" aria-label="选中此建议" /></label>
+              <span class="from">周报群 · 张三</span>
+              <span class="text">周报改到周四下午交，记得带上回归数据…</span>
+              <span class="conf-t hi">高</span>
+              <span class="act a-update">更新建议</span>
+            </div>
+            <div class="detail">
+              <div class="msgfull">张三：周报改到周四下午交，记得带上回归数据。（代号已还原 · 30 分钟会话上下文 · 疑似@我）</div>
+              <div class="aibox">
+                <div class="h">◎ 更新建议 · 置信 高</div>
+                <div class="r">判定理由：与现有待办「交周报（周五 18:00）」明确相关，截止时间变更依据充分。</div>
+                <div class="r">变更字段：截止时间 周五 18:00 → <b>周四 15:00</b></div>
+                <span class="newtag">＋ 新标签提议「回归数据」· 依据明确，接受才创建</span>
+                <div class="ops"><button class="primary">◎ 应用更新</button><button class="ghost">✕ 逃走</button></div>
+              </div>
+            </div>
+          </div>
+          <div class="sug conf-mid selectable">
+            <div class="row" tabindex="0"><label class="ck"><input type="checkbox" aria-label="选中此建议" /></label><span class="from">私聊 · 李四</span><span class="text">下次评审帮我看一眼新组件的 token 命名…</span><span class="conf-t mid">中</span><span class="act a-todo">新待办</span></div>
+          </div>
+          <div class="sug conf-low selectable">
+            <div class="row" tabindex="0"><label class="ck"><input type="checkbox" aria-label="选中此建议" /></label><span class="from">生活群 · 老妈</span><span class="text">下周三家里聚餐，记得提前订位子…</span><span class="conf-t lo">低</span><span class="act a-todo">新待办</span></div>
+          </div>
+          <div class="group-h">无动作 · 清扫 <span class="cnt">1</span></div>
+          <div class="sug conf-low">
+            <div class="row" tabindex="0"><span class="from">周末群 · 闲聊</span><span class="text">（无动作 · 留档可清扫）周末爬山去不去？去的话喊我…</span><span class="conf-t lo">低</span><span class="act a-none">无动作</span></div>
+          </div>
+          <div class="group-h">AI 判定失败 <span class="cnt">2</span>
+            <span class="ops"><button>一键重判</button><button>强制捕捉</button><button>强制逃走</button></span>
+          </div>
+          <div class="sug failed">
+            <div class="row" tabindex="0"><span class="from">项目群 · 王五</span><span class="text">（判定超时 · 留档不丢）部署脚本的回滚步骤要更新…</span><span class="act a-none">待重判</span></div>
+          </div>
+          <!-- 批量分诊条：待处理组选中 ≥1 时浮现 -->
+          <div class="batchbar" id="batchbar">
+            <span id="batch-cnt">已选 0 条</span>
+            <button class="primary">◎ 全部捕捉</button><button>✕ 全部逃走（统一原因码）</button><button class="clear" id="batch-clear">清除</button>
+          </div>
+          <!-- 快速捕捉（FR-R7） -->
+          <div class="capture">
+            <input placeholder="一句话发报… 例：周五前给老妈订生日蛋糕 #生活" aria-label="快速捕捉输入" />
+            <button>⚡ 发报</button>
+          </div>
+          <div class="meta" style="margin-top:8px;">键盘流（聚焦域内，U9）：J/K 上下条 · C 捕捉 · X 逃走 · U 应用更新 · R 恢复 · T 接受新标签 · Esc 收起</div>
+        </div>
+
+        <div class="panel-list" id="seg-log" hidden>
+          <div class="filters">
+            <button aria-pressed="false">全部</button><button aria-pressed="true">派发无头</button>
+            <button aria-pressed="false">派发交互</button><button aria-pressed="false">收音机分类</button><button aria-pressed="false">捕捉</button>
+          </div>
+          <div class="ledger"><span class="agent">claude · 无头</span><span>14 分 22 秒</span><span>$0.31</span><span class="ec-ok">exit 0</span><span>会话 c7f3…</span><span class="cost">10-11 15:02</span></div>
+          <div class="ledger"><span class="agent">pi · 交互</span><span>3 分 05 秒</span><span>$0.08</span><span class="ec-ok">exit 0</span><span>会话 a1b2…</span><span class="cost">10-11 14:40</span></div>
+          <div class="ledger"><span class="agent">claude · 无头</span><span>10 分 00 秒（超时）</span><span>$0.19</span><span class="ec-err">timeout</span><span>会话 9d4e…</span><span class="cost">10-11 13:20</span></div>
+          <div class="meta" style="margin-top:6px;">账本与任务时间线同源（FR-D3）——在任务详情抽屉按单任务查看。</div>
+        </div>
+
+        <!-- 「背包」独立分段（分区选单 + 分区整页 + 保存制 · U17-U21） -->
+        <div class="panel-list" id="seg-settings" hidden>
+          <div class="meta" style="margin:0 0 8px;">背包 · 独立分区——与主应用设置中心<b>八分区同名同构、配置项 100% 对齐</b>（U20）；<b>每类设置单独一个分区页</b>（U21 用户裁决「不要小卡片」）：分区选单切换（一次只显示一个分区整页）+ 每分区标题行右侧「保存」按钮（36 共享配置键编辑后保存提交；agent 卡/提示词/会话过滤等实体管理与授权/测试连接等即时动作不受保存制影响）。带「作用于主应用」badge 的项 = 配置写共享库、行为仅在主应用侧生效。开关为示意可点击（点击 → 未保存角标 → 保存流）。</div>
+          <div class="secwrap" id="settings-live">
+            <nav class="secnav" aria-label="背包分区选单">
+              <button data-sec="focus" aria-pressed="true">🍅 专注<span class="udot" aria-hidden="true"></span></button>
+              <button data-sec="taxonomy" aria-pressed="false">🗂 分类与标签<span class="udot" aria-hidden="true"></span></button>
+              <button data-sec="pets" aria-pressed="false">🐾 桌宠<span class="udot" aria-hidden="true"></span></button>
+              <button data-sec="display" aria-pressed="false">👀 显示<span class="udot" aria-hidden="true"></span></button>
+              <button data-sec="agents" aria-pressed="false">🤖 Agent<span class="udot" aria-hidden="true"></span></button>
+              <button data-sec="feishu" aria-pressed="false">飞书<span class="udot" aria-hidden="true"></span></button>
+              <button data-sec="diag" aria-pressed="false">🩺 诊断<span class="udot" aria-hidden="true"></span></button>
+              <button data-sec="general" aria-pressed="false">⚙️ 通用<span class="udot" aria-hidden="true"></span></button>
+            </nav>
+            <div class="sectionpage" data-secpage="focus">
+              <div class="sec-title-row"><h3>🍅 专注</h3><span class="sub">对齐主应用 SectionFocus · 完整表单</span><button class="save-btn" data-save>保存<span class="udot" aria-hidden="true"></span></button><span class="save-hint" role="status" aria-live="polite">已保存</span></div>
+              <div class="formgroup"><h4>番茄钟</h4>
+                <div class="srow"><span class="k">启用番茄钟</span><span class="v"><span class="toggle" title="点击切换（示意）——编辑后经「保存」提交（U21）"></span></span></div>
+                <div class="srow"><span class="k">番茄时长</span><span class="v">25 分钟 ▾</span></div>
+                <div class="srow"><span class="k">短休息</span><span class="v">5 分钟 ▾（含关闭）</span></div>
+              </div>
+              <div class="formgroup"><h4>提醒与勿扰</h4>
+                <div class="srow"><span class="k">番茄结束通知</span><span class="v"><span class="toggle" title="点击切换（示意）"></span><span class="scope-badge" title="配置经「保存」写共享设置；系统通知由主应用触达（dsh 无提醒调度）">作用于主应用触达</span></span></div>
+                <div class="srow"><span class="k">长番茄提示音</span><span class="v"><span class="toggle off" title="点击切换（示意）"></span><span class="scope-badge" title="配置经「保存」写共享设置；提示音由主应用触达">作用于主应用触达</span></span></div>
+                <div class="srow"><span class="k">任务提醒通知</span><span class="v"><span class="toggle" title="点击切换（示意）"></span><span class="scope-badge" title="配置经「保存」写共享设置；系统通知由主应用触达">作用于主应用触达</span></span></div>
+                <div class="srow"><span class="k">提前提醒</span><span class="v">准时 ▾<span class="scope-badge" title="配置经「保存」写共享设置；提醒由主应用触达">作用于主应用触达</span></span></div>
+                <div class="srow"><span class="k">勿扰时段</span><span class="v">22:00–08:00<span class="scope-badge" title="配置经「保存」写共享设置；勿扰由主应用触达（跨零点合法，起=止阻断保存）">作用于主应用触达</span></span></div>
+              </div>
+            </div>
+            <div class="sectionpage" data-secpage="taxonomy" hidden>
+              <div class="sec-title-row"><h3>🗂 分类与标签</h3><span class="sub">对齐主应用 SectionTaxonomy · 实体管理面（行内确认提交，不走分区保存制）</span><button class="save-btn" data-save>保存<span class="udot" aria-hidden="true"></span></button><span class="save-hint" role="status" aria-live="polite">已保存</span></div>
+              <div class="formgroup"><h4>分类（5 个）<span class="ops"><button>＋ 新增分类</button></span></h4>
+                <div class="srow"><span class="k">工作 → 皮卡丘</span><span class="v">名称/描述可编辑（AI 判定参考规则）· 换装…（搜 1025 只：名称/编号/英文名）</span></div>
+                <div class="srow"><span class="k">生活 → 妙蛙种子</span><span class="v">编辑 · 换装…</span></div>
+                <div class="srow"><span class="k">学习 → 可达鸭</span><span class="v">编辑 · 换装…</span></div>
+                <div class="srow"><span class="k">健康 → 吉利蛋</span><span class="v">编辑 · 换装…</span></div>
+                <div class="srow"><span class="k">兴趣 → 伊布</span><span class="v">编辑 · 换装… · 放生分类（级联：任务归入第一个分类）</span></div>
+              </div>
+              <div class="formgroup"><h4>标签维度（3 个）<span class="ops"><button>＋ 新增维度</button></span></h4>
+                <div class="srow"><span class="k">topic · 话题</span><span class="v">上限 5 · 启用 · key/单多选建后只读</span></div>
+                <div class="srow"><span class="k">energy · 能量</span><span class="v">上限 3 · 启用 · key/单多选建后只读</span></div>
+                <div class="srow"><span class="k">备注</span><span class="v">新标签提议「＋」接受入口在建议卡侧（SuggestionCard）</span></div>
+              </div>
+            </div>
+            <div class="sectionpage" data-secpage="pets" hidden>
+              <div class="sec-title-row"><h3>🐾 桌宠</h3><span class="sub">对齐主应用 SectionPets · 完整表单</span><button class="save-btn" data-save>保存<span class="udot" aria-hidden="true"></span></button><span class="save-hint" role="status" aria-live="polite">已保存</span></div>
+              <div class="formgroup"><h4>主宝可梦与台词</h4>
+                <div class="srow"><span class="k">主宝可梦</span><span class="v">皮卡丘 ▾</span></div>
+                <div class="srow"><span class="k">专属台词</span><span class="v">编辑…</span></div>
+              </div>
+              <div class="formgroup"><h4>互动行为</h4>
+                <div class="srow"><span class="k">输入响应（空闲时随敲键盘节奏小回应）</span><span class="v"><span class="toggle" title="点击切换（示意）"></span><span class="scope-badge" title="配置经「保存」写共享设置；输入响应行为在主应用桌宠（dsh 桌宠 v1 无此行为）">作用于主应用桌宠</span></span></div>
+                <div class="srow"><span class="k">专注时也响应</span><span class="v"><span class="toggle" title="点击切换（示意）"></span><span class="scope-badge" title="配置经「保存」写共享设置；行为在主应用桌宠">作用于主应用桌宠</span></span></div>
+                <div class="srow"><span class="k">桌宠语音（用系统语音说一句）</span><span class="v"><span class="toggle off" title="点击切换（示意）"></span><span class="scope-badge" title="配置经「保存」写共享设置；语音在主应用桌宠">作用于主应用桌宠</span></span></div>
+                <div class="srow"><span class="k">陪跑精灵（专注满 25 分钟来陪坐）</span><span class="v"><span class="toggle off" title="点击切换（示意）"></span><span class="scope-badge" title="配置经「保存」写共享设置；陪跑在主应用桌宠">作用于主应用桌宠</span></span></div>
+              </div>
+              <div class="formgroup"><h4>dsh 形态</h4>
+                <div class="srow"><span class="k">减弱动效</span><span class="v">跟随系统 ▾（默认，U15）</span></div>
+                <div class="srow"><span class="k">显示桌宠</span><span class="v"><span class="toggle" title="点击切换（示意）"></span>（隐藏恢复入口，U4）</span></div>
+                <div class="srow"><span class="k">随 dsh 启动</span><span class="v"><span class="toggle" title="点击切换（示意）"></span></span></div>
+              </div>
+            </div>
+            <div class="sectionpage" data-secpage="display" hidden>
+              <div class="sec-title-row"><h3>👀 显示</h3><span class="sub">对齐主应用 SectionDisplay · 完整表单（U20 新立）</span><button class="save-btn" data-save>保存<span class="udot" aria-hidden="true"></span></button><span class="save-hint" role="status" aria-live="polite">已保存</span></div>
+              <div class="formgroup"><h4>语言</h4>
+                <div class="srow"><span class="k">语言</span><span class="v">简体中文 ▾（切换后 UI 即时跟随；点「保存」写入共享设置——对齐主应用，U21）</span></div>
+              </div>
+              <div class="formgroup"><h4>日期与时间</h4>
+                <div class="srow"><span class="k">日期格式</span><span class="v">2026-10-11 ▾（预览实时更新）</span></div>
+                <div class="srow"><span class="k">时间制式</span><span class="v">24 小时 · 16:24 ▾（预览实时更新）</span></div>
+              </div>
+              <div class="formgroup"><h4>dsh 面板呈现（同读同生效）</h4>
+                <div class="srow"><span class="k">逾期展示模式</span><span class="v">折叠提示 ▾<span class="scope-badge" title="经「保存」写共享设置；dsh 面板同读同生效">dsh 面板同读同生效</span></span></div>
+                <div class="srow"><span class="k">相对截止时间</span><span class="v">开 ·「3 小时后 / 已逾期 2 天」<span class="scope-badge" title="经「保存」写共享设置；dsh 面板同读同生效">dsh 面板同读同生效</span></span></div>
+              </div>
+            </div>
+            <div class="sectionpage" data-secpage="agents" hidden>
+              <div class="sec-title-row"><h3>🤖 Agent</h3><span class="sub">对齐主应用 SectionAgents · 原派发段并入（U20）</span><button class="save-btn" data-save>保存<span class="udot" aria-hidden="true"></span></button><span class="save-hint" role="status" aria-live="polite">已保存</span></div>
+              <div class="formgroup"><h4>agent 列表（AgentConfigCard · 卡自持保存）<span class="ops"><button>＋ 新增 agent</button></span></h4>
+                <div class="srow"><span class="k">claude（启用）</span><span class="v">编辑 ▾ · 命令行内校验（空/不可执行阻断）</span></div>
+                <div class="srow"><span class="k">配置字段</span><span class="v">名称 / 命令 / 历史参数 / 技能根目录</span></div>
+              </div>
+              <div class="formgroup"><h4>判定与终端</h4>
+                <div class="srow"><span class="k">判定执行方</span><span class="v">无头 subagent ▾（分支 C 时只读）</span></div>
+                <div class="srow"><span class="k">终端偏好</span><span class="v">跟随主应用 ▾<span class="scope-badge" title="经「保存」写共享设置；主应用交互派发打开哪个终端（dsh 交互派发固定走终端面板）">作用于主应用交互派发</span></span></div>
+              </div>
+              <div class="formgroup"><h4>派发</h4>
+                <div class="srow"><span class="k">项目派发路由</span><span class="v">web-app → claude（routeUpsert 实体 CRUD）</span></div>
+                <div class="srow"><span class="k">自动派发</span><span class="v"><span class="toggle off" title="点击切换（示意）"></span></span></div>
+                <div class="srow"><span class="k">并发上限</span><span class="v">2 / 机器 ▾</span></div>
+                <div class="srow"><span class="k">worktree 隔离</span><span class="v"><span class="toggle" title="点击切换（示意）"></span></span></div>
+              </div>
+              <div class="formgroup"><h4>AI 提示词（PromptOverrideEditor · 面板自持保存）</h4>
+                <div class="srow"><span class="k">4 处系统提示词</span><span class="v">IM 分类 / 快速捕捉 / 标签治理 / 派发 —— 查看 / 编辑覆盖 / 恢复默认 ▾</span></div>
+              </div>
+            </div>
+            <div class="sectionpage" data-secpage="feishu" hidden>
+              <div class="sec-title-row"><h3>飞书</h3><span class="sub">对齐主应用 SectionFeishu · 原收音机段改组（U19/U20）</span><button class="save-btn" data-save>保存<span class="udot" aria-hidden="true"></span></button><span class="save-hint" role="status" aria-live="polite">已保存</span></div>
+              <div class="formgroup"><h4>轮询（保存制，U21）</h4>
+                <div class="srow"><span class="k">启用轮询</span><span class="v"><span class="toggle" title="点击切换（示意）"></span></span></div>
+                <div class="srow"><span class="k">轮询间隔</span><span class="v">每 2 分钟 ▾</span></div>
+              </div>
+              <div class="formgroup"><h4>我的称呼（保存制，U21）</h4>
+                <div class="srow"><span class="k">称呼列表</span><span class="v">乔老板 · 老乔（命中消息标注「疑似指派给你」的判定依赖）</span></div>
+              </div>
+              <div class="formgroup"><h4>授权（即时动作）</h4>
+                <div class="srow"><span class="k">飞书授权</span><span class="v">已授权 · 身份 + 会话数 · <button style="font:inherit;font-size:10.5px;cursor:pointer;border:1.5px solid var(--host-border-strong);background:var(--host-bg);border-radius:6px;padding:1px 8px;">测试连接</button> ✓</span></div>
+              </div>
+              <div class="formgroup"><h4>会话过滤（实体 CRUD · 行内乐观写）</h4>
+                <div class="srow"><span class="k">周报群</span><span class="v">跟随默认 / 仅拉取 / 过滤 —— 三态行内切换</span></div>
+                <div class="srow"><span class="k">私聊 · 李四</span><span class="v">固定跟随（置灰只读——私聊不参与过滤）</span></div>
+              </div>
+            </div>
+            <div class="sectionpage" data-secpage="diag" hidden>
+              <div class="sec-title-row"><h3>🩺 诊断</h3><span class="sub">对齐主应用 SectionDiag · 只读查询与即时动作</span><button class="save-btn" data-save>保存<span class="udot" aria-hidden="true"></span></button><span class="save-hint" role="status" aria-live="polite">已保存</span></div>
+              <div class="formgroup"><h4>链路健康（两链路 × 三档，点+文字非颜色冗余）</h4>
+                <div class="srow"><span class="k">飞书链路</span><span class="v">● 正常 · 建议积压 3 · <button style="font:inherit;font-size:10.5px;cursor:pointer;border:1.5px solid var(--host-border-strong);background:var(--host-bg);border-radius:6px;padding:1px 8px;">⚡ 立即拉取</button></span></div>
+                <div class="srow"><span class="k">判定链路</span><span class="v">● 正常 · 上次成功 2 分钟前 · 下次轮询 00:47 · 连续失败 0 · <button style="font:inherit;font-size:10.5px;cursor:pointer;border:1.5px solid var(--host-border-strong);background:var(--host-bg);border-radius:6px;padding:1px 8px;">↻ 重判</button></span></div>
+                <div class="srow"><span class="k">最近错误</span><span class="v">—</span></div>
+              </div>
+              <div class="formgroup"><h4>支持报告（即时动作 · 已脱敏）</h4>
+                <div class="srow"><span class="k">一键复制</span><span class="v"><button style="font:inherit;font-size:10.5px;cursor:pointer;border:1.5px solid var(--host-border-strong);background:var(--host-bg);border-radius:6px;padding:1px 8px;">生成支持报告并复制</button>（版本 + 平台 + 健康快照 + 最近日志）</span></div>
+              </div>
+              <div class="formgroup"><h4>运行日志查看器（LogViewer · v1，U20）</h4>
+                <div class="srow"><span class="k">过滤</span><span class="v">级别 ▾ · 来源 ▾ · 刷新（过滤即时生效，只读查询）</span></div>
+                <div class="srow"><span class="k">列表</span><span class="v">最新在上 · 分页 · 脱敏同主应用；空态：「暂无日志。完整日志文件位于 ~/.choose-you/logs/ 下。」</span></div>
+              </div>
+            </div>
+            <div class="sectionpage" data-secpage="general" hidden>
+              <div class="sec-title-row"><h3>⚙️ 通用</h3><span class="sub">对齐主应用 SectionGeneral · 完整表单</span><button class="save-btn" data-save>保存<span class="udot" aria-hidden="true"></span></button><span class="save-hint" role="status" aria-live="polite">已保存</span></div>
+              <div class="formgroup"><h4>主应用行为（保存制，U21）</h4>
+                <div class="srow"><span class="k">每周复盘提醒</span><span class="v">周五 ▾<span class="scope-badge" title="经「保存」写共享设置；复盘提醒由主应用发系统通知">作用于主应用</span></span></div>
+                <div class="srow"><span class="k">每日自动备份</span><span class="v">开 · 保留 7 份<span class="scope-badge" title="经「保存」写共享设置；备份由主应用执行">作用于主应用</span></span></div>
+                <div class="srow"><span class="k">关闭到托盘</span><span class="v"><span class="toggle" title="点击切换（示意）"></span><span class="scope-badge" title="经「保存」写共享设置；托盘驻留是主应用行为">作用于主应用</span></span></div>
+              </div>
+              <div class="formgroup"><h4>库与指南</h4>
+                <div class="srow"><span class="k">待办库状态</span><span class="v">v6 · 兼容 ✓（dbStatus 即时查询）</span></div>
+                <div class="srow"><span class="k">使用指南</span><span class="v">查看（docs/USER_GUIDE.md dsh 章节）</span></div>
+                <div class="srow"><span class="k">双形态说明</span><span class="v">查看（§8 双形态小贴士）</span></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 详情抽屉 -->
+      <div class="drawer-mask" id="drawer-mask"></div>
+      <aside class="drawer" id="drawer" aria-label="任务详情">
+        <div class="d-head">
+          <img class="sprite" src="../../public/pokemon/pikachu.gif" alt="皮卡丘" style="width:34px;height:34px;" />
+          <div><div class="t">修复登录页崩溃</div><div class="meta" style="font-size:11px;">No.025 · 工作 · 紧急 · 17:00 · ⏱ 41 分钟 · <span class="dispatch-badge d-running">◉ 派发执行中</span></div></div>
+          <button class="close" id="drawer-close" aria-label="收起详情">✕</button>
+        </div>
+        <div class="d-body">
+          <div class="d-sec">跟进记录</div>
+          <div class="fu">李四：崩溃只在 Safari 复现，堆栈指向 hydration。<small>10-11 14:32 · 来源：收音机（自动追加）</small></div>
+          <div class="fu">复现步骤已最小化到 3 步。<small>10-11 15:01 · 来源：训练家</small></div>
+          <div class="d-sec">AGENT 执行时间线</div>
+          <div class="tl"><span class="when">15:02 →</span><span><b>无头派发 · claude</b> · worktree <code>fix/drawer-crash</code> · 14 分 22 秒 · $0.31 · exit 0<br/>回传摘要：定位 hydration 时序问题，修复 + 回归用例已提交分支。</span></div>
+          <div class="tl"><span class="when">13:20 →</span><span><b>无头派发 · claude</b> · 10 分钟超时自动置失败 · $0.19</span></div>
+          <div class="route-confirm" id="route-confirm">
+            <button class="rc-close" id="route-close" aria-label="收起派发确认">✕</button>
+            即将派发：<b>claude</b> · <b>本机</b> · <b>~/code/web-app</b> · 来源：项目标签「web-app」<br/>可临时改选，不回写项目路由（FR-D1）。交互通道将在终端面板启动，可随时观察接管（D6）。
+          </div>
+          <div class="d-ops">
+            <button class="primary" id="dispatch-headless">派发 · 无头</button><button id="dispatch-interactive">派发 · 交互</button>
+            <button>重派（续接）</button><button>标记完成</button><button>标记失败</button><button>重置</button>
+            <button>改期</button><button>✕ 逃走（原因码）</button>
+          </div>
+          <!-- 放生危险区：两层确认 + 5 秒撤销（S3-2） -->
+          <div class="danger" id="danger">
+            <button class="d-btn" id="arm-release">放生（删除）</button>
+            <div class="confirm-box">
+              放生后「修复登录页崩溃」将连同标签关联与跟进记录一并删除，操作记录留档。执行后 5 秒内可撤销。
+              <div class="ops"><button class="d-btn" id="confirm-release">确认放生</button><button id="cancel-release">取消</button></div>
+            </div>
+          </div>
+        </div>
+      </aside>
+    </div>
+  </div>
+
+  <!-- 插件页面 · 背包分区页面检视（原 settings cards 收进同页，U16；八分区完全对齐 U20；每类设置单独一页 U21） -->
+  <div class="sec-head" style="margin-top:22px;"><span class="no px">A2</span><h2 style="font-size:14px;">背包 · 分区页面检视（每类设置单独一个分区页 · 保存制 U21）</h2></div>
+  <p class="sec-desc" style="margin-bottom:10px;">U21 用户裁决（2026-10-11 关卡回流：「不要小卡片，每类设置单独一个页面，跟桌面应用保持一致」）：背包内 = <b>八分区横向选单 + 分区整页</b>（对齐主应用设置中心「上选单下内容」）——一次只显示一个分区的<b>完整表单</b>（非摘要卡），废弃原八分区卡多列网格；<b>保存制对齐主应用</b>：每分区页标题行右侧「保存」按钮，36 共享配置键编辑草稿后保存统一提交（host 命令不变，仅提交时机；开关可点击体验脏标记→保存流）；未保存角标（静态「●」，不闪烁）+ 离开背包分段时未保存确认（在上方工作台内切换分段触发）；实体管理（分类/标签/维度/agent 卡/提示词/会话过滤）与授权/测试连接/立即拉取等即时动作不走保存制。八分区内容与主应用设置中心 100% 对齐（U20）：原派发段并入 Agent 分区、原收音机段改组飞书分区（+我的称呼）、显示分区新立（语言+显示偏好+逾期模式/相对截止）、运行日志查看器提前进 v1。带「作用于主应用」badge 的项 = 配置写共享库、行为仅在主应用侧生效；「dsh 面板同读同生效」= 共享值同时驱动 dsh 自身呈现。本区与页面内「背包」分段同构（同一结构实例化），独立陈列供逐分区细看。</p>
+  <div class="secwrap" id="settings-showcase" aria-label="背包分区页面检视"></div>
+</section>
+
+<!-- ================= 区域 B · 桌宠（高保真） ================= -->
+<section>
+  <div class="sec-head"><span class="no px">B</span><h2>桌宠 helper · 状态驱动（300×330 局部小窗 · 透明置顶 · 穿透翻转）</h2><span class="fidelity-tag hi">高保真 · DESIGN_SYSTEM 全量 token</span></div>
+  <p class="sec-desc">图鉴复古风与主应用桌宠同构（FR-P6）。色环全程被动显示剩余时间（时间盲友好）；台词气泡瞬态——基础 3.5s + 每字 120ms、封顶 12s，悬停暂停、点击收起；▼ 仅新事件闪 3 次后停（同屏唯一闪烁名额）。切换状态检视动画矩阵（§3.4）；悬停精灵浮现 ☰ 展开快捷图鉴屏；「减弱动效」开关模拟 prefers-reduced-motion 双通道降级。</p>
+  <div class="switcher">
+    <span class="lbl">桌宠状态</span>
+    <button data-pet="idle" aria-pressed="false">idle 空闲</button>
+    <button data-pet="working" aria-pressed="true">working 进行中</button>
+    <button data-pet="paused" aria-pressed="false">paused 暂停</button>
+    <button data-pet="rest" aria-pressed="false">rest 短休息</button>
+    <button data-pet="celebrating" aria-pressed="false">celebrating 捕捉演出</button>
+    <span class="lbl" style="margin-left:14px;">动效</span>
+    <button id="rm-btn" aria-pressed="false">减弱动效</button>
+    <button id="quick-btn" aria-pressed="false">☰ 快捷图鉴屏</button>
+  </div>
+  <div class="desk-wrap">
+    <div class="desk">
+      <div class="wall-time">16:24</div><div class="wall-date">10月11日 周六</div>
+      <div class="dicon i1"><div class="ig"></div>Finder</div>
+      <div class="dicon i2"><div class="ig"></div>Code</div>
+      <div class="dicon i3"><div class="ig"></div>dsh</div>
+      <!-- 桌宠窗 -->
+      <div class="petwin" id="petwin">
+        <!-- 快捷图鉴屏（FR-P4） -->
+        <div class="quick">
+          <div class="qh">QUICK DEX · TODAY</div>
+          <div class="qi sel"><img class="sprite" src="../../public/pokemon/pikachu.gif" alt="" /><span class="t">修复登录页崩溃</span><span class="du">17:00</span></div>
+          <div class="qi"><img class="sprite" src="../../public/pokemon/psyduck.gif" alt="" /><span class="t">对齐周报数据口径</span><span class="du">18:00</span></div>
+          <div class="qi"><img class="sprite" src="../../public/pokemon/bulbasaur.gif" alt="" /><span class="t">给老妈订生日蛋糕</span><span class="du">明天</span></div>
+          <button class="go">▶ 出发（顶下当前 · 喊「就决定是你了！」）</button>
+        </div>
+        <div class="sprite-box">
+          <svg class="ring" viewBox="0 0 148 148" aria-hidden="true">
+            <circle class="bgc" cx="74" cy="74" r="66"></circle>
+            <circle class="fgc" id="ring-fg" cx="74" cy="74" r="66"></circle>
+          </svg>
+          <span class="ring-note">色环 · 全程被动<br/>绿→琥珀→红</span>
+          <img class="sprite" id="pet-sprite" src="../../public/pokemon/pikachu.gif" alt="皮卡丘" />
+          <span class="capture-show"><span class="ball"></span><span class="stars"><span>✦</span><span>✧</span><span>✦</span><span>✧</span><span>✦</span></span></span>
+          <button class="hover-menu" id="hover-menu-btn" title="快捷图鉴屏" aria-label="展开快捷图鉴屏">☰</button>
+        </div>
+        <div class="dialog" id="dialog" title="悬停暂停计时 · 点击收起">
+          <div class="bubble" id="bubble">皮卡丘正在捕捉：修复登录页崩溃<span class="bubble-meta" id="bubble-meta">台词瞬态 · 说完自动淡出（封顶 12s）· 悬停暂停 / 点击收起</span></div>
+          <span class="cursor blink" id="cursor">▼</span>
+        </div>
+        <div class="pill" id="pill">
+          <span class="tm" id="pill-time">24:59</span>
+          <span id="pill-ops">
+            <button title="暂停">⏸</button><button title="完成捕捉">✔</button>
+          </span>
+        </div>
+      </div>
+    </div>
+    <div class="pet-states" id="pet-states">
+      <div class="state-item" data-state="idle"><b>idle 空闲（无进行中）</b>慢呼吸 + 微动作池（眨眼/左右看/翻面/哈欠，4~9s 加权派发）。每日首现时段问候一次：「早！今天也从草丛出发吧」（皮卡丘）。<span class="who">→ 切到 idle 态查看</span></div>
+      <div class="state-item" data-state="working"><b>working 进行中</b>换装分类宝可梦 + pk-hop 跳跃循环；开场喊「就决定是你了！」→「{p}正在捕捉：{t}」。番茄尾段跳跃加速（动画即信息）。跨形态打断（D16）：任务在另一形态收工 → 一次性中性气泡「{t} 已在别处收工 · 已记 N 分钟」，chip 直接消失可接受。<span class="who">→ 默认态</span></div>
+      <div class="state-item" data-state="paused"><b>paused 暂停</b>灰度 + 慢呼吸（不到 asleep）；药丸 ▶🍦✔ 三钮。「{p}在原地休息」。<span class="who">→ 切到 paused 态查看</span></div>
+      <div class="state-item" data-state="rest"><b>rest 短休息</b>色环转休息蓝（--rest-blue）；☕ 倒计时；结束提示「点 ▶ 开新一轮番茄，你来定」，绝不自动开轮。<span class="who">→ 切到 rest 态查看</span></div>
+      <div class="state-item" data-state="celebrating"><b>celebrating 完成（≤1.5s 可跳过）</b>蹲 → 精灵球抛物线 → 三摇 ±14° → 星星爆开 +「✔ 捕捉成功！记入图鉴」；里程碑双排星星。<span class="who">→ 切到 celebrating 态查看</span></div>
+      <div class="state-item" data-state="note"><b>v1 降级（随 SDD D1/D4）</b>urgent 到期敲门抖动、输入响应 / 💬聊聊 / 语音 / 陪跑 / 时刻台词 / 连胜彩蛋 / 坐栖——均不在 dsh 桌宠 v1。<span class="who">uiux-design §3.4 / §4.2</span></div>
+    </div>
+  </div>
+</section>
+
+<!-- ================= 区域 C · 降级与双形态提示 ================= -->
+<section>
+  <div class="sec-head"><span class="no px">C</span><h2>降级呈现与双形态并存提示（文案取 uiux-design §8）</h2></div>
+  <div class="degrade">
+    <div class="dg-card"><b>双形态小贴士（设置区 · 通用段）</b>双形态小贴士：dsh 与主应用共用同一份待办数据与设置——建议不会重复出现（结果幂等）；两只桌宠可以同时在场，各自可隐藏；到期提醒由主应用承担（若在运行，触达配置在背包·专注段）；提示词在两处都可编辑，同时改动时会提示并刷新到最新；收音机会话过滤可在背包·飞书段直接调整。<span class="src">FR-X1 / FR-P6 / D1 / U19 / U20</span></div>
+    <div class="dg-card"><b>幂等冲突 toast（中性）</b>「这条建议已在另一处处置过了」——另一形态先落库时，不产生第二个任务或冲突状态。<span class="src">FR-X1 · SUGGESTION_ALREADY_RESOLVED</span></div>
+    <div class="dg-card"><b>提醒触达归属（D1 · U20 口径）</b>dsh 侧无提醒调度本体——番茄完成只走桌宠气泡 + 药丸出口，不发系统通知；通知开关/提前提醒/勿扰时段等<b>配置项</b>在背包·专注段提供（标「作用于主应用触达」、写共享设置，主应用在运行时按其触达）。<span class="src">SDD FR-P 降级清单 / U20</span></div>
+    <div class="dg-card"><b>桌宠行为降级与配置对齐（D4 · U20 口径）</b>dsh 桌宠 v1 不实现输入响应/聊聊/语音/陪跑/时刻台词/连胜演出这些行为本体；背包·桌宠段保留其<b>配置项</b>（标「作用于主应用桌宠」，写共享设置）。<span class="src">SDD FR-P 降级清单 / U20</span></div>
+    <div class="dg-card"><b>诊断降级范围缩小（D13 · U19/U20）</b>链路健康完整面板（飞书/判定两链路 × 三档状态 · 上次成功 · 下次轮询 · 连续失败 · 最近错误 · 手动重试，飞书含建议积压）与支持报告一键复制（已脱敏）已回背包·诊断段；收音机分段保留 HealthStrip 最小面（就地可见性）。<span class="src">FR-R8 / U19</span></div>
+    <div class="dg-card"><b>运行日志查看器（提前进 v1 · U20）</b>背包·诊断段内提供：级别与来源过滤、分页查询（host:logQuery）、最新在上，脱敏口径同主应用查看器；空态指向 ~/.choose-you/logs/。一期日志消费另含日志分段 agent 账本 + 任务详情时间线。<span class="src">U20</span></div>
+    <div class="dg-card"><b>提示词覆盖与双形态冲突（U20）</b>背包·Agent 段「AI 提示词」卡：4 处系统提示词（IM 分类/快速捕捉/标签治理/派发）查看/编辑覆盖/恢复默认，保存下一次 AI 调用生效；双形态同时编辑 → 中性提示「提示词已在另一形态更新，已为你刷新为最新版」（CAS 或后写胜+提示，AD 定参）。<span class="src">U20 / PROMPT_VALIDATION_FAILED</span></div>
+    <div class="dg-card"><b>schema 拒绝（FR-X2）</b>持久横幅「图鉴机遇到了点状况：待办库版本较新，需升级插件后才能写入。浏览不受影响。」+ 只读模式 + 写操作禁用。<span class="src">DB_SCHEMA_TOO_NEW</span></div>
+    <div class="dg-card"><b>远端文件视图降级（D5）</b>派发路由只显示远端目录文本，不渲染文件树；无 shim 配置面（dsh 原生 SSH deployment 替代）。<span class="src">FR-D 降级清单</span></div>
+  </div>
+</section>
+
+<footer class="page-foot">
+  规格可视化原型 · mock 数据 · 不连 API · 非生产代码（prototype-conventions §5）<br />
+  字体经 CDN 引入仅限本原型；生产环境本地打包（fontsource + @vp-tw 子集，DESIGN_SYSTEM §2）。<br />
+  宝可梦形象版权归 Nintendo / Game Freak / Creatures，素材（PokeAPI sprites）仅个人学习使用，请勿商用（NFR-9）。
+</footer>
+
+<!-- 撤销 toast（role=status，读屏可感知；右下角不抢焦点） -->
+<div class="toast" id="toast" role="status" aria-live="polite"><span id="toast-text"></span><button id="toast-undo">撤销 5s</button></div>
+
+<!-- 未保存离开确认（U21）：背包存在未保存修改时离开背包分段触发 -->
+<div class="leave-mask" id="leave-mask">
+  <div class="leave-confirm" role="dialog" aria-modal="true" aria-label="未保存离开确认">
+    <p>背包还有未保存的修改。</p>
+    <div class="ops">
+      <button class="primary" id="leave-save">保存并离开</button>
+      <button class="ghost" id="leave-discard">放弃修改</button>
+      <button id="leave-stay">留在这里</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ---- 面板状态 / 窗口形态切换 ----
+document.querySelectorAll('[data-panel]').forEach(b => b.addEventListener('click', () => {
+  document.body.dataset.panel = b.dataset.panel;
+  document.querySelectorAll('[data-panel]').forEach(x => x.setAttribute('aria-pressed', String(x === b)));
+}));
+document.querySelectorAll('[data-mode]').forEach(b => b.addEventListener('click', () => {
+  document.querySelector('.workbench').classList.toggle('narrowwin', b.dataset.mode === 'narrow');
+  document.getElementById('width-tag').textContent = b.dataset.mode === 'narrow'
+    ? '窄窗/分屏示意 · 辅助行折行、背包分区选单横向滚动（§7 排布密度）'
+    : 'main 区全宽';
+  document.querySelectorAll('[data-mode]').forEach(x => x.setAttribute('aria-pressed', String(x === b)));
+}));
+
+// ---- 分段导航（空态文案随分段切换：任务空 / 收音机空 / 日志空；U21 离开背包未保存确认拦截） ----
+const segs = ['adventure','grass','route','dex','radio','log','settings'];
+let activeSeg = 'adventure';
+const emptyCopy = {
+  task: '草丛静悄悄——在会话里说一句，或用 ⚡发报，第一只野生宝可梦就会出现',
+  radio: '电波安静。有新消息会以计数提醒，不会打扰你',
+  log: '还没有派出过 agent'
+};
+function syncEmpty() {
+  const key = activeSeg === 'radio' ? 'radio' : activeSeg === 'log' ? 'log' : 'task';
+  document.getElementById('empty-text').textContent = emptyCopy[key];
+}
+function applySeg(seg) {
+  activeSeg = seg;
+  segs.forEach(s => document.getElementById('seg-' + s).hidden = (s !== activeSeg));
+  document.querySelectorAll('#segnav button').forEach(x => x.setAttribute('aria-pressed', String(x.dataset.seg === seg)));
+  syncEmpty();
+}
+document.getElementById('segnav').addEventListener('click', e => {
+  const b = e.target.closest('button[data-seg]'); if (!b) return;
+  // U21：背包存在未保存修改时离开 → 确认弹层（保存并离开 / 放弃修改 / 留在这里）
+  if (activeSeg === 'settings' && b.dataset.seg !== 'settings'
+      && document.querySelector('#seg-settings .sectionpage.dirty')) {
+    pendingSegBtn = b; leaveMask.classList.add('on');
+    document.getElementById('leave-stay').focus();
+    return;
+  }
+  applySeg(b.dataset.seg);
+});
+// 未保存离开确认（U21）
+const leaveMask = document.getElementById('leave-mask');
+let pendingSegBtn = null;
+function closeLeave() { leaveMask.classList.remove('on'); pendingSegBtn = null; }
+document.getElementById('leave-stay').addEventListener('click', closeLeave);
+leaveMask.addEventListener('click', e => { if (e.target === leaveMask) closeLeave(); });
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape' && leaveMask.classList.contains('on')) closeLeave();
+});
+document.getElementById('leave-discard').addEventListener('click', () => {
+  document.querySelectorAll('#seg-settings .sectionpage.dirty').forEach(clearDirty);
+  if (pendingSegBtn) applySeg(pendingSegBtn.dataset.seg);
+  closeLeave();
+});
+document.getElementById('leave-save').addEventListener('click', () => {
+  // 示意：整份草稿提交成功（保存中… 态省略），清除未保存标记后离开
+  document.querySelectorAll('#seg-settings .sectionpage.dirty').forEach(clearDirty);
+  if (pendingSegBtn) applySeg(pendingSegBtn.dataset.seg);
+  closeLeave();
+});
+
+// ---- 背包 · 分区选单 + 分区整页 + 保存制（U21） ----
+// A2「背包 · 分区页面检视」= 与页面内同一结构实例化（clone 后统一绑定）
+const liveSettingsWrap = document.getElementById('settings-live');
+const showcaseWrap = document.getElementById('settings-showcase');
+if (liveSettingsWrap && showcaseWrap) {
+  const clone = liveSettingsWrap.cloneNode(true);
+  clone.removeAttribute('id');
+  showcaseWrap.appendChild(clone);
+}
+function markDirty(page) {
+  if (!page) return;
+  page.classList.add('dirty');
+  const wrap = page.closest('.secwrap'), key = page.dataset.secpage;
+  const navBtn = wrap && wrap.querySelector('.secnav button[data-sec="' + key + '"]');
+  if (navBtn) navBtn.classList.add('dirty');
+  const saveBtn = page.querySelector('.save-btn');
+  if (saveBtn) { saveBtn.classList.add('dirty'); saveBtn.title = '有未保存的修改'; }
+}
+function clearDirty(page) {
+  if (!page) return;
+  page.classList.remove('dirty');
+  const wrap = page.closest('.secwrap'), key = page.dataset.secpage;
+  const navBtn = wrap && wrap.querySelector('.secnav button[data-sec="' + key + '"]');
+  if (navBtn) navBtn.classList.remove('dirty');
+  const saveBtn = page.querySelector('.save-btn');
+  if (saveBtn) { saveBtn.classList.remove('dirty'); saveBtn.removeAttribute('title'); }
+}
+function bindSecwrap(wrap) {
+  // 分区切换：一次只显示一个分区整页（其余隐藏）；切换保留未保存草稿（不出确认，对齐主应用）
+  const nav = wrap.querySelector('.secnav');
+  if (!nav) return;
+  nav.addEventListener('click', e => {
+    const b = e.target.closest('button[data-sec]'); if (!b) return;
+    wrap.querySelectorAll('.sectionpage').forEach(p => { p.hidden = p.dataset.secpage !== b.dataset.sec; });
+    nav.querySelectorAll('button').forEach(x => x.setAttribute('aria-pressed', String(x === b)));
+  });
+  // 开关示意：点击切换 → 标记未保存（编辑草稿，U21——不再即时写库）
+  wrap.querySelectorAll('.sectionpage .toggle').forEach(t => t.addEventListener('click', () => {
+    t.classList.toggle('off');
+    markDirty(t.closest('.sectionpage'));
+  }));
+  // 保存流：保存中… → hint「已保存」自隐 4s（role=status，无 toast）→ 清除未保存标记
+  wrap.querySelectorAll('.save-btn').forEach(btn => btn.addEventListener('click', () => {
+    const page = btn.closest('.sectionpage');
+    const label = btn.childNodes[0];
+    btn.disabled = true; label.nodeValue = '保存中…';
+    setTimeout(() => {
+      label.nodeValue = '保存';
+      btn.disabled = false;
+      clearDirty(page);
+      const hint = page.querySelector('.save-hint');
+      if (hint) { hint.classList.add('on'); setTimeout(() => hint.classList.remove('on'), 4000); }
+    }, 600);
+  }));
+}
+document.querySelectorAll('.secwrap').forEach(bindSecwrap);
+
+// ---- 建议卡内联展开（复选框点击不触发展开） ----
+document.querySelectorAll('.sug .row').forEach(r => r.addEventListener('click', e => {
+  if (e.target.closest('.ck')) return;
+  r.parentElement.classList.toggle('open');
+}));
+
+// ---- 详情抽屉（焦点管理：打开聚焦关闭钮 / focus trap / 关闭回归触发元素） ----
+const drawer = document.getElementById('drawer'), mask = document.getElementById('drawer-mask');
+let lastTrigger = null;
+function openDrawer(c) {
+  lastTrigger = c;
+  drawer.classList.add('on'); mask.classList.add('on');
+  document.getElementById('drawer-close').focus();
+}
+document.querySelectorAll('[data-drawer]').forEach(c => {
+  c.addEventListener('click', () => openDrawer(c));
+  c.addEventListener('keydown', e => { if (e.key === 'Enter') openDrawer(c); });
+});
+function closeDrawer() {
+  drawer.classList.remove('on'); mask.classList.remove('on');
+  document.getElementById('danger').classList.remove('armed');
+  document.getElementById('route-confirm').classList.remove('on');
+  if (lastTrigger) lastTrigger.focus(); // a11y：焦点回归触发元素
+}
+drawer.addEventListener('keydown', e => { // focus trap：Tab 循环不出抽屉
+  if (e.key !== 'Tab') return;
+  const f = drawer.querySelectorAll('button, [href], input, [tabindex]:not([tabindex="-1"])');
+  if (!f.length) return;
+  const first = f[0], last = f[f.length - 1];
+  if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
+  else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
+});
+document.getElementById('drawer-close').addEventListener('click', closeDrawer);
+mask.addEventListener('click', closeDrawer);
+document.addEventListener('keydown', e => { if (e.key === 'Escape') closeDrawer(); });
+
+// ---- 未授权 / 授权失效 / 静默失败 ⚠ 变体联动（健康文字状态非颜色冗余） ----
+new MutationObserver(() => {
+  const st = document.body.dataset.panel;
+  const dot = document.getElementById('health-dot'), cnt = document.getElementById('fail-cnt'),
+        hs = document.getElementById('hstate'), badge = document.getElementById('tab-badge');
+  if (st === 'auth') {
+    dot.className = 'dot w'; cnt.textContent = '0'; hs.textContent = '未授权 · 轮询暂停';
+    badge.textContent = '3'; badge.title = '待处理建议 3 条（收音机分段计数 · 静态）';
+  } else if (st === 'authlost') {
+    dot.className = 'dot f'; cnt.textContent = '6'; hs.textContent = '授权失效 · 重试中';
+    badge.textContent = '⚠ 3'; badge.title = '连续失败 ≥3（U14 静态 ⚠ · 不闪烁）+ 待处理 3';
+  } else {
+    dot.className = 'dot'; cnt.textContent = '0'; hs.textContent = '正常';
+    badge.textContent = '3'; badge.title = '待处理建议 3 条（收音机分段计数 · 静态）';
+  }
+}).observe(document.body, { attributes: true, attributeFilter: ['data-panel'] });
+
+// ---- conversation chip 三态 + 隐藏（暂停时进行中卡示「⏸ 休息中」降饱和变体） ----
+const chipEl = document.getElementById('pcy-chip');
+const chipCfg = {
+  run:   { label: '捕获中',   time: '24:59', ops: [['⏸','暂停'], ['✔','完成捕捉']],                       card: '♪ 捕获中' },
+  pause: { label: '已暂停',   time: '18:41', ops: [['▶','继续'], ['🍦','先试 5 分钟'], ['✔','完成捕捉']], card: '⏸ 休息中' },
+  rest:  { label: '☕ 休息中', time: '04:32', ops: [['▶','开新一轮番茄，你来定']],                          card: '♪ 捕获中' },
+  none:  null
+};
+// ---- main 区互斥路由（U16）：会话 / 插件页面二选一，左侧导航联动当前项 ----
+document.querySelectorAll('[data-view]').forEach(b => b.addEventListener('click', () => {
+  document.body.dataset.view = b.dataset.view;
+  document.querySelectorAll('[data-view]').forEach(x => x.setAttribute('aria-pressed', String(x === b)));
+  document.querySelector('.nr-sess').classList.toggle('cur', b.dataset.view === 'session');
+  document.querySelector('.nr-plug').classList.toggle('cur', b.dataset.view === 'page');
+}));
+
+document.querySelectorAll('[data-chip]').forEach(b => b.addEventListener('click', () => {
+  if (document.body.dataset.view !== 'session') document.querySelector('[data-view="session"]').click();
+  setChip(b.dataset.chip);
+}));
+function setChip(state) {
+  document.querySelectorAll('[data-chip]').forEach(x => x.setAttribute('aria-pressed', String(x.dataset.chip === state)));
+  const c = chipCfg[state];
+  if (!c) { chipEl.style.display = 'none'; return; }
+  chipEl.style.display = '';
+  chipEl.title = '皮卡丘 · ' + c.label;
+  chipEl.querySelector('span').textContent = c.label;
+  chipEl.querySelector('.timer').textContent = c.time;
+  chipEl.querySelectorAll('button').forEach(x => x.remove());
+  c.ops.forEach(([t, ti]) => { const btn = document.createElement('button'); btn.textContent = t; btn.title = ti; btn.setAttribute('aria-label', ti); chipEl.appendChild(btn); });
+  const card = document.getElementById('run-card'), tag = document.getElementById('run-tag');
+  card.classList.toggle('paused-var', state === 'pause');
+  tag.textContent = c.card;
+}
+
+// ---- 批量分诊（BatchBar：待处理组选中 ≥1 浮现） ----
+const batchbar = document.getElementById('batchbar');
+function syncBatch() {
+  const boxes = [...document.querySelectorAll('.sug.selectable input[type="checkbox"]')];
+  const n = boxes.filter(b => b.checked).length;
+  document.getElementById('batch-cnt').textContent = '已选 ' + n + ' 条';
+  batchbar.classList.toggle('on', n > 0);
+}
+document.querySelectorAll('.sug.selectable input[type="checkbox"]').forEach(b => b.addEventListener('change', syncBatch));
+document.getElementById('batch-clear').addEventListener('click', () => {
+  document.querySelectorAll('.sug.selectable input[type="checkbox"]').forEach(b => (b.checked = false));
+  syncBatch();
+});
+
+// ---- 放生危险区（两层确认 + 5 秒撤销 toast，S3-2） ----
+document.getElementById('arm-release').addEventListener('click', () => document.getElementById('danger').classList.add('armed'));
+document.getElementById('cancel-release').addEventListener('click', () => document.getElementById('danger').classList.remove('armed'));
+document.getElementById('confirm-release').addEventListener('click', () => {
+  document.getElementById('danger').classList.remove('armed');
+  showToast('已放生「修复登录页崩溃」');
+});
+
+// ---- 派发确认弹层（点派发时呈现，非常驻块） ----
+const routeConfirm = document.getElementById('route-confirm');
+document.getElementById('dispatch-headless').addEventListener('click', () => routeConfirm.classList.add('on'));
+document.getElementById('dispatch-interactive').addEventListener('click', () => routeConfirm.classList.add('on'));
+document.getElementById('route-close').addEventListener('click', () => routeConfirm.classList.remove('on'));
+
+// ---- 撤销 toast（role=status / aria-live=polite，右下角不抢焦点） ----
+const toastEl = document.getElementById('toast');
+let toastTimer;
+function showToast(text) {
+  document.getElementById('toast-text').textContent = text;
+  toastEl.classList.add('on');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => toastEl.classList.remove('on'), 5000);
+}
+document.getElementById('toast-undo').addEventListener('click', () => { toastEl.classList.remove('on'); clearTimeout(toastTimer); });
+
+// ---- 桌宠状态机 ----
+const petCfg = {
+  // offset 按剩余时间比例（周长 415）：working 24:59/25:00≈满环 / paused 18:41/25:00≈75% / rest 4:32/5:00≈91% / 无计时=空环
+  idle:        { sprite: 'pikachu.gif',  ring: '#78C850', offset: 415, time: null,
+                 bubble: '皮卡丘：早！今天也从草丛出发吧。', ops: null },
+  working:     { sprite: 'pikachu.gif',  ring: '#2E9E5B', offset: 1, time: '24:59',
+                 bubble: '皮卡丘正在捕捉：修复登录页崩溃', ops: ['⏸', '✔'] },
+  paused:      { sprite: 'pikachu.gif',  ring: '#9A937F', offset: 105, time: '18:41',
+                 bubble: '皮卡丘在原地休息', ops: ['▶', '🍦', '✔'] },
+  rest:        { sprite: 'pikachu.gif',  ring: '#3C5AA6', offset: 39, time: '04:32',
+                 bubble: '☕ 休息一下', ops: ['▶'] },
+  celebrating: { sprite: 'pikachu.gif',  ring: '#FFCB05', offset: 415, time: null,
+                 bubble: '✔ 捕捉成功！记入图鉴', ops: null },
+};
+document.querySelectorAll('[data-pet]').forEach(b => b.addEventListener('click', () => setPet(b.dataset.pet)));
+function setPet(state) {
+  document.body.dataset.pet = state;
+  document.querySelectorAll('[data-pet]').forEach(x => x.setAttribute('aria-pressed', String(x.dataset.pet === state)));
+  const c = petCfg[state];
+  document.getElementById('pet-sprite').src = '../../public/pokemon/' + c.sprite;
+  const fg = document.getElementById('ring-fg');
+  fg.style.stroke = c.ring; fg.style.strokeDashoffset = c.offset;
+  document.getElementById('bubble').childNodes[0].nodeValue = c.bubble;
+  const pill = document.getElementById('pill'), time = document.getElementById('pill-time'), ops = document.getElementById('pill-ops');
+  if (c.time) { time.textContent = c.time; time.style.display = ''; } else { time.style.display = 'none'; }
+  ops.innerHTML = '';
+  if (c.ops) c.ops.forEach(t => { const btn = document.createElement('button'); btn.textContent = t; ops.appendChild(btn); });
+  pill.style.display = c.time ? '' : 'none'; // 无进行中（idle/庆祝）→ 药丸不占位（信息极简）
+  document.querySelectorAll('.pet-states .state-item').forEach(s => s.classList.toggle('cur', s.dataset.state === state));
+  // ▼ 新事件闪 3 次后停（同屏唯一闪烁名额）
+  const cur = document.getElementById('cursor'); cur.classList.remove('blink'); void cur.offsetWidth; cur.classList.add('blink');
+}
+
+// ---- 快捷图鉴屏 / 减弱动效 ----
+const petwin = document.getElementById('petwin');
+document.getElementById('quick-btn').addEventListener('click', e => {
+  petwin.classList.toggle('wide');
+  e.currentTarget.setAttribute('aria-pressed', String(petwin.classList.contains('wide')));
+});
+document.getElementById('hover-menu-btn').addEventListener('click', () => {
+  petwin.classList.toggle('wide');
+  document.getElementById('quick-btn').setAttribute('aria-pressed', String(petwin.classList.contains('wide')));
+});
+document.getElementById('rm-btn').addEventListener('click', e => {
+  document.documentElement.classList.toggle('reduce-motion');
+  e.currentTarget.setAttribute('aria-pressed', String(document.documentElement.classList.contains('reduce-motion')));
+});
+
+// ---- 状态卡点击联动 ----
+document.querySelectorAll('.pet-states .state-item[data-state]').forEach(s =>
+  s.addEventListener('click', () => { if (petCfg[s.dataset.state]) setPet(s.dataset.state); }));
+
+setPet('working');
+setChip('run');
+syncEmpty();
+</script>
+</body>
+</html>

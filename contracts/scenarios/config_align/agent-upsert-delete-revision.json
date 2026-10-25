@@ -1,0 +1,21 @@
+{
+  "kind": "config_align",
+  "name": "agent-upsert-delete-revision",
+  "now": "2026-01-15T09:00:00+08:00",
+  "setup": {
+    "settings": {
+      "ai_agent_id": "ag-1",
+      "ai_agents": "[{\"id\":\"ag-1\",\"name\":\"Claude\",\"command\":\"claude\",\"args\":\"\",\"historyArgs\":\"\",\"workdir\":\"\",\"timeoutSecs\":120,\"enabled\":true}]"
+    }
+  },
+  "steps": [
+    { "op": "agent_upsert", "args": { "agent": { "id": "ag-1", "name": "Claude", "command": "   " } } },
+    { "op": "agent_upsert", "args": { "agent": { "id": "ag-1", "name": "Claude", "command": "claude" }, "expectedAgentIds": [] } },
+    { "op": "agent_upsert", "args": { "agent": { "id": "ag-1", "name": "Claude", "command": "claude" } } },
+    { "op": "agent_upsert", "args": { "agent": { "id": "ag-2", "name": "OpenCode", "command": "opencode" } } },
+    { "op": "agent_delete", "args": { "id": "ag-1", "expectedAgentIds": ["ag-9"] } },
+    { "op": "agent_delete", "args": { "id": "ag-1" } },
+    { "op": "agent_delete", "args": { "id": "ag-2" } }
+  ],
+  "expect": "exact"
+}

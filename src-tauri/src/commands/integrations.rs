@@ -24,6 +24,10 @@ pub(crate) enum TerminalPref {
     ITerm2,
     /// Ghostty（macOS 经 `open -na`、Linux 直启，-e 执行命令行）
     Ghostty,
+    /// kitty（macOS 双形态：remote control socket 在场 → 复用最近活跃窗口开 tab，缺席
+    /// → `open -na` 自举带 socket 的新实例——与 dsh 插件 externalTerminal.ts 同构；
+    /// Linux 直启新窗口）
+    Kitty,
     /// Windows Terminal（wt.exe，仅 Windows）
     WindowsTerminal,
 }
@@ -34,6 +38,7 @@ impl TerminalPref {
         match v.unwrap_or_default() {
             "iterm2" => Self::ITerm2,
             "ghostty" => Self::Ghostty,
+            "kitty" => Self::Kitty,
             "windows-terminal" => Self::WindowsTerminal,
             _ => Self::Builtin,
         }
@@ -55,16 +60,19 @@ pub(crate) fn terminal_pref(conn: &rusqlite::Connection) -> TerminalPref {
 /// 测试一个 agent（不指定 id 时用收音机分类所用的主 agent）
 #[tauri::command]
 pub async fn test_ai_config(db: State<'_, Db>, agent_id: Option<String>) -> AppResult<String> {
-    let agent = {
+    let (agent, remote) = {
         let conn = db.0.lock().unwrap();
         let get = settings_getter(&conn);
-        match agent_id.as_deref() {
+        let agent = match agent_id.as_deref() {
             Some(id) if !id.is_empty() => ai::agent_by_id(&get, id),
             _ => ai::primary_agent(&get),
         }
-        .ok_or_else(|| AppError::Invalid("请先在设置中配置 AI Agent CLI".into()))?
+        .ok_or_else(|| AppError::Invalid("请先在设置中配置 AI Agent CLI".into()))?;
+        let remote = crate::commands::resolve_remote_target(&conn, &agent)
+            .map_err(|e| AppError::Invalid(e.message))?;
+        (agent, remote)
     };
-    ai::test(&agent).await
+    ai::test(&agent, remote.as_ref()).await
 }
 
 /// 在系统终端里打开 agent 的历史记录界面（claude --resume / opencode 等）。
@@ -79,14 +87,23 @@ pub async fn open_agent_history(
     session_id: Option<String>,
     workdir: Option<String>,
 ) -> AppResult<String> {
-    let (agent, pref) = {
+    let (agent, remote, pref) = {
         let conn = db.0.lock().unwrap();
         let get = settings_getter(&conn);
         let agent = ai::agent_by_id(&get, &agent_id)
             .ok_or_else(|| AppError::Invalid(format!("Agent {agent_id} 不存在，请先保存配置")))?;
-        (agent, terminal_pref(&conn))
+        let remote = crate::commands::resolve_remote_target(&conn, &agent)
+            .map_err(|e| AppError::Invalid(e.message))?;
+        (agent, remote, terminal_pref(&conn))
     };
-    open_agent_in_terminal(&agent, pref, session_id.as_deref(), workdir.as_deref()).await
+    open_agent_in_terminal(
+        &agent,
+        pref,
+        session_id.as_deref(),
+        workdir.as_deref(),
+        remote.as_ref(),
+    )
+    .await
 }
 
 /// 落库会话的回放路由（按记录里的快照决策，纯函数可测）
@@ -115,17 +132,11 @@ fn resume_route(row: &crate::models::AgentSession) -> ResumeRoute {
     }
 }
 
-/// 把会话记录里的执行时远端快照压进 agent 配置：会话文件在哪台机器，回放就在哪台
+/// 会话记录的执行时远端快照 → 回放用远程目标：会话文件在哪台机器，回放就在哪台
 /// 机器——不随 agent 配置后续变更漂移（本地迁移到远程后，旧本地会话仍在本地回放）。
-/// 隧道/常驻开关不带（快照未记）：纯回放只读转录，不依赖 pk shim 回连
-fn apply_session_remote(agent: AgentConfig, row: &crate::models::AgentSession) -> AgentConfig {
-    let mut a = agent;
-    a.remote = crate::commands::sessions::remote_from_snapshot(
-        &row.remote_host,
-        row.remote_port,
-        &row.remote_key,
-    );
-    a
+/// 隧道不带（快照未记）：纯回放只读转录，不依赖 pk shim 回连
+fn session_remote_target(row: &crate::models::AgentSession) -> Option<ai::RemoteTarget> {
+    crate::commands::sessions::remote_target_from_snapshot(&row.remote_host)
 }
 
 /// 回放一条落库会话（全局会话历史 / 任务抽屉的「打开转录」入口）：
@@ -145,18 +156,16 @@ pub async fn open_recorded_session(db: State<'_, Db>, id: i64) -> AppResult<Stri
             })?;
         (row, agent, terminal_pref(&conn))
     };
-    let agent = apply_session_remote(agent, &row);
+    let remote = session_remote_target(&row);
     let workdir = row.workdir.trim().to_string();
     let workdir_arg = (!workdir.is_empty()).then_some(workdir.as_str());
     match resume_route(&row) {
         ResumeRoute::Tmux => {
-            let remote = agent
-                .remote
+            let target = remote
                 .as_ref()
-                .filter(|r| !r.host.trim().is_empty())
                 .ok_or_else(|| AppError::Invalid("tmux 会话记录缺少远端端点，无法重连".into()))?;
             let name = row.tmux_session.trim();
-            let argv = crate::commands::dispatch::tmux_attach_argv(remote, name, &row.workdir);
+            let argv = crate::commands::dispatch::tmux_attach_argv(target, name, &row.workdir);
             spawn_in_terminal(pref, &ai::ssh_bin(), &argv)
                 .await
                 .map(|term| format!("已在 {term} 中重连 tmux 会话「{name}」"))
@@ -171,7 +180,8 @@ pub async fn open_recorded_session(db: State<'_, Db>, id: i64) -> AppResult<Stri
                         .to_string()
                 })
                 .filter(|s| !s.is_empty());
-            open_agent_in_terminal(&agent, pref, sess.as_deref(), workdir_arg).await
+            open_agent_in_terminal(&agent, pref, sess.as_deref(), workdir_arg, remote.as_ref())
+                .await
         }
     }
 }
@@ -181,19 +191,17 @@ async fn open_agent_in_terminal(
     pref: TerminalPref,
     resume_session: Option<&str>,
     workdir: Option<&str>,
+    remote: Option<&ai::RemoteTarget>,
 ) -> AppResult<String> {
     // 会话 id 的注入（--resume <id> / --resume-id <id>）在 history_invocation 内按
     // agent 级历史参数适配，本地远程同一套规则（回归：旧实现看 ssh argv 首参，
     // 远程分支永远是 -o，id 从未被注入）；目录覆盖同函数内进本地/远程 cd
-    let (program, args) = crate::ai::history_invocation(agent, resume_session, workdir);
+    let (program, args) = crate::ai::history_invocation(agent, resume_session, workdir, remote);
     // 本地 agent 总是先 cd 到工作目录再启动：显式覆盖（标签 meta）优先，否则与无头调用
     // 同一套解析（留空 = ~/.choose-you，自动创建），交互会话不能落在终端默认目录；
     // SSH 远程的 cd 由 history_invocation 前缀在远端命令行里（留空 = 远端登录目录）；
     // 目录解析失败（无主目录）退回不 cd 直启
-    let local = agent
-        .remote
-        .as_ref()
-        .is_none_or(|r| r.host.trim().is_empty());
+    let local = remote.is_none();
     let line = local
         .then(|| history_local_dir(agent, workdir))
         .flatten()
@@ -304,6 +312,7 @@ pub(crate) async fn spawn_line_in_terminal(
     match pref {
         TerminalPref::ITerm2 => spawn_iterm2(line).await,
         TerminalPref::Ghostty => spawn_ghostty(line).await,
+        TerminalPref::Kitty => spawn_kitty(line).await,
         // 跨平台错配（如库迁移）显式报错而不是静默回落：用户选的终端没被尊重应当可感知
         TerminalPref::WindowsTerminal => Err(AppError::Invalid(
             "终端偏好 Windows Terminal 仅 Windows 可用，请在设置里改回".into(),
@@ -314,15 +323,18 @@ pub(crate) async fn spawn_line_in_terminal(
     #[cfg(target_os = "windows")]
     match pref {
         TerminalPref::WindowsTerminal => spawn_windows_terminal(line).await,
-        TerminalPref::ITerm2 | TerminalPref::Ghostty => Err(AppError::Invalid(
-            "终端偏好 iTerm2 / Ghostty 仅 macOS / Linux 可用，请在设置里改回".into(),
-        )),
+        TerminalPref::ITerm2 | TerminalPref::Ghostty | TerminalPref::Kitty => {
+            Err(AppError::Invalid(
+                "终端偏好 iTerm2 / Ghostty / kitty 仅 macOS / Linux 可用，请在设置里改回".into(),
+            ))
+        }
         TerminalPref::Builtin => spawn_powershell_window(line).await,
     }
 
     #[cfg(all(unix, not(target_os = "macos")))]
     match pref {
         TerminalPref::Ghostty => spawn_ghostty(line).await,
+        TerminalPref::Kitty => spawn_kitty(line).await,
         TerminalPref::ITerm2 | TerminalPref::WindowsTerminal => Err(AppError::Invalid(
             "终端偏好 iTerm2 / Windows Terminal 仅 macOS / Windows 可用，请在设置里改回".into(),
         )),
@@ -425,6 +437,102 @@ async fn spawn_ghostty(line: &str) -> AppResult<&'static str> {
         "打开 Ghostty 失败（未安装？）：{}（命令行：{line}）",
         String::from_utf8_lossy(&out.stderr).trim()
     )))
+}
+
+/// kitty remote control socket 约定路径（与 dsh 插件 externalTerminal.ts 同一常量，
+/// 两形态共用）
+#[cfg(target_os = "macos")]
+const KITTY_SOCKET_ADDR: &str = "unix:/tmp/kitty.sock";
+#[cfg(target_os = "macos")]
+const KITTY_SOCKET_PATH: &str = "/tmp/kitty.sock";
+
+/// macOS kitty 双形态（与 dsh 插件 externalTerminal.ts 同构）：socket 在场 →
+/// `kitten @ launch --type=tab` 复用最近活跃窗口开 tab（返回 "kitty@tab"）；缺席或
+/// tab 失败 → `open -na` 自举带 socket 的新实例（--listen-on/--override 经启动旗标
+/// 传递——listen socket 只认启动旗标，kitty.conf 的 listen_on 解析但不建 socket
+/// （0.49.2 实证），自举不依赖用户配置，后续唤起经 socket 全走 tab）。tab 失败先清
+/// 陈旧 socket 再自举（残档不清自举 bind 必失败）。argv 构造抽为纯函数供单测。
+#[cfg(target_os = "macos")]
+async fn spawn_kitty(line: &str) -> AppResult<&'static str> {
+    if std::path::Path::new(KITTY_SOCKET_PATH).exists() {
+        let out = tokio::process::Command::new(kitten_bin())
+            .args(kitty_tab_argv(line))
+            .output()
+            .await
+            .map_err(|e| AppError::External(format!("无法执行 kitten: {e}")))?;
+        if out.status.success() {
+            return Ok("kitty@tab");
+        }
+        // 陈旧 socket（实例已亡）：尽力清理后自举
+        let _ = std::fs::remove_file(KITTY_SOCKET_PATH);
+    }
+    let out = tokio::process::Command::new("open")
+        .args(kitty_bootstrap_argv(line))
+        .output()
+        .await
+        .map_err(|e| AppError::External(format!("打开 kitty 失败: {e}")))?;
+    if out.status.success() {
+        return Ok("kitty");
+    }
+    Err(AppError::External(format!(
+        "打开 kitty 失败（未安装？）：{}（命令行：{line}）",
+        String::from_utf8_lossy(&out.stderr).trim()
+    )))
+}
+
+/// kitten 二进制（随 kitty.app 分发，不在 PATH——两处装载位探测，皆缺用
+/// /Applications 缺省位让 spawn 报错带可读上下文）
+#[cfg(target_os = "macos")]
+fn kitten_bin() -> String {
+    let default = "/Applications/kitty.app/Contents/MacOS/kitten";
+    let home = dirs::home_dir()
+        .map(|h| {
+            format!(
+                "{}/Applications/kitty.app/Contents/MacOS/kitten",
+                h.display()
+            )
+        })
+        .unwrap_or_default();
+    [default.to_string(), home]
+        .into_iter()
+        .find(|p| std::path::Path::new(p).exists())
+        .unwrap_or_else(|| default.to_string())
+}
+
+/// tab 形态 argv（kitten 子命令——首参起；命令行经 bash -lc 带用户 PATH）
+#[cfg(target_os = "macos")]
+fn kitty_tab_argv(line: &str) -> Vec<String> {
+    [
+        "@",
+        "--to",
+        KITTY_SOCKET_ADDR,
+        "launch",
+        "--type=tab",
+        "bash",
+        "-lc",
+        line,
+    ]
+    .into_iter()
+    .map(String::from)
+    .collect()
+}
+
+/// 自举形态 argv（open 旗标起——新实例带 listen socket + socket-only 远程控制权限）
+#[cfg(target_os = "macos")]
+fn kitty_bootstrap_argv(line: &str) -> Vec<String> {
+    [
+        "-na",
+        "kitty",
+        "--args",
+        &format!("--listen-on={KITTY_SOCKET_ADDR}"),
+        "--override=allow_remote_control=socket-only",
+        "bash",
+        "-lc",
+        line,
+    ]
+    .into_iter()
+    .map(String::from)
+    .collect()
 }
 
 /// Windows 内置 PowerShell（PS 5.1 随系统自带）：`start` 开新窗口跑
@@ -573,6 +681,23 @@ async fn spawn_ghostty(line: &str) -> AppResult<&'static str> {
             }
         })?;
     Ok("Ghostty")
+}
+
+/// Linux kitty：直启新窗口（remote control 双形态是 macOS 专属；builtin 候选链里
+/// kitty 本就在列，此处是显式偏好路径）。spawn 不等退出，理由同 spawn_ghostty
+#[cfg(all(unix, not(target_os = "macos")))]
+async fn spawn_kitty(line: &str) -> AppResult<&'static str> {
+    tokio::process::Command::new("kitty")
+        .args(["bash", "-lc", line])
+        .spawn()
+        .map_err(|e| {
+            if e.kind() == std::io::ErrorKind::NotFound {
+                AppError::External("未找到 kitty，请安装或把终端偏好切回「系统内置」".into())
+            } else {
+                AppError::External(format!("无法打开 kitty: {e}"))
+            }
+        })?;
+    Ok("kitty")
 }
 
 /// POSIX 风格的 shell 引用：含特殊字符时包单引号，内部单引号转义。
@@ -1177,40 +1302,22 @@ mod tests {
         assert_eq!(resume_route(&sess_row("", None)), ResumeRoute::Picker);
     }
 
-    /// 快照压过当前 agent 配置：本地记录强制 local（agent 后来迁到远程也回本机）、
-    /// 远程记录还原当时的端点（host/port/key）
+    /// 快照路由：本地记录强制 local（agent 后来绑部署也回本机）、远程记录还原
+    /// 当时别名（alias 模式；端口/密钥由 ~/.ssh/config 承载）
     #[test]
-    fn apply_session_remote_routes_by_snapshot() {
-        // agent 现在是远程，但会话记录是本地的 → 回放走本地
-        let now_remote = AgentConfig {
-            command: "claude".into(),
-            remote: Some(crate::ai::AgentRemote {
-                host: "box".into(),
-                port: 2222,
-                ..Default::default()
-            }),
-            ..Default::default()
-        };
+    fn session_remote_target_routes_by_snapshot() {
+        // 会话记录是本地的 → 回放走本地（与 agent 当前绑定无关）
         let local_row = sess_row("", Some("s"));
-        assert!(apply_session_remote(now_remote.clone(), &local_row)
-            .remote
-            .is_none());
+        assert!(session_remote_target(&local_row).is_none());
 
-        // 会话记录是远程的（当时的端口/密钥），agent 现在是本地 → 回放走当时的远端
+        // 会话记录是远程的 → 回放用当时的别名
         let mut remote_row = sess_row("", Some("s"));
         remote_row.remote_host = "vscode@localhost".into();
         remote_row.remote_port = 1022;
         remote_row.remote_key = "/keys/pk".into();
-        let local_agent = AgentConfig {
-            command: "claude".into(),
-            ..Default::default()
-        };
-        let routed = apply_session_remote(local_agent, &remote_row);
-        let r = routed.remote.as_ref().expect("快照远端还原");
-        assert_eq!(
-            (r.host.as_str(), r.port, r.key_path.as_deref()),
-            ("vscode@localhost", 1022, Some("/keys/pk"))
-        );
+        let target = session_remote_target(&remote_row).expect("快照远端还原");
+        assert_eq!(target.alias, "vscode@localhost");
+        assert_eq!(target.tunnel_port, None, "回放不带隧道（不依赖 shim 回连）");
     }
 
     #[test]
@@ -1284,7 +1391,7 @@ mod tests {
 
     #[test]
     fn terminal_pref_parses_setting_values() {
-        use TerminalPref::{Builtin, Ghostty, ITerm2, WindowsTerminal};
+        use TerminalPref::{Builtin, Ghostty, ITerm2, Kitty, WindowsTerminal};
         // 未设置 / 空串 / 缺省值 / 未知值一律回落内置（旧库无此键是常态）
         assert_eq!(TerminalPref::from_setting(None), Builtin);
         assert_eq!(TerminalPref::from_setting(Some("")), Builtin);
@@ -1292,10 +1399,32 @@ mod tests {
         assert_eq!(TerminalPref::from_setting(Some("bogus")), Builtin);
         assert_eq!(TerminalPref::from_setting(Some("iterm2")), ITerm2);
         assert_eq!(TerminalPref::from_setting(Some("ghostty")), Ghostty);
+        assert_eq!(TerminalPref::from_setting(Some("kitty")), Kitty);
         assert_eq!(
             TerminalPref::from_setting(Some("windows-terminal")),
             WindowsTerminal
         );
+    }
+
+    /// kitty 双形态 argv：tab = kitten @ launch --type=tab（socket 约定与 dsh 插件
+    /// externalTerminal.ts 同源），自举 = open -na 带 --listen-on/--override 启动旗标
+    /// （listen socket 只认旗标，kitty.conf 的 listen_on 不生效——0.49.2 实证）
+    #[test]
+    #[cfg(target_os = "macos")]
+    fn kitty_argv_shapes() {
+        let tab = kitty_tab_argv("claude --resume s1");
+        assert_eq!(tab[0], "@", "kitten 子命令形态（首参起）");
+        assert_eq!(tab[2], "unix:/tmp/kitty.sock");
+        assert_eq!(tab[4], "--type=tab");
+        assert_eq!(tab[6], "-lc");
+        assert_eq!(tab.last().unwrap(), "claude --resume s1");
+
+        let boot = kitty_bootstrap_argv("claude --resume s1");
+        assert_eq!(boot[0], "-na", "open 旗标形态");
+        assert_eq!(boot[1], "kitty");
+        assert_eq!(boot[3], "--listen-on=unix:/tmp/kitty.sock");
+        assert_eq!(boot[4], "--override=allow_remote_control=socket-only");
+        assert_eq!(boot.last().unwrap(), "claude --resume s1");
     }
 
     #[test]

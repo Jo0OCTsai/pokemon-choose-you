@@ -1,0 +1,347 @@
+{
+  "final": {
+    "agent_sessions": [],
+    "categories": [
+      {
+        "description": "职业与产出相关的任务，如写代码、修 bug、写文档",
+        "enabled": 1,
+        "id": 1,
+        "name": "工作",
+        "pokemon": "皮卡丘",
+        "sprite": "pikachu"
+      },
+      {
+        "description": "学习、调研与技能提升，如读文档、看课程",
+        "enabled": 1,
+        "id": 2,
+        "name": "学习",
+        "pokemon": "可达鸭",
+        "sprite": "psyduck"
+      },
+      {
+        "description": "日常生活事务，如购物、家务、缴费",
+        "enabled": 1,
+        "id": 3,
+        "name": "生活",
+        "pokemon": "妙蛙种子",
+        "sprite": "bulbasaur"
+      },
+      {
+        "description": "健康、运动与就医相关",
+        "enabled": 1,
+        "id": 4,
+        "name": "健康",
+        "pokemon": "吉利蛋",
+        "sprite": "chansey"
+      },
+      {
+        "description": "兴趣与娱乐活动",
+        "enabled": 1,
+        "id": 5,
+        "name": "兴趣",
+        "pokemon": "伊布",
+        "sprite": "eevee"
+      }
+    ],
+    "chat_feedback": [],
+    "chat_filter_prefs": [],
+    "chat_messages": [],
+    "dispatch_slots": [],
+    "feishu_chats": [],
+    "feishu_users": [],
+    "settings": [
+      {
+        "key": "ai_agent_presets_v2",
+        "value": "1"
+      },
+      {
+        "key": "ai_agents",
+        "value": "[{\"id\":\"ag-1\",\"name\":\"Claude\",\"command\":\"claude\",\"args\":\"\",\"historyArgs\":\"\",\"workdir\":\"\",\"timeoutSecs\":120,\"enabled\":true}]"
+      }
+    ],
+    "tag_dimensions": [
+      {
+        "cardinality": "single",
+        "enabled": 1,
+        "id": 1,
+        "key": "project",
+        "max_tags": 20,
+        "name": "项目",
+        "sort": 1
+      },
+      {
+        "cardinality": "multi",
+        "enabled": 1,
+        "id": 2,
+        "key": "context",
+        "max_tags": 10,
+        "name": "场景",
+        "sort": 2
+      },
+      {
+        "cardinality": "multi",
+        "enabled": 1,
+        "id": 3,
+        "key": "person",
+        "max_tags": 30,
+        "name": "人物",
+        "sort": 3
+      },
+      {
+        "cardinality": "multi",
+        "enabled": 1,
+        "id": 4,
+        "key": "topic",
+        "max_tags": 30,
+        "name": "主题",
+        "sort": 4
+      }
+    ],
+    "tags": [
+      {
+        "created_at": "<ts:0>",
+        "description": "",
+        "dimension_id": 1,
+        "id": 1,
+        "meta": "{\"agentId\":\"ag-1\",\"workdir\":\"~/app\"}",
+        "name": "PokemonApp",
+        "origin": "manual"
+      },
+      {
+        "created_at": "<ts:0>",
+        "description": "",
+        "dimension_id": 1,
+        "id": 2,
+        "meta": "{\"workdir\":\"~/x\"}",
+        "name": "无Agent项目",
+        "origin": "manual"
+      },
+      {
+        "created_at": "<ts:0>",
+        "description": "",
+        "dimension_id": 1,
+        "id": 3,
+        "meta": "{\"agentId\":\"ag-9\"}",
+        "name": "失效Agent项目",
+        "origin": "manual"
+      }
+    ],
+    "task_logs": [],
+    "task_notes": [],
+    "task_tags": [
+      {
+        "tag_id": 1,
+        "task_id": 1
+      },
+      {
+        "tag_id": 2,
+        "task_id": 2
+      },
+      {
+        "tag_id": 3,
+        "task_id": 3
+      },
+      {
+        "tag_id": 1,
+        "task_id": 4
+      },
+      {
+        "tag_id": 1,
+        "task_id": 5
+      }
+    ],
+    "tasks": [
+      {
+        "cancelled_at": null,
+        "category_id": 1,
+        "completed_at": null,
+        "created_at": "<ts:0>",
+        "dispatch_state": "queued",
+        "dispatched_session": null,
+        "due_at": "<ts:1>",
+        "external_id": null,
+        "focus_seconds": 0,
+        "id": 1,
+        "note": null,
+        "priority": "normal",
+        "remind_at": null,
+        "reminded": 0,
+        "source": "local",
+        "started_at": null,
+        "status": "scheduled",
+        "title": "到期该排"
+      },
+      {
+        "cancelled_at": null,
+        "category_id": 1,
+        "completed_at": null,
+        "created_at": "<ts:0>",
+        "dispatch_state": null,
+        "dispatched_session": null,
+        "due_at": "<ts:1>",
+        "external_id": null,
+        "focus_seconds": 0,
+        "id": 2,
+        "note": null,
+        "priority": "normal",
+        "remind_at": null,
+        "reminded": 0,
+        "source": "local",
+        "started_at": null,
+        "status": "scheduled",
+        "title": "无 agent 配置"
+      },
+      {
+        "cancelled_at": null,
+        "category_id": 1,
+        "completed_at": null,
+        "created_at": "<ts:0>",
+        "dispatch_state": null,
+        "dispatched_session": null,
+        "due_at": "<ts:1>",
+        "external_id": null,
+        "focus_seconds": 0,
+        "id": 3,
+        "note": null,
+        "priority": "normal",
+        "remind_at": null,
+        "reminded": 0,
+        "source": "local",
+        "started_at": null,
+        "status": "scheduled",
+        "title": "agent 不可用"
+      },
+      {
+        "cancelled_at": null,
+        "category_id": 1,
+        "completed_at": null,
+        "created_at": "<ts:0>",
+        "dispatch_state": null,
+        "dispatched_session": null,
+        "due_at": "<ts:2>",
+        "external_id": null,
+        "focus_seconds": 0,
+        "id": 4,
+        "note": null,
+        "priority": "normal",
+        "remind_at": null,
+        "reminded": 0,
+        "source": "local",
+        "started_at": null,
+        "status": "scheduled",
+        "title": "未到期"
+      },
+      {
+        "cancelled_at": null,
+        "category_id": 1,
+        "completed_at": null,
+        "created_at": "<ts:0>",
+        "dispatch_state": "done",
+        "dispatched_session": null,
+        "due_at": "<ts:1>",
+        "external_id": null,
+        "focus_seconds": 0,
+        "id": 5,
+        "note": null,
+        "priority": "normal",
+        "remind_at": null,
+        "reminded": 0,
+        "source": "local",
+        "started_at": null,
+        "status": "scheduled",
+        "title": "已完成不自动重派"
+      }
+    ]
+  },
+  "generatedBy": {
+    "impl": "rust",
+    "schemaVersion": 2
+  },
+  "scenario": "queue-due-filters",
+  "steps": [
+    {
+      "error": null,
+      "ok": true,
+      "snapshot": {
+        "auditCount": 0,
+        "feedbackCount": 0,
+        "messages": {},
+        "noteCount": 0,
+        "slots": [],
+        "tagCount": 3,
+        "tasks": {
+          "1": {
+            "dispatch": "queued",
+            "focusSeconds": 0,
+            "status": "scheduled"
+          },
+          "2": {
+            "dispatch": null,
+            "focusSeconds": 0,
+            "status": "scheduled"
+          },
+          "3": {
+            "dispatch": null,
+            "focusSeconds": 0,
+            "status": "scheduled"
+          },
+          "4": {
+            "dispatch": null,
+            "focusSeconds": 0,
+            "status": "scheduled"
+          },
+          "5": {
+            "dispatch": "done",
+            "focusSeconds": 0,
+            "status": "scheduled"
+          }
+        }
+      },
+      "value": {
+        "queued": 1
+      }
+    },
+    {
+      "error": null,
+      "ok": true,
+      "snapshot": {
+        "auditCount": 0,
+        "feedbackCount": 0,
+        "messages": {},
+        "noteCount": 0,
+        "slots": [],
+        "tagCount": 3,
+        "tasks": {
+          "1": {
+            "dispatch": "queued",
+            "focusSeconds": 0,
+            "status": "scheduled"
+          },
+          "2": {
+            "dispatch": null,
+            "focusSeconds": 0,
+            "status": "scheduled"
+          },
+          "3": {
+            "dispatch": null,
+            "focusSeconds": 0,
+            "status": "scheduled"
+          },
+          "4": {
+            "dispatch": null,
+            "focusSeconds": 0,
+            "status": "scheduled"
+          },
+          "5": {
+            "dispatch": "done",
+            "focusSeconds": 0,
+            "status": "scheduled"
+          }
+        }
+      },
+      "value": {
+        "queued": 0
+      }
+    }
+  ]
+}

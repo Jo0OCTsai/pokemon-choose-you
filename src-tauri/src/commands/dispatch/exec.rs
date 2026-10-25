@@ -51,11 +51,7 @@ pub async fn dispatch_task<R: tauri::Runtime>(
     let headless = channel.as_deref() == Some("headless");
     let prep = prepare_dispatch(&db, task_id, agent_id.as_deref())?;
     // 本地目录先验（交互 cd / 无头 cwd 都会失败，提前给可操作报错；远程交给 ssh/git 报错）
-    let remote = prep
-        .agent
-        .remote
-        .as_ref()
-        .filter(|r| !r.host.trim().is_empty());
+    let remote = prep.remote.as_ref();
     if remote.is_none() {
         if let Some(d) = local_dispatch_dir(&prep.agent, &prep.workdir) {
             if !d.is_dir() {
@@ -145,10 +141,10 @@ pub async fn dispatch_task<R: tauri::Runtime>(
                 "exec \"$SHELL\" -lc {}",
                 posix_quote(&tmux_probe_line(&workdir))
             );
-            let probe_out = ssh_run(remote, &probe_line, None).await.map_err(|e| {
+            let probe_out = ssh_run(&remote.alias, &probe_line, None).await.map_err(|e| {
                 AppError::External(format!(
-                    "SSH 连接（{}）失败: {e}（交互派发依赖免密登录，先在设置里用「测试」验证）",
-                    remote.host.trim()
+                    "SSH 连接（{}）失败: {e}（交互派发依赖免密登录，先在部署管理确认别名可免密连通）",
+                    remote.alias
                 ))
             })?;
             let probe = parse_remote_probe(&probe_out);
@@ -183,7 +179,7 @@ pub async fn dispatch_task<R: tauri::Runtime>(
                     "exec \"$SHELL\" -lc {}",
                     posix_quote(&tmux_inject_line(&session_name, &line))
                 );
-                let inject_note = match ssh_run(remote, &inject, None).await {
+                let inject_note = match ssh_run(&remote.alias, &inject, None).await {
                     Ok(_) => None,
                     Err(e) => Some(format!(
                         "终端与 tmux 会话已就绪，但任务命令自动注入失败（{e}）；可在 tmux 里手动粘贴执行：{summary}"
@@ -205,7 +201,15 @@ pub async fn dispatch_task<R: tauri::Runtime>(
 
     match launched {
         Ok((terminal, launch_note, tmux_name)) => {
-            let session = log_dispatch(&db, task_id, &prep.agent, &workdir, tmux_name, &summary)?;
+            let session = log_dispatch(
+                &db,
+                task_id,
+                &prep.agent,
+                remote,
+                &workdir,
+                tmux_name,
+                &summary,
+            )?;
             let note = [wt_note, launch_note]
                 .into_iter()
                 .flatten()

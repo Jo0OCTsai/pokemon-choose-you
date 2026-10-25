@@ -1,0 +1,697 @@
+{
+  "final": {
+    "agent_sessions": [],
+    "categories": [
+      {
+        "description": "职业与产出相关的任务，如写代码、修 bug、写文档",
+        "enabled": 1,
+        "id": 1,
+        "name": "工作",
+        "pokemon": "皮卡丘",
+        "sprite": "pikachu"
+      },
+      {
+        "description": "学习、调研与技能提升，如读文档、看课程",
+        "enabled": 1,
+        "id": 2,
+        "name": "学习",
+        "pokemon": "可达鸭",
+        "sprite": "psyduck"
+      },
+      {
+        "description": "日常生活事务，如购物、家务、缴费",
+        "enabled": 1,
+        "id": 3,
+        "name": "生活",
+        "pokemon": "妙蛙种子",
+        "sprite": "bulbasaur"
+      },
+      {
+        "description": "健康、运动与就医相关",
+        "enabled": 1,
+        "id": 4,
+        "name": "健康",
+        "pokemon": "吉利蛋",
+        "sprite": "chansey"
+      },
+      {
+        "description": "兴趣与娱乐活动",
+        "enabled": 1,
+        "id": 5,
+        "name": "兴趣",
+        "pokemon": "伊布",
+        "sprite": "eevee"
+      }
+    ],
+    "chat_feedback": [],
+    "chat_filter_prefs": [],
+    "chat_messages": [
+      {
+        "ai_agent": "",
+        "ai_status": "pending",
+        "at_me": "",
+        "chat_id": "",
+        "chat_name": "",
+        "chat_type": "",
+        "content": "x",
+        "content_anon": "",
+        "created_at": "<ts:0>",
+        "dismiss_reason": "",
+        "followup_task_id": null,
+        "id": 1,
+        "is_self": 0,
+        "judge_claimed_at": "",
+        "message_id": "om_1",
+        "review_status": "pending",
+        "sender": "",
+        "sender_id": "",
+        "sent_at": null,
+        "suggested_category": null,
+        "suggested_confidence": null,
+        "suggested_due": null,
+        "suggested_note": null,
+        "suggested_priority": null,
+        "suggested_reason": null,
+        "suggested_tags": "[]",
+        "suggested_title": null,
+        "task_id": null,
+        "update_task_id": null
+      },
+      {
+        "ai_agent": "dsh:test",
+        "ai_status": "update",
+        "at_me": "",
+        "chat_id": "",
+        "chat_name": "",
+        "chat_type": "",
+        "content": "x",
+        "content_anon": "",
+        "created_at": "<ts:0>",
+        "dismiss_reason": "",
+        "followup_task_id": null,
+        "id": 2,
+        "is_self": 0,
+        "judge_claimed_at": "",
+        "message_id": "om_2",
+        "review_status": "pending",
+        "sender": "",
+        "sender_id": "",
+        "sent_at": null,
+        "suggested_category": null,
+        "suggested_confidence": null,
+        "suggested_due": null,
+        "suggested_note": null,
+        "suggested_priority": null,
+        "suggested_reason": null,
+        "suggested_tags": "[]",
+        "suggested_title": "周会改到周四",
+        "task_id": null,
+        "update_task_id": 7
+      },
+      {
+        "ai_agent": "",
+        "ai_status": "pending",
+        "at_me": "",
+        "chat_id": "",
+        "chat_name": "",
+        "chat_type": "",
+        "content": "x",
+        "content_anon": "",
+        "created_at": "<ts:0>",
+        "dismiss_reason": "",
+        "followup_task_id": null,
+        "id": 3,
+        "is_self": 0,
+        "judge_claimed_at": "",
+        "message_id": "om_3",
+        "review_status": "pending",
+        "sender": "",
+        "sender_id": "",
+        "sent_at": null,
+        "suggested_category": null,
+        "suggested_confidence": null,
+        "suggested_due": null,
+        "suggested_note": null,
+        "suggested_priority": null,
+        "suggested_reason": null,
+        "suggested_tags": "[]",
+        "suggested_title": null,
+        "task_id": null,
+        "update_task_id": null
+      },
+      {
+        "ai_agent": "dsh:test",
+        "ai_status": "followup",
+        "at_me": "",
+        "chat_id": "",
+        "chat_name": "",
+        "chat_type": "",
+        "content": "x",
+        "content_anon": "",
+        "created_at": "<ts:0>",
+        "dismiss_reason": "",
+        "followup_task_id": 7,
+        "id": 4,
+        "is_self": 0,
+        "judge_claimed_at": "",
+        "message_id": "om_4",
+        "review_status": "accepted",
+        "sender": "",
+        "sender_id": "",
+        "sent_at": null,
+        "suggested_category": null,
+        "suggested_confidence": null,
+        "suggested_due": null,
+        "suggested_note": null,
+        "suggested_priority": null,
+        "suggested_reason": "进展同步",
+        "suggested_tags": "[]",
+        "suggested_title": null,
+        "task_id": null,
+        "update_task_id": null
+      },
+      {
+        "ai_agent": "",
+        "ai_status": "pending",
+        "at_me": "",
+        "chat_id": "",
+        "chat_name": "",
+        "chat_type": "",
+        "content": "x",
+        "content_anon": "",
+        "created_at": "<ts:0>",
+        "dismiss_reason": "",
+        "followup_task_id": null,
+        "id": 5,
+        "is_self": 0,
+        "judge_claimed_at": "",
+        "message_id": "om_5",
+        "review_status": "pending",
+        "sender": "",
+        "sender_id": "",
+        "sent_at": null,
+        "suggested_category": null,
+        "suggested_confidence": null,
+        "suggested_due": null,
+        "suggested_note": null,
+        "suggested_priority": null,
+        "suggested_reason": null,
+        "suggested_tags": "[]",
+        "suggested_title": null,
+        "task_id": null,
+        "update_task_id": null
+      },
+      {
+        "ai_agent": "",
+        "ai_status": "pending",
+        "at_me": "",
+        "chat_id": "",
+        "chat_name": "",
+        "chat_type": "",
+        "content": "x",
+        "content_anon": "",
+        "created_at": "<ts:0>",
+        "dismiss_reason": "",
+        "followup_task_id": null,
+        "id": 6,
+        "is_self": 0,
+        "judge_claimed_at": "",
+        "message_id": "om_6",
+        "review_status": "pending",
+        "sender": "",
+        "sender_id": "",
+        "sent_at": null,
+        "suggested_category": null,
+        "suggested_confidence": null,
+        "suggested_due": null,
+        "suggested_note": null,
+        "suggested_priority": null,
+        "suggested_reason": null,
+        "suggested_tags": "[]",
+        "suggested_title": null,
+        "task_id": null,
+        "update_task_id": null
+      }
+    ],
+    "dispatch_slots": [],
+    "feishu_chats": [],
+    "feishu_users": [],
+    "settings": [
+      {
+        "key": "ai_agent_presets_v2",
+        "value": "1"
+      }
+    ],
+    "tag_dimensions": [
+      {
+        "cardinality": "single",
+        "enabled": 1,
+        "id": 1,
+        "key": "project",
+        "max_tags": 20,
+        "name": "项目",
+        "sort": 1
+      },
+      {
+        "cardinality": "multi",
+        "enabled": 1,
+        "id": 2,
+        "key": "context",
+        "max_tags": 10,
+        "name": "场景",
+        "sort": 2
+      },
+      {
+        "cardinality": "multi",
+        "enabled": 1,
+        "id": 3,
+        "key": "person",
+        "max_tags": 30,
+        "name": "人物",
+        "sort": 3
+      },
+      {
+        "cardinality": "multi",
+        "enabled": 1,
+        "id": 4,
+        "key": "topic",
+        "max_tags": 30,
+        "name": "主题",
+        "sort": 4
+      }
+    ],
+    "tags": [],
+    "task_logs": [],
+    "task_notes": [
+      {
+        "content": "x",
+        "created_at": "<ts:1>",
+        "id": 1,
+        "source": "ai",
+        "task_id": 7
+      }
+    ],
+    "task_tags": [],
+    "tasks": [
+      {
+        "cancelled_at": null,
+        "category_id": 1,
+        "completed_at": null,
+        "created_at": "<ts:2>",
+        "dispatch_state": null,
+        "dispatched_session": null,
+        "due_at": null,
+        "external_id": null,
+        "focus_seconds": 0,
+        "id": 7,
+        "note": null,
+        "priority": "normal",
+        "remind_at": null,
+        "reminded": 0,
+        "source": "local",
+        "started_at": null,
+        "status": "scheduled",
+        "title": "现有待办"
+      }
+    ]
+  },
+  "generatedBy": {
+    "impl": "rust",
+    "schemaVersion": 2
+  },
+  "scenario": "validate-rejects-payload-mismatch",
+  "steps": [
+    {
+      "error": "todo-missing-title",
+      "ok": false,
+      "snapshot": {
+        "auditCount": 0,
+        "feedbackCount": 0,
+        "messages": {
+          "om_1": {
+            "ai": "pending",
+            "review": "pending"
+          },
+          "om_2": {
+            "ai": "pending",
+            "review": "pending"
+          },
+          "om_3": {
+            "ai": "pending",
+            "review": "pending"
+          },
+          "om_4": {
+            "ai": "pending",
+            "review": "pending"
+          },
+          "om_5": {
+            "ai": "pending",
+            "review": "pending"
+          },
+          "om_6": {
+            "ai": "pending",
+            "review": "pending"
+          }
+        },
+        "noteCount": 0,
+        "slots": [],
+        "tagCount": 0,
+        "tasks": {
+          "7": {
+            "dispatch": null,
+            "focusSeconds": 0,
+            "status": "scheduled"
+          }
+        }
+      },
+      "value": null
+    },
+    {
+      "error": "update-missing-task-id",
+      "ok": false,
+      "snapshot": {
+        "auditCount": 0,
+        "feedbackCount": 0,
+        "messages": {
+          "om_1": {
+            "ai": "pending",
+            "review": "pending"
+          },
+          "om_2": {
+            "ai": "pending",
+            "review": "pending"
+          },
+          "om_3": {
+            "ai": "pending",
+            "review": "pending"
+          },
+          "om_4": {
+            "ai": "pending",
+            "review": "pending"
+          },
+          "om_5": {
+            "ai": "pending",
+            "review": "pending"
+          },
+          "om_6": {
+            "ai": "pending",
+            "review": "pending"
+          }
+        },
+        "noteCount": 0,
+        "slots": [],
+        "tagCount": 0,
+        "tasks": {
+          "7": {
+            "dispatch": null,
+            "focusSeconds": 0,
+            "status": "scheduled"
+          }
+        }
+      },
+      "value": null
+    },
+    {
+      "error": "update-task-not-found",
+      "ok": false,
+      "snapshot": {
+        "auditCount": 0,
+        "feedbackCount": 0,
+        "messages": {
+          "om_1": {
+            "ai": "pending",
+            "review": "pending"
+          },
+          "om_2": {
+            "ai": "pending",
+            "review": "pending"
+          },
+          "om_3": {
+            "ai": "pending",
+            "review": "pending"
+          },
+          "om_4": {
+            "ai": "pending",
+            "review": "pending"
+          },
+          "om_5": {
+            "ai": "pending",
+            "review": "pending"
+          },
+          "om_6": {
+            "ai": "pending",
+            "review": "pending"
+          }
+        },
+        "noteCount": 0,
+        "slots": [],
+        "tagCount": 0,
+        "tasks": {
+          "7": {
+            "dispatch": null,
+            "focusSeconds": 0,
+            "status": "scheduled"
+          }
+        }
+      },
+      "value": null
+    },
+    {
+      "error": "followup-missing-task-id",
+      "ok": false,
+      "snapshot": {
+        "auditCount": 0,
+        "feedbackCount": 0,
+        "messages": {
+          "om_1": {
+            "ai": "pending",
+            "review": "pending"
+          },
+          "om_2": {
+            "ai": "pending",
+            "review": "pending"
+          },
+          "om_3": {
+            "ai": "pending",
+            "review": "pending"
+          },
+          "om_4": {
+            "ai": "pending",
+            "review": "pending"
+          },
+          "om_5": {
+            "ai": "pending",
+            "review": "pending"
+          },
+          "om_6": {
+            "ai": "pending",
+            "review": "pending"
+          }
+        },
+        "noteCount": 0,
+        "slots": [],
+        "tagCount": 0,
+        "tasks": {
+          "7": {
+            "dispatch": null,
+            "focusSeconds": 0,
+            "status": "scheduled"
+          }
+        }
+      },
+      "value": null
+    },
+    {
+      "error": "followup-task-not-found",
+      "ok": false,
+      "snapshot": {
+        "auditCount": 0,
+        "feedbackCount": 0,
+        "messages": {
+          "om_1": {
+            "ai": "pending",
+            "review": "pending"
+          },
+          "om_2": {
+            "ai": "pending",
+            "review": "pending"
+          },
+          "om_3": {
+            "ai": "pending",
+            "review": "pending"
+          },
+          "om_4": {
+            "ai": "pending",
+            "review": "pending"
+          },
+          "om_5": {
+            "ai": "pending",
+            "review": "pending"
+          },
+          "om_6": {
+            "ai": "pending",
+            "review": "pending"
+          }
+        },
+        "noteCount": 0,
+        "slots": [],
+        "tagCount": 0,
+        "tasks": {
+          "7": {
+            "dispatch": null,
+            "focusSeconds": 0,
+            "status": "scheduled"
+          }
+        }
+      },
+      "value": null
+    },
+    {
+      "error": "action-invalid",
+      "ok": false,
+      "snapshot": {
+        "auditCount": 0,
+        "feedbackCount": 0,
+        "messages": {
+          "om_1": {
+            "ai": "pending",
+            "review": "pending"
+          },
+          "om_2": {
+            "ai": "pending",
+            "review": "pending"
+          },
+          "om_3": {
+            "ai": "pending",
+            "review": "pending"
+          },
+          "om_4": {
+            "ai": "pending",
+            "review": "pending"
+          },
+          "om_5": {
+            "ai": "pending",
+            "review": "pending"
+          },
+          "om_6": {
+            "ai": "pending",
+            "review": "pending"
+          }
+        },
+        "noteCount": 0,
+        "slots": [],
+        "tagCount": 0,
+        "tasks": {
+          "7": {
+            "dispatch": null,
+            "focusSeconds": 0,
+            "status": "scheduled"
+          }
+        }
+      },
+      "value": null
+    },
+    {
+      "error": null,
+      "ok": true,
+      "snapshot": {
+        "auditCount": 0,
+        "feedbackCount": 0,
+        "messages": {
+          "om_1": {
+            "ai": "pending",
+            "review": "pending"
+          },
+          "om_2": {
+            "ai": "update",
+            "review": "pending"
+          },
+          "om_3": {
+            "ai": "pending",
+            "review": "pending"
+          },
+          "om_4": {
+            "ai": "pending",
+            "review": "pending"
+          },
+          "om_5": {
+            "ai": "pending",
+            "review": "pending"
+          },
+          "om_6": {
+            "ai": "pending",
+            "review": "pending"
+          }
+        },
+        "noteCount": 0,
+        "slots": [],
+        "tagCount": 0,
+        "tasks": {
+          "7": {
+            "dispatch": null,
+            "focusSeconds": 0,
+            "status": "scheduled"
+          }
+        }
+      },
+      "value": {
+        "followUp": 0,
+        "none": 0,
+        "submitted": 1,
+        "todo": 0,
+        "update": 1
+      }
+    },
+    {
+      "error": null,
+      "ok": true,
+      "snapshot": {
+        "auditCount": 0,
+        "feedbackCount": 0,
+        "messages": {
+          "om_1": {
+            "ai": "pending",
+            "review": "pending"
+          },
+          "om_2": {
+            "ai": "update",
+            "review": "pending"
+          },
+          "om_3": {
+            "ai": "pending",
+            "review": "pending"
+          },
+          "om_4": {
+            "ai": "followup",
+            "review": "accepted"
+          },
+          "om_5": {
+            "ai": "pending",
+            "review": "pending"
+          },
+          "om_6": {
+            "ai": "pending",
+            "review": "pending"
+          }
+        },
+        "noteCount": 1,
+        "slots": [],
+        "tagCount": 0,
+        "tasks": {
+          "7": {
+            "dispatch": null,
+            "focusSeconds": 0,
+            "status": "scheduled"
+          }
+        }
+      },
+      "value": {
+        "followUp": 1,
+        "none": 0,
+        "submitted": 1,
+        "todo": 0,
+        "update": 0
+      }
+    }
+  ]
+}

@@ -11,7 +11,10 @@ use crate::models::ChatMessage;
 use rusqlite::{params, Connection};
 use tauri::State;
 
-/// 捕捉：把 AI 建议落成待办，并记录一条 accepted 反馈
+/// 捕捉：把 AI 建议落成待办，并记录一条 accepted 反馈。
+/// 分诊 CAS 守卫（§5.4 / §7.1 条目 4）：pending → accepted 先行原子抢占，affected=0 =
+/// 已被另一处（双形态并发 / 批量分诊）处置，返回幂等错误不重复建任务；
+/// CAS 与建任务同一事务，建任务失败整体回滚（消息回 pending，不留孤儿已接受态）
 #[tauri::command]
 pub fn accept_chat_message<R: tauri::Runtime>(
     app: tauri::AppHandle<R>,
@@ -24,8 +27,18 @@ pub fn accept_chat_message<R: tauri::Runtime>(
         if msg.task_id.is_some() {
             return Err(AppError::Invalid("该消息已创建过待办".into()));
         }
-        let task_id = create_task_from_message(&conn, &msg)?;
-        record_feedback(&conn, &msg, "accepted", "")?;
+        let tx = conn.unchecked_transaction()?;
+        let n = tx.execute(
+            "UPDATE chat_messages SET review_status='accepted', dismiss_reason=''
+             WHERE id=?1 AND review_status='pending'",
+            params![id],
+        )?;
+        if n == 0 {
+            return Err(AppError::Invalid("该建议已在另一处处置".into()));
+        }
+        let task_id = create_task_from_message(&tx, &msg)?;
+        record_feedback(&tx, &msg, "accepted", "")?;
+        tx.commit()?;
         task_id
     };
     events::broadcast(&app, events::TASKS_CHANGED);
@@ -33,7 +46,9 @@ pub fn accept_chat_message<R: tauri::Runtime>(
     Ok(task_id)
 }
 
-/// 逃走：忽略这条建议（消息仍保留在收音机里），可选带原因码落反馈库
+/// 逃走：忽略这条建议（消息仍保留在收音机里），可选带原因码落反馈库。
+/// 分诊 CAS 守卫（条目 4）：pending → dismissed 原子写，affected=0 = 已被另一处处置，
+/// 返回幂等错误且不落第二条反馈
 #[tauri::command]
 pub fn dismiss_chat_message<R: tauri::Runtime>(
     app: tauri::AppHandle<R>,
@@ -45,10 +60,14 @@ pub fn dismiss_chat_message<R: tauri::Runtime>(
     {
         let conn = db.0.lock().unwrap();
         let msg = get_message(&conn, id)?;
-        conn.execute(
-            "UPDATE chat_messages SET review_status='dismissed', dismiss_reason=?2 WHERE id=?1",
+        let n = conn.execute(
+            "UPDATE chat_messages SET review_status='dismissed', dismiss_reason=?2
+             WHERE id=?1 AND review_status='pending'",
             params![id, reason],
         )?;
+        if n == 0 {
+            return Err(AppError::Invalid("该建议已在另一处处置".into()));
+        }
         record_feedback(&conn, &msg, "dismissed", &reason)?;
     }
     events::broadcast(&app, events::CHAT_MESSAGES_CHANGED);
@@ -227,10 +246,16 @@ pub fn apply_chat_message_update<R: tauri::Runtime>(
             return Err(AppError::Invalid("该消息不是待确认的更新建议".into()));
         }
         let (task_id, patch) = update_patch_from_message(&conn, &msg)?;
-        conn.execute(
-            "UPDATE chat_messages SET review_status='accepted' WHERE id=?1",
+        // 分诊 CAS 守卫（条目 4）：前置校验与提示不变，写库加 pending 守卫——
+        // affected=0 = 校验后已被另一处处置，幂等错误不重复应用
+        let n = conn.execute(
+            "UPDATE chat_messages SET review_status='accepted'
+             WHERE id=?1 AND review_status='pending' AND ai_status='update'",
             params![id],
         )?;
+        if n == 0 {
+            return Err(AppError::Invalid("该建议已在另一处处置".into()));
+        }
         record_feedback(&conn, &msg, "accepted", "")?;
         (task_id, patch)
     };
@@ -305,10 +330,19 @@ pub fn batch_review_chat_messages<R: tauri::Runtime>(
                 if msg.ai_status == "update" {
                     match update_patch_from_message(&conn, &msg) {
                         Ok((_, patch)) => {
-                            conn.execute(
-                                "UPDATE chat_messages SET review_status='accepted' WHERE id=?1",
+                            // 分诊 CAS 守卫（条目 4）：affected=0 = 校验后已被另一处处置
+                            let n = conn.execute(
+                                "UPDATE chat_messages SET review_status='accepted'
+                                 WHERE id=?1 AND review_status='pending' AND ai_status='update'",
                                 params![id],
                             )?;
+                            if n == 0 {
+                                result.failed.push(BatchFailure {
+                                    id,
+                                    error: "该消息已处理过".into(),
+                                });
+                                continue;
+                            }
                             record_feedback(&conn, &msg, feedback_action, &reason)?;
                             Prepared::ApplyUpdate(Box::new(patch))
                         }
@@ -321,11 +355,25 @@ pub fn batch_review_chat_messages<R: tauri::Runtime>(
                         }
                     }
                 } else {
-                    match create_task_from_message(&conn, &msg) {
-                        Ok(_) => {
-                            record_feedback(&conn, &msg, feedback_action, &reason)?;
-                            Prepared::Created
+                    // 分诊 CAS 守卫（条目 4）：pending → accepted 先行原子抢占，再同一
+                    // 事务内建任务回填 task_id——建任务失败整体回滚（消息回 pending）
+                    let prepared = (|| -> AppResult<()> {
+                        let tx = conn.unchecked_transaction()?;
+                        let n = tx.execute(
+                            "UPDATE chat_messages SET review_status='accepted', dismiss_reason=''
+                             WHERE id=?1 AND review_status='pending'",
+                            params![id],
+                        )?;
+                        if n == 0 {
+                            return Err(AppError::Invalid("该消息已处理过".into()));
                         }
+                        create_task_from_message(&tx, &msg)?;
+                        record_feedback(&tx, &msg, feedback_action, &reason)?;
+                        tx.commit()?;
+                        Ok(())
+                    })();
+                    match prepared {
+                        Ok(()) => Prepared::Created,
                         Err(e) => {
                             result.failed.push(BatchFailure {
                                 id,
@@ -1038,6 +1086,85 @@ mod tests {
                 .unwrap_err()
         };
         assert!(err.to_string().contains("未知操作"), "{err}");
+    }
+
+    /// 条目 4（分诊 CAS 守卫）：消息已被另一处处置（review_status 非 pending）时，
+    /// 逃走 / 捕捉 / 应用更新全部返回幂等错误，且不留副作用（不建任务、不落第二条反馈）
+    #[test]
+    fn review_cas_guards_reject_already_disposed_messages() {
+        let app = setup();
+        // 逃走守卫：已捕捉的消息不能再逃走，反馈库只有捕捉那一条
+        let mid = seed_message(&app, "om_g1");
+        {
+            let db = app.state::<Db>();
+            accept_chat_message(app.handle().clone(), db, mid).unwrap();
+        }
+        let err = {
+            let db = app.state::<Db>();
+            dismiss_chat_message(app.handle().clone(), db, mid, None).unwrap_err()
+        };
+        assert!(err.to_string().contains("已在另一处处置"), "{err}");
+        let feedback: i64 = {
+            let db = app.state::<Db>();
+            let conn = db.0.lock().unwrap();
+            conn.query_row(
+                "SELECT COUNT(*) FROM chat_feedback WHERE chat_message_id=?1",
+                params![mid],
+                |r| r.get(0),
+            )
+            .unwrap()
+        };
+        assert_eq!(feedback, 1, "重复逃走不落第二条反馈");
+
+        // 捕捉守卫：已逃走的消息（无 task_id 但 review_status=dismissed）不能再捕捉
+        let mid = seed_message(&app, "om_g2");
+        {
+            let db = app.state::<Db>();
+            dismiss_chat_message(app.handle().clone(), db, mid, None).unwrap();
+        }
+        let err = {
+            let db = app.state::<Db>();
+            accept_chat_message(app.handle().clone(), db, mid).unwrap_err()
+        };
+        assert!(err.to_string().contains("已在另一处处置"), "{err}");
+        let tasks: i64 = {
+            let db = app.state::<Db>();
+            let conn = db.0.lock().unwrap();
+            conn.query_row("SELECT COUNT(*) FROM tasks", [], |r| r.get(0))
+                .unwrap()
+        };
+        assert_eq!(tasks, 1, "守卫拒绝时不建任务（只有 om_g1 那条）");
+
+        // 应用更新守卫：已逃走的更新建议不能再应用
+        let task_id = seed_task(&app, "参加周会");
+        let umid = seed_update_message(
+            &app,
+            "om_g3",
+            Some(task_id),
+            Some("2026-09-14T10:00"),
+            None,
+            None,
+            "[]",
+        );
+        {
+            let db = app.state::<Db>();
+            dismiss_chat_message(app.handle().clone(), db, umid, None).unwrap();
+        }
+        let err = {
+            let db = app.state::<Db>();
+            apply_chat_message_update(app.handle().clone(), db, umid).unwrap_err()
+        };
+        // 前置校验（现行提示）先拦；CAS 守卫兜并发窗口——两者都是幂等拒绝
+        assert!(matches!(err, AppError::Invalid(_)), "{err}");
+        let task = {
+            let db = app.state::<Db>();
+            get_task(db, task_id).unwrap()
+        };
+        assert_eq!(
+            task.due_at.as_deref(),
+            Some("2026-09-13T10:00"),
+            "守卫拒绝时更新补丁不落目标待办（保持 seed 原值）"
+        );
     }
 
     /// 回归：accept 后任务出现在 open 列表（避免 INSERT 字段错位静默失败）

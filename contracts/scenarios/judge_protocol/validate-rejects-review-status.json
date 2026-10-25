@@ -1,0 +1,20 @@
+{
+  "kind": "judge_protocol",
+  "name": "validate-rejects-review-status",
+  "now": "2026-01-15T09:00:00+08:00",
+  "setup": {
+    "chat_messages": [
+      { "id": 1, "message_id": "om_acc", "content": "已确认过", "ai_status": "todo", "review_status": "accepted", "task_id": 1, "created_at": "2026-01-10T00:00:00Z" },
+      { "id": 2, "message_id": "om_dis", "content": "已逃走", "ai_status": "todo", "review_status": "dismissed", "created_at": "2026-01-10T00:00:00Z" },
+      { "id": 3, "message_id": "om_p", "content": "待判定", "created_at": "2026-01-10T00:00:00Z" }
+    ]
+  },
+  "steps": [
+    { "op": "suggest_batch", "args": { "results": [ { "messageId": "om_acc", "action": "todo", "title": "重复提交" } ] } },
+    { "op": "suggest_batch", "args": { "results": [ { "messageId": "om_dis", "action": "none" } ] } },
+    { "op": "suggest_batch", "args": { "results": [ { "messageId": "om_missing", "action": "none" } ] } },
+    { "op": "suggest_batch", "args": { "results": [] } },
+    { "op": "suggest_batch", "args": { "results": [ { "messageId": "om_p", "action": "none", "reason": "闲聊" } ] } }
+  ],
+  "expect": "exact"
+}

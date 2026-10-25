@@ -1,0 +1,17 @@
+{
+  "kind": "config_align",
+  "name": "prompt-warnings-and-resolve-states",
+  "now": "2026-01-15T09:00:00+08:00",
+  "setup": {},
+  "steps": [
+    { "op": "prompt_override", "args": { "key": "ai_prompt_pet_chat", "value": "自定义规则 <CONTEXT> 与 <QUESTION>，另有未知 <FOO> 与重复 <FOO>，小写 <foo> 不告警" } },
+    { "op": "config_write", "args": { "keyValues": { "ai_prompt_pet_chat": "坏覆盖：没有占位符" } } },
+    { "op": "prompt_reset", "args": { "key": "ai_prompt_pet_chat", "expectedValue": "坏覆盖：没有占位符" } },
+    { "op": "prompt_override", "args": { "key": "ai_prompt_im_classify", "value": "有 <AGENT_ID> 的覆盖" } },
+    { "op": "prompt_override", "args": { "key": "ai_prompt_im_classify", "value": "改过的 <AGENT_ID> 覆盖", "expectedValue": "有 <AGENT_ID> 的覆盖" } },
+    { "op": "prompt_override", "args": { "key": "ai_prompt_im_classify", "value": "另一版 <AGENT_ID>", "expectedValue": "过期基线" } },
+    { "op": "prompt_override", "args": { "key": "ai_prompt_im_classify", "value": "force 版 <AGENT_ID>", "expectedValue": "过期基线", "force": true } },
+    { "op": "prompt_reset", "args": { "key": "ai_prompt_im_classify" } }
+  ],
+  "expect": "exact"
+}

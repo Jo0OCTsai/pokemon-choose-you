@@ -3,7 +3,7 @@
   "hygiene": {
     "todo": 0,
     "rust_unsafe": 4,
-    "missing_docs": 271
+    "missing_docs": 265
   },
   "complexity": {
     "pokemon-choose-you": {
@@ -46,7 +46,6 @@
       "src/components/TaskDetailDrawer.vue:complexity": 1,
       "src/components/TaskDetailDrawer.vue:max-lines": 1,
       "src/components/radio/ImDetailPanel.vue:max-lines": 1,
-      "src/components/settings/AgentConfigCard.vue:max-lines": 1,
       "src/components/settings/TagDispatchCard.vue:complexity": 1,
       "src/composables/useCatchScene.ts:complexity": 1,
       "src/composables/useCatchScene.ts:max-lines-per-function": 2,
@@ -82,12 +81,13 @@
       "src/commands/remote_pk.rs:clippy::too_many_lines": 2,
       "src/feishu.rs:clippy::cognitive_complexity": 2,
       "src/feishu.rs:clippy::too_many_lines": 8,
-      "src/lib.rs:clippy::too_many_lines": 2,
-      "src/scheduler.rs:clippy::too_many_lines": 2
-    }
+      "src/lib.rs:clippy::too_many_lines": 2
+    },
+    "pokemon-choose-you-dsh": {}
   },
   "coverage_floor": {
     "pokemon-choose-you": 65,
-    "src-tauri": 85
+    "src-tauri": 85,
+    "pokemon-choose-you-dsh": 85
   }
 }

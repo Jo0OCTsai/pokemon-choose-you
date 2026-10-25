@@ -1,0 +1,266 @@
+/**
+ * 桌宠渲染进程入口（vanilla TS + CSS，不引框架——dsh-pet 先例形态）。
+ *
+ * 组件树（UIUX §3.2）拆在 sibling 模块：sprite.ts（SpriteStage）· dialog.ts（DialogBox）
+ * · pill.ts（PomoPill）· quickdex.ts（QuickDexScreen）· menu.ts（ContextMenu）· capture.ts
+ * （CaptureShow——plain/streak/milestone 变体）· chatbox.ts（ChatBox）· mate.ts（MateSprite）·
+ * inputResponse.ts（InputResponse）；本文件做：ui-event 装配、每秒快照调度。
+ * 拆件（棘轮 max-lines，等量迁移）：精灵交互 = spriteInteract.ts、时刻台词与时段问候
+ * 调度 = petSchedule.ts、精灵名取用 = pokemonName.ts。
+ *
+ * 穿透翻转：html/body 根 pointer-events:none，命中区（.hit）auto——document mousemove（穿透
+ * forward 仍可达）按 e.target.closest('.hit') 翻转 setIgnoreMouseEvents。
+ * reduced-motion 双通道：CSS prefers-reduced-motion + sprites 配置位（ui-event/snapshot 下发）。
+ */
+import "@fontsource/press-start-2p";
+import "@vp-tw/cjk-web-fonts-fusion-pixel-font/dist/12px/proportional/zh_hans/Fusion-Pixel-12px-Proportional-Simplified-Chinese.css";
+import "./pet.css";
+import type { Lang, QuickTask } from "../bridge/protocol.ts";
+// 组件模块（import 即完成各自的 DOM 接线）
+import { playCapture } from "./capture.ts";
+import { chime } from "./chime.ts";
+import { handleChatReply, initChatBox, openChat, refreshChatStatic } from "./chatbox.ts";
+import { showDialog, showReminder } from "./dialog.ts";
+import { fill, lines } from "./lines.ts";
+import { initMenu } from "./menu.ts";
+import { mateLeave } from "./mate.ts";
+import { mirror, type PetStateLite, type Snapshot, type TaskLite } from "./mirror.ts";
+import { tickMate } from "./mate.ts";
+import { feedActivity, initInputResponse } from "./inputResponse.ts";
+import { loadMetOn, startPetSchedules } from "./petSchedule.ts";
+import { refreshPill } from "./pill.ts";
+import { refs } from "./refs.ts";
+import { withPokemonName } from "./pokemonName.ts";
+import { refreshQuick, toggleQuick } from "./quickdex.ts";
+import { applyPetState, setSprite, updateRing } from "./sprite.ts";
+import { wireSpriteInteractions } from "./spriteInteract.ts";
+
+const bridge = window.petBridge;
+
+initMenu({
+  onSwitchTarget: () => toggleQuick(true, { switching: true }),
+  onQuickToggle: () => toggleQuick(),
+  onOpenChat: () => openChat(),
+});
+initChatBox();
+initInputResponse();
+wireSpriteInteractions();
+wireHitToggle();
+loadMetOn();
+
+// ============================== ui-event 装配（kind → 小 handler 分派表） ==============================
+
+/** ui-event 分派表（kind → handler；未登记 kind 静默忽略） */
+const UI_EVENT_HANDLERS: Record<string, (ev: Record<string, unknown>) => void> = {
+  task: handleTask,
+  lang: handleLang,
+  sprites: handleSprites,
+  "pet-state": handlePetState,
+  "pomo-config": handlePomoConfig,
+  bubble: handleBubble,
+  "catch-scene": (ev) => {
+    playCapture(ev.scene as "plain" | "streak" | "milestone");
+    if (Boolean(ev.allDone)) mateLeave(); // 收工清空：送客陪跑精灵（桌面 allDone 纪律）
+  },
+  "chat-reply": (ev) => handleChatReply(String(ev.text ?? ""), Boolean(ev.ok)),
+  "input-activity": (ev) => feedActivity(Number(ev.cps ?? 0)),
+  perch: (ev) => handlePerch(Boolean(ev.perched)),
+  "pet-config": (ev) => {
+    mirror.petConfig = {
+      mate: Boolean(ev.mate),
+      agentConfigured: Boolean(ev.agentConfigured),
+      mainPokemon: String(ev.mainPokemon ?? ""),
+      alwaysOnTop: ev.alwaysOnTop === undefined ? true : Boolean(ev.alwaysOnTop),
+      scale: Number(ev.scale ?? 1) || 1,
+      opacity: Number(ev.opacity ?? 100) || 100,
+      dexCaught: Array.isArray(ev.dexCaught) ? (ev.dexCaught as string[]) : [],
+    };
+    applyPetVars();
+  },
+  "pomo-chime": (ev) => chime(ev.count === 2 ? 2 : 1),
+  quotes: (ev) => {
+    mirror.quotes = (ev.map as Record<string, string[]>) ?? {};
+  },
+  reminder: (ev) => {
+    const key = String(ev.pokemon ?? "") || mirror.spriteKey;
+    withPokemonName(
+      (p) =>
+        showReminder(
+          { taskId: ev.taskId as number | string, title: String(ev.title ?? ""), urgent: Boolean(ev.urgent) },
+          p,
+        ),
+      key,
+    );
+  },
+};
+
+function onUiEvent(ev: Record<string, unknown>): void {
+  const handler = UI_EVENT_HANDLERS[ev.kind as string];
+  if (handler !== undefined) handler(ev);
+}
+
+function handleTask(ev: Record<string, unknown>): void {
+  const task = ev.task as TaskLite;
+  mirror.lastTask = task;
+  mirror.todayTasks = (ev.todayTasks as QuickTask[]) ?? [];
+  refreshQuick();
+  refreshPill(task, null);
+  // 空闲精灵选择链（P1 D2 桌面同构）：任务分类精灵 → main_pokemon → pikachu 兜底
+  setSprite(task ? task.categoryPokemon : mirror.petConfig.mainPokemon || "pikachu");
+}
+
+/** 番茄配置（含功能开关）：开关变化即时重评胶囊显隐 */
+function handlePomoConfig(ev: Record<string, unknown>): void {
+  const config = ev.config as { enabled?: boolean } | undefined;
+  const enabled = Boolean(config?.enabled);
+  if (enabled !== mirror.pomoEnabled) {
+    mirror.pomoEnabled = enabled;
+    refreshPill(mirror.lastTask, null);
+  }
+}
+
+function handleLang(ev: Record<string, unknown>): void {
+  mirror.lang = ev.lang as Lang;
+  refreshQuick();
+  refreshChatStatic();
+}
+
+function handleSprites(ev: Record<string, unknown>): void {
+  applyReducedMotion(Boolean(ev.reducedMotion));
+}
+
+function handlePetState(ev: Record<string, unknown>): void {
+  const prev = mirror.petState;
+  mirror.petState = ev.state as PetStateLite;
+  applyPetState();
+  if (prev.asleep && !mirror.petState.asleep) showWakeLine(); // 揉眼醒来（FR-B5）
+  if (mirror.petState.base === "paused" && mirror.lastTask) showPausedLine();
+}
+
+function showWakeLine(): void {
+  void withPokemonName((name) => showDialog(fill(lines(mirror.lang).wakeUp, { p: name }), { tone: "event" }));
+}
+
+/** 暂停台词（{p}在原地休息）在 base 切换瞬间说一次 */
+function showPausedLine(): void {
+  void withPokemonName((name) => showDialog(fill(lines(mirror.lang).pausedLine, { p: name })));
+}
+
+function handleBubble(ev: Record<string, unknown>): void {
+  showDialog(ev.text as string, {
+    tone: ev.tone as "info" | "event" | "warn",
+    blink: Boolean(ev.blink),
+  });
+}
+
+/** 坐栖翻转（FR-B1）：首次落座说台词（拎起即离在 drag-start 乐观清除 + 主进程复评兜底） */
+function handlePerch(perched: boolean): void {
+  const was = mirror.perched;
+  mirror.perched = perched;
+  applyPetState();
+  if (perched && !was) {
+    void withPokemonName((name) =>
+      setTimeout(() => showDialog(fill(lines(mirror.lang).perchedLine, { p: name }), { tone: "event" }), 600),
+    );
+  }
+}
+
+bridge.onUiEvent((ev: unknown) => onUiEvent(ev as Record<string, unknown>));
+
+// ============================== 穿透翻转（AD §3.3） ==============================
+
+function wireHitToggle(): void {
+  let hitActive = false;
+  document.addEventListener("mousemove", (e) => {
+    if (e.buttons !== 0) return; // 按住鼠标 = 可能要拖拽，不翻转（桌面 usePetClickThrough 同款守卫）
+    const el = e.target as Element | null;
+    const hit = !!(el && typeof el.closest === "function" && el.closest(".hit"));
+    if (hit !== hitActive) {
+      hitActive = hit;
+      void bridge.setHit(hit);
+    }
+    feedGaze(e.clientX); // 光标跟随视线（P1 C4——forward 穿透态 mousemove 仍可达）
+  });
+}
+
+// ---- 光标跟随视线（P1 C4）：方位翻转 + look；冷却 2.6s；专注/urgent/演出/睡着让路 ----
+const GAZE_COOLDOWN_MS = 2_600;
+let lastGazeAt = 0;
+let gazeFacing: 1 | -1 = 1;
+
+/** 视线让路面（专注/urgent/演出/对话/快捷屏/睡着/减弱动效） */
+function gazeBlocked(): boolean {
+  const s = mirror.petState;
+  return (
+    mirror.reducedMotion ||
+    s.asleep ||
+    s.transient !== null ||
+    mirror.sceneBusy ||
+    mirror.chatOpen ||
+    mirror.quickOpen ||
+    s.base === "working" ||
+    s.base === "urgent"
+  );
+}
+
+function feedGaze(x: number): void {
+  const now = Date.now();
+  if (now - lastGazeAt < GAZE_COOLDOWN_MS || gazeBlocked()) return;
+  const rect = refs.sprite.getBoundingClientRect();
+  const dir = x < rect.left + rect.width / 2 ? -1 : 1;
+  lastGazeAt = now;
+  if (dir !== gazeFacing) {
+    gazeFacing = dir;
+    refs.stage.classList.add("m-flip");
+    setTimeout(() => refs.stage.classList.remove("m-flip"), 1200);
+  }
+  refs.stage.classList.add("m-look");
+  setTimeout(() => refs.stage.classList.remove("m-look"), 1000);
+}
+
+// ============================== 每秒快照（色环/药丸/坐栖/陪跑/输入响应配置） ==============================
+
+/** 快照镜像回放（lang/动效/坐栖/状态/配置投影）→ 返回坐栖是否新落座 */
+function applySnapToMirror(snap: Snapshot): boolean {
+  mirror.lang = snap.lang ?? mirror.lang;
+  applyReducedMotion(snap.reducedMotion ?? mirror.reducedMotion);
+  const perchedChanged = snap.perched !== mirror.perched;
+  mirror.perched = snap.perched;
+  mirror.petState = snap.petState;
+  mirror.inputResponse = snap.inputResponse ?? mirror.inputResponse;
+  mirror.petConfig = snap.petConfig ?? mirror.petConfig;
+  mirror.quotes = snap.quotes ?? mirror.quotes;
+  applyPetVars();
+  return perchedChanged;
+}
+
+/** 窗口配置渲染变量（P1 D5）：--pet-scale 根缩放（.hit 几何随元素联动）+ --pet-opacity 精灵/气泡 */
+function applyPetVars(): void {
+  const root = document.documentElement;
+  root.style.setProperty("--pet-scale", String(mirror.petConfig.scale));
+  root.style.setProperty("--pet-opacity", String(mirror.petConfig.opacity / 100));
+}
+
+async function tickSnapshot(): Promise<void> {
+  try {
+    const snap = (await bridge.snapshot()) as Snapshot;
+    const perchedChanged = applySnapToMirror(snap);
+    applyPetState();
+    if (perchedChanged && mirror.perched) handlePerch(true);
+    updateRing(snap.pomo?.progress ?? null);
+    refreshPill(snap.activeTask, snap.pomo ? { kind: snap.pomo.kind, msLeft: snap.pomo.msLeft } : null);
+    tickMate(snap);
+  } catch {
+    /* 快照通道瞬断：下秒重试 */
+  }
+}
+
+function applyReducedMotion(on: boolean): void {
+  mirror.reducedMotion = on;
+  document.documentElement.classList.toggle("reduced-motion", on);
+}
+
+// ---- 启动 ----
+void tickSnapshot();
+setInterval(() => void tickSnapshot(), 1_000);
+startPetSchedules();

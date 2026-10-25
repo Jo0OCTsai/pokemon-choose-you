@@ -1,0 +1,56 @@
+{
+  "kind": "deployment_registry",
+  "name": "edit-pktunnel-and-material-change",
+  "now": "2026-10-19T09:00:00+08:00",
+  "setup": {
+    "settings": {
+      "dsh:deployments": "{\"dep-1\":{\"id\":\"dep-1\",\"alias\":\"gpu-1\",\"nodePath\":\"/usr/bin/node\",\"helperPath\":\"\",\"helperHash\":null,\"workdir\":\"/home/u/work\",\"note\":\"\",\"status\":\"draft\",\"lastError\":null,\"provision\":null,\"degraded\":false,\"pkTunnel\":null}}"
+    }
+  },
+  "steps": [
+    {
+      "op": "deployment_upsert",
+      "args": {
+        "id": "dep-1",
+        "alias": "gpu-1",
+        "nodePath": "~"
+      }
+    },
+    {
+      "op": "deployment_upsert",
+      "args": {
+        "id": "dep-1",
+        "alias": "gpu-1",
+        "note": "训练机"
+      }
+    },
+    {
+      "op": "deployment_upsert",
+      "args": {
+        "id": "dep-1",
+        "alias": "gpu-1",
+        "pkTunnel": {
+          "port": 10022,
+          "persistent": true
+        }
+      }
+    },
+    {
+      "op": "deployment_upsert",
+      "args": {
+        "id": "dep-1",
+        "alias": "gpu-1",
+        "nodePath": "/opt/node/bin/node"
+      }
+    },
+    {
+      "op": "deployment_upsert",
+      "args": {
+        "id": "dep-1",
+        "alias": "gpu-1",
+        "pkTunnel": null
+      }
+    }
+  ],
+  "expect": "exact"
+}

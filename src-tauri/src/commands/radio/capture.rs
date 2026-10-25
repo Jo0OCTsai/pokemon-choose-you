@@ -92,7 +92,8 @@ pub async fn force_create_todo<R: tauri::Runtime>(
         Err(e) => {
             let conn = db.0.lock().unwrap();
             // 只翻转仍未落库判定的消息：分类失败前 pk 可能已把判定写库，不能覆盖
-            let _ = mark_ai_error_conn(&conn, std::slice::from_ref(&msg.message_id));
+            //（强制捕捉未走 claim 协议，pending 守卫语义不变——条目 3 只改 claim 路径）
+            let _ = mark_ai_error_conn(&conn, std::slice::from_ref(&msg.message_id), None);
             app.state::<crate::health::HealthState>().record_failure(
                 &app,
                 crate::health::AI,
@@ -245,7 +246,12 @@ pub async fn capture_todo<R: tauri::Runtime>(
     // 会话回链与健康记录与飞书轮询同口径：时长 / session_id / 成败（预生成 id 失败也落库）
     let started = std::time::Instant::now();
     let pregen = pregen_session_id(&agent);
-    let workdir_snapshot = ai::session_workdir_snapshot(&agent, &agent.workdir);
+    let remote = {
+        let conn = db.0.lock().unwrap();
+        crate::commands::resolve_remote_target(&conn, &agent)
+            .map_err(|e| AppError::Invalid(e.message))?
+    };
+    let workdir_snapshot = ai::session_workdir_snapshot(&agent, &agent.workdir, remote.as_ref());
     let judged = capture_with_session(
         &agent,
         &AiMessage {
@@ -267,10 +273,11 @@ pub async fn capture_todo<R: tauri::Runtime>(
         Err(e) => {
             {
                 let conn = db.0.lock().unwrap();
-                let _ = mark_ai_error_conn(&conn, std::slice::from_ref(&message_id));
+                let _ = mark_ai_error_conn(&conn, std::slice::from_ref(&message_id), None);
                 let mut rec = crate::commands::sessions::NewAgentSession::for_run(
                     "capture",
                     &agent,
+                    remote.as_ref(),
                     &workdir_snapshot,
                 );
                 rec.session_id = pregen.clone();
@@ -294,6 +301,7 @@ pub async fn capture_todo<R: tauri::Runtime>(
         let mut rec = crate::commands::sessions::NewAgentSession::for_run(
             "capture",
             &agent,
+            remote.as_ref(),
             &workdir_snapshot,
         );
         rec.session_id = session_id.or(pregen.clone());

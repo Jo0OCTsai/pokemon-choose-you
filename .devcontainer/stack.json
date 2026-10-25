@@ -21,6 +21,14 @@
       "test_cmd": "CARGO_TARGET_DIR=target/llvm-cov cargo llvm-cov --fail-under-lines 85 --ignore-filename-regex '(input|tray|shortcuts|lib|main)\\.rs$'",
       "dev_cmd": "cargo run",
       "port": 8080
+    },
+    {
+      "name": "pokemon-choose-you-dsh",
+      "dir": "dsh-plugin",
+      "stack": "node-pnpm",
+      "lint_fix": "pnpm exec eslint --fix '{file}' && pnpm exec prettier --write '{file}'",
+      "lint_check": "pnpm exec eslint . && pnpm exec prettier --check . && pnpm exec tsc --noEmit",
+      "test_cmd": "pnpm test"
     }
   ]
 }

@@ -21,5 +21,8 @@ pub(crate) use cmdline::*;
 pub use exec::*;
 pub use meta::*;
 pub(crate) use prompt::dispatch_prompt_example;
+// dispatch_prompt：契约套件（contracts 模块，cfg(test)）驱动注入定界原语用，行为不变
+#[cfg(test)]
+pub(crate) use prompt::dispatch_prompt;
 pub use route::*;
 pub use state::*;

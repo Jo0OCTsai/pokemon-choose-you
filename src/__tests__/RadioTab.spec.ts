@@ -73,12 +73,15 @@ beforeEach(() => {
 });
 
 describe("RadioTab 列表分组与聚焦", () => {
-  it("分区分组：信号/无信号分列，已处理分区默认收起", async () => {
-    const w = await mountRadio([M.signalHigh, M.noise, M.caught, M.escaped]);
+  it("分区分组：信号/判定失败/无信号分列，已处理分区默认收起", async () => {
+    const w = await mountRadio([M.signalHigh, M.noise, M.failed, M.caught, M.escaped]);
     const groups = w.findAll("[data-group]");
-    expect(groups.map((g) => g.attributes("data-group"))).toEqual(["pending", "noise", "caught", "escaped"]);
+    // 判定失败（error）独立于无信号（none）：dsh FailedGroup 五分组同构
+    expect(groups.map((g) => g.attributes("data-group"))).toEqual(["pending", "failed", "noise", "caught", "escaped"]);
     expect(w.text()).toContain("消息11");
     expect(w.text()).toContain("消息21");
+    expect(w.find('[data-group="failed"]').text()).toContain("消息22");
+    expect(w.find('[data-group="noise"]').text()).not.toContain("消息22");
   });
 
   it("focusCapture：暴露的快捷聚焦把焦点给捕捉输入框", async () => {
@@ -161,19 +164,26 @@ describe("RadioTab 批量勾选", () => {
   });
 });
 
-describe("RadioTab 噪音清扫", () => {
-  it("一键清空无信号：整组 dismiss 落 noise 原因", async () => {
+describe("RadioTab 判定失败组", () => {
+  it("一键清空无信号只扫 none 组，不把 error 消息当噪音清掉", async () => {
     const w = await mountRadio();
     w.findAllComponents({ name: "ClearNoiseActions" })[0].vm.$emit("clear");
     await flush();
-    expect(api.batchReviewChatMessages).toHaveBeenCalledWith([21, 22], "dismiss", "noise");
+    expect(api.batchReviewChatMessages).toHaveBeenCalledWith([21], "dismiss", "noise");
   });
 
-  it("判定失败一键重判", async () => {
+  it("一键重判失败组", async () => {
     const w = await mountRadio();
-    w.findAllComponents({ name: "ClearNoiseActions" })[0].vm.$emit("retry");
+    w.findAllComponents({ name: "FailedGroupActions" })[0].vm.$emit("retry");
     await flush();
     expect(api.retryAiJudgment).toHaveBeenCalledWith([22]);
+  });
+
+  it("强制逃走失败组：整组批量逃走不留原因码", async () => {
+    const w = await mountRadio();
+    w.findAllComponents({ name: "FailedGroupActions" })[0].vm.$emit("force-escape");
+    await flush();
+    expect(api.batchReviewChatMessages).toHaveBeenCalledWith([22], "dismiss");
   });
 });
 

@@ -1,54 +1,26 @@
-//! agent 调用配置：AgentConfig / AgentRemote 的结构与从 settings 的解析加载。
+//! agent 调用配置：AgentConfig / RemoteTarget 的结构与从 settings 的解析加载。
 use serde::{Deserialize, Serialize};
 
-/// SSH 远程执行配置：agent CLI 装在远程机器（工作站/服务器）上时，
-/// 本地经 `ssh host -- command` 无头调用，提示词走 stdin。
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase", default)]
-pub struct AgentRemote {
-    /// ssh 目标（user@host）
-    pub host: String,
-    /// ssh 端口
-    #[serde(default = "default_ssh_port")]
-    pub port: u16,
-    /// 私钥路径（空则走 ssh 默认 ~/.ssh/id_*）
-    pub key_path: Option<String>,
-    /// 反向隧道端口：随这条 ssh 连接把远程侧 127.0.0.1:<port> 转发回本机 sshd，
-    /// 供远程主机上的 pk 透传 shim 回连执行（agent 在远程、数据在本机的场景）。
-    /// None = 不建隧道（远程 shim 需能直连本机）。
-    #[serde(default)]
-    pub tunnel: Option<u16>,
-    /// 常驻反向隧道：开启后应用驻留期间由隧道管理器维持 ssh -N -R 长连
-    /// （keepalive + 退避重连），远程任何进程（无头 agent / tmux / 手动 ssh）
-    /// 随时可调 pk，不再依赖应用发起调用的存活窗口。见 REMOTE_PK_CHANNEL_PROPOSAL §5。
-    #[serde(default)]
-    pub persistent: bool,
-}
-
-fn default_ssh_port() -> u16 {
-    22
-}
-
-impl Default for AgentRemote {
-    fn default() -> Self {
-        Self {
-            host: String::new(),
-            port: default_ssh_port(),
-            key_path: None,
-            tunnel: None,
-            persistent: false,
-        }
-    }
+/// 解析后的远程执行目标（ADR-0003：执行世界单源 = agent 部署绑定）。alias 模式——
+/// 凭据与端口由 `~/.ssh/config` 承载，应用侧不再携带显式连接参数。
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct RemoteTarget {
+    /// OpenSSH 别名（部署实体的 alias）
+    pub alias: String,
+    /// 按需反向隧道端口（部署 pkTunnel.port；None = 本次调用不带 -R）
+    pub tunnel_port: Option<u16>,
 }
 
 /// 一个 AI agent CLI 工具的调用配置（Claude Code / OpenCode / pi 等），
 /// 无头调用本地 agent 进程完成分类。判定结果统一由 agent 经 pk CLI 写回数据库，
 /// 应用从库回读，不解析 agent 的文本输出。
-/// remote 配置后改为经 SSH 在远程机器执行。
+/// 部署绑定（alias）非空 = 经 `ssh <alias>` 远程执行（ADR-0003 §1）。
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", default)]
 pub struct AgentConfig {
+    /// 实体唯一键（新建生成；引用用 alias 不用 id）
     pub id: String,
+    /// 显示名（设置页与派发选择器呈现）
     pub name: String,
     /// 可执行文件名或绝对路径，如 claude / opencode / pi / dsh
     pub command: String,
@@ -67,10 +39,12 @@ pub struct AgentConfig {
     pub skill_dir: Option<String>,
     /// 单次调用超时（秒）
     pub timeout_secs: u64,
+    /// 启用（停用项不参与派发与收音机判定）
     pub enabled: bool,
-    /// SSH 远程执行（None = 本地执行）
+    /// 绑定的远程部署 alias（执行世界单源——ADR-0003 §1；与 TS
+    /// AgentConfig.deployment 一一对应，级联改写经类型化往返不丢字段）
     #[serde(default)]
-    pub remote: Option<AgentRemote>,
+    pub deployment: Option<String>,
 }
 
 impl Default for AgentConfig {
@@ -85,7 +59,7 @@ impl Default for AgentConfig {
             skill_dir: None,
             timeout_secs: 120,
             enabled: true,
-            remote: None,
+            deployment: None,
         }
     }
 }
@@ -110,6 +84,7 @@ pub fn primary_agent(get: &dyn Fn(&str) -> Option<String>) -> Option<AgentConfig
         .or_else(|| agents.iter().find(|a| a.enabled).cloned())
 }
 
+/// 实体唯一键（新建生成；引用用 alias 不用 id）
 pub fn agent_by_id(get: &dyn Fn(&str) -> Option<String>, id: &str) -> Option<AgentConfig> {
     load_agents(get).into_iter().find(|a| a.id == id)
 }
@@ -199,28 +174,19 @@ mod tests {
 
     /// ai_agents JSON 带 remote（camelCase）往返；缺省无 remote 也兼容
     #[test]
-    fn load_agents_parses_remote_config() {
-        let raw = r#"[{"id":"r1","name":"远程 Claude","command":"claude","args":"-p {prompt}",
-                      "historyArgs":"","timeoutSecs":180,"enabled":true,
-                      "remote":{"host":"dev@box","port":2222,"keyPath":"/home/me/.ssh/id"}}]"#;
+    fn load_agents_parses_deployment_and_ignores_legacy_remote() {
+        // deployment 绑定解析（ADR-0003 执行世界单源）；旧 remote 键容忍丢弃
+        let raw = r#"[{"id":"r1","name":"x","command":"claude","deployment":"gpu-1","remote":{"host":"dev@box","port":2222,"keyPath":"/home/me/.ssh/id"}}]"#;
         let get = getter(&[("ai_agents", raw)]);
         let agents = load_agents(&get);
         assert_eq!(agents.len(), 1);
-        let r = agents[0].remote.as_ref().unwrap();
-        assert_eq!(r.host, "dev@box");
-        assert_eq!(r.port, 2222);
-        assert_eq!(r.key_path.as_deref(), Some("/home/me/.ssh/id"));
-        // port 缺省回落 22
-        let raw2 = r#"[{"id":"r2","name":"x","command":"claude","remote":{"host":"box"}}]"#;
-        let get2 = getter(&[("ai_agents", raw2)]);
-        assert_eq!(load_agents(&get2)[0].remote.as_ref().unwrap().port, 22);
-        // 老配置（无 remote）照常
+        assert_eq!(agents[0].deployment.as_deref(), Some("gpu-1"));
+        // 无绑定照常（本机执行）
         let raw3 = r#"[{"id":"r3","name":"本地","command":"claude"}]"#;
         let get3 = getter(&[("ai_agents", raw3)]);
-        assert!(load_agents(&get3)[0].remote.is_none());
+        assert!(load_agents(&get3)[0].deployment.is_none());
     }
 
-    /// skillDir（camelCase）解析往返：自定义目录覆盖与缺省 None 都兼容老配置
     #[test]
     fn load_agents_parses_skill_dir() {
         let raw = r#"[{"id":"c1","name":"自定义","command":"my-agent","skillDir":"~/my-skills"}]"#;

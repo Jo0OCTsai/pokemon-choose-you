@@ -1,0 +1,345 @@
+/**
+ * 远程部署族样式（U23/U24 ·「远方的图鉴机」——部署卡读作远端机器的图鉴条目）：
+ * T1 墨档实体卡 + 等宽别名「编号位」+ 状态徽章（文字恒墨色仅状态点取色——L2 钉死，
+ * --pcy-deploy-* 语义别名映射在 ui.module.css 与 pcy 表同文件）+ 向导步骤条（T0 壳 +
+ * T1 墨，黄只标当前步）+ 表单行。零 animation（NFR-6）；动效仅 buttonDex 80ms 按压。
+ */
+
+/* ---- 表单（DeployFormModal） ---- */
+.formRow {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 8px;
+  font-size: 13px;
+}
+.formLabel {
+  flex: 0 0 128px;
+  color: var(--dsw-alias-label-secondary, #57606a);
+}
+.formError {
+  margin: 2px 0 8px;
+  font-size: 12px;
+  color: var(--pcy-danger, #b3590f);
+}
+
+/* ---- 卡面 ---- */
+.counts {
+  margin: 0 0 6px;
+  font-size: 12px;
+  color: var(--dsw-alias-label-secondary, #57606a);
+  font-variant-numeric: tabular-nums;
+}
+.empty {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 4px 0 8px;
+}
+.emptyText {
+  margin: 0;
+  font-size: 13px;
+  color: var(--dsw-alias-label-secondary, #57606a);
+  line-height: 1.7;
+}
+.sshGuide {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 10px 12px;
+  border: 1.5px solid var(--dsw-alias-border-l3, #c7cdd4);
+  border-radius: 8px;
+  font-size: 13px;
+  color: var(--dsw-alias-label-secondary, #57606a);
+}
+.sshGuide p {
+  margin: 0;
+  line-height: 1.7;
+}
+
+/* ---- 部署行（entityCard 同构 + 等宽编号位） ---- */
+.rowList {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px 12px;
+  border: 1px solid var(--dsw-alias-border-l1, #e3e7ec);
+  border-radius: 10px;
+  padding: 10px 12px;
+}
+.row:hover {
+  background: var(--pcy-hover, #fff3c4);
+  border-color: var(--dsw-alias-label-primary, #1f2328);
+}
+.rowMain {
+  flex: 1 1 320px;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.rowHead {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.alias {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  letter-spacing: 1px;
+  font-weight: 700;
+  font-size: 13px;
+  color: var(--dsw-alias-label-primary, #1f2328);
+}
+
+/* 状态徽章：文字恒墨色/宿主文字色，仅状态点着色（L2——彩色不承担文字对比度） */
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--dsw-alias-label-primary, #1f2328);
+  border: 1px solid var(--dsw-alias-border-l3, #c7cdd4);
+  border-radius: 999px;
+  padding: 2px 10px;
+}
+.badgeDot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  border: 1px solid var(--dsw-alias-label-primary, #1f2328);
+}
+.badgeDot[data-tone="ready"] {
+  background: var(--pcy-deploy-ready, #2f7d3c);
+}
+.badgeDot[data-tone="readyDirect"] {
+  background: var(--pcy-deploy-ready-direct, #b58900);
+}
+.badgeDot[data-tone="notReady"] {
+  background: var(--pcy-deploy-notready, #b58900);
+}
+.badgeDot[data-tone="disconnected"] {
+  background: var(--pcy-deploy-disconnected, #b3590f);
+}
+/* 常驻隧道五态色点（healthy 绿 / connecting·retrying 琥珀 / yielded 让位待命中性 / off 空心） */
+.badgeDot[data-tone="tunnel-healthy"] {
+  background: var(--pcy-deploy-ready, #2f7d3c);
+}
+.badgeDot[data-tone="tunnel-connecting"],
+.badgeDot[data-tone="tunnel-retrying"] {
+  background: var(--pcy-deploy-notready, #b58900);
+}
+.badgeDot[data-tone="tunnel-yielded"] {
+  background: var(--dsw-alias-border-l3, #c7cdd4);
+}
+.badgeDot[data-tone="tunnel-off"] {
+  background: transparent;
+}
+/* 向导执行中 = 中性虚线徽章（无色点——非状态语义，静态换态） */
+.badge[data-tone="running"] {
+  border-style: dashed;
+}
+
+/* 直连模式角标（D31 留痕——有留痕才显示） */
+.directTag {
+  font-size: 11px;
+  color: var(--dsw-alias-label-secondary, #57606a);
+  border: 1px dashed var(--dsw-alias-border-l3, #c7cdd4);
+  border-radius: 4px;
+  padding: 1px 6px;
+}
+
+/* 远端三元组（路径等宽截断 + title 全文；窄屏折行） */
+.triple {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 14px;
+  font-size: 12px;
+  color: var(--dsw-alias-label-secondary, #57606a);
+  min-width: 0;
+}
+.mono {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  max-width: 260px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.lastError {
+  margin: 0;
+  font-size: 12px;
+  color: var(--pcy-danger, #b3590f);
+}
+/* 断开行的「重装远端组件」常驻恢复链接（次要动作——中性色下划线；32px 点按面积对齐向导 degradeEntry） */
+.reinstallLink {
+  background: none;
+  border: none;
+  padding: 0;
+  font-size: 12px;
+  color: var(--dsw-alias-label-secondary, #57606a);
+  text-decoration: underline;
+  cursor: pointer;
+  min-height: 32px;
+  align-self: flex-start;
+}
+.rowOps {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.addRow {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding-top: 10px;
+}
+
+/* ---- 向导 ---- */
+.wizardRunning {
+  margin: 0 0 8px;
+  font-size: 12px;
+  color: var(--dsw-alias-label-secondary, #57606a);
+}
+.steps {
+  list-style: none;
+  margin: 0 0 10px;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.stepItem {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: var(--dsw-alias-label-primary, #1f2328);
+  padding: 4px 0;
+  border-bottom: 1px solid var(--dsw-alias-border-l1, #e3e7ec);
+}
+.stepItem[data-state="pending"] {
+  color: var(--dsw-alias-label-secondary, #57606a);
+}
+/* 步骤状态点 + 标记：仅点/标记着色，文字恒墨（复评 r2——暗色对比度） */
+.stepDot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  border: 1.5px solid var(--dsw-alias-label-primary, #1f2328);
+  flex: none;
+}
+.stepDot[data-state="done"],
+.stepDot[data-state="skipped"] {
+  background: var(--pcy-ok, #2f7d3c);
+}
+.stepDot[data-state="failed"] {
+  background: var(--pcy-fail, #b3590f);
+}
+.stepDot[data-state="running"] {
+  background: var(--pcy-running, #ffcb05);
+}
+.stepName {
+  font-weight: 700;
+}
+.stepState {
+  margin-left: auto;
+  font-size: 12px;
+  color: var(--dsw-alias-label-secondary, #57606a);
+}
+.stepFailure {
+  margin: 0 0 10px;
+  padding: 8px 10px;
+  border: 1.5px solid var(--pcy-fail, #b3590f);
+  border-radius: 8px;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+}
+.stepFailureText {
+  margin: 0;
+  font-size: 13px;
+  color: var(--dsw-alias-label-primary, #1f2328);
+  line-height: 1.7;
+}
+.stepFailureDetail {
+  margin: 0;
+  font-size: 12px;
+  color: var(--dsw-alias-label-secondary, #57606a);
+}
+.degradeEntry {
+  background: none;
+  border: none;
+  padding: 0;
+  font-size: 12px;
+  color: var(--pcy-danger, #b3590f);
+  text-decoration: underline;
+  cursor: pointer;
+  min-height: 32px;
+}
+.logEmpty {
+  font-size: 12px;
+  color: var(--pcy-lcd-dim, #4a563f);
+}
+.logLine {
+  display: flex;
+  gap: 10px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 12px;
+  padding: 1px 0;
+}
+.logLine[data-ok="false"] .logText {
+  color: var(--pcy-lcd-log-error, #d64545);
+  font-weight: 700;
+}
+.logStep {
+  flex: none;
+  color: var(--pcy-lcd-dim, #4a563f);
+}
+.logText {
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+.wizardCloseHint {
+  margin: 8px 0 0;
+  font-size: 11px;
+  color: var(--dsw-alias-label-secondary, #57606a);
+}
+.pkSteps {
+  list-style: none;
+  margin: 8px 0 0;
+  padding: 0;
+  display: grid;
+  gap: 4px;
+}
+.pkSteps li {
+  display: flex;
+  gap: 10px;
+  font-size: 12px;
+  padding: 2px 0;
+}
+.pkSteps li[data-status="fail"] .pkStepName {
+  color: var(--pcy-lcd-log-error, #d64545);
+  font-weight: 700;
+}
+.pkStepName {
+  flex: none;
+  color: var(--pcy-lcd-dim, #4a563f);
+}
+.pkStepDetail {
+  white-space: pre-wrap;
+  word-break: break-word;
+  color: var(--dsw-alias-label-secondary, #57606a);
+}

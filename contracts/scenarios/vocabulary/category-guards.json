@@ -1,0 +1,21 @@
+{
+  "kind": "vocabulary",
+  "name": "category-guards",
+  "now": "2026-01-15T09:00:00+08:00",
+  "setup": {},
+  "steps": [
+    { "op": "category_upsert", "args": { "id": 2, "enabled": false } },
+    { "op": "category_upsert", "args": { "id": 3, "enabled": false } },
+    { "op": "category_upsert", "args": { "id": 4, "enabled": false } },
+    { "op": "category_upsert", "args": { "id": 5, "enabled": false } },
+    { "op": "category_upsert", "args": { "id": 1, "enabled": false } },
+    { "op": "category_upsert", "args": { "id": 5, "enabled": true } },
+    { "op": "category_delete", "args": { "id": 5 } },
+    { "op": "category_delete", "args": { "id": 4 } },
+    { "op": "category_delete", "args": { "id": 3 } },
+    { "op": "category_delete", "args": { "id": 2 } },
+    { "op": "category_delete", "args": { "id": 1 } },
+    { "op": "category_upsert", "args": { "name": "  " } }
+  ],
+  "expect": "exact"
+}

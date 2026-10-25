@@ -1,0 +1,26 @@
+{
+  "kind": "reminder",
+  "name": "due-mixed-formats-and-states",
+  "now": "2026-09-12T23:30:00+08:00",
+  "setup": {
+    "settings": {
+      "notifications_enabled": "false",
+      "quiet_hours_enabled": "false"
+    },
+    "tasks": [
+      { "id": 1, "title": "带偏移的 RFC3339", "status": "inbox", "priority": "normal", "remind_at": "2026-09-12T22:00:00+08:00", "created_at": "2026-09-01T00:00:00Z" },
+      { "id": 2, "title": "UTC RFC3339", "status": "active", "priority": "normal", "remind_at": "2026-09-12T14:30:00Z", "created_at": "2026-09-01T00:00:00Z" },
+      { "id": 3, "title": "本地无秒", "status": "paused", "priority": "normal", "remind_at": "2026-09-12T23:00", "created_at": "2026-09-01T00:00:00Z" },
+      { "id": 4, "title": "本地带秒", "status": "scheduled", "priority": "normal", "remind_at": "2026-09-12T23:10:00", "created_at": "2026-09-01T00:00:00Z" },
+      { "id": 5, "title": "已完成", "status": "done", "priority": "normal", "remind_at": "2026-09-12T14:00:00Z", "created_at": "2026-09-01T00:00:00Z" },
+      { "id": 6, "title": "已逃走", "status": "cancelled", "priority": "normal", "remind_at": "2026-09-12T14:00:00Z", "created_at": "2026-09-01T00:00:00Z" },
+      { "id": 7, "title": "已提醒过", "status": "scheduled", "priority": "normal", "remind_at": "2026-09-12T14:00:00Z", "reminded": 1, "created_at": "2026-09-01T00:00:00Z" },
+      { "id": 8, "title": "解析失败", "status": "scheduled", "priority": "normal", "remind_at": "2026-09-12", "created_at": "2026-09-01T00:00:00Z" },
+      { "id": 9, "title": "未来", "status": "scheduled", "priority": "normal", "remind_at": "2026-09-13T10:00:00+08:00", "created_at": "2026-09-01T00:00:00Z" }
+    ]
+  },
+  "steps": [
+    { "op": "reminder_tick", "args": {} }
+  ],
+  "expect": "exact"
+}

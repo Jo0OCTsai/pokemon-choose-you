@@ -1,0 +1,33 @@
+{
+  "kind": "judge_protocol",
+  "name": "validate-rejects-tags",
+  "now": "2026-01-15T09:00:00+08:00",
+  "setup": {
+    "tags": [
+      { "id": 1, "name": "场景1", "dimension_id": 2, "created_at": "2026-01-01T00:00:00Z" },
+      { "id": 2, "name": "场景2", "dimension_id": 2, "created_at": "2026-01-01T00:00:00Z" },
+      { "id": 3, "name": "场景3", "dimension_id": 2, "created_at": "2026-01-01T00:00:00Z" },
+      { "id": 4, "name": "场景4", "dimension_id": 2, "created_at": "2026-01-01T00:00:00Z" },
+      { "id": 5, "name": "场景5", "dimension_id": 2, "created_at": "2026-01-01T00:00:00Z" },
+      { "id": 6, "name": "场景6", "dimension_id": 2, "created_at": "2026-01-01T00:00:00Z" },
+      { "id": 7, "name": "场景7", "dimension_id": 2, "created_at": "2026-01-01T00:00:00Z" },
+      { "id": 8, "name": "场景8", "dimension_id": 2, "created_at": "2026-01-01T00:00:00Z" },
+      { "id": 9, "name": "场景9", "dimension_id": 2, "created_at": "2026-01-01T00:00:00Z" },
+      { "id": 10, "name": "场景10", "dimension_id": 2, "created_at": "2026-01-01T00:00:00Z" },
+      { "id": 11, "name": "重要", "dimension_id": 4, "created_at": "2026-01-01T00:00:00Z" }
+    ],
+    "chat_messages": [
+      { "id": 1, "message_id": "om_1", "content": "x", "created_at": "2026-01-10T00:00:00Z" },
+      { "id": 2, "message_id": "om_2", "content": "x", "created_at": "2026-01-10T00:00:00Z" },
+      { "id": 3, "message_id": "om_3", "content": "x", "created_at": "2026-01-10T00:00:00Z" },
+      { "id": 4, "message_id": "om_4", "content": "x", "created_at": "2026-01-10T00:00:00Z" }
+    ]
+  },
+  "steps": [
+    { "op": "suggest_batch", "args": { "results": [ { "messageId": "om_1", "action": "todo", "title": "x", "tags": [ { "name": "挤不进", "dimension": "context", "isNew": true } ] } ] } },
+    { "op": "suggest_batch", "args": { "results": [ { "messageId": "om_2", "action": "todo", "title": "x", "tags": [ { "name": "幻觉标签", "dimension": "topic" } ] } ] } },
+    { "op": "suggest_batch", "args": { "results": [ { "messageId": "om_3", "action": "todo", "title": "x", "tags": [ { "name": "x", "dimension": "nope", "isNew": true } ] } ] } },
+    { "op": "suggest_batch", "args": { "results": [ { "messageId": "om_4", "action": "todo", "title": "发版", "tags": [ "重要", { "name": "重要", "dimension": "topic" } ] } ] } }
+  ],
+  "expect": "exact"
+}

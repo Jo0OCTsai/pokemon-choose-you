@@ -1,0 +1,33 @@
+{
+  "kind": "deployment_registry",
+  "name": "delete-leaves-bindings-dangling",
+  "now": "2026-10-19T09:00:00+08:00",
+  "setup": {
+    "settings": {
+      "dsh:deployments": "{\"dep-1\":{\"id\":\"dep-1\",\"alias\":\"gpu-1\",\"nodePath\":\"/usr/bin/node\",\"helperPath\":\"\",\"helperHash\":null,\"workdir\":\"/home/u/work\",\"note\":\"\",\"status\":\"draft\",\"lastError\":null,\"provision\":null,\"degraded\":false,\"pkTunnel\":null},\"dep-2\":{\"id\":\"dep-2\",\"alias\":\"box-2\",\"nodePath\":\"/usr/bin/node\",\"helperPath\":\"\",\"helperHash\":null,\"workdir\":\"/home/u/work\",\"note\":\"\",\"status\":\"draft\",\"lastError\":null,\"provision\":null,\"degraded\":false,\"pkTunnel\":null}}",
+      "ai_agents": "[{\"id\":\"ag-1\",\"name\":\"Claude\",\"command\":\"claude\",\"args\":\"\",\"historyArgs\":\"\",\"workdir\":\"\",\"skillDir\":null,\"timeoutSecs\":120,\"enabled\":true,\"remote\":null,\"deployment\":\"gpu-1\"}]"
+    }
+  },
+  "steps": [
+    {
+      "op": "deployment_delete",
+      "args": {
+        "id": "dep-1"
+      }
+    },
+    {
+      "op": "deployment_delete",
+      "args": {
+        "id": "dep-1"
+      }
+    },
+    {
+      "op": "deployment_upsert",
+      "args": {
+        "id": "nope",
+        "alias": "box-9"
+      }
+    }
+  ],
+  "expect": "exact"
+}

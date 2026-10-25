@@ -184,7 +184,7 @@ describe("TaskDetailDrawer 派发执行", () => {
       },
     });
     const w = await mountDrawer(task({ tags: [{ name: "pkm", dimension: "project" }] }));
-    await w.get(".dsp-row .btn").trigger("click");
+    await w.get(".dsp-go").trigger("click");
     await new Promise((r) => setTimeout(r));
     expect(api.dispatchTask).toHaveBeenCalledWith(1, "ag-1", "interactive");
     expect(w.text()).toContain("iTerm");
@@ -195,7 +195,7 @@ describe("TaskDetailDrawer 派发执行", () => {
     vi.mocked(api.resolveTaskDispatch).mockResolvedValue(target());
     vi.mocked(api.dispatchTask).mockRejectedValue("agent 没起来");
     const w = await mountDrawer(task({ tags: [{ name: "pkm", dimension: "project" }] }));
-    await w.get(".dsp-row .btn").trigger("click");
+    await w.get(".dsp-go").trigger("click");
     await new Promise((r) => setTimeout(r));
     expect(w.text()).toContain("agent 没起来");
   });

@@ -1,0 +1,17 @@
+{
+  "kind": "task_sm",
+  "name": "legal-full-lifecycle",
+  "now": "2026-01-15T09:00:00+08:00",
+  "setup": {},
+  "steps": [
+    { "op": "task_create", "args": { "title": "写周报" } },
+    { "op": "task_reschedule", "args": { "taskId": 1, "due": "2026-02-01T09:00" } },
+    { "op": "task_start", "args": { "taskId": 1 } },
+    { "op": "task_pause", "args": {} },
+    { "op": "task_resume", "args": { "taskId": 1 } },
+    { "op": "task_done", "args": { "taskId": 1 } },
+    { "op": "task_undone", "args": { "taskId": 1 } },
+    { "op": "task_escape", "args": { "taskId": 1 } }
+  ],
+  "expect": "exact"
+}

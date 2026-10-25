@@ -1,4 +1,4 @@
-//! 远程 pk 一键配置：agent 在远程、数据在本机的场景下，
+//! pk 通道开通（部署驱动，ADR-0003）：agent 在远程、数据在本机的场景下，
 //! 自动完成反向隧道所需的全部准备（用户只需先开启本机 sshd）。
 //!
 //! 应用已有「本机 → 远程」的免密 ssh（跑 agent 用），所有步骤都借它完成：
@@ -7,10 +7,9 @@
 //! 保障远程登录 shell 的 PATH → 写回 agent 的隧道端口 → 真实隧道端到端验证。
 //! 全程幂等，重复执行安全；任一步失败即停并报告该步的修复建议。
 
-use crate::ai::{self, AgentConfig};
+use crate::ai;
 use crate::db::Db;
 use crate::error::{AppError, AppResult};
-use rusqlite::params;
 use std::io::Write;
 use std::path::PathBuf;
 use std::time::{Duration, Instant};
@@ -19,8 +18,9 @@ use tauri::State;
 /// 默认反向隧道端口（远程侧 127.0.0.1:10022 ⇄ 本机 sshd）
 pub const DEFAULT_TUNNEL_PORT: u16 = 10022;
 
-/// 一键配置的执行上下文（程序路径与目录可注入，供测试）
-pub(crate) struct RemotePkSetup {
+/// 一键配置的执行上下文（程序路径与目录可注入，供测试与 `pk remote setup` 复用）
+#[derive(Clone)]
+pub struct RemotePkSetup {
     /// ssh 客户端（跑远程命令；agent 调用同一套 PK_SSH_BIN 覆盖）
     pub ssh_program: String,
     /// ssh-keyscan（本机 sshd 预检 + 取主机指纹）
@@ -237,8 +237,9 @@ fn key_files(key_dir: &std::path::Path) -> (PathBuf, PathBuf) {
     (stem.with_extension(""), stem.with_extension("pub"))
 }
 
-/// 执行一键配置序列（任一步失败即停，报告到失败步为止；不返回 Err——失败都在报告里）
-pub(crate) fn run_setup(ctx: &RemotePkSetup) -> SetupReport {
+/// 执行一键配置序列（任一步失败即停，报告到失败步为止；不返回 Err——失败都在报告里）。
+/// `pk remote setup` 子命令与桌面部署薄壳共用（ADR-0003 §3：Rust 单源）。
+pub fn run_setup(ctx: &RemotePkSetup) -> SetupReport {
     let mut steps: Vec<SetupStep> = vec![];
     fn fail(steps: &mut Vec<SetupStep>, name: &str, detail: String) {
         steps.push(SetupStep {
@@ -392,102 +393,12 @@ pub(crate) fn run_setup(ctx: &RemotePkSetup) -> SetupReport {
         }
     };
 
-    // 4. 公钥装配本机 authorized_keys（幂等；旧版裸公钥行原位升级为受限条目）。
+    // 4. 公钥装配本机 authorized_keys（幂等；四形态收口见 assemble_authorized_keys）。
     //    restrict,command= 把该密钥锁死为只能执行本机 pk（提案 §8 安全加固）：
     //    远程私钥（~/.ssh/pk_shim）失陷时拿不到 shell——forced command 进 pk 的
     //    __ssh_entry 入口做语法级校验（只认「[env] PK_* <本 pk> 参数…」形态）
-    let ssh_dir = ctx.local_home.join(".ssh");
-    let ak = ssh_dir.join("authorized_keys");
-    let entry = authorized_entry(&ctx.pk_path, &pub_line);
-    let existing = std::fs::read_to_string(&ak).unwrap_or_default();
-    if existing.lines().any(|l| l.trim() == entry) {
-        steps.push(SetupStep {
-            name: "本机公钥装配".into(),
-            status: "skip".into(),
-            detail: "authorized_keys 已含该公钥（restrict,command= 受限条目）".into(),
-        });
-    } else if existing.lines().any(|l| l.trim() == pub_line) {
-        // 旧版本写入的裸公钥行：原位替换为我们自己的受限条目（其余行不动）
-        let upgraded = existing
-            .lines()
-            .map(|l| {
-                if l.trim() == pub_line {
-                    entry.as_str()
-                } else {
-                    l
-                }
-            })
-            .collect::<Vec<_>>()
-            .join("\n");
-        if std::fs::write(&ak, format!("{upgraded}\n")).is_err() {
-            fail(
-                &mut steps,
-                "本机公钥装配",
-                format!("升级 {} 中的旧条目失败", ak.display()),
-            );
-            return report_of(steps, None);
-        }
-        steps.push(SetupStep {
-            name: "本机公钥装配".into(),
-            status: "ok".into(),
-            detail: format!(
-                "旧裸公钥已升级为受限条目（restrict,command=，仅可执行本机 pk）：{}",
-                ak.display()
-            ),
-        });
-    } else if existing.lines().any(|l| l.contains(&pub_line)) {
-        // 用户手工加过带自定义限制的同款公钥：尊重现状不动
-        steps.push(SetupStep {
-            name: "本机公钥装配".into(),
-            status: "skip".into(),
-            detail: "authorized_keys 已含该公钥（自定义限制条目，保持不动）".into(),
-        });
-    } else {
-        let _ = std::fs::create_dir_all(&ssh_dir);
-        let mut file = match std::fs::OpenOptions::new()
-            .create(true)
-            .append(true)
-            .open(&ak)
-        {
-            Ok(f) => f,
-            Err(e) => {
-                fail(
-                    &mut steps,
-                    "本机公钥装配",
-                    format!("写 {} 失败：{e}", ak.display()),
-                );
-                return report_of(steps, None);
-            }
-        };
-        if writeln!(file, "{entry}").is_err() {
-            fail(
-                &mut steps,
-                "本机公钥装配",
-                format!("写 {} 失败", ak.display()),
-            );
-            return report_of(steps, None);
-        }
-        #[cfg(unix)]
-        {
-            use std::os::unix::fs::PermissionsExt;
-            let _ = std::fs::set_permissions(&ssh_dir, std::fs::Permissions::from_mode(0o700));
-            let _ = std::fs::set_permissions(&ak, std::fs::Permissions::from_mode(0o600));
-        }
-        // Windows OpenSSH 对 authorized_keys 的 ACL 极严（仅当前用户可读），尽力修复
-        #[cfg(windows)]
-        {
-            let user = ctx.local_user.clone();
-            let _ = std::process::Command::new("icacls")
-                .arg(&ak)
-                .args(["/inheritance:r", "/grant"])
-                .arg(format!("{user}:(F)"))
-                .output();
-        }
-        steps.push(SetupStep {
-            name: "本机公钥装配".into(),
-            status: "ok".into(),
-            detail: format!("已追加到 {}", ak.display()),
-        });
+    if !assemble_authorized_keys(ctx, &pub_line, &mut steps) {
+        return report_of(steps, None);
     }
 
     // 5. 私钥推到远程（经应用既有的免密 ssh；载荷走 stdin 不经远端 shell 重解析）
@@ -557,7 +468,11 @@ pub(crate) fn run_setup(ctx: &RemotePkSetup) -> SetupReport {
         steps.push(SetupStep {
             name: "远程 PATH".into(),
             status: "ok".into(),
-            detail: "登录 shell 已能找到 pk".into(),
+            // 口径注明：本步验证登录 shell；agent 实际跑在非登录 shell（helper spawn 链），
+            // 其 PATH 由派发 script 前插 ~/.local/bin 兜底保证——两径独立
+            detail:
+                "登录 shell 已能找到 pk（agent 非登录执行链另由派发兜底段保证 ~/.local/bin 可达）"
+                    .into(),
         });
     } else {
         let ensure = "for f in .profile .zprofile .bash_profile; do grep -qs '.local/bin' \"$HOME/$f\" 2>/dev/null || printf '\\nexport PATH=\"$HOME/.local/bin:$PATH\"\\n' >> \"$HOME/$f\"; done; exec \"$SHELL\" -lc 'command -v pk'";
@@ -609,6 +524,144 @@ pub(crate) fn run_setup(ctx: &RemotePkSetup) -> SetupReport {
         detail: format!("远程 pk --version 未返回版本：{out}（{hint}）"),
     });
     report_of(steps, None)
+}
+
+/// authorized_keys 装配（run_setup 步骤 4，从主函数拆出——clippy too_many_lines）：
+/// 四形态——整条一致 skip / 旧版裸公钥行原位升级为受限条目 / 自家受限条目旧路径
+/// 原位搬移（pk 换位后 __ssh_entry 程序等价校验必然拒绝回连）/ 陌生自定义形态保持
+/// 不动；都不在则追加新受限条目。返回 false = 写失败（fail 步已入 steps，调用方收口）。
+fn assemble_authorized_keys(
+    ctx: &RemotePkSetup,
+    pub_line: &str,
+    steps: &mut Vec<SetupStep>,
+) -> bool {
+    let fail_here = |steps: &mut Vec<SetupStep>, detail: String| {
+        steps.push(SetupStep {
+            name: "本机公钥装配".into(),
+            status: "fail".into(),
+            detail,
+        });
+    };
+    let push = |steps: &mut Vec<SetupStep>, status: &str, detail: String| {
+        steps.push(SetupStep {
+            name: "本机公钥装配".into(),
+            status: status.into(),
+            detail,
+        });
+    };
+    let ssh_dir = ctx.local_home.join(".ssh");
+    let ak = ssh_dir.join("authorized_keys");
+    let entry = authorized_entry(&ctx.pk_path, pub_line);
+    let existing = std::fs::read_to_string(&ak).unwrap_or_default();
+    if existing.lines().any(|l| l.trim() == entry) {
+        push(
+            steps,
+            "skip",
+            "authorized_keys 已含该公钥（restrict,command= 受限条目）".into(),
+        );
+    } else if existing.lines().any(|l| l.trim() == pub_line) {
+        // 旧版本写入的裸公钥行：原位替换为我们自己的受限条目（其余行不动）
+        let upgraded = existing
+            .lines()
+            .map(|l| {
+                if l.trim() == pub_line {
+                    entry.as_str()
+                } else {
+                    l
+                }
+            })
+            .collect::<Vec<_>>()
+            .join("\n");
+        if std::fs::write(&ak, format!("{upgraded}\n")).is_err() {
+            fail_here(steps, format!("升级 {} 中的旧条目失败", ak.display()));
+            return false;
+        }
+        push(
+            steps,
+            "ok",
+            format!(
+                "旧裸公钥已升级为受限条目（restrict,command=，仅可执行本机 pk）：{}",
+                ak.display()
+            ),
+        );
+    } else if existing.lines().any(|l| l.contains(pub_line)) {
+        // 同款公钥在场的其余形态：
+        // - 自家受限条目但 command 指向别的 pk 路径（旧版 setup 落的——pk 换位后
+        //   __ssh_entry 的程序等价校验必然拒绝回连）：原位搬移 command 到本次 pk_path；
+        // - 陌生的自定义限制形态：尊重现状不动（不覆盖用户手工配置）。
+        //   自家格式识别 = restrict,command= 前缀 + 尾部同款公钥 + __ssh_entry 入口。
+        let is_ours_stale = |l: &str| {
+            let t = l.trim();
+            t.starts_with("restrict,command=\"")
+                && t.ends_with(&format!(" {pub_line}"))
+                && t.contains("__ssh_entry")
+        };
+        if existing.lines().any(&is_ours_stale) {
+            let migrated = existing
+                .lines()
+                .map(|l| if is_ours_stale(l) { entry.as_str() } else { l })
+                .collect::<Vec<_>>()
+                .join("\n");
+            if std::fs::write(&ak, format!("{migrated}\n")).is_err() {
+                fail_here(steps, format!("更新 {} 中的旧路径条目失败", ak.display()));
+                return false;
+            }
+            push(
+                steps,
+                "ok",
+                format!(
+                    "受限条目 command 已随本次 pk 路径更新（旧路径会让回连被 __ssh_entry 拒绝）：{}",
+                    ak.display()
+                ),
+            );
+        } else {
+            push(
+                steps,
+                "skip",
+                "authorized_keys 已含该公钥（自定义限制条目，保持不动；若端到端验证失败，请检查该条目的 command 是否指向本机 pk 的 __ssh_entry）".into(),
+            );
+        }
+    } else {
+        if let Err(detail) = append_authorized_entry(ctx, &ssh_dir, &ak, &entry) {
+            fail_here(steps, detail);
+            return false;
+        }
+        push(steps, "ok", format!("已追加到 {}", ak.display()));
+    }
+    true
+}
+
+/// 追加新受限条目并落权限（装配兜底分支；Windows ACL 尽力修复）。Err = 失败文案。
+fn append_authorized_entry(
+    _ctx: &RemotePkSetup,
+    ssh_dir: &std::path::Path,
+    ak: &std::path::Path,
+    entry: &str,
+) -> Result<(), String> {
+    let _ = std::fs::create_dir_all(ssh_dir);
+    let mut file = std::fs::OpenOptions::new()
+        .create(true)
+        .append(true)
+        .open(ak)
+        .map_err(|e| format!("写 {} 失败：{e}", ak.display()))?;
+    writeln!(file, "{entry}").map_err(|_| format!("写 {} 失败", ak.display()))?;
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        let _ = std::fs::set_permissions(ssh_dir, std::fs::Permissions::from_mode(0o700));
+        let _ = std::fs::set_permissions(ak, std::fs::Permissions::from_mode(0o600));
+    }
+    // Windows OpenSSH 对 authorized_keys 的 ACL 极严（仅当前用户可读），尽力修复
+    #[cfg(windows)]
+    {
+        let user = ctx.local_user.clone();
+        let _ = std::process::Command::new("icacls")
+            .arg(ak)
+            .args(["/inheritance:r", "/grant"])
+            .arg(format!("{user}:(F)"))
+            .output();
+    }
+    Ok(())
 }
 
 fn report_of(steps: Vec<SetupStep>, version: Option<String>) -> SetupReport {
@@ -672,40 +725,34 @@ fn host_triple() -> String {
     format!("{}-{os}", std::env::consts::ARCH)
 }
 
-/// 一键配置远程 pk：前置只需本机开启 sshd，其余（密钥/公钥/私钥/指纹/shim/PATH/验证）
-/// 全部自动完成并逐步报告。成功后把隧道端口写回该 agent 的 SSH 配置。
+/// 部署驱动的 pk 通道开通（ADR-0003 §3：setup 挂部署、开通结果落 pkTunnel）：
+/// 按部署别名组装 alias 模式 ssh（凭据与端口由 ~/.ssh/config 承载，不传 -p/-i），
+/// 执行 run_setup 序列；成功后把隧道端口写回部署实体 pkTunnel（persistent 保持现值，
+/// 失败不动实体便于改端口重试）。dsh 宿主经 `pk remote setup` 子命令走同一序列。
 #[tauri::command]
-pub async fn setup_remote_pk<R: tauri::Runtime>(
+pub async fn setup_deployment_pk<R: tauri::Runtime>(
     _app: tauri::AppHandle<R>,
     db: State<'_, Db>,
-    agent_id: String,
+    deployment_id: String,
     port: Option<u16>,
 ) -> AppResult<SetupReport> {
-    let (agent, key_dir) = {
+    let (alias, persistent, key_dir, tunnel_port) = {
         let conn = db.0.lock().unwrap();
-        let get = |k: &str| -> Option<String> {
-            conn.query_row("SELECT value FROM settings WHERE key=?1", params![k], |r| {
-                r.get::<_, String>(0)
-            })
-            .ok()
-        };
-        let agent = ai::agent_by_id(&get, &agent_id)
-            .ok_or_else(|| AppError::Invalid(format!("Agent {agent_id} 不存在，请先保存配置")))?;
+        let entity = crate::commands::deployment_by_id(&conn, &deployment_id)
+            .ok_or_else(|| AppError::Invalid(format!("部署 {deployment_id} 不存在")))?;
+        let tunnel_port = port
+            .or(entity.pk_tunnel.as_ref().map(|t| t.port))
+            .filter(|p| *p != 0)
+            .unwrap_or(DEFAULT_TUNNEL_PORT);
+        let persistent = entity
+            .pk_tunnel
+            .as_ref()
+            .map(|t| t.persistent)
+            .unwrap_or(false);
         let dir = crate::db::data_dir()
             .ok_or_else(|| AppError::External("定位应用数据目录失败".into()))?;
-        (agent, dir)
+        (entity.alias, persistent, dir, tunnel_port)
     };
-    let remote = agent
-        .remote
-        .as_ref()
-        .filter(|r| !r.host.trim().is_empty())
-        .ok_or_else(|| {
-            AppError::Invalid("该 agent 未配置 SSH 远程执行（先填主机并保存）".into())
-        })?;
-    let tunnel_port = port
-        .or(remote.tunnel)
-        .filter(|p| *p != 0)
-        .unwrap_or(DEFAULT_TUNNEL_PORT);
     let local_user =
         std::env::var(if cfg!(windows) { "USERNAME" } else { "USER" }).unwrap_or_default();
     let pk_path = locate_pk().ok_or_else(|| {
@@ -714,9 +761,10 @@ pub async fn setup_remote_pk<R: tauri::Runtime>(
     let ctx = RemotePkSetup {
         ssh_program: ai::ssh_bin(),
         keyscan_program: "ssh-keyscan".into(),
-        host: remote.host.clone(),
-        ssh_port: remote.port,
-        agent_key: remote.key_path.clone(),
+        host: alias.clone(),
+        // alias 模式：连接参数全部交给 ~/.ssh/config
+        ssh_port: 0,
+        agent_key: None,
         tunnel_port,
         local_user,
         pk_path: pk_path.to_string_lossy().into_owned(),
@@ -728,29 +776,21 @@ pub async fn setup_remote_pk<R: tauri::Runtime>(
         .await
         .map_err(|e| AppError::External(format!("配置任务执行失败: {e}")))?;
 
-    // 成功才写回隧道端口（失败不动配置，便于改端口重试）
     if report.ok {
         let conn = db.0.lock().unwrap();
-        let raw: Option<String> = conn
-            .query_row(
-                "SELECT value FROM settings WHERE key='ai_agents'",
-                [],
-                |r| r.get(0),
-            )
-            .ok();
-        let mut agents: Vec<AgentConfig> =
-            serde_json::from_str(&raw.unwrap_or_default()).unwrap_or_default();
-        if let Some(a) = agents.iter_mut().find(|a| a.id == agent_id) {
-            let mut r = a.remote.clone().unwrap_or_default();
-            r.tunnel = Some(tunnel_port);
-            a.remote = Some(r);
-            let encoded = serde_json::to_string(&agents)
-                .map_err(|e| AppError::External(format!("序列化 agent 配置失败: {e}")))?;
-            conn.execute(
-                "INSERT OR REPLACE INTO settings (key, value) VALUES ('ai_agents', ?1)",
-                params![encoded],
-            )?;
-        }
+        crate::commands::deployment_upsert(
+            &conn,
+            &crate::commands::DeploymentUpsertInput {
+                id: Some(deployment_id),
+                alias,
+                pk_tunnel: Some(Some(crate::commands::PkTunnelConfig {
+                    port: tunnel_port,
+                    persistent,
+                })),
+                ..Default::default()
+            },
+        )
+        .map_err(|e| AppError::Invalid(e.message))?;
     }
     Ok(report)
 }
@@ -860,11 +900,14 @@ mod tests {
              case \"$last\" in\n\
                *'command -v pk'*) echo /home/u/.local/bin/pk; exit 0;;\n\
                *'pk --version'*) if echo \"$*\" | grep -q ' -R '; then echo 1.0.0; exit 0; else echo no-tunnel; exit 1; fi;;\n\
-               *'cat >'*) cat > /dev/null; exit 0;;\n\
-               *known_hosts*) cat > /dev/null; exit 0;;\n\
+               *'.ssh/pk_shim'*) cat > {keypush}; exit 0;;\n\
+               *'known_hosts'*) cat > /dev/null; exit 0;;\n\
+               *'.local/bin/pk'*) cat > {shimout}; exit 0;;\n\
              esac\n\
              exit 0\n",
             log = log.to_string_lossy(),
+            keypush = dir.join("key-push.txt").to_string_lossy(),
+            shimout = dir.join("last-shim.sh").to_string_lossy(),
         );
         std::fs::write(&ssh, script).unwrap();
         std::fs::set_permissions(&ssh, std::fs::Permissions::from_mode(0o755)).unwrap();
@@ -949,6 +992,38 @@ mod tests {
             ak_text.contains("restrict,command=") && ak_text.contains("__ssh_entry"),
             "受限条目（§8 加固）: {ak_text}"
         );
+        // 裸公钥行升级 / 幂等 / 旧路径搬移矩阵 → run_setup_authorized_keys_forms（同 fixture）
+        // ssh 调用覆盖关键远程动作（推私钥/指纹/shim/PATH 检查/带 -R 的验证）
+        let calls = std::fs::read_to_string(dir.join("ssh-calls.log")).unwrap();
+        for frag in [
+            ".ssh/pk_shim",
+            "known_hosts",
+            ".local/bin/pk",
+            "command -v pk",
+            "-R 127.0.0.1:10022:127.0.0.1:22",
+            "pk --version",
+        ] {
+            assert!(calls.contains(frag), "ssh 调用缺「{frag}」: {calls}");
+        }
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// authorized_keys 在场形态矩阵（从 e2e 拆出——clippy too_many_lines）：
+    /// 旧版裸公钥行原位升级 / 幂等不重复追加 / 自家受限条目旧路径原位搬移
+    /// （pk 换位——曾致端到端验证被 __ssh_entry 拒绝「命令程序不是本 pk」）/
+    /// 陌生自定义形态保持不动、无关行保留。
+    #[test]
+    fn run_setup_authorized_keys_forms() {
+        let dir = std::env::temp_dir().join(format!("pk-setup-ak-forms-{}", std::process::id()));
+        let home = dir.join("home");
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&home).unwrap();
+        let (ssh, keyscan) = fake_bins(&dir);
+        let ctx = ctx_with(&dir, &home, &ssh, &keyscan);
+        assert!(run_setup(&ctx).ok, "首跑装配");
+        let ak = home.join(".ssh/authorized_keys");
+        let pub_text =
+            std::fs::read_to_string(dir.join("keys/remote_pk_shim_ed25519.pub")).unwrap();
         // 旧版本裸公钥行：重跑后原位升级为受限条目（其余行不动、不重复追加）
         let bare = format!("# 用户自己的其他条目\n{}\n", pub_text.trim());
         std::fs::write(&ak, &bare).unwrap();
@@ -974,18 +1049,119 @@ mod tests {
         );
         let ak_text2 = std::fs::read_to_string(&ak).unwrap();
         assert_eq!(ak_text2.matches(&pub_text.trim()).count(), 1, "不重复追加");
-        // ssh 调用覆盖关键远程动作（推私钥/指纹/shim/PATH 检查/带 -R 的验证）
-        let calls = std::fs::read_to_string(dir.join("ssh-calls.log")).unwrap();
-        for frag in [
-            ".ssh/pk_shim",
-            "known_hosts",
-            ".local/bin/pk",
-            "command -v pk",
-            "-R 127.0.0.1:10022:127.0.0.1:22",
-            "pk --version",
-        ] {
-            assert!(calls.contains(frag), "ssh 调用缺「{frag}」: {calls}");
+        // 自家受限条目但 command 指向旧 pk 路径：原位搬移 command；陌生自定义形态保持不动
+        let expected_entry = authorized_entry(&ctx.pk_path, pub_text.trim());
+        let old_path_entry = authorized_entry("/old/debug/target/pk", pub_text.trim());
+        let foreign_custom = format!(
+            "no-pty,command=\"/guard/wrapped {} x\" {}",
+            "v",
+            pub_text.trim()
+        );
+        std::fs::write(
+            &ak,
+            format!("# 用户自己的其他条目\n{old_path_entry}\n{foreign_custom}\n"),
+        )
+        .unwrap();
+        let report4 = run_setup(&ctx);
+        assert!(report4.ok, "搬移跑报告: {report4:?}");
+        let migrate_step = report4
+            .steps
+            .iter()
+            .find(|s| s.name == "本机公钥装配")
+            .unwrap();
+        assert_eq!(migrate_step.status, "ok");
+        assert!(
+            migrate_step.detail.contains("已随本次 pk 路径更新"),
+            "{}",
+            migrate_step.detail
+        );
+        let ak_text4 = std::fs::read_to_string(&ak).unwrap();
+        assert!(
+            ak_text4.lines().any(|l| l.trim() == expected_entry),
+            "command 搬到本次 pk 路径: {ak_text4}"
+        );
+        assert!(
+            !ak_text4.contains("/old/debug/target/pk"),
+            "旧路径条目被替换: {ak_text4}"
+        );
+        assert!(
+            ak_text4.lines().any(|l| l.trim() == foreign_custom),
+            "陌生自定义形态保持不动: {ak_text4}"
+        );
+        // 仅有陌生自定义形态（无自家条目在场）→ skip 保持不动 + 预警指引
+        std::fs::write(&ak, format!("{foreign_custom}\n")).unwrap();
+        let report5 = run_setup(&ctx);
+        assert!(report5.ok, "陌生形态跑报告: {report5:?}");
+        let skip_step = report5
+            .steps
+            .iter()
+            .find(|s| s.name == "本机公钥装配")
+            .unwrap();
+        assert_eq!(skip_step.status, "skip");
+        assert!(
+            skip_step.detail.contains("若端到端验证失败"),
+            "skip detail 带预警: {}",
+            skip_step.detail
+        );
+        assert!(
+            ak_text4.contains("# 用户自己的其他条目"),
+            "无关行保留: {ak_text4}"
+        );
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// ADR-0003 §3 双宿主收敛：同一 key_dir 两个发起方（不同 pk 路径）先后开通——
+    /// 密钥不重复、authorized_keys 恒单条目、shim last-writer-wins（嵌最近发起方路径）
+    #[test]
+    fn shim_last_writer_wins_and_single_authorized_entry() {
+        let dir = std::env::temp_dir().join(format!("pk-setup-lww-{}", std::process::id()));
+        let home = dir.join("home");
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&home).unwrap();
+        let (ssh, keyscan) = fake_bins(&dir);
+        for name in ["pk-a", "pk-b"] {
+            std::fs::write(dir.join(name), "#!/bin/sh\n").unwrap();
         }
+        let base = RemotePkSetup {
+            ssh_program: ssh,
+            keyscan_program: keyscan,
+            host: "user@box".into(),
+            ssh_port: 0,
+            agent_key: None,
+            tunnel_port: 10022,
+            local_user: "joeca".into(),
+            pk_path: String::new(),
+            key_dir: dir.join("keys"),
+            local_home: home.clone(),
+            step_timeout: Duration::from_secs(60),
+        };
+        let first = run_setup(&RemotePkSetup {
+            pk_path: dir.join("pk-a").to_string_lossy().into_owned(),
+            ..base.clone()
+        });
+        assert!(first.ok, "首开报告: {first:?}");
+        let shim1 = std::fs::read_to_string(dir.join("last-shim.sh")).unwrap();
+        assert!(shim1.contains("pk-a"), "shim 嵌发起方 A 路径: {shim1}");
+
+        let second = run_setup(&RemotePkSetup {
+            pk_path: dir.join("pk-b").to_string_lossy().into_owned(),
+            ..base
+        });
+        assert!(second.ok, "B 侧再开报告: {second:?}");
+        let shim2 = std::fs::read_to_string(dir.join("last-shim.sh")).unwrap();
+        assert!(
+            shim2.contains("pk-b") && !shim2.contains("pk-a"),
+            "shim 覆盖为最近发起方: {shim2}"
+        );
+
+        // 密钥单源：仍只有一对密钥文件；authorized_keys 恰一条受限条目
+        let keys: Vec<_> = std::fs::read_dir(dir.join("keys"))
+            .unwrap()
+            .filter_map(|e| e.ok().map(|e| e.file_name().to_string_lossy().into_owned()))
+            .collect();
+        assert_eq!(keys.len(), 2, "单一密钥对: {keys:?}");
+        let ak = std::fs::read_to_string(home.join(".ssh/authorized_keys")).unwrap();
+        assert_eq!(ak.matches("restrict,command=").count(), 1, "恒单条目: {ak}");
         let _ = std::fs::remove_dir_all(&dir);
     }
 

@@ -1,0 +1,27 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "useDefineForClassFields": true,
+    "module": "ESNext",
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "skipLibCheck": true,
+
+    /* Bundler/原生双模解析：vitest 与 esbuild 走 bundler 口径；headless 直跑
+       （HELPER_HEADLESS=1 node src/main.ts）依赖 Node 24 类型擦除，相对导入一律带 .ts 扩展名 */
+    "moduleResolution": "bundler",
+    "allowImportingTsExtensions": true,
+    "isolatedModules": true,
+    "noEmit": true,
+    "resolveJsonModule": true,
+
+    /* Linting */
+    "strict": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "noFallthroughCasesInSwitch": true,
+
+    /* 主进程/preload/桥为 Node 面（process.stdin 等）；renderer 为 DOM 面，lib 双列 */
+    "types": ["node"]
+  },
+  "include": ["src/**/*.ts", "__tests__/**/*.ts"]
+}

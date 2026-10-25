@@ -1,0 +1,16 @@
+{
+  "kind": "reminder",
+  "name": "aggregate-any-urgent",
+  "now": "2026-09-12T14:00:00+08:00",
+  "setup": {
+    "tasks": [
+      { "id": 1, "title": "写周报", "status": "scheduled", "priority": "normal", "remind_at": "2026-09-12T13:00:00+08:00", "created_at": "2026-09-01T00:00:00Z" },
+      { "id": 2, "title": "线上事故", "status": "scheduled", "priority": "urgent", "remind_at": "2026-09-12T13:00:00+08:00", "created_at": "2026-09-01T00:00:00Z" },
+      { "id": 3, "title": "老板催的", "status": "scheduled", "priority": "high", "remind_at": "2026-09-12T13:00:00+08:00", "created_at": "2026-09-01T00:00:00Z" }
+    ]
+  },
+  "steps": [
+    { "op": "reminder_tick", "args": {} }
+  ],
+  "expect": "exact"
+}

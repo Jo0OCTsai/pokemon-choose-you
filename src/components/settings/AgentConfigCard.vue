@@ -4,8 +4,9 @@ import { useI18n } from "vue-i18n";
 import { api } from "../../api";
 import { ACTION_TOAST, SKILL_TOAST } from "../../composables/useActionToast";
 import { useAgentsStore } from "../../stores/agents";
-import { useSettingsStore } from "../../stores/settings";
-import type { AgentConfig, RemotePkReport } from "../../types";
+import { useDeploymentsStore } from "../../stores/deployments";
+import type { AgentConfig } from "../../types";
+import DexSelect from "../DexSelect.vue";
 import DexToggle from "../DexToggle.vue";
 import SettingRow from "../SettingRow.vue";
 
@@ -18,51 +19,23 @@ import SettingRow from "../SettingRow.vue";
 const props = defineProps<{ agentId: string }>();
 const { t } = useI18n();
 const agentsStore = useAgentsStore();
-const settings = useSettingsStore();
-const { busy: testing, msg: testMsg, run: runAction } = inject(ACTION_TOAST)!;
+const deploymentsStore = useDeploymentsStore();
+const { busy: testing, run: runAction } = inject(ACTION_TOAST)!;
 const { busy: skillBusy, run: runSkill } = inject(SKILL_TOAST)!;
 
 /** 卡片绑定的 agent（父级 v-for 只渲染存在的 id） */
 const ag = computed(() => agentsStore.list.find((a) => a.id === props.agentId)!);
 
-/** agent 位置徽标：远程显示 SSH 目标，本地显示「本机」 */
+/** 绑定部署下拉选项：本机执行 + 部署注册表 ∪ ~/.ssh/config 候选 */
+const bindingOptions = computed(() => [
+  { value: "", label: t("ai.local") },
+  ...deploymentsStore.bindingOptions.map((a) => ({ value: a, label: a })),
+]);
+
+/** agent 位置徽标：绑部署显示别名，未绑显示「本机」 */
 function agentPlace(a: AgentConfig): string {
-  const host = a.remote?.host?.trim();
-  return host ? `SSH · ${host}` : t("ai.local");
-}
-
-/** 开/关 SSH 远程执行：开启给默认值（端口 22），关闭清空 */
-function toggleRemote(a: AgentConfig, on: boolean) {
-  a.remote = on ? { host: "", port: 22, keyPath: "" } : null;
-}
-
-/** 开/关常驻隧道：写表单 → 落库（store.save 内已对齐隧道集合）→ 刷新状态 */
-async function togglePersistent(a: AgentConfig, on: boolean) {
-  if (a.remote) {
-    a.remote.persistent = on;
-    await agentsStore.save();
-    agentsStore.refreshTunnel(a.id);
-  }
-}
-
-/** 隧道状态短文案（● 与配色由 data-state class 控制；报错原文只进悬浮提示，不进可见行） */
-function tunnelText(a: AgentConfig): string {
-  const s = agentsStore.tunnelStates[a.id];
-  if (!s) return t("ai.tunnelUnknown");
-  return (
-    {
-      healthy: t("ai.tunnelHealthy"),
-      connecting: t("ai.tunnelConnecting"),
-      retrying: t("ai.tunnelRetrying"),
-    }[s.state] ?? t("ai.tunnelOff")
-  );
-}
-
-/** 悬浮提示：状态全文 + 后端给的 ssh 报错尾行（端口占用/认证失败等），定位不用进日志 */
-function tunnelTitle(a: AgentConfig): string {
-  const s = agentsStore.tunnelStates[a.id];
-  const text = tunnelText(a);
-  return s?.detail ? `${text}：${s.detail}` : text;
+  const alias = a.deployment?.trim();
+  return alias ? `SSH · ${alias}` : t("ai.local");
 }
 
 async function testAgent(a: AgentConfig) {
@@ -109,31 +82,6 @@ function skillText(a: AgentConfig): string {
     ? t("ai.skillUpToDate", { v: s.installedVersion || "?" })
     : t("ai.skillOutdated", { v: s.installedVersion || "?", b: s.bundledVersion });
 }
-
-/** 一键配置远程 pk：后端读的是已保存配置，先把表单落库再触发；成功后刷新设置与表单 */
-async function setupRemotePkFor(a: AgentConfig) {
-  await runAction(t("ai.settingUp"), async () => {
-    await agentsStore.save();
-    const port = Number(a.remote?.tunnel) || 10022;
-    const report = await api.setupRemotePk(a.id, port);
-    testMsg.value = renderSetupReport(report);
-    if (report.ok) {
-      await settings.load();
-      agentsStore.load();
-      // 一键配置刚写回隧道端口：立即对齐常驻隧道集合并刷新状态
-      await api.syncTunnels().catch(() => {});
-      agentsStore.refreshTunnel(a.id);
-    }
-  });
-}
-
-function renderSetupReport(r: RemotePkReport): string {
-  if (r.ok) {
-    return t("ai.setupDone", { v: r.version || "?" });
-  }
-  const failed = r.steps.find((s) => s.status === "fail");
-  return failed ? `❌ ${failed.name}：${failed.detail}` : `❌ ${t("ai.setupFailed")}`;
-}
 </script>
 
 <template>
@@ -143,7 +91,7 @@ function renderSetupReport(r: RemotePkReport): string {
       <input v-model="ag.command" class="agent-cmd" :placeholder="t('ai.cmdPh')" />
       <!-- 徽标放命令框之后：命令框左缘固定在 120px 名字 + 8px 间隙 = 128px，
            与下方 SettingRow(label-width 128) 的输入列对齐（徽标宽度不定，放中间会顶歪） -->
-      <span class="badge agent-place" :class="{ ssh: !!ag.remote?.host?.trim() }" :title="agentPlace(ag)">{{
+      <span class="badge agent-place" :class="{ ssh: !!ag.deployment?.trim() }" :title="agentPlace(ag)">{{
         agentPlace(ag)
       }}</span>
       <DexToggle v-model="ag.enabled" :title="t('ai.enabled')" />
@@ -184,43 +132,13 @@ function renderSetupReport(r: RemotePkReport): string {
     <SettingRow :label="t('ai.timeout')">
       <input v-model.number="ag.timeoutSecs" type="number" min="10" step="10" />
     </SettingRow>
-    <SettingRow :label="t('ai.sshOn')">
-      <DexToggle :model-value="!!ag.remote" @update:model-value="(v) => toggleRemote(ag, Boolean(v))" />
+    <SettingRow :label="t('ai.bindDeployment')" :desc="t('ai.bindDeploymentDesc')">
+      <DexSelect
+        :model-value="ag.deployment || ''"
+        :options="bindingOptions"
+        @update:model-value="(v: string) => (ag.deployment = v || null)"
+      />
     </SettingRow>
-    <template v-if="ag.remote">
-      <div class="agent-row ssh-row">
-        <input v-model="ag.remote.host" class="agent-cmd" :placeholder="t('ai.sshHostPh')" />
-        <input
-          v-model.number="ag.remote.port"
-          class="ssh-port"
-          type="number"
-          min="1"
-          max="65535"
-          :title="t('ai.sshPort')"
-          :aria-label="t('ai.sshPort')"
-        />
-        <input v-model="ag.remote.keyPath" class="agent-cmd" :placeholder="t('ai.sshKeyPh')" />
-      </div>
-      <SettingRow :label="t('ai.sshTunnel')">
-        <input v-model.number="ag.remote.tunnel" type="number" min="1" max="65535" placeholder="10022" />
-      </SettingRow>
-      <SettingRow :label="t('ai.sshKeepAlive')" :desc="t('ai.sshKeepAliveDesc')">
-        <div class="tunnel-cell">
-          <!-- 状态字在开关左侧：与 pk 技能行「状态→控件」同序，开关贴卡片右缘轴线 -->
-          <span
-            v-if="ag.remote.persistent"
-            class="tunnel-state"
-            :class="agentsStore.tunnelStates[ag.id]?.state || 'off'"
-            :title="tunnelTitle(ag)"
-            >● {{ tunnelText(ag) }}</span
-          >
-          <DexToggle
-            :model-value="!!ag.remote.persistent"
-            @update:model-value="(v) => togglePersistent(ag, Boolean(v))"
-          />
-        </div>
-      </SettingRow>
-    </template>
     <div class="btn-row">
       <button class="btn ghost" @click="agentsStore.save()">{{ t("ai.save") }}</button>
       <button class="btn ghost" :disabled="testing" @click="testAgent(ag)">
@@ -228,9 +146,6 @@ function renderSetupReport(r: RemotePkReport): string {
       </button>
       <button class="btn ghost" :disabled="testing" @click="openHistory(ag)">
         {{ t("ai.history") }}
-      </button>
-      <button v-if="ag.remote" class="btn ghost" :disabled="testing" @click="setupRemotePkFor(ag)">
-        {{ t("ai.setupRemote") }}
       </button>
     </div>
   </div>

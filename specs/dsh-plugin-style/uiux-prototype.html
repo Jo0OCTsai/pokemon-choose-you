@@ -1,0 +1,849 @@
+<!DOCTYPE html>
+<html lang="zh-Hans" data-scheme="auto">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>「副屏」渗透体系 · dsh-plugin 样式设计稿</title>
+<style>
+/* ═══════════════ token 层 ═══════════════
+   --dsw-alias-*  = 宿主主题面（原型内模拟宿主亮暗注入）
+   --pcy-*        = 插件世界观 scoped 层（值同源 DESIGN_SYSTEM；暗色配对值见 :root media 块） */
+:root {
+  /* 宿主 alias（亮） */
+  --dsw-alias-bg-base: #f6f8fa;
+  --dsw-alias-bg-layer-1: #ffffff;
+  --dsw-alias-border-l1: #e3e7ec;
+  --dsw-alias-border-l2: #d0d7de;
+  --dsw-alias-border-l3: #c7cdd4;
+  --dsw-alias-label-primary: #1f2328;
+  --dsw-alias-label-secondary: #57606a;
+  --dsw-alias-interactive-bg-hover: #f0f2f5;
+  --dsw-alias-interactive-bg-active: #e4e7eb;
+  --dsw-alias-state-business-primary: #316dca;
+  /* 插件 pcy（亮 = DESIGN_SYSTEM 同源） */
+  --pcy-paper: #f5f0dc;
+  --pcy-paper-ink: #1a1b25;
+  --pcy-paper-dim: #f3efe6;
+  --pcy-hover: #fff3c4;
+  --pcy-lcd: #c4cfa1;
+  --pcy-lcd-text: #3a4a32;
+  --pcy-lcd-dim: #4a563f;
+  --pcy-lcd-dark: #9caa86;
+  --pcy-lcd-log-error: #d64545;
+  --pcy-lcd-log-warn: #b8860b;
+  --pcy-danger: #e00f0f;
+  --pcy-running: #ffcb05;
+  --pcy-ok: #2e9e5b;       --pcy-ok-soft: #dff3e4;  --pcy-ok-ink: #1d6b3c;
+  --pcy-warn: #c98a06;     --pcy-warn-soft: #fff3cd; --pcy-warn-ink: #8a5e06;
+  --pcy-fail: #ee1515;     --pcy-fail-soft: #fde8e8; --pcy-fail-ink: #991b1b;
+  --pcy-badge-red: #ee1515;
+  --pcy-type-work: #f8d030; --pcy-type-study: #6890f0; --pcy-type-life: #78c850;
+  --pcy-type-health: #a8a878; --pcy-type-interest: #ee99ac;
+  --ink-const: #1a1b25; /* 固定墨字：只用于黄底之上（主题安全） */
+}
+@media (prefers-color-scheme: dark) {
+  html[data-scheme="auto"] {
+    --dsw-alias-bg-base: #1c1f26;
+    --dsw-alias-bg-layer-1: #232730;
+    --dsw-alias-border-l1: #303540;
+    --dsw-alias-border-l2: #3d434f;
+    --dsw-alias-border-l3: #4a5160;
+    --dsw-alias-label-primary: #e6e9ee;
+    --dsw-alias-label-secondary: #9aa4b2;
+    --dsw-alias-interactive-bg-hover: #2a2f3a;
+    --dsw-alias-interactive-bg-active: #333947;
+    --dsw-alias-state-business-primary: #4d8fdb;
+    --pcy-paper: #2a2b35;
+    --pcy-paper-ink: #dfe3ea;
+    --pcy-paper-dim: #23242c;
+    --pcy-hover: #3f3a1c;
+    --pcy-lcd: #2b3327;
+    --pcy-lcd-text: #cddcb4;
+    --pcy-lcd-dim: #93a887;
+    --pcy-lcd-dark: #1e241c;
+    --pcy-lcd-log-error: #e58585;
+    --pcy-lcd-log-warn: #d4b05e;
+  }
+}
+html[data-scheme="dark"] {
+  --dsw-alias-bg-base: #1c1f26;
+  --dsw-alias-bg-layer-1: #232730;
+  --dsw-alias-border-l1: #303540;
+  --dsw-alias-border-l2: #3d434f;
+  --dsw-alias-border-l3: #4a5160;
+  --dsw-alias-label-primary: #e6e9ee;
+  --dsw-alias-label-secondary: #9aa4b2;
+  --dsw-alias-interactive-bg-hover: #2a2f3a;
+  --dsw-alias-interactive-bg-active: #333947;
+  --dsw-alias-state-business-primary: #4d8fdb;
+  --pcy-paper: #2a2b35;
+  --pcy-paper-ink: #dfe3ea;
+  --pcy-paper-dim: #23242c;
+  --pcy-hover: #3f3a1c;
+  --pcy-lcd: #2b3327;
+  --pcy-lcd-text: #cddcb4;
+  --pcy-lcd-dim: #93a887;
+  --pcy-lcd-dark: #1e241c;
+  --pcy-lcd-log-error: #e58585;
+  --pcy-lcd-log-warn: #d4b05e;
+}
+
+/* ═══════════════ 原型页面自身的壳（非设计稿内容） ═══════════════ */
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  font-family: -apple-system, "Noto Sans CJK SC", "PingFang SC", "Microsoft YaHei", sans-serif;
+  font-size: 14px;
+  color: var(--dsw-alias-label-primary);
+  background: var(--dsw-alias-bg-base);
+  line-height: 1.6;
+}
+.wrap { max-width: 1000px; margin: 0 auto; padding: 24px 20px 80px; }
+.protoHead { display: flex; align-items: flex-start; gap: 16px; margin-bottom: 8px; }
+.protoHead h1 { font-size: 22px; margin: 0; }
+.protoHead p { margin: 4px 0 0; color: var(--dsw-alias-label-secondary); font-size: 13px; }
+.schemeBtn {
+  margin-left: auto; flex: none; min-height: 32px; padding: 4px 12px;
+  border-radius: 8px; border: 1px solid var(--dsw-alias-border-l2);
+  background: var(--dsw-alias-bg-layer-1); color: inherit; font-size: 12.5px; cursor: pointer;
+}
+.legend { display: flex; gap: 10px; flex-wrap: wrap; margin: 14px 0 6px; }
+.legendItem {
+  display: inline-flex; align-items: center; gap: 8px; font-size: 12px;
+  color: var(--dsw-alias-label-secondary);
+  padding: 4px 10px; border: 1px dashed var(--dsw-alias-border-l2); border-radius: 8px;
+}
+.legendItem b { color: inherit; }
+.tierTag {
+  display: inline-flex; align-items: center; justify-content: center;
+  min-width: 30px; height: 18px; padding: 0 6px; border-radius: 4px;
+  font-size: 10.5px; font-weight: 700; letter-spacing: 1px;
+}
+.tier0 { background: var(--dsw-alias-border-l1); color: var(--dsw-alias-label-secondary); }
+.tier1 { background: var(--pcy-hover); color: var(--ink-const); border: 1px solid var(--dsw-alias-label-primary); }
+.tier2 { background: var(--pcy-lcd); color: var(--pcy-lcd-text); border: 1px solid var(--dsw-alias-label-primary); }
+.sectionGap { height: 40px; }
+.secTitle { font-size: 15px; font-weight: 700; margin: 0 0 10px; display: flex; align-items: center; gap: 8px; }
+.secNote { font-size: 12px; color: var(--dsw-alias-label-secondary); margin: 0 0 12px; }
+.footNote {
+  margin-top: 48px; padding: 12px 14px; font-size: 12px; color: var(--dsw-alias-label-secondary);
+  border: 1px dashed var(--dsw-alias-border-l2); border-radius: 10px; line-height: 1.9;
+}
+.sprite { image-rendering: pixelated; width: 30px; height: 30px; }
+.sprite.sm { width: 24px; height: 24px; }
+
+/* ═══════════════ before→after 对照条 ═══════════════ */
+.compare { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+.compareCell {
+  border: 1px solid var(--dsw-alias-border-l1); border-radius: 10px;
+  background: var(--dsw-alias-bg-layer-1); padding: 12px 14px; min-height: 96px;
+}
+.compareCell .cmpLabel { font-size: 11px; font-weight: 700; letter-spacing: 1px; margin-bottom: 10px; display: block; }
+.cmpOld .cmpLabel { color: var(--dsw-alias-label-secondary); }
+.cmpNew .cmpLabel { color: var(--dsw-alias-label-primary); }
+@media (max-width: 760px) { .compare { grid-template-columns: 1fr; } }
+
+/* ═══════════════ 设计稿组件层（类名与实现 CSS Modules 同名，供对照） ═══════════════ */
+
+/* —— 档1 墨：页头条 —— */
+.pageHeader {
+  display: flex; align-items: center; gap: 12px;
+  background: var(--pcy-paper);
+  border-bottom: 2px solid var(--dsw-alias-label-primary);
+  border-radius: 10px 10px 0 0;
+  padding: 10px 14px 8px;
+}
+.pageHeaderSprite {
+  width: 36px; height: 36px; border-radius: 8px;
+  border: 1.5px solid var(--dsw-alias-label-primary);
+  background: var(--pcy-paper);
+  display: flex; align-items: center; justify-content: center; font-size: 18px;
+}
+/* 灰度剪影保留（现状裁决：不与列表内彩色精灵抢注意力） */
+.pageHeaderSprite img { filter: grayscale(1); opacity: .65; }
+.pageTitle { font-size: 18px; font-weight: 700; margin: 0; color: var(--pcy-paper-ink); }
+.pageTitleDeco {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 10px; letter-spacing: 1.5px; margin-left: -6px; transform: translateY(3px);
+  color: var(--dsw-alias-label-secondary);
+}
+.pendingBadge {
+  display: inline-flex; align-items: center; justify-content: center;
+  min-width: 20px; height: 20px; padding: 0 6px; border-radius: 999px;
+  background: var(--pcy-danger); color: #fff; font-size: 12px; font-weight: 700;
+  border: 1px solid var(--ink-const);
+}
+
+/* —— 档1 墨：导航胶囊（一等选中 = 黄 + 墨线 + 字重；验收回流 2026-10-16 去 ▶） —— */
+.segmentNav { display: flex; flex-wrap: wrap; gap: 6px; padding: 8px 0 2px; }
+.segmentButton {
+  min-height: 32px; padding: 4px 14px;
+  border: 1px solid var(--dsw-alias-border-l1); border-radius: 999px;
+  background: var(--dsw-alias-bg-layer-1); color: var(--dsw-alias-label-secondary);
+  font-size: 13px; font-weight: 600; cursor: pointer; white-space: nowrap;
+  display: inline-flex; align-items: center; gap: 6px;
+}
+.segmentButton:hover { background: var(--pcy-hover); }
+.segmentButton[aria-current="page"] {
+  background: var(--pcy-running); color: var(--ink-const);
+  border: 1.5px solid var(--dsw-alias-label-primary); font-weight: 700;
+}
+.segmentCount {
+  display: inline-block; min-width: 20px; text-align: center; padding: 0 6px;
+  border-radius: 999px; background: var(--dsw-alias-border-l1);
+  border: 1px solid var(--dsw-alias-border-l2); font-size: 11px; line-height: 18px;
+}
+.segmentButton[aria-current="page"] .segmentCount { background: rgba(26,27,37,.12); border-color: transparent; }
+
+/* —— 档1 墨：条目卡（hover 黄 / 进行中硬阴影 / 完成 LCD / 逃走纸灰） —— */
+.taskCard {
+  position: relative; display: flex; align-items: center; gap: 10px;
+  padding: 10px 12px; border-radius: 12px;
+  border: 1px solid var(--dsw-alias-border-l1);
+  background: var(--dsw-alias-bg-layer-1);
+  cursor: pointer; width: 100%; min-height: 44px; font-size: 13px; text-align: left;
+}
+.taskCard:hover { background: var(--pcy-hover); border-color: var(--dsw-alias-label-primary); }
+.taskCard[data-presentation="active"] {
+  border: 2px solid var(--pcy-running);
+  box-shadow: 2px 2px 0 var(--dsw-alias-label-primary);
+}
+.taskCard[data-presentation="activePaused"] { border: 2px solid var(--dsw-alias-border-l3); }
+.taskCard[data-presentation="activePaused"] .taskSprite,
+.taskCard[data-presentation="activePaused"] .taskTitle { filter: saturate(.45); opacity: .85; }
+.taskCard[data-presentation="done"] {
+  background: var(--pcy-lcd);
+  border: 1.5px solid var(--dsw-alias-label-primary);
+  box-shadow: inset 2px 2px 0 var(--pcy-lcd-dark);
+  color: var(--pcy-lcd-text);
+}
+.taskCard[data-presentation="done"] .taskTitle {
+  text-decoration: line-through; color: var(--pcy-lcd-text);
+}
+.taskCard[data-presentation="done"] .taskNo,
+.taskCard[data-presentation="done"] .taskMeta { color: var(--pcy-lcd-text); }
+.taskCard[data-presentation="done"] .taskSprite { filter: grayscale(1); opacity: .55; }
+.taskCard[data-presentation="done"] .typeBadge { border-color: rgba(58,74,50,.5); }
+.taskCard[data-presentation="escaped"] {
+  background: var(--pcy-paper-dim); opacity: .6;
+}
+.taskCard[data-presentation="escaped"] .taskSprite { filter: grayscale(1); opacity: .55; }
+.runningTag {
+  position: absolute; top: -9px; left: 12px;
+  font-size: 10px; font-weight: 700; line-height: 1.4;
+  background: var(--pcy-running); color: var(--ink-const);
+  border: 1px solid var(--ink-const); border-radius: 999px; padding: 0 8px;
+}
+.taskCard[data-presentation="activePaused"] .runningTag {
+  background: var(--dsw-alias-border-l3); color: var(--dsw-alias-label-primary); border-color: var(--dsw-alias-border-l3);
+}
+.taskNo {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 10px; letter-spacing: 1px; color: var(--dsw-alias-label-secondary); flex: none;
+}
+.taskMain { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 3px; }
+.taskTitle { font-weight: 700; }
+.taskMeta { display: flex; align-items: center; gap: 8px; font-size: 11px; color: var(--dsw-alias-label-secondary); flex-wrap: wrap; }
+.typeBadge {
+  font-size: 10px; font-weight: 700; color: var(--ink-const);
+  border-radius: 4px; padding: 0 7px; line-height: 16px;
+  border: 1px solid rgba(26,27,37,.35); flex: none;
+}
+.typeBadge[data-type="work"] { background: var(--pcy-type-work); }
+.typeBadge[data-type="study"] { background: var(--pcy-type-study); }
+.typeBadge[data-type="life"] { background: var(--pcy-type-life); }
+.typeBadge[data-type="health"] { background: var(--pcy-type-health); }
+.typeBadge[data-type="interest"] { background: var(--pcy-type-interest); }
+.prioDot { width: 9px; height: 9px; border-radius: 50%; flex: none; border: 1px solid rgba(26,27,37,.35); }
+.prioDot[data-prio="urgent"] { width: 12px; height: 12px; background: var(--pcy-fail);
+  box-shadow: 0 0 0 2px var(--dsw-alias-bg-layer-1), 0 0 0 3.5px var(--pcy-fail); }
+.prioDot[data-prio="high"] { background: #f08030; }
+.prioDot[data-prio="normal"] { background: var(--pcy-type-life); }
+.prioDot[data-prio="low"] { background: var(--pcy-type-health); }
+.dispatchBadge {
+  display: inline-flex; align-items: center; gap: 3px;
+  font-size: 10px; font-weight: 700; border-radius: 4px; padding: 0 6px; line-height: 16px;
+  border: 1px solid rgba(26,27,37,.2);
+}
+.dispatchBadge[data-state="queued"] { background: #fff3d6; color: var(--pcy-warn-ink); }
+.dispatchBadge[data-state="running"] { background: var(--pcy-ok-soft); color: var(--pcy-ok-ink); }
+.dispatchBadge[data-state="done"] { background: #eceada; color: var(--dsw-alias-label-secondary); }
+.caught { display: flex; align-items: center; gap: 8px; }
+.caughtLabel { font-size: 12px; font-variant-numeric: tabular-nums; font-weight: 600; }
+.caughtBar {
+  width: 110px; height: 10px; border: 1.5px solid var(--dsw-alias-label-primary);
+  border-radius: 999px; background: var(--dsw-alias-bg-layer-1); overflow: hidden;
+}
+.caughtFill { display: block; height: 100%; width: 62%; background: var(--pcy-ok); }
+.adventureDate {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 12px; font-variant-numeric: tabular-nums; letter-spacing: 1px;
+  color: var(--dsw-alias-label-secondary);
+}
+.filterButton {
+  min-height: 32px; padding: 2px 12px; border-radius: 999px;
+  border: 1px solid var(--dsw-alias-border-l1);
+  background: var(--dsw-alias-bg-layer-1); color: var(--dsw-alias-label-secondary);
+  font-size: 12px; font-weight: 600; cursor: pointer;
+  display: inline-flex; align-items: center; gap: 4px;
+}
+.filterButton:hover { background: var(--pcy-hover); }
+.filterButton[aria-pressed="true"] {
+  background: var(--pcy-running); color: var(--ink-const);
+  border: 1.5px solid var(--dsw-alias-label-primary); font-weight: 700;
+}
+
+/* —— 档1 墨：按钮三档 —— */
+.btnRow { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+.btnDex {
+  min-height: 32px; padding: 4px 14px; border-radius: 8px;
+  background: var(--pcy-running); color: var(--ink-const);
+  border: 1.5px solid var(--dsw-alias-label-primary);
+  box-shadow: 2px 2px 0 var(--dsw-alias-label-primary);
+  font-size: 13px; font-weight: 700; cursor: pointer;
+  transition: transform 80ms, box-shadow 80ms;
+}
+.btnDex:active { transform: translate(1px, 1px); box-shadow: 1px 1px 0 var(--dsw-alias-label-primary); }
+@media (prefers-reduced-motion: reduce) { .btnDex { transition-duration: .01ms; } }
+.btnGhost {
+  min-height: 32px; padding: 4px 12px; border-radius: 8px;
+  border: 1px solid var(--dsw-alias-border-l2);
+  background: var(--dsw-alias-bg-layer-1); color: var(--dsw-alias-label-primary);
+  font-size: 13px; cursor: pointer;
+}
+.btnDexOld {
+  min-height: 32px; padding: 4px 14px; border-radius: 8px; border: 1px solid var(--dsw-alias-state-business-primary);
+  background: var(--dsw-alias-state-business-primary); color: #fff; font-size: 13px; cursor: pointer;
+}
+
+/* —— 档1 墨：收音机列表 —— */
+.toolbar { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 10px; }
+.searchInput {
+  flex: 1; min-width: 160px; height: 32px; padding: 4px 10px; border-radius: 8px;
+  border: 1px solid var(--dsw-alias-border-l2);
+  background: var(--dsw-alias-bg-layer-1); color: inherit; font-size: 12.5px;
+}
+.viewToggle {
+  display: inline-flex; border: 1px solid var(--dsw-alias-border-l3); border-radius: 8px; overflow: hidden;
+  background: var(--dsw-alias-bg-layer-1);
+}
+.viewToggle button {
+  min-height: 32px; padding: 4px 10px; border: none; background: transparent;
+  color: var(--dsw-alias-label-secondary); font-size: 12px; font-weight: 700; cursor: pointer;
+}
+.viewToggle button[aria-pressed="true"] { background: var(--pcy-hover); color: var(--dsw-alias-label-primary); }
+.healthStrip {
+  display: flex; align-items: center; gap: 8px 14px; flex-wrap: wrap;
+  padding: 8px 12px; border-radius: 10px;
+  border: 1px solid var(--dsw-alias-border-l1); background: var(--dsw-alias-bg-layer-1);
+  font-size: 12px; margin-bottom: 12px;
+}
+.healthItem { display: inline-flex; align-items: center; gap: 6px; color: var(--dsw-alias-label-secondary); font-variant-numeric: tabular-nums; }
+.healthDot { width: 10px; height: 10px; border-radius: 50%; border: 1px solid rgba(26,27,37,.35); flex: none; }
+.healthDot[data-level="ok"] { background: var(--pcy-ok); }
+.healthDot[data-level="warn"] { background: var(--pcy-warn); }
+.radioMain { display: flex; gap: 14px; align-items: stretch; }
+@media (max-width: 760px) { .radioMain { flex-direction: column; } }
+.feedColumn { flex: 3 1 0; min-width: 280px; display: flex; flex-direction: column; gap: 10px; }
+.listBox {
+  flex: 1; overflow-y: auto; max-height: 340px;
+  border: 1px solid var(--dsw-alias-border-l1); border-radius: 10px;
+  background: var(--dsw-alias-bg-layer-1); padding: 6px;
+}
+.groupHead {
+  display: flex; align-items: center; gap: 8px; margin: 8px 4px 4px;
+  font-size: 12px; font-weight: 800; letter-spacing: .4px; color: var(--dsw-alias-label-secondary);
+}
+.groupCount {
+  display: inline-block; min-width: 18px; text-align: center; padding: 0 7px;
+  border-radius: 999px; background: var(--dsw-alias-border-l1); font-size: 10.5px; font-weight: 700; line-height: 18px;
+}
+.groupCount[data-hot="true"] { background: #fff3d6; color: var(--pcy-warn-ink); }
+.messageRow {
+  display: flex; gap: 8px; align-items: flex-start;
+  padding: 7px 8px; border-radius: 8px; cursor: pointer;
+  border: 1px solid transparent; font-size: 12px;
+}
+.messageRow:hover { background: var(--pcy-hover); }
+.messageRow[data-selected="true"] {
+  background: var(--pcy-hover);
+  border: 1.5px solid var(--dsw-alias-label-primary);
+}
+.rowMain { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 3px; }
+.rowLine1 { display: flex; align-items: center; gap: 6px; font-weight: 700; }
+.rowBadge {
+  flex: none; font-size: 10.5px; font-weight: 800; color: var(--dsw-alias-label-secondary);
+  border: 1px solid var(--dsw-alias-border-l3); border-radius: 4px; padding: 0 4px;
+}
+.rowTime { margin-left: auto; font-size: 10.5px; color: var(--dsw-alias-label-secondary); font-variant-numeric: tabular-nums; }
+.rowSnippet { font-size: 12px; color: var(--dsw-alias-label-secondary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.confDot { width: 9px; height: 9px; border-radius: 50%; border: 1px solid rgba(26,27,37,.35); flex: none; }
+.confDot[data-conf="high"] { background: var(--pcy-ok); }
+.confDot[data-conf="medium"] { background: var(--pcy-running); }
+.detailPanel {
+  flex: 2 1 0; min-width: 0; display: flex; flex-direction: column; gap: 10px;
+  border: 1px solid var(--dsw-alias-border-l1); border-radius: 10px;
+  background: var(--dsw-alias-bg-layer-1); padding: 12px 14px;
+}
+.detailMeta {
+  display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+  font-size: 12px; font-weight: 700; color: var(--dsw-alias-label-secondary);
+}
+.detailStatus {
+  margin-left: auto; font-size: 11px; font-weight: 800;
+  border: 1px solid var(--dsw-alias-border-l2); border-radius: 4px; padding: 1px 6px;
+}
+/* —— 档2 屏：电波全文阅读区（LCD） —— */
+.detailContent {
+  position: relative; overflow: hidden;
+  flex: 1; min-height: 130px; padding: 12px;
+  font-size: 13px; font-weight: 600; line-height: 1.8; white-space: pre-wrap;
+  background: var(--pcy-lcd); color: var(--pcy-lcd-text);
+  border: 1.5px solid var(--dsw-alias-label-primary); border-radius: 8px;
+  box-shadow: inset 2px 2px 0 var(--pcy-lcd-dark);
+}
+.detailContent::after {
+  content: ""; position: absolute; inset: 0; pointer-events: none;
+  background: repeating-linear-gradient(0deg, rgba(0,0,0,.05) 0 2px, transparent 2px 4px);
+}
+.detailContent > * { position: relative; z-index: 1; }
+.actionBar { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
+.kbd {
+  display: inline-block; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 9.5px; line-height: 14px; padding: 0 5px; border-radius: 4px;
+  background: var(--dsw-alias-bg-layer-1); color: var(--dsw-alias-label-primary);
+  border: 1px solid var(--dsw-alias-label-primary);
+  box-shadow: 0 2px 0 var(--dsw-alias-label-primary);
+  margin-left: 6px; vertical-align: 1px;
+}
+.captureBar {
+  display: flex; gap: 8px; margin-top: 14px; padding-top: 12px;
+  border-top: 2px solid var(--dsw-alias-label-primary);
+}
+.batchBar {
+  display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+  padding: 8px 12px; border-radius: 10px; font-size: 13px; font-weight: 700;
+  background: var(--pcy-paper); color: var(--pcy-paper-ink);
+  border: 1.5px solid var(--dsw-alias-label-primary);
+  box-shadow: 2px 2px 0 var(--dsw-alias-label-primary);
+  margin-top: 10px;
+}
+
+/* —— 档2 屏：诊断日志 LCD —— */
+.logScreen {
+  position: relative; overflow: hidden;
+  border: 1.5px solid var(--dsw-alias-label-primary); border-radius: 10px;
+  background: var(--pcy-lcd); color: var(--pcy-lcd-text);
+  box-shadow: inset 2px 2px 0 var(--pcy-lcd-dark);
+  padding: 10px 12px; font-size: 12px;
+}
+.logScreen::after {
+  content: ""; position: absolute; inset: 0; pointer-events: none;
+  background: repeating-linear-gradient(0deg, rgba(0,0,0,.05) 0 2px, transparent 2px 4px);
+}
+.logScreen > * { position: relative; z-index: 1; }
+.logRow { display: flex; gap: 10px; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; padding: 2px 0; }
+.logTime { color: var(--pcy-lcd-dim); flex: none; }
+.logLevel { flex: none; width: 48px; font-weight: 700; }
+.logLevel[data-level="error"] { color: var(--pcy-lcd-log-error); }
+.logLevel[data-level="warn"] { color: var(--pcy-lcd-log-warn); }
+.logLevel[data-level="info"] { opacity: .8; }
+.entitySprite {
+  width: 32px; height: 32px; border-radius: 6px; flex: none;
+  image-rendering: pixelated;
+  border: 1.5px solid var(--dsw-alias-label-primary);
+  background: var(--pcy-paper);
+  display: flex; align-items: center; justify-content: center;
+}
+.entityCard {
+  display: flex; align-items: center; gap: 10px; padding: 8px 10px;
+  border: 1px solid var(--dsw-alias-border-l3); border-radius: 8px;
+  background: var(--dsw-alias-bg-layer-1); font-size: 13px;
+}
+.entityName { font-weight: 700; }
+.entitySub { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12px; color: var(--dsw-alias-label-secondary); }
+.monoId { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 10px; letter-spacing: 1px; opacity: .65; }
+
+/* —— 对照条里的「现状」复刻（素样） —— */
+.oldSegment {
+  min-height: 32px; padding: 4px 14px; border-radius: 999px; border: 1px solid var(--dsw-alias-state-business-primary);
+  background: var(--dsw-alias-state-business-primary); color: #fff; font-size: 13px; font-weight: 600;
+  display: inline-flex; align-items: center; gap: 6px;
+}
+.oldSegmentCount {
+  display: inline-block; min-width: 20px; text-align: center; padding: 0 6px; border-radius: 999px;
+  background: rgba(255,255,255,.25); font-size: 11px; line-height: 18px;
+}
+.oldCard {
+  display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-radius: 12px;
+  border: 1px solid var(--dsw-alias-border-l1); background: var(--dsw-alias-bg-layer-1);
+  font-size: 13px; min-height: 44px;
+}
+.oldCard[data-done="true"] .oldTitle { text-decoration: line-through; color: var(--dsw-alias-label-secondary); }
+.oldCard[data-done="true"] .sprite { filter: grayscale(1); opacity: .55; }
+.oldTitle { font-weight: 700; }
+.oldReader {
+  padding: 12px; font-size: 13px; font-weight: 600; line-height: 1.8; white-space: pre-wrap;
+  background: var(--dsw-alias-interactive-bg-hover);
+  border: 1px solid var(--dsw-alias-border-l1); border-radius: 8px;
+  color: var(--dsw-alias-label-secondary);
+}
+.oldSelected {
+  display: flex; gap: 8px; align-items: flex-start; padding: 7px 8px; border-radius: 8px; font-size: 12px;
+  background: var(--dsw-alias-interactive-bg-hover); border: 1px solid var(--dsw-alias-state-business-primary);
+}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <div class="protoHead">
+    <div>
+      <h1>「副屏」渗透体系 — dsh-plugin 面板样式设计稿</h1>
+      <p>桌面 app 是图鉴机的机身，面板是投进 dsh 的那块副屏：显示器归宿主，屏幕语言归图鉴。对照文档 <code>specs/dsh-plugin-style/uiux-design.md</code></p>
+    </div>
+    <button class="schemeBtn" id="schemeBtn" onclick="cycleScheme()">主题：自动</button>
+  </div>
+
+  <div class="legend">
+    <span class="legendItem"><span class="tierTag tier0">档0</span><b>壳</b> 宿主 chrome：输入/弹窗/抽屉/焦点环——零渗透</span>
+    <span class="legendItem"><span class="tierTag tier1">档1</span><b>墨</b> 内容容器：墨线 + 黄选中 + 纸色 + 硬阴影一档</span>
+    <span class="legendItem"><span class="tierTag tier2">档2</span><b>屏</b> 只读显示面：LCD 绿屏 + 扫描线（全页仅三处）</span>
+  </div>
+
+  <!-- ═══════ before → after ═══════ -->
+  <div class="sectionGap"></div>
+  <h2 class="secTitle">现状 → 目标 对照</h2>
+  <p class="secNote">左列 = 当前实现（素样复刻），右列 = 本稿目标样式。四组：一等选中 / 已完成 / 进行中 / 阅读面。</p>
+  <div class="compare">
+    <div class="compareCell cmpOld">
+      <span class="cmpLabel">现状 · 选中 = 宿主蓝</span>
+      <span class="oldSegment">收音机 <span class="oldSegmentCount">3</span></span>
+      <span style="font-size:12px;color:var(--dsw-alias-label-secondary);margin-left:8px;">← 蓝底白字，无世界观</span>
+    </div>
+    <div class="compareCell cmpNew">
+      <span class="cmpLabel">目标 · 选中 = 黄 + 墨线 + 字重</span>
+      <button class="segmentButton" aria-current="page">收音机 <span class="segmentCount">3</span></button>
+      <span style="font-size:12px;color:var(--dsw-alias-label-secondary);margin-left:8px;">← 桌面 filter-chip 同语言</span>
+    </div>
+
+    <div class="compareCell cmpOld">
+      <span class="cmpLabel">现状 · 已完成 = 灰删除线</span>
+      <div class="oldCard" data-done="true">
+        <span class="taskNo">No.001</span>
+        <img class="sprite" src="https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/25.png" alt="皮卡丘" data-fb="⚡">
+        <span class="oldTitle">整理周报初稿</span>
+      </div>
+    </div>
+    <div class="compareCell cmpNew">
+      <span class="cmpLabel">目标 · 已完成 = LCD 化（抓到图鉴）</span>
+      <div class="taskCard" data-presentation="done">
+        <span class="taskNo">No.001</span>
+        <img class="sprite" src="https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/25.png" alt="皮卡丘" data-fb="⚡">
+        <span class="taskMain">
+          <span class="taskTitle">整理周报初稿</span>
+          <span class="taskMeta"><span class="typeBadge" data-type="work">工作</span><span>✕ 已捕捉</span></span>
+        </span>
+      </div>
+    </div>
+
+    <div class="compareCell cmpOld">
+      <span class="cmpLabel">现状 · 进行中 = 黄描边（无深度）</span>
+      <div class="oldCard" style="border:2px solid var(--pcy-running);">
+        <span class="taskNo">No.007</span>
+        <img class="sprite" src="https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/54.png" alt="可达鸭" data-fb="🦆">
+        <span class="oldTitle">写收音机判词</span>
+      </div>
+    </div>
+    <div class="compareCell cmpNew">
+      <span class="cmpLabel">目标 · 进行中 = 黄描边 + 硬阴影 + 骑缝标</span>
+      <div class="taskCard" data-presentation="active">
+        <span class="runningTag">♪ 捕获中</span>
+        <span class="taskNo">No.007</span>
+        <img class="sprite" src="https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/54.png" alt="可达鸭" data-fb="🦆">
+        <span class="taskMain">
+          <span class="taskTitle">写收音机判词</span>
+          <span class="taskMeta"><span class="typeBadge" data-type="study">学习</span><span class="prioDot" data-prio="high"></span><span class="dispatchBadge" data-state="running">▸ agent 执行中</span></span>
+        </span>
+      </div>
+    </div>
+
+    <div class="compareCell cmpOld">
+      <span class="cmpLabel">现状 · 阅读面 = 灰白输入框观感</span>
+      <div class="oldReader">主人本周三前要交的季度复盘，重点写清收音机改版后的判定准确率变化……</div>
+    </div>
+    <div class="compareCell cmpNew">
+      <span class="cmpLabel">目标 · 阅读面 = LCD 屏（签名位）</span>
+      <div class="detailContent" style="min-height:74px;">主人本周三前要交的季度复盘，重点写清收音机改版后的判定准确率变化……</div>
+    </div>
+  </div>
+
+  <!-- ═══════ 背包 · 冒险页 ═══════ -->
+  <div class="sectionGap"></div>
+  <h2 class="secTitle">背包 · 冒险页（目标样式全样）<span class="tierTag tier1">档1</span><span class="tierTag tier2">档2</span></h2>
+  <p class="secNote">页头条（纸底 + 墨线）→ 七段导航（黄选中）→ 冒险头（等宽日期 + CAUGHT 墨线进度条）→ 条目卡五呈现。</p>
+
+  <div class="pageHeader">
+    <div class="pageHeaderSprite"><img class="sprite" src="https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/25.png" alt="皮卡丘" data-fb="⚡"></div>
+    <h3 class="pageTitle">背包</h3>
+    <span class="pageTitleDeco">POKé-DEX</span>
+    <span class="pendingBadge">3</span>
+  </div>
+  <div class="segmentNav">
+    <button class="segmentButton">冒险</button>
+    <button class="segmentButton">路线</button>
+    <button class="segmentButton">草丛</button>
+    <button class="segmentButton">图鉴</button>
+    <button class="segmentButton" aria-current="page">背包 <span class="segmentCount">3</span></button>
+    <button class="segmentButton">收音机 <span class="segmentCount">5</span></button>
+    <button class="segmentButton">日志</button>
+  </div>
+
+  <div style="display:flex;align-items:center;justify-content:space-between;margin:14px 2px 10px;">
+    <span class="adventureDate">2026.10.16 FRI</span>
+    <span class="caught"><span class="caughtLabel">CAUGHT 5/8</span><span class="caughtBar"><span class="caughtFill"></span></span></span>
+  </div>
+
+  <div style="display:flex;flex-direction:column;gap:12px;">
+    <div class="taskCard" data-presentation="active">
+      <span class="runningTag">♪ 捕获中</span>
+      <span class="taskNo">No.007</span>
+      <img class="sprite" src="https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/54.png" alt="可达鸭" data-fb="🦆">
+      <span class="taskMain">
+        <span class="taskTitle">写收音机改版判定报告</span>
+        <span class="taskMeta">
+          <span class="typeBadge" data-type="study">学习</span>
+          <span class="prioDot" data-prio="high"></span>
+          <span class="dispatchBadge" data-state="running">▸ dsh-agent 执行中</span>
+          <span>明天 18:00</span>
+        </span>
+      </span>
+    </div>
+
+    <div class="taskCard">
+      <span class="taskNo">No.012</span>
+      <img class="sprite" src="https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/1.png" alt="妙蛙种子" data-fb="🌱">
+      <span class="taskMain">
+        <span class="taskTitle">给阳台绿植换盆</span>
+        <span class="taskMeta">
+          <span class="typeBadge" data-type="life">生活</span>
+          <span class="prioDot" data-prio="normal"></span>
+          <span>周六上午</span>
+        </span>
+      </span>
+    </div>
+
+    <div class="taskCard" data-presentation="activePaused">
+      <span class="runningTag">⏸ 暂停</span>
+      <span class="taskNo">No.015</span>
+      <img class="sprite" src="https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/133.png" alt="伊布" data-fb="🦊">
+      <span class="taskMain">
+        <span class="taskTitle">读《游戏设计基础》第 4 章</span>
+        <span class="taskMeta">
+          <span class="typeBadge" data-type="interest">兴趣</span>
+          <span class="prioDot" data-prio="low"></span>
+          <span>番茄已暂停</span>
+        </span>
+      </span>
+    </div>
+
+    <div class="taskCard" data-presentation="done">
+      <span class="taskNo">No.001</span>
+      <img class="sprite" src="https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/25.png" alt="皮卡丘" data-fb="⚡">
+      <span class="taskMain">
+        <span class="taskTitle">整理周报初稿</span>
+        <span class="taskMeta">
+          <span class="typeBadge" data-type="work">工作</span>
+          <span class="prioDot" data-prio="normal"></span>
+          <span>✓ 已捕捉 · 14:20</span>
+        </span>
+      </span>
+    </div>
+
+    <div class="taskCard" data-presentation="escaped">
+      <span class="taskNo">No.003</span>
+      <img class="sprite" src="https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/113.png" alt="吉利蛋" data-fb="🐣">
+      <span class="taskMain">
+        <span class="taskTitle">预约年度体检</span>
+        <span class="taskMeta">
+          <span class="typeBadge" data-type="health">健康</span>
+          <span class="prioDot" data-prio="low"></span>
+          <span>已逃走 · 3 天</span>
+        </span>
+      </span>
+    </div>
+  </div>
+
+  <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:14px;align-items:center;">
+    <button class="filterButton" aria-pressed="true">全部</button>
+    <button class="filterButton">进行中</button>
+    <button class="filterButton">已捕捉</button>
+    <button class="filterButton">已逃走</button>
+    <button class="filterButton" style="margin-left:auto;background:var(--pcy-running);color:var(--ink-const);border:1.5px solid var(--dsw-alias-label-primary);">📊 每周复盘</button>
+  </div>
+
+  <!-- ═══════ 收音机 ═══════ -->
+  <div class="sectionGap"></div>
+  <h2 class="secTitle">收音机（目标样式全样）<span class="tierTag tier1">档1</span><span class="tierTag tier2">档2</span></h2>
+  <p class="secNote">工具行 → 健康条 → 3:2 两栏（列表 + LCD 详情）→ 捕捉条（重墨分隔 + 黄主按钮）。选中行 = 奶油黄底 + 墨线。</p>
+
+  <div class="toolbar">
+    <input class="searchInput" placeholder="搜索电波…" readonly>
+    <div class="viewToggle">
+      <button aria-pressed="true">⏱ 按状态</button>
+      <button>📡 按频道</button>
+    </div>
+  </div>
+
+  <div class="healthStrip">
+    <span class="healthItem"><span class="healthDot" data-level="ok"></span>agent 正常</span>
+    <span class="healthItem"><span class="healthDot" data-level="warn"></span>飞书 重试中</span>
+    <span class="healthItem">待处理 <b>5</b></span>
+    <span class="healthItem">今日已捕获 <b>2</b></span>
+    <button class="btnDex" style="margin-left:auto;">⚡ 立即拉取</button>
+  </div>
+
+  <div class="radioMain">
+    <div class="feedColumn">
+      <div class="listBox">
+        <div class="groupHead"><span>▾ 待处理</span><span class="groupCount" data-hot="true">3</span></div>
+        <div class="messageRow" data-selected="true">
+          <span class="rowMain">
+            <span class="rowLine1"><span class="rowBadge">飞书</span><span>#产品群</span><span class="confDot" data-conf="high" title="置信 高"></span><span class="rowTime">14:02</span></span>
+            <span class="rowSnippet">主人，季度复盘记得把收音机判定准确率的变化写进去…</span>
+          </span>
+        </div>
+        <div class="messageRow">
+          <span class="rowMain">
+            <span class="rowLine1"><span class="rowBadge">终端</span><span>dsh-agent</span><span class="confDot" data-conf="medium" title="置信 中"></span><span class="rowTime">11:47</span></span>
+            <span class="rowSnippet">构建通过，但有两个 lint 警告建议看一眼…</span>
+          </span>
+        </div>
+        <div class="messageRow">
+          <span class="rowMain">
+            <span class="rowLine1"><span class="rowBadge">飞书</span><span>私聊 · 阿茅</span><span class="confDot" data-conf="low" title="置信 低"></span><span class="rowTime">09:15</span></span>
+            <span class="rowSnippet">周五有空吗？想对一下图鉴框的视觉细节</span>
+          </span>
+        </div>
+        <div class="groupHead"><span>▾ 已处理</span><span class="groupCount">2</span></div>
+        <div class="messageRow" style="opacity:.6;">
+          <span class="rowMain">
+            <span class="rowLine1"><span class="rowBadge">终端</span><span>cron</span><span class="rowTime">昨天</span></span>
+            <span class="rowSnippet">备份完成 ✓</span>
+          </span>
+        </div>
+      </div>
+      <div class="batchBar">
+        <span>已选 1 条</span>
+        <button class="btnDex" style="min-height:28px;padding:2px 12px;font-size:12px;">✓ 全部收进图鉴</button>
+        <button class="btnGhost" style="min-height:28px;padding:2px 12px;font-size:12px;">✕ 忽略</button>
+      </div>
+    </div>
+
+    <div class="detailPanel">
+      <div class="detailMeta">
+        <span class="rowBadge">飞书</span><span>#产品群</span><span>今天 14:02</span>
+        <span class="detailStatus">待处理</span>
+      </div>
+      <div class="detailContent"><span>主人，季度复盘记得把收音机判定准确率的变化写进去。另外周三前要交初稿，我建议先列提纲：</span>
+<span>1. 改版前后各两周的误判样本对比</span>
+<span>2. 置信三档的分布变化</span>
+<span>3. 漏收的三个高频场景</span></div>
+      <div class="actionBar">
+        <button class="btnDex">🎣 收进图鉴</button>
+        <button class="btnGhost">建任务</button>
+        <button class="btnGhost">忽略</button>
+        <span style="margin-left:auto;font-size:11px;color:var(--dsw-alias-label-secondary);">快捷键 <span class="kbd">C</span><span class="kbd">X</span><span class="kbd">F</span><span class="kbd">Esc</span></span>
+      </div>
+    </div>
+  </div>
+
+  <div class="captureBar">
+    <input class="searchInput" style="flex:1;" placeholder="快速捕捉：一句话丢给图鉴机…" readonly>
+    <button class="btnDex">🎣 捕捉</button>
+    <span style="font-size:11px;color:var(--dsw-alias-label-secondary);align-self:center;">⏎ 判定中…</span>
+  </div>
+
+  <!-- ═══════ 背包 · 设置与诊断 ═══════ -->
+  <div class="sectionGap"></div>
+  <h2 class="secTitle">背包 · 分区选单 + 诊断（目标样式全样）<span class="tierTag tier1">档1</span><span class="tierTag tier2">档2</span></h2>
+  <p class="secNote">分区选单同一等选中语言；主行动按钮 = 黄按钮档（saveButton / pollNow 同款）；日志屏 = LCD 签名位；精灵图鉴框。</p>
+
+  <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:12px;">
+    <div class="segmentNav" style="padding:0;flex:1;overflow-x:auto;flex-wrap:nowrap;">
+      <button class="segmentButton">显示</button>
+      <button class="segmentButton" aria-current="page">分类</button>
+      <button class="segmentButton">标签</button>
+      <button class="segmentButton">Agent</button>
+      <button class="segmentButton">飞书</button>
+      <button class="segmentButton">专注</button>
+      <button class="segmentButton">诊断</button>
+      <button class="segmentButton">通用</button>
+    </div>
+    <button class="btnDex">保存</button>
+  </div>
+
+  <div style="display:flex;flex-direction:column;gap:8px;margin-bottom:16px;">
+    <div class="entityCard">
+      <div class="entitySprite"><img class="sprite sm" src="https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/25.png" alt="皮卡丘" data-fb="⚡"></div>
+      <span class="entityName">工作</span>
+      <span class="entitySub">默认宝可梦：皮卡丘 · 主任务分类</span>
+      <span class="monoId">No.025</span>
+    </div>
+    <div class="entityCard">
+      <div class="entitySprite"><img class="sprite sm" src="https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/54.png" alt="可达鸭" data-fb="🦆"></div>
+      <span class="entityName">学习</span>
+      <span class="entitySub">默认宝可梦：可达鸭</span>
+      <span class="monoId">No.054</span>
+    </div>
+  </div>
+
+  <p class="secNote" style="margin-bottom:8px;">诊断日志屏（LCD 签名位之二，日志级别着色随屏切换）：</p>
+  <div class="logScreen">
+    <div class="logRow"><span class="logTime">14:02:11</span><span class="logLevel">INFO</span><span>poll fetch ok · 5 signals</span></div>
+    <div class="logRow"><span class="logTime">14:02:12</span><span class="logLevel" data-level="warn">WARN</span><span>lark token expires in 2h</span></div>
+    <div class="logRow"><span class="logTime">13:58:40</span><span class="logLevel" data-level="error">ERROR</span><span>agent probe timeout (3000ms)</span></div>
+    <div class="logRow"><span class="logTime">13:58:44</span><span class="logLevel">INFO</span><span>retry ok · probe 812ms</span></div>
+  </div>
+
+  <div class="sectionGap"></div>
+  <h2 class="secTitle">按钮三档（目标）<span class="tierTag tier1">档1</span></h2>
+  <p class="secNote">主行动 = 黄按钮（墨线 + 硬阴影 + 按压位移 80ms）；次行动/表单控件 = 宿主档不动；焦点环 = 宿主蓝不动（Tab 试试）。</p>
+  <div class="btnRow" style="margin-bottom:6px;">
+    <span style="font-size:12px;color:var(--dsw-alias-label-secondary);">现状 →</span>
+    <button class="btnDexOld">保存（现状：宿主蓝）</button>
+    <span style="font-size:12px;color:var(--dsw-alias-label-secondary);">目标 →</span>
+    <button class="btnDex">保存</button>
+    <button class="btnDex">⚡ 立即拉取</button>
+    <button class="btnDex">🎣 捕捉</button>
+    <button class="btnGhost">取消（宿主档不动）</button>
+  </div>
+
+  <div class="footNote">
+    <b>红线回显（实施时逐条自查）</b>：无 animation 声明（扫描线为静态纹理）；按压位移是唯一新增 transition（80ms，reduced-motion 归零）；硬阴影只有
+    <code>2px 2px 0</code> 一档，出现在进行中卡 / 托盘 / 黄按钮 / LCD 框四处；3px+ 粗线、机脊红铺底、像素字体、LED 闪烁不做；
+    chip 与 mainPanel 壳零渗透；黄只在「一等选中 + 主行动」，表单控件内部选中保持宿主蓝；暗色下 LCD/纸色走配对值（best-effort），黄与墨线天然双主题安全。
+  </div>
+</div>
+
+<script>
+// 主题切换：自动（跟随系统）→ 亮 → 暗
+const modes = ["auto", "light", "dark"];
+let modeIdx = 0;
+function cycleScheme() {
+  modeIdx = (modeIdx + 1) % modes.length;
+  document.documentElement.dataset.scheme = modes[modeIdx];
+  document.getElementById("schemeBtn").textContent = "主题：" + { auto: "自动", light: "亮", dark: "暗" }[modes[modeIdx]];
+}
+// 精灵图断线回落 emoji
+document.querySelectorAll("img[data-fb]").forEach((img) => {
+  img.addEventListener("error", () => {
+    const span = document.createElement("span");
+    span.textContent = img.dataset.fb;
+    span.style.fontSize = "20px";
+    img.replaceWith(span);
+  });
+});
+</script>
+</body>
+</html>

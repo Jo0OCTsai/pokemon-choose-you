@@ -1,0 +1,14 @@
+{
+  "kind": "task_sm",
+  "name": "create-defaults-and-inbox-invariant",
+  "now": "2026-01-15T09:00:00+08:00",
+  "setup": {},
+  "steps": [
+    { "op": "task_create", "args": { "title": "  " } },
+    { "op": "task_create", "args": { "title": "无截止默认草丛" } },
+    { "op": "task_create", "args": { "title": "有截止直接排期", "due": "2026-02-01T09:00", "priority": "high", "categoryId": 2 } },
+    { "op": "task_create", "args": { "title": "scheduled 标志但没给时间", "scheduled": true } },
+    { "op": "task_update", "args": { "taskId": 4, "note": "补一条备注", "tagIds": [] } }
+  ],
+  "expect": "exact"
+}

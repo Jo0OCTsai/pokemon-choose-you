@@ -55,7 +55,6 @@ async function grantInputPerm() {
         @update:model-value="saveMainPokemon"
       />
     </SettingRow>
-    <p class="set-foot">{{ t("cats.spriteHint") }}</p>
   </section>
 
   <QuotesEditorCard />
@@ -105,14 +104,6 @@ async function grantInputPerm() {
 .set-card h3 {
   margin: 0 0 12px;
   font-size: 16px;
-}
-.set-foot {
-  margin: 12px 0 0;
-  padding-top: 10px;
-  border-top: 2px dashed var(--ink-faint);
-  font-size: 12px;
-  color: var(--ink-soft);
-  line-height: 1.7;
 }
 /* 输入响应未授权指引：说明 + 当前二进制路径（点击复制）+ 去授权按钮 */
 .perm-hint {

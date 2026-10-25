@@ -85,7 +85,7 @@ pub async fn tag_checkup(db: State<'_, Db>) -> AppResult<TagCheckupReport> {
     };
     let mut report = local_report(&tags);
     if let Some(agent) = agent {
-        match judge_with_agent(&agent, &system, &tags, &mut report).await {
+        match judge_with_agent(&db, &agent, &system, &tags, &mut report).await {
             Ok(()) => report.judged = true,
             Err(e) => log::warn!("tag_health: LLM 判定失败，按本地预筛结果展示: {e}"),
         }
@@ -225,6 +225,7 @@ struct JudgeNewDim {
 /// 含尾部「词表：\n」框架，词表与候选对在下方追加）。
 /// 判定失败不致命——调用方保留本地预筛结果（judged=false）
 async fn judge_with_agent(
+    db: &Db,
     agent: &AgentConfig,
     system: &str,
     tags: &[Tag],
@@ -255,7 +256,12 @@ async fn judge_with_agent(
         }
     }
 
-    let out = ai::run_agent(agent, &prompt).await?;
+    let remote = {
+        let conn = db.0.lock().unwrap();
+        crate::commands::resolve_remote_target(&conn, agent)
+            .map_err(|e| AppError::Invalid(e.message))?
+    };
+    let out = ai::run_agent(agent, &prompt, remote.as_ref()).await?;
     let verdict = parse_verdict(&out)?;
     let find = |name: &str, dimension: &str| {
         tags.iter()
@@ -705,7 +711,9 @@ mod tests {
             ..Default::default()
         };
         let mut report = local_report(&tags);
+        let db = Db(std::sync::Mutex::new(crate::db::tests::test_conn()));
         tauri::async_runtime::block_on(judge_with_agent(
+            &db,
             &agent,
             "我的自定义治理规则。\n\n词表：\n",
             &tags,

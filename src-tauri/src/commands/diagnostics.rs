@@ -287,7 +287,8 @@ pub fn redact_values(line: &str) -> String {
 
 /// 单行脱敏第三层（词表）：通讯录真名、我的称呼、群聊名 → ***。
 /// 这些是内容类字段（日志的消息摘要/健康错误回显里出现），键名与值形态都拦不住
-fn redact_names(names: &[String], line: &str) -> String {
+/// pub(crate)：契约套件（contracts 模块）驱动真实脱敏原语用，行为不变
+pub(crate) fn redact_names(names: &[String], line: &str) -> String {
     let mut out = line.to_string();
     for n in names {
         if !n.is_empty() && out.contains(n.as_str()) {
@@ -300,7 +301,8 @@ fn redact_names(names: &[String], line: &str) -> String {
 /// 汇集本库里的敏感名词表：成员真名（feishu_users）、我的称呼（settings）、
 /// 群名（feishu_chats 快照——群名进 prompt 不脱敏，但支持报告贴到公开 issue 时仍遮蔽），
 /// 长名优先替换
-fn collect_sensitive_names(conn: &rusqlite::Connection) -> Vec<String> {
+/// pub(crate)：契约套件（contracts 模块）驱动真实脱敏原语用，行为不变
+pub(crate) fn collect_sensitive_names(conn: &rusqlite::Connection) -> Vec<String> {
     let mut names: Vec<String> = vec![];
     let _ = conn
         .prepare("SELECT name FROM feishu_users WHERE length(name) >= 2")

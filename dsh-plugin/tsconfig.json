@@ -1,0 +1,35 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "useDefineForClassFields": true,
+    "module": "ESNext",
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "skipLibCheck": true,
+
+    /* Bundler mode（vitest 解析；对齐根 tsconfig 风格） */
+    "moduleResolution": "bundler",
+    "allowImportingTsExtensions": true,
+    "isolatedModules": true,
+    "noEmit": true,
+
+    /* client 半边 React（AD §2：客户端被迫 React——只做视图，业务在 host 半边） */
+    "jsx": "react-jsx",
+
+    /* 主应用字典源直引（A16：@app-i18n → 仓根 src/i18n，零拷贝零同步步骤；paths 相对 tsconfig 解析，无需 baseUrl）。
+       @app-pokemon → 仓根 src/pokemon（dsh 适配层换装搜索直引 catalog.json） */
+    "paths": {
+      "@app-i18n/*": ["../src/i18n/*"],
+      "@app-pokemon/*": ["../src/pokemon/*"]
+    },
+
+    /* Linting */
+    "strict": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "noFallthroughCasesInSwitch": true,
+
+    /* host 半边为 Node 进程（node:sqlite / node:module 等） */
+    "types": ["node"]
+  },
+  "include": ["src/**/*.ts", "src/**/*.tsx", "__tests__/**/*.ts", "__tests__/**/*.tsx"]
+}

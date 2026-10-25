@@ -1,0 +1,23 @@
+{
+  "kind": "anonymize",
+  "name": "same-name-risk-and-me",
+  "now": "2026-01-15T09:00:00+08:00",
+  "setup": {
+    "settings": {
+      "feishu_my_open_id": "ou_me",
+      "feishu_my_name": "蔡乔蓉"
+    },
+    "feishu_users": [
+      { "open_id": "ou_me", "name": "蔡乔蓉", "updated_at": "2026-01-01T00:00:00Z" },
+      { "open_id": "ou_same", "name": "蔡乔蓉", "alias": "成员_00cc", "updated_at": "2026-01-01T00:00:00Z" },
+      { "open_id": "ou_z", "name": "李四", "alias": "成员_00dd", "updated_at": "2026-01-01T00:00:00Z" }
+    ]
+  },
+  "steps": [
+    { "op": "anon_build", "args": {} },
+    { "op": "anon_scrub", "args": { "text": "蔡乔蓉来对一下" } },
+    { "op": "anon_scrub", "args": { "text": "李四说好，蔡乔蓉确认" } },
+    { "op": "anon_scrub", "args": { "text": "（疑似@我）在吗" } }
+  ],
+  "expect": "exact"
+}

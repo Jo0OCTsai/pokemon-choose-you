@@ -1,0 +1,1143 @@
+/* 任务分段样式（scoped）：精灵条目卡为面板 signature（宿主列表行容器 + pixelated 精灵） */
+
+.segmentWrap {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+/* 冒险段日期与 CAUGHT 进度条样式已随页头移入 app.module.css（PageHeader，桌面 today 页头同位） */
+
+/* OverdueFold */
+.overdueFold {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 10px;
+  border-radius: 8px;
+  border: 1px dashed var(--dsw-alias-border-l3, #c7cdd4);
+  background: var(--dsw-alias-bg-layer-1, #f8f9fb);
+  color: var(--dsw-alias-label-secondary, #57606a);
+  font-size: 13px;
+}
+.overdueList {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 4px 0 0 12px;
+}
+
+/* 精灵条目卡（面板 signature，原型 tcard：宿主容器 + pixelated 精灵 + No.xxx + 属性徽章）
+   box-sizing 显式声明——dsw 宿主无全局复位，width:100% + padding/border 不收口会右溢出 */
+.taskCard {
+  position: relative;
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  border: 1px solid var(--dsw-alias-border-l1, #e3e7ec);
+  background: var(--dsw-alias-bg-layer-1, #ffffff);
+  cursor: pointer;
+  text-align: left;
+  width: 100%;
+  min-height: 44px;
+  font-size: 13px;
+  color: inherit;
+}
+/* 悬停 = 桌面唯一悬停黄（specs/dsh-plugin-style T1#5）+ 重墨线 */
+.taskCard:hover {
+  background: var(--pcy-hover, #fff3c4);
+  border-color: var(--dsw-alias-label-primary, #1f2328);
+}
+.taskCard:focus-visible {
+  outline: 2px solid var(--dsw-alias-state-business-primary, #316dca);
+  outline-offset: 1px;
+}
+/* 五呈现（形与色承载状态，不闪烁） */
+.taskCard[data-presentation="active"] {
+  border: 2px solid var(--pcy-running, #ffcb05);
+}
+/* 进行中·暂停变体：灰描边；卡面内容不淡化不降饱和（桌面暂停卡 = 普通卡 + 实色 tag-paused，
+ * 透明叠加会让状态标记看起来「半透明」——与捕获中保持同等实色呈现） */
+.taskCard[data-presentation="activePaused"] {
+  border: 2px solid var(--dsw-alias-border-l3, #c7cdd4);
+}
+/* 已捕捉 = LCD 化（specs/dsh-plugin-style T2#14：完成 = 抓到图鉴，卡面变屏；
+ * 辅助行走 lcd-text 实色不用透明度——透明叠加会跌破 4.5:1） */
+.taskCard[data-presentation="done"] {
+  background: var(--pcy-lcd, #c4cfa1);
+  border: 1.5px solid var(--dsw-alias-label-primary, #1f2328);
+  box-shadow: inset 2px 2px 0 var(--pcy-lcd-dark, #9caa86);
+}
+.taskCard[data-presentation="done"]:hover {
+  background: var(--pcy-lcd, #c4cfa1);
+}
+.taskCard[data-presentation="done"] .taskTitle {
+  text-decoration: line-through;
+  color: var(--pcy-lcd-text, #3a4a32);
+}
+.taskCard[data-presentation="done"] .taskNo,
+.taskCard[data-presentation="done"] .taskMeta,
+.taskCard[data-presentation="done"] .catchMark {
+  color: var(--pcy-lcd-text, #3a4a32);
+}
+/* LCD/逃走卡上精灵只留灰度剪影（裸图无框，无需框退场覆盖） */
+.taskCard[data-presentation="done"] .taskSprite,
+.taskCard[data-presentation="escaped"] .taskSprite {
+  filter: grayscale(1);
+  opacity: 0.55;
+}
+/* 已逃走 = 桌面逃逸态同源纸灰（specs/dsh-plugin-style §4 --pcy-paper-dim）。中性呈现
+ * 不走整卡 opacity（辅助字对纸灰底 ≈4.0:1 不达 AA，debt 2026-10-21 收口）：owned 配对墨
+ * --pcy-escape-ink 对 paper-dim 双主题 ≥4.5:1，灰度剪影精灵保留原有渐弱——「不催清零」
+ * 的中性观感由纸灰底 + 剪影承载，文字保持可读 */
+.taskCard[data-presentation="escaped"] {
+  background: var(--pcy-paper-dim, #f3efe6);
+  color: var(--pcy-escape-ink, #4a4f55);
+}
+.taskCard[data-presentation="escaped"]:hover {
+  background: var(--pcy-paper-dim, #f3efe6);
+}
+.taskCard[data-presentation="escaped"] .taskNo,
+.taskCard[data-presentation="escaped"] .taskMeta,
+.taskCard[data-presentation="escaped"] .catchMark {
+  color: var(--pcy-escape-ink, #4a4f55);
+}
+/* 进行中悬浮标签（卡顶骑缝 pill，原型 running-tag；暂停变体灰）。
+   文字/描边用固定墨色（DESIGN_SYSTEM --dex-navy）——alias label 在暗主题翻转为浅色，
+   黄底浅字对比度不足（U7 scoped 固定色口径） */
+.runningTag {
+  position: absolute;
+  top: -9px;
+  left: 12px;
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 1.4;
+  background: var(--pcy-running, #ffcb05);
+  color: #1a1b25;
+  border: 1px solid #1a1b25;
+  border-radius: 999px;
+  padding: 0 8px;
+}
+/* 暂停变体：桌面 .tag-paused 同源（warn-soft 实色底 + warn-ink 字），墨线描边沿用基类——
+ * 与捕获中同为实色 pill，仅配色与 ⏸ 字形区分 */
+.taskCard[data-presentation="activePaused"] .runningTag {
+  background: var(--pcy-warn-soft, #fff3cd);
+  color: var(--pcy-warn-ink, #8a5e06);
+}
+/* 等宽图鉴编号（U6：面板不加载像素字体，等宽字体承载编号；字距 = 丝印感） */
+.taskNo {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 10px;
+  letter-spacing: 1px;
+  color: var(--dsw-alias-label-secondary, #57606a);
+  flex: none;
+}
+/* 精灵图（specs/dsh-plugin-style T1#10 回流：任务卡精灵裸图，无框无底；占位点仍需尺寸锚定） */
+.taskSprite {
+  width: 30px;
+  height: 30px;
+  image-rendering: pixelated;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 16px;
+  flex: none;
+}
+.taskMain {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.taskTitle {
+  font-weight: 700;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.taskMeta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 11px;
+  color: var(--dsw-alias-label-secondary, #57606a);
+  flex-wrap: wrap;
+}
+/* 属性徽章（DESIGN_SYSTEM 分类色固定底 + navy 字；暗主题 1px 描边兜底对比——U7） */
+.typeBadge {
+  font-size: 10px;
+  font-weight: 700;
+  color: #1a1b25;
+  border-radius: 4px;
+  padding: 0 7px;
+  line-height: 16px;
+  border: 1px solid rgba(26, 27, 37, 0.35);
+  background: var(--pcy-type-neutral, var(--dsw-alias-border-l1, #e3e7ec));
+  flex: none;
+}
+.typeBadge[data-type="work"] {
+  background: var(--pcy-type-work, #f8d030);
+}
+.typeBadge[data-type="study"] {
+  background: var(--pcy-type-study, #6890f0);
+}
+.typeBadge[data-type="life"] {
+  background: var(--pcy-type-life, #78c850);
+}
+.typeBadge[data-type="health"] {
+  background: var(--pcy-type-health, #a8a878);
+}
+.typeBadge[data-type="interest"] {
+  background: var(--pcy-type-interest, #ee99ac);
+}
+/* 优先级四点（紧急档放大点 + 双描边，不闪烁） */
+.prioDot {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  flex: none;
+  border: 1px solid rgba(26, 27, 37, 0.35);
+}
+.prioDot[data-prio="urgent"] {
+  width: 12px;
+  height: 12px;
+  box-shadow:
+    0 0 0 2px var(--dsw-alias-bg-layer-1, #fff),
+    0 0 0 3.5px var(--pcy-danger, #ee1515);
+  background: var(--pcy-danger, #ee1515);
+}
+.prioDot[data-prio="high"] {
+  background: var(--pcy-prio-high, #f08030);
+}
+.prioDot[data-prio="normal"] {
+  background: var(--pcy-type-life, #78c850);
+}
+.prioDot[data-prio="low"] {
+  background: var(--pcy-type-health, #a8a878);
+}
+/* 派发徽标五态（形 + 文字标签 + 软底，非颜色冗余）；固定软底加 1px 墨描边兜底暗主题小图形对比（U7） */
+.dispatchBadge {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  font-size: 10px;
+  font-weight: 700;
+  border-radius: 4px;
+  padding: 0 6px;
+  line-height: 16px;
+  flex: none;
+  border: 1px solid rgba(26, 27, 37, 0.2);
+}
+.dispatchGlyph {
+  font-size: 10px;
+}
+.dispatchBadge[data-state="queued"] {
+  background: var(--pcy-conf-mid-soft, #fff3d6);
+  color: var(--pcy-warn-ink, #8a5e06);
+}
+.dispatchBadge[data-state="running"] {
+  background: var(--pcy-ok-soft, #dff3e4);
+  color: var(--pcy-ok-ink, #1d6b3c);
+}
+/* done = 固定浅软底配固定墨（与 queued/running/failed 同语言；不用随宿主翻转的
+ * alias label——暗主题浅字对浅底 ≈2.1:1，debt 2026-10-21 收口） */
+.dispatchBadge[data-state="done"] {
+  background: var(--pcy-conf-low-soft, #eceada);
+  color: var(--pcy-conf-low-ink, #57606a);
+}
+.dispatchBadge[data-state="failed"] {
+  background: var(--pcy-fail-soft, #fde8e8);
+  color: var(--pcy-fail-ink, #991b1b);
+}
+.quickOps {
+  display: flex;
+  gap: 4px;
+  flex: none;
+  align-items: center;
+}
+/* ✕ 放生钮（桌面 .btn.del：danger 字色） */
+.opRelease {
+  color: var(--pcy-danger, #b3590f);
+}
+/* 已捕捉/已逃走状态标（桌面 .catch-mark / .escape-mark 同构） */
+.catchMark {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--dsw-alias-label-secondary, #57606a);
+}
+.escapeMark {
+  color: var(--pcy-warn-ink, #8a5e06);
+}
+/* 标签 chips（桌面 .tag-list / .tag-chip 同构：项目维度黄底主位） */
+.tagList {
+  display: inline-flex;
+  gap: 4px;
+  flex-wrap: wrap;
+}
+.metaTagChip {
+  font-style: normal;
+  font-size: 10.5px;
+  font-weight: 700;
+  color: var(--dsw-alias-label-secondary, #57606a);
+  background: var(--dsw-alias-bg-layer-1, #f2f4f7);
+  border: 1px solid rgba(26, 27, 37, 0.2);
+  border-radius: 999px;
+  padding: 0 7px;
+  line-height: 17px;
+}
+.metaTagChip[data-project="true"] {
+  background: var(--pcy-running, #ffcb05);
+  color: #1a1b25;
+}
+
+/* DexView */
+.dexStatsLine {
+  font-size: 13px;
+}
+.dexMilestone {
+  font-size: 13px;
+  color: var(--dsw-alias-label-secondary, #57606a);
+}
+.dexFilters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+/* 图鉴过滤胶囊（specs/dsh-plugin-style T1#4，一等选中语言）：恒定 1.5px 边框——
+ * 本类无 border-box，选中 1px→1.5px 变宽会抖动，未选中用透明占位 */
+.filterButton {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  min-height: 32px;
+  padding: 2px 12px;
+  border-radius: 999px;
+  border: 1.5px solid var(--dsw-alias-border-l1, #e3e7ec);
+  background: var(--dsw-alias-bg-layer-1, #ffffff);
+  color: var(--dsw-alias-label-secondary, #57606a);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.filterButton:hover {
+  border-color: var(--dsw-alias-border-l3, #c7cdd4);
+  background: var(--pcy-hover, #fff3c4);
+}
+.filterButton[aria-pressed="true"] {
+  border-color: var(--dsw-alias-label-primary, #1f2328);
+  background: var(--pcy-running, #ffcb05);
+  color: #1a1b25;
+  font-weight: 700;
+}
+
+/* 搜索栏（对照主应用 TaskTab 搜索：输入 + 命中计数；底距 12px 与桌面 .search-bar 同值——
+ * 搜索栏与分段内容是块级兄弟，无父级 gap 承接） */
+.searchBar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+.searchInput {
+  flex: 1;
+  min-width: 0;
+  min-height: 32px;
+  padding: 4px 10px;
+  border-radius: 8px;
+  border: 1px solid var(--dsw-alias-border-l2, #d0d7de);
+  background: var(--dsw-alias-bg-layer-1, #ffffff);
+  color: var(--dsw-alias-label-primary, #1f2328);
+  font-size: 13px;
+}
+.searchInput:focus-visible {
+  outline: 2px solid var(--dsw-alias-state-business-primary, #316dca);
+  outline-offset: 1px;
+}
+.searchHint {
+  flex: none;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--dsw-alias-label-secondary, #57606a);
+}
+
+/* 全字段编辑弹窗表单（label 列 + 控件列；标签 chips 按维度分组） */
+.editForm {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.editRow {
+  display: grid;
+  grid-template-columns: 56px minmax(0, 1fr);
+  align-items: center;
+  gap: 10px;
+  font-size: 13px;
+  color: var(--dsw-alias-label-secondary, #57606a);
+}
+.editRowLabel {
+  font-weight: 700;
+}
+.editTextarea {
+  min-height: 32px;
+  padding: 4px 8px;
+  border-radius: 8px;
+  border: 1px solid var(--dsw-alias-border-l2, #d0d7de);
+  background: var(--dsw-alias-bg-layer-1, #ffffff);
+  color: var(--dsw-alias-label-primary, #1f2328);
+  font-size: 13px;
+  resize: vertical;
+  width: 100%;
+  box-sizing: border-box;
+}
+.tagPick {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 10px;
+  align-items: center;
+}
+.tagDim {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+.dimName {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--dsw-alias-label-secondary, #57606a);
+  margin-right: 2px;
+}
+.tagChip {
+  min-height: 24px;
+  padding: 2px 10px;
+  border-radius: 999px;
+  border: 1px solid var(--dsw-alias-border-l2, #d0d7de);
+  background: var(--dsw-alias-bg-layer-1, #ffffff);
+  color: var(--dsw-alias-label-primary, #1f2328);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.tagChip:hover {
+  border-color: var(--dsw-alias-border-l3, #c7cdd4);
+}
+.tagChip:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+/* 选中态：项目维度主位高亮黄，其余维度浅绿区分 */
+.tagChip[data-on="true"] {
+  background: var(--pcy-running, #ffcb05);
+  border-color: rgba(26, 27, 37, 0.35);
+}
+.tagChip[data-project="false"][data-on="true"] {
+  background: var(--pcy-ok-soft, #dff3e4);
+}
+.tagCount {
+  font-size: 11px;
+  color: var(--dsw-alias-label-secondary, #57606a);
+  margin-left: auto;
+}
+.editError {
+  margin: 0;
+  font-size: 12.5px;
+  font-weight: 700;
+  color: var(--pcy-danger, #b3590f);
+}
+
+/* EmptyState */
+.emptyState {
+  padding: 28px 16px;
+  text-align: center;
+  color: var(--dsw-alias-label-secondary, #57606a);
+  font-size: 13px;
+  line-height: 1.8;
+}
+
+/* 路线分组（原型 group-h：小号加粗弱化色 + 字距） */
+.routeGroupDate {
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.4px;
+  color: var(--dsw-alias-label-secondary, #57606a);
+  margin: 10px 0 6px;
+}
+
+/* 日志段 ledger 行卡（原型 ledger：agent 加粗 + exit 色字 + 时间右对齐等宽） */
+.ledger {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 12px;
+  background: var(--dsw-alias-bg-layer-1, #ffffff);
+  border: 1px solid var(--dsw-alias-border-l1, #e3e7ec);
+  border-radius: 10px;
+  padding: 9px 12px;
+  font-size: 12px;
+  color: var(--dsw-alias-label-secondary, #57606a);
+}
+.ledgerAgent {
+  font-weight: 700;
+  color: var(--dsw-alias-label-primary, #1f2328);
+  font-size: 12.5px;
+}
+.ledgerExit {
+  font-weight: 700;
+}
+.ledgerExit[data-ok="true"] {
+  color: var(--pcy-ok-ink, #1d6b3c);
+}
+.ledgerExit[data-ok="false"] {
+  color: var(--pcy-fail-ink, #991b1b);
+}
+.ledgerTime {
+  margin-left: auto;
+  font-variant-numeric: tabular-nums;
+}
+
+/* 执行世界徽章（FR-C2：本机/部署别名；等宽丝印位） */
+.worldBadge {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  letter-spacing: 1px;
+  font-size: 11px;
+  border: 1px solid var(--dsw-alias-border-l3, #c7cdd4);
+  border-radius: 4px;
+  padding: 1px 6px;
+  color: var(--dsw-alias-label-secondary, #57606a);
+}
+
+/* 日志段填充形态（segmentFill 定高，收音机 radioSegment 同构）：过滤行/分页器/回放提示
+ * 常驻可视；上下限经 segmentFill 下传变量（填充形态放开上限、允许压缩；窄屏回落定值） */
+.logSegment {
+  height: 100%;
+  min-height: 0;
+}
+/* 记录列表容器（收音机 listBox 同构：占满剩余高、内部滚动——翻页/长列表不出页面滚动条） */
+.sessListBox {
+  flex: 1;
+  min-height: var(--list-floor, 220px);
+  max-height: var(--list-cap, 560px);
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+/* 会话分页器（counts 常显 + 上下页 + 每页条数档；命中区 ≥32px） */
+.sessPager {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding-top: 10px;
+  flex-wrap: wrap;
+}
+.sessCounts {
+  font-size: 12px;
+  color: var(--dsw-alias-label-secondary, #57606a);
+  font-variant-numeric: tabular-nums;
+  margin-right: auto;
+}
+.sessNote {
+  margin: 8px 0 0;
+  font-size: 12px;
+  color: var(--dsw-alias-label-secondary, #57606a);
+}
+
+/* 详情抽屉（右侧滑入覆盖层，原型 drawer/drawer-mask：fixed 整视口 mask + 右缘面板；
+   fixed 相对宿主视口——面板载体（detail section / 主面板）滚动容器各异，视口级最稳健） */
+.drawerOverlay {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  background: rgba(15, 18, 30, 0.42);
+}
+.drawer {
+  position: fixed;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 61;
+  width: min(94vw, 800px);
+  display: flex;
+  flex-direction: column;
+  background: var(--dsw-alias-bg-base, var(--dsw-alias-bg-layer-1, #ffffff));
+  border-left: 2px solid var(--dsw-alias-label-primary, #1f2328);
+  box-shadow: -8px 0 24px rgba(0, 0, 0, 0.2);
+}
+.drawerHeader {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--dsw-alias-border-l1, #e3e7ec);
+}
+.drawerTitle {
+  font-size: 15px;
+  font-weight: 700;
+  margin: 0;
+  flex: 1;
+}
+.drawerClose {
+  flex: none;
+}
+.drawerBody {
+  flex: 1;
+  overflow-y: auto;
+  padding: 14px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.drawerSectionTitle {
+  font-size: 13px;
+  font-weight: 700;
+  margin: 0 0 6px;
+}
+/* 区块分隔（桌面 .notes 顶部虚线同构）：总览后的信息段统一虚线起段 */
+.drawerSection {
+  border-top: 1px dashed var(--dsw-alias-border-l3, #c7cdd4);
+  padding-top: 12px;
+}
+/* 属性总览（桌面 .d-summary 同构：两列 kv + 面板底；卡内右上角「编辑」入口浮层） */
+.summarySection {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 10px 12px;
+  border: 1px solid var(--dsw-alias-border-l1, #e3e7ec);
+  border-radius: 10px;
+  background: var(--dsw-alias-bg-layer-1, #f8f9fb);
+}
+/* 编辑钮浮层（绝对定位不占布局行——kv 栅格位置与首行高度不受影响） */
+.summaryEdit {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  z-index: 1;
+}
+.summaryGrid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px 14px;
+  font-size: 12.5px;
+}
+.summaryKv {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  min-width: 0;
+}
+.summaryKey {
+  flex: none;
+  font-weight: 700;
+  color: var(--dsw-alias-label-secondary, #57606a);
+}
+.summaryVal {
+  min-width: 0;
+  overflow-wrap: break-word;
+}
+.summaryValMono {
+  composes: summaryVal;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-variant-numeric: tabular-nums;
+}
+.summaryTags {
+  display: inline-flex;
+  gap: 4px;
+  flex-wrap: wrap;
+}
+/* 备注块（桌面 .d-note 同构：dashed 描边，紧跟属性总览卡；有内容才渲染） */
+.summaryNote {
+  margin: 0;
+  font-size: 12.5px;
+  border: 1px dashed var(--dsw-alias-border-l3, #c7cdd4);
+  border-radius: 8px;
+  padding: 8px 10px;
+  overflow-wrap: break-word;
+}
+.followupItem {
+  padding: 4px 0 4px 12px;
+  border-left: 2px solid var(--dsw-alias-border-l1, #e3e7ec);
+  font-size: 13px;
+}
+.followupContent {
+  min-width: 0;
+  overflow-wrap: break-word;
+}
+.followupMeta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 11px;
+  color: var(--dsw-alias-label-secondary, #57606a);
+}
+.followupSrc {
+  font-size: 10px;
+  font-weight: 700;
+  color: #1a1b25;
+  background: var(--pcy-running, #ffcb05);
+  border: 1px solid rgba(26, 27, 37, 0.35);
+  border-radius: 4px;
+  padding: 0 5px;
+  line-height: 15px;
+}
+.followupEmpty {
+  font-size: 12px;
+  color: var(--dsw-alias-label-secondary, #57606a);
+}
+/* 两段式删除（✕ → 确认删除？4 秒复位） */
+.followupDelete {
+  margin-left: auto;
+  border: none;
+  background: none;
+  padding: 0 4px;
+  min-height: 24px;
+  font-size: 12px;
+  color: var(--pcy-danger, #b3590f);
+  cursor: pointer;
+}
+.followupDelete[data-confirming="true"] {
+  background: var(--pcy-danger, #b3590f);
+  color: #ffffff;
+  border-radius: 4px;
+  padding: 0 8px;
+  font-weight: 700;
+}
+.followupDelete:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+.followupInput {
+  flex: 1;
+  min-width: 0;
+  min-height: 32px;
+  padding: 4px 8px;
+  border-radius: 8px;
+  border: 1px solid var(--dsw-alias-border-l2, #d0d7de);
+  background: var(--dsw-alias-bg-layer-1, #ffffff);
+  color: var(--dsw-alias-label-primary, #1f2328);
+  font-size: 13px;
+}
+.followupInput:focus-visible {
+  outline: 2px solid var(--dsw-alias-state-business-primary, #316dca);
+  outline-offset: 1px;
+}
+.followupComposer {
+  display: flex;
+  gap: 6px;
+  /* 与上方空态提示/最后一条跟进拉开间距（空列表提示不贴输入框） */
+  margin-top: 10px;
+}
+
+/* 操作历史段（对照桌面 log 行：origin + 时间 + 动作/字段旧→新） */
+.historyRow {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 4px 0 4px 12px;
+  border-left: 2px solid var(--dsw-alias-border-l1, #e3e7ec);
+  font-size: 12.5px;
+}
+.historyMeta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 11px;
+  color: var(--dsw-alias-label-secondary, #57606a);
+}
+.historyOrigin {
+  font-weight: 700;
+}
+.historyText {
+  min-width: 0;
+  overflow-wrap: break-word;
+}
+.timelineItem {
+  display: flex;
+  gap: 10px;
+  padding: 6px 0;
+  font-size: 12px;
+}
+/* 时间线空态：与标题行拉开间距 */
+.timelineEmpty {
+  margin-top: 8px;
+}
+.timelineDot {
+  width: 8px;
+  height: 8px;
+  margin-top: 4px;
+  border-radius: 50%;
+  background: var(--dsw-alias-border-l3, #c7cdd4);
+  flex: none;
+}
+.timelineMain {
+  flex: 1;
+}
+.opsRow {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+/* 派发动作行（选择行下方，留距）：⚡派发 + 手动收口三钮 */
+.dispatchActions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  align-items: center;
+  margin-top: 8px;
+}
+/* 改期弹窗行（桌面 sched-row 同构）：选择器与保存/取消同行、按钮贴右；
+ * 日历弹层向下悬浮不占布局 */
+.schedRow {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+/* 改期弹窗选择器定宽：清空/未设置态不缩块（有值态本就是最宽档） */
+.schedPicker {
+  min-width: 200px;
+}
+.schedBtns {
+  margin-left: auto;
+  display: flex;
+  gap: 8px;
+}
+/* 派发行（桌面 dsp-row 同构）：通道/agent 下拉定宽、agent 徽章、目录省略、出发主钮 */
+.dspChannel {
+  width: 150px;
+  flex: none;
+}
+.dspAgent {
+  width: 150px;
+  flex: none;
+}
+.dspAgentBadge {
+  flex: none;
+  font-size: 11px;
+  font-weight: 700;
+  border: 1px solid rgba(26, 27, 37, 0.2);
+  border-radius: 4px;
+  padding: 1px 7px;
+  line-height: 18px;
+  background: var(--dsw-alias-border-l1, #e3e7ec);
+  color: inherit;
+}
+.dspAgentBadge[data-ssh="true"] {
+  background: var(--pcy-ok-soft, #dff3e4);
+  color: var(--pcy-ok-ink, #1d6b3c);
+}
+.dspDir {
+  flex: 1;
+  min-width: 120px;
+  font-size: 12px;
+  color: var(--dsw-alias-label-secondary, #57606a);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+/* 手动收口 mini 档（桌面 dsp-mark .btn mini 同构） */
+.markMini {
+  min-height: 28px;
+  padding: 2px 10px;
+  font-size: 12px;
+}
+.markReset {
+  color: var(--pcy-danger, #b3590f);
+}
+.drawerHint {
+  margin: 0;
+  font-size: 11.5px;
+  color: var(--dsw-alias-label-secondary, #57606a);
+}
+.drawerErr {
+  margin: 0;
+  font-size: 12.5px;
+  font-weight: 700;
+  color: var(--pcy-fail-ink, #991b1b);
+}
+
+/* 每周复盘向导（对照桌面 ReviewWizard.vue：步骤条 + 总览统计卡 + 条形 + 任务站卡 + 草丛清单 + 体检行卡） */
+.reviewBody {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-height: 200px;
+}
+.reviewSteps {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  font-size: 11px;
+  font-weight: 700;
+}
+.reviewStepDot {
+  border: 1px solid var(--dsw-alias-border-l2, #d0d7de);
+  border-radius: 999px;
+  padding: 2px 8px;
+  color: var(--dsw-alias-label-secondary, #57606a);
+  background: var(--dsw-alias-bg-layer-1, #ffffff);
+}
+.reviewStepDot[data-on="true"] {
+  background: var(--pcy-running, #ffcb05);
+  border-color: rgba(26, 27, 37, 0.35);
+  color: #1a1b25;
+}
+.reviewStepDot[data-past="true"] {
+  background: var(--pcy-ok-soft, #dff3e4);
+  border-color: var(--pcy-ok-ink, #1d6b3c);
+  color: var(--pcy-ok-ink, #1d6b3c);
+}
+.reviewStats {
+  display: flex;
+  gap: 8px;
+}
+.reviewStat {
+  flex: 1;
+  border: 1px solid var(--dsw-alias-border-l1, #e3e7ec);
+  border-radius: 8px;
+  background: var(--dsw-alias-bg-layer-1, #f8f9fb);
+  text-align: center;
+  padding: 8px 4px;
+}
+.reviewStatNum {
+  font-size: 22px;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  color: var(--dsw-alias-label-primary, #1f2328);
+}
+.reviewStatLbl {
+  font-size: 11px;
+  color: var(--dsw-alias-label-secondary, #57606a);
+}
+.reviewBars {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.reviewBarRow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+}
+.reviewBarName {
+  width: 44px;
+  flex: none;
+  font-weight: 700;
+  color: var(--dsw-alias-label-primary, #1f2328);
+}
+.reviewBarTrack {
+  flex: 1;
+  height: 12px;
+  border: 1.5px solid var(--dsw-alias-border-l2, #d0d7de);
+  border-radius: 4px;
+  background: var(--dsw-alias-bg-layer-1, #ffffff);
+  overflow: hidden;
+  display: block;
+}
+.reviewBarFill {
+  display: block;
+  height: 100%;
+  background: var(--pcy-running, #ffcb05);
+}
+.reviewBarN {
+  flex: none;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  color: var(--dsw-alias-label-primary, #1f2328);
+}
+.reviewTip {
+  font-size: 11px;
+  color: var(--dsw-alias-label-secondary, #57606a);
+  margin: 0;
+}
+.reviewStation {
+  border: 1.5px solid var(--dsw-alias-border-l2, #d0d7de);
+  border-radius: 8px;
+  padding: 10px 12px;
+  background: var(--dsw-alias-bg-layer-1, #f8f9fb);
+}
+.reviewStNo {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 10px;
+  letter-spacing: 1px;
+  color: var(--dsw-alias-label-secondary, #57606a);
+}
+.reviewStTitle {
+  font-size: 15px;
+  font-weight: 800;
+  color: var(--dsw-alias-label-primary, #1f2328);
+  margin: 4px 0;
+}
+.reviewStMeta {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  font-size: 11px;
+  color: var(--dsw-alias-label-secondary, #57606a);
+}
+.reviewStMeta [data-overdue="true"] {
+  color: var(--pcy-fail-ink, #991b1b);
+  font-weight: 800;
+}
+.reviewStNote {
+  font-size: 12px;
+  color: var(--dsw-alias-label-secondary, #57606a);
+  margin: 6px 0 0;
+}
+.reviewBtnRow {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+/* ghost/mini/del：桌面 ghost 次要按钮与行内 mini 档（danger 字色） */
+.reviewGhost {
+  background: var(--dsw-alias-bg-layer-1, #f8f9fb);
+}
+.reviewMini {
+  min-height: 26px;
+  padding: 2px 8px;
+  font-size: 12px;
+}
+.reviewDel {
+  color: var(--pcy-danger, #b3590f);
+}
+.reviewEmpty {
+  color: var(--dsw-alias-label-secondary, #57606a);
+  text-align: center;
+  padding: 32px 0;
+  font-size: 13px;
+  margin: 0;
+}
+.reviewGrassHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.reviewBatchCheck {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--dsw-alias-label-primary, #1f2328);
+  cursor: pointer;
+}
+.reviewGrassList {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-height: 220px;
+  overflow-y: auto;
+}
+.reviewGrassItem {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  border: 1px solid var(--dsw-alias-border-l1, #e3e7ec);
+  border-radius: 6px;
+  padding: 6px 10px;
+  font-size: 13px;
+}
+.reviewGrassTitle {
+  font-weight: 700;
+  color: var(--dsw-alias-label-primary, #1f2328);
+}
+.reviewGrassCat {
+  margin-left: auto;
+  font-size: 11px;
+  color: var(--dsw-alias-label-secondary, #57606a);
+}
+.reviewTgTitle {
+  margin: 0 0 6px;
+  font-size: 13px;
+  color: var(--dsw-alias-label-primary, #1f2328);
+}
+.reviewTgRow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  border: 1px solid var(--dsw-alias-border-l1, #e3e7ec);
+  border-radius: 6px;
+  padding: 6px 10px;
+  font-size: 12.5px;
+  margin-bottom: 6px;
+}
+.reviewTgMain {
+  font-weight: 700;
+  color: var(--dsw-alias-label-primary, #1f2328);
+}
+.reviewTgDim {
+  font-style: normal;
+  font-size: 11px;
+  color: var(--dsw-alias-label-secondary, #57606a);
+  margin-left: 4px;
+}
+.reviewTgReason {
+  font-size: 11px;
+  color: var(--dsw-alias-label-secondary, #57606a);
+  flex: 1;
+  min-width: 120px;
+}
+.reviewFin {
+  text-align: center;
+  padding: 16px 0;
+}
+.reviewFinEmoji {
+  font-size: 36px;
+}
+.reviewFinLine {
+  font-size: 14px;
+  font-weight: 800;
+  color: var(--dsw-alias-label-primary, #1f2328);
+  margin: 0;
+}
+
+/* 图鉴筛选行的复盘入口（桌面 .filter-btn.review-btn：右贴边 + 一等选中语言合流，
+ * 验收裁决去 ▶ 前缀） */
+.reviewEntry {
+  margin-left: auto;
+  border-color: var(--dsw-alias-label-primary, #1f2328);
+  background: var(--pcy-running, #ffcb05);
+  color: #1a1b25;
+  font-weight: 700;
+}
+.reviewEntry:hover {
+  border-color: var(--dsw-alias-label-primary, #1f2328);
+  background: var(--pcy-running, #ffcb05);
+}
+.reviewEntry:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+/* 派发执行世界行 + 降级明示（§8 派发确认面；警示行走 danger 色非闪烁） */
+.worldNotes {
+  margin: 6px 0 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.worldNotes p {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.7;
+}
+.worldLine {
+  color: var(--dsw-alias-label-secondary, #57606a);
+}
+.worldWarn {
+  color: var(--pcy-danger, #b3590f);
+}

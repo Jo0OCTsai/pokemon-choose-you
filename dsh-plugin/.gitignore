@@ -1,0 +1,3 @@
+
+# ADR-0003：pk 平台二进制为构建产物（build.mjs 从 src-tauri/binaries 拷入），不入库
+vendor/

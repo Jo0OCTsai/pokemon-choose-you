@@ -1,0 +1,10 @@
+{
+  "kind": "streak",
+  "name": "grace-day-keeps-yesterday-alive",
+  "now": "2026-09-13T09:00:00+08:00",
+  "setup": {},
+  "steps": [
+    { "op": "streak_eval", "args": { "doneDays": ["2026-09-12"], "today": "2026-09-13", "todayCount": 0 } }
+  ],
+  "expect": "exact"
+}

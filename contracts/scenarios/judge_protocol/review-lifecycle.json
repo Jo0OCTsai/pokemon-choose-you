@@ -1,0 +1,44 @@
+{
+  "kind": "judge_protocol",
+  "name": "review-lifecycle",
+  "now": "2026-01-15T09:00:00+08:00",
+  "setup": {
+    "tasks": [
+      { "id": 9, "title": "参加周会", "status": "scheduled", "due_at": "2026-02-01T09:00", "priority": "normal", "created_at": "2026-01-01T00:00:00Z" }
+    ],
+    "chat_messages": [
+      {
+        "id": 1,
+        "message_id": "om_u",
+        "content": "周会改到周四上午10点",
+        "suggested_title": "参加周会（改期）",
+        "suggested_due": "2026-02-05T10:00",
+        "suggested_priority": "high",
+        "suggested_tags": "[]",
+        "update_task_id": 9,
+        "ai_status": "update",
+        "review_status": "pending",
+        "created_at": "2026-01-10T00:00:00Z"
+      },
+      {
+        "id": 2,
+        "message_id": "om_d",
+        "content": "帮我买咖啡",
+        "suggested_title": "买咖啡",
+        "suggested_tags": "[]",
+        "ai_status": "todo",
+        "review_status": "pending",
+        "created_at": "2026-01-10T00:00:00Z"
+      }
+    ]
+  },
+  "steps": [
+    { "op": "review_apply_update", "args": { "messageId": "om_u" } },
+    { "op": "review_apply_update", "args": { "messageId": "om_u" } },
+    { "op": "review_dismiss", "args": { "messageId": "om_d", "reasonCode": "noise" } },
+    { "op": "review_dismiss", "args": { "messageId": "om_d", "reasonCode": "noise" } },
+    { "op": "review_dismiss", "args": { "messageId": "om_d", "reasonCode": "bogus" } },
+    { "op": "review_restore", "args": { "messageId": "om_d" } }
+  ],
+  "expect": "exact"
+}

@@ -1,0 +1,20 @@
+{
+  "kind": "deployment_registry",
+  "name": "edit-alias-change-clears-pktunnel",
+  "now": "2026-10-19T09:00:00+08:00",
+  "setup": {
+    "settings": {
+      "dsh:deployments": "{\"dep-1\":{\"id\":\"dep-1\",\"alias\":\"gpu-1\",\"nodePath\":\"/usr/bin/node\",\"helperPath\":\"/home/u/.dsh-helper/pky-0.1.2/lib/helper.js\",\"helperHash\":\"aa\",\"workdir\":\"/home/u/work\",\"note\":\"\",\"status\":\"ready\",\"lastError\":null,\"provision\":null,\"degraded\":false,\"pkTunnel\":{\"port\":10022,\"persistent\":true}}}"
+    }
+  },
+  "steps": [
+    {
+      "op": "deployment_upsert",
+      "args": {
+        "id": "dep-1",
+        "alias": "gpu-9"
+      }
+    }
+  ],
+  "expect": "exact"
+}

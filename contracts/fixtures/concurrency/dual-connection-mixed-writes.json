@@ -1,0 +1,562 @@
+{
+  "final": {
+    "invariants": {
+      "activeCount": 0,
+      "auditRows": 49,
+      "dupFollowupNotes": 0,
+      "dupSuggestionTasks": 0,
+      "slotsByHost": {},
+      "successfulWriteOps": 41
+    }
+  },
+  "generatedBy": {
+    "impl": "rust",
+    "schemaVersion": 2
+  },
+  "scenario": "dual-connection-mixed-writes",
+  "steps": [
+    {
+      "error": null,
+      "ok": true,
+      "snapshot": null,
+      "value": {
+        "dispatch": null,
+        "id": 1,
+        "status": "active"
+      }
+    },
+    {
+      "error": null,
+      "ok": true,
+      "snapshot": null,
+      "value": {
+        "dispatch": null,
+        "id": 2,
+        "status": "active"
+      }
+    },
+    {
+      "error": null,
+      "ok": true,
+      "snapshot": null,
+      "value": {
+        "dispatch": null,
+        "id": 3,
+        "status": "active"
+      }
+    },
+    {
+      "error": null,
+      "ok": true,
+      "snapshot": null,
+      "value": {
+        "dispatch": null,
+        "id": 4,
+        "status": "active"
+      }
+    },
+    {
+      "error": null,
+      "ok": true,
+      "snapshot": null,
+      "value": {
+        "dispatch": null,
+        "id": 5,
+        "status": "active"
+      }
+    },
+    {
+      "error": null,
+      "ok": true,
+      "snapshot": null,
+      "value": {
+        "dispatch": null,
+        "id": 6,
+        "status": "active"
+      }
+    },
+    {
+      "error": null,
+      "ok": true,
+      "snapshot": null,
+      "value": {
+        "paused": 6
+      }
+    },
+    {
+      "error": null,
+      "ok": true,
+      "snapshot": null,
+      "value": {
+        "dispatch": null,
+        "id": 6,
+        "status": "active"
+      }
+    },
+    {
+      "error": null,
+      "ok": true,
+      "snapshot": null,
+      "value": {
+        "id": 6,
+        "status": "done"
+      }
+    },
+    {
+      "error": null,
+      "ok": true,
+      "snapshot": null,
+      "value": {
+        "dispatch": null,
+        "id": 5,
+        "status": "active"
+      }
+    },
+    {
+      "error": null,
+      "ok": true,
+      "snapshot": null,
+      "value": {
+        "dispatch": null,
+        "id": 1,
+        "status": "scheduled"
+      }
+    },
+    {
+      "error": null,
+      "ok": true,
+      "snapshot": null,
+      "value": {
+        "id": 1,
+        "status": "done"
+      }
+    },
+    {
+      "error": null,
+      "ok": true,
+      "snapshot": null,
+      "value": {
+        "id": 1,
+        "status": "scheduled"
+      }
+    },
+    {
+      "error": null,
+      "ok": true,
+      "snapshot": null,
+      "value": {
+        "id": 1,
+        "status": "cancelled"
+      }
+    },
+    {
+      "error": null,
+      "ok": true,
+      "snapshot": null,
+      "value": {
+        "noteId": 1,
+        "taskId": 1
+      }
+    },
+    {
+      "error": null,
+      "ok": true,
+      "snapshot": null,
+      "value": {
+        "noteId": 2,
+        "taskId": 1
+      }
+    },
+    {
+      "error": null,
+      "ok": true,
+      "snapshot": null,
+      "value": {
+        "dueAt": "2026-01-20T09:00",
+        "id": 4,
+        "status": "scheduled"
+      }
+    },
+    {
+      "error": null,
+      "ok": true,
+      "snapshot": null,
+      "value": {
+        "dueAt": null,
+        "id": 4,
+        "status": "scheduled"
+      }
+    },
+    {
+      "error": null,
+      "ok": true,
+      "snapshot": null,
+      "value": {
+        "taskId": 7
+      }
+    },
+    {
+      "error": "invalid",
+      "ok": false,
+      "snapshot": null,
+      "value": null
+    },
+    {
+      "error": null,
+      "ok": true,
+      "snapshot": null,
+      "value": {
+        "taskId": 8
+      }
+    },
+    {
+      "error": null,
+      "ok": true,
+      "snapshot": null,
+      "value": {
+        "taskId": 3
+      }
+    },
+    {
+      "error": "invalid",
+      "ok": false,
+      "snapshot": null,
+      "value": null
+    },
+    {
+      "error": null,
+      "ok": true,
+      "snapshot": null,
+      "value": {
+        "dismissed": "om_3"
+      }
+    },
+    {
+      "error": "invalid",
+      "ok": false,
+      "snapshot": null,
+      "value": null
+    },
+    {
+      "error": null,
+      "ok": true,
+      "snapshot": null,
+      "value": {
+        "claimed": [
+          "om_5"
+        ]
+      }
+    },
+    {
+      "error": null,
+      "ok": true,
+      "snapshot": null,
+      "value": {
+        "claimed": []
+      }
+    },
+    {
+      "error": null,
+      "ok": true,
+      "snapshot": null,
+      "value": {
+        "followUp": 0,
+        "none": 0,
+        "submitted": 1,
+        "todo": 1,
+        "update": 0
+      }
+    },
+    {
+      "error": null,
+      "ok": true,
+      "snapshot": null,
+      "value": {
+        "followUp": 0,
+        "none": 0,
+        "submitted": 1,
+        "todo": 1,
+        "update": 0
+      }
+    },
+    {
+      "error": null,
+      "ok": true,
+      "snapshot": null,
+      "value": {
+        "applied": [
+          "om_4"
+        ],
+        "demoted": [],
+        "dropped": [],
+        "kept": [
+          "om_4"
+        ]
+      }
+    },
+    {
+      "error": null,
+      "ok": true,
+      "snapshot": null,
+      "value": {
+        "dispatch": null,
+        "id": 9,
+        "status": "inbox"
+      }
+    },
+    {
+      "error": null,
+      "ok": true,
+      "snapshot": null,
+      "value": {
+        "dispatch": null,
+        "id": 10,
+        "status": "inbox"
+      }
+    },
+    {
+      "error": null,
+      "ok": true,
+      "snapshot": null,
+      "value": {
+        "deleted": 5
+      }
+    },
+    {
+      "error": null,
+      "ok": true,
+      "snapshot": null,
+      "value": {
+        "dispatch": null,
+        "id": 3,
+        "status": "active"
+      }
+    },
+    {
+      "error": null,
+      "ok": true,
+      "snapshot": null,
+      "value": {
+        "paused": 3
+      }
+    },
+    {
+      "error": null,
+      "ok": true,
+      "snapshot": null,
+      "value": {
+        "dispatch": null,
+        "id": 3,
+        "status": "active"
+      }
+    },
+    {
+      "error": null,
+      "ok": true,
+      "snapshot": null,
+      "value": {
+        "id": 3,
+        "status": "done"
+      }
+    },
+    {
+      "error": null,
+      "ok": true,
+      "snapshot": null,
+      "value": {
+        "id": 3,
+        "status": "scheduled"
+      }
+    },
+    {
+      "error": null,
+      "ok": true,
+      "snapshot": null,
+      "value": {
+        "taskId": 2,
+        "to": "queued"
+      }
+    },
+    {
+      "error": null,
+      "ok": true,
+      "snapshot": null,
+      "value": {
+        "taskId": 4,
+        "to": "queued"
+      }
+    },
+    {
+      "error": "invalid",
+      "ok": false,
+      "snapshot": null,
+      "value": null
+    },
+    {
+      "error": null,
+      "ok": true,
+      "snapshot": null,
+      "value": {
+        "acquired": true,
+        "host": "local"
+      }
+    },
+    {
+      "error": null,
+      "ok": true,
+      "snapshot": null,
+      "value": {
+        "acquired": true,
+        "host": "local"
+      }
+    },
+    {
+      "error": null,
+      "ok": true,
+      "snapshot": null,
+      "value": {
+        "acquired": false,
+        "host": "local"
+      }
+    },
+    {
+      "error": null,
+      "ok": true,
+      "snapshot": null,
+      "value": {
+        "result": "done",
+        "taskId": 4
+      }
+    },
+    {
+      "error": null,
+      "ok": true,
+      "snapshot": null,
+      "value": {
+        "acquired": false,
+        "host": "local"
+      }
+    },
+    {
+      "error": "invalid",
+      "ok": false,
+      "snapshot": null,
+      "value": null
+    },
+    {
+      "error": null,
+      "ok": true,
+      "snapshot": null,
+      "value": {
+        "taskId": 2,
+        "to": null
+      }
+    },
+    {
+      "error": null,
+      "ok": true,
+      "snapshot": null,
+      "value": {
+        "released": 2
+      }
+    },
+    {
+      "error": null,
+      "ok": true,
+      "snapshot": null,
+      "value": {
+        "dispatch": null,
+        "id": 2,
+        "status": "scheduled"
+      }
+    },
+    {
+      "error": null,
+      "ok": true,
+      "snapshot": null,
+      "value": {
+        "id": 2,
+        "status": "done"
+      }
+    },
+    {
+      "error": null,
+      "ok": true,
+      "snapshot": null,
+      "value": {
+        "id": 2,
+        "status": "scheduled"
+      }
+    },
+    {
+      "error": null,
+      "ok": true,
+      "snapshot": null,
+      "value": {
+        "id": 2,
+        "status": "cancelled"
+      }
+    },
+    {
+      "error": null,
+      "ok": true,
+      "snapshot": null,
+      "value": {
+        "dispatch": "done",
+        "id": 4,
+        "status": "active"
+      }
+    },
+    {
+      "error": null,
+      "ok": true,
+      "snapshot": null,
+      "value": {
+        "paused": 4
+      }
+    },
+    {
+      "error": null,
+      "ok": true,
+      "snapshot": null,
+      "value": {
+        "dispatch": "done",
+        "id": 4,
+        "status": "active"
+      }
+    },
+    {
+      "error": null,
+      "ok": true,
+      "snapshot": null,
+      "value": {
+        "id": 4,
+        "status": "done"
+      }
+    },
+    {
+      "error": null,
+      "ok": true,
+      "snapshot": null,
+      "value": {
+        "deleted": 9
+      }
+    },
+    {
+      "error": null,
+      "ok": true,
+      "snapshot": null,
+      "value": {
+        "deleted": 10
+      }
+    },
+    {
+      "error": null,
+      "ok": true,
+      "snapshot": null,
+      "value": {
+        "reclaimed": 0
+      }
+    }
+  ]
+}

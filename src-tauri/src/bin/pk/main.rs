@@ -76,6 +76,9 @@ const HELP: &str = r#"pk — 就决定是你了命令行（供 AI agent 与终�
   skill show                         打印技能内容（Markdown 原文，可重定向给任意 agent）
   remote shim --host <本机地址> [--port <n>] [--key <私钥>] [--write <路径>]
                                       生成远程主机上的 pk 透传脚本（agent 在远程、数据在本机时，命令经 ssh 回本机执行）
+  remote setup --host <OpenSSH 别名> [--tunnel-port <n>] [--pk-path <路径>] [--key-dir <目录>] [--timeout-secs <n>]
+                                      开通 pk 通道（部署驱动完整序列：密钥/公钥/私钥/指纹/shim/PATH/端到端验证，
+                                      幂等可重跑，JSON 报告输出；ADR-0003）
   category list                      分类列表
   tag list                           标签列表（含维度 dimensions 与标签归属维度）
   tag create <名字> [--dimension <维度key>] [--description <描述>]

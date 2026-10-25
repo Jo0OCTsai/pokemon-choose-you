@@ -1,0 +1,17 @@
+{
+  "kind": "anonymize",
+  "name": "restore-and-hallucination",
+  "now": "2026-01-15T09:00:00+08:00",
+  "setup": {
+    "feishu_users": [
+      { "open_id": "ou_z", "name": "张三", "alias": "成员_00aa", "updated_at": "2026-01-01T00:00:00Z" }
+    ]
+  },
+  "steps": [
+    { "op": "anon_restore", "args": { "text": "找成员_00aa对齐材料" } },
+    { "op": "anon_restore", "args": { "text": "找成员_ffff对齐" } },
+    { "op": "anon_restore", "args": { "text": "按 项目攻坚群 的安排推进" } },
+    { "op": "anon_scrub", "args": { "text": "在 项目攻坚群 里张三提到交付" } }
+  ],
+  "expect": "exact"
+}

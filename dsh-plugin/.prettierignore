@@ -1,0 +1,8 @@
+node_modules
+dist
+coverage
+pnpm-lock.yaml
+test-results
+*.md
+# e2e harness 为 esbuild 生成物（build-harness.mjs 重建——同 dist 口径，勿手排格式）
+e2e/harness

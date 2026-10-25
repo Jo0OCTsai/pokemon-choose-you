@@ -1,0 +1,61 @@
+/* conversation chip（宿主 header 行内单行；命中区 ≥32px；倒计时定宽防跳动） */
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  max-width: 360px;
+  min-height: 32px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  border: 1px solid var(--dsw-alias-border-l2, #d0d7de);
+  background: var(--dsw-alias-bg-layer-1, #ffffff);
+  color: var(--dsw-alias-label-primary, #1f2328);
+  font-size: 12px;
+  cursor: pointer;
+}
+.chip:hover {
+  background: var(--dsw-alias-interactive-bg-hover, #f0f2f5);
+}
+.chip:focus-visible {
+  outline: 2px solid var(--dsw-alias-state-business-primary, #316dca);
+  outline-offset: 1px;
+}
+.chip[data-mode="paused"] {
+  filter: saturate(0.6);
+}
+.chipTitle {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.chipTime {
+  font-variant-numeric: tabular-nums;
+  /* 定宽数字防跳动（UIUX §7） */
+  min-width: 5ch;
+  text-align: right;
+}
+.chipButton {
+  min-width: 32px;
+  min-height: 32px;
+  border: none;
+  border-radius: 50%;
+  background: transparent;
+  cursor: pointer;
+  font-size: 13px;
+  line-height: 1;
+  color: inherit;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.chipButton:hover {
+  background: var(--dsw-alias-interactive-bg-hover, #f0f2f5);
+}
+.chipButton:focus-visible {
+  outline: 2px solid var(--dsw-alias-state-business-primary, #316dca);
+}
+.chipButton:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}

@@ -1,7 +1,40 @@
+packages:
+  # dsh 插件包（specs/dsh-plugin AD §3.0 候选 A）+ 桌宠 Electron helper 子包（AD §3.3）
+  - dsh-plugin
+  - dsh-plugin/helper
 allowBuilds:
   lefthook: true
+  # helper 构建与开发机本地运行依赖（并行组 2）：
+  # - esbuild：build.mjs 直接依赖，postinstall 为平台二进制校验；
+  # - electron：仅开发机本地跑窗体需要二进制（运行时分发由插件侧探测下载 ~/.dsh/electron/，
+  #   AD §3.3）；CI 经 ELECTRON_SKIP_BINARY_DOWNLOAD=1 跳过下载（headless 测试不起窗体）
+  esbuild: true
+  electron: true
+  # dsh-ssh 家族运行时消费包内 prebuilds（darwin-arm64 在场），不跑 install 脚本：
+  # - uiohook-napi/node-pty 携带 prebuilds/；koffi 平台二进制走 optionalDependencies
+  "@deepseek-ai/dsh-subprocess-local": false
+  koffi: false
+  node-pty: false
+  uiohook-napi: false
 auditConfig:
   ignoreGhsas:
     - GHSA-vfj7-8cjw-p6xm
+minimumReleaseAgeExclude:
+  - "@deepseek-ai/dsh-agent@0.2.1-rc.2"
+  - "@deepseek-ai/dsh-brand@0.2.1-rc.2"
+  - "@deepseek-ai/dsh-client-connection@0.2.1-rc.2"
+  - "@deepseek-ai/dsh-credentials@0.2.1-rc.2"
+  - "@deepseek-ai/dsh-llm@0.2.1-rc.2"
+  - "@deepseek-ai/dsh-ptc-runtime@0.2.1-rc.2"
+  - "@deepseek-ai/dsh-scope@0.2.1-rc.2"
+  - "@deepseek-ai/dsh-session@0.2.1-rc.2"
+  - "@deepseek-ai/dsh-system-prompt@0.2.1-rc.2"
+  - "@deepseek-ai/dsh-timeout@0.2.1-rc.2"
+  - "@deepseek-ai/dsh-tools@0.2.1-rc.2"
+  - "@deepseek-ai/dsh-typert-protocol@0.2.1-rc.2"
+  - "@deepseek-ai/dsh-user-approval@0.2.1-rc.2"
+  - "@deepseek-ai/dsh-util-crypto@0.2.1-rc.2"
+  - "@deepseek-ai/dsh-util-values@0.2.1-rc.2"
+  - "@deepseek-ai/dsh-working-directory@0.2.1-rc.2"
 overrides:
   "brace-expansion@^5.0.0": ^5.0.11

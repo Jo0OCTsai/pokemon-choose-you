@@ -1,0 +1,10 @@
+{
+  "kind": "streak",
+  "name": "break-after-two-empty-days",
+  "now": "2026-09-13T09:00:00+08:00",
+  "setup": {},
+  "steps": [
+    { "op": "streak_eval", "args": { "doneDays": ["2026-09-08"], "today": "2026-09-13", "todayCount": 0 } }
+  ],
+  "expect": "exact"
+}
