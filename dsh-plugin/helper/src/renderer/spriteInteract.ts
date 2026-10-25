@@ -14,6 +14,8 @@ const bridge = window.petBridge;
 
 const DRAG_THRESHOLD_PX = 4;
 const PETTING_MS = 600;
+/** 松手挤压回弹时长（桌面 pk-release-squash 420ms 同口径） */
+const LAND_MS = 420;
 
 interface PointerSession {
   x: number;
@@ -75,6 +77,7 @@ function trackDrag(e: PointerEvent): void {
     s.dragging = true;
     if (s.pressTimer) clearTimeout(s.pressTimer);
     void bridge.interact("drag-start");
+    showDialog(lines(mirror.lang).beingCarried); // 拎起台词（桌面 pet.beingCarried 同文）
     mirror.perched = false; // 拎起即离开栖息姿态（FR-B1；落定后主进程复评回正）
     applyPetState();
   }
@@ -91,8 +94,10 @@ function finishPointer(): void {
   if (pointerSession.pressTimer) clearTimeout(pointerSession.pressTimer);
   pointerSession = null;
   if (wasDragging) {
-    // 松手：状态机回落 + 窗口位置上报（宿主侧持久化 + 坐栖判定，AD §4.3 cmd.pos）
+    // 松手：挤压回弹 420ms 后回落 + 落地台词 + 窗口位置上报（宿主侧持久化 + 坐栖判定，AD §4.3 cmd.pos）
     void bridge.interact("drag-end");
+    showDialog(lines(mirror.lang).dropped, { tone: "event", blink: true }); // 桌面 pet.dropped isNew ▼ 同口径
+    setTimeout(() => void bridge.interact("land-end"), LAND_MS);
     void bridge.reportPos();
     return;
   }

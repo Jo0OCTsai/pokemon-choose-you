@@ -76,7 +76,7 @@ function lineGate() {
     urgent: false, // helper 无 urgent 底态（U10 降级）——闸门位保留对齐桌面语义
     chatOpen: mirror.chatOpen,
     sceneBusy: mirror.sceneBusy,
-    dragging: mirror.petState.transient === "dragging",
+    dragging: mirror.petState.transient === "dragging" || mirror.petState.transient === "landing",
     quickOpen: mirror.quickOpen,
   };
 }

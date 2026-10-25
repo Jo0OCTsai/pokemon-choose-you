@@ -4,7 +4,7 @@
  * 结构：base（task-state 驱动的底态）+ transient（一次性演出/交互态，结束后回落 base）：
  * - base：idle（→asleep 子态：无任务 + 5min 无交互）/ working / paused；
  * - transient：celebrating（捕捉演出，一次性）/ petting（撸宠 0.9s 可被打断）/ dragging（拖动，
- *   悬挂物理）/ rest（短休息）；
+ *   悬挂小碎步）/ landing（松手挤压回弹 420ms 一次性，桌面 dragPhys release 同口径）/ rest（短休息）；
  * - urgent 抖动 v1 降级不做（U10）；小剧场/彩蛋/坐栖降级（D4）。
  *
  * 实现形态：事件 → handler 表分发（每事件一个小函数，复杂度档位对齐域核心口径——
@@ -13,7 +13,7 @@
 import type { ActiveTask } from "../bridge/protocol.ts";
 
 export type PetBaseState = "idle" | "working" | "paused" | "urgent";
-export type PetTransient = "celebrating" | "petting" | "dragging" | "rest";
+export type PetTransient = "celebrating" | "petting" | "dragging" | "landing" | "rest";
 
 export interface PetState {
   base: PetBaseState;
@@ -36,6 +36,8 @@ export type PetEvent =
   | { kind: "pet-end" }
   | { kind: "drag-start" }
   | { kind: "drag-end" }
+  /** 松手挤压回弹 420ms 到点回落（渲染层定时派发） */
+  | { kind: "land-end" }
   | { kind: "break-start" }
   | { kind: "break-end" }
   /** 任意用户交互（点击/悬停/拖动开始）——asleep 揉眼醒来 */
@@ -89,7 +91,8 @@ const HANDLERS: { [K in PetEvent["kind"]]: PetHandler<K> } = {
   "pet-start": (s) => (occupied(s) ? s : { ...s, transient: "petting", asleep: false }),
   "pet-end": (s) => clearTransient(s, "petting"),
   "drag-start": (s) => ({ ...s, transient: "dragging", asleep: false }),
-  "drag-end": (s) => clearTransient(s, "dragging"),
+  "drag-end": (s) => (s.transient === "dragging" ? { ...s, transient: "landing" } : s),
+  "land-end": (s) => clearTransient(s, "landing"),
   "break-start": (s) => (occupied(s) ? s : { ...s, transient: "rest" }),
   "break-end": (s) => clearTransient(s, "rest"),
   interact: (s) => (s.asleep ? { ...s, asleep: false } : s),

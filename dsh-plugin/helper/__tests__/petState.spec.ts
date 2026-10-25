@@ -58,7 +58,7 @@ describe("petState · 瞬态与睡醒", () => {
     s = reduce(s, { kind: "pet-end" });
     expect(s.transient).toBe("dragging");
     s = reduce(s, { kind: "drag-end" });
-    expect(s.transient).toBeNull();
+    expect(s.transient).toBe("landing"); // 松手先挤压回弹（桌面 dragPhys release 同口径）
   });
 
   it("rest：break-start 进入 / break-end 回落；celebrating/dragging 期间不进", () => {
@@ -85,5 +85,25 @@ describe("petState · 瞬态与睡醒", () => {
     // 无任务时保持睡态
     s = reduce(s, { kind: "task-state", task: null });
     expect(s.asleep).toBe(false); // 已醒不来回抖动（幂等）
+  });
+});
+
+describe("petState · 拖动收尾（dragging → landing）", () => {
+  it("landing（松手挤压回弹 420ms）：drag-end 进入，land-end 回落且幂等；非 dragging 不产生", () => {
+    let s: PetState = { base: "working", transient: "dragging", asleep: false };
+    s = reduce(s, { kind: "drag-end" });
+    expect(s).toEqual({ base: "working", transient: "landing", asleep: false });
+    s = reduce(s, { kind: "land-end" });
+    expect(s.transient).toBeNull();
+    expect(reduce(s, { kind: "land-end" })).toEqual(s); // 迟到/重复 land-end 幂等
+    expect(reduce(PET_IDLE_STATE, { kind: "drag-end" })).toEqual(PET_IDLE_STATE);
+  });
+
+  it("landing 期间 drag-start 强占回 dragging，上一段迟到的 land-end 不误清新拖动", () => {
+    let s: PetState = { base: "idle", transient: "landing", asleep: false };
+    s = reduce(s, { kind: "drag-start" });
+    expect(s.transient).toBe("dragging");
+    s = reduce(s, { kind: "land-end" });
+    expect(s.transient).toBe("dragging");
   });
 });

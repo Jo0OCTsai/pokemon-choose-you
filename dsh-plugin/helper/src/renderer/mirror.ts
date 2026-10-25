@@ -4,7 +4,7 @@ import type { InputBand } from "../state/inputCps.ts";
 
 export type PetStateLite = {
   base: "idle" | "working" | "paused" | "urgent";
-  transient: "celebrating" | "petting" | "dragging" | "rest" | null;
+  transient: "celebrating" | "petting" | "dragging" | "landing" | "rest" | null;
   asleep: boolean;
 };
 

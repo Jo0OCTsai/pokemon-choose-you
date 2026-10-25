@@ -21,6 +21,9 @@ export interface LineSet {
   chatQuotes: string[];
   /** 撸宠（长按 600ms）专属台词池 */
   petQuotes: string[];
+  // ---- 拖动（pet.beingCarried/dropped 同文——固定台词，不走 quotes 优先级链） ----
+  beingCarried: string;
+  dropped: string;
   /** 快捷屏空态 */
   quickEmpty: string;
   /** 右键菜单（对齐桌面六项口径与文案） */
@@ -81,6 +84,8 @@ const hans: LineSet = {
   greetNight: "夜深了，{p}说：再专注也要睡觉哦",
   chatQuotes: ["嗯？有什么事吗？", "我在听呢。", "皮皮～", "要一起去草丛看看吗？"],
   petQuotes: ["嘿嘿，好舒服～", "再摸摸头也可以哦。", "呼噜呼噜……"],
+  beingCarried: "（被拎起来了！小碎步紧张中）",
+  dropped: "咚！安全落地～",
   quickEmpty: "图鉴屏空空的，去图鉴机遇见一只野生宝可梦吧",
   menuSwitch: "切换捕捉目标…",
   menuQuick: "快捷图鉴屏",
@@ -131,6 +136,8 @@ const hant: LineSet = {
   greetNight: "夜深了，{p}說：再專注也要睡覺哦",
   chatQuotes: ["嗯？有什麼事嗎？", "我在聽呢。", "皮皮～", "要一起去草叢看看嗎？"],
   petQuotes: ["嘿嘿，好舒服～", "再摸摸頭也可以哦。", "呼嚕呼嚕……"],
+  beingCarried: "（被拎起來了！小碎步緊張中）",
+  dropped: "咚！安全落地～",
   quickEmpty: "圖鑑屏空空的，去圖鑑機遇見一隻野生寶可夢吧",
   menuSwitch: "切換捕捉目標…",
   menuQuick: "快捷圖鑑屏",
@@ -181,6 +188,8 @@ const en: LineSet = {
   greetNight: "It's late—{p} says: focus, but sleep too",
   chatQuotes: ["Hm? What's up?", "I'm listening.", "Pika~", "Shall we check the tall grass?"],
   petQuotes: ["Hehe, that's nice~", "Head pats welcome.", "Purr purr…"],
+  beingCarried: "(Picked up! Nervous little steps)",
+  dropped: "Thump! Landed safe~",
   quickEmpty: "Nothing here yet—encounter a wild Pokemon in the Pokedex",
   menuSwitch: "Switch target…",
   menuQuick: "Quick Dex screen",
