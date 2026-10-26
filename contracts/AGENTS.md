@@ -5,7 +5,7 @@
 
 ## 不变量与红线
 
-- **迁移 SQL 只追加**：`schema/` 按序号执行，`001_v1.sql` 自 002 起冻结、不得修改已发布条目；schema 变更一律追加新编号文件，并同步两侧执行清单（Rust `src-tauri/src/db.rs` MIGRATIONS + TS storage guarded 迁移）。
+- **迁移 SQL 只追加**：`schema/` 按序号执行，正式发布后 `001_v1.sql` 基线冻结、不得修改已发布条目；schema 变更一律追加新编号文件，并同步两侧执行清单（Rust `src-tauri/src/db.rs` MIGRATIONS + TS storage guarded 迁移）。
 - **场景/夹具由 Rust oracle 生成**：`scenarios/` 是输入（可手写/新增）、`fixtures/` 是 `src-tauri/src/contracts/` 契约测试执行的期望输出。重生成 = `UPDATE_FIXTURES=1 cargo test`（两步动作纪律：无环境变量时仅比对，Rust 行为漂移必须显式重生成——契约变更必须是有意决策）。
 - **fixtures 不得手改**：字节比对单源是 oracle 的 serde_json pretty 输出；`.prettierignore` 已豁免 `contracts/fixtures` 与 `contracts/scenarios`——手工格式重排会让比对误红，不要解除豁免。
 - **错误码 15 枚举单源 = `PROTOCOL.md` §2**：改码/增删码 = 双实现契约变更（TS `dsh-plugin` 错误面 + host 命令文档/UIUX 契约面同步），不是文案修改。

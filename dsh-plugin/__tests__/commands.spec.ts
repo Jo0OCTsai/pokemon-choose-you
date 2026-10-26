@@ -250,7 +250,7 @@ describe("host 命令装配面 · 背包/诊断/桌宠/通用/专注域", () => 
     expect(await f.call("petHide")).toMatchObject({ ok: true, data: { ok: true } });
     expect(await f.call("petStatus")).toMatchObject({ ok: true, data: { running: false } });
     expect(await f.call("petMove", { pos: { x: 1, y: 2 } })).toMatchObject({ ok: true });
-    expect(await f.call("dbStatus")).toMatchObject({ ok: true, data: { userVersion: 2, mode: "ok" } });
+    expect(await f.call("dbStatus")).toMatchObject({ ok: true, data: { userVersion: 1, mode: "ok" } });
     expect(await f.call("pomoTryFive", {})).toMatchObject({ ok: true, data: { ok: true } });
     expect(f.writes()).toBeGreaterThan(0);
   });

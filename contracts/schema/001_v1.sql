@@ -130,7 +130,8 @@ CREATE TABLE IF NOT EXISTS chat_messages (
     ai_agent TEXT NOT NULL DEFAULT '',
     dismiss_reason TEXT NOT NULL DEFAULT '',
     content_anon TEXT NOT NULL DEFAULT '',
-    at_me TEXT NOT NULL DEFAULT ''
+    at_me TEXT NOT NULL DEFAULT '',
+    judge_claimed_at TEXT NOT NULL DEFAULT ''
 );
 CREATE INDEX IF NOT EXISTS idx_chat_messages_created ON chat_messages(created_at);
 CREATE INDEX IF NOT EXISTS idx_chat_messages_chat ON chat_messages(chat_id, sent_at);
@@ -203,3 +204,19 @@ CREATE TABLE IF NOT EXISTS feishu_chats (
     -- muted / unmuted / unknown（unknown = 所在查询批次失败，降级不过滤）
     mute_outcome TEXT NOT NULL CHECK (mute_outcome IN ('muted','unmuted','unknown'))
 );
+
+-- 双形态派发与判定协调（specs/dsh-plugin 并行组 0）：机器级派发并发槽租约表
+-- （跨形态全局计数，FR-X1）。领取派发时插入、收口时删除、崩溃后过期回收
+-- （A6：租约时长 = 无头超时 + 5 分钟余量）。
+CREATE TABLE IF NOT EXISTS dispatch_slots (
+    -- 'local' 或 'ssh:user@host[:port]'（host_key 归一，跨形态合计计数的键）
+    host_key TEXT NOT NULL,
+    task_id INTEGER NOT NULL,
+    -- 持有方标识：'app' / 'dsh'（崩溃排障用，不参与互斥判定）
+    owner TEXT NOT NULL DEFAULT '',
+    acquired_at TEXT NOT NULL,
+    -- 崩溃自愈：超过该时刻的租约可被回收（扫描方删行不计入并发）
+    lease_expires_at TEXT NOT NULL,
+    PRIMARY KEY (host_key, task_id)
+);
+CREATE INDEX IF NOT EXISTS idx_dispatch_slots_lease ON dispatch_slots(lease_expires_at);

@@ -61,7 +61,7 @@ function restoreRollsBackCase(): void {
 
   const result = runRestore(dataDir(), db.conn, { backupId: snap }, new Date(2026, 9, 17, 15, 0, 0));
   expect(result.backupId).toMatch(/^pokemon-choose-you-20261017-150000(-\d+)?\.db$/);
-  expect(result.migratedTo).toBe(2);
+  expect(result.migratedTo).toBe(1);
   expect(result.seeded).toBe(false);
   // 数据回到备份点（桌面 restore_rolls_db_back_to_snapshot 同手法）
   expect(scalar(db.conn, "SELECT COUNT(*) FROM tasks")).toBe(1);
@@ -124,7 +124,7 @@ function v1RestoreCase(): void {
     new Date(2026, 9, 17, 15, 0, 0),
   );
   expect(scalar(db.conn, "SELECT title FROM tasks")).toBe("v1 任务");
-  expect(result.migratedTo).toBe(2);
+  expect(result.migratedTo).toBe(1);
   expect(result.seeded).toBe(true);
   expect(scalar(db.conn, "SELECT COUNT(*) FROM categories")).toBe(5);
   expect(scalar(db.conn, "SELECT COUNT(*) FROM dispatch_slots")).toBe(0);
@@ -144,6 +144,6 @@ describe("恢复 runRestore", () => {
   it("文件名白名单：拒路径分隔符与非备份名（桌面 is_backup_name 同款），库不变", whitelistRejectsCase);
   it("合法名但文件不存在 → NOT_FOUND；坏文件（非 SQLite）→ IMPORT_VALIDATION_FAILED 且库不变", missingAndCorruptCase);
   it("超窗备份拒绝（user_version 超插件兼容窗口）：库不变、不产生前置快照（Gherkin）", tooNewRejectedCase);
-  it("旧版本备份（v1）恢复：数据到位、迁移口径维持 v2、默认分类补种（Gherkin）", v1RestoreCase);
+  it("旧版本备份（v1）恢复：数据到位、迁移口径维持 v1、默认分类补种（Gherkin）", v1RestoreCase);
   it("提示词覆盖随备份点回滚（恢复是全库点态回滚，非导出通道的排除面）", promptOverrideRollbackCase);
 });

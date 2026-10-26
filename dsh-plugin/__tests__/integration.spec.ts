@@ -137,7 +137,7 @@ describe("createPlugin 分层替身集成（伪 ctx + 真实临时 SQLite）", (
   it("① 启动迁移+种子：schema 版本 / 默认分类与维度 / presets_v2 标记位", () => {
     const p = assemble({ pet: false });
     expect(p.migration.mode).toBe("ok");
-    expect(p.migration.userVersion).toBe(2);
+    expect(p.migration.userVersion).toBe(1);
     expect((p.conn.prepare("SELECT COUNT(*) AS n FROM categories").get() as { n: number }).n).toBe(5);
     expect((p.conn.prepare("SELECT COUNT(*) AS n FROM tag_dimensions").get() as { n: number }).n).toBe(4);
     expect(p.conn.prepare("SELECT value FROM settings WHERE key='ai_agent_presets_v2'").get()).toEqual({ value: "1" });
