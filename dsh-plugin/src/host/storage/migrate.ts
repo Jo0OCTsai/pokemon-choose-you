@@ -19,11 +19,11 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { getUserVersion, txImmediate, type Conn } from "./db";
 
-/** 契约 schema 文件（编号顺序 = 迁移顺序；MIGRATIONS[i] 把 user_version 从 i 升到 i+1） */
-export const SCHEMA_FILES = ["001_v1.sql", "002_dispatch_coord.sql"] as const;
+/** 契约 schema 文件（编号顺序 = 迁移顺序；MIGRATIONS[i] 把 user_version 从 i 升到 i+1）*/
+export const SCHEMA_FILES = ["001_v1.sql"] as const;
 
 /** 插件兼容窗口下限（dbStatus 呈现面；低于此值的库直接迁到打包上限——不再按下限停步） */
-export const MIN_SCHEMA = 2;
+export const MIN_SCHEMA = 1;
 
 /** 插件兼容窗口上限：库版本超出 → 只读模式（DB_SCHEMA_TOO_NEW）。
  *  铁律（D29 同版发版）：本值恒等于打包的契约 SQL 数——contracts 追加 003 而未同步

@@ -2160,30 +2160,24 @@ fn contracts_fixtures_have_no_orphans() {
     );
 }
 
-/// schema 同源断言（AD §4.4）：include_str! 的两个 SQL 与磁盘字节相等（防复制路径
-/// 漂移），裸执行两 SQL + PRAGMA user_version=2 后 sqlite_master 含 dispatch_slots、
+/// schema 同源断言（AD §4.4）：include_str! 的 SQL 与磁盘字节相等（防复制路径
+/// 漂移），裸执行 001 + PRAGMA user_version=1 后 sqlite_master 含 dispatch_slots、
 /// chat_messages 含 judge_claimed_at；与 db.rs 迁移产物同版本。
 #[test]
 fn contracts_schema_single_source() {
     const V1: &str = include_str!("../../../contracts/schema/001_v1.sql");
-    const V2: &str = include_str!("../../../contracts/schema/002_dispatch_coord.sql");
-    for (included, file) in [(V1, "001_v1.sql"), (V2, "002_dispatch_coord.sql")] {
-        let disk = std::fs::read_to_string(
-            Path::new(env!("CARGO_MANIFEST_DIR"))
-                .join("../contracts/schema")
-                .join(file),
-        )
-        .unwrap_or_else(|e| panic!("读 {file}: {e}"));
-        assert_eq!(
-            included, disk,
-            "contracts/schema/{file} 与编译进二进制的副本字节不一致"
-        );
-    }
+    let disk = std::fs::read_to_string(
+        Path::new(env!("CARGO_MANIFEST_DIR")).join("../contracts/schema/001_v1.sql"),
+    )
+    .unwrap_or_else(|e| panic!("读 001_v1.sql: {e}"));
+    assert_eq!(
+        V1, disk,
+        "contracts/schema/001_v1.sql 与编译进二进制的副本字节不一致"
+    );
     // 裸执行 → 关键表/列在场
     let conn = Connection::open_in_memory().unwrap();
     conn.execute_batch(V1).unwrap();
-    conn.execute_batch(V2).unwrap();
-    conn.execute_batch("PRAGMA user_version=2;").unwrap();
+    conn.execute_batch("PRAGMA user_version=1;").unwrap();
     let tables: HashSet<String> = {
         let mut stmt = conn
             .prepare("SELECT name FROM sqlite_master WHERE type='table'")
@@ -2193,7 +2187,7 @@ fn contracts_schema_single_source() {
             .collect::<Result<_, _>>()
             .unwrap()
     };
-    assert!(tables.contains("dispatch_slots"), "002 须建 dispatch_slots");
+    assert!(tables.contains("dispatch_slots"), "001 须建 dispatch_slots");
     let cols: HashSet<String> = {
         let mut stmt = conn.prepare("PRAGMA table_info(chat_messages)").unwrap();
         stmt.query_map([], |r| r.get::<_, String>(1))
@@ -2208,7 +2202,7 @@ fn contracts_schema_single_source() {
     let version: i64 = conn
         .query_row("PRAGMA user_version", [], |r| r.get(0))
         .unwrap();
-    assert_eq!(version, 2);
+    assert_eq!(version, 1);
     // 与 db.rs 迁移同源：init_conn 产物同版本号
     let migrated = Connection::open_in_memory().unwrap();
     db::init_conn(&migrated).unwrap();
@@ -2216,5 +2210,5 @@ fn contracts_schema_single_source() {
         .query_row("PRAGMA user_version", [], |r| r.get(0))
         .unwrap();
     assert_eq!(mv, db::expected_schema_version());
-    assert_eq!(mv, 2);
+    assert_eq!(mv, 1);
 }

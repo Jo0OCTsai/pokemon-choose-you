@@ -71,16 +71,9 @@ pub(crate) fn newest_log_file(dir: &Path) -> Option<PathBuf> {
 /// agent_sessions、suggested_note、内置分类换阵）已并入本基线。
 const SCHEMA_V1: &str = include_str!("../../contracts/schema/001_v1.sql");
 
-/// 002 · 双形态派发与判定协调：dispatch_slots 并发槽租约表 +
-/// chat_messages.judge_claimed_at 判定 claim 时间戳列（specs/dsh-plugin 并行组 0）。
-/// 以追加条目而非改 001 基线的方式落地：存量 v1 调试库（日常使用中的本机库）自动前滚，
-/// 免手动 ALTER 对齐；新库 001→002 顺序执行，产物与「并入基线」完全同构。
-const SCHEMA_V2_DISPATCH_COORD: &str =
-    include_str!("../../contracts/schema/002_dispatch_coord.sql");
-
 /// 迁移按序号执行：MIGRATIONS[i] 负责把 `PRAGMA user_version` 从 i 升到 i+1。
-/// 铁律：只追加，不修改已发布条目（001 基线自 002 起冻结；后续变更追加新条目）。
-const MIGRATIONS: &[&str] = &[SCHEMA_V1, SCHEMA_V2_DISPATCH_COORD];
+/// 铁律：只追加，不修改已发布条目（正式发布后 001 基线冻结；后续变更追加新条目）。
+const MIGRATIONS: &[&str] = &[SCHEMA_V1];
 
 /// 当前程序期望的 schema 版本（pk doctor 用它对比库的 user_version 判断「库比程序新/旧」；
 /// pk 自身不执行迁移——迁移只由应用启动时做，避免抢跑后让旧应用拒绝启动）

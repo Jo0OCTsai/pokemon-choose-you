@@ -50,10 +50,10 @@ describe("schema 字节同源（AD §4.4：内嵌与磁盘文件比对断言）"
 });
 
 describe("guarded 迁移（AD §5.3 / A19）", () => {
-  it("空库 → 迁移至 minSchema=2 + 种子（D15 冷启动）", () => {
+  it("空库 → 迁移至 minSchema=1 + 种子（D15 冷启动）", () => {
     const db = createTestDb();
     try {
-      expect(getUserVersion(db.conn)).toBe(2);
+      expect(getUserVersion(db.conn)).toBe(1);
       const cats = db.conn.prepare("SELECT COUNT(*) AS n FROM categories").get() as { n: number };
       expect(cats.n).toBe(5);
     } finally {
@@ -66,7 +66,7 @@ describe("guarded 迁移（AD §5.3 / A19）", () => {
     try {
       initConn(db.conn);
       initConn(db.conn);
-      expect(getUserVersion(db.conn)).toBe(2);
+      expect(getUserVersion(db.conn)).toBe(1);
       const cats = db.conn.prepare("SELECT COUNT(*) AS n FROM categories").get() as { n: number };
       const dims = db.conn.prepare("SELECT COUNT(*) AS n FROM tag_dimensions").get() as { n: number };
       expect(cats.n).toBe(5);
@@ -76,9 +76,9 @@ describe("guarded 迁移（AD §5.3 / A19）", () => {
     }
   });
 
-  it("迁移封顶 = 打包契约版（D29）：当前打包 2 份 SQL，冷启动迁满到 2", () => {
-    expect(MIN_SCHEMA).toBe(2);
-    expect(MAX_SCHEMA).toBe(2);
+  it("迁移封顶 = 打包契约版（D29）：当前打包 1 份 SQL，冷启动迁满到 1", () => {
+    expect(MIN_SCHEMA).toBe(1);
+    expect(MAX_SCHEMA).toBe(1);
     expect(MAX_SCHEMA).toBe(SCHEMA_FILES.length);
   });
 });
@@ -103,11 +103,11 @@ describe("guarded 迁移（AD §5.3 / A19）·下", () => {
     const fresh = open(join(db.dir, "future.db"));
     try {
       fresh.exec("CREATE TABLE marker (x)");
-      fresh.exec("PRAGMA user_version = 3;");
+      fresh.exec("PRAGMA user_version = 2;");
       const result = migrate(fresh);
       expect(result.mode).toBe("readonly");
-      expect(result.userVersion).toBe(3);
-      expect(result.pluginWindow).toEqual({ min: 2, max: 2 });
+      expect(result.userVersion).toBe(2);
+      expect(result.pluginWindow).toEqual({ min: 1, max: 1 });
       // 只读：initConn 不写种子、不迁移（FR-X2 浏览不损坏）
       const afterInit = initConn(fresh);
       expect(afterInit.mode).toBe("readonly");
@@ -119,27 +119,26 @@ describe("guarded 迁移（AD §5.3 / A19）·下", () => {
     }
   });
 
-  it("v1 存量库（user_version=1）前滚到 2：数据保留（002 只追加 dispatch_slots + claim 列）", () => {
+  it("老库（表已建但 user_version=0）前滚到 1：数据保留、幂等建表不报错", () => {
     const db = createTestDb();
-    const v1 = open(join(db.dir, "v1.db"));
+    const legacy = open(join(db.dir, "legacy.db"));
     try {
-      // 建到 v1：先全量迁移再手工降版本不可行（表已建），改为：空库迁移到 2 后，
-      // 另建「只执行 001」的库模拟 v1 存量
-      v1.exec(loadSchemaSql(SCHEMA_FILES[0]).sql);
-      v1.exec("PRAGMA user_version = 1;");
-      v1.prepare("INSERT INTO tasks (title, status, created_at) VALUES ('老任务', 'inbox', 't')").run();
-      const result = migrate(v1);
+      // 模拟迁移机制引入前的老路径建表（未写 user_version）
+      legacy.exec(loadSchemaSql(SCHEMA_FILES[0]).sql);
+      legacy.exec("PRAGMA user_version = 0;");
+      legacy.prepare("INSERT INTO tasks (title, status, created_at) VALUES ('老任务', 'inbox', 't')").run();
+      const result = migrate(legacy);
       expect(result.mode).toBe("ok");
-      expect(result.userVersion).toBe(2);
-      const title = v1.prepare("SELECT title FROM tasks LIMIT 1").get();
+      expect(result.userVersion).toBe(1);
+      const title = legacy.prepare("SELECT title FROM tasks LIMIT 1").get();
       expect(title).toEqual({ title: "老任务" });
-      // 002 的判定 claim 列已存在
-      const cols = v1.prepare("PRAGMA table_info(chat_messages)").all() as Array<{ name: string }>;
-      expect(cols.map((c) => c.name)).toContain("judge_claimed_at");
-      const slots = v1.prepare("SELECT name FROM sqlite_master WHERE name='dispatch_slots'").get();
+      // 派发协调表/列在位
+      const slots = legacy.prepare("SELECT name FROM sqlite_master WHERE name='dispatch_slots'").get();
       expect(slots).toEqual({ name: "dispatch_slots" });
+      const cols = legacy.prepare("PRAGMA table_info(chat_messages)").all() as Array<{ name: string }>;
+      expect(cols.map((c) => c.name)).toContain("judge_claimed_at");
     } finally {
-      v1.close();
+      legacy.close();
       db.close();
     }
   });
@@ -152,7 +151,7 @@ describe("guarded 迁移（AD §5.3 / A19）·下", () => {
     const { conn, migration } = openAndInit(nested);
     try {
       expect(migration.mode).toBe("ok");
-      expect(getUserVersion(conn)).toBe(2);
+      expect(getUserVersion(conn)).toBe(1);
       expect(conn.prepare("SELECT COUNT(*) AS n FROM categories").get()).toEqual({ n: 5 });
     } finally {
       conn.close();

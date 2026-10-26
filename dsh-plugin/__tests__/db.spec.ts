@@ -68,7 +68,7 @@ describe("txImmediate：单条 BEGIN IMMEDIATE 短事务·下", () => {
   it("getUserVersion 读取 schema 版本", () => {
     const db = createTestDb();
     try {
-      expect(getUserVersion(db.conn)).toBe(2);
+      expect(getUserVersion(db.conn)).toBe(1);
     } finally {
       db.close();
     }

@@ -2,7 +2,6 @@ import { DatabaseSync } from "node:sqlite";
 import { describe, expect, it } from "vitest";
 // vite ?raw 编译期加载契约 SQL（环境无关——happy-dom 下 import.meta.url 非 file 协议，不走 fs 相对解析）
 import schema001 from "../../contracts/schema/001_v1.sql?raw";
-import schema002 from "../../contracts/schema/002_dispatch_coord.sql?raw";
 import { apply, probeNodeSqlite, unsupportedSqliteError, type SqliteCapability } from "../src/host/index";
 
 describe("A1 能力探测：node:sqlite（AD NFR-3 ②）", () => {
@@ -30,15 +29,15 @@ describe("A1 能力探测：node:sqlite（AD NFR-3 ②）", () => {
 });
 
 describe("契约 schema 冒烟（与 A1 实测同口径）", () => {
-  it("contracts/schema 两个迁移 SQL 可在内存库顺序执行，业务表集完整", () => {
+  it("contracts/schema 基线 SQL 可在内存库执行，业务表集完整", () => {
     const db = new DatabaseSync(":memory:");
-    db.exec(`${schema001}\n${schema002}`);
+    db.exec(schema001);
     const tables = (
       db.prepare("SELECT name FROM sqlite_master WHERE type='table' ORDER BY name").all() as {
         name: string;
       }[]
     ).map((row) => row.name);
-    // 16 张业务表（001 的 15 张 + 002 的 dispatch_slots）；sqlite_sequence 为内部表不计入
+    // 16 张业务表；sqlite_sequence 为内部表不计入
     expect(tables).toEqual(
       expect.arrayContaining([
         "agent_sessions",
@@ -59,9 +58,6 @@ describe("契约 schema 冒烟（与 A1 实测同口径）", () => {
         "tasks",
       ]),
     );
-    // 002 的判定 claim 协议列（A22）在 chat_messages 上存在
-    const columns = db.prepare("PRAGMA table_info(chat_messages)").all() as { name: string }[];
-    expect(columns.map((column) => column.name)).toContain("judge_claimed_at");
     db.close();
   });
 });

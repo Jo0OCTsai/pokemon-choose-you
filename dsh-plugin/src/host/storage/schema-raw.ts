@@ -5,10 +5,8 @@
  * 与磁盘文件比对断言（AD §4.4「schema 同源断言」）。
  */
 import schema001 from "../../../../contracts/schema/001_v1.sql?raw";
-import schema002 from "../../../../contracts/schema/002_dispatch_coord.sql?raw";
 
 /** 契约 schema 文件名 → 编译期内嵌内容（与 contracts/schema/ 目录一一对应） */
 export default {
   "001_v1.sql": schema001,
-  "002_dispatch_coord.sql": schema002,
 } as const;

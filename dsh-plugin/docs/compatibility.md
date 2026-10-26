@@ -19,7 +19,7 @@
 | Node 版本 | v24.21.0（nvm；与 CI `setup-node` 同版本） |
 | flag | 不需要任何实验旗标，`node:sqlite` 开箱可用 |
 | warning | 无 ExperimentalWarning（`process.on("warning")` 探针未触发） |
-| 冒烟 | `DatabaseSync(":memory:")` 顺序执行 `contracts/schema/001_v1.sql` + `002_dispatch_coord.sql` 成功：17 张表 = 16 业务表（001 的 15 张 + 002 的 `dispatch_slots`）+ `sqlite_sequence`；`chat_messages.judge_claimed_at` 列在位 |
+| 冒烟 | `DatabaseSync(":memory:")` 执行 `contracts/schema/001_v1.sql` 成功：17 张表 = 16 业务表 + `sqlite_sequence` |
 | 内嵌 SQLite | 3.53.4（`process.versions.sqlite`） |
 
 结论：仓库工具链（Node ≥ 24 基线）满足 A1 前置，驱动选型维持 `node:sqlite`（零原生依赖）。
@@ -66,7 +66,7 @@ Electron 内嵌 Node 见 A4）——better-sqlite3 回落链（AD §2 A1）维�
 | `dsh-terminal` | 缺——web 宿主无 spawnTerminal/ctx.terminals 表面（0.2.x 平台事实）；交互派发/回放经外部终端真窗口承接（2026-10-18/21 已真机验证） |
 
 Electron 内嵌 Node（A1 宿主侧收口）：Node **24.21.0**（内嵌 SQLite **3.53.4**，无实验告警）——
-契约 schema（001+002）内存库建齐 **17 表**、`chat_messages.judge_claimed_at` 列在位、
+契约 schema（001 基线）内存库建齐 **17 表**、
 `PRAGMA user_version` 事务写读通过。**同运行体 TLS-PSK 探针复现 A3 失败签名**
 （`NO_CIPHER_MATCH`——BoringSSL 构建），即 node:sqlite 与 TLS-PSK 为相互独立的能力面，均已实测定论。
 
