@@ -37,4 +37,4 @@ minimumReleaseAgeExclude:
   - "@deepseek-ai/dsh-util-values@0.2.1-rc.3"
   - "@deepseek-ai/dsh-working-directory@0.2.1-rc.3"
 overrides:
-  "brace-expansion@^5.0.0": ^5.0.11
+  "brace-expansion@^5.0.0": ^5.0.12
