@@ -18,6 +18,7 @@ import { runSuggest } from "./suggest";
 import { runSkill } from "./skill";
 import { runContext } from "./context";
 import { runRemote, sshEntry } from "./remote";
+import { doctorReport } from "./doctor";
 import { listTaskLogs } from "../host/domain/tasks";
 
 // 契约 SQL 编译期内嵌注册（bundle 形态磁盘路径不可达；与 hostEntry 同款装配）
@@ -54,7 +55,7 @@ export function main(): void {
   if (args[0] === "doctor") {
     const p = parseArgs(args.slice(1));
     const ssh = flag(p, "ssh");
-    const { report, code } = doctorReport(ssh);
+    const { report, code } = doctorReport(process.env.PK_DB, ssh !== undefined && ssh !== "" ? ssh : undefined);
     process.stdout.write(`${JSON.stringify(report, null, 2)}\n`);
     process.exit(code);
   }
@@ -77,28 +78,6 @@ function emitThrown(fn: () => unknown): never {
     if (e instanceof CliError) fail(e.message, e.code);
     fail(dbErr(e).message, dbErr(e).code);
   }
-}
-
-function doctorReport(ssh: string | undefined): { report: unknown; code: number } {
-  // 阶段四对齐 doctor 全量检查；先覆盖库/schema 面（数据面自检可用）
-  void ssh;
-  const checks: Array<Record<string, unknown>> = [];
-  const dbOverride = process.env.PK_DB;
-  let code = 0;
-  try {
-    const conn = openDb(false);
-    conn.prepare("PRAGMA user_version").get();
-    checks.push({ name: "database", status: "ok", detail: dbOverride ?? "(default)" });
-  } catch (e) {
-    code = 1;
-    checks.push({
-      name: "database",
-      status: "error",
-      detail: e instanceof Error ? e.message : String(e),
-      fix: "启动一次应用或运行 pk init-db 初始化",
-    });
-  }
-  return { report: { ok: code === 0, checks }, code };
 }
 
 /** 入口分发：返回将打印到 stdout 的 JSON（对齐 bin/pk/main.rs 的 run） */

@@ -25,12 +25,12 @@
 
 ## 4. 阶段四：TS pk remote 家族
 
-- [ ] 4.1 `remote shim` 命令：脚本模板生成（直连形态 + 参数项），与 Rust 版逐字对齐。验证：信封场景比对逐字节一致（归一化 `<home>`）。
-- [ ] 4.2 ssh 编排底座：`src/pk/ssh.ts` 自持 execFile ssh/ssh-keygen/ssh-keyscan（BatchMode、ConnectTimeout、step timeout 到期 kill、`PK_SSH_BIN` 覆盖）。验证：注入假 ssh 二进制（PATH shim 记录调用参数）的单测断言参数构造与超时语义。
-- [ ] 4.3 `remote setup` 九步移植：authorized_keys 四形态收口、known_hosts 改写、私钥 stdin 推送、shim 落位、登录 shell PATH 验证、端到端验证 + ControlPersist master 收尾；SetupReport（camelCase ok/steps/version）入信封场景。验证：四形态收口与各步命令构造单测 + SetupReport 信封场景绿。
-- [ ] 4.4 Windows 分支：icacls 权限命令构造、路径反斜杠转义、shim 无 env 段形态、`__ssh_entry` 大小写不敏感比较。验证：命令构造单测（不依赖真 Windows）+ 信封场景含 Windows 形态断言。
-- [ ] 4.5 `__ssh_entry`：shlex 子集解析器移植（引号/转义/零展开/畸形即拒）、env 白名单、realpathSync 等价判定、spawn `process.execPath`+自身 argv 直启、拒绝退出码 78。验证：解析器单测表驱动（合法/白名单外/程序不匹配/畸形四类）+ E2E：本机真开 sshd 场景执行 forced-command 冒烟（macOS 宿主）。
-- [ ] 4.6 `pk doctor` TS 版对齐（含 `--ssh`）；node 环境检测项按 design Open Question 结论落（增补不改既有语义）。验证：信封场景 + 手工对照 Rust doctor 输出结构。
+- [x] 4.1 `remote shim` 命令：脚本模板生成（直连形态 + 参数项），与 Rust 版逐字对齐。验证：信封场景比对逐字节一致（归一化 `<home>`）。
+- [x] 4.2 ssh 编排底座：`src/pk/ssh.ts` 自持 execFile ssh/ssh-keygen/ssh-keyscan（BatchMode、ConnectTimeout、step timeout 到期 kill、`PK_SSH_BIN` 覆盖）。验证：注入假 ssh 二进制（PATH shim 记录调用参数）的单测断言参数构造与超时语义。
+- [x] 4.3 `remote setup` 九步移植：authorized_keys 四形态收口、known_hosts 改写、私钥 stdin 推送、shim 落位、登录 shell PATH 验证、端到端验证 + ControlPersist master 收尾；SetupReport（camelCase ok/steps/version）入信封场景。验证：四形态收口与各步命令构造单测 + SetupReport 信封场景绿。
+- [x] 4.4 Windows 分支：icacls 权限命令构造、路径反斜杠转义、shim 无 env 段形态、`__ssh_entry` 大小写不敏感比较。验证：命令构造单测（不依赖真 Windows）+ 信封场景含 Windows 形态断言。
+- [x] 4.5 `__ssh_entry`：shlex 子集解析器移植（引号/转义/零展开/畸形即拒）、env 白名单、realpathSync 等价判定、spawn `process.execPath`+自身 argv 直启、拒绝退出码 78。验证：解析器单测表驱动（合法/白名单外/程序不匹配/畸形四类）+ E2E：本机真开 sshd 场景执行 forced-command 冒烟（macOS 宿主）。
+- [x] 4.6 `pk doctor` TS 版对齐（含 `--ssh`）；node 环境检测项按 design Open Question 结论落（增补不改既有语义）。验证：信封场景 + 手工对照 Rust doctor 输出结构。
 
 ## 5. 阶段五：构建分发切换与收尾
 
