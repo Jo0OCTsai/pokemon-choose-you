@@ -1,0 +1,12 @@
+{
+  "kind": "cli_envelope",
+  "name": "category-tag",
+  "invocations": [
+    { "argv": ["category", "list"] },
+    { "argv": ["tag", "list"] },
+    { "argv": ["tag", "create", "需汇报"] },
+    { "argv": ["tag", "list"] },
+    { "argv": ["tag", "create", "需汇报"] },
+    { "argv": ["task", "create", "--title", "带标签任务", "--tags", "需汇报"] }
+  ]
+}

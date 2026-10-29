@@ -10,10 +10,10 @@
 
 ## 2. 阶段二：CLI 信封契约组与 Rust oracle
 
-- [ ] 2.1 定义场景 schema：`contracts/scenarios/cli_envelope/<name>.json`（argv、env 覆盖、库种子、期望归一化字段）；先覆盖每命令族代表命令（task create/list/done、note、log、session、dispatch、suggest 单条与 batch、category/tag、context、skill install 干跑、doctor、help --json、version、remote shim）。验证：schema 草案 review 通过后落盘。
-- [ ] 2.2 Rust oracle：集成测试经 `CARGO_BIN_EXE_pk` spawn pk，按场景设 `PK_DB`/env，捕获 stdout/退出码，归一化（`<ts:N>`/`<pk-version>`/`<home>`）后 `UPDATE_FIXTURES=1` 写 `contracts/fixtures/cli_envelope/`。验证：`UPDATE_FIXTURES=1 cargo test` 生成 fixtures，无变量比对模式（默认）亦绿。
-- [ ] 2.3 完备性断言：oracle 侧断言执行场景数 == scenarios 目录文件数。验证：新增场景文件后两侧计数测试同步红（TDD 先红后绿）。
-- [ ] 2.4 `contracts/AGENTS.md` 补信封契约组条目（fixtures 禁手改、再生命令、归一化字段表）。验证：lint-gate 绿。
+- [x] 2.1 定义场景 schema：`contracts/scenarios/cli_envelope/<name>.json`（argv、env 覆盖、库种子、期望归一化字段）；先覆盖每命令族代表命令（task create/list/done、note、log、session、dispatch、suggest 单条与 batch、category/tag、context、skill install 干跑、doctor、help --json、version、remote shim）。验证：schema 草案 review 通过后落盘。
+- [x] 2.2 Rust oracle：集成测试经 `CARGO_BIN_EXE_pk` spawn pk，按场景设 `PK_DB`/env，捕获 stdout/退出码，归一化（`<ts:N>`/`<pk-version>`/`<home>`）后 `UPDATE_FIXTURES=1` 写 `contracts/fixtures/cli_envelope/`。验证：`UPDATE_FIXTURES=1 cargo test` 生成 fixtures，无变量比对模式（默认）亦绿。
+- [x] 2.3 完备性断言：oracle 侧断言执行场景数 == scenarios 目录文件数。验证：新增场景文件后两侧计数测试同步红（TDD 先红后绿）。
+- [x] 2.4 `contracts/AGENTS.md` 补信封契约组条目（fixtures 禁手改、再生命令、归一化字段表）。验证：lint-gate 绿。
 
 ## 3. 阶段三：TS pk 数据面命令
 

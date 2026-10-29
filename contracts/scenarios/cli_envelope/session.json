@@ -1,0 +1,9 @@
+{
+  "kind": "cli_envelope",
+  "name": "session",
+  "invocations": [
+    { "argv": ["session", "log", "--agent", "claude-code", "--session", "abc123", "--command", "npm test", "--exit-code", "0", "--status", "ok", "--duration-ms", "61000", "--cost", "0.12", "--in-tokens", "1000", "--out-tokens", "2000"] },
+    { "argv": ["session", "log", "--agent", "pi", "--session", "def456", "--status", "error", "--exit-code", "1"] },
+    { "argv": ["session", "list"] }
+  ]
+}

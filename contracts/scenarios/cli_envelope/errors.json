@@ -1,0 +1,10 @@
+{
+  "kind": "cli_envelope",
+  "name": "errors",
+  "invocations": [
+    { "argv": ["frobnicate"] },
+    { "argv": ["task", "get", "999"] },
+    { "argv": ["task", "create"] },
+    { "argv": ["task"] }
+  ]
+}

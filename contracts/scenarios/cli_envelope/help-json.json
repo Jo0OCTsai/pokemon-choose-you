@@ -1,0 +1,7 @@
+{
+  "kind": "cli_envelope",
+  "name": "help-json",
+  "invocations": [
+    { "argv": ["help", "--json"] }
+  ]
+}

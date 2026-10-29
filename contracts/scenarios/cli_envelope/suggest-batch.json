@@ -1,0 +1,60 @@
+{
+  "kind": "cli_envelope",
+  "name": "suggest-batch",
+  "invocations": [
+    {
+      "argv": [
+        "task",
+        "create",
+        "--title",
+        "已存在的联调任务"
+      ]
+    },
+    {
+      "argv": [
+        "suggest",
+        "batch",
+        "--agent",
+        "claude-code"
+      ],
+      "stdin": "{\"results\": [{\"messageId\": \"om_1\", \"action\": \"todo\", \"title\": \"交周报\", \"due\": \"2026-11-06T18:00\", \"priority\": \"high\", \"reason\": \"对方明确要求\"}, {\"messageId\": \"om_2\", \"action\": \"update\", \"note\": \"客户补充了验收口径\", \"updateTaskId\": 1}]}"
+    },
+    {
+      "argv": [
+        "suggest",
+        "batch",
+        "--agent",
+        "claude-code"
+      ],
+      "stdin": "{\"results\":[{\"messageId\":\"om_3\",\"action\":\"todo\",\"title\":\"好的一批里夹一条坏的\"},{\"messageId\":\"om_4\",\"action\":\"todo\",\"title\":\"不合法优先级\",\"priority\":\"super\"}]}"
+    }
+  ],
+  "setup": {
+    "chatMessages": [
+      {
+        "id": 1,
+        "messageId": "om_1",
+        "content": "记得周五前交周报",
+        "createdAt": "2026-11-01T09:00:00+08:00"
+      },
+      {
+        "id": 2,
+        "messageId": "om_2",
+        "content": "联调任务客户补充了验收口径",
+        "createdAt": "2026-11-01T09:00:00+08:00"
+      },
+      {
+        "id": 3,
+        "messageId": "om_3",
+        "content": "今晚吃什么",
+        "createdAt": "2026-11-01T09:00:00+08:00"
+      },
+      {
+        "id": 4,
+        "messageId": "om_4",
+        "content": "好的一批里夹一条坏的",
+        "createdAt": "2026-11-01T09:00:00+08:00"
+      }
+    ]
+  }
+}

@@ -1,0 +1,226 @@
+{
+  "kind": "cli_envelope",
+  "name": "task-full-lifecycle",
+  "results": [
+    {
+      "exitCode": 0,
+      "stderr": "",
+      "stdout": {
+        "created": {
+          "cancelledAt": null,
+          "categoryId": 1,
+          "completedAt": null,
+          "createdAt": "<ts1>",
+          "dispatchState": null,
+          "dispatchedSession": null,
+          "dueAt": "<ts2>",
+          "externalId": null,
+          "focusSeconds": 0,
+          "id": 1,
+          "note": "对方周五前要",
+          "priority": "normal",
+          "remindAt": null,
+          "reminded": false,
+          "source": "cli",
+          "startedAt": null,
+          "status": "scheduled",
+          "tags": [],
+          "title": "交周报"
+        }
+      }
+    },
+    {
+      "exitCode": 0,
+      "stderr": "",
+      "stdout": {
+        "count": 1,
+        "filter": "open",
+        "hint": null,
+        "tasks": [
+          {
+            "cancelledAt": null,
+            "categoryId": 1,
+            "completedAt": null,
+            "createdAt": "<ts1>",
+            "dispatchState": null,
+            "dispatchedSession": null,
+            "dueAt": "<ts2>",
+            "externalId": null,
+            "focusSeconds": 0,
+            "id": 1,
+            "note": "对方周五前要",
+            "priority": "normal",
+            "remindAt": null,
+            "reminded": false,
+            "source": "cli",
+            "startedAt": null,
+            "status": "scheduled",
+            "tags": [],
+            "title": "交周报"
+          }
+        ],
+        "total": 1,
+        "truncated": false
+      }
+    },
+    {
+      "exitCode": 0,
+      "stderr": "",
+      "stdout": {
+        "notes": [],
+        "task": {
+          "cancelledAt": null,
+          "categoryId": 1,
+          "completedAt": null,
+          "createdAt": "<ts1>",
+          "dispatchState": null,
+          "dispatchedSession": null,
+          "dueAt": "<ts2>",
+          "externalId": null,
+          "focusSeconds": 0,
+          "id": 1,
+          "note": "对方周五前要",
+          "priority": "normal",
+          "remindAt": null,
+          "reminded": false,
+          "source": "cli",
+          "startedAt": null,
+          "status": "scheduled",
+          "tags": [],
+          "title": "交周报"
+        }
+      }
+    },
+    {
+      "exitCode": 0,
+      "stderr": "",
+      "stdout": {
+        "updated": {
+          "cancelledAt": null,
+          "categoryId": 1,
+          "completedAt": null,
+          "createdAt": "<ts1>",
+          "dispatchState": null,
+          "dispatchedSession": null,
+          "dueAt": null,
+          "externalId": null,
+          "focusSeconds": 0,
+          "id": 1,
+          "note": "对方周五前要",
+          "priority": "urgent",
+          "remindAt": null,
+          "reminded": false,
+          "source": "cli",
+          "startedAt": null,
+          "status": "inbox",
+          "tags": [],
+          "title": "交周报"
+        }
+      }
+    },
+    {
+      "exitCode": 0,
+      "stderr": "",
+      "stdout": {
+        "count": 1,
+        "query": "周报",
+        "tasks": [
+          {
+            "cancelledAt": null,
+            "categoryId": 1,
+            "completedAt": null,
+            "createdAt": "<ts1>",
+            "dispatchState": null,
+            "dispatchedSession": null,
+            "dueAt": null,
+            "externalId": null,
+            "focusSeconds": 0,
+            "id": 1,
+            "note": "对方周五前要",
+            "priority": "urgent",
+            "remindAt": null,
+            "reminded": false,
+            "source": "cli",
+            "startedAt": null,
+            "status": "inbox",
+            "tags": [],
+            "title": "交周报"
+          }
+        ]
+      }
+    },
+    {
+      "exitCode": 0,
+      "stderr": "",
+      "stdout": {
+        "done": {
+          "cancelledAt": null,
+          "categoryId": 1,
+          "completedAt": "<ts1>",
+          "createdAt": "<ts2>",
+          "dispatchState": null,
+          "dispatchedSession": null,
+          "dueAt": null,
+          "externalId": null,
+          "focusSeconds": 0,
+          "id": 1,
+          "note": "对方周五前要",
+          "priority": "urgent",
+          "remindAt": null,
+          "reminded": false,
+          "source": "cli",
+          "startedAt": null,
+          "status": "done",
+          "tags": [],
+          "title": "交周报"
+        }
+      }
+    },
+    {
+      "exitCode": 0,
+      "stderr": "",
+      "stdout": {
+        "count": 1,
+        "filter": "done",
+        "hint": null,
+        "tasks": [
+          {
+            "cancelledAt": null,
+            "categoryId": 1,
+            "completedAt": "<ts1>",
+            "createdAt": "<ts2>",
+            "dispatchState": null,
+            "dispatchedSession": null,
+            "dueAt": null,
+            "externalId": null,
+            "focusSeconds": 0,
+            "id": 1,
+            "note": "对方周五前要",
+            "priority": "urgent",
+            "remindAt": null,
+            "reminded": false,
+            "source": "cli",
+            "startedAt": null,
+            "status": "done",
+            "tags": [],
+            "title": "交周报"
+          }
+        ],
+        "total": 1,
+        "truncated": false
+      }
+    },
+    {
+      "exitCode": 0,
+      "stderr": "",
+      "stdout": {
+        "count": 0,
+        "filter": "open",
+        "hint": null,
+        "tasks": [],
+        "total": 0,
+        "truncated": false
+      }
+    }
+  ]
+}

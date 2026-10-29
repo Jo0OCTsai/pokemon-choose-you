@@ -1,0 +1,30 @@
+{
+  "kind": "cli_envelope",
+  "name": "skill-install-dir",
+  "results": [
+    {
+      "exitCode": 0,
+      "stderr": "",
+      "stdout": {
+        "agent": "claude-code",
+        "installed": true,
+        "path": "pky-skills/pokemon-choose-you/SKILL.md",
+        "previousVersion": null,
+        "updated": false,
+        "version": "9"
+      }
+    },
+    {
+      "exitCode": 0,
+      "stderr": "",
+      "stdout": {
+        "agent": "claude-code",
+        "installed": true,
+        "path": "pky-skills/pokemon-choose-you/SKILL.md",
+        "previousVersion": "9",
+        "updated": false,
+        "version": "9"
+      }
+    }
+  ]
+}

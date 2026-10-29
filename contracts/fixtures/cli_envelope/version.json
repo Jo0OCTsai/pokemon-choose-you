@@ -1,0 +1,11 @@
+{
+  "kind": "cli_envelope",
+  "name": "version",
+  "results": [
+    {
+      "exitCode": 0,
+      "stderr": "",
+      "stdout": "<pk-version>"
+    }
+  ]
+}

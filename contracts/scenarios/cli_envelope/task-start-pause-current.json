@@ -1,0 +1,14 @@
+{
+  "kind": "cli_envelope",
+  "name": "task-start-pause-current",
+  "invocations": [
+    { "argv": ["task", "create", "--title", "写方案"] },
+    { "argv": ["task", "create", "--title", "复盘会"] },
+    { "argv": ["task", "start", "1"] },
+    { "argv": ["task", "current"] },
+    { "argv": ["task", "start", "2"] },
+    { "argv": ["task", "current"] },
+    { "argv": ["task", "pause"] },
+    { "argv": ["task", "current"] }
+  ]
+}

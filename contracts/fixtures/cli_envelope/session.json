@@ -1,0 +1,110 @@
+{
+  "kind": "cli_envelope",
+  "name": "session",
+  "results": [
+    {
+      "exitCode": 0,
+      "stderr": "",
+      "stdout": {
+        "session": {
+          "agentId": "claude-code",
+          "agentName": "claude-code",
+          "command": "npm test",
+          "costUsd": 0.12,
+          "createdAt": "<ts1>",
+          "durationMs": 61000,
+          "exitCode": 0,
+          "id": 1,
+          "inputTokens": 1000,
+          "kind": "pk",
+          "outputTokens": 2000,
+          "remoteHost": "",
+          "remoteKey": "",
+          "remotePort": 0,
+          "sessionId": "abc123",
+          "status": "ok",
+          "taskId": null,
+          "tmuxSession": "",
+          "workdir": "/private<cwd>"
+        }
+      }
+    },
+    {
+      "exitCode": 0,
+      "stderr": "",
+      "stdout": {
+        "session": {
+          "agentId": "pi",
+          "agentName": "pi",
+          "command": null,
+          "costUsd": null,
+          "createdAt": "<ts1>",
+          "durationMs": null,
+          "exitCode": 1,
+          "id": 2,
+          "inputTokens": null,
+          "kind": "pk",
+          "outputTokens": null,
+          "remoteHost": "",
+          "remoteKey": "",
+          "remotePort": 0,
+          "sessionId": "def456",
+          "status": "error",
+          "taskId": null,
+          "tmuxSession": "",
+          "workdir": "/private<cwd>"
+        }
+      }
+    },
+    {
+      "exitCode": 0,
+      "stderr": "",
+      "stdout": {
+        "sessions": [
+          {
+            "agentId": "pi",
+            "agentName": "pi",
+            "command": null,
+            "costUsd": null,
+            "createdAt": "<ts1>",
+            "durationMs": null,
+            "exitCode": 1,
+            "id": 2,
+            "inputTokens": null,
+            "kind": "pk",
+            "outputTokens": null,
+            "remoteHost": "",
+            "remoteKey": "",
+            "remotePort": 0,
+            "sessionId": "def456",
+            "status": "error",
+            "taskId": null,
+            "tmuxSession": "",
+            "workdir": "/private<cwd>"
+          },
+          {
+            "agentId": "claude-code",
+            "agentName": "claude-code",
+            "command": "npm test",
+            "costUsd": 0.12,
+            "createdAt": "<ts2>",
+            "durationMs": 61000,
+            "exitCode": 0,
+            "id": 1,
+            "inputTokens": 1000,
+            "kind": "pk",
+            "outputTokens": 2000,
+            "remoteHost": "",
+            "remoteKey": "",
+            "remotePort": 0,
+            "sessionId": "abc123",
+            "status": "ok",
+            "taskId": null,
+            "tmuxSession": "",
+            "workdir": "/private<cwd>"
+          }
+        ]
+      }
+    }
+  ]
+}

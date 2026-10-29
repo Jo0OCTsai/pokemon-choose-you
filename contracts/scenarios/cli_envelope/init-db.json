@@ -1,0 +1,8 @@
+{
+  "kind": "cli_envelope",
+  "name": "init-db",
+  "invocations": [
+    { "argv": ["init-db"] },
+    { "argv": ["task", "list"] }
+  ]
+}
