@@ -107,6 +107,12 @@ function schemaChecks(conn: Conn): DoctorCheck[] {
       ),
     );
   }
+  out.push(tablesCheck(conn));
+  return out;
+}
+
+/** 关键表齐全性：schema 基线 12 张表 */
+function tablesCheck(conn: Conn): DoctorCheck {
   const tables = [
     "tasks",
     "categories",
@@ -126,11 +132,9 @@ function schemaChecks(conn: Conn): DoctorCheck[] {
   }>;
   const missing = tables.filter((t) => !present.some((p) => p.name === t));
   if (missing.length === 0) {
-    out.push(check("tables", "ok", `${tables.length} 张表齐全`));
-  } else {
-    out.push(check("tables", "fail", `缺少表：${missing.join("、")}`, "schema 与 pk 版本不匹配，升级应用后重试"));
+    return check("tables", "ok", `${tables.length} 张表齐全`);
   }
-  return out;
+  return check("tables", "fail", `缺少表：${missing.join("、")}`, "schema 与 pk 版本不匹配，升级应用后重试");
 }
 
 function integrityCheck(conn: Conn): DoctorCheck {

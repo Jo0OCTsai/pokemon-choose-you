@@ -34,12 +34,12 @@
 
 ## 5. 阶段五：构建分发切换与收尾
 
-- [ ] 5.1 esbuild 正式入口：`src/pk/main.ts` → `dist/pk.mjs`（单文件 ESM、shebang banner、`define` 注入包版本）挂入 `build.mjs`；`package.json` files 增产物。验证：`pnpm build`（dsh-plugin）产出 `dist/pk.mjs`，`node dist/pk.mjs --version` 输出包版本。
-- [ ] 5.2 落位切换：`pkLocal.ts` `ensureLocalPk()` 拷贝源改 `dist/pk.mjs`，落位 `~/.choose-you/bin/pk`（Windows 另落 `pk.cmd` 包装），sha256 漂移重拷不变。验证：单测（临时 HOME 落位断言 + 漂移重拷）+ 本机真落位后 PATH 中 `pk --version` 冒烟。
-- [ ] 5.3 vendor 移除：删 `build.mjs` vendor 拷贝段与 `dsh-plugin/vendor/`；确认 `pkSetup.ts` spawn 路径无需改动（落位文件形态变化对调用方透明）。验证：`pnpm build` 产物无 `vendor/`、`deploymentSetupPk` 命令集成测试绿。
-- [ ] 5.4 文档收尾：`dsh-plugin/AGENTS.md`（src/pk/ 不变量、零平台面依赖、信封回放入口）、`docs/debt.md` 无新增遗留。验证：review + lint-gate 绿。
-- [ ] 5.5 ADR 留痕：新增 `docs/decisions/0006-remote-setup-dual-implementation-per-host.md`（内容按 design D6），`0003` 头部加 superseded 注记。验证：ADR review 通过。
-- [ ] 5.6 全量验收：`pnpm test`、`pnpm test:rust:coverage`、`cargo test`、`pnpm check:duplicates`、`python3 .devcontainer/scripts/quality_ratchet_check.py` 全绿；E2E：`specs/pk-cli/spec.md` 每 Scenario ≥ 1 用例（raw 报告落 `openspec/changes/ts-pk-and-agent-plugins/reports/`）；`pnpm build` + `pnpm audit:npm` + `gitleaks detect` 通过。
+- [x] 5.1 esbuild 正式入口：`src/pk/main.ts` → `dist/pk.mjs`（单文件 ESM、shebang banner、`define` 注入包版本）挂入 `build.mjs`；`package.json` files 增产物。验证：`pnpm build`（dsh-plugin）产出 `dist/pk.mjs`，`node dist/pk.mjs --version` 输出包版本。
+- [x] 5.2 落位切换：`pkLocal.ts` `ensureLocalPk()` 拷贝源改 `dist/pk.mjs`，落位 `~/.choose-you/bin/pk`（Windows 另落 `pk.cmd` 包装），sha256 漂移重拷不变。验证：单测（临时 HOME 落位断言 + 漂移重拷）+ 本机真落位后 PATH 中 `pk --version` 冒烟。
+- [x] 5.3 vendor 移除：删 `build.mjs` vendor 拷贝段与 `dsh-plugin/vendor/`；确认 `pkSetup.ts` spawn 路径无需改动（落位文件形态变化对调用方透明）。验证：`pnpm build` 产物无 `vendor/`、`deploymentSetupPk` 命令集成测试绿。
+- [x] 5.4 文档收尾：`dsh-plugin/AGENTS.md`（src/pk/ 不变量、零平台面依赖、信封回放入口）、`docs/debt.md` 无新增遗留。验证：review + lint-gate 绿。
+- [x] 5.5 ADR 留痕：新增 `docs/decisions/0006-remote-setup-dual-implementation-per-host.md`（内容按 design D6），`0003` 头部加 superseded 注记。验证：ADR review 通过。
+- [x] 5.6 全量验收：`pnpm test`、`pnpm test:rust:coverage`、`cargo test`、`pnpm check:duplicates`、`python3 .devcontainer/scripts/quality_ratchet_check.py` 全绿；E2E：`specs/pk-cli/spec.md` 每 Scenario ≥ 1 用例（raw 报告落 `openspec/changes/ts-pk-and-agent-plugins/reports/`）；`pnpm build` + `pnpm audit:npm` + `gitleaks detect` 通过。
 
 ## Workflow follow-up
 

@@ -35,17 +35,7 @@ export function sshRun(
   remoteLine: string,
   stdin: string | null,
 ): [boolean, string] {
-  const args = ["-o", "BatchMode=yes", "-o", "ConnectTimeout=10"];
-  if (ctx.agentKey !== null && ctx.agentKey.trim() !== "") {
-    args.push("-i", ctx.agentKey);
-  }
-  if (ctx.sshPort !== 0 && ctx.sshPort !== 22) {
-    args.push("-p", String(ctx.sshPort));
-  }
-  args.push(...extra);
-  // -- 在 host 之前：以 - 开头的 host 不被当成 ssh 选项
-  args.push("--", ctx.host.trim(), remoteLine);
-  const out = spawnSync(ctx.sshProgram, args, {
+  const out = spawnSync(ctx.sshProgram, sshArgs(ctx, extra, remoteLine), {
     input: stdin ?? undefined,
     encoding: "utf8",
     timeout: ctx.stepTimeoutMs,
@@ -77,4 +67,17 @@ export function keyscanLocal(keyscanProgram: string, timeoutMs: number): string 
   if (out.error || out.status !== 0) return null;
   const stdout = (out.stdout ?? "").trim();
   return stdout === "" ? null : stdout;
+}
+
+/** ssh 参数组装（BatchMode/超时/显式端口与密钥；-- 在 host 前防选项注入） */
+function sshArgs(ctx: SshCtx, extra: readonly string[], remoteLine: string): string[] {
+  const args = ["-o", "BatchMode=yes", "-o", "ConnectTimeout=10"];
+  if (ctx.agentKey !== null && ctx.agentKey.trim() !== "") {
+    args.push("-i", ctx.agentKey);
+  }
+  if (ctx.sshPort !== 0 && ctx.sshPort !== 22) {
+    args.push("-p", String(ctx.sshPort));
+  }
+  args.push(...extra);
+  return [...args, "--", ctx.host.trim(), remoteLine];
 }

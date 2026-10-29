@@ -30,7 +30,8 @@
   部署绑定路由的 workdir 缺省层 = 实体登记工作区压过 `agent.workdir`（本机路径语义——`routeWorkdir`
   层级：路由表/tag meta 恒先 → 实体 workdir → agent.workdir；判定侧同口径 `remoteJudgeExecutorFor`）；
   `agent.remote`（SSH host/端口表单）保留为桌面共享面，不驱动插件派发。
-- **常驻隧道与 pk 通道（ADR-0003）**：`remote/tunnelSupervisor.ts`（零 dsh import）+ `remote/tunnelLock.ts`（与桌面 `tunnel_lock.rs` 同锁协议：`<appHome>/tunnels/<部署id>` 目录锁 + PID 探活）维持任一宿主驻留期的隧道；`remote/pkLocal.ts` 纯 dsh 的 vendor → `~/.choose-you/bin/pk` 落位；`dsh/pkSetup.ts` spawn `pk remote setup`。装配在 `dsh/hostEntry.ts`（服务注入命令面 `tunnels`/`pkSetup`，部署写命令 resync）。
+- **常驻隧道与 pk 通道（ADR-0003 + ADR-0006）**：`remote/tunnelSupervisor.ts`（零 dsh import）+ `remote/tunnelLock.ts`（与桌面 `tunnel_lock.rs` 同锁协议：`<appHome>/tunnels/<部署id>` 目录锁 + PID 探活）维持任一宿主驻留期的隧道；`remote/pkLocal.ts` 把 `dist/pk.mjs` 落位 `~/.choose-you/bin/pk`（Windows `pk.cmd`，sha256 漂移覆盖）；`dsh/pkSetup.ts` spawn `pk remote setup`。装配在 `dsh/hostEntry.ts`（服务注入命令面 `tunnels`/`pkSetup`，部署写命令 resync）。
+- **pk TS 实现与 CLI 信封契约（ADR-0006）**：`src/pk/` 是全量 pk 命令面的 TS 实现（数据面复用 `host/domain` + `host/storage`；remote 家族自持 ssh 编排），构建为单文件 `dist/pk.mjs`（node shebang）。**硬约束：pk 依赖图零 dsh 平台面模块**（`dsh/`、`radio/`、`dispatch/`、`remote/`、`pet/`、`src/client/`）——`__tests__/pk-cli-envelope.spec.ts` 的 metafile guard 机器检。双实现一致性 = contracts `cli_envelope` 组（Rust oracle 生成 fixtures / TS 回放字段树比对，归一化占位符双侧同构）；`doctor`/`remote setup`/`__ssh_entry` 不入信封组，由 `__tests__/pk-remote.spec.ts` 假程序注入锁结构。
 - **`agent_sessions.session_id` 的 `pty:` 标记**：远端交互派发把 dsh-ssh PTY 句柄落该列（同任务重派写回同一 PTY），
   必须经 `dispatch/sessionsReplay.ts` 的 `ptySessionRef()` 加前缀——它不是 agent 会话 id，回放路由见前缀走
   picker 分支（不组 `--resume <句柄>`），重派经 `ptyHandleOf()` 剥前缀；桌面 Rust 账本无此形态。

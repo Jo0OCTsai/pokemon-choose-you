@@ -46,39 +46,52 @@ function runSuggestSingle(conn: Conn, action: string, rest: readonly string[]): 
     if (!Number.isInteger(n)) throw usageErr("--task 必须是待办 id 数字");
     taskId = n;
   }
-  const nonEmpty = (k: string): string | undefined => {
-    const v = flag(p, k);
-    return v !== undefined && v !== "" ? v : undefined;
-  };
-  // --tags 只有名字：按 topic 维度、词表内解析（校验与落库均有按名兜底）
+  const s = buildSingleSuggestion(p, action, message, taskId);
+  const agent = nonEmptyFlag(p, "agent") ?? "cli";
+  const restored = restoreSuggestion(conn, s);
+  validateSuggestion(conn, restored, 1);
+  applySuggestion(conn, restored, agent);
+  return { applied: restored.action, message: restored.messageId, agent };
+}
+
+/** 非空旗标值（空串视为未提供） */
+function nonEmptyFlag(p: Parameters<typeof flag>[0], k: string): string | undefined {
+  const v = flag(p, k);
+  return v !== undefined && v !== "" ? v : undefined;
+}
+
+/** 单条提交的 AiSuggestion 组装（--tags 只有名字：按 topic 维度、词表内解析） */
+function buildSingleSuggestion(
+  p: Parameters<typeof flag>[0],
+  action: string,
+  message: string,
+  taskId: number | undefined,
+): AiSuggestion {
   const tagsRaw = flag(p, "tags");
   const tags: ProposedTag[] =
     tagsRaw !== undefined && tagsRaw !== ""
       ? tagsRaw
           .split(/[,，]/)
-          .map((s) => s.trim())
-          .filter((s) => s !== "")
+          .map((t) => t.trim())
+          .filter((t) => t !== "")
           .map((name) => ({ name, dimension: "topic", isNew: false }))
       : [];
-  const s: AiSuggestion = {
+  const opt = (k: string): string | null => nonEmptyFlag(p, k) ?? null;
+  const taskRef = (a: string): number | null => (action === a ? (taskId ?? null) : null);
+  return {
     messageId: message,
     action,
-    title: nonEmpty("title") ?? null,
-    note: nonEmpty("note") ?? null,
-    category: nonEmpty("category") ?? null,
-    priority: nonEmpty("priority") ?? null,
-    due: nonEmpty("due") ?? null,
+    title: opt("title"),
+    note: opt("note"),
+    category: opt("category"),
+    priority: opt("priority"),
+    due: opt("due"),
     tags,
-    followUpTaskId: action === "followUp" ? (taskId ?? null) : null,
-    updateTaskId: action === "update" ? (taskId ?? null) : null,
-    reason: nonEmpty("reason") ?? null,
-    confidence: nonEmpty("confidence") ?? null,
+    followUpTaskId: taskRef("followUp"),
+    updateTaskId: taskRef("update"),
+    reason: opt("reason"),
+    confidence: opt("confidence"),
   };
-  const agent = nonEmpty("agent") ?? "cli";
-  const restored = restoreSuggestion(conn, s);
-  validateSuggestion(conn, restored, 1);
-  applySuggestion(conn, restored, agent);
-  return { applied: restored.action, message: restored.messageId, agent };
 }
 
 /** 建议回写的文本字段反向还原：模型看到与输出的是代号，落库给用户看的必须是真名（未知代号原样保留） */
@@ -217,6 +230,15 @@ function validateSuggestion(conn: Conn, s: AiSuggestion, idx: number): void {
   if (row.review_status !== "pending") {
     throw new CliError(`${at}:消息已人工确认过（review_status=${row.review_status}），不能重复提交建议`, 1);
   }
+  validateSuggestionAction(conn, s, at);
+  if (s.priority != null && s.priority !== "") validateChoice(s.priority, VALID_PRIORITY, "优先级");
+  if (s.confidence != null && s.confidence !== "") validateChoice(s.confidence, VALID_CONFIDENCE, "confidence");
+  if (s.category != null && s.category !== "") resolveCategory(conn, s.category);
+  validateSuggestionTags(conn, s, at);
+}
+
+/** action 面校验：todo 要 title、update/followUp 要目标待办（ensureTask 报序号上下文） */
+function validateSuggestionAction(conn: Conn, s: AiSuggestion, at: string): void {
   switch (s.action) {
     case "todo":
       if (s.title == null || s.title.trim() === "") {
@@ -243,9 +265,10 @@ function validateSuggestion(conn: Conn, s: AiSuggestion, idx: number): void {
     default:
       throw new CliError(`${at}:action「${s.action}」无效，可选 todo/update/followUp/none`, 2);
   }
-  if (s.priority != null && s.priority !== "") validateChoice(s.priority, VALID_PRIORITY, "优先级");
-  if (s.confidence != null && s.confidence !== "") validateChoice(s.confidence, VALID_CONFIDENCE, "confidence");
-  if (s.category != null && s.category !== "") resolveCategory(conn, s.category);
+}
+
+/** 标签面校验：新标签维度须存在且未满；词表内标签按名+维度兜底命中 */
+function validateSuggestionTags(conn: Conn, s: AiSuggestion, at: string): void {
   const tags = s.tags ?? [];
   if (tags.length > 0) {
     const all = listTags(conn);

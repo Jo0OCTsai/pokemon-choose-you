@@ -88,38 +88,7 @@ export function runSession(conn: Conn, rest: readonly string[]): unknown {
     taskId = n;
   }
   if (sub === "log") {
-    const agentId = fl("--agent");
-    if (agentId === undefined || agentId === "") {
-      throw usageErr("session log 需要 --agent <agent-id>（见设置 → 集成）");
-    }
-    const numFlag = (name: string): number | undefined => {
-      const v = fl(name);
-      if (v === undefined || v === "") return undefined;
-      const n = Number(v);
-      if (!Number.isInteger(n)) throw usageErr(`${name} 必须是数字`);
-      return n;
-    };
-    const costRaw = fl("--cost");
-    let costUsd: number | undefined;
-    if (costRaw !== undefined && costRaw !== "") {
-      const c = Number(costRaw);
-      if (!Number.isFinite(c)) throw usageErr("--cost 必须是数字（美元）");
-      costUsd = c;
-    }
-    return {
-      session: logSession(conn, {
-        taskId,
-        agentId,
-        sessionId: fl("--session"),
-        command: fl("--command"),
-        exitCode: numFlag("--exit-code"),
-        status: fl("--status") ?? "ok",
-        durationMs: numFlag("--duration-ms"),
-        costUsd,
-        inputTokens: numFlag("--in-tokens"),
-        outputTokens: numFlag("--out-tokens"),
-      }),
-    };
+    return sessionLogCmd(conn, p, taskId);
   }
   if (sub === "list") {
     const rows = (
@@ -167,8 +136,8 @@ function logSession(conn: Conn, s: NewSession): AgentSessionRow {
       s.taskId ?? null,
       s.agentId,
       agentName,
-      s.sessionId && s.sessionId !== "" ? s.sessionId : null,
-      s.command && s.command !== "" ? s.command : null,
+      optStr(s.sessionId),
+      optStr(s.command),
       s.exitCode ?? null,
       s.status === "error" ? "error" : "ok",
       s.durationMs ?? null,
@@ -188,4 +157,48 @@ function logSession(conn: Conn, s: NewSession): AgentSessionRow {
     .prepare(`SELECT ${SESSION_COLS} FROM agent_sessions WHERE id=?`)
     .get(Number(r.lastInsertRowid)) as Record<string, unknown>;
   return rowToSession(row);
+}
+
+/** session log 命令体（数字/成本旗标解析 + 落库） */
+function sessionLogCmd(conn: Conn, p: Parameters<typeof flag>[0], taskId: number | undefined): unknown {
+  // parse_args 存键时已剥掉 -- 前缀，这里统一兼容两种写法
+  const fl = (name: string): string | undefined => flag(p, name.replace(/^-+/, ""));
+  const agentId = fl("--agent");
+  if (agentId === undefined || agentId === "") {
+    throw usageErr("session log 需要 --agent <agent-id>（见设置 → 集成）");
+  }
+  const numFlag = (name: string): number | undefined => {
+    const v = fl(name);
+    if (v === undefined || v === "") return undefined;
+    const n = Number(v);
+    if (!Number.isInteger(n)) throw usageErr(`${name} 必须是数字`);
+    return n;
+  };
+  const costRaw = fl("--cost");
+  const costUsd = costRaw === undefined || costRaw === "" ? undefined : costOf(costRaw);
+  return {
+    session: logSession(conn, {
+      taskId,
+      agentId,
+      sessionId: fl("--session"),
+      command: fl("--command"),
+      exitCode: numFlag("--exit-code"),
+      status: fl("--status") ?? "ok",
+      durationMs: numFlag("--duration-ms"),
+      costUsd,
+      inputTokens: numFlag("--in-tokens"),
+      outputTokens: numFlag("--out-tokens"),
+    }),
+  };
+}
+
+function costOf(raw: string): number {
+  const c = Number(raw);
+  if (!Number.isFinite(c)) throw usageErr("--cost 必须是数字（美元）");
+  return c;
+}
+
+/** 三态可选串：非空串保留，否则 null（serde Option 语义） */
+function optStr(v: string | undefined): string | null {
+  return v !== undefined && v !== "" ? v : null;
 }

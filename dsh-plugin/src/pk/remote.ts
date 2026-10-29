@@ -7,7 +7,8 @@ import { chmodSync, writeFileSync, realpathSync } from "node:fs";
 import { resolve } from "node:path";
 import { spawnSync } from "node:child_process";
 import { CliError, flag, parseArgs, usageErr } from "./cli";
-import { DEFAULT_TUNNEL_PORT, defaultCtx, runSetup } from "./setup";
+import { DEFAULT_TUNNEL_PORT, runSetup } from "./setup";
+import { defaultCtx } from "./setup-ctx";
 import { appHome, DATA_SUBDIR } from "../host/storage/paths";
 
 /** POSIX 单引号引用（sh 脚本内嵌用户值：host / 密钥路径；sh_quote 同构） */
@@ -15,6 +16,8 @@ function shQuote(s: string): string {
   const safe = s !== "" && /^[A-Za-z0-9\-_./=@:%+]+$/.test(s);
   return safe ? s : `'${s.replaceAll("'", `'\\''`)}'`;
 }
+
+const isUnix = process.platform !== "win32";
 
 export function runRemote(rest: readonly string[]): unknown {
   const sub = rest[0];
@@ -27,43 +30,20 @@ export function runRemote(rest: readonly string[]): unknown {
   if (sub !== "shim") {
     throw usageErr("remote 子命令目前只支持 shim / setup");
   }
-  const p = parseArgs(rest.slice(1));
+  return runRemoteShim(rest.slice(1));
+}
+
+/** shim 子命令体（生成透传脚本；--write 落盘或打 stdout） */
+function runRemoteShim(args: readonly string[]): unknown {
+  const p = parseArgs(args);
   const host = flag(p, "host");
   if (host === undefined || host === "") {
     throw usageErr(
       "remote shim 需要 --host <本机地址>（远程机器可达的地址，如 user@192.168.1.10 或 Tailscale 主机名）",
     );
   }
-  const portRaw = flag(p, "port");
-  let port: number | undefined;
-  if (portRaw !== undefined && portRaw !== "") {
-    const n = Number(portRaw);
-    if (!Number.isInteger(n) || n < 0 || n > 65535) throw usageErr("--port 必须是端口号数字");
-    port = n;
-  }
-  const key = flag(p, "key");
-  const keyClean = key !== undefined && key !== "" ? key : undefined;
-  // host/key 引用后再进脚本：脚本经 /bin/sh 执行，含空格/特殊字符的值不引用会被拆词
-  let fwd = "ssh -o BatchMode=yes -o ConnectTimeout=10";
-  // 连接复用：首调建 ControlMaster，后续调用毫秒级。socket 落 /tmp（带 uid 防碰撞）：
-  // 远程 agent 的 bash 沙箱（如 dsh workspace-write）对家目录只读，落 ~/.ssh 会在
-  // bind 一步被拒（unix_listener: Permission denied）
-  fwd += ' -o ControlMaster=auto -o ControlPath="/tmp/pk-ctl-$(id -u)-%C" -o ControlPersist=10m';
-  if (keyClean !== undefined) {
-    fwd += ` -i ${shQuote(keyClean)}`;
-  }
-  if (port !== undefined) {
-    fwd += ` -p ${port}`;
-  }
-  fwd += ` ${shQuote(host)}`;
-  // unix 本机加 PK_* 透传段（cmd.exe 没有 env 命令，Windows 本机保持直呼）；
-  // 值在远程侧求值并内联进回连命令，本机侧 pk 照常拿到
-  const isUnix = process.platform !== "win32";
-  const envFwd = isUnix
-    ? 'fwd=env\n[ -n "$PK_LOG_FILE" ] && fwd="$fwd PK_LOG_FILE=\\"$PK_LOG_FILE\\""\n[ -n "$PK_DISPATCH_TASK" ] && fwd="$fwd PK_DISPATCH_TASK=$PK_DISPATCH_TASK"\n'
-    : "";
-  const cmd = isUnix ? '"$fwd pk" "$@"' : 'pk "$@"';
-  const script = `#!/bin/sh\n# pk 远程透传 shim（pokemon-choose-you）：把 pk 命令经 ssh 转发回本机执行，数据始终留在本机。\n# 部署：放到远程主机的 PATH 里并 chmod +x，如 ~/bin/pk；本机需开 sshd 并配好免密登录。\n${envFwd}exec ${fwd} ${cmd}\n`;
+  const fwd = buildShimFwd(p, host);
+  const script = shimScriptText(fwd);
   const writePath = flag(p, "write");
   if (writePath !== undefined && writePath !== "") {
     try {
@@ -84,33 +64,79 @@ export function runRemote(rest: readonly string[]): unknown {
   process.exit(0);
 }
 
+/** shim 的 ssh 连接段组装（host/key 引用后嵌入，防止拆词；ControlMaster 复用） */
+function buildShimFwd(p: Parameters<typeof flag>[0], host: string): string {
+  const portRaw = flag(p, "port");
+  let port: number | undefined;
+  if (portRaw !== undefined && portRaw !== "") {
+    const n = Number(portRaw);
+    if (!Number.isInteger(n) || n < 0 || n > 65535) throw usageErr("--port 必须是端口号数字");
+    port = n;
+  }
+  const key = flag(p, "key");
+  const keyClean = key !== undefined && key !== "" ? key : undefined;
+  let fwd = "ssh -o BatchMode=yes -o ConnectTimeout=10";
+  // 连接复用：首调建 ControlMaster。socket 落 /tmp（带 uid 防碰撞）：远程 agent 的
+  // bash 沙箱（如 dsh workspace-write）对家目录只读，落 ~/.ssh 会在 bind 一步被拒
+  fwd += ' -o ControlMaster=auto -o ControlPath="/tmp/pk-ctl-$(id -u)-%C" -o ControlPersist=10m';
+  if (keyClean !== undefined) fwd += ` -i ${shQuote(keyClean)}`;
+  if (port !== undefined) fwd += ` -p ${port}`;
+  return `${fwd} ${shQuote(host)}`;
+}
+
+/** shim 脚本正文（unix 加 PK_* 透传段——cmd.exe 没有 env 命令，Windows 本机直呼） */
+function shimScriptText(fwd: string): string {
+  const envFwd = isUnix
+    ? 'fwd=env\n[ -n "$PK_LOG_FILE" ] && fwd="$fwd PK_LOG_FILE=\\"$PK_LOG_FILE\\""\n[ -n "$PK_DISPATCH_TASK" ] && fwd="$fwd PK_DISPATCH_TASK=$PK_DISPATCH_TASK"\n'
+    : "";
+  const cmd = isUnix ? '"$fwd pk" "$@"' : 'pk "$@"';
+  return `#!/bin/sh\n# pk 远程透传 shim（pokemon-choose-you）：把 pk 命令经 ssh 转发回本机执行，数据始终留在本机。\n# 部署：放到远程主机的 PATH 里并 chmod +x，如 ~/bin/pk；本机需开 sshd 并配好免密登录。\n${envFwd}exec ${fwd} ${cmd}\n`;
+}
+
 /** pk remote setup：开通 pk 通道——参数化执行九步序列，JSON 报告输出 */
 function runRemoteSetup(rest: readonly string[]): unknown {
+  return runSetup(defaultCtx(setupArgsOf(rest)));
+}
+
+interface SetupArgs {
+  host: string;
+  tunnelPort: number;
+  pkPath: string;
+  keyDir: string;
+  localUser?: string;
+  timeoutSecs: number;
+}
+
+/** setup 旗标解析（端口/超时数字校验；缺省 = 隧道 10022 / pk 自身 / 数据目录 / 60s） */
+function setupArgsOf(rest: readonly string[]): SetupArgs {
   const p = parseArgs(rest);
   const host = flag(p, "host");
   if (host === undefined || host === "") {
     throw usageErr("remote setup 需要 --host <OpenSSH 别名>（凭据与端口由 ~/.ssh/config 承载）");
   }
-  let tunnelPort = DEFAULT_TUNNEL_PORT;
-  const tpRaw = flag(p, "tunnel-port");
-  if (tpRaw !== undefined && tpRaw !== "") {
-    const n = Number(tpRaw);
-    if (!Number.isInteger(n) || n <= 0 || n > 65535) throw usageErr("--tunnel-port 必须是端口号数字");
-    tunnelPort = n;
-  }
+  const portOf = (name: string, dflt: number, what: string, max: number): number => {
+    const raw = flag(p, name);
+    if (raw === undefined || raw === "") return dflt;
+    const n = Number(raw);
+    if (!Number.isInteger(n) || n <= 0 || n > max) throw usageErr(`${what}必须是端口号数字`);
+    return n;
+  };
   // pk-path 缺省 = 本 pk 自身（bundle/落位脚本的绝对路径）
-  const pkPath = flag(p, "pk-path") || resolve(process.argv[1] ?? "pk");
   const home = appHome();
-  const keyDir = flag(p, "key-dir") || (home ? `${home}/${DATA_SUBDIR}` : process.cwd());
-  const timeoutRaw = flag(p, "timeout-secs");
-  let timeoutSecs = 60;
-  if (timeoutRaw !== undefined && timeoutRaw !== "") {
-    const n = Number(timeoutRaw);
-    if (!Number.isInteger(n) || n <= 0) throw usageErr("--timeout-secs 必须是正整数");
-    timeoutSecs = n;
-  }
-  const localUser = flag(p, "local-user") || undefined;
-  return runSetup(defaultCtx({ host, tunnelPort, pkPath, keyDir, localUser, timeoutSecs }));
+  return {
+    host,
+    tunnelPort: portOf("tunnel-port", DEFAULT_TUNNEL_PORT, "--tunnel-port ", 65535),
+    pkPath: flag(p, "pk-path") || resolve(process.argv[1] ?? "pk"),
+    keyDir: flag(p, "key-dir") || (home ? `${home}/${DATA_SUBDIR}` : process.cwd()),
+    localUser: flag(p, "local-user") || undefined,
+    timeoutSecs: (() => {
+      const raw = flag(p, "timeout-secs");
+      if (raw === undefined || raw === "") return 60;
+      const n = Number(raw);
+      if (!Number.isInteger(n) || n <= 0) throw usageErr("--timeout-secs 必须是正整数");
+      return n;
+    })(),
+  };
 }
 
 // ---- __ssh_entry：forced command 严格解析（bin/pk/remote.rs ssh_entry 同构） ----
@@ -182,53 +208,67 @@ export function shlexSplit(s: string): string[] {
   const chars = [...s];
   let idx = 0;
   const next = (): string | undefined => chars[idx++];
+  const push = (text: string) => {
+    cur += text;
+    hasCur = true;
+  };
   for (;;) {
     const c = next();
     if (c === undefined) break;
-    if (c === " " || c === "\t" || c === "\n" || c === "\r") {
+    if (isSpace(c)) {
       if (hasCur) {
         out.push(cur);
         cur = "";
         hasCur = false;
       }
     } else if (c === "'") {
-      hasCur = true;
-      for (;;) {
-        const ch = next();
-        if (ch === undefined) throw new Error("未闭合的单引号");
-        if (ch === "'") break;
-        cur += ch;
-      }
+      push(readSingleQuoted(next));
     } else if (c === '"') {
-      hasCur = true;
-      for (;;) {
-        const ch = next();
-        if (ch === undefined) throw new Error("未闭合的双引号");
-        if (ch === '"') break;
-        if (ch === "\\") {
-          const e = next();
-          if (e === undefined) throw new Error("双引号内反斜杠悬空");
-          if (e === '"' || e === "\\" || e === "$" || e === "`") {
-            cur += e;
-          } else {
-            cur += `\\${e}`;
-          }
-        } else {
-          cur += ch;
-        }
-      }
+      push(readDoubleQuoted(next));
     } else if (c === "\\") {
       const ch = next();
       if (ch === undefined) throw new Error("悬空反斜杠");
-      cur += ch;
-      hasCur = true;
+      push(ch);
     } else {
-      cur += c;
-      hasCur = true;
+      push(c);
     }
   }
   if (hasCur) out.push(cur);
   return out;
+}
+
+type NextChar = () => string | undefined;
+
+function isSpace(c: string): boolean {
+  return c === " " || c === "\t" || c === "\n" || c === "\r";
+}
+
+/** 单引号内：零展开直读到闭引号（EOF = 未闭合） */
+function readSingleQuoted(next: NextChar): string {
+  let out = "";
+  for (;;) {
+    const ch = next();
+    if (ch === undefined) throw new Error("未闭合的单引号");
+    if (ch === "'") return out;
+    out += ch;
+  }
+}
+
+/** 双引号内：反斜杠仅转义 " \ $ `（其余保留原样），EOF = 未闭合 */
+function readDoubleQuoted(next: NextChar): string {
+  let out = "";
+  for (;;) {
+    const ch = next();
+    if (ch === undefined) throw new Error("未闭合的双引号");
+    if (ch === '"') return out;
+    if (ch !== "\\") {
+      out += ch;
+      continue;
+    }
+    const e = next();
+    if (e === undefined) throw new Error("双引号内反斜杠悬空");
+    out += e === '"' || e === "\\" || e === "$" || e === "`" ? e : `\\${e}`;
+  }
 }
 
 /** 程序路径等价判定：realpath 消解符号链接后比较（Windows 大小写不敏感） */

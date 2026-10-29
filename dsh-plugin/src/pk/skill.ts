@@ -10,7 +10,6 @@ import { flag, parseArgs, positional, usageErr, CliError } from "./cli";
 export function runSkill(rest: readonly string[]): unknown {
   const sub = rest[0] ?? "";
   const p = parseArgs(rest.slice(1));
-  const dirFlag = flag(p, "dir");
   if (sub === "show") {
     let out = SKILL_MD;
     for (const [rel, content] of SKILL_FILES) {
@@ -21,28 +20,33 @@ export function runSkill(rest: readonly string[]): unknown {
     process.exit(0);
   }
   if (sub === "install") {
-    const agent = positional(p, 0, "agent 名（claude-code / opencode / pi / dsh）");
-    let dir: string;
-    try {
-      dir = skillDirFor(agent, dirFlag);
-    } catch (e) {
-      throw new CliError(e instanceof Error ? e.message : String(e), 2);
-    }
-    let previous: string | null;
-    let path: string;
-    try {
-      ({ previousVersion: previous, path } = localSkillInstall(dir));
-    } catch (e) {
-      throw new CliError(e instanceof Error ? e.message : String(e), 1);
-    }
-    return {
-      installed: true,
-      version: bundledSkillVersion(),
-      previousVersion: previous,
-      updated: previous !== null && previous !== bundledSkillVersion(),
-      agent,
-      path,
-    };
+    return runSkillInstall(p);
   }
   throw usageErr("skill 子命令支持 install / show，用法见 pk help");
+}
+
+/** skill install 命令体（目录解析 + 落盘 + 版本对比报告） */
+function runSkillInstall(p: Parameters<typeof flag>[0]): unknown {
+  const agent = positional(p, 0, "agent 名（claude-code / opencode / pi / dsh）");
+  let dir: string;
+  try {
+    dir = skillDirFor(agent, flag(p, "dir"));
+  } catch (e) {
+    throw new CliError(e instanceof Error ? e.message : String(e), 2);
+  }
+  let previous: string | null;
+  let path: string;
+  try {
+    ({ previousVersion: previous, path } = localSkillInstall(dir));
+  } catch (e) {
+    throw new CliError(e instanceof Error ? e.message : String(e), 1);
+  }
+  return {
+    installed: true,
+    version: bundledSkillVersion(),
+    previousVersion: previous,
+    updated: previous !== null && previous !== bundledSkillVersion(),
+    agent,
+    path,
+  };
 }

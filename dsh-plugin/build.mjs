@@ -3,6 +3,7 @@
  *
  * 产物布局（package.json exports 单源；dsh loader 加载点）：
  *   dist/host.js    平台胶水层 + 全部 host 业务核心 bundle（ESM / platform=node / node24）
+ *   dist/pk.mjs     pk CLI 单文件 bundle（node shebang；agent 经 PATH 消费，ADR-0006）
  *   dist/client.js  client 半边 React 适配层（IIFE-CJS：window.__ModuleLoader__.load 形态，
  *                   platform=browser / es2022 / 不 minify 便于排障——形态抄
  *                   dsh 侧样例 $DSH/dsh-client-ui-sidebar-right/lib/client.js 开头）
@@ -16,9 +17,10 @@
 import * as esbuild from "esbuild";
 import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
-import { chmodSync, copyFileSync, mkdirSync, readFileSync } from "node:fs";
+import { chmodSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { rawPlugin } from "./raw-loader.mjs";
 
 const root = path.dirname(fileURLToPath(import.meta.url));
 
@@ -31,25 +33,6 @@ const helperBuild = spawnSync(process.execPath, [path.join(root, "helper", "buil
 if (helperBuild.status !== 0) {
   throw new Error(`helper 构建失败（exit=${helperBuild.status}）——中止插件打包`);
 }
-
-/**
- * vite `?raw` 等价 loader：契约 SQL（contracts/schema/）编译期内嵌进产物——
- * 安装形态（profile node_modules）磁盘相对路径不可达，迁移单源靠内嵌注册
- * （src/host/storage/schema-raw.ts 的 ?raw 链路，hostEntry 启动时注册）。
- */
-const rawPlugin = {
-  name: "contracts-raw",
-  setup(build) {
-    build.onResolve({ filter: /\?raw$/ }, (args) => ({
-      path: path.resolve(args.resolveDir, args.path.slice(0, -"?raw".length)),
-      namespace: "raw",
-    }));
-    build.onLoad({ filter: /.*/, namespace: "raw" }, (args) => ({
-      contents: `export default ${JSON.stringify(readFileSync(args.path, "utf8"))};`,
-      loader: "js",
-    }));
-  },
-};
 
 // ---- client 侧：CSS modules 内联注入 + 主应用源 alias ----
 
@@ -195,27 +178,23 @@ await esbuild.build({
   logLevel: "info",
 });
 
-// ---- vendor pk（ADR-0003 §4：纯 dsh 的 pk 分发；源缺件跳过不炸构建） ----
-function hostTriple() {
-  const arch = process.arch === "arm64" ? "aarch64" : process.arch;
-  const os =
-    process.platform === "darwin"
-      ? "apple-darwin"
-      : process.platform === "win32"
-        ? "pc-windows-msvc"
-        : "unknown-linux-gnu";
-  return `${arch}-${os}`;
-}
+// ---- pk CLI bundle（ts-pk-and-agent-plugins）：单文件 node shebang 脚本 → dist/pk.mjs ----
+// agent 经 PATH 消费的本机 pk（dsh-plugin 单次构建即全能力，不再 vendor Rust 二进制——
+// ADR-0006）；落位见 src/host/remote/pkLocal.ts。版本单源 = 包版本（构建期 define 注入）。
 {
-  const src = path.join(root, "..", "src-tauri", "binaries", `pk-${hostTriple()}`);
-  const destDir = path.join(root, "vendor");
-  const dest = path.join(destDir, `pk-${hostTriple()}`);
-  try {
-    mkdirSync(destDir, { recursive: true });
-    copyFileSync(src, dest);
-    chmodSync(dest, 0o755);
-    console.log(`vendor: pk-${hostTriple()} 已拷入 vendor/`);
-  } catch {
-    console.warn(`vendor: 未找到 ${src}（本机 triple 未构建）——vendor/ 缺件，宿主按降级指引处理`);
-  }
+  const version = JSON.parse(readFileSync(path.join(root, "package.json"), "utf8")).version;
+  const outfile = path.join(root, "dist/pk.mjs");
+  await esbuild.build({
+    entryPoints: [path.join(root, "src/pk/main.ts")],
+    outfile,
+    bundle: true,
+    format: "esm",
+    platform: "node",
+    target: "node22",
+    plugins: [rawPlugin],
+    banner: { js: "#!/usr/bin/env node" },
+    define: { __PK_CLI_VERSION__: JSON.stringify(version) },
+    logLevel: "info",
+  });
+  chmodSync(outfile, 0o755);
 }
