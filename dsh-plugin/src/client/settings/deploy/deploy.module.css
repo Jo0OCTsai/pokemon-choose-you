@@ -334,6 +334,10 @@
   color: var(--pcy-lcd-log-error, #d64545);
   font-weight: 700;
 }
+.pkSteps li[data-status="warn"] .pkStepName {
+  color: var(--pcy-lcd-log-warn, #b8860b);
+  font-weight: 700;
+}
 .pkStepName {
   flex: none;
   color: var(--pcy-lcd-dim, #4a563f);

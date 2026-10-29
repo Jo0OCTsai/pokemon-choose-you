@@ -1,12 +1,20 @@
 /**
- * 隧道让位锁（remote/tunnelLock）：目录锁原子抢/让位/死锁接管/跨部署不互斥
- * （与桌面 tunnel_lock.rs 同协议——ADR-0003 §2 的 TS 半边）。
+ * 隧道让位锁（remote/tunnelLock）：目录锁原子抢/让位/死锁接管/跨部署不互斥/
+ * ssh-pid 记账与孤儿清理/自残留回收（与桌面 tunnel_lock.rs 同协议——ADR-0003 §2 的 TS 半边）。
  */
-import { mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { spawn } from "node:child_process";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { defaultLockBase, holderPid, pidAlive, tryAcquireTunnelLock } from "../../src/host/remote/tunnelLock";
+import {
+  defaultLockBase,
+  holderPid,
+  killOrphanSsh,
+  pidAlive,
+  reclaimSelfResidue,
+  tryAcquireTunnelLock,
+} from "../../src/host/remote/tunnelLock";
 
 let base: string;
 
@@ -82,5 +90,81 @@ describe("defaultLockBase", () => {
     } finally {
       delete process.env.CHOOSE_YOU_HOME;
     }
+  });
+});
+
+describe("ssh-pid 记账", () => {
+  it("recordSshPid 落 ssh-pid 文件；release 随目录一并清", () => {
+    const a = tryAcquireTunnelLock(base, "d1")!;
+    a.recordSshPid(424242);
+    expect(readFileSync(join(base, "tunnels", "d1", "ssh-pid"), "utf8").trim()).toBe("424242");
+    a.release();
+    expect(existsSync(join(base, "tunnels", "d1"))).toBe(false);
+  });
+
+  it("killOrphanSsh：ssh-pid 缺失/已死进程直接跳过（不误伤）", () => {
+    const dir = join(base, "tunnels", "d13");
+    mkdirSync(dir, { recursive: true });
+    expect(() => killOrphanSsh(dir)).not.toThrow(); // 无 ssh-pid 文件
+    writeFileSync(join(dir, "ssh-pid"), "2147480000"); // 必死 pid
+    expect(() => killOrphanSsh(dir)).not.toThrow();
+  });
+});
+
+describe("孤儿 ssh 清理（死锁接管）", () => {
+  it("命令行含 ssh 与 -R 的孤儿被 SIGTERM", async () => {
+    // 假孤儿：脚本名含 ssh、参数带 -R（对齐 ps 命令行核对口径），长眠等杀
+    const script = join(base, "fake-ssh-orphan.sh");
+    writeFileSync(script, "#!/bin/sh\nsleep 30\n");
+    chmodSync(script, 0o755);
+    const orphan = spawn(script, ["-R", "127.0.0.1:10022:127.0.0.1:22"]);
+    const dir = join(base, "tunnels", "d9");
+    mkdirSync(dir, { recursive: true });
+    writeFileSync(join(dir, "pid"), "2147480000");
+    writeFileSync(join(dir, "ssh-pid"), String(orphan.pid));
+    await new Promise((r) => setTimeout(r, 150)); // 等 ps 命令行可见
+    const lock = tryAcquireTunnelLock(base, "d9");
+    expect(lock).not.toBeNull();
+    const deadline = Date.now() + 5000;
+    while (pidAlive(orphan.pid!) && Date.now() < deadline) {
+      await new Promise((r) => setTimeout(r, 100));
+    }
+    expect(pidAlive(orphan.pid!)).toBe(false);
+    lock!.release();
+  }, 10000);
+
+  it("PID 复用防线：ssh-pid 指向不像隧道的存活进程 → 只接管锁不杀", async () => {
+    const innocent = spawn("sleep", ["30"]);
+    const dir = join(base, "tunnels", "d10");
+    mkdirSync(dir, { recursive: true });
+    writeFileSync(join(dir, "pid"), "2147480000");
+    writeFileSync(join(dir, "ssh-pid"), String(innocent.pid));
+    await new Promise((r) => setTimeout(r, 150));
+    const lock = tryAcquireTunnelLock(base, "d10");
+    expect(lock).not.toBeNull();
+    await new Promise((r) => setTimeout(r, 300));
+    expect(pidAlive(innocent.pid!)).toBe(true);
+    innocent.kill("SIGTERM");
+    lock!.release();
+  }, 10000);
+});
+
+describe("reclaimSelfResidue", () => {
+  it("pid 文件 = 本进程的自残留（旧版泄漏）→ 清目录重抢到手", () => {
+    const dir = join(base, "tunnels", "d11");
+    mkdirSync(dir, { recursive: true });
+    writeFileSync(join(dir, "pid"), String(process.pid));
+    const lock = reclaimSelfResidue(base, "d11");
+    expect(lock).not.toBeNull();
+    lock!.release();
+  });
+
+  it("持有方是其他存活进程 → 不动（null）", () => {
+    const other = spawn("sleep", ["30"]);
+    const dir = join(base, "tunnels", "d12");
+    mkdirSync(dir, { recursive: true });
+    writeFileSync(join(dir, "pid"), String(other.pid));
+    expect(reclaimSelfResidue(base, "d12")).toBeNull();
+    other.kill("SIGTERM");
   });
 });

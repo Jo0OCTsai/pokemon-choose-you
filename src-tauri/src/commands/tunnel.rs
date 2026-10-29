@@ -247,7 +247,7 @@ async fn supervise_while_holding(
     k: &TunnelKey,
     tunings: Tunings,
     ssh_program: &str,
-    _lock: &TunnelLock,
+    lock: &TunnelLock,
     status: &Arc<Mutex<TunnelStatus>>,
 ) {
     let mut backoff = tunings.backoff_start;
@@ -272,6 +272,10 @@ async fn supervise_while_holding(
                 continue;
             }
         };
+        // 孤儿记账：宿主被硬杀后，接管死锁的一方据此清残留 -R（kill_orphan_ssh）
+        if let Some(ssh_pid) = child.id() {
+            let _ = lock.record_ssh_pid(ssh_pid);
+        }
         // stderr 尾行追踪：ExitOnForwardFailure / 认证失败 / 网络不可达都在这里现形
         let tail = Arc::new(Mutex::new(String::new()));
         if let Some(stderr) = child.stderr.take() {
@@ -498,12 +502,23 @@ mod tests {
         let key = TunnelKey::of(&entity("d1", "gpu-1", 10022, true)).unwrap();
         let ssh = fake_ssh(&dir, "live");
         let lock_base = dir.join("locks");
+        let lock_base_for_task = lock_base.clone();
         let task = tokio::spawn(async move {
-            supervise(&key, quick_tunings(), &ssh, lock_base, s).await;
+            supervise(&key, quick_tunings(), &ssh, lock_base_for_task, s).await;
         });
         let snap = wait_for(&status, |s| s.state == "healthy").await;
         assert_eq!(snap.state, "healthy", "长连假 ssh 应判健康: {snap:?}");
         assert!(snap.detail.contains("gpu-1"), "详情带别名: {snap:?}");
+        // ssh-pid 已记账在锁目录（接管方清孤儿的依据）
+        let ssh_pid: u32 = lock_base
+            .join("tunnels")
+            .join("d1")
+            .join("ssh-pid")
+            .to_str()
+            .and_then(|p| std::fs::read_to_string(p).ok())
+            .and_then(|t| t.trim().parse().ok())
+            .expect("ssh-pid 已写");
+        assert!(ssh_pid > 0);
         // abort（manager 停隧道的同一路径）后任务结束；kill_on_drop 负责 ssh 子进程
         task.abort();
         let _ = task.await;
