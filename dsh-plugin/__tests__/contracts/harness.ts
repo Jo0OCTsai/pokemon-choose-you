@@ -46,11 +46,17 @@ export interface OpCtx {
 
 export type OpFn = (ctx: OpCtx, args: Record<string, unknown>) => OpResult;
 
-/** 遍历 scenarios 目录：(group, name)；group 须命中 PROTOCOL §5 kind 全集 */
+/**
+ * 不走 op harness 的场景组：cli_envelope 是 spawn 真入口的 CLI 信封契约
+ * （pk 双实现一致性），由 __tests__/pk-cli-envelope.spec.ts 专用套件回放。
+ */
+const NON_OP_GROUPS = new Set(["cli_envelope"]);
+
+/** 遍历 scenarios 目录：(group, name)；group 须命中 PROTOCOL §5 kind 全集（NON_OP_GROUPS 除外） */
 export function discoverScenarios(): Array<{ group: string; name: string; path: string }> {
   const root = join(ROOT, "contracts", "scenarios");
   const groups = readdirSync(root, { withFileTypes: true })
-    .filter((e) => e.isDirectory())
+    .filter((e) => e.isDirectory() && !NON_OP_GROUPS.has(e.name))
     .map((e) => e.name)
     .sort();
   const out: Array<{ group: string; name: string; path: string }> = [];

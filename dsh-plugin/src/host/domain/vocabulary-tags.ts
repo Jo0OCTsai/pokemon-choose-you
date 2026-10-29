@@ -94,6 +94,16 @@ export function dimensionUpdate(conn: Conn, input: DimensionUpdate): TagDimensio
 
 // ---- 标签 ----
 
+/** 派发元数据（tags.meta 列 JSON；仅 project 维度标签，老数据无此语义时为 null） */
+export interface TagMeta {
+  /** 派发工作目录（按 agent 位置解释：本地 = 本机路径，远程 = 远端路径；支持 ~ 前缀） */
+  workdir?: string | null;
+  /** 首选 agent（ai_agents 的 id；空 = 全局默认 agent） */
+  agentId?: string | null;
+  /** 该项目的补充上下文（技术栈/注意事项），拼进派发 prompt */
+  context?: string | null;
+}
+
 export interface Tag {
   id: number;
   name: string;
@@ -102,12 +112,23 @@ export interface Tag {
   origin: string;
   createdAt: string;
   usage: number;
+  meta: TagMeta | null;
 }
 
 const TAG_SELECT =
   "SELECT t.id, t.name, t.description, d.key AS dimension, t.origin, t.created_at, " +
-  "(SELECT COUNT(*) FROM task_tags tt WHERE tt.tag_id = t.id) AS usage " +
+  "(SELECT COUNT(*) FROM task_tags tt WHERE tt.tag_id = t.id) AS usage, t.meta " +
   "FROM tags t JOIN tag_dimensions d ON d.id = t.dimension_id ";
+
+/** tags.meta 列（JSON）解析：空/坏数据按无元数据处理，不让一条脏行拖垮整个列表 */
+function parseTagMeta(raw: unknown): TagMeta | null {
+  if (typeof raw !== "string" || raw.trim() === "") return null;
+  try {
+    return JSON.parse(raw) as TagMeta;
+  } catch {
+    return null;
+  }
+}
 
 export function listTags(conn: Conn): Tag[] {
   return (conn.prepare(TAG_SELECT + "ORDER BY d.sort, t.id").all() as Array<Record<string, unknown>>).map(tagFromRow);
@@ -122,6 +143,7 @@ function tagFromRow(r: Record<string, unknown>): Tag {
     origin: String(r.origin),
     createdAt: String(r.created_at),
     usage: Number(r.usage),
+    meta: parseTagMeta(r.meta),
   };
 }
 

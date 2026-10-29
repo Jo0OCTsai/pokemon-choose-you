@@ -168,11 +168,13 @@ fn is_iso_timestamp(s: &str) -> bool {
 }
 
 fn is_pk_version(s: &str) -> bool {
-    let parts: Vec<&str> = s.split('.').collect();
-    parts.len() == 3
-        && parts
-            .iter()
-            .all(|p| !p.is_empty() && p.bytes().all(|b| b.is_ascii_digit()))
+    // 三段数字开头即可（兼容 prerelease 后缀，与 TS 回放侧同款判定）
+    let mut parts = s.splitn(3, '.');
+    let all_digits = |p: &str| !p.is_empty() && p.bytes().all(|b| b.is_ascii_digit());
+    match (parts.next(), parts.next(), parts.next()) {
+        (Some(a), Some(b), Some(c)) => all_digits(a) && all_digits(b) && all_digits(c),
+        _ => false,
+    }
 }
 
 fn normalize_str(s: &str, home: &str, workdir: &str, ts: &mut usize) -> String {

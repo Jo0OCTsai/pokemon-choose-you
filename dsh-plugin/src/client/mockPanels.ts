@@ -187,6 +187,7 @@ export function vocabularyCommands(ctx: MockContext): Pick<HostClient, "tagUpser
         description: params.description ?? "",
         dimension: params.dimension,
         origin: "manual",
+        meta: null,
         createdAt: "2026-10-11T09:00:00+08:00",
         usage: 0,
       };

@@ -17,11 +17,11 @@
 
 ## 3. 阶段三：TS pk 数据面命令
 
-- [ ] 3.1 脚手架：`dsh-plugin/src/pk/main.ts`（argv 分发器、退出码约定）+ `cli.ts`（pretty JSON 信封、stderr `{"error":...}`）+ `help.ts`（COMMAND_INDEX，与 Rust `pk help --json` 结构对齐）+ `version.ts`（构建期注入）。验证：`node dist/pk.mjs help --json` 与 `version` 跑通（本地 esbuild 手动打包验证）。
-- [ ] 3.2 数据面命令实现：task 家族（含 --dry-run）、note/log、session、dispatch、suggest（单条 + batch stdin 协议 + 假名还原）、category/tag、context、init-db——import `host/domain` + `host/storage`，参数校验对齐 Rust 用法语（错误退出码 2）。验证：每命令域单测 + `pnpm test` 全绿。
-- [ ] 3.3 信封回放：vitest spawn `node dist/pk.mjs` 执行 `cli_envelope` 全部数据面场景，stdout 解析为字段树与 fixtures 逐字段比对；完备性断言（场景数 == 文件数）。验证：数据面场景回放绿。
-- [ ] 3.4 依赖图 guard：esbuild metafile 生成 pk 依赖清单，测试断言无 `dsh/`、`radio/`、`dispatch/` 平台面路径。验证：guard 测试绿（临时引入平台面 import 时变红，TDD 演示）。
-- [ ] 3.5 `pk skill install/show` TS 实现（四 agent 目录映射、落盘结构、版本对比报告；无 SSH 远端分支）。验证：临时 HOME 集成测试落盘断言 + 信封场景绿。
+- [x] 3.1 脚手架：`dsh-plugin/src/pk/main.ts`（argv 分发器、退出码约定）+ `cli.ts`（pretty JSON 信封、stderr `{"error":...}`）+ `help.ts`（COMMAND_INDEX，与 Rust `pk help --json` 结构对齐）+ `version.ts`（构建期注入）。验证：`node dist/pk.mjs help --json` 与 `version` 跑通（本地 esbuild 手动打包验证）。
+- [x] 3.2 数据面命令实现：task 家族（含 --dry-run）、note/log、session、dispatch、suggest（单条 + batch stdin 协议 + 假名还原）、category/tag、context、init-db——import `host/domain` + `host/storage`，参数校验对齐 Rust 用法语（错误退出码 2）。验证：每命令域单测 + `pnpm test` 全绿。
+- [x] 3.3 信封回放：vitest spawn `node dist/pk.mjs` 执行 `cli_envelope` 全部数据面场景，stdout 解析为字段树与 fixtures 逐字段比对；完备性断言（场景数 == 文件数）。验证：数据面场景回放绿。
+- [x] 3.4 依赖图 guard：esbuild metafile 生成 pk 依赖清单，测试断言无 `dsh/`、`radio/`、`dispatch/` 平台面路径。验证：guard 测试绿（临时引入平台面 import 时变红，TDD 演示）。
+- [x] 3.5 `pk skill install/show` TS 实现（四 agent 目录映射、落盘结构、版本对比报告；无 SSH 远端分支）。验证：临时 HOME 集成测试落盘断言 + 信封场景绿。
 
 ## 4. 阶段四：TS pk remote 家族
 
