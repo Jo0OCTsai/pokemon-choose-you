@@ -1,6 +1,6 @@
 /**
  * pk 技能域（domain/skills）：kind 推断 / 目录定位（含 ~ 与覆盖）/ frontmatter 版本 /
- * 内嵌字节同源（与主仓 src-tauri/skills/ 磁盘文件比对）/ 安装状态与落盘往返。
+ * 内嵌字节同源（与仓根 agent-plugins/skills/ 磁盘文件比对）/ 安装状态与落盘往返。
  * 行为基准 = src-tauri/src/skills.rs 本机部分。
  */
 import { readFileSync, rmSync, writeFileSync } from "node:fs";
@@ -56,11 +56,11 @@ describe("frontmatter 版本与内嵌同源", () => {
     expect(frontmatterVersion("没有 frontmatter")).toBeNull();
   });
 
-  it("内嵌三文件与主仓磁盘字节同源（skills.rs include_str 同构断言）", () => {
-    const root = join(import.meta.dirname, "../../src-tauri/skills");
+  it("内嵌三文件与仓根单一源磁盘字节同源（skills.rs include_str 同构断言）", () => {
+    const root = join(import.meta.dirname, "../../agent-plugins/skills/pokemon-choose-you");
     expect(SKILL_FILES).toHaveLength(3);
     for (const [rel, content] of SKILL_FILES) {
-      const disk = readFileSync(join(root, rel === "SKILL.md" ? "pokemon-choose-you.md" : rel), "utf8");
+      const disk = readFileSync(join(root, rel), "utf8");
       expect(content).toBe(disk);
     }
     expect(bundledSkillVersion()).toMatch(/^\d+$/);

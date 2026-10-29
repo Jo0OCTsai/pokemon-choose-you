@@ -34,8 +34,10 @@
 
 - `src/` —— 前端 Vue 3（views / stores / composables）：composable 必须配套 `__tests__/useXxx.spec.ts`、
   store 状态契约与 defineExpose 契约——详见 `src/AGENTS.md`
+- `agent-plugins/` —— agent 消费面共享资产单一源（当前仅 `skills/` 技能文档）：双实现编译期内嵌
+  （Rust `include_str!` / TS `?raw`）、版本唯一源 = SKILL.md frontmatter——详见 `agent-plugins/AGENTS.md`
 - `src-tauri/` —— Rust 后端：SQLite 迁移只追加不修改（`db.rs`）；`bin/pk/` 是 agent 消费面，命令签名/
-  返回结构变更必须同步 `src-tauri/skills/` 技能文档（`SKILL_VERSION` 随内容演进）；AI 判定只走 tools
+  返回结构变更必须同步 `agent-plugins/skills/` 技能文档（bump frontmatter version）；AI 判定只走 tools
   模式（`pk context` + `pk suggest batch`，text 解析模式已下线）
 - `contracts/` —— TS/Rust 双实现契约单一源：迁移 SQL 只追加（001 已冻结）、fixtures 由 Rust oracle
   生成不得手改、错误码 15 枚举单源在 `PROTOCOL.md` §2——详见 `contracts/AGENTS.md`

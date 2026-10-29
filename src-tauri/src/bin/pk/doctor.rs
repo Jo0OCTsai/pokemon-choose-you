@@ -245,7 +245,7 @@ fn skill_doctor_checks() -> Vec<serde_json::Value> {
             .ok()
             .and_then(|md| frontmatter_version(&md))
         {
-            Some(v) if v == SKILL_VERSION => out.push(doctor_check(
+            Some(v) if v == SKILL_VERSION.as_str() => out.push(doctor_check(
                 "skill",
                 "ok",
                 format!("{agent}：v{v}（{}）", entry.display()),
@@ -254,7 +254,7 @@ fn skill_doctor_checks() -> Vec<serde_json::Value> {
             Some(v) => out.push(doctor_check(
                 "skill",
                 "warn",
-                format!("{agent}：技能 v{v} 旧于内置 v{SKILL_VERSION}"),
+                format!("{agent}：技能 v{v} 旧于内置 v{}", SKILL_VERSION.as_str()),
                 Some(format!("pk skill install {agent}")),
             )),
             None => out.push(doctor_check(
