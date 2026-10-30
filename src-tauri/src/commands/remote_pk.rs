@@ -4,7 +4,8 @@
 //! 应用已有「本机 → 远程」的免密 ssh（跑 agent 用），所有步骤都借它完成：
 //! 生成/复用专用密钥 → 公钥装配本机 authorized_keys → 私钥推到远程 →
 //! 预信任 `[127.0.0.1]:隧道端口` 的主机指纹 → 安装 shim（内嵌本机 pk 绝对路径）→
-//! 保障远程登录 shell 的 PATH → 写回 agent 的隧道端口 → 真实隧道端到端验证。
+//! 保障远程登录 shell 的 PATH → 写回 agent 的隧道端口 → 真实隧道端到端验证 →
+//! 远端 sshd 存活探测（ClientAliveInterval 建议，warn 不阻断）。
 //! 全程幂等，重复执行安全；任一步失败即停并报告该步的修复建议。
 
 use crate::ai;
@@ -49,7 +50,7 @@ pub struct RemotePkSetup {
 #[serde(rename_all = "camelCase")]
 pub struct SetupStep {
     pub name: String,
-    /// ok / skip（幂等复用）/ fail
+    /// ok / skip（幂等复用）/ warn（建议性提示，不阻断开通）/ fail
     pub status: String,
     pub detail: String,
 }
@@ -504,6 +505,8 @@ pub fn run_setup(ctx: &RemotePkSetup) -> SetupReport {
             status: "ok".into(),
             detail: format!("远程经隧道回本机执行成功（pk {version}）"),
         });
+        // 10. 远端 sshd 存活探测（建议性，不阻断开通）：见 client_alive_step 注释
+        steps.push(client_alive_step(ctx));
         let mut r = report_of(steps, Some(version));
         r.ok = true;
         return r;
@@ -671,6 +674,51 @@ fn report_of(steps: Vec<SetupStep>, version: Option<String>) -> SetupReport {
         ok: false,
         steps,
         version,
+    }
+}
+
+/// 远端 sshd 的 ClientAliveInterval 探测（run_setup 步骤 10，建议性不阻断开通）：
+/// 常驻隧道的自愈依赖「客户端死 → 远端回收 -R 监听端口」，而 sshd 默认
+/// ClientAliveInterval 0（从不主动探测），死连接的端口要等 TCP keepalive（Linux
+/// 默认约 2 小时）才释放——期间隧道宿主重连会一直撞 ExitOnForwardFailure。
+/// `sudo -n sshd -T` 读生效值（无密码 sudo 失败即回落），回落 grep 配置文件，
+/// 都不可得报「无法确认」；1–60s 视为健康，0 或更大给配置建议。
+fn client_alive_step(ctx: &RemotePkSetup) -> SetupStep {
+    let probe = "sudo -n sshd -T 2>/dev/null | grep -i '^clientaliveinterval ' \
+                 || grep -RihsE '^[[:space:]]*ClientAliveInterval[[:space:]]+[0-9]+' \
+                    /etc/ssh/sshd_config /etc/ssh/sshd_config.d/ 2>/dev/null | head -1 \
+                 || echo UNCONFIRMED";
+    let (_, out) = ssh_run(ctx, &[], probe, None);
+    classify_client_alive(&out)
+}
+
+/// 探测输出 → 报告步（纯函数，独立测试）：取尾 token 解析秒数后三分类
+fn classify_client_alive(raw: &str) -> SetupStep {
+    let secs = raw
+        .split_whitespace()
+        .last()
+        .and_then(|t| t.parse::<u32>().ok());
+    let guidance = "建议在远端 /etc/ssh/sshd_config 设 ClientAliveInterval 15 与 ClientAliveCountMax 3 并重启 sshd";
+    match secs {
+        Some(n) if (1..=60).contains(&n) => SetupStep {
+            name: "sshd 存活探测".into(),
+            status: "ok".into(),
+            detail: format!("ClientAliveInterval={n}s，死连接的隧道端口能被远端及时回收"),
+        },
+        Some(n) => SetupStep {
+            name: "sshd 存活探测".into(),
+            status: "warn".into(),
+            detail: format!(
+                "ClientAliveInterval={n}s（{guidance}）：隧道宿主被强杀后残留 ssh 会占住远端监听端口，重连将循环失败直到端口释放"
+            ),
+        },
+        None => SetupStep {
+            name: "sshd 存活探测".into(),
+            status: "warn".into(),
+            detail: format!(
+                "无法确认生效值（{guidance}）：默认 0 = 从不探测死连接，残留监听端口要等 TCP keepalive（可达 2 小时）才释放"
+            ),
+        },
     }
 }
 
@@ -901,6 +949,7 @@ mod tests {
              for last; do :; done\n\
              case \"$last\" in\n\
                *'command -v pk'*) echo /home/u/.local/bin/pk; exit 0;;\n\
+               *'clientaliveinterval'*) echo 'clientaliveinterval 15'; exit 0;;\n\
                *'pk --version'*) if echo \"$*\" | grep -q ' -R '; then echo 1.0.0; exit 0; else echo no-tunnel; exit 1; fi;;\n\
                *'.ssh/pk_shim'*) cat > {keypush}; exit 0;;\n\
                *'known_hosts'*) cat > /dev/null; exit 0;;\n\
@@ -995,7 +1044,7 @@ mod tests {
             "受限条目（§8 加固）: {ak_text}"
         );
         // 裸公钥行升级 / 幂等 / 旧路径搬移矩阵 → run_setup_authorized_keys_forms（同 fixture）
-        // ssh 调用覆盖关键远程动作（推私钥/指纹/shim/PATH 检查/带 -R 的验证）
+        // ssh 调用覆盖关键远程动作（推私钥/指纹/shim/PATH 检查/带 -R 的验证/存活探测）
         let calls = std::fs::read_to_string(dir.join("ssh-calls.log")).unwrap();
         for frag in [
             ".ssh/pk_shim",
@@ -1004,10 +1053,37 @@ mod tests {
             "command -v pk",
             "-R 127.0.0.1:10022:127.0.0.1:22",
             "pk --version",
+            "clientaliveinterval",
         ] {
             assert!(calls.contains(frag), "ssh 调用缺「{frag}」: {calls}");
         }
+        // 步骤 10：远端 sshd 存活探测（假 ssh 应答 15s → ok）
+        let alive = report
+            .steps
+            .iter()
+            .find(|s| s.name == "sshd 存活探测")
+            .unwrap();
+        assert_eq!(alive.status, "ok");
+        assert!(alive.detail.contains("15"), "{}", alive.detail);
         let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn client_alive_classification_three_way() {
+        // 生效值 1–60s → ok
+        let ok = classify_client_alive("clientaliveinterval 15\n");
+        assert_eq!(ok.status, "ok");
+        assert!(ok.detail.contains("15"), "{}", ok.detail);
+        // 0（sshd 默认，从不探测）或 >60 → warn + 配置建议
+        for raw in ["clientaliveinterval 0\n", "ClientAliveInterval 7200\n"] {
+            let warn = classify_client_alive(raw);
+            assert_eq!(warn.status, "warn", "{raw}");
+            assert!(warn.detail.contains("ClientAliveInterval 15"), "{raw}");
+        }
+        // 无法确认（sudo 无权限且配置无命中）→ warn + 说明
+        let unknown = classify_client_alive("UNCONFIRMED\n");
+        assert_eq!(unknown.status, "warn");
+        assert!(unknown.detail.contains("无法确认"), "{}", unknown.detail);
     }
 
     /// authorized_keys 在场形态矩阵（从 e2e 拆出——clippy too_many_lines）：
