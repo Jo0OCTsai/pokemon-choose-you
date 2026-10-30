@@ -230,7 +230,12 @@ fn scenario_fixture(pk: &str, sc: &Scenario, home: &str) -> Value {
         std::env::temp_dir().join(format!("pk-cli-env-{}-{}", sc.name, std::process::id()));
     let _ = std::fs::remove_dir_all(&workdir);
     std::fs::create_dir_all(&workdir).unwrap();
-    let workdir_str = workdir.to_string_lossy().into_owned();
+    // 归一化替换源用 realpath：macOS 的 current_dir 返回 /private 前缀真路径，
+    // 与 temp_dir 逻辑路径不同串——不消解则 <cwd> 替换残留平台差异进夹具
+    let workdir_str = std::fs::canonicalize(&workdir)
+        .unwrap_or_else(|_| workdir.clone())
+        .to_string_lossy()
+        .into_owned();
     // 预备：独立库引导（open_db 对缺失库报错，init-db 是官方引导路径）
     let prep = Invocation {
         argv: vec!["init-db".into()],

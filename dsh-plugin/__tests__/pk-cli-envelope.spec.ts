@@ -8,7 +8,7 @@
  * （工具版本 semver 三段）、<home>/<cwd>（家目录/场景工作目录）。
  */
 import { spawnSync } from "node:child_process";
-import { mkdtempSync, readdirSync, readFileSync, rmSync } from "node:fs";
+import { mkdtempSync, readdirSync, readFileSync, realpathSync, rmSync } from "node:fs";
 import { homedir, tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -177,6 +177,9 @@ describe("CLI 信封契约回放（contracts/cli_envelope）", () => {
       const home = homedir();
       const workdir = mkdtempSync(join(tmpdir(), `pk-cli-env-${sc.name}-`));
       workdirs.push(workdir);
+      // 归一化替换源用 realpath：与 Rust oracle 的 canonicalize 同口径（macOS 的
+      // current_dir / process.cwd 返回 /private 前缀真路径，须与逻辑路径统一消解）
+      const cwdNorm = realpathSync(workdir);
       // 预备：独立库引导（对齐 oracle harness 的 init-db 预备步骤）
       const prep = runPk(workdir, { argv: ["init-db"] });
       expect(prep.status, `init-db 预备失败: ${prep.stderr}`).toBe(0);
@@ -196,8 +199,8 @@ describe("CLI 信封契约回放（contracts/cli_envelope）", () => {
         const out = runPk(workdir, inv);
         const actual = {
           exitCode: out.status,
-          stdout: normalizeOutput(out.stdout ?? "", home, workdir),
-          stderr: normalizeOutput(out.stderr ?? "", home, workdir),
+          stdout: normalizeOutput(out.stdout ?? "", home, cwdNorm),
+          stderr: normalizeOutput(out.stderr ?? "", home, cwdNorm),
         };
         expect(actual, `invocation #${i} (${inv.argv.join(" ")})`).toEqual(fixture.results[i]);
       });

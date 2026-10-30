@@ -25,7 +25,7 @@
           "status": "ok",
           "taskId": null,
           "tmuxSession": "",
-          "workdir": "/private<cwd>"
+          "workdir": "<cwd>"
         }
       }
     },
@@ -52,7 +52,7 @@
           "status": "error",
           "taskId": null,
           "tmuxSession": "",
-          "workdir": "/private<cwd>"
+          "workdir": "<cwd>"
         }
       }
     },
@@ -80,7 +80,7 @@
             "status": "error",
             "taskId": null,
             "tmuxSession": "",
-            "workdir": "/private<cwd>"
+            "workdir": "<cwd>"
           },
           {
             "agentId": "claude-code",
@@ -101,7 +101,7 @@
             "status": "ok",
             "taskId": null,
             "tmuxSession": "",
-            "workdir": "/private<cwd>"
+            "workdir": "<cwd>"
           }
         ]
       }
