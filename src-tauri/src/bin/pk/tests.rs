@@ -510,7 +510,7 @@ fn skill_install_show_and_unknown_agent() {
     assert_eq!(out["updated"], false, "首次安装");
     assert_eq!(
         out["version"],
-        pokemon_choose_you_lib::skills::SKILL_VERSION
+        pokemon_choose_you_lib::skills::SKILL_VERSION.as_str()
     );
     let md = std::fs::read_to_string(dir.join("pokemon-choose-you").join("SKILL.md")).unwrap();
     assert!(md.contains("pk task create"), "技能内容含命令速查");

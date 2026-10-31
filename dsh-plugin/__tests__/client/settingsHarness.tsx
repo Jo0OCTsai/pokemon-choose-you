@@ -54,6 +54,7 @@ export function makeTag(overrides: Partial<Tag> & { id: number }): Tag {
     description: "",
     dimension: "topic",
     origin: "manual",
+    meta: null,
     createdAt: "2026-10-11T09:00:00+08:00",
     usage: 0,
     ...overrides,

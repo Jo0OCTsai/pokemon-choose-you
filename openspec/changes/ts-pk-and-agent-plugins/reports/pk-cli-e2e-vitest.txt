@@ -1,0 +1,39 @@
+(!) Your Vite config uses features that are unsupported by `configLoader: 'native'`, which is planned to become the default in a future major version of Vite:
+  - `__dirname` (vite.config.ts:40:28). Use `import.meta.dirname` instead
+Set `VITE_CONFIG_NATIVE_IGNORE_WARNING=true` to suppress this warning.
+
+ RUN  v5.0.1 /Users/jotsai/projects/pokemon-choose-you/dsh-plugin
+
+ ✓ __tests__/pk-remote.spec.ts (25 tests) 353ms
+/var/folders/qv/n2wv1lps2fsf63pt8mwq8cb80000gn/T/pk-setup-fake-atlW6u/bin/ssh-keygen: line 6: printf: --: invalid option
+printf: usage: printf [-v var] format [arguments]
+/var/folders/qv/n2wv1lps2fsf63pt8mwq8cb80000gn/T/pk-setup-fake-jMwpe7/bin/ssh-keygen: line 6: printf: --: invalid option
+printf: usage: printf [-v var] format [arguments]
+/var/folders/qv/n2wv1lps2fsf63pt8mwq8cb80000gn/T/pk-setup-fake-F5m4sm/bin/ssh-keygen: line 6: printf: --: invalid option
+printf: usage: printf [-v var] format [arguments]
+/var/folders/qv/n2wv1lps2fsf63pt8mwq8cb80000gn/T/pk-setup-fake-6MW0mg/bin/ssh-keygen: line 6: printf: --: invalid option
+printf: usage: printf [-v var] format [arguments]
+ ✓ __tests__/pk-cli-envelope.spec.ts (19 tests) 3247ms
+   ✓ CLI 信封契约回放（contracts/cli_envelope） (18)
+     ✓ 场景 dispatch 与 Rust oracle 夹具一致 343ms
+     ✓ 场景 task-full-lifecycle 与 Rust oracle 夹具一致 337ms
+     ✓ 场景 task-start-pause-current 与 Rust oracle 夹具一致 334ms
+/var/folders/qv/n2wv1lps2fsf63pt8mwq8cb80000gn/T/pk-setup-fake-yNEqx8/bin/ssh-keygen: line 6: printf: --: invalid option
+printf: usage: printf [-v var] format [arguments]
+/var/folders/qv/n2wv1lps2fsf63pt8mwq8cb80000gn/T/pk-setup-fake-AM8jQC/bin/ssh-keygen: line 6: printf: --: invalid option
+printf: usage: printf [-v var] format [arguments]
+ ✓ __tests__/pk-setup.spec.ts (8 tests) 5487ms
+   ✓ run_setup 全链：全新与幂等（假程序注入） (3)
+     ✓ 全新环境：九步全 ok 且端到端版本回传 907ms
+     ✓ 全新环境：authorized_keys 追加受限条目，shim 落点报告 862ms
+     ✓ 重复执行幂等：密钥与公钥装配均 skip 930ms
+   ✓ run_setup 公钥四形态收口（假程序注入） (3)
+     ✓ 旧版裸公钥行：原位升级为受限条目 863ms
+     ✓ 自家受限条目旧 pk 路径：原位搬移 command 890ms
+     ✓ 陌生自定义形态：保持不动（skip） 908ms
+
+ Test Files  3 passed (3)
+      Tests  52 passed (52)
+   Start at  02:12:35
+   Duration  5.89s (tests 90%, environment 7%, transform 2%, import 1%)
+

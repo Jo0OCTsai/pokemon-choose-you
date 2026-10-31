@@ -1,0 +1,10 @@
+{
+  "kind": "cli_envelope",
+  "name": "task-delete",
+  "invocations": [
+    { "argv": ["task", "create", "--title", "待放生"] },
+    { "argv": ["task", "delete", "1", "--dry-run"] },
+    { "argv": ["task", "delete", "1"] },
+    { "argv": ["task", "list"] }
+  ]
+}

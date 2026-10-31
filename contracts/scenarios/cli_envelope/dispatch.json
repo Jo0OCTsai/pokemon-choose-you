@@ -1,0 +1,14 @@
+{
+  "kind": "cli_envelope",
+  "name": "dispatch",
+  "invocations": [
+    { "argv": ["task", "create", "--title", "修登录断点"] },
+    { "argv": ["task", "create", "--title", "补回归用例"] },
+    { "argv": ["dispatch", "start", "--task", "1"] },
+    { "argv": ["dispatch", "done", "--task", "1", "--note", "修复完成并补了回归用例"] },
+    { "argv": ["dispatch", "start", "--task", "2"] },
+    { "argv": ["dispatch", "fail", "--task", "2", "--note", "依赖未就绪"] },
+    { "argv": ["dispatch", "done"], "env": { "PK_DISPATCH_TASK": "1" } },
+    { "argv": ["dispatch", "done"] }
+  ]
+}

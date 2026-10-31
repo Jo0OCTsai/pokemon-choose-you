@@ -17,6 +17,7 @@ const tag = (id: number, name: string, dimension: string, usage: number): Tag =>
   id,
   name,
   description: "",
+  meta: null,
   dimension,
   origin: "manual",
   createdAt: "2026-01-01T00:00:00Z",

@@ -1,0 +1,7 @@
+{
+  "kind": "cli_envelope",
+  "name": "version",
+  "invocations": [
+    { "argv": ["version"] }
+  ]
+}

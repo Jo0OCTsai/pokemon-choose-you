@@ -1,0 +1,14 @@
+{
+  "kind": "cli_envelope",
+  "name": "task-full-lifecycle",
+  "invocations": [
+    { "argv": ["task", "create", "--title", "交周报", "--due", "2026-11-06T18:00", "--note", "对方周五前要"] },
+    { "argv": ["task", "list"] },
+    { "argv": ["task", "get", "1"] },
+    { "argv": ["task", "update", "1", "--priority", "urgent", "--due", ""] },
+    { "argv": ["task", "search", "周报"] },
+    { "argv": ["task", "done", "1"] },
+    { "argv": ["task", "list", "done"] },
+    { "argv": ["task", "list"] }
+  ]
+}

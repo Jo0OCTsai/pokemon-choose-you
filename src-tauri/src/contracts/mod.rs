@@ -53,6 +53,11 @@ const KINDS: &[&str] = &[
     "deployment_registry",
 ];
 
+/// 不走 op harness 的场景组：cli_envelope 是 spawn 真入口的 CLI 信封契约
+/// （pk 双实现一致性，ADR-0006），由集成测试 tests/cli_envelope.rs 执行
+/// （TS 侧回放 = dsh-plugin __tests__/pk-cli-envelope.spec.ts）
+const NON_OP_GROUPS: &[&str] = &["cli_envelope"];
+
 /// final 全量行集导出的表（行内键经 BTreeMap 字典序；行序 = rowid）
 const DUMP_TABLES: &[&str] = &[
     "tasks",
@@ -115,6 +120,7 @@ fn discover_scenarios() -> Vec<(String, String, PathBuf)> {
         .map(|e| e.file_name().to_string_lossy().into_owned())
         .collect();
     groups.sort();
+    groups.retain(|g| !NON_OP_GROUPS.contains(&g.as_str()));
     for g in groups {
         assert!(
             KINDS.contains(&g.as_str()),
@@ -2144,6 +2150,13 @@ fn contracts_fixtures_have_no_orphans() {
     for group in std::fs::read_dir(&fixtures_root).unwrap().flatten() {
         let gd = group.path();
         if !gd.is_dir() {
+            continue;
+        }
+        // NON_OP_GROUPS（cli_envelope）的夹具由集成测试自管对应关系，不在本断言面
+        if gd
+            .file_name()
+            .is_some_and(|n| NON_OP_GROUPS.contains(&n.to_string_lossy().as_ref()))
+        {
             continue;
         }
         for f in std::fs::read_dir(&gd).unwrap().flatten() {

@@ -1,0 +1,96 @@
+{
+  "kind": "cli_envelope",
+  "name": "suggest-single",
+  "invocations": [
+    {
+      "argv": [
+        "task",
+        "create",
+        "--title",
+        "已存在的联调任务"
+      ]
+    },
+    {
+      "argv": [
+        "suggest",
+        "todo",
+        "--message",
+        "om_1",
+        "--title",
+        "交周报",
+        "--due",
+        "2026-11-06T18:00",
+        "--priority",
+        "high",
+        "--reason",
+        "对方明确要求",
+        "--confidence",
+        "high"
+      ]
+    },
+    {
+      "argv": [
+        "suggest",
+        "update",
+        "--message",
+        "om_2",
+        "--task",
+        "1",
+        "--note",
+        "客户补充了验收口径",
+        "--confidence",
+        "medium"
+      ]
+    },
+    {
+      "argv": [
+        "suggest",
+        "none",
+        "--message",
+        "om_3",
+        "--reason",
+        "闲聊无待办含义"
+      ]
+    },
+    {
+      "argv": [
+        "suggest",
+        "follow-up",
+        "--message",
+        "om_4",
+        "--task",
+        "1",
+        "--note",
+        "周五前催一次对方"
+      ]
+    }
+  ],
+  "setup": {
+    "chatMessages": [
+      {
+        "id": 1,
+        "messageId": "om_1",
+        "content": "记得周五前交周报",
+        "createdAt": "2026-11-01T09:00:00+08:00"
+      },
+      {
+        "id": 2,
+        "messageId": "om_2",
+        "content": "联调任务客户补充了验收口径",
+        "createdAt": "2026-11-01T09:00:00+08:00"
+      },
+      {
+        "id": 3,
+        "messageId": "om_3",
+        "content": "今晚吃什么",
+        "createdAt": "2026-11-01T09:00:00+08:00"
+      },
+      {
+        "id": 4,
+        "messageId": "om_4",
+        "content": "好的一批里夹一条坏的",
+        "createdAt": "2026-11-01T09:00:00+08:00"
+      }
+    ]
+  }
+}

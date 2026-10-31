@@ -1,0 +1,63 @@
+{
+  "kind": "cli_envelope",
+  "name": "task-create-dry-run",
+  "results": [
+    {
+      "exitCode": 0,
+      "stderr": "",
+      "stdout": {
+        "dryRun": true,
+        "wouldCreate": {
+          "category": null,
+          "due": "<ts1>",
+          "note": null,
+          "priority": "high",
+          "remind": null,
+          "scheduled": true,
+          "source": "cli",
+          "tags": [],
+          "title": "交周报"
+        }
+      }
+    },
+    {
+      "exitCode": 0,
+      "stderr": "",
+      "stdout": {
+        "count": 0,
+        "filter": "open",
+        "hint": null,
+        "tasks": [],
+        "total": 0,
+        "truncated": false
+      }
+    },
+    {
+      "exitCode": 0,
+      "stderr": "",
+      "stdout": {
+        "created": {
+          "cancelledAt": null,
+          "categoryId": 1,
+          "completedAt": null,
+          "createdAt": "<ts1>",
+          "dispatchState": null,
+          "dispatchedSession": null,
+          "dueAt": "<ts2>",
+          "externalId": null,
+          "focusSeconds": 0,
+          "id": 1,
+          "note": null,
+          "priority": "high",
+          "remindAt": null,
+          "reminded": false,
+          "source": "cli",
+          "startedAt": null,
+          "status": "scheduled",
+          "tags": [],
+          "title": "交周报"
+        }
+      }
+    }
+  ]
+}

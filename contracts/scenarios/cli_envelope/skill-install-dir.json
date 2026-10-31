@@ -1,0 +1,8 @@
+{
+  "kind": "cli_envelope",
+  "name": "skill-install-dir",
+  "invocations": [
+    { "argv": ["skill", "install", "claude-code", "--dir", "pky-skills"] },
+    { "argv": ["skill", "install", "claude-code", "--dir", "pky-skills"] }
+  ]
+}

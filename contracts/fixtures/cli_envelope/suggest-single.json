@@ -1,0 +1,69 @@
+{
+  "kind": "cli_envelope",
+  "name": "suggest-single",
+  "results": [
+    {
+      "exitCode": 0,
+      "stderr": "",
+      "stdout": {
+        "created": {
+          "cancelledAt": null,
+          "categoryId": 1,
+          "completedAt": null,
+          "createdAt": "<ts1>",
+          "dispatchState": null,
+          "dispatchedSession": null,
+          "dueAt": null,
+          "externalId": null,
+          "focusSeconds": 0,
+          "id": 1,
+          "note": null,
+          "priority": "normal",
+          "remindAt": null,
+          "reminded": false,
+          "source": "cli",
+          "startedAt": null,
+          "status": "inbox",
+          "tags": [],
+          "title": "已存在的联调任务"
+        }
+      }
+    },
+    {
+      "exitCode": 0,
+      "stderr": "",
+      "stdout": {
+        "agent": "cli",
+        "applied": "todo",
+        "message": "om_1"
+      }
+    },
+    {
+      "exitCode": 0,
+      "stderr": "",
+      "stdout": {
+        "agent": "cli",
+        "applied": "update",
+        "message": "om_2"
+      }
+    },
+    {
+      "exitCode": 0,
+      "stderr": "",
+      "stdout": {
+        "agent": "cli",
+        "applied": "none",
+        "message": "om_3"
+      }
+    },
+    {
+      "exitCode": 0,
+      "stderr": "",
+      "stdout": {
+        "agent": "cli",
+        "applied": "followUp",
+        "message": "om_4"
+      }
+    }
+  ]
+}

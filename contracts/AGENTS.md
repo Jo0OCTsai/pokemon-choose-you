@@ -12,8 +12,9 @@
 - **完备性机检双侧各自断言**：Rust 契约模块与 TS 回放套件各自断言「执行场景数 == `scenarios/` 目录文件数」——新增场景文件未挂进任一侧执行清单即 CI 红（M3a）。
 - **场景格式 normative**：`kind`/`name`/`setup`/`steps`/`expect` 字段集与 op 枚举见 `PROTOCOL.md` §5；改 op 枚举 = 双侧 harness 同步变更。
 - **schema 同源断言**：Rust `include_str!` 与 TS 打包消费同一文件，CI 字节相等断言防单边复制路径漂移。
+- **CLI 信封契约组（`cli_envelope/`）锁 pk 命令面双实现一致性**：场景 = 命令自举数据（`invocations` 数组，可选 `setup.chatMessages` 种子——suggest 族要求消息预置）；oracle = `src-tauri/tests/cli_envelope.rs` spawn 真二进制捕获 stdout/stderr/退出码；归一化占位符双侧同构：`<tsN>`（ISO 时间戳按 invocation 内序号）、`<pk-version>`（工具版本，semver 三段）、`<home>`/`<cwd>`（家目录/场景工作目录）。TS 侧（dsh-plugin pk）spawn bundle 回放、字段树比对。`doctor`/`remote setup`/`__ssh_entry` 依赖真实环境或副作用，不入组（单测锁结构）；`skill show` 全文与 `agent-plugins/` 内嵌同源断言重复，不入组。
 
 ## 命令速查
 
-- 重生成夹具：`UPDATE_FIXTURES=1 cargo test`（在 `src-tauri/`）
+- 重生成夹具：`UPDATE_FIXTURES=1 cargo test`（在 `src-tauri/`；含 `--test cli_envelope` 信封组）
 - TS 回放：`pnpm --filter dsh-plugin test`（契约套件随 vitest 全量跑）

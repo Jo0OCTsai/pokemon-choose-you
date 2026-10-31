@@ -1,0 +1,106 @@
+{
+  "kind": "cli_envelope",
+  "name": "dispatch",
+  "results": [
+    {
+      "exitCode": 0,
+      "stderr": "",
+      "stdout": {
+        "created": {
+          "cancelledAt": null,
+          "categoryId": 1,
+          "completedAt": null,
+          "createdAt": "<ts1>",
+          "dispatchState": null,
+          "dispatchedSession": null,
+          "dueAt": null,
+          "externalId": null,
+          "focusSeconds": 0,
+          "id": 1,
+          "note": null,
+          "priority": "normal",
+          "remindAt": null,
+          "reminded": false,
+          "source": "cli",
+          "startedAt": null,
+          "status": "inbox",
+          "tags": [],
+          "title": "修登录断点"
+        }
+      }
+    },
+    {
+      "exitCode": 0,
+      "stderr": "",
+      "stdout": {
+        "created": {
+          "cancelledAt": null,
+          "categoryId": 1,
+          "completedAt": null,
+          "createdAt": "<ts1>",
+          "dispatchState": null,
+          "dispatchedSession": null,
+          "dueAt": null,
+          "externalId": null,
+          "focusSeconds": 0,
+          "id": 2,
+          "note": null,
+          "priority": "normal",
+          "remindAt": null,
+          "reminded": false,
+          "source": "cli",
+          "startedAt": null,
+          "status": "inbox",
+          "tags": [],
+          "title": "补回归用例"
+        }
+      }
+    },
+    {
+      "exitCode": 0,
+      "stderr": "",
+      "stdout": {
+        "state": "running",
+        "task": 1
+      }
+    },
+    {
+      "exitCode": 0,
+      "stderr": "",
+      "stdout": {
+        "state": "done",
+        "task": 1
+      }
+    },
+    {
+      "exitCode": 0,
+      "stderr": "",
+      "stdout": {
+        "state": "running",
+        "task": 2
+      }
+    },
+    {
+      "exitCode": 0,
+      "stderr": "",
+      "stdout": {
+        "state": "failed",
+        "task": 2
+      }
+    },
+    {
+      "exitCode": 1,
+      "stderr": {
+        "error": "输入无效: 待办 No.1 派发状态为「done」，不能迁移到「done」；先派发领取 running，或在应用抽屉里重置"
+      },
+      "stdout": ""
+    },
+    {
+      "exitCode": 0,
+      "stderr": "",
+      "stdout": {
+        "skipped": "未指定 --task 且无 PK_DISPATCH_TASK 派发上下文（普通会话，无需回传）"
+      }
+    }
+  ]
+}

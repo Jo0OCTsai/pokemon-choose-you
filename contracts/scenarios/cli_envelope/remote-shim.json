@@ -1,0 +1,8 @@
+{
+  "kind": "cli_envelope",
+  "name": "remote-shim",
+  "invocations": [
+    { "argv": ["remote", "shim", "--host", "user@192.168.1.10"] },
+    { "argv": ["remote", "shim", "--host", "user@192.168.1.10", "--port", "2222", "--key", "~/.ssh/pk_direct"] }
+  ]
+}

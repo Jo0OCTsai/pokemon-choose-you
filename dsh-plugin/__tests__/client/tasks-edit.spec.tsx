@@ -22,7 +22,16 @@ const DIMENSIONS: TagDimension[] = [
 ];
 
 function tag(id: number, name: string, dimension: string): Tag {
-  return { id, name, description: "", dimension, origin: "manual", createdAt: "2026-10-01T08:00:00", usage: 0 };
+  return {
+    id,
+    name,
+    description: "",
+    dimension,
+    meta: null,
+    origin: "manual",
+    createdAt: "2026-10-01T08:00:00",
+    usage: 0,
+  };
 }
 
 const TAGS: Tag[] = [

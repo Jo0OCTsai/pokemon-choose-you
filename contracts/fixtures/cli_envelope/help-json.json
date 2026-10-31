@@ -1,0 +1,138 @@
+{
+  "kind": "cli_envelope",
+  "name": "help-json",
+  "results": [
+    {
+      "exitCode": 0,
+      "stderr": "",
+      "stdout": {
+        "commands": [
+          {
+            "command": "task list",
+            "summary": "任务列表（open|done|today|all；--limit N|all 默认 50，超出截断并提示用 search）"
+          },
+          {
+            "command": "task get <id>",
+            "summary": "任务详情（含跟进记录）"
+          },
+          {
+            "command": "task search <关键词>",
+            "summary": "搜标题/备注/跟进/标签"
+          },
+          {
+            "command": "task create",
+            "summary": "建任务（--title 必填；--dry-run 只校验回显不落库）"
+          },
+          {
+            "command": "task update <id>",
+            "summary": "更新字段（--due \"\" 清空；--dry-run 只校验回显）"
+          },
+          {
+            "command": "task done <id>",
+            "summary": "完成任务"
+          },
+          {
+            "command": "task start <id>",
+            "summary": "开始任务（全局唯一进行中）"
+          },
+          {
+            "command": "task pause",
+            "summary": "暂停当前进行中任务"
+          },
+          {
+            "command": "task current",
+            "summary": "当前进行中任务"
+          },
+          {
+            "command": "task delete <id>",
+            "summary": "删除任务（--dry-run 只确认存在性）"
+          },
+          {
+            "command": "note add <task-id> <内容...>",
+            "summary": "记跟进（--source manual|ai）"
+          },
+          {
+            "command": "note list <task-id>",
+            "summary": "跟进列表"
+          },
+          {
+            "command": "log <task-id>",
+            "summary": "任务操作历史"
+          },
+          {
+            "command": "suggest todo|update|follow-up|none",
+            "summary": "提交单条 AI 判定建议（--message 必填；写建议列待用户确认）"
+          },
+          {
+            "command": "suggest batch",
+            "summary": "批量提交建议（stdin 传 {\"results\":[...]}，整批校验一损俱损）"
+          },
+          {
+            "command": "session log",
+            "summary": "记录 agent 会话（--agent 必填；成本/时长/退出码）"
+          },
+          {
+            "command": "session list",
+            "summary": "会话列表（--task 查任务时间线）"
+          },
+          {
+            "command": "dispatch done",
+            "summary": "回传派发状态（done/fail 从 running 迁移，--note 带摘要；start 领取开工；--task 缺省读 PK_DISPATCH_TASK）"
+          },
+          {
+            "command": "skill install <agent>",
+            "summary": "安装技能（claude-code|opencode|pi|dsh，或 --dir 指定技能根目录）"
+          },
+          {
+            "command": "skill show",
+            "summary": "打印技能全文"
+          },
+          {
+            "command": "remote shim",
+            "summary": "生成远程 pk 透传脚本（--host 必填）"
+          },
+          {
+            "command": "category list",
+            "summary": "分类列表"
+          },
+          {
+            "command": "tag list",
+            "summary": "标签列表（含维度）"
+          },
+          {
+            "command": "tag create",
+            "summary": "新建标签（--dimension 指定维度，缺省 topic）"
+          },
+          {
+            "command": "context",
+            "summary": "当前时间 + 未完成待办 + 分类 + 标签与维度（判定与建任务的判重上下文）"
+          },
+          {
+            "command": "doctor",
+            "summary": "环境自检（数据库/schema/技能安装，每项带修复建议；--ssh <host> 加测远程 pk）"
+          },
+          {
+            "command": "init-db",
+            "summary": "初始化 PK_DB 指定的空库"
+          },
+          {
+            "command": "help --json",
+            "summary": "机器可读命令目录（本命令）"
+          }
+        ],
+        "description": "就决定是你了待办库命令行（供 AI agent 与终端使用）",
+        "env": {
+          "PK_DB": "覆盖数据库路径（默认为应用数据目录 pokemon-choose-you.db）"
+        },
+        "exitCodes": {
+          "0": "成功",
+          "1": "业务错误",
+          "2": "用法错误"
+        },
+        "name": "pk",
+        "output": "stdout 恒为 JSON；错误输出 {\"error\":...} 到 stderr",
+        "version": "<pk-version>"
+      }
+    }
+  ]
+}

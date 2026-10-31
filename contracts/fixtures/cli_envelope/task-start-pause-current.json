@@ -1,0 +1,202 @@
+{
+  "kind": "cli_envelope",
+  "name": "task-start-pause-current",
+  "results": [
+    {
+      "exitCode": 0,
+      "stderr": "",
+      "stdout": {
+        "created": {
+          "cancelledAt": null,
+          "categoryId": 1,
+          "completedAt": null,
+          "createdAt": "<ts1>",
+          "dispatchState": null,
+          "dispatchedSession": null,
+          "dueAt": null,
+          "externalId": null,
+          "focusSeconds": 0,
+          "id": 1,
+          "note": null,
+          "priority": "normal",
+          "remindAt": null,
+          "reminded": false,
+          "source": "cli",
+          "startedAt": null,
+          "status": "inbox",
+          "tags": [],
+          "title": "写方案"
+        }
+      }
+    },
+    {
+      "exitCode": 0,
+      "stderr": "",
+      "stdout": {
+        "created": {
+          "cancelledAt": null,
+          "categoryId": 1,
+          "completedAt": null,
+          "createdAt": "<ts1>",
+          "dispatchState": null,
+          "dispatchedSession": null,
+          "dueAt": null,
+          "externalId": null,
+          "focusSeconds": 0,
+          "id": 2,
+          "note": null,
+          "priority": "normal",
+          "remindAt": null,
+          "reminded": false,
+          "source": "cli",
+          "startedAt": null,
+          "status": "inbox",
+          "tags": [],
+          "title": "复盘会"
+        }
+      }
+    },
+    {
+      "exitCode": 0,
+      "stderr": "",
+      "stdout": {
+        "started": {
+          "cancelledAt": null,
+          "categoryId": 1,
+          "completedAt": null,
+          "createdAt": "<ts1>",
+          "dispatchState": null,
+          "dispatchedSession": null,
+          "dueAt": null,
+          "externalId": null,
+          "focusSeconds": 0,
+          "id": 1,
+          "note": null,
+          "priority": "normal",
+          "remindAt": null,
+          "reminded": false,
+          "source": "cli",
+          "startedAt": "<ts2>",
+          "status": "active",
+          "tags": [],
+          "title": "写方案"
+        }
+      }
+    },
+    {
+      "exitCode": 0,
+      "stderr": "",
+      "stdout": {
+        "current": {
+          "cancelledAt": null,
+          "categoryId": 1,
+          "completedAt": null,
+          "createdAt": "<ts1>",
+          "dispatchState": null,
+          "dispatchedSession": null,
+          "dueAt": null,
+          "externalId": null,
+          "focusSeconds": 0,
+          "id": 1,
+          "note": null,
+          "priority": "normal",
+          "remindAt": null,
+          "reminded": false,
+          "source": "cli",
+          "startedAt": "<ts2>",
+          "status": "active",
+          "tags": [],
+          "title": "写方案"
+        }
+      }
+    },
+    {
+      "exitCode": 0,
+      "stderr": "",
+      "stdout": {
+        "started": {
+          "cancelledAt": null,
+          "categoryId": 1,
+          "completedAt": null,
+          "createdAt": "<ts1>",
+          "dispatchState": null,
+          "dispatchedSession": null,
+          "dueAt": null,
+          "externalId": null,
+          "focusSeconds": 0,
+          "id": 2,
+          "note": null,
+          "priority": "normal",
+          "remindAt": null,
+          "reminded": false,
+          "source": "cli",
+          "startedAt": "<ts2>",
+          "status": "active",
+          "tags": [],
+          "title": "复盘会"
+        }
+      }
+    },
+    {
+      "exitCode": 0,
+      "stderr": "",
+      "stdout": {
+        "current": {
+          "cancelledAt": null,
+          "categoryId": 1,
+          "completedAt": null,
+          "createdAt": "<ts1>",
+          "dispatchState": null,
+          "dispatchedSession": null,
+          "dueAt": null,
+          "externalId": null,
+          "focusSeconds": 0,
+          "id": 2,
+          "note": null,
+          "priority": "normal",
+          "remindAt": null,
+          "reminded": false,
+          "source": "cli",
+          "startedAt": "<ts2>",
+          "status": "active",
+          "tags": [],
+          "title": "复盘会"
+        }
+      }
+    },
+    {
+      "exitCode": 0,
+      "stderr": "",
+      "stdout": {
+        "paused": {
+          "cancelledAt": null,
+          "categoryId": 1,
+          "completedAt": null,
+          "createdAt": "<ts1>",
+          "dispatchState": null,
+          "dispatchedSession": null,
+          "dueAt": null,
+          "externalId": null,
+          "focusSeconds": 0,
+          "id": 2,
+          "note": null,
+          "priority": "normal",
+          "remindAt": null,
+          "reminded": false,
+          "source": "cli",
+          "startedAt": "<ts2>",
+          "status": "paused",
+          "tags": [],
+          "title": "复盘会"
+        }
+      }
+    },
+    {
+      "exitCode": 0,
+      "stderr": "",
+      "stdout": {
+        "current": null
+      }
+    }
+  ]
+}

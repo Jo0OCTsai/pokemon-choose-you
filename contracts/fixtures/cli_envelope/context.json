@@ -1,0 +1,105 @@
+{
+  "kind": "cli_envelope",
+  "name": "context",
+  "results": [
+    {
+      "exitCode": 0,
+      "stderr": "",
+      "stdout": {
+        "created": {
+          "cancelledAt": null,
+          "categoryId": 1,
+          "completedAt": null,
+          "createdAt": "<ts1>",
+          "dispatchState": null,
+          "dispatchedSession": null,
+          "dueAt": "<ts2>",
+          "externalId": null,
+          "focusSeconds": 0,
+          "id": 1,
+          "note": null,
+          "priority": "normal",
+          "remindAt": null,
+          "reminded": false,
+          "source": "cli",
+          "startedAt": null,
+          "status": "scheduled",
+          "tags": [],
+          "title": "判重上下文里的既有任务"
+        }
+      }
+    },
+    {
+      "exitCode": 0,
+      "stderr": "",
+      "stdout": {
+        "categories": [
+          {
+            "description": "职业与产出相关的任务，如写代码、修 bug、写文档",
+            "id": 1,
+            "name": "工作"
+          },
+          {
+            "description": "学习、调研与技能提升，如读文档、看课程",
+            "id": 2,
+            "name": "学习"
+          },
+          {
+            "description": "日常生活事务，如购物、家务、缴费",
+            "id": 3,
+            "name": "生活"
+          },
+          {
+            "description": "健康、运动与就医相关",
+            "id": 4,
+            "name": "健康"
+          },
+          {
+            "description": "兴趣与娱乐活动",
+            "id": 5,
+            "name": "兴趣"
+          }
+        ],
+        "dimensions": [
+          {
+            "cardinality": "single",
+            "key": "project",
+            "maxTags": 20,
+            "name": "项目",
+            "remaining": 20
+          },
+          {
+            "cardinality": "multi",
+            "key": "context",
+            "maxTags": 10,
+            "name": "场景",
+            "remaining": 10
+          },
+          {
+            "cardinality": "multi",
+            "key": "person",
+            "maxTags": 30,
+            "name": "人物",
+            "remaining": 30
+          },
+          {
+            "cardinality": "multi",
+            "key": "topic",
+            "maxTags": 30,
+            "name": "主题",
+            "remaining": 30
+          }
+        ],
+        "now": "<ts1>",
+        "openTasks": [
+          {
+            "id": 1,
+            "title": "判重上下文里的既有任务"
+          }
+        ],
+        "tagFeedback": [],
+        "tags": []
+      }
+    }
+  ]
+}

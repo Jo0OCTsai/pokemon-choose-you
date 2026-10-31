@@ -26,9 +26,11 @@ pub(crate) fn run_skill(rest: &[String]) -> Result<serde_json::Value, CliError> 
             let (previous, path) = local_install(&dir).map_err(|m| CliError(m, 1))?;
             Ok(json!({
                 "installed": true,
-                "version": SKILL_VERSION,
+                "version": SKILL_VERSION.as_str(),
                 "previousVersion": previous,
-                "updated": previous.as_deref().is_some_and(|v| v != SKILL_VERSION),
+                "updated": previous
+                    .as_deref()
+                    .is_some_and(|v| v != SKILL_VERSION.as_str()),
                 "agent": agent,
                 "path": path,
             }))

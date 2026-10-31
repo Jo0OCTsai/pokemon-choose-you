@@ -147,7 +147,7 @@ pub async fn agent_skill_status(
 ) -> AppResult<AgentSkillStatus> {
     let agent = load_agent(&db, &agent_id)?;
     let kind = skill_kind(&agent)?;
-    let bundled = skills::SKILL_VERSION.to_string();
+    let bundled = skills::SKILL_VERSION.as_str().to_string();
     let dir_override = skill_dir_override(&agent);
     match effective_remote(&db, &agent)? {
         None => {
@@ -203,7 +203,7 @@ pub async fn agent_skill_install(
 ) -> AppResult<AgentSkillInstallResult> {
     let agent = load_agent(&db, &agent_id)?;
     let kind = skill_kind(&agent)?;
-    let version = skills::SKILL_VERSION.to_string();
+    let version = skills::SKILL_VERSION.as_str().to_string();
     let dir_override = skill_dir_override(&agent);
     match effective_remote(&db, &agent)? {
         None => {
@@ -420,13 +420,13 @@ mod tests {
         };
         assert_eq!(before.kind, "claude-code");
         assert_eq!(before.remote_host, None);
-        assert_eq!(before.bundled_version, skills::SKILL_VERSION);
+        assert_eq!(before.bundled_version, skills::SKILL_VERSION.as_str());
 
         let result = {
             let db = app.state::<Db>();
             tauri::async_runtime::block_on(agent_skill_install(db, "a1".into())).unwrap()
         };
-        assert_eq!(result.version, skills::SKILL_VERSION);
+        assert_eq!(result.version, skills::SKILL_VERSION.as_str());
         assert!(result.dir.contains(".claude/skills/pokemon-choose-you"));
 
         let after = {
@@ -493,7 +493,7 @@ mod tests {
         }
         let tmp = std::env::temp_dir().join(format!("pk-skill-ssh-{}", std::process::id()));
         std::fs::create_dir_all(&tmp).unwrap();
-        let sentinel = format!("PK_SKILL_INSTALLED {v}", v = skills::SKILL_VERSION);
+        let sentinel = format!("PK_SKILL_INSTALLED {v}", v = skills::SKILL_VERSION.as_str());
         inject_fake_ssh(&tmp, &sentinel);
         let status = {
             let db = app.state::<Db>();
@@ -505,7 +505,7 @@ mod tests {
         assert!(
             !status.up_to_date,
             "远端 5 旧于内置 {}",
-            skills::SKILL_VERSION
+            skills::SKILL_VERSION.as_str()
         );
         assert!(
             status.dir.starts_with("$HOME/.claude/skills/"),
@@ -523,7 +523,7 @@ mod tests {
             "升级前先查到旧版"
         );
         assert!(result.updated);
-        assert_eq!(result.version, skills::SKILL_VERSION);
+        assert_eq!(result.version, skills::SKILL_VERSION.as_str());
         assert_eq!(result.remote_host.as_deref(), Some("dev@box"));
 
         // 换一个不回哨兵的假 ssh（同一路径重写脚本，变量仍指向它）→ 哨兵校验兜底

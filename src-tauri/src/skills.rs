@@ -5,21 +5,29 @@
 //! 官方建议项目约定进仓库目录、个人工作流进 home 全局目录；且远程 agent 场景下
 //! 技能文件要落在 agent 实际运行的那台机器上（pk 本体经 shim 回本机执行）。
 
-/// 随包分发的 agent 技能模板（教 agent 用 pk 管待办）
-pub const SKILL_MD: &str = include_str!("../skills/pokemon-choose-you.md");
+use std::sync::LazyLock;
+
+/// 随包分发的 agent 技能模板（教 agent 用 pk 管待办）。单一源在仓根 agent-plugins/
+/// （与 dsh-plugin 侧 vite raw 内嵌共享同一批文件）
+pub const SKILL_MD: &str = include_str!("../../agent-plugins/skills/pokemon-choose-you/SKILL.md");
 /// 技能引用文件（渐进披露）：主文件保持精简，参数细节与批处理协议按需再读
 pub const SKILL_REFS: &[(&str, &str)] = &[
     (
         "references/commands.md",
-        include_str!("../skills/references/commands.md"),
+        include_str!("../../agent-plugins/skills/pokemon-choose-you/references/commands.md"),
     ),
     (
         "references/suggest-workflow.md",
-        include_str!("../skills/references/suggest-workflow.md"),
+        include_str!(
+            "../../agent-plugins/skills/pokemon-choose-you/references/suggest-workflow.md"
+        ),
     ),
 ];
-/// 当前技能版本（与 SKILL.md frontmatter 的 version 保持一致，用于安装时的版本对比）
-pub const SKILL_VERSION: &str = "10";
+/// 当前技能版本（安装时的版本对比用）：唯一版本源是 SKILL.md frontmatter 的
+/// version 字段——解析内嵌 MD 得出，不设人工镜像常量
+pub static SKILL_VERSION: LazyLock<String> = LazyLock::new(|| {
+    frontmatter_version(SKILL_MD).expect("内嵌 SKILL.md frontmatter 缺 version 字段")
+});
 
 /// 技能在各 agent 技能目录下的文件夹名（Agent Skills 标准：与 frontmatter name 一致）
 pub const SKILL_DIR_NAME: &str = "pokemon-choose-you";
@@ -215,7 +223,7 @@ pub fn remote_install_script(agent: &str, dir: Option<&str>) -> Result<String, S
     }
     // 末尾回显带前缀的哨兵：远端登录 shell 的 profile 输出可能污染 stdout，
     // 按 `PK_SKILL_INSTALLED <version>` 定位真实安装结果
-    script.push_str(&format!("echo \"PK_SKILL_INSTALLED {SKILL_VERSION}\"\n"));
+    script.push_str(&format!("echo \"PK_SKILL_INSTALLED {}\"\n", *SKILL_VERSION));
     Ok(script)
 }
 
@@ -336,7 +344,7 @@ mod tests {
         assert!(
             install
                 .trim_end()
-                .ends_with(&format!("echo \"PK_SKILL_INSTALLED {SKILL_VERSION}\"")),
+                .ends_with(&format!("echo \"PK_SKILL_INSTALLED {}\"", *SKILL_VERSION)),
             "回显哨兵与版本: {install}"
         );
     }
@@ -388,12 +396,12 @@ mod tests {
         assert!(path.contains("SKILL.md"));
         let (installed, version) = local_status(&dir);
         assert!(installed);
-        assert_eq!(version.as_deref(), Some(SKILL_VERSION));
+        assert_eq!(version.as_deref(), Some(SKILL_VERSION.as_str()));
         let written = std::fs::read_to_string(dir.join("references/commands.md")).unwrap();
         assert_eq!(written, SKILL_REFS[0].1, "引用文件内容一致");
         // 重装幂等：旧版本即当前版本
         let (prev2, _) = local_install(&dir).unwrap();
-        assert_eq!(prev2.as_deref(), Some(SKILL_VERSION));
+        assert_eq!(prev2.as_deref(), Some(SKILL_VERSION.as_str()));
         let _ = std::fs::remove_dir_all(&dir);
     }
 
@@ -404,6 +412,27 @@ mod tests {
             Some("3".into())
         );
         assert_eq!(frontmatter_version("no frontmatter"), None);
+    }
+
+    /// 单一源同源断言：内嵌内容（include_str 编译期读取）与仓根 agent-plugins/ 磁盘
+    /// 文件字节一致，且版本值即 frontmatter 解析值——防止资产被复制出第二份真相
+    #[test]
+    fn embedded_skill_matches_agent_plugins_source() {
+        let base = format!(
+            "{}/../agent-plugins/skills/pokemon-choose-you",
+            env!("CARGO_MANIFEST_DIR")
+        );
+        let from_disk = std::fs::read_to_string(format!("{base}/SKILL.md")).unwrap();
+        assert_eq!(SKILL_MD, from_disk, "内嵌主文件与磁盘单一源一致");
+        for (rel, content) in SKILL_REFS {
+            let disk = std::fs::read_to_string(format!("{base}/{rel}")).unwrap();
+            assert_eq!(*content, disk, "内嵌 {rel} 与磁盘单一源一致");
+        }
+        assert_eq!(
+            SKILL_VERSION.as_str(),
+            frontmatter_version(&from_disk).unwrap(),
+            "版本值来自 frontmatter 解析"
+        );
     }
 
     /// 远端安装脚本端到端：整段脚本经 stdin 交给 `sh -s` 执行（HOME 指向临时目录），
@@ -441,7 +470,7 @@ mod tests {
         assert!(
             stdout
                 .lines()
-                .any(|l| l.trim() == format!("{REMOTE_INSTALL_SENTINEL} {SKILL_VERSION}")),
+                .any(|l| l.trim() == format!("{REMOTE_INSTALL_SENTINEL} {}", *SKILL_VERSION)),
             "末行回显哨兵: {stdout}"
         );
         let installed =

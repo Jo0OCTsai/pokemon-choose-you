@@ -16,22 +16,43 @@ export interface TaskNote {
   createdAt: string;
 }
 
-/** 手动添加跟进（Rust 口径：去空格拒空文、任务须存在、source 固定 manual；AI 侧由飞书链路直写） */
-export function addTaskNote(conn: Conn, taskId: number, content: string, now = nowRfc3339()): TaskNote {
+/** 手动添加跟进（Rust 口径：去空格拒空文、任务须存在；source 缺省 manual，pk note add --source ai 走参数） */
+export function addTaskNote(
+  conn: Conn,
+  taskId: number,
+  content: string,
+  source = "manual",
+  now = nowRfc3339(),
+): TaskNote {
   const trimmed = content.trim();
   if (trimmed === "") {
     throw paramError("跟进内容不能为空");
   }
   getTask(conn, taskId); // 不存在 → NOT_FOUND
   const r = conn
-    .prepare("INSERT INTO task_notes (task_id, content, source, created_at) VALUES (?, ?, 'manual', ?)")
-    .run(taskId, trimmed, now);
-  return { id: Number(r.lastInsertRowid), taskId, content: trimmed, source: "manual", createdAt: now };
+    .prepare("INSERT INTO task_notes (task_id, content, source, created_at) VALUES (?, ?, ?, ?)")
+    .run(taskId, trimmed, source, now);
+  return { id: Number(r.lastInsertRowid), taskId, content: trimmed, source, createdAt: now };
 }
 
 /** 删除跟进记录（按 id；幂等——不存在不报错，对齐 delete_task_note） */
 export function deleteTaskNote(conn: Conn, id: number): void {
   conn.prepare("DELETE FROM task_notes WHERE id=?").run(id);
+}
+
+/** 跟进记录列表（list_task_notes_conn 同构：按 id 正序；pk note list 复用） */
+export function listTaskNotes(conn: Conn, taskId: number): TaskNote[] {
+  return (
+    conn
+      .prepare("SELECT id, task_id, content, source, created_at FROM task_notes WHERE task_id=? ORDER BY id")
+      .all(taskId) as Array<Record<string, unknown>>
+  ).map((n): TaskNote => ({
+    id: Number(n.id),
+    taskId: Number(n.task_id),
+    content: String(n.content),
+    source: String(n.source),
+    createdAt: String(n.created_at),
+  }));
 }
 
 /** 操作日志行（task_logs 投影，字段名与 Rust TaskLog serde camelCase 对齐） */

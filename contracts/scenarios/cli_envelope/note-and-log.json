@@ -1,0 +1,11 @@
+{
+  "kind": "cli_envelope",
+  "name": "note-and-log",
+  "invocations": [
+    { "argv": ["task", "create", "--title", "联调"] },
+    { "argv": ["note", "add", "1", "对方确认周五交付", "--source", "ai"] },
+    { "argv": ["note", "add", "1", "补一条人工备注"] },
+    { "argv": ["note", "list", "1"] },
+    { "argv": ["log", "1"] }
+  ]
+}

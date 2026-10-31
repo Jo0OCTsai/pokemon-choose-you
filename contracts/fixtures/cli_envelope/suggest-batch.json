@@ -1,0 +1,52 @@
+{
+  "kind": "cli_envelope",
+  "name": "suggest-batch",
+  "results": [
+    {
+      "exitCode": 0,
+      "stderr": "",
+      "stdout": {
+        "created": {
+          "cancelledAt": null,
+          "categoryId": 1,
+          "completedAt": null,
+          "createdAt": "<ts1>",
+          "dispatchState": null,
+          "dispatchedSession": null,
+          "dueAt": null,
+          "externalId": null,
+          "focusSeconds": 0,
+          "id": 1,
+          "note": null,
+          "priority": "normal",
+          "remindAt": null,
+          "reminded": false,
+          "source": "cli",
+          "startedAt": null,
+          "status": "inbox",
+          "tags": [],
+          "title": "已存在的联调任务"
+        }
+      }
+    },
+    {
+      "exitCode": 0,
+      "stderr": "",
+      "stdout": {
+        "agent": "claude-code",
+        "followUp": 0,
+        "none": 0,
+        "submitted": 2,
+        "todo": 1,
+        "update": 1
+      }
+    },
+    {
+      "exitCode": 2,
+      "stderr": {
+        "error": "优先级「super」无效，可选：low/normal/high/urgent"
+      },
+      "stdout": ""
+    }
+  ]
+}

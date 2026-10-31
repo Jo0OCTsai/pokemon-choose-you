@@ -1,0 +1,8 @@
+{
+  "kind": "cli_envelope",
+  "name": "context",
+  "invocations": [
+    { "argv": ["task", "create", "--title", "判重上下文里的既有任务", "--due", "2026-11-06T18:00"] },
+    { "argv": ["context"] }
+  ]
+}

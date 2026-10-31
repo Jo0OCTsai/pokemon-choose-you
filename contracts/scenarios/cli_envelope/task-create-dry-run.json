@@ -1,0 +1,9 @@
+{
+  "kind": "cli_envelope",
+  "name": "task-create-dry-run",
+  "invocations": [
+    { "argv": ["task", "create", "--title", "交周报", "--due", "2026-11-06T18:00", "--priority", "high", "--dry-run"] },
+    { "argv": ["task", "list"] },
+    { "argv": ["task", "create", "--title", "交周报", "--due", "2026-11-06T18:00", "--priority", "high"] }
+  ]
+}
