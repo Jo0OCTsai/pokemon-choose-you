@@ -11,7 +11,7 @@
         "path": "pky-skills/pokemon-choose-you/SKILL.md",
         "previousVersion": null,
         "updated": false,
-        "version": "9"
+        "version": "10"
       }
     },
     {
@@ -21,9 +21,9 @@
         "agent": "claude-code",
         "installed": true,
         "path": "pky-skills/pokemon-choose-you/SKILL.md",
-        "previousVersion": "9",
+        "previousVersion": "10",
         "updated": false,
-        "version": "9"
+        "version": "10"
       }
     }
   ]

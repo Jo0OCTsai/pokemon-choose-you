@@ -7,6 +7,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import { runSetup, type SetupCtx, type SetupReport } from "../src/pk/setup";
+import { classifyClientAlive } from "../src/pk/client-alive";
 import { defaultCtx } from "../src/pk/setup-ctx";
 import { authorizedEntry } from "../src/pk/authorized-keys";
 
@@ -44,6 +45,7 @@ line="$*"
 case "$line" in
   *"command -v pk"*) echo "${JSON.stringify(join(binDir, "pk"))}"; exit 0;;
   *"pk --version"*) echo "9.9.9-test"; exit 0;;
+  *clientaliveinterval*) echo "clientaliveinterval 15"; exit 0;;
 esac
 cat > /dev/null
 exit 0
@@ -101,6 +103,7 @@ const SETUP_STEP_NAMES = [
   "安装 shim",
   "远程 PATH",
   "端到端验证",
+  "sshd 存活探测",
 ];
 
 describe("run_setup 全链：全新与幂等（假程序注入）", () => {
@@ -194,5 +197,20 @@ describe("run_setup 失败路径（假程序注入）", () => {
     expect(report.ok).toBe(false);
     expect(report.steps[0]).toMatchObject({ name: "定位 pk", status: "fail" });
     expect(report.steps[0].detail).toContain("空占位");
+  });
+});
+
+describe("sshd 存活探测三分类（classify_client_alive 同构）", () => {
+  it("1–60s → ok", () => {
+    expect(classifyClientAlive("clientaliveinterval 15")).toMatchObject({ name: "sshd 存活探测", status: "ok" });
+    expect(classifyClientAlive("ClientAliveInterval 60").status).toBe("ok");
+  });
+  it("0 或 >60 → warn 带配置建议", () => {
+    expect(classifyClientAlive("clientaliveinterval 0")).toMatchObject({ status: "warn" });
+    expect(classifyClientAlive("clientaliveinterval 300").detail).toContain("ClientAliveInterval 15");
+  });
+  it("不可确认 → warn（UNCONFIRMED / 空输出）", () => {
+    expect(classifyClientAlive("UNCONFIRMED").detail).toContain("无法确认");
+    expect(classifyClientAlive("").status).toBe("warn");
   });
 });

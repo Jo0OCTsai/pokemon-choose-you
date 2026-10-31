@@ -11,12 +11,13 @@ import { execFileSync } from "node:child_process";
 import { keyscanLocal, sshRun, type SshCtx } from "./ssh";
 import { assembleAuthorizedKeys } from "./authorized-keys";
 import { shimScript, toKnownHostsLines, verifyRemoteLine } from "./shim";
+import { clientAliveStep } from "./client-alive";
 
 export const DEFAULT_TUNNEL_PORT = 10022;
 
 export interface SetupStep {
   name: string;
-  /** ok / skip（幂等复用）/ fail */
+  /** ok / skip（幂等复用）/ warn（建议性提示，不阻断开通）/ fail */
   status: string;
   detail: string;
 }
@@ -263,6 +264,8 @@ function stepVerify(ctx: SetupCtx, steps: SetupStep[]): SetupReport {
   const version = out.trim();
   if (ok && version !== "") {
     steps.push({ name: "端到端验证", status: "ok", detail: `远程经隧道回本机执行成功（pk ${version}）` });
+    // 10. 远端 sshd 存活探测（建议性，不阻断开通）：见 clientAliveStep 注释
+    steps.push(clientAliveStep(ctx));
     return { ok: true, steps, version };
   }
   steps.push({
