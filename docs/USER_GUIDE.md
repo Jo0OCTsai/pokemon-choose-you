@@ -402,9 +402,20 @@ pk help                              # 完整命令说明
 
 如果你常驻 [dsh（DeepSeek Harness）](https://github.com/deepseek-ai) 工作台，可以把「就决定是你了」装成 **dsh Cordis 插件**——待办管理的完整闭环（任务/专注、飞书收音机、桌宠、待办派发）在 dsh 内原生完成，不必切回主应用。这是与桌面应用**长期并存**的第二形态，两形态面向**同一份待办数据**（同一个 SQLite 库，零同步）。
 
-### 安装（v1 自用口径）
+### 安装
 
-v1 以**本地路径 / file 安装包**分发（是否发布 npm 另行裁决）：在 dsh 的插件安装面填本仓 `dsh-plugin/` 目录路径（或打包后的 file 包）。插件自带 React 客户端页面，装好后**侧边栏一级导航直接出现「图鉴机」入口**（Pokédex，精灵球图标，排在插件/自动化任务之后；点击即达面板 + 背包）；插件列表与详情页显示本插件的名称/简介/图标（读包内 `locale/*` 元数据，三语）；桌宠 helper 的构建产物随插件包分发；Electron 运行时优先复用本机已有，缺失时**自动按需下载**到 `~/.dsh/electron/`（官方源校验，可配镜像），下载失败会给手动放置指引——helper 缺席时仅桌宠与系统能力面（托盘/通知/快捷键等）降级，核心待办不受影响。
+插件以 **GitHub Release 预构建包**分发：每个 [Release](https://github.com/Jo0OCTsai/pokemon-choose-you/releases) 附带 `pokemon-choose-you-dsh-<插件版本>.tgz`，以及固定名副本 `pokemon-choose-you-dsh.tgz`。在 dsh 的插件安装面填下述链接，或终端执行（`<name>` 为你的 dsh profile，如 `web` / `desktop`）：
+
+```bash
+# 永远装最新 Release（固定名副本的稳定链接）
+dsh plugin --profile <name> add https://github.com/Jo0OCTsai/pokemon-choose-you/releases/latest/download/pokemon-choose-you-dsh.tgz
+```
+
+要钉死某个版本，把链接换成对应 Release 页资产列表里带版本号的 `.tgz` 链接即可。`dsh plugin` 把参数原样转发给 pnpm，所以任何 pnpm 认的来源都行——从仓库源码安装（开发用）是 `add file:<仓库>/dsh-plugin`，装前先 `pnpm --filter pokemon-choose-you-dsh build` 出产物（源码仓库不含构建产物，直接填仓库地址装不了）。**升级**：安装来源会被钉在 profile 的安装记录里，同一链接重新 add 会复用旧解析，升级时先 `dsh plugin --profile <name> remove pokemon-choose-you-dsh` 再重新 add。
+
+**首次安装的构建脚本门（pnpm ≥ 10）**：插件依赖的原生模块 `uiohook-napi` 自带 prebuilds、无需编译，但 pnpm 对带 install 脚本的依赖默认拦下待审批——pnpm 10 只警告，**pnpm 11 会在 add 末尾报 `ERR_PNPM_IGNORED_BUILDS` 中止**。此时把 profile 目录（`~/.dsh/profiles/<name>/pnpm-workspace.yaml`）里 pnpm 留下的 `uiohook-napi: set this to true or false` 占位改成 `uiohook-napi: false`（即消费包内 prebuilds、不跑脚本——已验证口径），再重跑一次 add 命令即干净通过。
+
+插件自带 React 客户端页面，装好后**侧边栏一级导航直接出现「图鉴机」入口**（Pokédex，精灵球图标，排在插件/自动化任务之后；点击即达面板 + 背包）；插件列表与详情页显示本插件的名称/简介/图标（读包内 `locale/*` 元数据，三语）；桌宠 helper 的构建产物随插件包分发；Electron 运行时优先复用本机已有，缺失时**自动按需下载**到 `~/.dsh/electron/`（官方源校验，可配镜像），下载失败会给手动放置指引——helper 缺席时仅桌宠与系统能力面（托盘/通知/快捷键等）降级，核心待办不受影响。
 
 ### 会话对话捕捉（想到就记）
 
