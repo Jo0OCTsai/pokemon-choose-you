@@ -115,9 +115,43 @@ jobs:
             | macOS (Intel + Apple Silicon) | `.dmg` | 带固定自签证书（稳定身份，辅助功能授权跨版本存活）；非 Apple 公证，首次打开需 Gatekeeper「仍要打开」 |
             | Windows | `.exe` (NSIS) | SmartScreen「更多信息 → 仍要运行」 |
             | Linux | `.AppImage` / `.deb` / `.rpm` | 实验性：置顶需 X11；NVIDIA 白屏设 `WEBKIT_DISABLE_DMABUF_RENDERER=1`；仅 AppImage 支持自动更新 |
+            | dsh 插件形态 | `pokemon-choose-you-dsh-<插件版本>.tgz` | `dsh plugin --profile <name> add <本资产链接>` 直装；`pokemon-choose-you-dsh.tgz` 为固定名副本，`releases/latest/download/` 稳定链接永远装最新版（详见仓库 docs/USER_GUIDE.md「dsh 插件形态」） |
 
             macOS 包为自签证书（非 Apple 官方签名/公证，详见仓库 SECURITY.md）；Windows 包未做 OS 代码签名。更新包均经 minisign 签名校验。
             数据（SQLite）存于本机归一化根 `~/.choose-you/`（`CHOOSE_YOU_HOME` 环境变量可重定位；旧版本平台数据目录首启动自动迁移）。
             0.x 阶段数据格式未承诺稳定，升级前请备份数据库文件。
           releaseDraft: true
           args: ${{ matrix.args }}
+
+  dsh-plugin:
+    # dsh 插件预构建包挂同一草稿 Release：用户 `dsh plugin --profile <name> add <tgz 链接>` 直装
+    # （`dsh plugin` 原样转发 pnpm，tarball URL 是 pnpm 原生来源）。源码仓库不能直装——dist 不入库、
+    # 构建经 tsconfig paths 直引仓根 src/，git 依赖就地构建不可行。固定名副本给
+    # releases/latest/download/pokemon-choose-you-dsh.tgz 稳定链接，永远指向最新 Release。
+    # needs build：草稿由 tauri-action 创建，等平台构建完再上传；草稿 publish 前对外不可见，无时序窗口。
+    needs: [prepare, build]
+    permissions:
+      contents: write
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
+        with:
+          node-version: 24.21.0
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+        env:
+          # helper 的 electron devDep 只在开发机本地跑窗体；打包不需要二进制
+          ELECTRON_SKIP_BINARY_DOWNLOAD: "1"
+      - run: pnpm --filter pokemon-choose-you-dsh build
+      - name: 打包 tarball（插件版本名 + 固定名副本）
+        run: |
+          pnpm --filter pokemon-choose-you-dsh pack --pack-destination "$RUNNER_TEMP/dsh-plugin"
+          cp "$RUNNER_TEMP"/dsh-plugin/pokemon-choose-you-dsh-*.tgz "$RUNNER_TEMP/dsh-plugin/pokemon-choose-you-dsh.tgz"
+      - name: 上传到草稿 Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          VERSION: ${{ needs.prepare.outputs.version }}
+        run: gh release upload "v$VERSION" "$RUNNER_TEMP"/dsh-plugin/*.tgz --clobber
