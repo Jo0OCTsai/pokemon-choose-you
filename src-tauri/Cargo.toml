@@ -14,10 +14,10 @@ name = "pokemon_choose_you_lib"
 crate-type = ["staticlib", "cdylib", "rlib"]
 
 [build-dependencies]
-tauri-build = { version = "2.6.3", features = [] }
+tauri-build = { version = "2.7.4", features = [] }
 
 [dependencies]
-tauri = { version = "2.11.6", features = ["macos-private-api", "tray-icon"] }
+tauri = { version = "2.12.5", features = ["macos-private-api", "tray-icon"] }
 tauri-plugin-opener = "2.5.5"
 tauri-plugin-notification = "2.4.0"
 tauri-plugin-log = "2.9.2"
@@ -26,7 +26,7 @@ tauri-plugin-autostart = "2.5.1"
 tauri-plugin-single-instance = "2.4.5"
 tauri-plugin-window-state = "2.4.1"
 tauri-plugin-global-shortcut = "2.3.2"
-tauri-plugin-updater = "2.12.0"
+tauri-plugin-updater = "2.14.1"
 tauri-plugin-process = "2.3.1"
 # 桌面交互：右键菜单的剪贴板读写（WebView 里 navigator.clipboard 读常被权限卡住）+ 导出另存为对话框
 tauri-plugin-clipboard-manager = "2.3.3"
@@ -55,7 +55,7 @@ rdev = "0.5.3"
 [dev-dependencies]
 serial_test = "4.0.1"
 # 仅测试构建启用 mock 运行时，不影响正常编译与发布产物
-tauri = { version = "2.11.6", features = ["test"] }
+tauri = { version = "2.12.5", features = ["test"] }
 
 [profile.release]
 codegen-units = 1
