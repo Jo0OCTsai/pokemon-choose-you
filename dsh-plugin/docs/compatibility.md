@@ -97,6 +97,16 @@ Electron 内嵌 Node（A1 宿主侧收口）：Node **24.21.0**（内嵌 SQLite 
 | 运维提示 | ① 升级后所有已开通远端在首轮复核落 `not_ready`，向导点「重装」即可（upload 复用原 helperPath 目录原位装 rc.3）；② 从仓库 dist 长期驻留的旧宿主/`broker.mjs` 进程（desktop profile file: 链 + 遗留 broker）会在重启前以旧 Config 喂新库报 `$.launch missing`——重启桌面 app / 清理残留 broker 即消（docs/debt.md 窗口抬升条目附注同族）；③ desktop 宿主 broker 路径本轮未真机复测（传输层字节级未变，Config 改形在 broker 协议同步） |
 | 事实边界 | A3 结论原样沿用（流安全模块未变）；A4 `dsh-ssh` 行 0.1.6-alpha.1 为当日事实记录；dsh terminal 行真 PTY 实测基于 0.1.6-alpha.1，rc.3 PTY 面为加法变更未复测 |
 
+## A7 修复记录：broker 闭包声明——Release tarball 首装即远程全断（2026-11-02，插件 0.1.5）
+
+| 项 | 结论 |
+| --- | --- |
+| 动因 | 插件 0.1.4 经 GitHub Release tarball 装入 dsh desktop profile 后，远程 agent 派发全败：部署 `pky-remote` disconnected，lastError = `broker 传输不可用：全部 Node 候选失败……Node 候选无协议回合即退出（code=1）`。file: 仓库安装多年无恙纯属 workspace 兜底——非版本兼容问题，是**包依赖声明缺陷首暴露** |
+| 根因 | `dist/broker.mjs` 由**系统 Node** 子进程运行（Electron BoringSSL 宿主的家族传输外包，A3 过渡通道），没有 dsh-app-boot 的 peer 锚定拦截（拦截只对 host 进程内「声明为 peer 的名字」生效），`@deepseek-ai/*` 只能从插件自身安装闭包解析。dsh-ssh 家族的必需 peer 传递闭包共 **24 包**（cordis、dsh-util-values、dsh-http-proxy、dsh-subprocess 家族、dsh-storage 家族……）此前全靠仓库 workspace 的 devDep/store 兜着；tarball 装进 `autoInstallPeers: false` 的 profile 后逐层 `ERR_MODULE_NOT_FOUND`（dsh 包大量惰性 import，空跑 broker 入口不触发，逐层靠 5min 周期复核才显形） |
+| 改动 | package.json dependencies 补齐 24 包必需 peer 闭包（rc.3 钉版，仅 28MB；对照 `@deepseek-ai/dsh` 元包 834MB/306 包不可取）；cordis **同时保留 peerDependencies 声明**——dsh-app-boot `routeLinked` 对声明为 peer 的名字一律拦截到安装作用域，host 进程仍用 dsh 自带 cordis 单实例，本地副本只服务 broker（真机验证无双实例问题）；插件版本 0.1.4 → 0.1.5；新增 `__tests__/dsh-broker-closure.spec.ts` 闭包守卫（BFS 断言 dependencies 覆盖全部必需 peer + cordis 双声明）——以后升 rc 漏包即红 |
+| 验证 | 闭包守卫 2 例绿；`pnpm install` 零拦截（rc.3 已过最小发布龄，minimumReleaseAgeExclude 无需扩名单）；build/pack 绿。**真机闭环（2026-11-02，dsh desktop 0.2.1-rc.3 宿主）**：本地 0.1.5 tarball 装入 desktop profile（pnpm 直装；profile 补 allowBuilds：`@deepseek-ai/dsh-subprocess-local`/`koffi`/`node-pty` = false，prebuilds 在场免脚本），重启应用后**首轮周期复核（boot +5min）部署 pky-remote 转 ready、lastError 清空**，broker 经家族链与远端 helper 协议握手恢复，宿主无崩溃；`dsh --profile pky-test` web 宿主同包 boot 60s 装载正常（banner 在场、零 did-not-activate）——本地 cordis 副本在场不破坏 host 导锚 |
+| 运维提示 | ① 升 0.1.5 后 profile 新增三个原生件依赖，pnpm 11 用户首次 add 会多三条 `ERR_PNPM_IGNORED_BUILDS`——占位全部改 `false` 后**必须 remove 再 add**（dsh 只为本轮成功新增的依赖登记 `dsh.profile.bundles`，被拦首轮已写入依赖记录，直接重跑不登记、boot 后无「图鉴机」入口；USER_GUIDE 已同步）；② desktop profile 拒绝 CLI 管理，升级经桌面应用插件页或退出应用后在 profile 目录直跑 pnpm；③ 本机 desktop 当前指向本地 0.1.5 tarball（`/tmp/pky-fix/`），0.1.5 Release 发布后应 remove + add 换回 `releases/latest/download` 固定名链接 |
+
 ## 兼容矩阵（依赖子系统 × 最低版本 × 探测键）
 
 | 依赖子系统 | 最低版本 | 探测键（`CAPABILITY_KEYS` 单源比对位） | 探测方式 | 状态 |
