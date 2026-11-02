@@ -413,7 +413,7 @@ dsh plugin --profile <name> add https://github.com/Jo0OCTsai/pokemon-choose-you/
 
 要钉死某个版本，把链接换成对应 Release 页资产列表里带版本号的 `.tgz` 链接即可。`dsh plugin` 把参数原样转发给 pnpm，所以任何 pnpm 认的来源都行——从仓库源码安装（开发用）是 `add file:<仓库>/dsh-plugin`，装前先 `pnpm --filter pokemon-choose-you-dsh build` 出产物（源码仓库不含构建产物，直接填仓库地址装不了）。**升级**：安装来源会被钉在 profile 的安装记录里，同一链接重新 add 会复用旧解析，升级时先 `dsh plugin --profile <name> remove pokemon-choose-you-dsh` 再重新 add。
 
-**首次安装的构建脚本门（pnpm ≥ 10）**：插件依赖的原生模块 `uiohook-napi` 自带 prebuilds、无需编译，但 pnpm 对带 install 脚本的依赖默认拦下待审批——pnpm 10 只警告，**pnpm 11 会在 add 末尾报 `ERR_PNPM_IGNORED_BUILDS` 中止**。此时把 profile 目录（`~/.dsh/profiles/<name>/pnpm-workspace.yaml`）里 pnpm 留下的 `uiohook-napi: set this to true or false` 占位改成 `uiohook-napi: false`（即消费包内 prebuilds、不跑脚本——已验证口径），再重跑一次 add 命令即干净通过。
+**首次安装的构建脚本门（pnpm ≥ 10）**：插件依赖的原生模块（`uiohook-napi`、`node-pty`、`koffi`、`@deepseek-ai/dsh-subprocess-local`）都自带 prebuilds、无需编译，但 pnpm 对带 install 脚本的依赖默认拦下待审批——pnpm 10 只警告，**pnpm 11 会在 add 末尾报 `ERR_PNPM_IGNORED_BUILDS` 中止**。此时把 profile 目录（`~/.dsh/profiles/<name>/pnpm-workspace.yaml`）里 pnpm 留下的每个 `xxx: set this to true or false` 占位都改成 `false`（即消费包内 prebuilds、不跑脚本——已验证口径），然后**先 `remove` 再 `add`** 一次：dsh 只为本轮成功新增的依赖登记 `dsh.profile.bundles`，被拦下的首轮已把依赖写进了 package.json，直接重跑 add 不会登记、boot 后侧边栏不会出现「图鉴机」。desktop profile 由桌面应用独占管理（CLI 会拒绝），以上在应用的插件页完成。
 
 插件自带 React 客户端页面，装好后**侧边栏一级导航直接出现「图鉴机」入口**（Pokédex，精灵球图标，排在插件/自动化任务之后；点击即达面板 + 背包）；插件列表与详情页显示本插件的名称/简介/图标（读包内 `locale/*` 元数据，三语）；桌宠 helper 的构建产物随插件包分发；Electron 运行时优先复用本机已有，缺失时**自动按需下载**到 `~/.dsh/electron/`（官方源校验，可配镜像），下载失败会给手动放置指引——helper 缺席时仅桌宠与系统能力面（托盘/通知/快捷键等）降级，核心待办不受影响。
 
