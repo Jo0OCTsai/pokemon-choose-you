@@ -80,6 +80,23 @@ describe("forced-command 解析（SSH_ORIGINAL_COMMAND 白名单与程序等价�
   });
 });
 
+describe("程序等价：wrapper 形态（拆件——控上方 describe 行数）", () => {
+  it("shim 内嵌 wrapper 路径 vs 本进程 node+pk.mjs 直启", () => {
+    const dir = mkdtempSync(join(tmpdir(), "pk-sameprog-"));
+    cleanup.push(dir);
+    const wrapper = join(dir, "pk");
+    writeFileSync(wrapper, "#!/bin/sh\n");
+    const selfScript = `${wrapper}.mjs`;
+    // mjs 不必真实存在（resolveOrSelf 回落 resolve）；wrapper 在场走 realpath
+    writeFileSync(selfScript, "// bundle\n");
+    // wrapper 落位后 __ssh_entry 以 argv[1]=pk.mjs 直启，SSH_ORIGINAL_COMMAND 内嵌的是
+    // wrapper 路径——去 .mjs 兄弟路径视为同一程序（拒绝则回连全部「不是本 pk」）
+    expect(sameProgram(wrapper, selfScript)).toBe(true);
+    expect(parseForcedCommand(`env ${wrapper} version`, selfScript).args).toEqual(["version"]);
+    expect(sameProgram(join(dir, "other.mjs"), wrapper)).toBe(false);
+  });
+});
+
 describe("条目与脚本文本（与 Rust 产出的锚点对齐）", () => {
   const PUB = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAITEST test@pk";
 

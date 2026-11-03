@@ -11,6 +11,7 @@ import { createExternalTerminalAdapter, externalTerminalLine } from "./externalT
 import { ensureElectronDist } from "../pet/electronGet";
 import { detectPetSpawner, locateHelperMain } from "./petLocate";
 import { dbFileFrom } from "../storage/paths";
+import { ensureLocalPk } from "../remote/pkLocal";
 import { registerEmbeddedSchemas } from "../storage/migrate";
 import schemaRaw from "../storage/schema-raw";
 import { dshSessionExecutorOf } from "./sessionExecutor";
@@ -183,6 +184,18 @@ function degradePetRuntime(plugin: Plugin, petSpawner: HelperSpawner | undefined
 }
 
 /**
+ * 落位消费即校准（bundle 只随插件安装/重载变化，即宿主启动——启动时刷新即可覆盖
+ * 全部漂移场景；stat 缓存零摊销见 pkLocal）。best-effort：失败不阻断插件启动
+ */
+function refreshLocalPk(): void {
+  try {
+    ensureLocalPk();
+  } catch (e) {
+    process.stderr.write(`[pokemon-choose-you] pk 落位校准跳过：${e instanceof Error ? e.message : String(e)}\n`);
+  }
+}
+
+/**
  * 插件 apply：能力探测（node:sqlite 硬拒绝——NFR-3 不静默半工作）→ createPlugin 真实
  * 装配 → 工具/RPC 注册（全部挂 ctx.effect，fiber 卸载逆序注销）。
  */
@@ -196,6 +209,7 @@ export function apply(ctx: Context, config: ResolvedPkyConfig): void {
     throw new Error("[pokemon-choose-you] 无法定位待办库：CHOOSE_YOU_HOME 与 home 均不可用（AD §5.1 库定位）");
   }
   process.stderr.write(`[pokemon-choose-you] 待办库：${dbPath}\n`);
+  refreshLocalPk();
   const petSpawner = detectPetSpawner();
   // 远程部署平台面（full-parity 2.9）：scope 宿主 + 家族探测投影 + 闭包 helper 制品
   const remote = remotePlatformOf(ctx);

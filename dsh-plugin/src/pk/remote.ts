@@ -280,7 +280,15 @@ export function sameProgram(a: string, b: string): boolean {
       return resolve(p);
     }
   };
-  const pa = resolveOrSelf(a);
-  const pb = resolveOrSelf(b);
-  return process.platform === "win32" ? pa.toLowerCase() === pb.toLowerCase() : pa === pb;
+  // wrapper 形态落位：shim/authorized_keys 内嵌的是 wrapper（~/.choose-you/bin/pk），
+  // 本进程以 node + pk.mjs 直启（argv[1] 带 .mjs）——去 .mjs 的兄弟路径视为同一程序
+  const forms = (p: string): string[] => {
+    const stripped = p.endsWith(".mjs") ? p.slice(0, -".mjs".length) : p;
+    return [resolveOrSelf(p), resolveOrSelf(stripped)];
+  };
+  const fa = forms(a);
+  const fb = forms(b);
+  const eq = (x: string, y: string): boolean =>
+    process.platform === "win32" ? x.toLowerCase() === y.toLowerCase() : x === y;
+  return fa.some((x) => fb.some((y) => eq(x, y)));
 }

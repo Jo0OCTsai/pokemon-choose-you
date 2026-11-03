@@ -53,8 +53,30 @@ export function sshRun(
   if (out.status === 0) {
     return [true, (out.stdout ?? "").trim()];
   }
-  const err = (out.stderr ?? "").trim();
-  return [false, err === "" ? `退出码 ${out.status ?? -1}` : err];
+  const detail = failureDetail(out.stderr ?? "", out.stdout ?? "");
+  return [false, detail === "" ? `退出码 ${out.status ?? -1}` : detail];
+}
+
+/** 截断（ai/runner.rs trunc 同构：按字符取前 300，不加省略号） */
+function trunc(s: string): string {
+  return s.length <= 300 ? s : s.slice(0, 300);
+}
+
+/**
+ * 失败详情的流选择（ai/runner.rs failure_detail 同构，#127 现场复盘）：stderr 优先；
+ * stderr 为空或全是 Warning: 开头良性行（ssh 按需 -R 绑不上仅告警——常驻隧道占着
+ * 远程端口，设计内现象）时补 stdout 片段，避免良性告警成为报告里唯一线索误导排障。
+ * 两流皆空返回空串（调用方回落「退出码 N」）
+ */
+export function failureDetail(stderr: string, stdout: string): string {
+  const err = stderr.trim();
+  const out = stdout.trim();
+  // 空串的 every 恒真：stderr 无输出同样视为「无可诊断内容」
+  const benign = err === "" || err.split("\n").every((l) => l.trimStart().startsWith("Warning:"));
+  if (benign && out !== "") {
+    return err === "" ? trunc(out) : `${trunc(err)}；stdout：${trunc(out)}`;
+  }
+  return trunc(err);
 }
 
 /** ssh-keyscan 本机 sshd（只扫端口不认证；取 host key 指纹）。失败/空输出返回 null */

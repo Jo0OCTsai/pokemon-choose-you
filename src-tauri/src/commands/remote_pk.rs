@@ -131,13 +131,16 @@ fn ssh_run(
             (true, text)
         }
         Ok(out) => {
-            let err = String::from_utf8_lossy(&out.stderr).trim().to_string();
+            // 失败详情走 ai::failure_detail（#127 复盘）：stderr 只剩 ssh -R 良性告警时
+            // 补 stdout 片段——常驻隧道占着远程端口时按需 -R 绑不上仅告警，属设计内
+            // 现象，stderr-only 会让良性警告成为弹窗里唯一线索误导排障
+            let detail = ai::failure_detail(&out.stderr, &out.stdout);
             (
                 false,
-                if err.is_empty() {
+                if detail.is_empty() {
                     format!("退出码 {}", out.status.code().unwrap_or(-1))
                 } else {
-                    err
+                    detail
                 },
             )
         }
@@ -311,6 +314,43 @@ pub fn run_setup(ctx: &RemotePkSetup) -> SetupReport {
                 return report_of(steps, None);
             };
         }
+        // sshd 语境预检：pk 通道回连由 authorized_keys forced command 经本机 sshd 以
+        // 默认 PATH（无 Homebrew/nvm）执行——node 脚本形态的 pk 落位在该语境会
+        // `env: node: No such file or directory`（真机实测）。这里以最小环境真跑一次
+        // --version 前置暴露：原本要等第 9 步端到端才炸，且失败详情会被 -R 良性告警
+        // 淹没（dsh 侧 wrapper 落位内嵌 node 绝对路径免疫，见 pkLocal.pkWrapperScript）
+        let probe = std::process::Command::new(&ctx.pk_path)
+            .arg("--version")
+            .env_clear()
+            .env("PATH", "/usr/bin:/bin:/usr/sbin:/sbin")
+            .stdin(std::process::Stdio::null())
+            .stdout(std::process::Stdio::piped())
+            .stderr(std::process::Stdio::piped())
+            .output();
+        let probe_ok = matches!(&probe, Ok(o) if o.status.success());
+        if !probe_ok {
+            let why = probe
+                .map(|o| {
+                    let err = String::from_utf8_lossy(&o.stderr).trim().to_string();
+                    if err.is_empty() {
+                        format!("退出码 {}", o.status.code().unwrap_or(-1))
+                    } else {
+                        err
+                    }
+                })
+                .unwrap_or_else(|e| e.to_string());
+            fail(
+                &mut steps,
+                "定位 pk",
+                format!(
+                    "本机 pk 在 sshd 默认 PATH 语境不可执行（{why}）：pk 通道回连经 authorized_keys \
+                     forced command 以最小环境执行，node 脚本形态需 wrapper 落位或 node 在默认 PATH——\
+                     重跑本开通自动落 wrapper；仍失败请确认 node 安装路径"
+                ),
+            );
+            return report_of(steps, None);
+        }
+        pk_detail.push_str("（sshd 最小 PATH 语境可用）");
     }
     steps.push(SetupStep {
         name: "定位 pk".into(),
@@ -511,7 +551,9 @@ pub fn run_setup(ctx: &RemotePkSetup) -> SetupReport {
         r.ok = true;
         return r;
     }
-    let hint = if out.contains("refused") {
+    let hint = if out.contains("env: node") {
+        "回连已通但本机 pk 为 node 脚本形态、sshd 默认 PATH 无 node：重跑本开通自动落 wrapper；仍失败请把 node 所在目录写入 ~/.zshenv 或装到系统路径"
+    } else if out.contains("refused") {
         "隧道端口未通（本步自动建立临时隧道，失败多为 sshd 仅监听 IPv6 或被安全软件拦截）"
     } else if out.to_lowercase().contains("permission denied") && !out.contains("(publickey") {
         // 回连与认证都已成功，是本机登录 shell 执行 pk 失败（空占位 / 缺执行位 / 磁盘 noexec）
@@ -1364,6 +1406,108 @@ mod tests {
         ctx.step_timeout = Duration::from_secs(60);
         let (ok, out) = ssh_run(&ctx, &[], "exec \"$SHELL\" -lc 'command -v pk'", None);
         assert!(ok, "{out}");
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// ssh_run 失败分支收编 ai::failure_detail（#127 复盘债务）：stderr 只剩良性 -R
+    /// 告警时失败详情带回 stdout 片段——真因不再被良性警告独占（现场形态）
+    #[test]
+    fn ssh_run_failure_detail_surfaces_stdout_when_stderr_benign() {
+        use std::os::unix::fs::PermissionsExt;
+        let dir = std::env::temp_dir().join(format!("pk-ssh-detail-{}", std::process::id()));
+        let home = dir.join("home");
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&home).unwrap();
+        let (ssh, keyscan) = fake_bins(&dir);
+        let fake = dir.join("benign-ssh.sh");
+        std::fs::write(
+            &fake,
+            "#!/bin/sh\necho 'Warning: remote port forwarding failed for listen port 10022' >&2\necho 'Not logged in'\nexit 1\n",
+        )
+        .unwrap();
+        std::fs::set_permissions(&fake, std::fs::Permissions::from_mode(0o755)).unwrap();
+        let mut ctx = ctx_with(&dir, &home, &ssh, &keyscan);
+        ctx.ssh_program = fake.to_string_lossy().into_owned();
+        let (ok, out) = ssh_run(&ctx, &[], "true", None);
+        assert!(!ok);
+        assert!(
+            out.contains("Warning: remote port forwarding failed"),
+            "{out}"
+        );
+        assert!(out.contains("；stdout：Not logged in"), "{out}");
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// step1 sshd 语境预检：pk 在默认 PATH 语境不可执行（env: node 形态）时第一步
+    /// 即失败并给 wrapper 迁移指引——原本要等第 9 步端到端才暴露且被 -R 良性告警掩盖
+    #[cfg(unix)]
+    #[test]
+    fn run_setup_step1_preflight_rejects_minimal_path_unreachable_pk() {
+        use std::os::unix::fs::PermissionsExt;
+        let dir = std::env::temp_dir().join(format!("pk-setup-preflight-{}", std::process::id()));
+        let home = dir.join("home");
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&home).unwrap();
+        let (ssh, keyscan) = fake_bins(&dir);
+        let ctx = ctx_with(&dir, &home, &ssh, &keyscan);
+        // 真实形态是裸 mjs 的 env-node shebang 在默认 PATH 下 127；以 PATH 标记构造
+        // 确定性失败（不依赖测试机是否恰有 /usr/bin/node），错误文案按真实形态模拟
+        std::fs::write(
+            &ctx.pk_path,
+            "#!/bin/sh\ncase \":$PATH:\" in *\":/pky-marker:\"*) exit 0;; *) echo \"env: node: No such file or directory\" >&2; exit 127;; esac\n",
+        )
+        .unwrap();
+        std::fs::set_permissions(
+            std::path::Path::new(&ctx.pk_path),
+            std::fs::Permissions::from_mode(0o755),
+        )
+        .unwrap();
+        let report = run_setup(&ctx);
+        assert!(!report.ok);
+        assert_eq!(report.steps.len(), 1, "停在第一步: {:?}", report.steps);
+        let locate = &report.steps[0];
+        assert_eq!(locate.status, "fail");
+        assert!(
+            locate.detail.contains("sshd 默认 PATH"),
+            "{}",
+            locate.detail
+        );
+        assert!(locate.detail.contains("env: node"), "{}", locate.detail);
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// 端到端失败带 env: node → hint 指向 wrapper 迁移而非隧道问题（TS verifyHint 同构）
+    #[cfg(unix)]
+    #[test]
+    fn run_setup_env_node_hint_points_to_wrapper() {
+        use std::os::unix::fs::PermissionsExt;
+        let dir = std::env::temp_dir().join(format!("pk-setup-envnode-{}", std::process::id()));
+        let home = dir.join("home");
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&home).unwrap();
+        let (_, keyscan) = fake_bins(&dir);
+        let ssh = dir.join("envnode-ssh.sh");
+        std::fs::write(
+            &ssh,
+            "#!/bin/sh\nfor last; do :; done\ncase \"$last\" in\n  *'pk --version'*) echo 'env: node: No such file or directory' >&2; exit 127;;\n  *'command -v pk'*) echo /home/u/.local/bin/pk; exit 0;;\nesac\ncat > /dev/null\nexit 0\n",
+        )
+        .unwrap();
+        std::fs::set_permissions(&ssh, std::fs::Permissions::from_mode(0o755)).unwrap();
+        let ssh: String = ssh.to_string_lossy().into_owned();
+        let ctx = ctx_with(&dir, &home, &ssh, &keyscan);
+        let report = run_setup(&ctx);
+        assert!(!report.ok);
+        let verify = report
+            .steps
+            .iter()
+            .find(|s| s.name == "端到端验证")
+            .unwrap();
+        assert_eq!(verify.status, "fail");
+        assert!(
+            verify.detail.contains("重跑本开通自动落 wrapper"),
+            "{}",
+            verify.detail
+        );
         let _ = std::fs::remove_dir_all(&dir);
     }
 }

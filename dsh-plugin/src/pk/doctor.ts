@@ -6,7 +6,8 @@
  * open_db（那会直接失败），逐项检查并汇报。
  */
 import { spawnSync } from "node:child_process";
-import { existsSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
+import { fileURLToPath } from "node:url";
 import { DatabaseSync } from "node:sqlite";
 import type { Conn } from "../host/storage/db";
 import { MAX_SCHEMA } from "../host/storage/migrate";
@@ -15,6 +16,7 @@ import { sshBin } from "./ssh";
 import { defaultDbPath } from "./cli";
 import { pkVersion } from "./help";
 import { runContext } from "./context";
+import { SSHD_DEFAULT_PATH } from "./preflight";
 
 interface DoctorCheck {
   name: string;
@@ -67,6 +69,7 @@ export function doctorReport(
     }
   }
   checks.push(runtimeCheck());
+  checks.push(placementCheck());
   checks.push(...skillDoctorChecks());
   if (sshTarget !== undefined && sshTarget !== "") {
     checks.push(remoteDoctorCheck(sshTarget));
@@ -189,6 +192,46 @@ function runtimeCheck(): DoctorCheck {
     "warn",
     `node v${process.versions.node} 低于 22（node:sqlite 不可用，数据面命令将失败）`,
     "升级 node 至 22 及以上",
+  );
+}
+
+/**
+ * TS 增补项：本机落位体检（Rust 版 pk 自包含二进制无此项）。落位形态可读 provenance
+ * 标记（wrapper 头注释）；判定以 sshd 默认 PATH 语境真跑一次 --version——pk 通道回连
+ * 由 authorized_keys forced command 以最小环境执行，裸 node 脚本形态该语境必失败
+ * （env: node，真机实测），wrapper 内嵌 node 绝对路径后免疫。
+ * 目标由 import.meta.url 推导（去 .mjs 的 wrapper 兄弟；在场即生产落位形态）——
+ * pk bundle 零平台面依赖（依赖图纯度红线），不 import host 侧路径模块
+ */
+function placementCheck(): DoctorCheck {
+  const self = fileURLToPath(import.meta.url);
+  const wrapper = self.endsWith(".mjs") ? self.slice(0, -".mjs".length) : self;
+  if (!existsSync(wrapper)) {
+    return check(
+      "placement",
+      "warn",
+      "pk 以 bundle 直跑（未见 wrapper 落位形态），sshd 语境体检跳过",
+      "生产路径经落位 wrapper（~/.choose-you/bin/pk）运行时体检生效；宿主任意 pk 命令会自动落位",
+    );
+  }
+  const text = readFileSync(wrapper, "utf8");
+  const marker = text.split("\n").find((l) => l.includes("pky-pk-wrapper"));
+  const form =
+    marker === undefined ? "wrapper（无 provenance 标记——旧生成物）" : `wrapper（${marker.replace("# ", "")}）`;
+  const probe = spawnSync(wrapper, ["--version"], {
+    encoding: "utf8",
+    env: { PATH: SSHD_DEFAULT_PATH },
+    timeout: 15_000,
+  });
+  if (probe.status === 0) {
+    return check("placement", "ok", `落位 wrapper 在场，sshd 默认 PATH 语境可执行（${form}）`);
+  }
+  const why = (probe.stderr ?? "").trim() || `退出码 ${probe.status ?? -1}`;
+  return check(
+    "placement",
+    "fail",
+    `落位 wrapper 在场但 sshd 默认 PATH 语境不可执行（${form}；${why}）`,
+    "重跑 pk 通道开通（自动迁移 wrapper 落位）；仍失败请把 node 所在目录写入 ~/.zshenv 或装到系统路径",
   );
 }
 
