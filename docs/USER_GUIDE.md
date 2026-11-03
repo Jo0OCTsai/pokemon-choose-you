@@ -26,7 +26,7 @@
 
 - **macOS**：双击 `.dmg`，将应用拖入「应用程序」。首次打开若提示"无法验证开发者"，在「系统设置 → 隐私与安全性」点击「仍要打开」
 - **Windows**：运行 NSIS 安装包（`.exe`），按向导完成安装
-- **Linux**（实验性）：`.deb` / `.rpm` 用包管理器安装，或下载 `.AppImage` 加执行权限后直接运行（`chmod +x pokemon-choose-you_*.AppImage && ./pokemon-choose-you_*.AppImage`）。注意：桌宠窗口需 X11（Wayland 下置顶不可靠）；NVIDIA 显卡若白屏/黑块，启动前 `export WEBKIT_DISABLE_DMABUF_RENDERER=1`
+- **Linux**（实验性）：`.deb` 用包管理器安装，或下载 `.AppImage` 加执行权限后直接运行（`chmod +x pokemon-choose-you_*.AppImage && ./pokemon-choose-you_*.AppImage`）。注意：桌宠窗口需 X11（Wayland 下置顶不可靠）；NVIDIA 显卡若白屏/黑块，启动前 `export WEBKIT_DISABLE_DMABUF_RENDERER=1`
 
 ### 首次启动
 

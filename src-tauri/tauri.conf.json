@@ -47,8 +47,7 @@
       "nsis",
       "dmg",
       "appimage",
-      "deb",
-      "rpm"
+      "deb"
     ],
     "createUpdaterArtifacts": true,
     "icon": [
