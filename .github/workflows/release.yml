@@ -114,7 +114,7 @@ jobs:
             |---|---|---|
             | macOS (Intel + Apple Silicon) | `.dmg` | 带固定自签证书（稳定身份，辅助功能授权跨版本存活）；非 Apple 公证，首次打开需 Gatekeeper「仍要打开」 |
             | Windows | `.exe` (NSIS) | SmartScreen「更多信息 → 仍要运行」 |
-            | Linux | `.AppImage` / `.deb` / `.rpm` | 实验性：置顶需 X11；NVIDIA 白屏设 `WEBKIT_DISABLE_DMABUF_RENDERER=1`；仅 AppImage 支持自动更新 |
+            | Linux | `.AppImage` / `.deb` | 实验性：置顶需 X11；NVIDIA 白屏设 `WEBKIT_DISABLE_DMABUF_RENDERER=1`；仅 AppImage 支持自动更新（`.rpm` 因 tauri 2.12 rpm-rs 0.30 对同名 cargo bin + sidecar 的重复条目校验暂撤，上游修复后恢复） |
             | dsh 插件形态 | `pokemon-choose-you-dsh-<插件版本>.tgz` | `dsh plugin --profile <name> add <本资产链接>` 直装；`pokemon-choose-you-dsh.tgz` 为固定名副本，`releases/latest/download/` 稳定链接永远装最新版（详见仓库 docs/USER_GUIDE.md「dsh 插件形态」） |
 
             macOS 包为自签证书（非 Apple 官方签名/公证，详见仓库 SECURITY.md）；Windows 包未做 OS 代码签名。更新包均经 minisign 签名校验。
