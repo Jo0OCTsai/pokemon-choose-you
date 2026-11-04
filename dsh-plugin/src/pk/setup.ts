@@ -12,6 +12,7 @@ import { keyscanLocal, sshRun, type SshCtx } from "./ssh";
 import { assembleAuthorizedKeys } from "./authorized-keys";
 import { shimScript, toKnownHostsLines, verifyRemoteLine } from "./shim";
 import { clientAliveStep } from "./client-alive";
+import { sshdCtxPreflight } from "./preflight";
 
 export const DEFAULT_TUNNEL_PORT = 10022;
 
@@ -100,6 +101,11 @@ function stepLocatePk(ctx: SetupCtx, steps: SetupStep[]): boolean {
       return fail(`${ctx.pkPath} 无执行权限且自动补权失败，请手动 chmod +x`);
     }
   }
+  const pre = sshdCtxPreflight(ctx.pkPath);
+  if (pre.fail !== undefined) {
+    return fail(pre.fail);
+  }
+  detail += pre.suffix ?? "";
   steps.push({ name: "定位 pk", status: "ok", detail: `${ctx.pkPath}${detail}` });
   return true;
 }
@@ -278,6 +284,9 @@ function stepVerify(ctx: SetupCtx, steps: SetupStep[]): SetupReport {
 
 /** 端到端失败的修复建议（verify_remote_line 的 hint 分支同构） */
 function verifyHint(out: string): string {
+  if (out.includes("env: node")) {
+    return "回连已通但本机 pk 为 node 脚本形态、sshd 默认 PATH 无 node：重跑本开通自动落 wrapper；仍失败请把 node 所在目录写入 ~/.zshenv 或装到系统路径";
+  }
   if (out.includes("refused")) {
     return "隧道端口未通（本步自动建立临时隧道，失败多为 sshd 仅监听 IPv6 或被安全软件拦截）";
   }

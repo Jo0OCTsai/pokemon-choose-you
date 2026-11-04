@@ -5,11 +5,15 @@
 import { chmodSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { runSetup, type SetupCtx, type SetupReport } from "../src/pk/setup";
 import { classifyClientAlive } from "../src/pk/client-alive";
 import { defaultCtx } from "../src/pk/setup-ctx";
 import { authorizedEntry } from "../src/pk/authorized-keys";
+
+// 本文件全是 spawn 密集型 e2e（假 ssh/keyscan/keygen + step1 的 sshd 语境预检真跑
+// 一次子进程）——全量并发跑时默认 5s 不够，文件级放宽
+vi.setConfig({ testTimeout: 20_000 });
 
 const cleanup: string[] = [];
 afterEach(() => {
@@ -93,6 +97,34 @@ function ctxOf(fake: FakeBin, over: Partial<SetupCtx> = {}): SetupCtx {
 }
 
 const PUB_LINE = "ssh-ed25519 AAAAFAKEPUBKEY pk-setup-test";
+
+/** 覆写假 pk：sshd 默认 PATH 语境必败形态（真实场景是裸 mjs 的 env-node shebang 在
+ * 默认 PATH 下 127；以 PATH 标记构造确定性失败，不依赖测试机是否恰有 /usr/bin/node） */
+function writeMinimalPathUnreachablePk(fake: FakeBin): void {
+  writeFileSync(
+    fake.pkPath,
+    '#!/bin/sh\ncase ":$PATH:" in *":/pky-marker:"*) exit 0;; *) echo "env: node: No such file or directory" >&2; exit 127;; esac\n',
+  );
+  chmodSync(fake.pkPath, 0o755);
+}
+
+/** 覆写假 ssh：端到端验证步（带 -R）回传 env: node 退出 127，其余应答照旧 */
+function writeEnvNodeVerifySsh(fake: FakeBin): void {
+  writeFileSync(
+    join(fake.binDir, "ssh"),
+    `#!/bin/sh
+line="$*"
+case "$line" in
+  *"pk --version"*) echo "env: node: No such file or directory" >&2; exit 127;;
+  *"command -v pk"*) echo ${JSON.stringify(JSON.stringify(fake.pkPath))}; exit 0;;
+  *clientaliveinterval*) echo "clientaliveinterval 15"; exit 0;;
+esac
+cat > /dev/null
+exit 0
+`,
+  );
+  chmodSync(join(fake.binDir, "ssh"), 0o755);
+}
 const SETUP_STEP_NAMES = [
   "定位 pk",
   "本机 sshd",
@@ -197,6 +229,29 @@ describe("run_setup 失败路径（假程序注入）", () => {
     expect(report.ok).toBe(false);
     expect(report.steps[0]).toMatchObject({ name: "定位 pk", status: "fail" });
     expect(report.steps[0].detail).toContain("空占位");
+  });
+
+  it("sshd 最小 PATH 语境不可执行（env: node 形态）：第一步失败并给 wrapper 迁移指引", () => {
+    const fake = makeFakeBin();
+    writeMinimalPathUnreachablePk(fake);
+    const report = runSetup(ctxOf(fake));
+    expect(report.ok).toBe(false);
+    expect(report.steps).toHaveLength(1);
+    expect(report.steps[0]).toMatchObject({ name: "定位 pk", status: "fail" });
+    expect(report.steps[0].detail).toContain("sshd 默认 PATH");
+    expect(report.steps[0].detail).toContain("env: node");
+    expect(report.steps[0].detail).toContain("wrapper");
+  });
+
+  it("端到端失败带 env: node → hint 指向 wrapper 迁移而非隧道问题", () => {
+    const fake = makeFakeBin();
+    writeEnvNodeVerifySsh(fake);
+    const report = runSetup(ctxOf(fake));
+    expect(report.ok).toBe(false);
+    const verify = report.steps.find((s) => s.name === "端到端验证")!;
+    expect(verify.status).toBe("fail");
+    expect(verify.detail).toContain("env: node");
+    expect(verify.detail).toContain("重跑本开通自动落 wrapper");
   });
 });
 

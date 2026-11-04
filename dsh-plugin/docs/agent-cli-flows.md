@@ -113,9 +113,11 @@ alias 改名级联 `ai_agents.deployment`。
 
 **目的**：agent 跑在远程、待办库在本机——让远端 `pk` 命令经 ssh 反向隧道安全地写回本机
 SQLite。入口：部署向导「开通 pk 通道」→ host 命令 `deploymentSetupPk`
-（`dsh-plugin/src/host/commands/remoteCommands.ts:185-202`）→ 宿主先把 vendor pk 落位本机
-（`ensureLocalPk`：`vendor/pk-<triple>` → `<appHome>/bin/pk`，sha256 漂移重拷，
-`pkLocal.ts:80-97`），再 spawn `pk remote setup`（超时 3 分钟，`PK_LOG_FILE` 指向共享日志，
+（`dsh-plugin/src/host/commands/remoteCommands.ts:185-202`）→ 宿主先把 pk 落位本机
+（`ensureLocalPk`：包内 `dist/pk.mjs` → `<appHome>/bin/pk`（sh wrapper，内嵌 node 绝对
+路径——sshd forced command 跑在默认 PATH（无 Homebrew/nvm），裸 env-node shebang 该语境
+`env: node` 必失败）+ 同目录 `<appHome>/bin/pk.mjs`；stat 缓存 + 内容比对漂移重写，
+`pkLocal.ts`），再 spawn `pk remote setup`（超时 3 分钟，`PK_LOG_FILE` 指向共享日志，
 `dsh-plugin/src/host/dsh/pkSetup.ts:59-78`）。
 
 pk 内部九步幂等序列（`src-tauri/src/commands/remote_pk.rs:242-527`）：

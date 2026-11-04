@@ -236,8 +236,9 @@ fn spawn_error(program: &str, e: std::io::Error) -> AppError {
 /// 失败详情的流选择：stderr 优先；stderr 为空或全是 Warning: 开头的良性警告时
 /// （ssh 远程调用的按需 -R 绑不上端口仅告警，见 invocation.rs——常驻隧道占着远程端口）
 /// 真实失败原因常在 stdout（qodercli 的 "Not logged in" 打在 stdout），一并带回，
-/// 避免良性警告成为错误信息里的唯一线索、误导排障方向
-fn failure_detail(stderr: &[u8], stdout: &[u8]) -> String {
+/// 避免良性警告成为错误信息里的唯一线索、误导排障方向。
+/// commands/remote_pk.rs 的 ssh_run 同款消费（#127 复盘的 debt 收编——单源共享）
+pub fn failure_detail(stderr: &[u8], stdout: &[u8]) -> String {
     let stderr = String::from_utf8_lossy(stderr);
     let stderr = stderr.trim();
     let stdout = String::from_utf8_lossy(stdout);
