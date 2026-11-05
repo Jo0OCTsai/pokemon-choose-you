@@ -4,13 +4,13 @@
  * keygen 注入）、authorized_keys 四形态收口、__ssh_entry 端到端（spawn bundle）。
  */
 import { spawnSync } from "node:child_process";
-import { mkdtempSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
+import { chmodSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeAll, describe, expect, it } from "vitest";
 import { shimScript, toKnownHostsLines } from "../src/pk/shim";
 import { authorizedEntry } from "../src/pk/authorized-keys";
-import { parseForcedCommand, sameProgram, shlexSplit } from "../src/pk/remote";
+import { parseForcedCommand, sameProgram, setupArgsOf, shlexSplit } from "../src/pk/remote";
 import { buildPkBundle } from "./pk/testBundle";
 
 const cleanup: string[] = [];
@@ -94,6 +94,40 @@ describe("程序等价：wrapper 形态（拆件——控上方 describe 行数�
     expect(sameProgram(wrapper, selfScript)).toBe(true);
     expect(parseForcedCommand(`env ${wrapper} version`, selfScript).args).toEqual(["version"]);
     expect(sameProgram(join(dir, "other.mjs"), wrapper)).toBe(false);
+  });
+});
+
+describe("setupArgsOf 缺省 pk 定位（wrapper exec node 语境回归）", () => {
+  it("argv[1]=pk.mjs → 同目录 wrapper（sshd 最小 PATH 语境可执行形态）", () => {
+    const dir = mkdtempSync(join(tmpdir(), "pk-argv-"));
+    cleanup.push(dir);
+    const wrapper = join(dir, "pk");
+    writeFileSync(wrapper, "#!/bin/sh\n");
+    chmodSync(wrapper, 0o755);
+    const mjs = join(dir, "pk.mjs");
+    writeFileSync(mjs, "// bundle\n");
+    const origArgv = process.argv;
+    process.argv = [origArgv[0], mjs, "remote", "setup"];
+    try {
+      expect(setupArgsOf(["--host", "dev"]).pkPath).toBe(wrapper);
+      // wrapper 无执行位 → 不虚构不可执行形态，保持 pk.mjs
+      chmodSync(wrapper, 0o644);
+      expect(setupArgsOf(["--host", "dev"]).pkPath).toBe(mjs);
+      // 显式 --pk-path 恒优先
+      expect(setupArgsOf(["--host", "dev", "--pk-path", "/opt/x/pk"]).pkPath).toBe("/opt/x/pk");
+    } finally {
+      process.argv = origArgv;
+    }
+  });
+
+  it("argv[1] 无 .mjs 后缀（Rust/裸形态）原样直用", () => {
+    const origArgv = process.argv;
+    process.argv = [origArgv[0], "/usr/local/bin/pk", "remote", "setup"];
+    try {
+      expect(setupArgsOf(["--host", "dev"]).pkPath).toBe("/usr/local/bin/pk");
+    } finally {
+      process.argv = origArgv;
+    }
   });
 });
 

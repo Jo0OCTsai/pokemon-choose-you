@@ -8,7 +8,7 @@ import { resolve } from "node:path";
 import { spawnSync } from "node:child_process";
 import { CliError, flag, parseArgs, usageErr } from "./cli";
 import { DEFAULT_TUNNEL_PORT, runSetup } from "./setup";
-import { defaultCtx } from "./setup-ctx";
+import { defaultCtx, defaultPkPath } from "./setup-ctx";
 import { appHome, DATA_SUBDIR } from "../host/storage/paths";
 
 /** POSIX 单引号引用（sh 脚本内嵌用户值：host / 密钥路径；sh_quote 同构） */
@@ -108,7 +108,7 @@ interface SetupArgs {
 }
 
 /** setup 旗标解析（端口/超时数字校验；缺省 = 隧道 10022 / pk 自身 / 数据目录 / 60s） */
-function setupArgsOf(rest: readonly string[]): SetupArgs {
+export function setupArgsOf(rest: readonly string[]): SetupArgs {
   const p = parseArgs(rest);
   const host = flag(p, "host");
   if (host === undefined || host === "") {
@@ -121,12 +121,12 @@ function setupArgsOf(rest: readonly string[]): SetupArgs {
     if (!Number.isInteger(n) || n <= 0 || n > max) throw usageErr(`${what}必须是端口号数字`);
     return n;
   };
-  // pk-path 缺省 = 本 pk 自身（bundle/落位脚本的绝对路径）
+  // pk-path 缺省 = 本 pk 自身（bundle/落位脚本；wrapper 语境取同目录可执行形态）
   const home = appHome();
   return {
     host,
     tunnelPort: portOf("tunnel-port", DEFAULT_TUNNEL_PORT, "--tunnel-port ", 65535),
-    pkPath: flag(p, "pk-path") || resolve(process.argv[1] ?? "pk"),
+    pkPath: flag(p, "pk-path") || defaultPkPath(resolve(process.argv[1] ?? "pk")),
     keyDir: flag(p, "key-dir") || (home ? `${home}/${DATA_SUBDIR}` : process.cwd()),
     localUser: flag(p, "local-user") || undefined,
     timeoutSecs: (() => {
